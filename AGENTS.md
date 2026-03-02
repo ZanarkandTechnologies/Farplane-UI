@@ -1,4 +1,4 @@
-# Fahrenheit AGENTS
+# AGENTS
 
 This file is loaded every loop. Keep it operational and concise.
 

@@ -52,4 +52,4 @@ Define how Shell Company maps OpenClaw runtime state into gamified UI models wit
 - Adapter layer resolves agent roster from OpenClaw state.
 - Adapter layer resolves session list per agent.
 - UI can render session timeline from transcript-derived events.
-- No dependence on deleted Fahrenheit gateway/config codepaths.
+- No dependence on deleted legacy gateway/config codepaths.

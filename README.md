@@ -91,6 +91,11 @@ Typical local flow:
    - `openclaw plugins list`
    - `openclaw plugins info <plugin-id>`
 
+Detailed SC06 setup runbook:
+
+- `docs/how-to/sc06-kanban-notion-setup.md`
+- `docs/how-to/notion-comment-hook-contract.md`
+
 ## Current Focus
 
 - Keep and improve office/game visualization.

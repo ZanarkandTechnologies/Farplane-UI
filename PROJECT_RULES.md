@@ -1,4 +1,4 @@
-# Project Rules: Fahrenheit
+# Project Rules: ShellCorp
 
 This file defines project-specific technical rules, stack details, and execution conventions.
 
