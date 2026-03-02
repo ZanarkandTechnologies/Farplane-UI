@@ -24,6 +24,9 @@ type NotionAccountConfig = {
   wakeWords?: string[];
 };
 
+const TASK_METHOD_DEPRECATION_NOTE =
+  "Deprecated for active onboarding: prefer comments-first webhook flow + skills for task operations.";
+
 function normalizePageId(input: string): string | null {
   const compact = input.trim().replace(/-/g, "");
   if (!/^[0-9a-fA-F]{32}$/.test(compact)) return null;
@@ -84,6 +87,78 @@ async function updatePageStatus(
   }
 
   return { ok: false, reason: "status_property_not_found" };
+}
+
+function extractPageTitle(properties: Record<string, unknown>): string {
+  for (const [name, value] of Object.entries(properties)) {
+    if (!/title/i.test(name)) continue;
+    const row = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+    const titleEntries = Array.isArray(row.title) ? row.title : [];
+    const text = titleEntries
+      .map((item) => {
+        if (!item || typeof item !== "object") return "";
+        const chunk = item as Record<string, unknown>;
+        return typeof chunk.plain_text === "string" ? chunk.plain_text : "";
+      })
+      .join("")
+      .trim();
+    if (text) return text;
+  }
+  return "Untitled";
+}
+
+function extractStatusValue(properties: Record<string, unknown>): string {
+  for (const [name, value] of Object.entries(properties)) {
+    if (!/status|state/i.test(name)) continue;
+    const row = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+    const statusObj = row.status && typeof row.status === "object" ? (row.status as Record<string, unknown>) : null;
+    if (statusObj && typeof statusObj.name === "string" && statusObj.name.trim()) return statusObj.name;
+    const selectObj = row.select && typeof row.select === "object" ? (row.select as Record<string, unknown>) : null;
+    if (selectObj && typeof selectObj.name === "string" && selectObj.name.trim()) return selectObj.name;
+  }
+  return "To Do";
+}
+
+function normalizeTaskStatus(input: string): "todo" | "in_progress" | "blocked" | "done" {
+  const value = input.toLowerCase().trim();
+  if (value.includes("progress") || value === "doing") return "in_progress";
+  if (value.includes("block")) return "blocked";
+  if (value.includes("done") || value.includes("complete")) return "done";
+  return "todo";
+}
+
+function toNotionStatus(input: "todo" | "in_progress" | "blocked" | "done"): string {
+  if (input === "in_progress") return "In Progress";
+  if (input === "blocked") return "Blocked";
+  if (input === "done") return "Done";
+  return "To Do";
+}
+
+async function listDatabaseTasks(client: Client, databaseId: string): Promise<Array<Record<string, unknown>>> {
+  const response = (await client.databases.query({
+    database_id: databaseId,
+    page_size: 100,
+  } as never)) as unknown as { results?: Array<Record<string, unknown>> };
+  const rows = Array.isArray(response.results) ? response.results : [];
+  return rows
+    .map((row) => {
+      const id = typeof row.id === "string" ? row.id : "";
+      const url = typeof row.url === "string" ? row.url : "";
+      const properties = row.properties && typeof row.properties === "object" ? (row.properties as Record<string, unknown>) : {};
+      const title = extractPageTitle(properties);
+      const status = normalizeTaskStatus(extractStatusValue(properties));
+      if (!id) return null;
+      return {
+        taskId: id,
+        providerTaskId: id,
+        title,
+        status,
+        provider: "notion",
+        canonicalProvider: "notion",
+        providerUrl: url,
+      } satisfies Record<string, unknown>;
+    })
+    .filter((row): row is Record<string, unknown> => row !== null);
 }
 
 export default function register(api: any): void {
@@ -185,6 +260,189 @@ export default function register(api: any): void {
       respond(true, { sources });
     } catch (error) {
       respond(false, { error: error instanceof Error ? error.message : "sources_list_failed" });
+    }
+  });
+
+  api.registerGatewayMethod(`${pluginId}.tasks.list`, async ({ params, config, respond }: any) => {
+    try {
+      const accountId = typeof params?.accountId === "string" ? params.accountId : "default";
+      const databaseId = String(params?.databaseId ?? "").trim();
+      if (!databaseId) {
+        respond(false, { error: "database_id_required" });
+        return;
+      }
+      const account = getAccount(config as Json, accountId);
+      if (!account.apiKey) {
+        respond(false, { error: "notion_api_key_missing" });
+        return;
+      }
+      const client = new Client({ auth: account.apiKey });
+      const tasks = await listDatabaseTasks(client, databaseId);
+      respond(true, {
+        tasks,
+        provider: "notion",
+        databaseId,
+        deprecated: true,
+        deprecationNote: TASK_METHOD_DEPRECATION_NOTE,
+      });
+    } catch (error) {
+      respond(false, { error: error instanceof Error ? error.message : "tasks_list_failed" });
+    }
+  });
+
+  api.registerGatewayMethod(`${pluginId}.tasks.create`, async ({ params, config, respond }: any) => {
+    try {
+      const accountId = typeof params?.accountId === "string" ? params.accountId : "default";
+      const databaseId = String(params?.databaseId ?? "").trim();
+      const title = String(params?.title ?? "").trim();
+      const status = normalizeTaskStatus(String(params?.status ?? "todo"));
+      if (!databaseId || !title) {
+        respond(false, { error: "database_id_and_title_required" });
+        return;
+      }
+      const account = getAccount(config as Json, accountId);
+      if (!account.apiKey) {
+        respond(false, { error: "notion_api_key_missing" });
+        return;
+      }
+      const client = new Client({ auth: account.apiKey });
+      const created = (await client.pages.create({
+        parent: { database_id: databaseId },
+        properties: {
+          Name: {
+            title: [
+              {
+                type: "text",
+                text: { content: title },
+              },
+            ],
+          },
+          Status: {
+            status: { name: toNotionStatus(status) },
+          },
+        },
+      } as never)) as unknown as { id?: string; url?: string };
+      respond(true, {
+        task: {
+          taskId: String(created.id ?? ""),
+          providerTaskId: String(created.id ?? ""),
+          title,
+          status,
+          provider: "notion",
+          canonicalProvider: "notion",
+          providerUrl: String(created.url ?? ""),
+        },
+        deprecated: true,
+        deprecationNote: TASK_METHOD_DEPRECATION_NOTE,
+      });
+    } catch (error) {
+      respond(false, { error: error instanceof Error ? error.message : "task_create_failed" });
+    }
+  });
+
+  api.registerGatewayMethod(`${pluginId}.tasks.update`, async ({ params, config, respond }: any) => {
+    try {
+      const accountId = typeof params?.accountId === "string" ? params.accountId : "default";
+      const taskId = String(params?.taskId ?? params?.pageId ?? "").trim();
+      const status = typeof params?.updates?.status === "string" ? normalizeTaskStatus(params.updates.status) : undefined;
+      if (!taskId) {
+        respond(false, { error: "task_id_required" });
+        return;
+      }
+      const account = getAccount(config as Json, accountId);
+      if (!account.apiKey) {
+        respond(false, { error: "notion_api_key_missing" });
+        return;
+      }
+      const client = new Client({ auth: account.apiKey });
+      if (status) {
+        const result = await updatePageStatus(client, taskId, toNotionStatus(status));
+        if (!result.ok) {
+          respond(false, { error: result.reason ?? "task_update_failed" });
+          return;
+        }
+      }
+      respond(true, { ok: true, taskId, deprecated: true, deprecationNote: TASK_METHOD_DEPRECATION_NOTE });
+    } catch (error) {
+      respond(false, { error: error instanceof Error ? error.message : "task_update_failed" });
+    }
+  });
+
+  api.registerGatewayMethod(`${pluginId}.tasks.sync`, async ({ params, config, respond }: any) => {
+    try {
+      const accountId = typeof params?.accountId === "string" ? params.accountId : "default";
+      const databaseId = String(params?.databaseId ?? "").trim();
+      if (!databaseId) {
+        respond(true, {
+          ok: true,
+          synced: 0,
+          reason: "database_id_missing_skip",
+          deprecated: true,
+          deprecationNote: TASK_METHOD_DEPRECATION_NOTE,
+        });
+        return;
+      }
+      const account = getAccount(config as Json, accountId);
+      if (!account.apiKey) {
+        respond(false, { error: "notion_api_key_missing" });
+        return;
+      }
+      const client = new Client({ auth: account.apiKey });
+      const tasks = await listDatabaseTasks(client, databaseId);
+      respond(true, {
+        ok: true,
+        synced: tasks.length,
+        tasks,
+        deprecated: true,
+        deprecationNote: TASK_METHOD_DEPRECATION_NOTE,
+      });
+    } catch (error) {
+      respond(false, { error: error instanceof Error ? error.message : "task_sync_failed" });
+    }
+  });
+
+  api.registerGatewayMethod(`${pluginId}.profile.bootstrap`, async ({ params, config, respond }: any) => {
+    try {
+      const accountId = typeof params?.accountId === "string" ? params.accountId : "default";
+      const databaseId = String(params?.databaseId ?? "").trim();
+      if (!databaseId) {
+        respond(false, { error: "database_id_required" });
+        return;
+      }
+      const account = getAccount(config as Json, accountId);
+      if (!account.apiKey) {
+        respond(false, { error: "notion_api_key_missing" });
+        return;
+      }
+      const client = new Client({ auth: account.apiKey });
+      const database = (await client.databases.retrieve({ database_id: databaseId } as never)) as unknown as {
+        title?: Array<{ plain_text?: string }>;
+        properties?: Record<string, { type?: string; select?: { options?: Array<{ name?: string }> }; status?: { options?: Array<{ name?: string }> } }>;
+      };
+      const fields = Object.entries(database.properties ?? {}).map(([name, value]) => ({
+        name,
+        type: String(value?.type ?? "unknown"),
+        options:
+          Array.isArray(value?.select?.options)
+            ? value.select.options.map((option) => String(option.name ?? "")).filter(Boolean)
+            : Array.isArray(value?.status?.options)
+              ? value.status.options.map((option) => String(option.name ?? "")).filter(Boolean)
+              : undefined,
+      }));
+      const entityName =
+        Array.isArray(database.title) && database.title.length > 0
+          ? database.title.map((entry) => String(entry.plain_text ?? "")).join("").trim() || databaseId
+          : databaseId;
+      respond(true, {
+        profile: {
+          provider: "notion",
+          entityId: databaseId,
+          entityName,
+          fieldMappings: fields,
+        },
+      });
+    } catch (error) {
+      respond(false, { error: error instanceof Error ? error.message : "profile_bootstrap_failed" });
     }
   });
 }

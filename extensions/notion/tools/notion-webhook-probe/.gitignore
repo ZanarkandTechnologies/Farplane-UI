@@ -1,0 +1,4 @@
+.venv/
+payloads/*.json
+
+__pycache__/

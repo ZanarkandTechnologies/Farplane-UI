@@ -38,12 +38,26 @@ interface TeamPanelProps {
   globalMode?: boolean;
 }
 
+type KanbanProviderFilter = "all" | "internal" | "notion" | "vibe" | "linear";
+
+type PanelTask = {
+  id: string;
+  title: string;
+  status: "todo" | "in_progress" | "blocked" | "done";
+  ownerAgentId?: string;
+  priority: string;
+  provider: "internal" | "notion" | "vibe" | "linear";
+  providerUrl?: string;
+  syncState: "healthy" | "pending" | "conflict" | "error";
+  syncError?: string;
+};
+
 function deriveProjectId(teamId: string | null): string | null {
   if (!teamId) return null;
   return teamId.startsWith("team-") ? teamId.replace(/^team-/, "") : null;
 }
 
-function statusColumns(tasks: Array<{ id: string; title: string; status: "todo" | "in_progress" | "blocked" | "done"; ownerAgentId?: string; priority: string }>): Record<"todo" | "in_progress" | "blocked" | "done", Array<{ id: string; title: string; status: "todo" | "in_progress" | "blocked" | "done"; ownerAgentId?: string; priority: string }>> {
+function statusColumns(tasks: PanelTask[]): Record<"todo" | "in_progress" | "blocked" | "done", PanelTask[]> {
   return {
     todo: tasks.filter((task) => task.status === "todo"),
     in_progress: tasks.filter((task) => task.status === "in_progress"),
@@ -60,12 +74,27 @@ export function TeamPanel({
   focusAgentId = null,
   globalMode = false,
 }: TeamPanelProps) {
-  const { teams, employees, companyModel, workload } = useOfficeDataContext();
+  const {
+    teams,
+    employees,
+    companyModel,
+    workload,
+    manualResync,
+    upsertFederationPolicy,
+    upsertProviderIndexProfile,
+    bootstrapNotionProfile,
+  } =
+    useOfficeDataContext();
   const setHighlightedEmployeeIds = useAppStore((state) => state.setHighlightedEmployeeIds);
   const highlightedEmployeeIds = useAppStore((state) => state.highlightedEmployeeIds);
   const selectedProjectId = useAppStore((state) => state.selectedProjectId);
   const setSelectedProjectId = useAppStore((state) => state.setSelectedProjectId);
   const [activeTab, setActiveTab] = useState<"overview" | "kanban" | "projects" | "communications">(initialTab);
+  const [providerFilter, setProviderFilter] = useState<KanbanProviderFilter>("all");
+  const [resyncState, setResyncState] = useState<{ pending: boolean; error?: string }>({ pending: false });
+  const [notionDatabaseId, setNotionDatabaseId] = useState("");
+  const [namingPrefix, setNamingPrefix] = useState("");
+  const [profileState, setProfileState] = useState<{ pending: boolean; message?: string }>({ pending: false });
 
   const team = useMemo(() => {
     if (!teamId || globalMode) return null;
@@ -96,10 +125,23 @@ export function TeamPanel({
         status: task.status,
         ownerAgentId: task.ownerAgentId,
         priority: task.priority,
+        provider: task.provider,
+        providerUrl: task.providerUrl,
+        syncState: task.syncState,
+        syncError: task.syncError,
       }));
   }, [companyModel, globalMode, project]);
 
-  const visibleTasks = focusAgentId ? projectTasks.filter((task) => task.ownerAgentId === focusAgentId) : projectTasks;
+  const policy = useMemo(() => {
+    if (!project?.id || !companyModel) return null;
+    return companyModel.federationPolicies.find((entry) => entry.projectId === project.id) ?? null;
+  }, [companyModel, project?.id]);
+
+  const visibleTasks = useMemo(() => {
+    const scopedByAgent = focusAgentId ? projectTasks.filter((task) => task.ownerAgentId === focusAgentId) : projectTasks;
+    if (providerFilter === "all") return scopedByAgent;
+    return scopedByAgent.filter((task) => task.provider === providerFilter);
+  }, [focusAgentId, projectTasks, providerFilter]);
   const columns = statusColumns(visibleTasks);
   const summary = workload.find((entry) => entry.projectId === (project?.id ?? projectId ?? ""));
   const panelTitle = globalMode ? "All Teams" : team?.name ?? "Team";
@@ -114,7 +156,67 @@ export function TeamPanel({
     setSelectedProjectId(companyModel.projects[0].id);
   }, [companyModel?.projects, globalMode, isOpen, selectedProjectId, setSelectedProjectId]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    setProviderFilter("all");
+    setResyncState({ pending: false });
+  }, [isOpen, project?.id]);
+
   if (!globalMode && !team) return null;
+
+  async function handleManualResync(): Promise<void> {
+    if (!project?.id) return;
+    setResyncState({ pending: true });
+    const targetProvider = providerFilter === "all" ? undefined : providerFilter;
+    const result = await manualResync(project.id, targetProvider);
+    setResyncState({ pending: false, error: result.ok ? undefined : result.error ?? "manual_resync_failed" });
+  }
+
+  async function handleSavePolicy(nextCanonical: "internal" | "notion" | "vibe" | "linear"): Promise<void> {
+    if (!project?.id) return;
+    await upsertFederationPolicy({
+      projectId: project.id,
+      canonicalProvider: nextCanonical,
+      mirrors: policy?.mirrors ?? [],
+      writeBackEnabled: policy?.writeBackEnabled ?? false,
+      conflictPolicy: policy?.conflictPolicy ?? "canonical_wins",
+    });
+  }
+
+  async function handleCreateNotionProfile(): Promise<void> {
+    if (!project?.id || !notionDatabaseId.trim()) return;
+    setProfileState({ pending: true });
+    const bootstrap = await bootstrapNotionProfile(project.id, notionDatabaseId.trim(), namingPrefix.trim() || undefined);
+    if (!bootstrap.ok) {
+      // Fallback to manual profile entry when bootstrap endpoint is unavailable.
+      const profileId = `${project.id}:notion:${notionDatabaseId.trim()}`;
+      const fallback = await upsertProviderIndexProfile({
+        profileId,
+        projectId: project.id,
+        provider: "notion",
+        entityId: notionDatabaseId.trim(),
+        entityName: `Notion ${notionDatabaseId.trim().slice(0, 8)}`,
+        toolNamingPrefix: namingPrefix.trim() ? namingPrefix.trim() : undefined,
+        fetchCommandHints: ["notion-shell.tasks.list", "notion-shell.tasks.sync", "notion-shell.profile.bootstrap"],
+        fieldMappings: [
+          { name: "Name", type: "title", description: "Task title in Notion database." },
+          { name: "Status", type: "status", description: "Maps to todo/in_progress/blocked/done." },
+          { name: "Priority", type: "select", description: "Maps to low/medium/high." },
+        ],
+        schemaVersion: `profile-${Date.now()}`,
+        updatedAt: Date.now(),
+      });
+      setProfileState({
+        pending: false,
+        message: fallback.ok ? "Notion profile saved with fallback mapping." : fallback.error ?? "profile_save_failed",
+      });
+      return;
+    }
+    setProfileState({
+      pending: false,
+      message: "Notion profile bootstrapped and saved for tool generation.",
+    });
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -232,6 +334,35 @@ export function TeamPanel({
                 Showing tasks owned by `{focusAgentId}` in this panel scope.
               </div>
             ) : null}
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border bg-muted/20 p-2">
+              <label className="text-xs text-muted-foreground">Provider</label>
+              <select
+                className="rounded-md border bg-background px-2 py-1 text-xs"
+                value={providerFilter}
+                onChange={(event) => setProviderFilter(event.target.value as KanbanProviderFilter)}
+              >
+                <option value="all">all</option>
+                <option value="internal">internal</option>
+                <option value="notion">notion</option>
+                <option value="vibe">vibe</option>
+                <option value="linear">linear</option>
+              </select>
+              <label className="text-xs text-muted-foreground">Canonical</label>
+              <select
+                className="rounded-md border bg-background px-2 py-1 text-xs"
+                value={policy?.canonicalProvider ?? "internal"}
+                onChange={(event) => void handleSavePolicy(event.target.value as "internal" | "notion" | "vibe" | "linear")}
+              >
+                <option value="internal">internal</option>
+                <option value="notion">notion</option>
+                <option value="vibe">vibe</option>
+                <option value="linear">linear</option>
+              </select>
+              <Button size="sm" variant="outline" onClick={() => void handleManualResync()} disabled={resyncState.pending}>
+                {resyncState.pending ? "Resyncing..." : "Manual Resync"}
+              </Button>
+              {resyncState.error ? <span className="text-xs text-red-500">{resyncState.error}</span> : null}
+            </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {(["todo", "in_progress", "blocked", "done"] as const).map((status) => (
                 <Card key={status}>
@@ -243,10 +374,42 @@ export function TeamPanel({
                   <CardContent className="space-y-2">
                     {columns[status].map((task) => (
                       <div key={task.id} className="rounded-md border p-2 text-sm">
-                        <p>{task.title}</p>
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <p className="truncate">{task.title}</p>
+                          <Badge variant="outline" className="text-[10px] uppercase">
+                            {task.provider}
+                          </Badge>
+                        </div>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {task.ownerAgentId ?? "unassigned"} · {task.priority}
                         </p>
+                        <div className="mt-1 flex items-center gap-2">
+                          <Badge
+                            variant={
+                              task.syncState === "healthy"
+                                ? "secondary"
+                                : task.syncState === "pending"
+                                  ? "outline"
+                                  : task.syncState === "conflict"
+                                    ? "default"
+                                    : "destructive"
+                            }
+                            className="text-[10px]"
+                          >
+                            {task.syncState}
+                          </Badge>
+                          {task.providerUrl ? (
+                            <a
+                              href={task.providerUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] text-primary underline-offset-2 hover:underline"
+                            >
+                              Open
+                            </a>
+                          ) : null}
+                        </div>
+                        {task.syncError ? <p className="mt-1 text-[10px] text-red-500">{task.syncError}</p> : null}
                       </div>
                     ))}
                     {columns[status].length === 0 ? <p className="text-xs text-muted-foreground">No tasks.</p> : null}
@@ -275,6 +438,41 @@ export function TeamPanel({
                     </Badge>
                   ))}
                   {(project?.kpis ?? []).length === 0 ? <span className="text-xs text-muted-foreground">No KPI keys configured.</span> : null}
+                </div>
+                <div className="mt-4 rounded-md border p-3">
+                  <p className="text-sm font-medium">Notion Provider Profile</p>
+                  <p className="text-xs text-muted-foreground">
+                    Save workspace-specific mapping hints so generated tools stay deterministic.
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <input
+                      className="rounded-md border bg-background px-2 py-1 text-xs"
+                      placeholder="Notion database id"
+                      value={notionDatabaseId}
+                      onChange={(event) => setNotionDatabaseId(event.target.value)}
+                    />
+                    <input
+                      className="rounded-md border bg-background px-2 py-1 text-xs"
+                      placeholder="Tool prefix (optional)"
+                      value={namingPrefix}
+                      onChange={(event) => setNamingPrefix(event.target.value)}
+                    />
+                    <Button size="sm" variant="outline" onClick={() => void handleCreateNotionProfile()} disabled={profileState.pending}>
+                      {profileState.pending ? "Saving..." : "Save Profile"}
+                    </Button>
+                  </div>
+                  {profileState.message ? <p className="mt-2 text-xs text-muted-foreground">{profileState.message}</p> : null}
+                  {companyModel?.providerIndexProfiles?.length ? (
+                    <div className="mt-2 space-y-1">
+                      {companyModel.providerIndexProfiles
+                        .filter((entry) => entry.projectId === (project?.id ?? ""))
+                        .map((entry) => (
+                          <div key={entry.profileId} className="rounded border p-2 text-xs">
+                            {entry.provider}:{entry.entityId} · {entry.schemaVersion}
+                          </div>
+                        ))}
+                    </div>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
