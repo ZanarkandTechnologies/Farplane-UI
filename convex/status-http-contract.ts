@@ -1,0 +1,76 @@
+/**
+ * STATUS HTTP CONTRACT
+ * ====================
+ * Shared HTTP payload parsing for status ingest/report endpoints.
+ */
+
+export type ParsedIngestPayload = {
+  agentId: string;
+  eventType: string;
+  label: string;
+  detail?: string;
+  state?: string;
+  skillId?: string;
+  source?: string;
+  stepKey?: string;
+  sessionKey?: string;
+  beatId?: string;
+  occurredAt?: number;
+};
+
+export type ParsedStatusReportPayload = {
+  agentId: string;
+  state: string;
+  statusText: string;
+  stepKey: string;
+  skillId?: string;
+  sessionKey?: string;
+  source?: string;
+  occurredAt?: number;
+};
+
+function asTrimmedString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function parseIngestPayload(body: unknown): ParsedIngestPayload | null {
+  if (!body || typeof body !== "object") return null;
+  const row = body as Record<string, unknown>;
+  const agentId = asTrimmedString(row.agentId);
+  const eventType = asTrimmedString(row.eventType);
+  const label = asTrimmedString(row.label);
+  if (!agentId || !eventType || !label) return null;
+  return {
+    agentId,
+    eventType,
+    label,
+    detail: typeof row.detail === "string" ? row.detail : undefined,
+    state: typeof row.state === "string" ? row.state : undefined,
+    skillId: typeof row.skillId === "string" ? row.skillId : undefined,
+    source: typeof row.source === "string" ? row.source : undefined,
+    stepKey: typeof row.stepKey === "string" ? row.stepKey : undefined,
+    sessionKey: typeof row.sessionKey === "string" ? row.sessionKey : undefined,
+    beatId: typeof row.beatId === "string" ? row.beatId : undefined,
+    occurredAt: typeof row.occurredAt === "number" ? row.occurredAt : undefined,
+  };
+}
+
+export function parseStatusReportPayload(body: unknown): ParsedStatusReportPayload | null {
+  if (!body || typeof body !== "object") return null;
+  const row = body as Record<string, unknown>;
+  const agentId = asTrimmedString(row.agentId);
+  const state = asTrimmedString(row.state);
+  const statusText = asTrimmedString(row.statusText);
+  const stepKey = asTrimmedString(row.stepKey);
+  if (!agentId || !state || !statusText || !stepKey) return null;
+  return {
+    agentId,
+    state,
+    statusText,
+    stepKey,
+    skillId: typeof row.skillId === "string" ? row.skillId : undefined,
+    sessionKey: typeof row.sessionKey === "string" ? row.sessionKey : undefined,
+    source: typeof row.source === "string" ? row.source : undefined,
+    occurredAt: typeof row.occurredAt === "number" ? row.occurredAt : undefined,
+  };
+}

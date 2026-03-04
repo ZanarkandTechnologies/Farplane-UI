@@ -1,0 +1,54 @@
+import { describe, expect, it } from "vitest";
+import { parseIngestPayload, parseStatusReportPayload } from "./status-http-contract";
+
+describe("status-http-contract", () => {
+  it("parses valid ingest payload", () => {
+    const parsed = parseIngestPayload({
+      agentId: "main",
+      eventType: "status_report",
+      label: "planning",
+      detail: "Reviewing backlog",
+    });
+    expect(parsed).toEqual({
+      agentId: "main",
+      eventType: "status_report",
+      label: "planning",
+      detail: "Reviewing backlog",
+      state: undefined,
+      skillId: undefined,
+      source: undefined,
+      stepKey: undefined,
+      sessionKey: undefined,
+      beatId: undefined,
+      occurredAt: undefined,
+    });
+  });
+
+  it("rejects ingest payload missing required fields", () => {
+    expect(parseIngestPayload({ agentId: "main", label: "x" })).toBeNull();
+  });
+
+  it("parses valid status report payload", () => {
+    const parsed = parseStatusReportPayload({
+      agentId: "main",
+      state: "executing",
+      statusText: "Running distribution",
+      stepKey: "main-step-1",
+    });
+    expect(parsed?.agentId).toBe("main");
+    expect(parsed?.state).toBe("executing");
+    expect(parsed?.statusText).toBe("Running distribution");
+    expect(parsed?.stepKey).toBe("main-step-1");
+  });
+
+  it("rejects status report payload with blank stepKey", () => {
+    expect(
+      parseStatusReportPayload({
+        agentId: "main",
+        state: "planning",
+        statusText: "Planning",
+        stepKey: "   ",
+      }),
+    ).toBeNull();
+  });
+});
