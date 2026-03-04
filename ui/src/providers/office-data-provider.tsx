@@ -195,7 +195,7 @@ function toOfficeData(
   const companyAgentsById = new Map(companyModel.agents.map((agent) => [agent.agentId, agent]));
   const projectToTeamId = new Map<string, string>();
   const teams: TeamData[] = [];
-  const projectList = companyModel.projects ?? [];
+  const projectList = (companyModel.projects ?? []).filter((project) => project.status !== "archived");
   const companyAgents = companyModel.agents ?? [];
   const teamClusterAnchorsByTeamId = new Map<string, [number, number, number]>();
   for (const object of sidecarObjects.filter((entry) => entry.meshType === "team-cluster")) {
@@ -255,7 +255,7 @@ function toOfficeData(
         companyId,
         name: project.name,
         description: `${project.goal} | open=${summary?.openTickets ?? 0} closed=${summary?.closedTickets ?? 0}`,
-        deskCount: Math.max(projectAgents.length, 3),
+        deskCount: Math.max(projectAgents.length, 1),
         clusterPosition,
         employees: projectAgents.map((agent) => `employee-${agent.agentId}`),
         businessType: project.businessConfig?.type,
@@ -285,14 +285,14 @@ function toOfficeData(
       companyId,
       name: "OpenClaw Ops",
       description: "Agents discovered from OpenClaw state.",
-      deskCount: Math.max(agents.length, 3),
+      deskCount: Math.max(agents.length, 1),
       clusterPosition: [0, 0, 8],
       employees: agents.map((agent) => `employee-${agent.agentId}`),
     });
   }
 
   const desks: DeskLayoutData[] = teams.flatMap((team) =>
-    Array.from({ length: team.name === "Management" ? Math.max(team.deskCount ?? 1, 1) : Math.max(team.deskCount ?? 0, 3) }, (_, deskIndex) => ({
+    Array.from({ length: team.name === "Management" ? Math.max(team.deskCount ?? 1, 1) : Math.max(team.deskCount ?? 0, 1) }, (_, deskIndex) => ({
       id: `desk-${team._id}-${deskIndex}`,
       deskIndex,
       team: team.name,
@@ -309,7 +309,7 @@ function toOfficeData(
   >();
   for (const team of teams) {
     const normalizedDesks = desks
-      .filter((desk) => desk.team === team.name)
+      .filter((desk) => desk.id.startsWith(`desk-${team._id}-`))
       .map((desk, originalIndex) => ({
         desk,
         originalIndex,

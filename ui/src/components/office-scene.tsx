@@ -300,7 +300,7 @@ const SceneContents = ({
 
     // Find CEO desk (Management team) and calculate its position dynamically
     const ceoDeskData = useMemo(() => {
-        const ceoDesk = desks.find((d) => d.team === 'Management' || d.id === 'ceo-desk');
+        const ceoDesk = desks.find((d) => d.id.startsWith('desk-team-management-') || d.id === 'ceo-desk');
         if (!ceoDesk) return null;
 
         // Find Management team to get cluster position
@@ -308,7 +308,7 @@ const SceneContents = ({
         if (!managementTeam) return null;
 
         // Get all Management team desks to calculate total count
-        const managementDesks = desks.filter(d => d.team === 'Management');
+        const managementDesks = desks.filter(d => d.id.startsWith('desk-team-management-'));
         const clusterPosition = managementTeam.clusterPosition || ceoAnchorFromGlassWalls;
 
         // Calculate position dynamically (relative to cluster position)
@@ -407,7 +407,7 @@ const SceneContents = ({
                 case 'team-cluster':
                     // Team clusters need special handling with teams/desks data
                     const team = teams.find(t => t._id === obj.metadata?.teamId);
-                    const teamDesks = desks.filter(d => d.team === team?.name);
+                    const teamDesks = desks.filter(d => team ? d.id.startsWith(`desk-${team._id}-`) : false);
 
                     if (!team) return null;
 
