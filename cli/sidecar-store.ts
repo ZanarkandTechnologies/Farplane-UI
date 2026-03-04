@@ -21,10 +21,97 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 export type JsonObject = Record<string, unknown>;
 
 export type ProjectStatus = "active" | "paused" | "archived";
-export type AgentRole = "ceo" | "builder" | "growth_marketer" | "pm";
+export type AgentRole = "ceo" | "builder" | "growth_marketer" | "pm" | "biz_pm" | "biz_executor";
 export type AgentLifecycleState = "active" | "idle" | "pending_spawn" | "retired";
 export type SpawnPolicy = "queue_pressure" | "manual";
 export type OfficeStylePreset = "default" | "pixel" | "brutalist" | "cozy";
+export type CapabilityCategory = "measure" | "execute" | "distribute";
+export type LedgerEntryType = "revenue" | "cost";
+export type ExperimentStatus = "running" | "completed" | "failed";
+export type ResourceType = "cash_budget" | "api_quota" | "distribution_slots" | "custom";
+export type ResourceEventKind = "refresh" | "consumption" | "adjustment";
+export type ResourceLowBehavior = "warn" | "deprioritize_expensive_tasks" | "ask_pm_review";
+
+export interface CapabilitySlotModel {
+  skillId: string;
+  category: CapabilityCategory;
+  config: Record<string, string>;
+}
+
+export interface BusinessConfigModel {
+  type: string;
+  slots: {
+    measure: CapabilitySlotModel;
+    execute: CapabilitySlotModel;
+    distribute: CapabilitySlotModel;
+  };
+}
+
+export interface LedgerEntryModel {
+  id: string;
+  projectId: string;
+  timestamp: string;
+  type: LedgerEntryType;
+  amount: number;
+  currency: string;
+  source: string;
+  description: string;
+  experimentId?: string;
+}
+
+export interface ExperimentModel {
+  id: string;
+  projectId: string;
+  hypothesis: string;
+  status: ExperimentStatus;
+  startedAt: string;
+  endedAt?: string;
+  results?: string;
+  metricsBefore?: Record<string, number>;
+  metricsAfter?: Record<string, number>;
+}
+
+export interface MetricEventModel {
+  id: string;
+  projectId: string;
+  timestamp: string;
+  source: string;
+  metrics: Record<string, number>;
+}
+
+export interface ResourcePolicyModel {
+  advisoryOnly: true;
+  softLimit?: number;
+  hardLimit?: number;
+  whenLow: ResourceLowBehavior;
+}
+
+export interface ProjectResourceModel {
+  id: string;
+  projectId: string;
+  type: ResourceType;
+  name: string;
+  unit: string;
+  remaining: number;
+  limit: number;
+  reserved?: number;
+  trackerSkillId: string;
+  refreshCadenceMinutes?: number;
+  policy: ResourcePolicyModel;
+  metadata?: Record<string, string>;
+}
+
+export interface ResourceEventModel {
+  id: string;
+  projectId: string;
+  resourceId: string;
+  ts: string;
+  kind: ResourceEventKind;
+  delta: number;
+  remainingAfter: number;
+  source: string;
+  note?: string;
+}
 
 export interface DepartmentModel {
   id: string;
@@ -41,6 +128,12 @@ export interface ProjectModel {
   status: ProjectStatus;
   goal: string;
   kpis: string[];
+  businessConfig?: BusinessConfigModel;
+  ledger: LedgerEntryModel[];
+  experiments: ExperimentModel[];
+  metricEvents: MetricEventModel[];
+  resources: ProjectResourceModel[];
+  resourceEvents: ResourceEventModel[];
 }
 
 export interface CompanyAgentModel {
@@ -117,7 +210,14 @@ function normalizeProjectStatus(value: unknown): ProjectStatus {
 
 function normalizeAgentRole(value: unknown): AgentRole {
   const text = asString(value, "builder");
-  if (text === "ceo" || text === "builder" || text === "growth_marketer" || text === "pm") {
+  if (
+    text === "ceo" ||
+    text === "builder" ||
+    text === "growth_marketer" ||
+    text === "pm" ||
+    text === "biz_pm" ||
+    text === "biz_executor"
+  ) {
     return text;
   }
   return "builder";
@@ -133,11 +233,85 @@ function normalizeSpawnPolicy(value: unknown): SpawnPolicy {
   return value === "manual" ? "manual" : "queue_pressure";
 }
 
+function normalizeCapabilityCategory(value: unknown): CapabilityCategory {
+  if (value === "measure" || value === "execute" || value === "distribute") return value;
+  return "measure";
+}
+
+function normalizeStringRecord(value: unknown): Record<string, string> {
+  const row = asObject(value);
+  const out: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(row)) {
+    if (typeof raw === "string") out[key] = raw;
+  }
+  return out;
+}
+
+function normalizeCapabilitySlot(value: unknown, fallback: CapabilityCategory): CapabilitySlotModel {
+  const row = asObject(value);
+  const skillId = asString(row.skillId).trim();
+  return {
+    skillId: skillId || `${fallback}-skill`,
+    category: normalizeCapabilityCategory(row.category ?? fallback),
+    config: normalizeStringRecord(row.config),
+  };
+}
+
+function normalizeBusinessConfig(value: unknown): BusinessConfigModel | undefined {
+  const row = asObject(value);
+  const type = asString(row.type).trim();
+  if (!type) return undefined;
+  const slots = asObject(row.slots);
+  return {
+    type,
+    slots: {
+      measure: normalizeCapabilitySlot(slots.measure, "measure"),
+      execute: normalizeCapabilitySlot(slots.execute, "execute"),
+      distribute: normalizeCapabilitySlot(slots.distribute, "distribute"),
+    },
+  };
+}
+
+function normalizeNumberRecord(value: unknown): Record<string, number> | undefined {
+  const row = asObject(value);
+  const out: Record<string, number> = {};
+  for (const [key, raw] of Object.entries(row)) {
+    if (typeof raw === "number" && Number.isFinite(raw)) out[key] = raw;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function normalizeLedgerType(value: unknown): LedgerEntryType {
+  return value === "revenue" ? "revenue" : "cost";
+}
+
+function normalizeExperimentStatus(value: unknown): ExperimentStatus {
+  if (value === "completed" || value === "failed") return value;
+  return "running";
+}
+
 function normalizeOfficeStylePreset(value: unknown): OfficeStylePreset | undefined {
   if (value === "default" || value === "pixel" || value === "brutalist" || value === "cozy") {
     return value;
   }
   return undefined;
+}
+
+function normalizeResourceType(value: unknown): ResourceType {
+  if (value === "cash_budget" || value === "api_quota" || value === "distribution_slots" || value === "custom") {
+    return value;
+  }
+  return "custom";
+}
+
+function normalizeResourceEventKind(value: unknown): ResourceEventKind {
+  if (value === "refresh" || value === "consumption") return value;
+  return "adjustment";
+}
+
+function normalizeResourceLowBehavior(value: unknown): ResourceLowBehavior {
+  if (value === "deprioritize_expensive_tasks" || value === "ask_pm_review") return value;
+  return "warn";
 }
 
 function normalizeCompanyModel(input: unknown): CompanyModel {
@@ -174,6 +348,152 @@ function normalizeCompanyModel(input: unknown): CompanyModel {
             status: normalizeProjectStatus(obj.status),
             goal: asString(obj.goal),
             kpis: asStringArray(obj.kpis),
+            ...(normalizeBusinessConfig(obj.businessConfig) ? { businessConfig: normalizeBusinessConfig(obj.businessConfig) } : {}),
+            ledger: Array.isArray(obj.ledger)
+              ? obj.ledger
+                  .map((ledgerRow) => {
+                    const ledgerObj = asObject(ledgerRow);
+                    const ledgerId = asString(ledgerObj.id).trim();
+                    const projectId = asString(ledgerObj.projectId).trim() || id;
+                    const timestamp = asString(ledgerObj.timestamp).trim();
+                    const source = asString(ledgerObj.source).trim();
+                    const description = asString(ledgerObj.description).trim();
+                    if (!ledgerId || !timestamp || !source || !description) return null;
+                    const currency = asString(ledgerObj.currency).trim() || "USD";
+                    const amount = asNumber(ledgerObj.amount, 0);
+                    return {
+                      id: ledgerId,
+                      projectId,
+                      timestamp,
+                      type: normalizeLedgerType(ledgerObj.type),
+                      amount: Number.isFinite(amount) ? amount : 0,
+                      currency,
+                      source,
+                      description,
+                      ...(asString(ledgerObj.experimentId).trim()
+                        ? { experimentId: asString(ledgerObj.experimentId).trim() }
+                        : {}),
+                    } satisfies LedgerEntryModel;
+                  })
+                  .filter((entry): entry is LedgerEntryModel => entry !== null)
+              : [],
+            experiments: Array.isArray(obj.experiments)
+              ? obj.experiments
+                  .map((experimentRow) => {
+                    const experimentObj = asObject(experimentRow);
+                    const experimentId = asString(experimentObj.id).trim();
+                    const projectId = asString(experimentObj.projectId).trim() || id;
+                    const hypothesis = asString(experimentObj.hypothesis).trim();
+                    const startedAt = asString(experimentObj.startedAt).trim();
+                    if (!experimentId || !hypothesis || !startedAt) return null;
+                    const endedAt = asString(experimentObj.endedAt).trim();
+                    const results = asString(experimentObj.results).trim();
+                    return {
+                      id: experimentId,
+                      projectId,
+                      hypothesis,
+                      status: normalizeExperimentStatus(experimentObj.status),
+                      startedAt,
+                      ...(endedAt ? { endedAt } : {}),
+                      ...(results ? { results } : {}),
+                      ...(normalizeNumberRecord(experimentObj.metricsBefore)
+                        ? { metricsBefore: normalizeNumberRecord(experimentObj.metricsBefore) }
+                        : {}),
+                      ...(normalizeNumberRecord(experimentObj.metricsAfter)
+                        ? { metricsAfter: normalizeNumberRecord(experimentObj.metricsAfter) }
+                        : {}),
+                    } satisfies ExperimentModel;
+                  })
+                  .filter((entry): entry is ExperimentModel => entry !== null)
+              : [],
+            metricEvents: Array.isArray(obj.metricEvents)
+              ? obj.metricEvents
+                  .map((eventRow) => {
+                    const eventObj = asObject(eventRow);
+                    const eventId = asString(eventObj.id).trim();
+                    const projectId = asString(eventObj.projectId).trim() || id;
+                    const timestamp = asString(eventObj.timestamp).trim();
+                    const source = asString(eventObj.source).trim();
+                    const metrics = normalizeNumberRecord(eventObj.metrics);
+                    if (!eventId || !timestamp || !source || !metrics) return null;
+                    return {
+                      id: eventId,
+                      projectId,
+                      timestamp,
+                      source,
+                      metrics,
+                    } satisfies MetricEventModel;
+                  })
+                  .filter((entry): entry is MetricEventModel => entry !== null)
+              : [],
+            resources: Array.isArray(obj.resources)
+              ? obj.resources
+                  .map((resourceRow) => {
+                    const resourceObj = asObject(resourceRow);
+                    const resourceId = asString(resourceObj.id).trim();
+                    const projectId = asString(resourceObj.projectId).trim() || id;
+                    const name = asString(resourceObj.name).trim();
+                    const unit = asString(resourceObj.unit).trim();
+                    const trackerSkillId = asString(resourceObj.trackerSkillId).trim();
+                    if (!resourceId || !name || !unit || !trackerSkillId) return null;
+                    const remaining = asNumber(resourceObj.remaining, 0);
+                    const limit = asNumber(resourceObj.limit, 0);
+                    const reserved = asNumber(resourceObj.reserved, Number.NaN);
+                    const refreshCadenceMinutes = asNumber(resourceObj.refreshCadenceMinutes, Number.NaN);
+                    const policyObj = asObject(resourceObj.policy);
+                    const metadata = normalizeStringRecord(resourceObj.metadata);
+                    return {
+                      id: resourceId,
+                      projectId,
+                      type: normalizeResourceType(resourceObj.type),
+                      name,
+                      unit,
+                      remaining,
+                      limit,
+                      ...(Number.isFinite(reserved) ? { reserved } : {}),
+                      trackerSkillId,
+                      ...(Number.isFinite(refreshCadenceMinutes)
+                        ? { refreshCadenceMinutes: Math.max(1, Math.floor(refreshCadenceMinutes)) }
+                        : {}),
+                      policy: {
+                        advisoryOnly: true,
+                        ...(Number.isFinite(asNumber(policyObj.softLimit, Number.NaN))
+                          ? { softLimit: asNumber(policyObj.softLimit, 0) }
+                          : {}),
+                        ...(Number.isFinite(asNumber(policyObj.hardLimit, Number.NaN))
+                          ? { hardLimit: asNumber(policyObj.hardLimit, 0) }
+                          : {}),
+                        whenLow: normalizeResourceLowBehavior(policyObj.whenLow),
+                      },
+                      ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+                    } satisfies ProjectResourceModel;
+                  })
+                  .filter((entry): entry is ProjectResourceModel => entry !== null)
+              : [],
+            resourceEvents: Array.isArray(obj.resourceEvents)
+              ? obj.resourceEvents
+                  .map((eventRow) => {
+                    const eventObj = asObject(eventRow);
+                    const eventId = asString(eventObj.id).trim();
+                    const projectId = asString(eventObj.projectId).trim() || id;
+                    const resourceId = asString(eventObj.resourceId).trim();
+                    const ts = asString(eventObj.ts).trim();
+                    const source = asString(eventObj.source).trim();
+                    if (!eventId || !resourceId || !ts || !source) return null;
+                    return {
+                      id: eventId,
+                      projectId,
+                      resourceId,
+                      ts,
+                      kind: normalizeResourceEventKind(eventObj.kind),
+                      delta: asNumber(eventObj.delta, 0),
+                      remainingAfter: asNumber(eventObj.remainingAfter, 0),
+                      source,
+                      ...(asString(eventObj.note).trim() ? { note: asString(eventObj.note).trim() } : {}),
+                    } satisfies ResourceEventModel;
+                  })
+                  .filter((entry): entry is ResourceEventModel => entry !== null)
+              : [],
           } satisfies ProjectModel;
         })
         .filter((entry): entry is ProjectModel => entry !== null)
@@ -293,10 +613,13 @@ async function writeJsonAtomic(filePath: string, payload: unknown): Promise<void
 export interface SidecarStore {
   companyPath: string;
   officeObjectsPath: string;
+  openclawConfigPath: string;
   readCompanyModel: () => Promise<CompanyModel>;
   writeCompanyModel: (model: CompanyModel) => Promise<void>;
   readOfficeObjects: () => Promise<OfficeObjectModel[]>;
   writeOfficeObjects: (objects: OfficeObjectModel[]) => Promise<void>;
+  readOpenclawConfig: () => Promise<JsonObject>;
+  writeOpenclawConfig: (config: JsonObject) => Promise<void>;
   readOfficeStylePreset: () => Promise<OfficeStylePreset>;
   writeOfficeStylePreset: (preset: OfficeStylePreset) => Promise<void>;
 }
@@ -321,13 +644,17 @@ export function createSidecarStore(): SidecarStore {
   const openclawHome = resolveOpenclawHome();
   const companyPath = path.join(openclawHome, "company.json");
   const officeObjectsPath = path.join(openclawHome, "office-objects.json");
+  const openclawConfigPath = path.join(openclawHome, "openclaw.json");
   return {
     companyPath,
     officeObjectsPath,
+    openclawConfigPath,
     readCompanyModel: async () => normalizeCompanyModel(await readJsonFile(companyPath, {})),
     writeCompanyModel: async (model) => writeJsonAtomic(companyPath, normalizeCompanyModel(model)),
     readOfficeObjects: async () => normalizeOfficeObjects(await readJsonFile(officeObjectsPath, [])),
     writeOfficeObjects: async (objects) => writeJsonAtomic(officeObjectsPath, normalizeOfficeObjects(objects)),
+    readOpenclawConfig: async () => asObject(await readJsonFile(openclawConfigPath, {})),
+    writeOpenclawConfig: async (config) => writeJsonAtomic(openclawConfigPath, asObject(config)),
     readOfficeStylePreset: async () => {
       const company = normalizeCompanyModel(await readJsonFile(companyPath, {}));
       return company.officeStylePreset ?? "default";

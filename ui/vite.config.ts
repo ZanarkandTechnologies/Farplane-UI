@@ -569,6 +569,67 @@ function defaultBusinessConfig(
   } satisfies JsonObject;
 }
 
+function defaultProjectResources(projectId: string): JsonObject[] {
+  return [
+    {
+      id: `${projectId}:cash`,
+      projectId,
+      type: "cash_budget",
+      name: "Cash Budget",
+      unit: "usd_cents",
+      remaining: 5000,
+      limit: 5000,
+      reserved: 0,
+      trackerSkillId: "resource-cash-tracker",
+      refreshCadenceMinutes: 15,
+      policy: {
+        advisoryOnly: true,
+        softLimit: 1500,
+        hardLimit: 0,
+        whenLow: "deprioritize_expensive_tasks",
+      },
+      metadata: { currency: "USD" },
+    } satisfies JsonObject,
+    {
+      id: `${projectId}:api`,
+      projectId,
+      type: "api_quota",
+      name: "API Quota",
+      unit: "requests",
+      remaining: 1000,
+      limit: 1000,
+      reserved: 0,
+      trackerSkillId: "resource-api-quota-tracker",
+      refreshCadenceMinutes: 15,
+      policy: {
+        advisoryOnly: true,
+        softLimit: 200,
+        hardLimit: 0,
+        whenLow: "warn",
+      },
+    } satisfies JsonObject,
+    {
+      id: `${projectId}:distribution`,
+      projectId,
+      type: "distribution_slots",
+      name: "Distribution Slots",
+      unit: "posts_per_day",
+      remaining: 10,
+      limit: 10,
+      reserved: 0,
+      trackerSkillId: "resource-distribution-tracker",
+      refreshCadenceMinutes: 60,
+      policy: {
+        advisoryOnly: true,
+        softLimit: 2,
+        hardLimit: 0,
+        whenLow: "ask_pm_review",
+      },
+      metadata: { platform: "tiktok" },
+    } satisfies JsonObject,
+  ];
+}
+
 function ensureBusinessHeartbeatProfiles(company: JsonObject): JsonObject {
   const heartbeatProfiles = Array.isArray(company.heartbeatProfiles) ? [...company.heartbeatProfiles] : [];
   const hasBizPm = heartbeatProfiles.some(
@@ -640,6 +701,92 @@ async function upsertBusinessCronJobsBridge(projectId: string, agentIds: string[
   }
   await mkdir(path.dirname(CRON_JOBS_PATH), { recursive: true });
   await writeFile(CRON_JOBS_PATH, `${JSON.stringify([...jobsById.values()], null, 2)}\n`, "utf-8");
+}
+
+function resourcesSnapshot(project: JsonObject): string {
+  const resources = Array.isArray(project.resources) ? (project.resources as JsonObject[]) : [];
+  if (resources.length === 0) return "none";
+  return resources
+    .map((resource) => {
+      const name = String(resource.name ?? "resource");
+      const remaining = Number(resource.remaining ?? 0);
+      const limit = Number(resource.limit ?? 0);
+      const unit = String(resource.unit ?? "units");
+      return `${name}=${remaining}/${limit} ${unit}`;
+    })
+    .join(" | ");
+}
+
+function resourceAdvisories(project: JsonObject): string {
+  const resources = Array.isArray(project.resources) ? (project.resources as JsonObject[]) : [];
+  const advisories: string[] = [];
+  for (const resource of resources) {
+    const policy = resource.policy && typeof resource.policy === "object" ? (resource.policy as JsonObject) : {};
+    const name = String(resource.name ?? "resource");
+    const remaining = Number(resource.remaining ?? 0);
+    const softLimit = Number(policy.softLimit ?? Number.NaN);
+    const hardLimit = Number(policy.hardLimit ?? Number.NaN);
+    const whenLow = String(policy.whenLow ?? "warn");
+    if (Number.isFinite(hardLimit) && remaining <= hardLimit) {
+      advisories.push(`${name}: hard-limit reached -> ${whenLow}`);
+      continue;
+    }
+    if (Number.isFinite(softLimit) && remaining <= softLimit) {
+      advisories.push(`${name}: low -> ${whenLow}`);
+    }
+  }
+  return advisories.length > 0 ? advisories.join("; ") : "none";
+}
+
+function renderHeartbeatTemplate(rawTemplate: string, project: JsonObject): string {
+  const businessConfig = project.businessConfig && typeof project.businessConfig === "object" ? (project.businessConfig as JsonObject) : {};
+  const slots = businessConfig.slots && typeof businessConfig.slots === "object" ? (businessConfig.slots as JsonObject) : {};
+  const measure = slots.measure && typeof slots.measure === "object" ? (slots.measure as JsonObject) : {};
+  const execute = slots.execute && typeof slots.execute === "object" ? (slots.execute as JsonObject) : {};
+  const distribute = slots.distribute && typeof slots.distribute === "object" ? (slots.distribute as JsonObject) : {};
+  const ledger = Array.isArray(project.ledger) ? (project.ledger as JsonObject[]) : [];
+  const revenue = ledger
+    .filter((entry) => String(entry.type ?? "") === "revenue")
+    .reduce((sum, entry) => sum + Number(entry.amount ?? 0), 0);
+  const costs = ledger
+    .filter((entry) => String(entry.type ?? "") === "cost")
+    .reduce((sum, entry) => sum + Number(entry.amount ?? 0), 0);
+  const profit = revenue - costs;
+  const experiments = Array.isArray(project.experiments) ? (project.experiments as JsonObject[]) : [];
+  const metrics = Array.isArray(project.metricEvents) ? (project.metricEvents as JsonObject[]) : [];
+  let rendered = rawTemplate;
+  const replacements: Record<string, string> = {
+    "{projectName}": String(project.name ?? ""),
+    "{businessType}": String(businessConfig.type ?? "custom"),
+    "{projectGoal}": String(project.goal ?? ""),
+    "{totalRevenue}": String(revenue),
+    "{totalCosts}": String(costs),
+    "{profit}": String(profit),
+    "{experimentsSummary}":
+      experiments.length > 0
+        ? experiments
+            .slice(-3)
+            .map((entry) => `${String(entry.hypothesis ?? "")} (${String(entry.status ?? "running")})`)
+            .join("; ")
+        : "none",
+    "{recentMetrics}": metrics.length > 0 ? JSON.stringify((metrics[metrics.length - 1] as JsonObject).metrics ?? {}) : "none",
+    "{openTasks}": "0",
+    "{inProgressTasks}": "0",
+    "{blockedTasks}": "0",
+    "{resourcesSnapshot}": resourcesSnapshot(project),
+    "{resourceAdvisories}": resourceAdvisories(project),
+    "{measureSkillId}": String(measure.skillId ?? "not-set"),
+    "{executeSkillId}": String(execute.skillId ?? "not-set"),
+    "{distributeSkillId}": String(distribute.skillId ?? "not-set"),
+    "{measureConfig}": JSON.stringify(measure.config ?? {}),
+    "{executeConfig}": JSON.stringify(execute.config ?? {}),
+    "{distributeConfig}": JSON.stringify(distribute.config ?? {}),
+    "{tasksList}": "[]",
+  };
+  for (const [needle, value] of Object.entries(replacements)) {
+    rendered = rendered.split(needle).join(value);
+  }
+  return rendered;
 }
 
 function shellcorpStateBridge() {
@@ -1031,6 +1178,8 @@ function shellcorpStateBridge() {
             ledger: [],
             experiments: [],
             metricEvents: [],
+            resources: businessType ? defaultProjectResources(projectId) : [],
+            resourceEvents: [],
           } satisfies JsonObject;
 
           const agents = Array.isArray(company.agents) ? [...company.agents] : [];
@@ -1130,6 +1279,34 @@ function shellcorpStateBridge() {
           return;
         }
 
+        if (method === "POST" && pathname === "/openclaw/team/heartbeat/render") {
+          const body = (await readBody(req)) as JsonObject;
+          const teamId = typeof body.teamId === "string" ? body.teamId.trim() : "";
+          const role = body.role === "biz_pm" || body.role === "biz_executor" ? body.role : "";
+          if (!teamId || !role) {
+            writeJson(res, 400, { ok: false, error: "heartbeat_render_invalid_payload" });
+            return;
+          }
+          const projectId = projectIdFromTeamId(teamId);
+          const company = await readJsonFile<JsonObject>(COMPANY_MODEL_PATH, {});
+          const projects = Array.isArray(company.projects) ? (company.projects as JsonObject[]) : [];
+          const project = projects.find((entry) => String(entry.id ?? "") === projectId);
+          if (!project) {
+            writeJson(res, 404, { ok: false, error: "heartbeat_render_project_not_found" });
+            return;
+          }
+          const templatePath = role === "biz_pm" ? BIZ_PM_HEARTBEAT_TEMPLATE_PATH : BIZ_EXECUTOR_HEARTBEAT_TEMPLATE_PATH;
+          try {
+            const rawTemplate = await readFile(templatePath, "utf-8");
+            const rendered = renderHeartbeatTemplate(rawTemplate, project);
+            writeJson(res, 200, { ok: true, rendered });
+            return;
+          } catch {
+            writeJson(res, 500, { ok: false, error: "heartbeat_render_template_unavailable" });
+            return;
+          }
+        }
+
         if (method === "POST" && pathname === "/openclaw/config/preview") {
           const body = (await readBody(req)) as JsonObject;
           const nextConfig = (body.nextConfig as JsonObject | undefined) ?? {};
@@ -1217,6 +1394,9 @@ export default defineConfig({
   root: "ui",
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },
+  },
+  define: {
+    "import.meta.env.VITE_CONVEX_URL": JSON.stringify(process.env.VITE_CONVEX_URL ?? process.env.CONVEX_URL ?? ""),
   },
   plugins: [shellcorpStateBridge(), tailwindcss(), react()],
   server: {

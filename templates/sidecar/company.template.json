@@ -25,7 +25,95 @@
       "kpis": [
         "weekly_shipped_tickets",
         "closed_vs_open_ticket_ratio"
-      ]
+      ],
+      "businessConfig": {
+        "type": "affiliate_marketing",
+        "slots": {
+          "measure": {
+            "skillId": "amazon-affiliate-metrics",
+            "category": "measure",
+            "config": {
+              "platform": "amazon_associates"
+            }
+          },
+          "execute": {
+            "skillId": "video-generator",
+            "category": "execute",
+            "config": {}
+          },
+          "distribute": {
+            "skillId": "tiktok-poster",
+            "category": "distribute",
+            "config": {}
+          }
+        }
+      },
+      "ledger": [],
+      "experiments": [],
+      "metricEvents": [],
+      "resources": [
+        {
+          "id": "proj-shellcorp:cash",
+          "projectId": "proj-shellcorp",
+          "type": "cash_budget",
+          "name": "Cash Budget",
+          "unit": "usd_cents",
+          "remaining": 5000,
+          "limit": 5000,
+          "reserved": 0,
+          "trackerSkillId": "resource-cash-tracker",
+          "refreshCadenceMinutes": 15,
+          "policy": {
+            "advisoryOnly": true,
+            "softLimit": 1500,
+            "hardLimit": 0,
+            "whenLow": "deprioritize_expensive_tasks"
+          },
+          "metadata": {
+            "currency": "USD"
+          }
+        },
+        {
+          "id": "proj-shellcorp:api",
+          "projectId": "proj-shellcorp",
+          "type": "api_quota",
+          "name": "API Quota",
+          "unit": "requests",
+          "remaining": 1000,
+          "limit": 1000,
+          "reserved": 0,
+          "trackerSkillId": "resource-api-quota-tracker",
+          "refreshCadenceMinutes": 15,
+          "policy": {
+            "advisoryOnly": true,
+            "softLimit": 200,
+            "hardLimit": 0,
+            "whenLow": "warn"
+          }
+        },
+        {
+          "id": "proj-shellcorp:distribution",
+          "projectId": "proj-shellcorp",
+          "type": "distribution_slots",
+          "name": "Distribution Slots",
+          "unit": "posts_per_day",
+          "remaining": 10,
+          "limit": 10,
+          "reserved": 0,
+          "trackerSkillId": "resource-distribution-tracker",
+          "refreshCadenceMinutes": 60,
+          "policy": {
+            "advisoryOnly": true,
+            "softLimit": 2,
+            "hardLimit": 0,
+            "whenLow": "ask_pm_review"
+          },
+          "metadata": {
+            "platform": "tiktok"
+          }
+        }
+      ],
+      "resourceEvents": []
     }
   ],
   "agents": [
@@ -37,30 +125,30 @@
       "lifecycleState": "active"
     },
     {
-      "agentId": "shellcorp-builder",
-      "role": "builder",
+      "agentId": "shellcorp-executor",
+      "role": "biz_executor",
       "projectId": "proj-shellcorp",
-      "heartbeatProfileId": "hb-builder",
+      "heartbeatProfileId": "hb-biz-executor",
       "lifecycleState": "active"
     },
     {
       "agentId": "shellcorp-pm",
-      "role": "pm",
+      "role": "biz_pm",
       "projectId": "proj-shellcorp",
-      "heartbeatProfileId": "hb-pm",
+      "heartbeatProfileId": "hb-biz-pm",
       "lifecycleState": "active"
     }
   ],
   "roleSlots": [
     {
       "projectId": "proj-shellcorp",
-      "role": "builder",
+      "role": "biz_executor",
       "desiredCount": 1,
       "spawnPolicy": "queue_pressure"
     },
     {
       "projectId": "proj-shellcorp",
-      "role": "pm",
+      "role": "biz_pm",
       "desiredCount": 1,
       "spawnPolicy": "queue_pressure"
     }
@@ -71,7 +159,7 @@
       "projectId": "proj-shellcorp",
       "title": "Ship project topology MVP.",
       "status": "in_progress",
-      "ownerAgentId": "shellcorp-builder",
+      "ownerAgentId": "shellcorp-executor",
       "priority": "high"
     }
   ],
@@ -85,20 +173,20 @@
       "goal": "Keep all projects aligned to business goals."
     },
     {
-      "id": "hb-builder",
-      "role": "builder",
-      "cadenceMinutes": 10,
-      "teamDescription": "Engineering execution.",
-      "productDetails": "Implement tickets and reduce defect rate.",
-      "goal": "Increase delivered value per sprint."
+      "id": "hb-biz-executor",
+      "role": "biz_executor",
+      "cadenceMinutes": 5,
+      "teamDescription": "Business execution loop.",
+      "productDetails": "Create and distribute growth assets.",
+      "goal": "Execute highest-value tasks and report metrics."
     },
     {
-      "id": "hb-pm",
-      "role": "pm",
-      "cadenceMinutes": 10,
-      "teamDescription": "Roadmap and customer communication.",
-      "productDetails": "Prioritization, status reporting, and support routing.",
-      "goal": "Keep roadmap and stakeholders in sync."
+      "id": "hb-biz-pm",
+      "role": "biz_pm",
+      "cadenceMinutes": 5,
+      "teamDescription": "Business PM loop.",
+      "productDetails": "Manage kanban, costs, and profitability.",
+      "goal": "Keep business net-positive and experiments healthy."
     }
   ],
   "channelBindings": [
@@ -106,7 +194,7 @@
       "platform": "slack",
       "externalChannelId": "C_CUSTOMER_SUPPORT",
       "projectId": "proj-shellcorp",
-      "agentRole": "pm",
+      "agentRole": "biz_pm",
       "routingMode": "default_pm"
     }
   ],
