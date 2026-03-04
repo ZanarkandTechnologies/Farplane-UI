@@ -23,7 +23,7 @@
  */
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     Dialog,
     DialogContent,
@@ -37,9 +37,8 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { usePlacementSystem } from "@/features/office-system/systems/placement-system";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { gatewayBase, stateBase } from "@/lib/gateway-config";
-import { OpenClawAdapter } from "@/lib/openclaw-adapter";
 import type { MeshAssetModel } from "@/lib/openclaw-types";
+import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
 
 interface FurnitureShopProps {
     isOpen: boolean;
@@ -49,7 +48,7 @@ interface FurnitureShopProps {
 export function FurnitureShop({ isOpen, onOpenChange }: FurnitureShopProps) {
     const { company } = useOfficeDataContext();
     const { startPlacement } = usePlacementSystem();
-    const adapterRef = useRef<OpenClawAdapter>(new OpenClawAdapter(gatewayBase, stateBase));
+    const adapter = useOpenClawAdapter();
     const [meshAssets, setMeshAssets] = useState<MeshAssetModel[]>([]);
     const [meshAssetDir, setMeshAssetDir] = useState("");
     const [meshUrlInput, setMeshUrlInput] = useState("");
@@ -86,7 +85,6 @@ export function FurnitureShop({ isOpen, onOpenChange }: FurnitureShopProps) {
         setIsLoadingAssets(true);
         setMeshError(null);
         try {
-            const adapter = adapterRef.current;
             const [settingsResult, assetsResult] = await Promise.all([
                 adapter.getOfficeSettings(),
                 adapter.listMeshAssets(),
@@ -125,7 +123,7 @@ export function FurnitureShop({ isOpen, onOpenChange }: FurnitureShopProps) {
         }
         setIsSavingDir(true);
         setMeshError(null);
-        const result = await adapterRef.current.saveOfficeSettings({ meshAssetDir: nextDir });
+        const result = await adapter.saveOfficeSettings({ meshAssetDir: nextDir });
         setIsSavingDir(false);
         if (!result.ok) {
             setMeshError(result.error ?? "Failed to save mesh folder setting.");
@@ -143,7 +141,7 @@ export function FurnitureShop({ isOpen, onOpenChange }: FurnitureShopProps) {
         }
         setIsDownloadingMesh(true);
         setMeshError(null);
-        const result = await adapterRef.current.downloadMeshAsset({
+        const result = await adapter.downloadMeshAsset({
             url,
             label: meshLabelInput.trim() || undefined,
         });

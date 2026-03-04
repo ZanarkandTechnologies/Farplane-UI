@@ -15,8 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { OpenClawAdapter } from "@/lib/openclaw-adapter";
-import { gatewayBase, stateBase } from "@/lib/gateway-config";
+import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
 import { useAppStore } from "@/lib/app-store";
 import { cn } from "@/lib/utils";
 import { UI_Z } from "@/lib/z-index";
@@ -35,7 +34,7 @@ function parseKpiList(input: string): string[] {
 
 function CreateTeamTabContent({ onDone }: { onDone?: () => void }): React.JSX.Element {
   const { refresh } = useOfficeDataContext();
-  const adapter = useMemo(() => new OpenClawAdapter(gatewayBase, stateBase), []);
+  const adapter = useOpenClawAdapter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [goal, setGoal] = useState("");

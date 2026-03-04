@@ -4,13 +4,12 @@ import { Edges } from '@react-three/drei';
 import * as THREE from 'three';
 import { useAppStore } from '@/lib/app-store';
 import type { OfficeId } from '@/lib/types';
-import { gatewayBase, stateBase } from '@/lib/gateway-config';
-import { OpenClawAdapter } from '@/lib/openclaw-adapter';
 import { ContextMenu, MenuAction } from './context-menu';
 import { Move, RotateCw, RotateCcw, Trash2, Settings } from 'lucide-react';
 import { DraggableController } from '../controllers/draggable-controller';
 import { resolvePersistedOfficeObjectId } from './office-object-id';
 import { OFFICE_INTERACTION_COLORS } from '@/config/office-theme';
+import { useOpenClawAdapter } from '@/providers/openclaw-adapter-provider';
 
 interface InteractiveObjectProps {
     children: React.ReactNode;
@@ -74,7 +73,7 @@ export function InteractiveObject({
     const groupRef = useRef<THREE.Group>(null);
     const controllerRef = useRef<DraggableController | null>(null);
     const { camera, gl } = useThree();
-    const adapterRef = useRef<OpenClawAdapter>(new OpenClawAdapter(gatewayBase, stateBase));
+    const adapter = useOpenClawAdapter();
 
     // Local state for optimistic updates
     const [localPosition, setLocalPosition] = useState<[number, number, number]>(initialPosition);
@@ -100,7 +99,6 @@ export function InteractiveObject({
         position: [number, number, number];
         rotation?: [number, number, number];
     }): Promise<void> => {
-        const adapter = adapterRef.current;
         const current = await adapter.getOfficeObjects();
         const knownIds = new Set(current.map((item) => item.id));
         // MEM-0115: UI IDs can be prefixed while sidecar IDs may not be.
@@ -121,17 +119,17 @@ export function InteractiveObject({
         }
         lastConfirmedPositionRef.current = input.position;
         lastConfirmedRotationRef.current = payload.rotation;
-    }, [objectType, initialRotation]);
+    }, [adapter, objectType, initialRotation]);
 
     const deleteOfficeObject = useCallback(async (input: { id: string }): Promise<void> => {
-        const current = await adapterRef.current.getOfficeObjects();
+        const current = await adapter.getOfficeObjects();
         const knownIds = new Set(current.map((item) => item.id));
         const persistedId = resolvePersistedOfficeObjectId(input.id, knownIds);
-        const result = await adapterRef.current.deleteOfficeObject(persistedId);
+        const result = await adapter.deleteOfficeObject(persistedId);
         if (!result.ok) {
             throw new Error(result.error ?? "office_object_delete_failed");
         }
-    }, []);
+    }, [adapter]);
 
     // Initialize drag controller
     useEffect(() => {

@@ -11,6 +11,7 @@ import {
     ShoppingBag,
     Users,
     ShieldCheck,
+    Activity,
 } from "lucide-react";
 import { SpeedDial, type SpeedDialItem } from "@/components/ui/speed-dial";
 import { useNavigate } from "react-router-dom";
@@ -18,9 +19,8 @@ import { useAppStore } from "@/lib/app-store";
 import { api } from "@/convex/_generated/api";
 import { FurnitureShop } from "./furniture-shop";
 import { ApprovalQueue } from "./approval-queue";
-import { stateBase } from "@/lib/gateway-config";
-import { OpenClawAdapter } from "@/lib/openclaw-adapter";
 import { useChatActions } from "@/features/chat-system/chat-store";
+import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
 import { OrganizationPanel } from "./organization-panel";
 
 interface SpeedDialProps {
@@ -30,6 +30,7 @@ interface SpeedDialProps {
 export function OfficeMenu({
     className,
 }: SpeedDialProps) {
+    const adapter = useOpenClawAdapter();
     const navigate = useNavigate();
     // Use selectors to prevent unnecessary re-renders
     const isBuilderMode = useAppStore(state => state.isBuilderMode);
@@ -37,6 +38,7 @@ export function OfficeMenu({
     const isAnimatingCamera = useAppStore(state => state.isAnimatingCamera);
     const setAnimatingCamera = useAppStore(state => state.setAnimatingCamera);
     const setIsGlobalTeamPanelOpen = useAppStore(state => state.setIsGlobalTeamPanelOpen);
+    const setIsAgentSessionPanelOpen = useAppStore(state => state.setIsAgentSessionPanelOpen);
     const setIsSkillsPanelOpen = useAppStore(state => state.setIsSkillsPanelOpen);
     const setActiveTeamId = useAppStore(state => state.setActiveTeamId);
     const setSelectedTeamId = useAppStore(state => state.setSelectedTeamId);
@@ -50,7 +52,6 @@ export function OfficeMenu({
     const [approvalCount, setApprovalCount] = useState(0);
 
     useEffect(() => {
-        const adapter = new OpenClawAdapter("", stateBase);
         let cancelled = false;
         const poll = async () => {
             try {
@@ -61,7 +62,7 @@ export function OfficeMenu({
         void poll();
         const timer = setInterval(() => void poll(), 10_000);
         return () => { cancelled = true; clearInterval(timer); };
-    }, []);
+    }, [adapter]);
     const apiRoot = api as unknown as {
         office_system?: {
             employees?: { createEmployee?: unknown };
@@ -120,6 +121,13 @@ export function OfficeMenu({
             color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
         },
         {
+            id: "agent-session",
+            icon: Activity,
+            label: "Agent Session",
+            onClick: () => setIsAgentSessionPanelOpen(true),
+            color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
+        },
+        {
             id: "global-skills",
             icon: BookOpen,
             label: "Global Skills",
@@ -170,6 +178,7 @@ export function OfficeMenu({
     ], [
         navigate,
         openGlobalTeamWorkspace,
+        setIsAgentSessionPanelOpen,
         setIsSkillsPanelOpen,
         openEmployeeChat,
         approvalCount,

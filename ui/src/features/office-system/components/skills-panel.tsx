@@ -5,9 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppStore } from "@/lib/app-store";
-import { gatewayBase, stateBase } from "@/lib/gateway-config";
-import { OpenClawAdapter } from "@/lib/openclaw-adapter";
 import type { SkillItemModel } from "@/lib/openclaw-types";
+import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
 import { UI_Z } from "@/lib/z-index";
 
 function fmtTs(ts?: number): string {
@@ -18,7 +17,7 @@ function fmtTs(ts?: number): string {
 export function SkillsPanel() {
   const isOpen = useAppStore((state) => state.isSkillsPanelOpen);
   const setIsOpen = useAppStore((state) => state.setIsSkillsPanelOpen);
-  const adapter = useMemo(() => new OpenClawAdapter(gatewayBase, stateBase), []);
+  const adapter = useOpenClawAdapter();
 
   const [skills, setSkills] = useState<SkillItemModel[]>([]);
   const [errorText, setErrorText] = useState("");

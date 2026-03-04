@@ -6,9 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppStore } from "@/lib/app-store";
-import { gatewayBase, stateBase } from "@/lib/gateway-config";
-import { OpenClawAdapter } from "@/lib/openclaw-adapter";
-import type { AgentCardModel, SessionRowModel, SessionTimelineModel } from "@/lib/openclaw-types";
+import type { AgentCardModel, HeartbeatWindow, SessionRowModel, SessionTimelineModel } from "@/lib/openclaw-types";
+import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
 import { UI_Z } from "@/lib/z-index";
 
 function fmtTs(ts?: number): string {
@@ -24,7 +23,7 @@ export function AgentSessionPanel() {
   const selectedSessionKey = useAppStore((state) => state.selectedSessionKey);
   const setSelectedSessionKey = useAppStore((state) => state.setSelectedSessionKey);
 
-  const adapter = useMemo(() => new OpenClawAdapter(gatewayBase, stateBase), []);
+  const adapter = useOpenClawAdapter();
   const [runtimeAgents, setRuntimeAgents] = useState<AgentCardModel[]>([]);
   const [sessions, setSessions] = useState<SessionRowModel[]>([]);
   const [timeline, setTimeline] = useState<SessionTimelineModel | null>(null);
@@ -32,6 +31,11 @@ export function AgentSessionPanel() {
   const [statusText, setStatusText] = useState("");
   const [errorText, setErrorText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [timelineMode, setTimelineMode] = useState<"heartbeat" | "raw">("heartbeat");
+  const heartbeatWindows: HeartbeatWindow[] = useMemo(() => {
+    if (!timeline) return [];
+    return adapter.parseHeartbeatWindows(timeline);
+  }, [adapter, timeline]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -164,20 +168,67 @@ export function AgentSessionPanel() {
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Session Timeline</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">Session Timeline</CardTitle>
+                  <div className="flex items-center gap-2 text-xs">
+                    <Button
+                      size="sm"
+                      variant={timelineMode === "heartbeat" ? "default" : "outline"}
+                      onClick={() => setTimelineMode("heartbeat")}
+                    >
+                      Heartbeats
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={timelineMode === "raw" ? "default" : "outline"}
+                      onClick={() => setTimelineMode("raw")}
+                    >
+                      Raw
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[58vh] rounded-md border p-2">
-                  <ul className="space-y-1 text-sm">
-                    {(timeline?.events ?? []).map((event, index) => (
-                      <li key={`${event.ts}-${index}`}>
-                        {fmtTs(event.ts)} · {event.type} · {event.role} · {event.text}
-                      </li>
-                    ))}
-                    {(timeline?.events.length ?? 0) === 0 ? (
-                      <li className="text-muted-foreground">No timeline events yet.</li>
-                    ) : null}
-                  </ul>
+                  {timelineMode === "heartbeat" ? (
+                    <ul className="space-y-2 text-sm">
+                      {heartbeatWindows.map((window) => (
+                        <li key={window.beatId} className="rounded-md border p-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">{fmtTs(window.startedAt)}</span>
+                            <span className="text-xs uppercase text-muted-foreground">{window.status}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {window.endedAt ? `${Math.max(0, window.endedAt - window.startedAt)}ms` : "in progress"} · {window.eventCount} events
+                          </p>
+                          <p className="mt-1">{window.summary}</p>
+                          {window.skillBubbles.length > 0 ? (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {window.skillBubbles.map((bubble) => (
+                                <span key={bubble.id} className="rounded-full border px-2 py-0.5 text-xs">
+                                  {bubble.label}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </li>
+                      ))}
+                      {heartbeatWindows.length === 0 ? (
+                        <li className="text-muted-foreground">No heartbeat windows detected.</li>
+                      ) : null}
+                    </ul>
+                  ) : (
+                    <ul className="space-y-1 text-sm">
+                      {(timeline?.events ?? []).map((event, index) => (
+                        <li key={`${event.ts}-${index}`}>
+                          {fmtTs(event.ts)} · {event.type} · {event.role} · {event.text}
+                        </li>
+                      ))}
+                      {(timeline?.events.length ?? 0) === 0 ? (
+                        <li className="text-muted-foreground">No timeline events yet.</li>
+                      ) : null}
+                    </ul>
+                  )}
                 </ScrollArea>
               </CardContent>
             </Card>

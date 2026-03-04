@@ -25,8 +25,7 @@ import { useAppStore } from "@/lib/app-store";
 import * as THREE from "three";
 import { useCallback } from "react";
 import { OfficeId } from "@/lib/types";
-import { gatewayBase, stateBase } from "@/lib/gateway-config";
-import { OpenClawAdapter } from "@/lib/openclaw-adapter";
+import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
 
 import { getGameObjectDefinition } from "../components/object-registry";
 
@@ -38,7 +37,7 @@ export function usePlacementSystem() {
     const setPlacementMode = useAppStore(state => state.setPlacementMode);
     const { active, type, data } = placementMode;
 
-    const adapter = new OpenClawAdapter(gatewayBase, stateBase);
+    const adapter = useOpenClawAdapter();
 
     async function createTeamAndPlace(input: {
         name: string;

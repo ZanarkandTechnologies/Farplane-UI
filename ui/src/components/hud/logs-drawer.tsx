@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
-import { hasGatewayToken, stateBase } from "@/lib/gateway-config";
-import { OpenClawAdapter } from "@/lib/openclaw-adapter";
+import { hasGatewayToken } from "@/lib/gateway-config";
 import type { SessionRowModel, SessionTimelineModel, UnifiedOfficeModel } from "@/lib/openclaw-types";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
 
 type LogsDrawerProps = {
   open: boolean;
@@ -14,7 +14,7 @@ type LogsDrawerProps = {
 };
 
 export function LogsDrawer({ open, onOpenChange, gatewayBase }: LogsDrawerProps): React.JSX.Element {
-  const adapter = useMemo(() => new OpenClawAdapter(gatewayBase, stateBase), [gatewayBase]);
+  const adapter = useOpenClawAdapter();
   const [unified, setUnified] = useState<UnifiedOfficeModel | null>(null);
   const [sessions, setSessions] = useState<SessionRowModel[]>([]);
   const [timeline, setTimeline] = useState<SessionTimelineModel | null>(null);

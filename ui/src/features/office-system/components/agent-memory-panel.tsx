@@ -9,10 +9,9 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore } from "@/lib/app-store";
-import { gatewayBase, stateBase } from "@/lib/gateway-config";
-import { OpenClawAdapter } from "@/lib/openclaw-adapter";
 import type { AgentMemoryEntry } from "@/lib/openclaw-types";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
+import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
 import { UI_Z } from "@/lib/z-index";
 
 /**
@@ -67,7 +66,7 @@ function toUserFacingError(errorText: string): string {
 }
 
 export function AgentMemoryPanel() {
-  const adapter = useMemo(() => new OpenClawAdapter(gatewayBase, stateBase), []);
+  const adapter = useOpenClawAdapter();
   const { employees } = useOfficeDataContext();
   const memoryPanelEmployeeId = useAppStore((state) => state.memoryPanelEmployeeId);
   const setMemoryPanelEmployeeId = useAppStore((state) => state.setMemoryPanelEmployeeId);
