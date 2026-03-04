@@ -48,6 +48,12 @@ npm run shell -- office print
 npm run shell -- office list
 npm run shell -- office teams
 npm run shell -- office add plant --position -10,0,-10
+npm run shell -- office add plant --auto-place
+npm run shell -- office add custom-mesh --auto-place --mesh-public-path /openclaw/assets/meshes/dragon.glb --display-name "Dragon"
+npm run shell -- office add team-cluster --auto-place --metadata name=Dragons
+npm run shell -- office doctor
+npm run shell -- office doctor --reason missing_mesh_public_path
+npm run shell -- office doctor --fix
 npm run shell -- office move plant-nw --position 0,0,0
 npm run shell -- office remove plant-nw
 npm run shell -- office theme
@@ -71,6 +77,14 @@ Commands mutate sidecar data:
 
 - `~/.openclaw/company.json`
 - `~/.openclaw/office-objects.json` (when office object metadata is split)
+
+`office add` now supports either explicit coordinates (`--position`) or deterministic empty-space placement (`--auto-place`). Manual and auto flows both reject occupied positions to keep layout state collision-safe.
+
+For UI parity:
+
+- `custom-mesh` now requires mesh metadata (`--mesh-public-path` or equivalent metadata key) so objects render as real meshes instead of placeholders.
+- `team-cluster` now auto-attaches to a real project-backed `team-<projectId>` mapping (creating/reviving a project if needed), so the cluster appears as a real team in UI panels.
+- `office doctor` audits persisted office objects and reports invalid entries (for example custom meshes missing `meshPublicPath` or clusters mapped to missing/archived teams). Use `--reason <reason>` to target specific issue classes, and `office doctor --fix` to remove the current matched set.
 
 When teams create agents, CLI also provisions OpenClaw runtime surfaces:
 

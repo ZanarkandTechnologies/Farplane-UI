@@ -17,6 +17,11 @@ npm run shell -- office print
 npm run shell -- office list
 npm run shell -- office teams
 npm run shell -- office add plant --position -10,0,-10
+npm run shell -- office add plant --auto-place
+npm run shell -- office add custom-mesh --auto-place --mesh-public-path /openclaw/assets/meshes/dragon.glb --display-name "Dragon"
+npm run shell -- office add team-cluster --auto-place --metadata name=Dragons
+npm run shell -- office doctor
+npm run shell -- office doctor --fix
 npm run shell -- office move plant-nw --position 0,0,0
 npm run shell -- office remove plant-nw
 npm run shell -- office theme
@@ -28,6 +33,10 @@ npm run shell -- office generate "small cactus desk plant" --style low-poly --ty
 
 - Decoration state is persisted in sidecar office objects.
 - ID reconciliation between UI-facing IDs and sidecar IDs is required for reliable move/delete flows (`MEM-0115` placement invariant, `MEM-0120` CLI-first decision).
+- Placement is collision-safe in CLI flows: `office add` supports deterministic `--auto-place`, and both `add`/`move` reject occupied destinations.
+- `custom-mesh` placement is strict: mesh URL/path metadata is required to avoid non-renderable placeholders.
+- `team-cluster` placement ensures a real project-backed team mapping, so the cluster appears in UI as an actual team.
+- `office doctor` can detect invalid persisted objects and `office doctor --fix` can clean them up in one command.
 
 ## Meshy Flow
 
