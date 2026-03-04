@@ -88,7 +88,7 @@ export interface EmployeeData extends Employee {
   hasActiveComputerSession?: boolean;
   notificationCount?: number;
   notificationPriority?: number;
-  heartbeatState?: "running" | "ok" | "no_work" | "error" | "idle";
+  heartbeatState?: "running" | "ok" | "no_work" | "error" | "idle" | "planning" | "executing" | "blocked" | "done";
   heartbeatBubbles?: Array<{ label: string; weight: number }>;
 }
 

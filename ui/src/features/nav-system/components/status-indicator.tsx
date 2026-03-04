@@ -11,6 +11,8 @@ interface StatusIndicatorProps {
     visible: boolean;
     /** Number of notifications (displays badge if > 1) */
     notificationCount?: number;
+    mode?: "single" | "heartbeatBubbles";
+    bubbles?: Array<{ label: string; weight?: number }>;
 }
 
 // Simple iconic status indicators made from basic shapes
@@ -109,7 +111,14 @@ const getStatusColor = (status: StatusType): string => {
     }
 };
 
-export default function StatusIndicator({ status = 'none', message, visible, notificationCount = 1 }: StatusIndicatorProps) {
+export default function StatusIndicator({
+    status = 'none',
+    message,
+    visible,
+    notificationCount = 1,
+    mode = "single",
+    bubbles = [],
+}: StatusIndicatorProps) {
     // ALL HOOKS MUST BE CALLED BEFORE ANY EARLY RETURNS
     const groupRef = useRef<Group>(null);
     const messageTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -202,6 +211,46 @@ export default function StatusIndicator({ status = 'none', message, visible, not
 
     const IconComponent = StatusIcons[safeStatus];
     if (!IconComponent) return null;
+
+    if (mode === "heartbeatBubbles" && bubbles.length > 0) {
+        return (
+            <group ref={groupRef} position={[0, 0.75, 0]} onPointerEnter={handlePointerEnter} onPointerLeave={handlePointerLeave}>
+                <Html center distanceFactor={8} zIndexRange={[2, 0]}>
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center", pointerEvents: "none" }}>
+                        <span
+                            style={{
+                                background: statusColor,
+                                color: "white",
+                                borderRadius: "999px",
+                                padding: "3px 8px",
+                                fontSize: "10px",
+                                fontWeight: 700,
+                                boxShadow: "0 1px 3px rgba(0,0,0,0.35)",
+                            }}
+                        >
+                            {safeStatus.toUpperCase()}
+                        </span>
+                        {bubbles.slice(0, 3).map((bubble, index) => (
+                            <span
+                                key={`${bubble.label}-${index}`}
+                                style={{
+                                    background: "rgba(17, 24, 39, 0.88)",
+                                    color: "white",
+                                    borderRadius: "999px",
+                                    padding: "3px 8px",
+                                    fontSize: "10px",
+                                    fontWeight: 600,
+                                    boxShadow: "0 1px 3px rgba(0,0,0,0.35)",
+                                }}
+                            >
+                                {bubble.label}
+                            </span>
+                        ))}
+                    </div>
+                </Html>
+            </group>
+        );
+    }
 
     return (
         <group

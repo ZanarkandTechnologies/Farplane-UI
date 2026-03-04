@@ -40,7 +40,7 @@ interface EmployeeProps {
     teamId?: string;
     notificationCount?: number;
     notificationPriority?: number;
-    heartbeatState?: "running" | "ok" | "no_work" | "error" | "idle";
+    heartbeatState?: "running" | "ok" | "no_work" | "error" | "idle" | "planning" | "executing" | "blocked" | "done";
     heartbeatBubbles?: Array<{ label: string; weight?: number }>;
     profileImageUrl?: string; // Profile image URL for expert imports (displayed as head texture)
 }

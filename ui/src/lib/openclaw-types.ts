@@ -71,7 +71,7 @@ export interface HeartbeatWindow {
 export interface AgentLiveStatus {
   agentId: string;
   sessionKey?: string;
-  state: "running" | "ok" | "no_work" | "error" | "idle";
+  state: "running" | "ok" | "no_work" | "error" | "idle" | "planning" | "executing" | "blocked" | "done";
   statusText: string;
   updatedAt?: number;
   bubbles: HeartbeatSkillBubble[];
