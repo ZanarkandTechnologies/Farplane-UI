@@ -4,11 +4,23 @@
  * Maps OpenClaw-backed HTTP surfaces into Shell Company UI contracts.
  */
 import type {
+  AgentLiveStatus,
   AgentMemoryEntry,
+  AgentFileEntry,
+  AgentIdentityResult,
+  AgentsFilesGetResult,
+  AgentsFilesListResult,
+  AgentsFilesSetResult,
+  AgentsListResult,
   AgentCardModel,
+  ChannelAccountSnapshot,
+  ChannelUiMetaEntry,
+  ChannelsStatusSnapshot,
   ChatSendRequest,
   CompanyOfficeObjectModel,
   CompanyModel,
+  CronJob,
+  CronStatus,
   DepartmentModel,
   FederationProjectPolicy,
   FederatedTaskModel,
@@ -20,11 +32,19 @@ import type {
   ProjectWorkloadSummary,
   ReconciliationWarning,
   RoleSlotModel,
+  SkillStatusEntry,
+  SkillStatusReport,
   TaskSyncState,
+  ToolCatalogEntry,
+  ToolCatalogGroup,
+  ToolCatalogProfile,
+  ToolsCatalogResult,
   UnifiedOfficeModel,
   MemoryItemModel,
   SessionRowModel,
+  SessionTimelineEvent,
   SessionTimelineModel,
+  HeartbeatWindow,
   SkillItemModel,
   CompanyAgentModel,
   ChannelBindingModel,
@@ -34,8 +54,13 @@ import type {
   MeshAssetModel,
 } from "./openclaw-types";
 import { buildGatewayHeaders } from "./gateway-config";
+import type { GatewayWsClient } from "./gateway-ws-client";
 
 type Json = Record<string, unknown>;
+const HEARTBEAT_START_PATTERN = /read\s+heartbeat\.md[\s\S]*current\s+time:/i;
+const HEARTBEAT_OK_PATTERN = /\bHEARTBEAT_OK\b/i;
+const HEARTBEAT_ERROR_PATTERN = /\b(error|failed|exception|timeout|circuit_open)\b/i;
+const MAX_HEARTBEAT_BUBBLES = 3;
 
 function normalizeArray<T>(value: unknown, map: (entry: unknown) => T | null): T[] {
   if (!Array.isArray(value)) return [];
@@ -88,18 +113,30 @@ function toTimeline(agentId: string, sessionKey: string, payload: unknown): Sess
     .map((item) => {
       if (!item || typeof item !== "object") return null;
       const event = item as Json;
-      const ts = typeof event.ts === "number" ? event.ts : Date.now();
+      const ts = typeof event.ts === "number" ? event.ts : 0;
       const type = String(event.type ?? "status");
       const normalizedType: SessionTimelineModel["events"][number]["type"] =
         type === "message" || type === "tool" ? type : "status";
       const role = String(event.role ?? "system");
       const text = String(event.text ?? event.content ?? "");
       if (!text.trim()) return null;
+      const sourceRaw = String(event.source ?? "").trim();
+      const source: SessionTimelineEvent["source"] =
+        sourceRaw === "heartbeat" || sourceRaw === "ui" || sourceRaw === "operator" || sourceRaw === "unknown"
+          ? sourceRaw
+          : undefined;
+      const eventId = typeof event.eventId === "string" ? event.eventId : undefined;
       return {
         ts,
         type: normalizedType,
         role,
         text,
+        source:
+          source ??
+          (HEARTBEAT_START_PATTERN.test(text) || HEARTBEAT_OK_PATTERN.test(text)
+            ? "heartbeat"
+            : undefined),
+        eventId,
         raw: event,
       };
     })
@@ -110,6 +147,165 @@ function toTimeline(agentId: string, sessionKey: string, payload: unknown): Sess
     sessionKey,
     tokenUsage: row.tokenUsage && typeof row.tokenUsage === "object" ? (row.tokenUsage as SessionTimelineModel["tokenUsage"]) : undefined,
     events,
+  };
+}
+
+function scoreBubbleLabel(text: string): string[] {
+  const labels = new Set<string>();
+  const toolMatch = text.match(/\b(ReadFile|WriteFile|Edit|ApplyPatch|Shell|Bash|TodoWrite|AskQuestion|Subagent|SemanticSearch|WebSearch)\b/gi);
+  for (const hit of toolMatch ?? []) labels.add(hit);
+  const skillMatch = text.match(/\b(skill|skills)\s*[:=]\s*([a-z0-9_-]+)/i);
+  if (skillMatch?.[2]) labels.add(`skill:${skillMatch[2]}`);
+  return [...labels];
+}
+
+function isHeartbeatStartEvent(event: SessionTimelineEvent): boolean {
+  return HEARTBEAT_START_PATTERN.test(event.text);
+}
+
+function isOperatorLikeMessage(event: SessionTimelineEvent): boolean {
+  if (event.source === "ui" || event.source === "operator") return true;
+  return event.role === "user" && !isHeartbeatStartEvent(event);
+}
+
+function finalizeHeartbeatWindow(
+  draft: {
+    beatId: string;
+    sessionKey: string;
+    startedAt: number;
+    trigger: HeartbeatWindow["trigger"];
+    status: HeartbeatWindow["status"];
+    summary: string;
+    eventCount: number;
+    actionCount: number;
+    bubbles: Map<string, number>;
+  },
+  endedAt?: number,
+): HeartbeatWindow {
+  const orderedBubbles = [...draft.bubbles.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_HEARTBEAT_BUBBLES)
+    .map(([label, weight], index) => ({ id: `${draft.beatId}:${index}`, label, weight }));
+  return {
+    beatId: draft.beatId,
+    sessionKey: draft.sessionKey,
+    startedAt: draft.startedAt,
+    endedAt,
+    trigger: draft.trigger,
+    status: draft.status,
+    summary: draft.summary,
+    skillBubbles: orderedBubbles,
+    eventCount: draft.eventCount,
+  };
+}
+
+export function parseHeartbeatWindows(events: SessionTimelineEvent[], sessionKey: string): HeartbeatWindow[] {
+  const windows: HeartbeatWindow[] = [];
+  const ordered = [...events].sort((a, b) => a.ts - b.ts);
+  let counter = 0;
+  let current:
+    | {
+        beatId: string;
+        sessionKey: string;
+        startedAt: number;
+        trigger: HeartbeatWindow["trigger"];
+        status: HeartbeatWindow["status"];
+        summary: string;
+        eventCount: number;
+        actionCount: number;
+        bubbles: Map<string, number>;
+      }
+    | null = null;
+
+  for (const event of ordered) {
+    if (isHeartbeatStartEvent(event)) {
+      if (current) {
+        if (current.status === "running") {
+          current.status = current.actionCount > 0 ? "ok" : "no_work";
+          current.summary = current.actionCount > 0 ? "Heartbeat completed" : "No work detected";
+        }
+        windows.push(finalizeHeartbeatWindow(current, event.ts));
+      }
+      current = {
+        beatId: `${sessionKey}:${event.ts}:${counter}`,
+        sessionKey,
+        startedAt: event.ts,
+        trigger: "scheduled",
+        status: "running",
+        summary: "Heartbeat in progress",
+        eventCount: 1,
+        actionCount: 0,
+        bubbles: new Map<string, number>(),
+      };
+      counter += 1;
+      continue;
+    }
+
+    if (!current) continue;
+    current.eventCount += 1;
+
+    if (isOperatorLikeMessage(event)) continue;
+
+    if (HEARTBEAT_OK_PATTERN.test(event.text)) {
+      current.status = current.actionCount > 0 ? "ok" : "no_work";
+      current.summary = current.actionCount > 0 ? "Heartbeat completed" : "HEARTBEAT_OK";
+      windows.push(finalizeHeartbeatWindow(current, event.ts));
+      current = null;
+      continue;
+    }
+
+    if (HEARTBEAT_ERROR_PATTERN.test(event.text)) {
+      current.status = "error";
+      current.summary = event.text.slice(0, 120);
+      windows.push(finalizeHeartbeatWindow(current, event.ts));
+      current = null;
+      continue;
+    }
+
+    const contributesAction = event.role === "assistant" || event.type === "tool";
+    if (contributesAction) current.actionCount += 1;
+    for (const label of scoreBubbleLabel(event.text)) {
+      current.bubbles.set(label, (current.bubbles.get(label) ?? 0) + 1);
+    }
+  }
+
+  if (current) {
+    windows.push(finalizeHeartbeatWindow(current));
+  }
+  return windows;
+}
+
+export function deriveAgentLiveStatus(
+  agentId: string,
+  sessionKey: string | undefined,
+  windows: HeartbeatWindow[],
+): AgentLiveStatus {
+  if (windows.length === 0) {
+    return {
+      agentId,
+      sessionKey,
+      state: "idle",
+      statusText: "Idle",
+      bubbles: [],
+    };
+  }
+  const latest = windows[windows.length - 1];
+  const statusText =
+    latest.status === "running"
+      ? "Heartbeat running"
+      : latest.status === "ok"
+        ? "Heartbeat complete"
+        : latest.status === "no_work"
+          ? "No work"
+          : "Heartbeat error";
+  return {
+    agentId,
+    sessionKey,
+    state: latest.status,
+    statusText,
+    updatedAt: latest.endedAt ?? latest.startedAt,
+    bubbles: latest.skillBubbles,
+    latestHeartbeat: latest,
   };
 }
 
@@ -139,6 +335,331 @@ function toMemory(entry: unknown): MemoryItemModel | null {
     summary,
     level: row.level === "warning" || row.level === "critical" ? row.level : "info",
     ts: typeof row.ts === "number" ? row.ts : Date.now(),
+  };
+}
+
+function toAgentFileEntry(entry: unknown): AgentFileEntry | null {
+  if (!entry || typeof entry !== "object") return null;
+  const row = entry as Json;
+  const name = String(row.name ?? "").trim();
+  const filePath = String(row.path ?? "").trim();
+  if (!name || !filePath) return null;
+  return {
+    name,
+    path: filePath,
+    missing: row.missing === true,
+    size: typeof row.size === "number" ? row.size : undefined,
+    updatedAtMs: typeof row.updatedAtMs === "number" ? row.updatedAtMs : undefined,
+    content: typeof row.content === "string" ? row.content : undefined,
+  };
+}
+
+function toAgentsFilesListResult(entry: unknown): AgentsFilesListResult | null {
+  if (!entry || typeof entry !== "object") return null;
+  const row = entry as Json;
+  const agentId = String(row.agentId ?? "").trim();
+  const workspace = String(row.workspace ?? "").trim();
+  if (!agentId || !workspace) return null;
+  return {
+    agentId,
+    workspace,
+    files: normalizeArray(row.files, toAgentFileEntry),
+  };
+}
+
+function toAgentsFilesGetResult(entry: unknown): AgentsFilesGetResult | null {
+  if (!entry || typeof entry !== "object") return null;
+  const row = entry as Json;
+  const agentId = String(row.agentId ?? "").trim();
+  const workspace = String(row.workspace ?? "").trim();
+  const file = toAgentFileEntry(row.file);
+  if (!agentId || !workspace || !file) return null;
+  return { agentId, workspace, file };
+}
+
+function toAgentsFilesSetResult(entry: unknown): AgentsFilesSetResult | null {
+  const parsed = toAgentsFilesGetResult(entry);
+  if (!parsed) return null;
+  return { ok: true, ...parsed };
+}
+
+function toToolCatalogProfile(entry: unknown): ToolCatalogProfile | null {
+  if (!entry || typeof entry !== "object") return null;
+  const row = entry as Json;
+  const id = String(row.id ?? "");
+  if (id !== "minimal" && id !== "coding" && id !== "messaging" && id !== "full") return null;
+  return {
+    id,
+    label: String(row.label ?? id),
+  };
+}
+
+function toToolCatalogEntry(entry: unknown): ToolCatalogEntry | null {
+  if (!entry || typeof entry !== "object") return null;
+  const row = entry as Json;
+  const id = String(row.id ?? "").trim();
+  if (!id) return null;
+  const source = String(row.source ?? "core");
+  const defaultProfiles = Array.isArray(row.defaultProfiles)
+    ? row.defaultProfiles.filter((value): value is "minimal" | "coding" | "messaging" | "full" =>
+        value === "minimal" || value === "coding" || value === "messaging" || value === "full",
+      )
+    : [];
+  return {
+    id,
+    label: String(row.label ?? id),
+    description: String(row.description ?? ""),
+    source: source === "plugin" ? "plugin" : "core",
+    pluginId: typeof row.pluginId === "string" ? row.pluginId : undefined,
+    optional: row.optional === true,
+    defaultProfiles,
+  };
+}
+
+function toToolCatalogGroup(entry: unknown): ToolCatalogGroup | null {
+  if (!entry || typeof entry !== "object") return null;
+  const row = entry as Json;
+  const id = String(row.id ?? "").trim();
+  if (!id) return null;
+  const source = String(row.source ?? "core");
+  return {
+    id,
+    label: String(row.label ?? id),
+    source: source === "plugin" ? "plugin" : "core",
+    pluginId: typeof row.pluginId === "string" ? row.pluginId : undefined,
+    tools: normalizeArray(row.tools, toToolCatalogEntry),
+  };
+}
+
+function toToolsCatalogResult(entry: unknown, fallbackAgentId: string): ToolsCatalogResult | null {
+  if (!entry || typeof entry !== "object") return null;
+  const row = entry as Json;
+  return {
+    agentId: String(row.agentId ?? fallbackAgentId),
+    profiles: normalizeArray(row.profiles, toToolCatalogProfile),
+    groups: normalizeArray(row.groups, toToolCatalogGroup),
+  };
+}
+
+function toChannelMetaEntry(entry: unknown): ChannelUiMetaEntry | null {
+  if (!entry || typeof entry !== "object") return null;
+  const row = entry as Json;
+  const id = String(row.id ?? "").trim();
+  if (!id) return null;
+  return {
+    id,
+    label: String(row.label ?? id),
+    detailLabel: String(row.detailLabel ?? ""),
+    systemImage: typeof row.systemImage === "string" ? row.systemImage : undefined,
+  };
+}
+
+function toChannelAccountSnapshot(entry: unknown): ChannelAccountSnapshot | null {
+  if (!entry || typeof entry !== "object") return null;
+  const row = entry as Json;
+  const accountId = String(row.accountId ?? "").trim();
+  if (!accountId) return null;
+  return {
+    accountId,
+    name: typeof row.name === "string" ? row.name : null,
+    enabled: typeof row.enabled === "boolean" ? row.enabled : null,
+    configured: typeof row.configured === "boolean" ? row.configured : null,
+    linked: typeof row.linked === "boolean" ? row.linked : null,
+    running: typeof row.running === "boolean" ? row.running : null,
+    connected: typeof row.connected === "boolean" ? row.connected : null,
+    reconnectAttempts: typeof row.reconnectAttempts === "number" ? row.reconnectAttempts : null,
+    lastConnectedAt: typeof row.lastConnectedAt === "number" ? row.lastConnectedAt : null,
+    lastError: typeof row.lastError === "string" ? row.lastError : null,
+    lastStartAt: typeof row.lastStartAt === "number" ? row.lastStartAt : null,
+    lastStopAt: typeof row.lastStopAt === "number" ? row.lastStopAt : null,
+    lastInboundAt: typeof row.lastInboundAt === "number" ? row.lastInboundAt : null,
+    lastOutboundAt: typeof row.lastOutboundAt === "number" ? row.lastOutboundAt : null,
+    lastProbeAt: typeof row.lastProbeAt === "number" ? row.lastProbeAt : null,
+    mode: typeof row.mode === "string" ? row.mode : null,
+    dmPolicy: typeof row.dmPolicy === "string" ? row.dmPolicy : null,
+    allowFrom: Array.isArray(row.allowFrom) ? row.allowFrom.filter((value): value is string => typeof value === "string") : null,
+    tokenSource: typeof row.tokenSource === "string" ? row.tokenSource : null,
+    botTokenSource: typeof row.botTokenSource === "string" ? row.botTokenSource : null,
+    appTokenSource: typeof row.appTokenSource === "string" ? row.appTokenSource : null,
+    credentialSource: typeof row.credentialSource === "string" ? row.credentialSource : null,
+    audienceType: typeof row.audienceType === "string" ? row.audienceType : null,
+    audience: typeof row.audience === "string" ? row.audience : null,
+    webhookPath: typeof row.webhookPath === "string" ? row.webhookPath : null,
+    webhookUrl: typeof row.webhookUrl === "string" ? row.webhookUrl : null,
+    baseUrl: typeof row.baseUrl === "string" ? row.baseUrl : null,
+    allowUnmentionedGroups: typeof row.allowUnmentionedGroups === "boolean" ? row.allowUnmentionedGroups : null,
+    cliPath: typeof row.cliPath === "string" ? row.cliPath : null,
+    dbPath: typeof row.dbPath === "string" ? row.dbPath : null,
+    port: typeof row.port === "number" ? row.port : null,
+    probe: row.probe,
+    audit: row.audit,
+    application: row.application,
+  };
+}
+
+function toChannelsStatusSnapshot(entry: unknown): ChannelsStatusSnapshot | null {
+  if (!entry || typeof entry !== "object") return null;
+  const row = entry as Json;
+  const channelAccountsRaw = row.channelAccounts && typeof row.channelAccounts === "object"
+    ? (row.channelAccounts as Record<string, unknown>)
+    : {};
+  const channelAccounts: Record<string, ChannelAccountSnapshot[]> = {};
+  for (const [channelId, accounts] of Object.entries(channelAccountsRaw)) {
+    channelAccounts[channelId] = normalizeArray(accounts, toChannelAccountSnapshot);
+  }
+  const channelDefaultAccountIdRaw = row.channelDefaultAccountId && typeof row.channelDefaultAccountId === "object"
+    ? (row.channelDefaultAccountId as Record<string, unknown>)
+    : {};
+  const channelDefaultAccountId = Object.fromEntries(
+    Object.entries(channelDefaultAccountIdRaw).map(([key, value]) => [key, String(value ?? "")]),
+  );
+  return {
+    ts: typeof row.ts === "number" ? row.ts : Date.now(),
+    channelOrder: Array.isArray(row.channelOrder) ? row.channelOrder.filter((value): value is string => typeof value === "string") : [],
+    channelLabels:
+      row.channelLabels && typeof row.channelLabels === "object"
+        ? Object.fromEntries(
+            Object.entries(row.channelLabels as Record<string, unknown>).map(([key, value]) => [key, String(value ?? key)]),
+          )
+        : {},
+    channelDetailLabels:
+      row.channelDetailLabels && typeof row.channelDetailLabels === "object"
+        ? Object.fromEntries(
+            Object.entries(row.channelDetailLabels as Record<string, unknown>).map(([key, value]) => [key, String(value ?? "")]),
+          )
+        : undefined,
+    channelSystemImages:
+      row.channelSystemImages && typeof row.channelSystemImages === "object"
+        ? Object.fromEntries(
+            Object.entries(row.channelSystemImages as Record<string, unknown>).map(([key, value]) => [key, String(value ?? "")]),
+          )
+        : undefined,
+    channelMeta: normalizeArray(row.channelMeta, toChannelMetaEntry),
+    channels: row.channels && typeof row.channels === "object" ? (row.channels as Record<string, unknown>) : {},
+    channelAccounts,
+    channelDefaultAccountId,
+  };
+}
+
+function toCronJob(entry: unknown): CronJob | null {
+  if (!entry || typeof entry !== "object") return null;
+  const row = entry as Json;
+  const id = String(row.id ?? "").trim();
+  if (!id) return null;
+  const schedule: CronJob["schedule"] =
+    row.schedule && typeof row.schedule === "object"
+      ? (row.schedule as CronJob["schedule"])
+      : { kind: "every", everyMs: 60000 };
+  const payload: CronJob["payload"] =
+    row.payload && typeof row.payload === "object"
+      ? (row.payload as CronJob["payload"])
+      : { kind: "systemEvent", text: "" };
+  return {
+    id,
+    agentId: typeof row.agentId === "string" ? row.agentId : undefined,
+    name: String(row.name ?? id),
+    description: typeof row.description === "string" ? row.description : undefined,
+    enabled: row.enabled !== false,
+    deleteAfterRun: row.deleteAfterRun === true,
+    createdAtMs: typeof row.createdAtMs === "number" ? row.createdAtMs : Date.now(),
+    updatedAtMs: typeof row.updatedAtMs === "number" ? row.updatedAtMs : Date.now(),
+    schedule,
+    sessionTarget: row.sessionTarget === "isolated" ? "isolated" : "main",
+    wakeMode: row.wakeMode === "now" ? "now" : "next-heartbeat",
+    payload,
+    delivery: row.delivery && typeof row.delivery === "object" ? (row.delivery as CronJob["delivery"]) : undefined,
+    state: row.state && typeof row.state === "object" ? (row.state as CronJob["state"]) : undefined,
+  };
+}
+
+function toCronStatus(entry: unknown): CronStatus | null {
+  if (!entry || typeof entry !== "object") return null;
+  const row = entry as Json;
+  return {
+    enabled: row.enabled === true,
+    jobs: typeof row.jobs === "number" ? row.jobs : 0,
+    nextWakeAtMs: typeof row.nextWakeAtMs === "number" ? row.nextWakeAtMs : null,
+  };
+}
+
+function toSkillStatusEntry(entry: unknown): SkillStatusEntry | null {
+  if (!entry || typeof entry !== "object") return null;
+  const row = entry as Json;
+  const name = String(row.name ?? "").trim();
+  if (!name) return null;
+  const requirements = row.requirements && typeof row.requirements === "object" ? (row.requirements as Json) : {};
+  const missing = row.missing && typeof row.missing === "object" ? (row.missing as Json) : {};
+  return {
+    name,
+    description: String(row.description ?? ""),
+    source: String(row.source ?? ""),
+    filePath: String(row.filePath ?? ""),
+    baseDir: String(row.baseDir ?? ""),
+    skillKey: String(row.skillKey ?? name),
+    bundled: row.bundled === true,
+    primaryEnv: typeof row.primaryEnv === "string" ? row.primaryEnv : undefined,
+    emoji: typeof row.emoji === "string" ? row.emoji : undefined,
+    homepage: typeof row.homepage === "string" ? row.homepage : undefined,
+    always: row.always === true,
+    disabled: row.disabled === true,
+    blockedByAllowlist: row.blockedByAllowlist === true,
+    eligible: row.eligible !== false,
+    requirements: {
+      bins: Array.isArray(requirements.bins) ? requirements.bins.filter((value): value is string => typeof value === "string") : [],
+      env: Array.isArray(requirements.env) ? requirements.env.filter((value): value is string => typeof value === "string") : [],
+      config: Array.isArray(requirements.config) ? requirements.config.filter((value): value is string => typeof value === "string") : [],
+      os: Array.isArray(requirements.os) ? requirements.os.filter((value): value is string => typeof value === "string") : [],
+    },
+    missing: {
+      bins: Array.isArray(missing.bins) ? missing.bins.filter((value): value is string => typeof value === "string") : [],
+      env: Array.isArray(missing.env) ? missing.env.filter((value): value is string => typeof value === "string") : [],
+      config: Array.isArray(missing.config) ? missing.config.filter((value): value is string => typeof value === "string") : [],
+      os: Array.isArray(missing.os) ? missing.os.filter((value): value is string => typeof value === "string") : [],
+    },
+    configChecks: Array.isArray(row.configChecks)
+      ? row.configChecks
+          .map((value) => {
+            if (!value || typeof value !== "object") return null;
+            const check = value as Json;
+            const path = String(check.path ?? "").trim();
+            if (!path) return null;
+            return { path, satisfied: check.satisfied === true };
+          })
+          .filter((value): value is NonNullable<typeof value> => value !== null)
+      : [],
+    install: Array.isArray(row.install)
+      ? row.install
+          .map((value) => {
+            if (!value || typeof value !== "object") return null;
+            const install = value as Json;
+            const id = String(install.id ?? "").trim();
+            const kindRaw = String(install.kind ?? "");
+            if (
+              !id ||
+              (kindRaw !== "brew" && kindRaw !== "node" && kindRaw !== "go" && kindRaw !== "uv")
+            ) {
+              return null;
+            }
+            const kind: "brew" | "node" | "go" | "uv" = kindRaw;
+            return {
+              id,
+              kind,
+              label: String(install.label ?? id),
+              bins: Array.isArray(install.bins) ? install.bins.filter((item): item is string => typeof item === "string") : [],
+            };
+          })
+          .filter((value): value is NonNullable<typeof value> => value !== null)
+      : [],
+  };
+}
+
+function toSkillStatusReport(entry: unknown): SkillStatusReport | null {
+  if (!entry || typeof entry !== "object") return null;
+  const row = entry as Json;
+  return {
+    workspaceDir: String(row.workspaceDir ?? ""),
+    managedSkillsDir: String(row.managedSkillsDir ?? ""),
+    skills: normalizeArray(row.skills, toSkillStatusEntry),
   };
 }
 
@@ -740,8 +1261,9 @@ function parseConfiguredAgentsFromConfig(snapshot: OpenClawConfigSnapshot | null
 
 export class OpenClawAdapter {
   constructor(
-    private readonly gatewayUrl: string,
+    gatewayUrl: string,
     private readonly stateUrl: string = gatewayUrl,
+    private readonly wsClient?: GatewayWsClient,
   ) {}
 
   private async readJson(path: string): Promise<Json> {
@@ -763,30 +1285,205 @@ export class OpenClawAdapter {
     method: string,
     params: Record<string, unknown>,
   ): Promise<{ ok: boolean; payload: Json; error?: string }> {
+    if (!this.wsClient?.connected) {
+      return { ok: false, payload: {}, error: `gateway_not_connected:${method}` };
+    }
     try {
-      const response = await fetch(`${this.gatewayUrl}/openclaw/gateway/method`, {
-        method: "POST",
-        headers: buildGatewayHeaders({ "content-type": "application/json" }),
-        body: JSON.stringify({ method, params }),
-      });
-      if (!response.ok) {
-        return { ok: false, payload: {}, error: `gateway_method_failed:${method}:${response.status}` };
-      }
-      const payload = (await response.json()) as Json;
-      const ok = payload.ok === false ? false : true;
+      const payload = ((await this.wsClient.request(method, params)) ?? {}) as Json;
       return {
-        ok,
+        ok: payload.ok !== false,
         payload,
         error: typeof payload.error === "string" ? payload.error : undefined,
       };
-    } catch {
-      return { ok: false, payload: {}, error: `gateway_method_unreachable:${method}` };
+    } catch (error) {
+      return {
+        ok: false,
+        payload: {},
+        error: error instanceof Error ? error.message : `gateway_method_failed:${method}`,
+      };
     }
   }
 
   async listAgents(): Promise<AgentCardModel[]> {
     const payload = await this.readJson("/openclaw/agents");
     return normalizeArray(payload.agents, toAgent);
+  }
+
+  private buildAgentsListFallback(
+    configSnapshot: OpenClawConfigSnapshot | null,
+    runtimeAgents: AgentCardModel[],
+  ): AgentsListResult {
+    const configRoot = configSnapshot?.config ?? {};
+    const agentsNode = configRoot.agents && typeof configRoot.agents === "object"
+      ? (configRoot.agents as Record<string, unknown>)
+      : {};
+    const configList = Array.isArray(agentsNode.list) ? agentsNode.list : [];
+    const configAgents = configList
+      .map((entry) => {
+        if (!entry || typeof entry !== "object") return null;
+        const row = entry as Record<string, unknown>;
+        const id = String(row.id ?? row.agentId ?? "").trim();
+        if (!id) return null;
+        return {
+          id,
+          name: typeof row.name === "string" ? row.name : undefined,
+          identity:
+            row.identity && typeof row.identity === "object"
+              ? {
+                  name: typeof (row.identity as Record<string, unknown>).name === "string"
+                    ? String((row.identity as Record<string, unknown>).name)
+                    : undefined,
+                  theme: typeof (row.identity as Record<string, unknown>).theme === "string"
+                    ? String((row.identity as Record<string, unknown>).theme)
+                    : undefined,
+                  emoji: typeof (row.identity as Record<string, unknown>).emoji === "string"
+                    ? String((row.identity as Record<string, unknown>).emoji)
+                    : undefined,
+                  avatar: typeof (row.identity as Record<string, unknown>).avatar === "string"
+                    ? String((row.identity as Record<string, unknown>).avatar)
+                    : undefined,
+                  avatarUrl: typeof (row.identity as Record<string, unknown>).avatarUrl === "string"
+                    ? String((row.identity as Record<string, unknown>).avatarUrl)
+                    : undefined,
+                }
+              : undefined,
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+    const runtimeRows = runtimeAgents.map((agent) => ({
+      id: agent.agentId,
+      name: agent.displayName,
+    }));
+    const deduped = new Map<string, AgentsListResult["agents"][number]>();
+    for (const row of [...configAgents, ...runtimeRows]) {
+      deduped.set(row.id, { ...(deduped.get(row.id) ?? {}), ...row } as AgentsListResult["agents"][number]);
+    }
+    const defaultIdRaw = agentsNode.default;
+    const defaultId = typeof defaultIdRaw === "string" && defaultIdRaw.trim() ? defaultIdRaw.trim() : "main";
+    const mainKeyRaw = agentsNode.mainKey;
+    const mainKey = typeof mainKeyRaw === "string" && mainKeyRaw.trim() ? mainKeyRaw.trim() : "main";
+    const scopeRaw = agentsNode.scope;
+    const scope = typeof scopeRaw === "string" && scopeRaw.trim() ? scopeRaw.trim() : "workspace";
+    return {
+      defaultId,
+      mainKey,
+      scope,
+      agents: [...deduped.values()],
+    };
+  }
+
+  async getAgentsList(): Promise<AgentsListResult> {
+    const result = await this.invokeGatewayMethod("agents.list", {});
+    if (result.ok) {
+      const payload = result.payload;
+      if (Array.isArray(payload.agents)) {
+        const agents = payload.agents
+          .map((entry) => {
+            if (!entry || typeof entry !== "object") return null;
+            const row = entry as Json;
+            const id = String(row.id ?? "").trim();
+            if (!id) return null;
+            const identity = row.identity && typeof row.identity === "object" ? (row.identity as Json) : {};
+            return {
+              id,
+              name: typeof row.name === "string" ? row.name : undefined,
+              identity: {
+                name: typeof identity.name === "string" ? identity.name : undefined,
+                theme: typeof identity.theme === "string" ? identity.theme : undefined,
+                emoji: typeof identity.emoji === "string" ? identity.emoji : undefined,
+                avatar: typeof identity.avatar === "string" ? identity.avatar : undefined,
+                avatarUrl: typeof identity.avatarUrl === "string" ? identity.avatarUrl : undefined,
+              },
+            };
+          })
+          .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+        return {
+          defaultId: typeof payload.defaultId === "string" ? payload.defaultId : "main",
+          mainKey: typeof payload.mainKey === "string" ? payload.mainKey : "main",
+          scope: typeof payload.scope === "string" ? payload.scope : "workspace",
+          agents,
+        };
+      }
+    }
+
+    const [configSnapshot, runtimeAgents] = await Promise.all([
+      this.getConfigSnapshot().catch(() => null),
+      this.listAgents().catch(() => []),
+    ]);
+    return this.buildAgentsListFallback(configSnapshot, runtimeAgents);
+  }
+
+  async getAgentIdentity(agentId: string): Promise<AgentIdentityResult | null> {
+    const result = await this.invokeGatewayMethod("agent.identity.get", { agentId });
+    if (!result.ok) return null;
+    const payload = result.payload;
+    const responseAgentId = String(payload.agentId ?? agentId).trim();
+    const name = String(payload.name ?? "").trim();
+    if (!responseAgentId || !name) return null;
+    return {
+      agentId: responseAgentId,
+      name,
+      avatar: typeof payload.avatar === "string" ? payload.avatar : "",
+      emoji: typeof payload.emoji === "string" ? payload.emoji : undefined,
+    };
+  }
+
+  async listAgentFiles(agentId: string): Promise<AgentsFilesListResult> {
+    const result = await this.invokeGatewayMethod("agents.files.list", { agentId });
+    if (!result.ok) throw new Error(result.error ?? "agents_files_list_failed");
+    const parsed = toAgentsFilesListResult(result.payload);
+    if (!parsed) throw new Error("agents_files_list_invalid");
+    return parsed;
+  }
+
+  async getAgentFile(agentId: string, name: string): Promise<AgentsFilesGetResult> {
+    const result = await this.invokeGatewayMethod("agents.files.get", { agentId, name });
+    if (!result.ok) throw new Error(result.error ?? "agents_files_get_failed");
+    const parsed = toAgentsFilesGetResult(result.payload);
+    if (!parsed) throw new Error("agents_files_get_invalid");
+    return parsed;
+  }
+
+  async saveAgentFile(agentId: string, name: string, content: string): Promise<AgentsFilesSetResult> {
+    const result = await this.invokeGatewayMethod("agents.files.set", { agentId, name, content });
+    if (!result.ok) throw new Error(result.error ?? "agents_files_set_failed");
+    const parsed = toAgentsFilesSetResult(result.payload);
+    if (!parsed) throw new Error("agents_files_set_invalid");
+    return parsed;
+  }
+
+  async getToolsCatalog(agentId: string): Promise<ToolsCatalogResult | null> {
+    const result = await this.invokeGatewayMethod("tools.catalog", { agentId });
+    if (!result.ok) return null;
+    return toToolsCatalogResult(result.payload, agentId);
+  }
+
+  async getSkillsStatus(agentId: string): Promise<SkillStatusReport | null> {
+    const result = await this.invokeGatewayMethod("skills.status", { agentId });
+    if (!result.ok) return null;
+    return toSkillStatusReport(result.payload);
+  }
+
+  async getChannelsStatus(): Promise<ChannelsStatusSnapshot | null> {
+    const result = await this.invokeGatewayMethod("channels.status", {});
+    if (!result.ok) return null;
+    return toChannelsStatusSnapshot(result.payload);
+  }
+
+  async getCronStatus(): Promise<CronStatus | null> {
+    const result = await this.invokeGatewayMethod("cron.status", {});
+    if (!result.ok) return null;
+    return toCronStatus(result.payload);
+  }
+
+  async listCronJobs(): Promise<CronJob[]> {
+    const result = await this.invokeGatewayMethod("cron.list", {});
+    if (!result.ok) return [];
+    const payload = result.payload;
+    if (Array.isArray(payload.jobs)) {
+      return normalizeArray(payload.jobs, toCronJob);
+    }
+    return [];
   }
 
   async listSessions(agentId: string): Promise<SessionRowModel[]> {
@@ -799,6 +1496,50 @@ export class OpenClawAdapter {
       `/openclaw/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(sessionKey)}/events?limit=${limit}`,
     );
     return toTimeline(agentId, sessionKey, payload.timeline ?? payload);
+  }
+
+  parseHeartbeatWindows(timeline: SessionTimelineModel): HeartbeatWindow[] {
+    return parseHeartbeatWindows(timeline.events, timeline.sessionKey);
+  }
+
+  async getAgentLiveStatus(agentId: string): Promise<AgentLiveStatus> {
+    const sessions = await this.listSessions(agentId);
+    const sortedSessions = [...sessions].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+    const primarySession = sortedSessions[0];
+    if (!primarySession) {
+      return {
+        agentId,
+        state: "idle",
+        statusText: "Idle",
+        bubbles: [],
+      };
+    }
+    const timeline = await this.getSessionTimeline(agentId, primarySession.sessionKey, 240);
+    const windows = this.parseHeartbeatWindows(timeline);
+    return deriveAgentLiveStatus(agentId, primarySession.sessionKey, windows);
+  }
+
+  async getAgentsLiveStatus(agentIds: string[]): Promise<Record<string, AgentLiveStatus>> {
+    const uniqueIds = [...new Set(agentIds.filter((entry) => entry.trim().length > 0))];
+    const rows = await Promise.all(
+      uniqueIds.map(async (agentId) => {
+        try {
+          const status = await this.getAgentLiveStatus(agentId);
+          return [agentId, status] as const;
+        } catch {
+          return [
+            agentId,
+            {
+              agentId,
+              state: "idle" as const,
+              statusText: "Idle",
+              bubbles: [],
+            },
+          ] as const;
+        }
+      }),
+    );
+    return Object.fromEntries(rows);
   }
 
   async sendMessage(input: ChatSendRequest): Promise<{ ok: boolean; eventId?: string; error?: string }> {
@@ -1014,6 +1755,41 @@ export class OpenClawAdapter {
     return this.saveCompanyModel(nextCompany);
   }
 
+  async createTeam(input: {
+    name: string;
+    description: string;
+    goal: string;
+    kpis: string[];
+    autoRoles: Array<"builder" | "growth_marketer" | "pm">;
+    registerOpenclawAgents: boolean;
+    withCluster: boolean;
+  }): Promise<{ ok: boolean; teamId?: string; projectId?: string; createdAgents?: string[]; error?: string }> {
+    try {
+      const response = await fetch(`${this.stateUrl}/openclaw/team/create`, {
+        method: "POST",
+        headers: buildGatewayHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify(input),
+      });
+      const payload = (await response.json()) as Json;
+      if (!response.ok || payload.ok === false) {
+        return {
+          ok: false,
+          error: typeof payload.error === "string" ? payload.error : `team_create_failed:${response.status}`,
+        };
+      }
+      return {
+        ok: true,
+        teamId: typeof payload.teamId === "string" ? payload.teamId : undefined,
+        projectId: typeof payload.projectId === "string" ? payload.projectId : undefined,
+        createdAgents: Array.isArray(payload.createdAgents)
+          ? payload.createdAgents.filter((entry): entry is string => typeof entry === "string")
+          : undefined,
+      };
+    } catch {
+      return { ok: false, error: "team_create_unavailable" };
+    }
+  }
+
   async upsertChannelBinding(input: ChannelBindingModel): Promise<{ ok: boolean; company: CompanyModel; error?: string }> {
     const company = await this.getCompanyModel();
     const nextBindings = company.channelBindings.filter(
@@ -1063,29 +1839,6 @@ export class OpenClawAdapter {
     return this.saveCompanyModel({ ...company, providerIndexProfiles: nextProfiles });
   }
 
-  async bootstrapNotionProfile(databaseId: string): Promise<{ ok: boolean; profile?: ProviderIndexProfile; error?: string }> {
-    const normalizedDatabaseId = databaseId.trim();
-    if (!normalizedDatabaseId) return { ok: false, error: "database_id_required" };
-    const gatewayResult = await this.invokeGatewayMethod("notion-shell.profile.bootstrap", {
-      databaseId: normalizedDatabaseId,
-    });
-    if (!gatewayResult.ok) return { ok: false, error: gatewayResult.error ?? "profile_bootstrap_failed" };
-    const profile = gatewayResult.payload.profile && typeof gatewayResult.payload.profile === "object"
-      ? (gatewayResult.payload.profile as Record<string, unknown>)
-      : null;
-    if (!profile) return { ok: false, error: "profile_payload_missing" };
-    const hydrated = toProviderIndexProfile({
-      projectId: String(profile.projectId ?? ""),
-      provider: "notion",
-      entityId: String(profile.entityId ?? normalizedDatabaseId),
-      entityName: String(profile.entityName ?? normalizedDatabaseId),
-      fieldMappings: Array.isArray(profile.fieldMappings) ? profile.fieldMappings : [],
-      fetchCommandHints: ["notion-shell.tasks.list", "notion-shell.tasks.sync", "notion-shell.profile.bootstrap"],
-    });
-    if (!hydrated) return { ok: false, error: "profile_payload_invalid" };
-    return { ok: true, profile: hydrated };
-  }
-
   async updateFederatedTask(
     taskId: string,
     updates: Partial<Pick<FederatedTaskModel, "title" | "status" | "priority" | "ownerAgentId">>,
@@ -1095,24 +1848,6 @@ export class OpenClawAdapter {
     if (!current) return { ok: false, error: "task_not_found" };
     const policy = await this.getFederationPolicy(current.projectId);
     const writeProvider = resolveCanonicalWriteProvider(policy, current.canonicalProvider);
-
-    if (writeProvider !== "internal" && policy.writeBackEnabled) {
-      const methodName = writeProvider === "notion" ? "notion-shell.tasks.update" : "";
-      if (methodName) {
-        const gatewayResult = await this.invokeGatewayMethod(methodName, { taskId, updates });
-        if (!gatewayResult.ok) {
-          const failedTask: FederatedTaskModel = {
-            ...current,
-            syncState: "error",
-            syncError: gatewayResult.error ?? "external_write_failed",
-            updatedAt: Date.now(),
-          };
-          const failedTasks = company.tasks.map((task) => (task.id === taskId ? failedTask : task));
-          await this.saveCompanyModel({ ...company, tasks: failedTasks });
-          return { ok: false, task: failedTask, error: failedTask.syncError };
-        }
-      }
-    }
 
     const nextTask: FederatedTaskModel = {
       ...current,
@@ -1136,19 +1871,6 @@ export class OpenClawAdapter {
     });
     const initialSave = await this.saveCompanyModel({ ...company, tasks: nextTasks });
     if (!initialSave.ok) return { ok: false, error: initialSave.error };
-
-    if (provider === "notion" || provider === undefined) {
-      const gatewayResult = await this.invokeGatewayMethod("notion-shell.tasks.sync", { projectId });
-      if (!gatewayResult.ok) {
-        const failedTasks = nextTasks.map((task) =>
-          task.projectId === projectId && (!provider || task.provider === provider)
-            ? { ...task, syncState: "error" as const, syncError: gatewayResult.error ?? "sync_failed", updatedAt: Date.now() }
-            : task,
-        );
-        await this.saveCompanyModel({ ...company, tasks: failedTasks });
-        return { ok: false, error: gatewayResult.error ?? "sync_failed" };
-      }
-    }
 
     const reconciledTasks = nextTasks.map((task) => {
       if (task.projectId !== projectId) return task;

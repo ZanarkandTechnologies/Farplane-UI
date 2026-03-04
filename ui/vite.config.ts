@@ -9,6 +9,7 @@ type JsonObject = Record<string, unknown>;
 type MemoryEntryType = "discovery" | "decision" | "problem" | "solution" | "pattern" | "warning" | "success" | "refactor" | "bugfix" | "feature";
 type TaskProvider = "internal" | "notion" | "vibe" | "linear";
 type TaskSyncState = "healthy" | "pending" | "conflict" | "error";
+type TeamRole = "builder" | "growth_marketer" | "pm";
 
 const OPENCLAW_HOME = process.env.OPENCLAW_STATE_DIR || path.join(process.env.HOME || "", ".openclaw");
 const OPENCLAW_CONFIG_PATH = process.env.OPENCLAW_CONFIG_PATH || path.join(OPENCLAW_HOME, "openclaw.json");
@@ -345,6 +346,24 @@ function extractTextFromTranscriptMessage(message: JsonObject): string {
   return "";
 }
 
+function extractTextFromTranscriptRow(row: JsonObject): string {
+  const type = String(row.type ?? "message");
+  if (type === "message") {
+    const msg = row.message && typeof row.message === "object" ? (row.message as JsonObject) : null;
+    if (!msg) return "";
+    return extractTextFromTranscriptMessage(msg).trim();
+  }
+  if (typeof row.text === "string" && row.text.trim()) return row.text.trim();
+  if (typeof row.content === "string" && row.content.trim()) return row.content.trim();
+  if (type === "tool") {
+    const toolName = typeof row.toolName === "string" ? row.toolName.trim() : "";
+    const status = typeof row.status === "string" ? row.status.trim() : "";
+    const args = row.args ? JSON.stringify(row.args) : "";
+    return [toolName || "tool", status, args].filter(Boolean).join(" ").trim();
+  }
+  return "";
+}
+
 async function readSessionTimelineEvents(agentId: string, sessionKey: string, limit: number): Promise<JsonObject[]> {
   const sessions = await readAgentSessionsIndex(agentId);
   const sessionRow = sessions[sessionKey];
@@ -362,20 +381,29 @@ async function readSessionTimelineEvents(agentId: string, sessionKey: string, li
     .map((line) => line.trim())
     .filter(Boolean);
   const events: JsonObject[] = [];
-  for (const line of lines) {
+  const fallbackBaseTs = typeof sessionRow.updatedAt === "number" ? sessionRow.updatedAt : 0;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
     try {
       const row = JSON.parse(line) as JsonObject;
-      if (row.type !== "message") continue;
-      const msg = row.message && typeof row.message === "object" ? (row.message as JsonObject) : null;
-      if (!msg) continue;
-      const text = extractTextFromTranscriptMessage(msg).trim();
+      const rowType = String(row.type ?? "status");
+      const text = extractTextFromTranscriptRow(row);
       if (!text) continue;
       const tsRaw = typeof row.timestamp === "string" ? Date.parse(row.timestamp) : Number.NaN;
+      const role =
+        rowType === "message"
+          ? String(((row.message as JsonObject | undefined)?.role) ?? "assistant")
+          : rowType === "tool"
+            ? "tool"
+            : "system";
       events.push({
-        ts: Number.isFinite(tsRaw) ? tsRaw : Date.now(),
-        type: "message",
-        role: String(msg.role ?? "assistant"),
+        ts: Number.isFinite(tsRaw) ? tsRaw : fallbackBaseTs + index,
+        type: rowType === "tool" ? "tool" : rowType === "message" ? "message" : "status",
+        role,
         text,
+        source: typeof row.source === "string" ? row.source : undefined,
+        eventId: typeof row.id === "string" ? row.id : undefined,
+        rawType: rowType,
       });
     } catch {
       // Skip malformed transcript lines.
@@ -452,6 +480,47 @@ function normalizeFederatedTasks(tasks: unknown[]): JsonObject[] {
     .filter((entry): entry is JsonObject => entry !== null);
 }
 
+function toSlug(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function normalizeKpiList(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const out = new Set<string>();
+  for (const row of input) {
+    if (typeof row !== "string") continue;
+    const trimmed = row.trim();
+    if (trimmed) out.add(trimmed);
+  }
+  return [...out];
+}
+
+function normalizeTeamRoles(input: unknown): TeamRole[] {
+  if (!Array.isArray(input)) return [];
+  const out = new Set<TeamRole>();
+  for (const row of input) {
+    if (row === "builder" || row === "growth_marketer" || row === "pm") out.add(row);
+  }
+  return [...out];
+}
+
+function projectIdFromTeamId(teamId: string): string {
+  return teamId.startsWith("team-") ? teamId.slice("team-".length) : teamId;
+}
+
+function roleSuffix(role: TeamRole): string {
+  return role === "growth_marketer" ? "growth" : role;
+}
+
+function defaultHeartbeatProfileIdForRole(role: TeamRole): string {
+  if (role === "builder") return "hb-builder";
+  if (role === "growth_marketer") return "hb-growth";
+  return "hb-pm";
+}
+
 function shellcorpStateBridge() {
   return {
     name: "shellcorp-openclaw-state-bridge",
@@ -507,7 +576,7 @@ function shellcorpStateBridge() {
           const payload = Object.entries(sessions).map(([sessionKey, row]) => ({
             sessionKey,
             sessionId: typeof row.sessionId === "string" ? row.sessionId : undefined,
-            updatedAt: typeof row.updatedAt === "number" ? row.updatedAt : Date.now(),
+            updatedAt: typeof row.updatedAt === "number" ? row.updatedAt : 0,
             channel: typeof (row.deliveryContext as JsonObject | undefined)?.channel === "string" ? String((row.deliveryContext as JsonObject).channel) : undefined,
             peerLabel: typeof row.lastTo === "string" ? row.lastTo : undefined,
             origin: typeof (row.origin as JsonObject | undefined)?.provider === "string" ? String((row.origin as JsonObject).provider) : undefined,
@@ -577,6 +646,7 @@ function shellcorpStateBridge() {
             id: eventId,
             parentId: null,
             timestamp: nowIso,
+            source: "ui",
             message: {
               role: "user",
               content: [{ type: "text", text: message }],
@@ -764,78 +834,122 @@ function shellcorpStateBridge() {
           return;
         }
 
-        if (method === "POST" && pathname === "/openclaw/gateway/method") {
+        if (method === "POST" && pathname === "/openclaw/team/create") {
           const body = (await readBody(req)) as JsonObject;
-          const methodName = String(body.method ?? "").trim();
-          const params = (body.params && typeof body.params === "object" ? body.params : {}) as JsonObject;
+          const name = typeof body.name === "string" ? body.name.trim() : "";
+          const description = typeof body.description === "string" ? body.description.trim() : "";
+          const goal = typeof body.goal === "string" ? body.goal.trim() : "";
+          const kpis = normalizeKpiList(body.kpis);
+          const autoRoles = normalizeTeamRoles(body.autoRoles);
+          const registerOpenclawAgents = body.registerOpenclawAgents === true;
+          const withCluster = body.withCluster !== false;
+          if (!name || !goal) {
+            writeJson(res, 400, { ok: false, error: "team_create_invalid_payload" });
+            return;
+          }
+
+          const slug = toSlug(name) || `team-${Date.now()}`;
+          const teamId = typeof body.teamId === "string" && body.teamId.trim() ? body.teamId.trim() : `team-proj-${slug}`;
+          const projectId = projectIdFromTeamId(teamId);
+
           const company = await readJsonFile<JsonObject>(COMPANY_MODEL_PATH, {});
-          const tasks = normalizeFederatedTasks(Array.isArray(company.tasks) ? company.tasks : []);
-
-          if (methodName === "notion-shell.tasks.update") {
-            const taskId = String(params.taskId ?? "").trim();
-            const updates = (params.updates && typeof params.updates === "object" ? params.updates : {}) as JsonObject;
-            const target = tasks.find((task) => String(task.id) === taskId);
-            if (!target) {
-              writeJson(res, 404, { ok: false, error: "task_not_found" });
-              return;
-            }
-            target.status =
-              updates.status === "in_progress" || updates.status === "blocked" || updates.status === "done"
-                ? updates.status
-                : target.status;
-            target.updatedAt = Date.now();
-            target.syncState = "healthy";
-            const nextCompany = { ...company, tasks };
-            await mkdir(path.dirname(COMPANY_MODEL_PATH), { recursive: true });
-            await writeFile(COMPANY_MODEL_PATH, `${JSON.stringify(nextCompany, null, 2)}\n`, "utf-8");
-            writeJson(res, 200, { ok: true, taskId });
+          const projects = Array.isArray(company.projects) ? [...company.projects] : [];
+          if (projects.some((entry) => entry && typeof entry === "object" && String((entry as JsonObject).id ?? "").trim() === projectId)) {
+            writeJson(res, 409, { ok: false, error: "team_already_exists", teamId, projectId });
             return;
           }
+          const departments = Array.isArray(company.departments) ? company.departments : [];
+          const deptProducts = departments.find((entry) => entry && typeof entry === "object" && String((entry as JsonObject).id ?? "") === "dept-products");
+          const fallbackDepartmentId = String((deptProducts as JsonObject | undefined)?.id ?? (departments[0] && typeof departments[0] === "object" ? String((departments[0] as JsonObject).id ?? "dept-products") : "dept-products"));
 
-          if (methodName === "notion-shell.tasks.sync") {
-            const projectId = String(params.projectId ?? "").trim();
-            const databaseId = String(params.databaseId ?? "").trim();
-            const touched = tasks
-              .filter((task) => String(task.projectId) === projectId)
-              .filter((task) => String(task.provider) === "notion");
-            for (const task of touched) {
-              task.syncState = "healthy";
-              task.syncError = undefined;
-              task.updatedAt = Date.now();
-              if (!task.providerUrl && databaseId) {
-                task.providerUrl = `https://www.notion.so/${databaseId.replace(/-/g, "")}`;
-              }
-            }
-            const nextCompany = { ...company, tasks };
-            await mkdir(path.dirname(COMPANY_MODEL_PATH), { recursive: true });
-            await writeFile(COMPANY_MODEL_PATH, `${JSON.stringify(nextCompany, null, 2)}\n`, "utf-8");
-            writeJson(res, 200, { ok: true, synced: touched.length, tasks: touched });
-            return;
+          const nextProject = {
+            id: projectId,
+            departmentId: fallbackDepartmentId,
+            name,
+            githubUrl: "",
+            status: "active",
+            goal,
+            kpis,
+          } satisfies JsonObject;
+
+          const agents = Array.isArray(company.agents) ? [...company.agents] : [];
+          const roleSlots = Array.isArray(company.roleSlots) ? [...company.roleSlots] : [];
+          for (const role of autoRoles) {
+            const agentId = `${slug}-${roleSuffix(role)}`;
+            agents.push({
+              agentId,
+              role,
+              projectId,
+              heartbeatProfileId: defaultHeartbeatProfileIdForRole(role),
+              lifecycleState: "pending_spawn",
+              isCeo: false,
+            } satisfies JsonObject);
+            roleSlots.push({
+              projectId,
+              role,
+              desiredCount: 1,
+              spawnPolicy: "queue_pressure",
+            } satisfies JsonObject);
           }
 
-          if (methodName === "notion-shell.profile.bootstrap") {
-            const databaseId = String(params.databaseId ?? "").trim();
-            if (!databaseId) {
-              writeJson(res, 400, { ok: false, error: "database_id_required" });
-              return;
-            }
-            writeJson(res, 200, {
-              ok: true,
-              profile: {
-                provider: "notion",
-                entityId: databaseId,
-                entityName: `Notion ${databaseId.slice(0, 8)}`,
-                fieldMappings: [
-                  { name: "Name", type: "title" },
-                  { name: "Status", type: "status", options: ["To Do", "In Progress", "Blocked", "Done"] },
-                  { name: "Priority", type: "select", options: ["low", "medium", "high"] },
-                ],
+          const nextCompany = {
+            ...company,
+            projects: [...projects, nextProject],
+            agents,
+            roleSlots,
+            federationPolicies: Array.isArray(company.federationPolicies) ? company.federationPolicies : [],
+            providerIndexProfiles: Array.isArray(company.providerIndexProfiles) ? company.providerIndexProfiles : [],
+            tasks: Array.isArray(company.tasks) ? normalizeFederatedTasks(company.tasks) : [],
+          } satisfies JsonObject;
+          await mkdir(path.dirname(COMPANY_MODEL_PATH), { recursive: true });
+          await writeFile(COMPANY_MODEL_PATH, `${JSON.stringify(nextCompany, null, 2)}\n`, "utf-8");
+
+          if (withCluster) {
+            const currentObjects = normalizeOfficeObjects(await readJsonFile<unknown[]>(OFFICE_OBJECTS_PATH, []));
+            const clusterId = `team-cluster-${teamId}`;
+            const nextObjects = currentObjects.filter((entry) => String(entry.id ?? "") !== clusterId);
+            nextObjects.push({
+              id: clusterId,
+              identifier: clusterId,
+              meshType: "team-cluster",
+              position: [0, 0, 8],
+              rotation: [0, 0, 0],
+              metadata: {
+                teamId,
+                name,
+                description,
+                services: [],
               },
-            });
-            return;
+            } satisfies JsonObject);
+            await mkdir(path.dirname(OFFICE_OBJECTS_PATH), { recursive: true });
+            await writeFile(OFFICE_OBJECTS_PATH, `${JSON.stringify(nextObjects, null, 2)}\n`, "utf-8");
           }
 
-          writeJson(res, 404, { ok: false, error: `gateway_method_not_found:${methodName}` });
+          if (registerOpenclawAgents && autoRoles.length > 0) {
+            const config = await readJsonFile<JsonObject>(OPENCLAW_CONFIG_PATH, {});
+            const agentsNode = config.agents && typeof config.agents === "object" ? { ...(config.agents as JsonObject) } : {};
+            const list = Array.isArray(agentsNode.list) ? [...(agentsNode.list as JsonObject[])] : [];
+            const existing = new Set(list.map((entry) => String((entry as JsonObject).id ?? "").trim()));
+            for (const role of autoRoles) {
+              const agentId = `${slug}-${roleSuffix(role)}`;
+              if (existing.has(agentId)) continue;
+              list.push({
+                id: agentId,
+                workspace: path.join(OPENCLAW_HOME, "workspace", "products", agentId),
+                agentDir: path.join(OPENCLAW_HOME, "agents", agentId, "agent"),
+              } satisfies JsonObject);
+            }
+            const nextConfig = { ...config, agents: { ...agentsNode, list } } satisfies JsonObject;
+            await mkdir(path.dirname(OPENCLAW_CONFIG_PATH), { recursive: true });
+            await writeFile(OPENCLAW_CONFIG_PATH, `${JSON.stringify(nextConfig, null, 2)}\n`, "utf-8");
+          }
+
+          writeJson(res, 200, {
+            ok: true,
+            teamId,
+            projectId,
+            createdAgents: autoRoles.map((role) => `${slug}-${roleSuffix(role)}`),
+          });
           return;
         }
 

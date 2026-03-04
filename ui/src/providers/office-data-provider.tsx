@@ -5,11 +5,11 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState,
 import { HALF_FLOOR } from "@/constants";
 import { getAbsoluteDeskPosition, getDeskRotation, getEmployeePositionAtDesk } from "@/convex/utils/layout";
 import { normalizeOfficeObjectId } from "@/features/office-system/components/office-object-id";
-import { gatewayBase, stateBase } from "@/lib/gateway-config";
-import { OpenClawAdapter } from "@/lib/openclaw-adapter";
+import type { OpenClawAdapter } from "@/lib/openclaw-adapter";
 import type { Company, DeskLayoutData, EmployeeData, OfficeObject, TeamData } from "@/lib/types";
 import type {
   AgentCardModel,
+  AgentLiveStatus,
   CompanyModel,
   FederatedTaskProvider,
   FederationProjectPolicy,
@@ -19,6 +19,7 @@ import type {
   ReconciliationWarning,
   UnifiedOfficeModel,
 } from "@/lib/openclaw-types";
+import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
 
 interface OfficeDataContextType {
   company: Company | null;
@@ -33,7 +34,6 @@ interface OfficeDataContextType {
   manualResync: (projectId: string, provider?: FederatedTaskProvider) => Promise<{ ok: boolean; error?: string }>;
   upsertFederationPolicy: (policy: FederationProjectPolicy) => Promise<{ ok: boolean; error?: string }>;
   upsertProviderIndexProfile: (profile: ProviderIndexProfile) => Promise<{ ok: boolean; error?: string }>;
-  bootstrapNotionProfile: (projectId: string, databaseId: string, toolNamingPrefix?: string) => Promise<{ ok: boolean; error?: string }>;
   isLoading: boolean;
 }
 
@@ -170,12 +170,15 @@ function fallbackData(): OfficeDataContextType {
     manualResync: async () => ({ ok: false, error: "adapter_unavailable" }),
     upsertFederationPolicy: async () => ({ ok: false, error: "adapter_unavailable" }),
     upsertProviderIndexProfile: async () => ({ ok: false, error: "adapter_unavailable" }),
-    bootstrapNotionProfile: async () => ({ ok: false, error: "adapter_unavailable" }),
     isLoading: false,
   };
 }
 
-function toOfficeData(unified: UnifiedOfficeModel, pendingApprovals: PendingApprovalModel[] = []): OfficeDataContextType {
+function toOfficeData(
+  unified: UnifiedOfficeModel,
+  pendingApprovals: PendingApprovalModel[] = [],
+  liveStatusByAgent: Record<string, AgentLiveStatus> = {},
+): OfficeDataContextType {
   const runtimeAgents = unified.runtimeAgents;
   const configuredAgents = unified.configuredAgents;
   const sidecarObjects = dedupeCanonicalSidecarObjects(unified.officeObjects ?? []);
@@ -299,6 +302,7 @@ function toOfficeData(unified: UnifiedOfficeModel, pendingApprovals: PendingAppr
         : "team-openclaw";
     const team = teams.find((item) => item._id === teamId);
     const heartbeat = companyModel.heartbeatProfiles.find((item) => item.id === companyAgent?.heartbeatProfileId);
+    const liveStatus = liveStatusByAgent[agent.agentId];
     const pressure = companyAgent?.projectId ? workload.find((item) => item.projectId === companyAgent.projectId)?.queuePressure : undefined;
     const teamCenter = team?.clusterPosition ?? [0, 0, 8];
     const teamDeskLayouts = team ? normalizedDeskLayoutsByTeamId.get(team._id) ?? [] : [];
@@ -318,6 +322,16 @@ function toOfficeData(unified: UnifiedOfficeModel, pendingApprovals: PendingAppr
         ? getEmployeePositionAtDesk(deskPosition, deskRotation)
         : teamCenter;
     const agentApprovals = approvalsByAgent.get(agent.agentId);
+    const heartbeatStatus =
+      liveStatus?.state === "error"
+        ? "warning"
+        : liveStatus?.state === "ok"
+          ? "success"
+          : liveStatus?.state === "running"
+            ? "info"
+            : liveStatus?.state === "no_work"
+              ? "info"
+              : undefined;
     return {
       _id: `employee-${agent.agentId}`,
       companyId,
@@ -331,10 +345,14 @@ function toOfficeData(unified: UnifiedOfficeModel, pendingApprovals: PendingAppr
       isCEO: companyAgent?.role === "ceo" || isMainAgent || index === 0,
       isSupervisor: companyAgent?.role === "pm" || companyAgent?.role === "ceo" || isMainAgent || index === 0,
       jobTitle: companyAgent?.role ? `${companyAgent.role} (${agent.agentId})` : `Configured Agent (${agent.agentId})`,
-      status: !isRuntimeRunning ? "warning" : pressure === "high" ? "warning" : (runtimeAgent?.sessionCount ?? 0) > 0 ? "success" : "info",
-      statusMessage: `${heartbeat?.goal ?? "No heartbeat profile"} | runtime=${isRuntimeRunning ? "running" : "not-running"} | sandbox=${agent.sandboxMode} | sessions=${runtimeAgent?.sessionCount ?? 0}`,
+      status:
+        heartbeatStatus ??
+        (!isRuntimeRunning ? "warning" : pressure === "high" ? "warning" : (runtimeAgent?.sessionCount ?? 0) > 0 ? "success" : "info"),
+      statusMessage: `${heartbeat?.goal ?? "No heartbeat profile"} | heartbeat=${liveStatus?.statusText ?? "Idle"} | runtime=${isRuntimeRunning ? "running" : "not-running"} | sandbox=${agent.sandboxMode} | sessions=${runtimeAgent?.sessionCount ?? 0}`,
       notificationCount: agentApprovals?.count,
       notificationPriority: agentApprovals?.maxRisk,
+      heartbeatState: liveStatus?.state,
+      heartbeatBubbles: liveStatus?.bubbles?.map((bubble) => ({ label: bubble.label, weight: bubble.weight })) ?? [],
     };
   });
 
@@ -374,12 +392,12 @@ function toOfficeData(unified: UnifiedOfficeModel, pendingApprovals: PendingAppr
     manualResync: async () => ({ ok: false, error: "adapter_unavailable" }),
     upsertFederationPolicy: async () => ({ ok: false, error: "adapter_unavailable" }),
     upsertProviderIndexProfile: async () => ({ ok: false, error: "adapter_unavailable" }),
-    bootstrapNotionProfile: async () => ({ ok: false, error: "adapter_unavailable" }),
     isLoading: false,
   };
 }
 
 export function OfficeDataProvider({ children }: { children: ReactNode }): React.JSX.Element {
+  const sharedAdapter = useOpenClawAdapter();
   const [value, setValue] = useState<OfficeDataContextType>({ ...fallbackData(), isLoading: true });
   const adapterRef = useRef<OpenClawAdapter | null>(null);
   const cancelledRef = useRef(false);
@@ -392,16 +410,18 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
         adapter.getUnifiedOfficeModel(),
         adapter.getPendingApprovals(),
       ]);
+      const statusByAgent = await adapter.getAgentsLiveStatus(
+        [...new Set([...unified.runtimeAgents.map((item) => item.agentId), ...unified.configuredAgents.map((item) => item.agentId)])],
+      );
       if (cancelledRef.current) return;
       setValue((current) => {
-        const next = toOfficeData(unified, pendingApprovals);
+        const next = toOfficeData(unified, pendingApprovals, statusByAgent);
         return {
           ...next,
           refresh: current.refresh,
           manualResync: current.manualResync,
           upsertFederationPolicy: current.upsertFederationPolicy,
           upsertProviderIndexProfile: current.upsertProviderIndexProfile,
-          bootstrapNotionProfile: current.bootstrapNotionProfile,
         };
       });
     } catch {
@@ -412,13 +432,12 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
         manualResync: current.manualResync,
         upsertFederationPolicy: current.upsertFederationPolicy,
         upsertProviderIndexProfile: current.upsertProviderIndexProfile,
-        bootstrapNotionProfile: current.bootstrapNotionProfile,
       }));
     }
   };
 
   useEffect(() => {
-    adapterRef.current = new OpenClawAdapter(gatewayBase, stateBase);
+    adapterRef.current = sharedAdapter;
     cancelledRef.current = false;
 
     async function refresh(): Promise<void> {
@@ -449,33 +468,12 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
       return { ok: result.ok, error: result.error };
     }
 
-    async function bootstrapNotionProfile(
-      projectId: string,
-      databaseId: string,
-      toolNamingPrefix?: string,
-    ): Promise<{ ok: boolean; error?: string }> {
-      const adapter = adapterRef.current;
-      if (!adapter) return { ok: false, error: "adapter_unavailable" };
-      const bootstrapped = await adapter.bootstrapNotionProfile(databaseId);
-      if (!bootstrapped.ok || !bootstrapped.profile) return { ok: false, error: bootstrapped.error };
-      const upsertResult = await adapter.upsertProviderIndexProfile({
-        ...bootstrapped.profile,
-        profileId: `${projectId}:notion:${bootstrapped.profile.entityId}`,
-        projectId,
-        toolNamingPrefix: toolNamingPrefix?.trim() ? toolNamingPrefix.trim() : bootstrapped.profile.toolNamingPrefix,
-        updatedAt: Date.now(),
-      });
-      await load();
-      return { ok: upsertResult.ok, error: upsertResult.error };
-    }
-
     setValue((current) => ({
       ...current,
       refresh,
       manualResync,
       upsertFederationPolicy,
       upsertProviderIndexProfile,
-      bootstrapNotionProfile,
       isLoading: true,
     }));
     void load();
@@ -487,7 +485,7 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
       cancelledRef.current = true;
       clearInterval(timer);
     };
-  }, []);
+  }, [sharedAdapter]);
 
   const memoizedValue = useMemo(() => value, [value]);
 

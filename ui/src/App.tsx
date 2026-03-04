@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
 import OfficeSimulation from "@/components/office-simulation";
-import { gatewayBase, stateBase } from "@/lib/gateway-config";
-import { OpenClawAdapter } from "@/lib/openclaw-adapter";
 import type {
   AgentCardModel,
   CompanyModel,
@@ -16,6 +14,7 @@ import type {
   SkillItemModel,
 } from "@/lib/openclaw-types";
 import { OfficeDataProvider } from "@/providers/office-data-provider";
+import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
 
 type UiTab = "operations" | "memory" | "skills" | "office";
 type AppProps = {
@@ -49,7 +48,7 @@ const fallbackAgents: AgentCardModel[] = [
 ];
 
 export function App({ initialTab = "operations" }: AppProps): JSX.Element {
-  const adapter = useMemo(() => new OpenClawAdapter(gatewayBase, stateBase), []);
+  const adapter = useOpenClawAdapter();
   const [activeTab, setActiveTab] = useState<UiTab>(initialTab);
   const [agents, setAgents] = useState<AgentCardModel[]>([]);
   const [sessions, setSessions] = useState<SessionRowModel[]>([]);
@@ -72,8 +71,6 @@ export function App({ initialTab = "operations" }: AppProps): JSX.Element {
   const [toolsAllowDraft, setToolsAllowDraft] = useState<string>("");
   const [toolsDenyDraft, setToolsDenyDraft] = useState<string>("");
   const [vmSnapshotDraft, setVmSnapshotDraft] = useState<string>("");
-  const [notionPluginAccountDraft, setNotionPluginAccountDraft] = useState<string>("default");
-  const [notionApiKeyDraft, setNotionApiKeyDraft] = useState<string>("");
   const [companyModel, setCompanyModel] = useState<CompanyModel | null>(null);
   const [workload, setWorkload] = useState<ProjectWorkloadSummary[]>([]);
   const [reconWarnings, setReconWarnings] = useState<ReconciliationWarning[]>([]);
@@ -288,16 +285,6 @@ export function App({ initialTab = "operations" }: AppProps): JSX.Element {
     }
     const projectDefaults = (config.projectDefaults as Record<string, unknown> | undefined) ?? {};
     setVmSnapshotDraft(typeof projectDefaults.vmSnapshotId === "string" ? projectDefaults.vmSnapshotId : "");
-    const plugins = (config.plugins as Record<string, unknown> | undefined) ?? {};
-    const entries = (plugins.entries as Record<string, unknown> | undefined) ?? {};
-    const notionShell = (entries["notion-shell"] as Record<string, unknown> | undefined) ?? {};
-    const pluginCfg = (notionShell.config as Record<string, unknown> | undefined) ?? {};
-    setNotionPluginAccountDraft(typeof pluginCfg.defaultAccountId === "string" ? pluginCfg.defaultAccountId : "default");
-    const channels = (config.channels as Record<string, unknown> | undefined) ?? {};
-    const notion = (channels.notion as Record<string, unknown> | undefined) ?? {};
-    const accounts = (notion.accounts as Record<string, unknown> | undefined) ?? {};
-    const notionDefault = (accounts.default as Record<string, unknown> | undefined) ?? {};
-    setNotionApiKeyDraft(typeof notionDefault.apiKey === "string" ? notionDefault.apiKey : "");
   }, [configDraftText, selectedAgentId]);
 
   function patchConfigDraft(): void {
@@ -340,13 +327,6 @@ export function App({ initialTab = "operations" }: AppProps): JSX.Element {
 
     const plugins = ((next.plugins as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
     const entries = ((plugins.entries as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
-    const notionShell = ((entries["notion-shell"] as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
-    notionShell.enabled = true;
-    notionShell.config = {
-      ...((notionShell.config as Record<string, unknown> | undefined) ?? {}),
-      defaultAccountId: notionPluginAccountDraft.trim() || "default",
-    };
-    entries["notion-shell"] = notionShell;
     if (companyModel?.heartbeatRuntime) {
       const heartbeatPlugin = ((entries[companyModel.heartbeatRuntime.pluginId] as Record<string, unknown> | undefined) ?? {}) as Record<
         string,
@@ -362,16 +342,6 @@ export function App({ initialTab = "operations" }: AppProps): JSX.Element {
     }
     plugins.entries = entries;
     next.plugins = plugins;
-
-    const channels = ((next.channels as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
-    const notion = ((channels.notion as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
-    const accounts = ((notion.accounts as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
-    const notionDefault = ((accounts.default as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
-    notionDefault.apiKey = notionApiKeyDraft;
-    accounts.default = notionDefault;
-    notion.accounts = accounts;
-    channels.notion = notion;
-    next.channels = channels;
 
     setConfigDraftText(JSON.stringify(next, null, 2));
     setConfigStatusText("draft patched");
@@ -779,7 +749,7 @@ export function App({ initialTab = "operations" }: AppProps): JSX.Element {
           <article className="panel">
             <h3>Control Deck (OpenClaw Config)</h3>
             <p className="eyebrow">
-              Configure agents, tool policy, sandbox mode, VM snapshot defaults, and Notion plugin settings from the office UI.
+              Configure agents, tool policy, sandbox mode, and VM snapshot defaults from the office UI.
             </p>
             <div className="controls">
               <select value={selectedAgentId} onChange={(event) => setSelectedAgentId(event.target.value)}>
@@ -794,8 +764,6 @@ export function App({ initialTab = "operations" }: AppProps): JSX.Element {
               <input value={toolsAllowDraft} onChange={(event) => setToolsAllowDraft(event.target.value)} placeholder="tools allow (comma-separated)" />
               <input value={toolsDenyDraft} onChange={(event) => setToolsDenyDraft(event.target.value)} placeholder="tools deny (comma-separated)" />
               <input value={vmSnapshotDraft} onChange={(event) => setVmSnapshotDraft(event.target.value)} placeholder="project vmSnapshotId default" />
-              <input value={notionPluginAccountDraft} onChange={(event) => setNotionPluginAccountDraft(event.target.value)} placeholder="notion-shell defaultAccountId" />
-              <input value={notionApiKeyDraft} onChange={(event) => setNotionApiKeyDraft(event.target.value)} placeholder="channels.notion.accounts.default.apiKey" />
             </div>
             <div className="controls">
               <button onClick={patchConfigDraft}>Patch Draft From Controls</button>
