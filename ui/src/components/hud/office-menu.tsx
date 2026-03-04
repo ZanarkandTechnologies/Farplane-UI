@@ -2,36 +2,26 @@
 
 import { useMemo, useCallback, useState, useEffect } from "react";
 import {
-    Bell,
-    Settings,
     Menu,
     Hammer,
     Home,
-    Layers,
     MessageSquare,
     BookOpen,
-    UserPlus,
+    Settings,
     ShoppingBag,
     Users,
-    UserSearch,
-    Wrench,
     ShieldCheck,
 } from "lucide-react";
 import { SpeedDial, type SpeedDialItem } from "@/components/ui/speed-dial";
 import { useNavigate } from "react-router-dom";
 import { useAppStore } from "@/lib/app-store";
 import { api } from "@/convex/_generated/api";
-import { UserTasksPanel } from "@/components/hud/user-tasks-panel";
-import { AgentManager } from "./agent-manager";
 import { FurnitureShop } from "./furniture-shop";
-import { TeamManager } from "./team-manager";
-import { TeamDirectory } from "./team-directory";
-import { ToolManager } from "./tool-manager";
-import { SkillManager } from "./skill-manager";
 import { ApprovalQueue } from "./approval-queue";
 import { stateBase } from "@/lib/gateway-config";
 import { OpenClawAdapter } from "@/lib/openclaw-adapter";
 import { useChatActions } from "@/features/chat-system/chat-store";
+import { OrganizationPanel } from "./organization-panel";
 
 interface SpeedDialProps {
     className?: string;
@@ -47,7 +37,6 @@ export function OfficeMenu({
     const isAnimatingCamera = useAppStore(state => state.isAnimatingCamera);
     const setAnimatingCamera = useAppStore(state => state.setAnimatingCamera);
     const setIsGlobalTeamPanelOpen = useAppStore(state => state.setIsGlobalTeamPanelOpen);
-    const setIsAgentSessionPanelOpen = useAppStore(state => state.setIsAgentSessionPanelOpen);
     const setIsSkillsPanelOpen = useAppStore(state => state.setIsSkillsPanelOpen);
     const setActiveTeamId = useAppStore(state => state.setActiveTeamId);
     const setSelectedTeamId = useAppStore(state => state.setSelectedTeamId);
@@ -55,14 +44,9 @@ export function OfficeMenu({
     const setIsSettingsModalOpen = useAppStore(state => state.setIsSettingsModalOpen);
     const placementMode = useAppStore(state => state.placementMode);
 
-    const [isUserTasksOpen, setIsUserTasksOpen] = useState(false);
-    const [isAgentManagerOpen, setIsAgentManagerOpen] = useState(false);
     const [isFurnitureShopOpen, setIsFurnitureShopOpen] = useState(false);
-    const [isTeamManagerOpen, setIsTeamManagerOpen] = useState(false);
-    const [isTeamDirectoryOpen, setIsTeamDirectoryOpen] = useState(false);
-    const [isToolManagerOpen, setIsToolManagerOpen] = useState(false);
-    const [isSkillManagerOpen, setIsSkillManagerOpen] = useState(false);
     const [isApprovalQueueOpen, setIsApprovalQueueOpen] = useState(false);
+    const [isOrganizationOpen, setIsOrganizationOpen] = useState(false);
     const [approvalCount, setApprovalCount] = useState(0);
 
     useEffect(() => {
@@ -89,19 +73,13 @@ export function OfficeMenu({
     };
     const canOpenAgentManager = Boolean(apiRoot.office_system?.employees?.createEmployee);
     const canOpenTeamManager = Boolean(apiRoot.office_system?.teams?.updateTeam);
-    const canOpenToolManager = Boolean(apiRoot.agents_system?.tools?.toolConfigs?.listToolConfigs);
     const { openEmployeeChat } = useChatActions();
 
     useEffect(() => {
         if (!placementMode.active) return;
-        setIsUserTasksOpen(false);
-        setIsAgentManagerOpen(false);
         setIsFurnitureShopOpen(false);
-        setIsTeamManagerOpen(false);
-        setIsTeamDirectoryOpen(false);
-        setIsToolManagerOpen(false);
-        setIsSkillManagerOpen(false);
         setIsApprovalQueueOpen(false);
+        setIsOrganizationOpen(false);
     }, [placementMode.active]);
 
     // Handle builder mode toggle - let the scene handle animation
@@ -112,6 +90,13 @@ export function OfficeMenu({
         setBuilderMode(!isBuilderMode); // This will trigger the animation in OfficeScene
     }, [isAnimatingCamera, isBuilderMode, setAnimatingCamera, setBuilderMode]);
 
+    const openGlobalTeamWorkspace = useCallback(() => {
+        setActiveTeamId(null);
+        setSelectedTeamId(null);
+        setKanbanFocusAgentId(null);
+        setIsGlobalTeamPanelOpen(true);
+    }, [setActiveTeamId, setIsGlobalTeamPanelOpen, setKanbanFocusAgentId, setSelectedTeamId]);
+
     const speedDialItems: SpeedDialItem[] = useMemo(() => [
         {
             id: "back-landing",
@@ -121,47 +106,24 @@ export function OfficeMenu({
             color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
         },
         {
-            id: "builder-mode",
-            icon: Hammer,
-            label: "Builder Mode",
-            onClick: handleBuilderModeToggle,
-            color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
-            disabled: isAnimatingCamera, // Disable during animation
-        },
-        {
-            id: "user-tasks",
-            icon: Bell,
-            label: "User Tasks",
-            onClick: () => setIsUserTasksOpen(true),
+            id: "organization",
+            icon: Users,
+            label: "Organization",
+            onClick: () => setIsOrganizationOpen(true),
             color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
         },
         {
-            id: "approval-queue",
-            icon: ShieldCheck,
-            label: "Approvals",
-            onClick: () => setIsApprovalQueueOpen(true),
-            badge: approvalCount > 0 ? approvalCount : undefined,
-            color: approvalCount > 0
-                ? "bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30"
-                : "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
-        },
-        {
-            id: "team-panel",
-            icon: Layers,
-            label: "Team Panel",
-            onClick: () => {
-                setActiveTeamId(null);
-                setSelectedTeamId(null);
-                setKanbanFocusAgentId(null);
-                setIsGlobalTeamPanelOpen(true);
-            },
+            id: "team-workspace",
+            icon: Users,
+            label: "Team Workspace",
+            onClick: openGlobalTeamWorkspace,
             color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
         },
         {
-            id: "agent-session-panel",
-            icon: MessageSquare,
-            label: "Agent Session Panel",
-            onClick: () => setIsAgentSessionPanelOpen(true),
+            id: "global-skills",
+            icon: BookOpen,
+            label: "Global Skills",
+            onClick: () => setIsSkillsPanelOpen(true),
             color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
         },
         {
@@ -174,64 +136,28 @@ export function OfficeMenu({
             color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
         },
         {
-            id: "recruit-agent",
-            icon: UserPlus,
-            label: "Recruit Agent",
-            onClick: () => {
-                if (!canOpenAgentManager) return;
-                setIsAgentManagerOpen(true);
-            },
-            color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
-            disabled: !canOpenAgentManager,
+            id: "approvals",
+            icon: ShieldCheck,
+            label: "Approvals",
+            onClick: () => setIsApprovalQueueOpen(true),
+            badge: approvalCount > 0 ? approvalCount : undefined,
+            color: approvalCount > 0
+                ? "bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30"
+                : "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
         },
         {
-            id: "furniture-shop",
+            id: "builder-mode",
+            icon: Hammer,
+            label: "Builder Mode",
+            onClick: handleBuilderModeToggle,
+            color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
+            disabled: isAnimatingCamera,
+        },
+        {
+            id: "office-shop",
             icon: ShoppingBag,
-            label: "Shop",
+            label: "Office Shop",
             onClick: () => setIsFurnitureShopOpen(true),
-            color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
-        },
-        {
-            id: "manage-teams",
-            icon: Users,
-            label: "Manage Teams",
-            onClick: () => {
-                if (!canOpenTeamManager) return;
-                setIsTeamManagerOpen(true);
-            },
-            color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
-            disabled: !canOpenTeamManager,
-        },
-        {
-            id: "team-directory",
-            icon: UserSearch,
-            label: "Team Directory",
-            onClick: () => setIsTeamDirectoryOpen(true),
-            color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
-        },
-        {
-            id: "manage-tools",
-            icon: Wrench,
-            label: "Manage Tools",
-            onClick: () => {
-                if (!canOpenToolManager) return;
-                setIsToolManagerOpen(true);
-            },
-            color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
-            disabled: !canOpenToolManager,
-        },
-        {
-            id: "skills-panel",
-            icon: BookOpen,
-            label: "Skills Panel",
-            onClick: () => setIsSkillsPanelOpen(true),
-            color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
-        },
-        {
-            id: "manage-skills",
-            icon: BookOpen,
-            label: "Manage Skills",
-            onClick: () => setIsSkillManagerOpen(true),
             color: "bg-secondary hover:bg-secondary/80 text-secondary-foreground",
         },
         {
@@ -243,20 +169,16 @@ export function OfficeMenu({
         },
     ], [
         navigate,
-        isAnimatingCamera,
-        handleBuilderModeToggle,
-        setActiveTeamId,
-        setIsAgentSessionPanelOpen,
-        setIsGlobalTeamPanelOpen,
-        setIsSettingsModalOpen,
+        openGlobalTeamWorkspace,
         setIsSkillsPanelOpen,
-        setKanbanFocusAgentId,
-        setSelectedTeamId,
         openEmployeeChat,
-        canOpenAgentManager,
-        canOpenTeamManager,
-        canOpenToolManager,
         approvalCount,
+        setIsApprovalQueueOpen,
+        handleBuilderModeToggle,
+        isAnimatingCamera,
+        setIsOrganizationOpen,
+        setIsFurnitureShopOpen,
+        setIsSettingsModalOpen,
     ]);
 
     return (
@@ -269,13 +191,13 @@ export function OfficeMenu({
                 triggerColor="bg-accent hover:bg-accent/90 text-accent-foreground"
                 className={className}
             />
-            {isUserTasksOpen ? <UserTasksPanel isOpen={isUserTasksOpen} onOpenChange={setIsUserTasksOpen} /> : null}
-            {isAgentManagerOpen ? <AgentManager isOpen={isAgentManagerOpen} onOpenChange={setIsAgentManagerOpen} /> : null}
+            <OrganizationPanel
+                isOpen={isOrganizationOpen}
+                onOpenChange={setIsOrganizationOpen}
+                canOpenTeamManager={canOpenTeamManager}
+                canOpenAgentManager={canOpenAgentManager}
+            />
             {isFurnitureShopOpen ? <FurnitureShop isOpen={isFurnitureShopOpen} onOpenChange={setIsFurnitureShopOpen} /> : null}
-            {isTeamManagerOpen ? <TeamManager isOpen={isTeamManagerOpen} onOpenChange={setIsTeamManagerOpen} /> : null}
-            {isTeamDirectoryOpen ? <TeamDirectory isOpen={isTeamDirectoryOpen} onOpenChange={setIsTeamDirectoryOpen} /> : null}
-            {isToolManagerOpen ? <ToolManager isOpen={isToolManagerOpen} onOpenChange={setIsToolManagerOpen} /> : null}
-            {isSkillManagerOpen ? <SkillManager isOpen={isSkillManagerOpen} onOpenChange={setIsSkillManagerOpen} /> : null}
             {isApprovalQueueOpen ? <ApprovalQueue isOpen={isApprovalQueueOpen} onOpenChange={setIsApprovalQueueOpen} /> : null}
         </>
     );
