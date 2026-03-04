@@ -64,6 +64,20 @@ npm run shell -- team archive --team-id team-proj-alpha
 npm run shell -- doctor team-data
 ```
 
+Office decoration commands:
+
+```bash
+npm run shell -- office print
+npm run shell -- office list
+npm run shell -- office teams
+npm run shell -- office add plant --position -10,0,-10
+npm run shell -- office move plant-nw --position 0,0,0
+npm run shell -- office remove plant-nw
+npm run shell -- office theme
+npm run shell -- office theme set cozy
+npm run shell -- office generate "small cactus desk plant" --style low-poly --type prop
+```
+
 Docs-only SCL cookbook (intent -> command):
 
 - `docs/how-to/ceo-team-cli-scl-cookbook.md`
