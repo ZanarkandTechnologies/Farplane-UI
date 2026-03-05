@@ -8,11 +8,11 @@ import {
 import type { ProjectModel } from "./openclaw-types";
 
 describe("business builder helpers", () => {
-  it("creates affiliate preset with required slots/resources", () => {
+  it("creates draft with empty slots and default resources", () => {
     const draft = createBusinessBuilderDraft("affiliate_marketing");
-    expect(draft.capabilitySkills.measure).toBeTruthy();
-    expect(draft.capabilitySkills.execute).toBeTruthy();
-    expect(draft.capabilitySkills.distribute).toBeTruthy();
+    expect(draft.capabilitySkills.measure).toBe("");
+    expect(draft.capabilitySkills.execute).toBe("");
+    expect(draft.capabilitySkills.distribute).toBe("");
     expect(draft.resources.some((entry) => entry.type === "cash_budget")).toBe(true);
     expect(draft.resources.some((entry) => entry.type === "api_quota")).toBe(true);
     expect(draft.resources.some((entry) => entry.type === "distribution_slots")).toBe(true);
@@ -35,6 +35,7 @@ describe("business builder helpers", () => {
           distribute: { skillId: "", category: "distribute", config: {} },
         },
       },
+      accountEvents: [],
       ledger: [],
       experiments: [],
       metricEvents: [],

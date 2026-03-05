@@ -33,29 +33,6 @@ export interface BusinessReadinessIssue {
   message: string;
 }
 
-const DEFAULT_SKILL_PRESETS: Record<Exclude<BusinessTypeOption, "none">, BusinessBuilderDraft["capabilitySkills"]> = {
-  affiliate_marketing: {
-    measure: "amazon-affiliate-metrics",
-    execute: "video-generator",
-    distribute: "tiktok-poster",
-  },
-  content_creator: {
-    measure: "bitly-click-tracker",
-    execute: "video-generator",
-    distribute: "youtube-shorts-poster",
-  },
-  saas: {
-    measure: "stripe-revenue",
-    execute: "landing-page-builder",
-    distribute: "reddit-poster",
-  },
-  custom: {
-    measure: "measure-skill",
-    execute: "execute-skill",
-    distribute: "distribute-skill",
-  },
-};
-
 function defaultResourceDrafts(): BusinessBuilderResourceDraft[] {
   return [
     {
@@ -112,7 +89,7 @@ export function createBusinessBuilderDraft(type: BusinessTypeOption): BusinessBu
   }
   return {
     businessType: type,
-    capabilitySkills: { ...DEFAULT_SKILL_PRESETS[type] },
+    capabilitySkills: { measure: "", execute: "", distribute: "" },
     resources: defaultResourceDrafts(),
   };
 }
@@ -180,10 +157,6 @@ export function toProjectResources(projectId: string, resources: BusinessBuilder
 
 export function computeBusinessReadinessIssues(draft: BusinessBuilderDraft): BusinessReadinessIssue[] {
   const issues: BusinessReadinessIssue[] = [];
-  if (draft.businessType === "none") {
-    issues.push({ code: "no_business_type", message: "Business type not configured." });
-    return issues;
-  }
   if (!draft.capabilitySkills.measure.trim()) issues.push({ code: "missing_measure", message: "Measure skill is missing." });
   if (!draft.capabilitySkills.execute.trim()) issues.push({ code: "missing_execute", message: "Execute skill is missing." });
   if (!draft.capabilitySkills.distribute.trim()) issues.push({ code: "missing_distribute", message: "Distribute skill is missing." });

@@ -124,6 +124,28 @@ export function TeamPanel({
   const [ledgerActionState, setLedgerActionState] = useState<{ pending: boolean; error?: string; ok?: string }>({ pending: false });
   const [trackingContext, setTrackingContext] = useState("");
 
+  function toggleCapabilitySkill(slot: BusinessSlotKey, skillId: string): void {
+    setBuilderDraft((current) => {
+      const existing = current.capabilitySkills[slot]
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+      const nextSet = new Set(existing);
+      if (nextSet.has(skillId)) {
+        nextSet.delete(skillId);
+      } else {
+        nextSet.add(skillId);
+      }
+      return {
+        ...current,
+        capabilitySkills: {
+          ...current.capabilitySkills,
+          [slot]: [...nextSet].join(", "),
+        },
+      };
+    });
+  }
+
   const team = useMemo(() => {
     if (!teamId || globalMode) return null;
     return teams.find((entry) => String(entry._id) === teamId) ?? null;
@@ -953,15 +975,7 @@ export function TeamPanel({
                       <BusinessSkillLibrary
                         selectedSlot={selectedBusinessSlot}
                         onSelectSlot={setSelectedBusinessSlot}
-                        onAssignSkill={(slot, skillId) =>
-                          setBuilderDraft((current) => ({
-                            ...current,
-                            capabilitySkills: {
-                              ...current.capabilitySkills,
-                              [slot]: skillId,
-                            },
-                          }))
-                        }
+                        onToggleSkill={toggleCapabilitySkill}
                         currentSkills={builderDraft.capabilitySkills}
                       />
                       <BusinessFlowComposer
