@@ -41,4 +41,22 @@ describe("team timeline helpers", () => {
     expect(rows[0]?.projectId).toBe("proj-b");
     expect(rows[0]?.taskId).toBe("task-1");
   });
+
+  it("falls back to communication rows when convex returns empty array", () => {
+    const rows = buildTeamTimelineRows({
+      convexTimeline: [],
+      communicationRows: [
+        {
+          id: "comm-2",
+          agentId: "agent-c",
+          activityType: "planning",
+          label: "Queue built",
+          occurredAt: 456,
+        },
+      ],
+      projectId: "proj-c",
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.label).toBe("Queue built");
+  });
 });
