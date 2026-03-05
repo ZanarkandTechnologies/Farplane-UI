@@ -29,6 +29,9 @@ import type {
   OpenClawConfigSnapshot,
   ProviderIndexProfile,
   ProjectModel,
+  ProjectArtefactEntry,
+  ProjectArtefactGroup,
+  ProjectArtefactIndexResult,
   ProjectWorkloadSummary,
   ReconciliationWarning,
   RoleSlotModel,
@@ -392,6 +395,26 @@ function toAgentsFilesSetResult(entry: unknown): AgentsFilesSetResult | null {
   const parsed = toAgentsFilesGetResult(entry);
   if (!parsed) return null;
   return { ok: true, ...parsed };
+}
+
+export function toProjectArtefactIndex(
+  projectId: string,
+  groups: ProjectArtefactGroup[],
+  fetchedAtMs: number = Date.now(),
+): ProjectArtefactIndexResult {
+  const files = groups
+    .flatMap((group) => group.files)
+    .sort((left, right) => {
+      const tsDelta = (right.updatedAtMs ?? 0) - (left.updatedAtMs ?? 0);
+      if (tsDelta !== 0) return tsDelta;
+      return left.path.localeCompare(right.path);
+    });
+  return {
+    projectId,
+    groups,
+    files,
+    fetchedAtMs,
+  };
 }
 
 function toToolCatalogProfile(entry: unknown): ToolCatalogProfile | null {
@@ -1154,6 +1177,12 @@ export function toTask(entry: unknown): FederatedTaskModel | null {
   const provider = String(row.provider ?? row.sourceProvider ?? "internal");
   const canonicalProvider = String(row.canonicalProvider ?? (provider || "internal"));
   const syncState = String(row.syncState ?? "healthy");
+  const artefactPathRaw = typeof row.artefactPath === "string"
+    ? row.artefactPath
+    : typeof row.artifactPath === "string"
+      ? row.artifactPath
+      : "";
+  const artefactPath = artefactPathRaw.trim() || undefined;
   return {
     id,
     projectId,
@@ -1167,6 +1196,7 @@ export function toTask(entry: unknown): FederatedTaskModel | null {
         ? canonicalProvider
         : "internal",
     providerUrl: typeof row.providerUrl === "string" && row.providerUrl.trim() ? row.providerUrl : undefined,
+    artefactPath,
     syncState:
       syncState === "pending" || syncState === "conflict" || syncState === "error"
         ? (syncState as TaskSyncState)
@@ -1732,6 +1762,48 @@ export class OpenClawAdapter {
     const parsed = toAgentsFilesSetResult(result.payload);
     if (!parsed) throw new Error("agents_files_set_invalid");
     return parsed;
+  }
+
+  async listProjectArtefacts(projectId: string, agentIds: string[]): Promise<ProjectArtefactIndexResult> {
+    const dedupedAgentIds = [...new Set(agentIds.map((entry) => entry.trim()).filter(Boolean))];
+    if (!projectId.trim() || dedupedAgentIds.length === 0) {
+      return toProjectArtefactIndex(projectId.trim(), [], Date.now());
+    }
+    const normalizedProjectId = projectId.trim();
+    const groups = await Promise.all(
+      dedupedAgentIds.map(async (agentId): Promise<ProjectArtefactGroup> => {
+        try {
+          const list = await this.listAgentFiles(agentId);
+          const files: ProjectArtefactEntry[] = list.files
+            .map((file) => ({
+              ...file,
+              projectId: normalizedProjectId,
+              agentId,
+              workspace: list.workspace,
+            }))
+            .sort((left, right) => {
+              const tsDelta = (right.updatedAtMs ?? 0) - (left.updatedAtMs ?? 0);
+              if (tsDelta !== 0) return tsDelta;
+              return left.path.localeCompare(right.path);
+            });
+          return {
+            projectId: normalizedProjectId,
+            agentId,
+            workspace: list.workspace,
+            files,
+          };
+        } catch (error) {
+          return {
+            projectId: normalizedProjectId,
+            agentId,
+            workspace: "",
+            files: [],
+            error: error instanceof Error ? error.message : "agents_files_list_failed",
+          };
+        }
+      }),
+    );
+    return toProjectArtefactIndex(normalizedProjectId, groups, Date.now());
   }
 
   async getToolsCatalog(agentId: string): Promise<ToolsCatalogResult | null> {

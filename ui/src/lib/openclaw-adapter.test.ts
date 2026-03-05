@@ -5,6 +5,7 @@ import {
   hashSchemaVersion,
   parseHeartbeatWindows,
   resolveCanonicalWriteProvider,
+  toProjectArtefactIndex,
   toFederationPolicy,
   toProviderIndexProfile,
   toTask,
@@ -25,6 +26,18 @@ describe("openclaw federation normalization", () => {
     expect(task?.status).toBe("todo");
     expect(task?.priority).toBe("medium");
     expect(task?.syncState).toBe("healthy");
+  });
+
+  it("accepts artifact path aliases on tasks", () => {
+    const task = toTask({
+      id: "task-2",
+      projectId: "proj-1",
+      title: "Review generated script",
+      status: "todo",
+      priority: "medium",
+      artifactPath: "projects/proj-1/briefs/brief-01.md",
+    });
+    expect(task?.artefactPath).toBe("projects/proj-1/briefs/brief-01.md");
   });
 
   it("normalizes federation policy defaults", () => {
@@ -82,6 +95,46 @@ describe("openclaw federation normalization", () => {
         "internal",
       ),
     ).toBe("notion");
+  });
+});
+
+describe("project artefact indexing", () => {
+  it("sorts files newest-first across agent groups", () => {
+    const index = toProjectArtefactIndex("proj-1", [
+      {
+        projectId: "proj-1",
+        agentId: "agent-a",
+        workspace: "/tmp/a",
+        files: [
+          {
+            projectId: "proj-1",
+            agentId: "agent-a",
+            workspace: "/tmp/a",
+            name: "old.txt",
+            path: "/tmp/a/old.txt",
+            missing: false,
+            updatedAtMs: 10,
+          },
+        ],
+      },
+      {
+        projectId: "proj-1",
+        agentId: "agent-b",
+        workspace: "/tmp/b",
+        files: [
+          {
+            projectId: "proj-1",
+            agentId: "agent-b",
+            workspace: "/tmp/b",
+            name: "new.txt",
+            path: "/tmp/b/new.txt",
+            missing: false,
+            updatedAtMs: 100,
+          },
+        ],
+      },
+    ]);
+    expect(index.files.map((entry) => entry.name)).toEqual(["new.txt", "old.txt"]);
   });
 });
 

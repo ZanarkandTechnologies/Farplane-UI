@@ -361,6 +361,7 @@ export interface TaskModel {
   status: TaskStatus;
   ownerAgentId?: string;
   priority: "low" | "medium" | "high";
+  artefactPath?: string;
 }
 
 export interface FederatedTaskModel extends TaskModel {
@@ -564,6 +565,27 @@ export interface AgentFileEntry {
   size?: number;
   updatedAtMs?: number;
   content?: string;
+}
+
+export interface ProjectArtefactEntry extends AgentFileEntry {
+  projectId: string;
+  agentId: string;
+  workspace: string;
+}
+
+export interface ProjectArtefactGroup {
+  projectId: string;
+  agentId: string;
+  workspace: string;
+  files: ProjectArtefactEntry[];
+  error?: string;
+}
+
+export interface ProjectArtefactIndexResult {
+  projectId: string;
+  groups: ProjectArtefactGroup[];
+  files: ProjectArtefactEntry[];
+  fetchedAtMs: number;
 }
 
 export interface AgentsFilesListResult {

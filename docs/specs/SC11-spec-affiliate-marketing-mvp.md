@@ -287,6 +287,7 @@ Budget guardrails from heartbeat:
 
 - Team Panel Business tab shows capability slot assignments (which inference.sh models are configured)
 - Team Panel Kanban tab shows content pipeline: research -> create -> distribute -> measure
+- Team Panel Projects tab exposes a project-scoped artefact viewer so operators can browse generated workspace files without terminal navigation
 - Team Panel Ledger tab shows real-time P&L: inference.sh costs vs Amazon commission revenue
 - Team Panel Activity tab shows agent actions: "Generated video for {product}", "Posted to TikTok", "Checked metrics: 240 clicks"
 - Agent status bubbles show current state: planning, researching, generating_video, posting, measuring
