@@ -33,6 +33,7 @@ ShellCorp is UI-first:
 - Office personalization and decoration controls for operators.
 - Team topology, role demand, KPI/goal shaping, and heartbeat controls.
 - Observability across team state, agent memory, and federated Kanban sync health.
+- Team/agent timeline visibility backed by Convex event streams (`teamId` + `projectId` scope).
 - Explicit operator governance for autonomy loops (pause/resume/manual run).
 
 Feature docs:
@@ -64,6 +65,7 @@ Out of scope now:
 - Navigation is panel-first and parity-critical flows remain dedicated modal-based (`MEM-0107`, `MEM-0109`).
 - Ticket lifecycle maps to session lifecycle until explicit close/reopen (`MEM-0112`).
 - Team and office management remain CLI-first in current phase (`MEM-0119`, `MEM-0120`).
+- Team timeline/audit logs are first-class by `teamId` in Convex writes and queries (`MEM-0132`).
 
 ## Recent Changes
 

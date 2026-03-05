@@ -1208,6 +1208,14 @@ function shellcorpStateBridge() {
             goal,
             kpis,
             ...(businessType ? { businessConfig: defaultBusinessConfig(businessType, capabilitySkills) } : {}),
+            account: {
+              id: `${projectId}:account`,
+              projectId,
+              currency: "USD",
+              balanceCents: 0,
+              updatedAt: new Date().toISOString(),
+            },
+            accountEvents: [],
             ledger: [],
             experiments: [],
             metricEvents: [],
@@ -1431,9 +1439,6 @@ export default defineConfig({
   root: "ui",
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },
-  },
-  define: {
-    "import.meta.env.VITE_CONVEX_URL": JSON.stringify(process.env.VITE_CONVEX_URL ?? process.env.CONVEX_URL ?? ""),
   },
   plugins: [shellcorpStateBridge(), tailwindcss(), react()],
   server: {
