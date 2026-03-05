@@ -15,6 +15,8 @@ export const UI_Z = {
   sceneContextMenu: 300,
   panelBase: 1200,
   panelElevated: 1400,
+  // Nested dialogs that open on top of panelElevated panels (e.g. task detail modal inside team panel)
+  panelModal: 1600,
   chat: 1800,
   critical: 2000,
 } as const;
