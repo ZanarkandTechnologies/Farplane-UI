@@ -17,6 +17,7 @@
  */
 import { Command } from "commander";
 import path from "node:path";
+import { watch } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import {
   createSidecarStore,
@@ -46,6 +47,7 @@ type ResourceEventKind = "refresh" | "consumption" | "adjustment";
 type BoardTaskStatus = "todo" | "in_progress" | "blocked" | "done";
 type BoardTaskPriority = "low" | "medium" | "high";
 type BoardActivityType = "planning" | "research" | "executing" | "distributing" | "blocked" | "handoff" | "summary" | "status";
+type StatusReportState = "running" | "ok" | "no_work" | "error" | "idle" | "planning" | "executing" | "blocked" | "done";
 type ConfigEntry = [string, string];
 
 interface TeamSummary {
@@ -210,8 +212,13 @@ function layeredHeartbeatTemplate(roleName: string, projectName: string): string
     "",
     "5) Status reporting:",
     "- After deciding, call the status tooling if available.",
+    "- Preflight checks:",
+    "  - `shellcorp --help`",
+    "  - `test -n \"$SHELLCORP_CONVEX_SITE_URL\" || test -n \"$CONVEX_SITE_URL\"`",
     "- Preferred command pattern:",
-    "  SHELLCORP_CONVEX_SITE_URL=http://127.0.0.1:3211 npm --prefix /home/kenjipcx/Zanarkand/ShellCorp run shell -- team bot log --team-id <team-id> --agent-id <agent-id> --activity-type status --label heartbeat_decision --detail \"<your decision>\"",
+    "  shellcorp team status report --team-id <team-id> --agent-id <agent-id> --state planning --status-text \"<your decision>\" --step-key \"hb-<agent-id>-<unix-ms>\"",
+    "- Also write timeline context:",
+    "  shellcorp team bot log --team-id <team-id> --agent-id <agent-id> --activity-type status --label heartbeat_decision --detail \"<your decision>\"",
     "- If tools are unavailable, output a clear MOCK_STATUS line instead.",
     "",
     "Output format:",
@@ -279,6 +286,23 @@ function parseBoardActivityType(raw: string): BoardActivityType {
     return raw;
   }
   fail(`invalid_activity_type:${raw}`);
+}
+
+function parseStatusReportState(raw: string): StatusReportState {
+  if (
+    raw === "running" ||
+    raw === "ok" ||
+    raw === "no_work" ||
+    raw === "error" ||
+    raw === "idle" ||
+    raw === "planning" ||
+    raw === "executing" ||
+    raw === "blocked" ||
+    raw === "done"
+  ) {
+    return raw;
+  }
+  fail(`invalid_status_state:${raw}`);
 }
 
 function parseConfigJson(raw: string): Record<string, string> {
@@ -382,11 +406,25 @@ function upsertTeamCluster(
 }
 
 function formatOutput<T>(mode: OutputMode, payload: T, text: string): void {
+  // When piping output (e.g. to `head`/`jq`), downstream may close early.
+  // Avoid crashing the CLI on broken pipe.
+  const safeLog = (value: string): void => {
+    try {
+      console.log(value);
+    } catch (error) {
+      // Best-effort: ignore EPIPE.
+      if (error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === "EPIPE") {
+        return;
+      }
+      throw error;
+    }
+  };
+
   if (mode === "json") {
-    console.log(JSON.stringify(payload, null, 2));
+    safeLog(JSON.stringify(payload, null, 2));
     return;
   }
-  console.log(text);
+  safeLog(text);
 }
 
 function buildTeamSummaries(company: CompanyModel): TeamSummary[] {
@@ -967,6 +1005,31 @@ async function writeTeamHeartbeatFiles(opts: {
   return written;
 }
 
+async function syncTeamHeartbeatFiles(opts: {
+  store: ReturnType<typeof createSidecarStore>;
+  teamId?: string;
+}): Promise<{ teamsTouched: number; heartbeatFilesWritten: number; teamsSkipped: number }> {
+  const company = await opts.store.readCompanyModel();
+  const targetProjects = opts.teamId ? [resolveProjectOrFail(company, opts.teamId).project] : company.projects;
+  let teamsTouched = 0;
+  let teamsSkipped = 0;
+  let heartbeatFilesWritten = 0;
+  for (const project of targetProjects) {
+    const teamAgents = company.agents.filter((agent) => agent.projectId === project.id);
+    if (teamAgents.length === 0) {
+      teamsSkipped += 1;
+      continue;
+    }
+    heartbeatFilesWritten += await writeTeamHeartbeatFiles({
+      store: opts.store,
+      project,
+      agents: teamAgents,
+    });
+    teamsTouched += 1;
+  }
+  return { teamsTouched, heartbeatFilesWritten, teamsSkipped };
+}
+
 async function ensureOpenclawHeartbeatScaffold(opts: {
   store: ReturnType<typeof createSidecarStore>;
   agentIds: string[];
@@ -1043,15 +1106,39 @@ function resolveConvexSiteUrl(): string {
   if (!raw) {
     fail("missing_convex_site_url:set SHELLCORP_CONVEX_SITE_URL");
   }
-  return raw.replace(/\/+$/, "");
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    fail(`invalid_convex_site_url:${raw}`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    fail(`invalid_convex_site_url_protocol:${parsed.protocol}`);
+  }
+  return parsed.href.replace(/\/+$/, "");
 }
 
-async function postBoardCommand(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const baseUrl = resolveConvexSiteUrl();
-  const normalizedPayload = { ...payload };
-  if (typeof normalizedPayload.teamId !== "string" && typeof normalizedPayload.projectId === "string") {
-    normalizedPayload.teamId = teamIdFromProjectId(normalizedPayload.projectId);
+function classifyFetchFailure(error: unknown): string {
+  const maybeRecord = (value: unknown): Record<string, unknown> | null => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    return value as Record<string, unknown>;
+  };
+  const errorRecord = maybeRecord(error);
+  const causeRecord = maybeRecord(errorRecord?.cause);
+  const code = (causeRecord?.code ?? errorRecord?.code ?? "") as string;
+  if (code === "ECONNREFUSED") return "connection_refused";
+  if (code === "ENOTFOUND") return "dns_not_found";
+  if (code === "EAI_AGAIN") return "dns_lookup_failed";
+  if (code === "ETIMEDOUT" || code === "UND_ERR_CONNECT_TIMEOUT") return "timeout";
+  if (code.startsWith("ERR_TLS_") || code === "DEPTH_ZERO_SELF_SIGNED_CERT" || code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE") {
+    return "tls_error";
   }
+  return "fetch_failed";
+}
+
+async function postConvexJson(pathname: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const baseUrl = resolveConvexSiteUrl();
+  const endpoint = `${baseUrl}${pathname}`;
   const headers: Record<string, string> = {
     "content-type": "application/json",
     "x-shellcorp-actor-role": readActorRole(),
@@ -1060,63 +1147,75 @@ async function postBoardCommand(payload: Record<string, unknown>): Promise<Recor
   if (token) headers["x-shellcorp-board-token"] = token;
   const allowed = process.env.SHELLCORP_ALLOWED_PERMISSIONS?.trim();
   if (allowed) headers["x-shellcorp-allowed-permissions"] = allowed;
-  const response = await fetch(`${baseUrl}/board/command`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(normalizedPayload),
-  });
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    fail(`convex_http_request_failed:${classifyFetchFailure(error)}:url=${endpoint}`);
+  }
+
   let body: unknown = null;
   try {
     body = await response.json();
   } catch {
     body = null;
   }
-  if (!response.ok) {
-    const error =
-      body && typeof body === "object" && !Array.isArray(body) && typeof (body as Record<string, unknown>).error === "string"
-        ? ((body as Record<string, unknown>).error as string)
-        : `http_${response.status}`;
-    fail(`board_command_failed:${error}`);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    fail(`convex_http_invalid_response:url=${endpoint}`);
   }
-  if (!body || typeof body !== "object" || Array.isArray(body)) fail("board_command_invalid_response");
+  if (!response.ok) {
+    const responseRecord = body as Record<string, unknown>;
+    const errorCode = typeof responseRecord.error === "string" ? responseRecord.error : `http_${response.status}`;
+    fail(`convex_http_request_rejected:${errorCode}:url=${endpoint}`);
+  }
   return body as Record<string, unknown>;
 }
 
-async function postBoardQuery(payload: Record<string, unknown>): Promise<unknown> {
-  const baseUrl = resolveConvexSiteUrl();
+async function postBoardCommand(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
   const normalizedPayload = { ...payload };
   if (typeof normalizedPayload.teamId !== "string" && typeof normalizedPayload.projectId === "string") {
     normalizedPayload.teamId = teamIdFromProjectId(normalizedPayload.projectId);
   }
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-    "x-shellcorp-actor-role": readActorRole(),
-  };
-  const token = process.env.SHELLCORP_BOARD_OPERATOR_TOKEN?.trim();
-  if (token) headers["x-shellcorp-board-token"] = token;
-  const allowed = process.env.SHELLCORP_ALLOWED_PERMISSIONS?.trim();
-  if (allowed) headers["x-shellcorp-allowed-permissions"] = allowed;
-  const response = await fetch(`${baseUrl}/board/query`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(normalizedPayload),
-  });
-  let body: unknown = null;
+  let body: Record<string, unknown>;
   try {
-    body = await response.json();
-  } catch {
-    body = null;
+    body = await postConvexJson("/board/command", normalizedPayload);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    fail(message.replace("convex_http_", "board_command_"));
   }
-  if (!response.ok) {
-    const error =
-      body && typeof body === "object" && !Array.isArray(body) && typeof (body as Record<string, unknown>).error === "string"
-        ? ((body as Record<string, unknown>).error as string)
-        : `http_${response.status}`;
-    fail(`board_query_failed:${error}`);
+  if (!body || typeof body !== "object" || Array.isArray(body)) fail("board_command_invalid_response");
+  return body;
+}
+
+async function postBoardQuery(payload: Record<string, unknown>): Promise<unknown> {
+  const normalizedPayload = { ...payload };
+  if (typeof normalizedPayload.teamId !== "string" && typeof normalizedPayload.projectId === "string") {
+    normalizedPayload.teamId = teamIdFromProjectId(normalizedPayload.projectId);
+  }
+  let body: Record<string, unknown>;
+  try {
+    body = await postConvexJson("/board/query", normalizedPayload);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    fail(message.replace("convex_http_", "board_query_"));
   }
   if (!body || typeof body !== "object" || Array.isArray(body)) fail("board_query_invalid_response");
-  const data = (body as Record<string, unknown>).data;
+  const data = body.data;
   return data;
+}
+
+async function postStatusReport(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+  try {
+    return await postConvexJson("/status/report", payload);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    fail(message.replace("convex_http_", "status_report_"));
+  }
 }
 
 async function readBoardSnapshot(projectId: string): Promise<{
@@ -2657,6 +2756,64 @@ export function registerTeamCommands(program: Command): void {
       );
     });
 
+  const status = team.command("status").description("Manage explicit agent status reports");
+  status
+    .command("report")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .requiredOption("--agent-id <agentId>", "Agent id")
+    .requiredOption("--state <state>", "running|ok|no_work|error|idle|planning|executing|blocked|done")
+    .requiredOption("--status-text <text>", "Current status detail")
+    .option("--step-key <stepKey>", "Idempotency key")
+    .option("--skill-id <skillId>", "Optional related skill id")
+    .option("--session-key <sessionKey>", "Optional OpenClaw session key")
+    .option("--source <source>", "Optional source label", "shellcorp_cli")
+    .option("--occurred-at <epochMs>", "Optional occurred timestamp", (value) => {
+      const parsed = Number.parseInt(value, 10);
+      if (!Number.isFinite(parsed) || parsed < 0) fail(`invalid_occurred_at:${value}`);
+      return parsed;
+    })
+    .option("--json", "Output JSON", false)
+    .action(
+      async (opts: {
+        teamId: string;
+        agentId: string;
+        state: string;
+        statusText: string;
+        stepKey?: string;
+        skillId?: string;
+        sessionKey?: string;
+        source?: string;
+        occurredAt?: number;
+        json?: boolean;
+      }) => {
+        ensureCommandPermission("team.activity.write");
+        const company = await store.readCompanyModel();
+        resolveProjectOrFail(company, opts.teamId);
+        const agentId = opts.agentId.trim();
+        const state = parseStatusReportState(opts.state.trim());
+        const statusText = opts.statusText.trim();
+        if (!agentId) fail("invalid_agent_id");
+        if (!statusText) fail("invalid_status_text");
+        const stepKey = opts.stepKey?.trim() || `status-${agentId}-${Date.now()}`;
+        const result = await postStatusReport({
+          teamId: opts.teamId.trim(),
+          agentId,
+          state,
+          statusText,
+          stepKey,
+          skillId: opts.skillId?.trim() || undefined,
+          sessionKey: opts.sessionKey?.trim() || undefined,
+          source: opts.source?.trim() || "shellcorp_cli",
+          occurredAt: opts.occurredAt,
+        });
+        formatOutput(
+          opts.json ? "json" : "text",
+          { ok: true, teamId: opts.teamId, agentId, state, statusText, stepKey, result },
+          `Reported status for ${agentId} (${state})`,
+        );
+      },
+    );
+
   const bot = team.command("bot").description("Manage team command-bot activity logs");
   bot
     .command("log")
@@ -2851,6 +3008,80 @@ export function registerTeamCommands(program: Command): void {
         );
       },
     );
+  heartbeat
+    .command("sync")
+    .description("Hot-swap HEARTBEAT.md files from workspace templates")
+    .option("--team-id <teamId>", "Optional team id (team-*). Defaults to all teams.")
+    .option("--watch", "Watch template files and re-sync on changes", false)
+    .option("--json", "Output JSON (non-watch mode only)", false)
+    .action(async (opts: { teamId?: string; watch?: boolean; json?: boolean }) => {
+      ensureCommandPermission("team.heartbeat.write");
+      if (opts.watch && opts.json) {
+        fail("invalid_options:--watch cannot be used with --json");
+      }
+      const runSync = async (): Promise<{ teamsTouched: number; heartbeatFilesWritten: number; teamsSkipped: number }> => {
+        return syncTeamHeartbeatFiles({ store, teamId: opts.teamId?.trim() || undefined });
+      };
+      const firstResult = await runSync();
+      if (!opts.watch) {
+        formatOutput(
+          opts.json ? "json" : "text",
+          {
+            ok: true,
+            mode: "oneshot",
+            teamId: opts.teamId?.trim() || null,
+            ...firstResult,
+          },
+          `Heartbeat sync completed (${firstResult.heartbeatFilesWritten} file(s) across ${firstResult.teamsTouched} team(s))`,
+        );
+        return;
+      }
+
+      const templatesDir = path.resolve(process.cwd(), "templates", "workspace");
+      console.log(
+        `Heartbeat watch active in ${templatesDir}. Initial sync wrote ${firstResult.heartbeatFilesWritten} file(s) across ${firstResult.teamsTouched} team(s).`,
+      );
+      let syncInFlight = false;
+      let syncQueued = false;
+      const triggerSync = async (reason: string): Promise<void> => {
+        if (syncInFlight) {
+          syncQueued = true;
+          return;
+        }
+        syncInFlight = true;
+        try {
+          let nextReason = reason;
+          do {
+            syncQueued = false;
+            const result = await runSync();
+            console.log(
+              `Heartbeat sync (${nextReason}) wrote ${result.heartbeatFilesWritten} file(s) across ${result.teamsTouched} team(s)`,
+            );
+            nextReason = "queued-change";
+          } while (syncQueued);
+        } catch (error) {
+          fail(`heartbeat_sync_failed:${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+          syncInFlight = false;
+        }
+      };
+
+      const watcher = watch(templatesDir, { persistent: true }, (eventType, filename) => {
+        if (!filename) return;
+        const file = filename.toString();
+        if (!/^HEARTBEAT-biz-(pm|executor)\.md$/.test(file)) return;
+        void triggerSync(`${eventType}:${file}`);
+      });
+
+      const shutdown = (): void => {
+        watcher.close();
+        console.log("Heartbeat watch stopped.");
+        process.exit(0);
+      };
+      process.once("SIGINT", shutdown);
+      process.once("SIGTERM", shutdown);
+      await new Promise<void>(() => {});
+    });
   heartbeat
     .command("bootstrap")
     .description("Write layered HEARTBEAT.md files and scaffold OpenClaw heartbeat config")
