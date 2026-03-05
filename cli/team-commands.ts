@@ -41,6 +41,9 @@ type BusinessType = "affiliate_marketing" | "content_creator" | "saas" | "custom
 type CapabilityCategory = "measure" | "execute" | "distribute";
 type ResourceKind = ResourceType;
 type ResourceEventKind = "refresh" | "consumption" | "adjustment";
+type BoardTaskStatus = "todo" | "in_progress" | "blocked" | "done";
+type BoardTaskPriority = "low" | "medium" | "high";
+type BoardActivityType = "planning" | "research" | "executing" | "distributing" | "blocked" | "handoff" | "summary" | "status";
 type ConfigEntry = [string, string];
 
 interface TeamSummary {
@@ -51,6 +54,62 @@ interface TeamSummary {
   goal: string;
   kpis: string[];
   businessType?: string;
+}
+
+type TeamPermission =
+  | "team.read"
+  | "team.meta.write"
+  | "team.kpi.write"
+  | "team.business.write"
+  | "team.resources.write"
+  | "team.board.write"
+  | "team.activity.write"
+  | "team.heartbeat.write"
+  | "team.archive";
+
+const PERMISSION_BY_ROLE: Record<string, TeamPermission[]> = {
+  operator: [
+    "team.read",
+    "team.meta.write",
+    "team.kpi.write",
+    "team.business.write",
+    "team.resources.write",
+    "team.board.write",
+    "team.activity.write",
+    "team.heartbeat.write",
+    "team.archive",
+  ],
+  biz_pm: ["team.read", "team.meta.write", "team.kpi.write", "team.business.write", "team.board.write", "team.activity.write"],
+  pm: ["team.read", "team.meta.write", "team.kpi.write", "team.business.write", "team.board.write", "team.activity.write"],
+  biz_executor: ["team.read", "team.board.write", "team.activity.write"],
+  builder: ["team.read", "team.board.write", "team.activity.write"],
+  growth_marketer: ["team.read", "team.board.write", "team.activity.write"],
+};
+
+function readActorRole(): string {
+  return (process.env.SHELLCORP_ACTOR_ROLE?.trim().toLowerCase() || "operator").replace(/\s+/g, "_");
+}
+
+function resolveAllowedPermissions(): Set<TeamPermission> | "all" {
+  const raw = process.env.SHELLCORP_ALLOWED_PERMISSIONS?.trim();
+  if (raw) {
+    const tokens = raw
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    if (tokens.includes("*")) return "all";
+    return new Set(tokens as TeamPermission[]);
+  }
+  const role = readActorRole();
+  const defaults = PERMISSION_BY_ROLE[role] ?? PERMISSION_BY_ROLE.operator;
+  return new Set(defaults);
+}
+
+function ensureCommandPermission(permission: TeamPermission): void {
+  const allowed = resolveAllowedPermissions();
+  if (allowed !== "all" && !allowed.has(permission)) {
+    fail(`permission_denied:${permission}:role=${readActorRole()}`);
+  }
 }
 
 type OpenclawAgentEntry = Record<string, unknown> & {
@@ -150,6 +209,32 @@ function parseRoleSlotRole(raw: string): Exclude<AgentRole, "ceo"> {
     return raw;
   }
   fail(`invalid_role: ${raw}`);
+}
+
+function parseBoardTaskStatus(raw: string): BoardTaskStatus {
+  if (raw === "todo" || raw === "in_progress" || raw === "blocked" || raw === "done") return raw;
+  fail(`invalid_board_status:${raw}`);
+}
+
+function parseBoardTaskPriority(raw: string): BoardTaskPriority {
+  if (raw === "low" || raw === "medium" || raw === "high") return raw;
+  fail(`invalid_board_priority:${raw}`);
+}
+
+function parseBoardActivityType(raw: string): BoardActivityType {
+  if (
+    raw === "planning" ||
+    raw === "research" ||
+    raw === "executing" ||
+    raw === "distributing" ||
+    raw === "blocked" ||
+    raw === "handoff" ||
+    raw === "summary" ||
+    raw === "status"
+  ) {
+    return raw;
+  }
+  fail(`invalid_activity_type:${raw}`);
 }
 
 function parseConfigJson(raw: string): Record<string, string> {
@@ -766,7 +851,7 @@ async function renderBusinessHeartbeatTemplate(opts: {
     project.metricEvents && project.metricEvents.length > 0
       ? JSON.stringify(project.metricEvents[project.metricEvents.length - 1]?.metrics ?? {})
       : "none";
-  const tasksList = "[]";
+  const boardSnapshot = await readBoardSnapshot(project.id);
   const replaceMap: Record<string, string> = {
     "{projectName}": project.name,
     "{businessType}": project.businessConfig?.type ?? "custom",
@@ -776,9 +861,9 @@ async function renderBusinessHeartbeatTemplate(opts: {
     "{profit}": String(profit),
     "{experimentsSummary}": experimentsSummary,
     "{recentMetrics}": recentMetrics,
-    "{openTasks}": "0",
-    "{inProgressTasks}": "0",
-    "{blockedTasks}": "0",
+    "{openTasks}": String(boardSnapshot.openTasks),
+    "{inProgressTasks}": String(boardSnapshot.inProgressTasks),
+    "{blockedTasks}": String(boardSnapshot.blockedTasks),
     "{resourcesSnapshot}": resourcesSnapshot(project.resources ?? []),
     "{resourceAdvisories}": resourceAdvisories(project.resources ?? []),
     "{measureSkillId}": project.businessConfig?.slots.measure.skillId ?? "not-set",
@@ -787,13 +872,123 @@ async function renderBusinessHeartbeatTemplate(opts: {
     "{measureConfig}": JSON.stringify(project.businessConfig?.slots.measure.config ?? {}),
     "{executeConfig}": JSON.stringify(project.businessConfig?.slots.execute.config ?? {}),
     "{distributeConfig}": JSON.stringify(project.businessConfig?.slots.distribute.config ?? {}),
-    "{tasksList}": tasksList,
+    "{tasksList}": boardSnapshot.tasksList,
   };
   let rendered = template;
   for (const [needle, value] of Object.entries(replaceMap)) {
     rendered = rendered.split(needle).join(value);
   }
   return rendered;
+}
+
+function resolveConvexSiteUrl(): string {
+  const raw = process.env.SHELLCORP_CONVEX_SITE_URL?.trim() || process.env.CONVEX_SITE_URL?.trim() || "";
+  if (!raw) {
+    fail("missing_convex_site_url:set SHELLCORP_CONVEX_SITE_URL");
+  }
+  return raw.replace(/\/+$/, "");
+}
+
+async function postBoardCommand(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const baseUrl = resolveConvexSiteUrl();
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "x-shellcorp-actor-role": readActorRole(),
+  };
+  const token = process.env.SHELLCORP_BOARD_OPERATOR_TOKEN?.trim();
+  if (token) headers["x-shellcorp-board-token"] = token;
+  const allowed = process.env.SHELLCORP_ALLOWED_PERMISSIONS?.trim();
+  if (allowed) headers["x-shellcorp-allowed-permissions"] = allowed;
+  const response = await fetch(`${baseUrl}/board/command`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+  if (!response.ok) {
+    const error =
+      body && typeof body === "object" && !Array.isArray(body) && typeof (body as Record<string, unknown>).error === "string"
+        ? ((body as Record<string, unknown>).error as string)
+        : `http_${response.status}`;
+    fail(`board_command_failed:${error}`);
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) fail("board_command_invalid_response");
+  return body as Record<string, unknown>;
+}
+
+async function postBoardQuery(payload: Record<string, unknown>): Promise<unknown> {
+  const baseUrl = resolveConvexSiteUrl();
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "x-shellcorp-actor-role": readActorRole(),
+  };
+  const token = process.env.SHELLCORP_BOARD_OPERATOR_TOKEN?.trim();
+  if (token) headers["x-shellcorp-board-token"] = token;
+  const allowed = process.env.SHELLCORP_ALLOWED_PERMISSIONS?.trim();
+  if (allowed) headers["x-shellcorp-allowed-permissions"] = allowed;
+  const response = await fetch(`${baseUrl}/board/query`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+  if (!response.ok) {
+    const error =
+      body && typeof body === "object" && !Array.isArray(body) && typeof (body as Record<string, unknown>).error === "string"
+        ? ((body as Record<string, unknown>).error as string)
+        : `http_${response.status}`;
+    fail(`board_query_failed:${error}`);
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) fail("board_query_invalid_response");
+  const data = (body as Record<string, unknown>).data;
+  return data;
+}
+
+async function readBoardSnapshot(projectId: string): Promise<{
+  openTasks: number;
+  inProgressTasks: number;
+  blockedTasks: number;
+  tasksList: string;
+}> {
+  try {
+    const data = await postBoardQuery({
+      projectId,
+      query: "tasks",
+    });
+    const rows = Array.isArray((data as { tasks?: unknown[] })?.tasks) ? ((data as { tasks: unknown[] }).tasks as unknown[]) : [];
+    const safeRows = rows.filter((row) => row && typeof row === "object" && !Array.isArray(row)) as Array<{
+      taskId?: string;
+      title?: string;
+      status?: string;
+      priority?: string;
+      ownerAgentId?: string;
+    }>;
+    const openTasks = safeRows.filter((row) => row.status === "todo").length;
+    const inProgressTasks = safeRows.filter((row) => row.status === "in_progress").length;
+    const blockedTasks = safeRows.filter((row) => row.status === "blocked").length;
+    const tasksList = JSON.stringify(
+      safeRows.slice(0, 12).map((row) => ({
+        taskId: row.taskId ?? "",
+        title: row.title ?? "",
+        status: row.status ?? "todo",
+        priority: row.priority ?? "medium",
+        ownerAgentId: row.ownerAgentId ?? "",
+      })),
+    );
+    return { openTasks, inProgressTasks, blockedTasks, tasksList };
+  } catch {
+    return { openTasks: 0, inProgressTasks: 0, blockedTasks: 0, tasksList: "[]" };
+  }
 }
 
 export function registerTeamCommands(program: Command): void {
@@ -804,6 +999,7 @@ export function registerTeamCommands(program: Command): void {
     .command("list")
     .option("--json", "Output JSON", false)
     .action(async (opts: { json?: boolean }) => {
+      ensureCommandPermission("team.read");
       const company = await store.readCompanyModel();
       const summaries = buildTeamSummaries(company);
       if (opts.json) {
@@ -816,6 +1012,29 @@ export function registerTeamCommands(program: Command): void {
       }
       const lines = summaries.map((entry) => `${entry.teamId} | ${entry.name} | ${entry.status} | KPIs=${entry.kpis.length}`);
       console.log(lines.join("\n"));
+    });
+
+  team
+    .command("show")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .option("--json", "Output JSON", false)
+    .action(async (opts: { teamId: string; json?: boolean }) => {
+      ensureCommandPermission("team.read");
+      const company = await store.readCompanyModel();
+      const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
+      const payload = {
+        ok: true,
+        teamId: opts.teamId,
+        projectId,
+        project,
+        roleSlots: company.roleSlots.filter((entry) => entry.projectId === projectId),
+        agents: company.agents.filter((entry) => entry.projectId === projectId),
+      };
+      formatOutput(
+        opts.json ? "json" : "text",
+        payload,
+        `${opts.teamId} | ${project.name} | goal=${project.goal} | kpis=${project.kpis.length} | status=${project.status}`,
+      );
     });
 
   team
@@ -841,6 +1060,7 @@ export function registerTeamCommands(program: Command): void {
         withCluster?: boolean;
         json?: boolean;
       }) => {
+        ensureCommandPermission("team.meta.write");
         const businessType = opts.businessType?.trim() ? parseBusinessType(opts.businessType.trim()) : undefined;
         let company = await store.readCompanyModel();
         if (businessType) {
@@ -919,6 +1139,8 @@ export function registerTeamCommands(program: Command): void {
     .option("--goal <goal>", "New team goal")
     .option("--kpi-add <kpi>", "Add KPI (repeatable)", collectValue, [] as string[])
     .option("--kpi-remove <kpi>", "Remove KPI (repeatable)", collectValue, [] as string[])
+    .option("--kpi-set <kpi>", "Replace KPI set (repeatable)", collectValue, [] as string[])
+    .option("--clear-kpis", "Clear all KPIs before apply", false)
     .option("--json", "Output JSON", false)
     .action(
       async (opts: {
@@ -928,13 +1150,21 @@ export function registerTeamCommands(program: Command): void {
         goal?: string;
         kpiAdd: string[];
         kpiRemove: string[];
+        kpiSet: string[];
+        clearKpis?: boolean;
         json?: boolean;
       }) => {
+        const touchesMeta = Boolean(opts.name?.trim() || opts.description?.trim() || opts.goal?.trim());
+        const touchesKpi = opts.kpiAdd.length > 0 || opts.kpiRemove.length > 0 || opts.kpiSet.length > 0 || opts.clearKpis === true;
+        if (touchesMeta) ensureCommandPermission("team.meta.write");
+        if (touchesKpi) ensureCommandPermission("team.kpi.write");
         const company = await store.readCompanyModel();
         const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
         const removeSet = new Set(normalizeKpis(opts.kpiRemove));
         const addKpis = normalizeKpis(opts.kpiAdd);
-        const nextKpis = normalizeKpis([...project.kpis.filter((item) => !removeSet.has(item)), ...addKpis]);
+        const setKpis = normalizeKpis(opts.kpiSet);
+        const baseKpis = setKpis.length > 0 ? setKpis : opts.clearKpis ? [] : project.kpis;
+        const nextKpis = normalizeKpis([...baseKpis.filter((item) => !removeSet.has(item)), ...addKpis]);
         const nextProject = {
           ...project,
           name: opts.name?.trim() ? opts.name.trim() : project.name,
@@ -970,6 +1200,7 @@ export function registerTeamCommands(program: Command): void {
     .option("--deregister-openclaw", "Remove archived team agents from openclaw.json agents.list", false)
     .option("--json", "Output JSON", false)
     .action(async (opts: { teamId: string; deregisterOpenclaw?: boolean; json?: boolean }) => {
+      ensureCommandPermission("team.archive");
       const company = await store.readCompanyModel();
       const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
       const archivedAgentIds = company.agents.filter((agent) => agent.projectId === projectId).map((agent) => agent.agentId);
@@ -1010,6 +1241,44 @@ export function registerTeamCommands(program: Command): void {
       formatOutput(opts.json ? "json" : "text", { ok: true, teamId: opts.teamId }, `Archived ${opts.teamId}`);
     });
 
+  const kpi = team.command("kpi").description("Manage team KPI set");
+  kpi
+    .command("set")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .option("--kpi <kpi>", "KPI identifier (repeatable)", collectValue, [] as string[])
+    .option("--json", "Output JSON", false)
+    .action(async (opts: { teamId: string; kpi: string[]; json?: boolean }) => {
+      ensureCommandPermission("team.kpi.write");
+      const company = await store.readCompanyModel();
+      const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
+      const nextKpis = normalizeKpis(opts.kpi);
+      const nextCompany: CompanyModel = {
+        ...company,
+        projects: company.projects.map((entry) => (entry.id === projectId ? { ...project, kpis: nextKpis } : entry)),
+      };
+      await store.writeCompanyModel(nextCompany);
+      formatOutput(
+        opts.json ? "json" : "text",
+        { ok: true, teamId: opts.teamId, projectId, kpis: nextKpis },
+        `Set ${nextKpis.length} KPI(s) for ${opts.teamId}`,
+      );
+    });
+  kpi
+    .command("clear")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .option("--json", "Output JSON", false)
+    .action(async (opts: { teamId: string; json?: boolean }) => {
+      ensureCommandPermission("team.kpi.write");
+      const company = await store.readCompanyModel();
+      const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
+      const nextCompany: CompanyModel = {
+        ...company,
+        projects: company.projects.map((entry) => (entry.id === projectId ? { ...project, kpis: [] } : entry)),
+      };
+      await store.writeCompanyModel(nextCompany);
+      formatOutput(opts.json ? "json" : "text", { ok: true, teamId: opts.teamId, projectId, kpis: [] }, `Cleared KPIs for ${opts.teamId}`);
+    });
+
   const roleSlot = team.command("role-slot").description("Manage team role slots");
   roleSlot
     .command("set")
@@ -1030,6 +1299,7 @@ export function registerTeamCommands(program: Command): void {
         spawnPolicy: string;
         json?: boolean;
       }) => {
+        ensureCommandPermission("team.meta.write");
         const company = await store.readCompanyModel();
         const projectId = projectIdFromTeamId(opts.teamId);
         if (!company.projects.some((entry) => entry.id === projectId)) fail(`team_not_found:${opts.teamId}`);
@@ -1060,6 +1330,7 @@ export function registerTeamCommands(program: Command): void {
     .requiredOption("--team-id <teamId>", "Team id (team-*)")
     .option("--json", "Output JSON", false)
     .action(async (opts: { teamId: string; json?: boolean }) => {
+      ensureCommandPermission("team.read");
       const company = await store.readCompanyModel();
       const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
       const payload = {
@@ -1095,6 +1366,7 @@ export function registerTeamCommands(program: Command): void {
         config: ConfigEntry[];
         json?: boolean;
       }) => {
+        ensureCommandPermission("team.business.write");
         const company = await store.readCompanyModel();
         const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
         const slot = parseCapabilityCategory(opts.slot);
@@ -1150,6 +1422,55 @@ export function registerTeamCommands(program: Command): void {
         );
       },
     );
+  business
+    .command("set-all")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .requiredOption("--business-type <type>", "affiliate_marketing|content_creator|saas|custom")
+    .requiredOption("--measure-skill-id <skillId>", "Measure slot skill id")
+    .requiredOption("--execute-skill-id <skillId>", "Execute slot skill id")
+    .requiredOption("--distribute-skill-id <skillId>", "Distribute slot skill id")
+    .option("--json", "Output JSON", false)
+    .action(
+      async (opts: {
+        teamId: string;
+        businessType: string;
+        measureSkillId: string;
+        executeSkillId: string;
+        distributeSkillId: string;
+        json?: boolean;
+      }) => {
+        ensureCommandPermission("team.business.write");
+        const company = await store.readCompanyModel();
+        const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
+        const nextType = parseBusinessType(opts.businessType.trim());
+        const nextBusinessConfig: BusinessConfigModel = {
+          type: nextType,
+          slots: {
+            measure: { category: "measure", skillId: opts.measureSkillId.trim(), config: project.businessConfig?.slots.measure.config ?? {} },
+            execute: { category: "execute", skillId: opts.executeSkillId.trim(), config: project.businessConfig?.slots.execute.config ?? {} },
+            distribute: { category: "distribute", skillId: opts.distributeSkillId.trim(), config: project.businessConfig?.slots.distribute.config ?? {} },
+          },
+        };
+        const nextProject = {
+          ...project,
+          businessConfig: nextBusinessConfig,
+          resources: project.resources ?? defaultProjectResources(projectId),
+          resourceEvents: project.resourceEvents ?? [],
+          ledger: project.ledger ?? [],
+          experiments: project.experiments ?? [],
+          metricEvents: project.metricEvents ?? [],
+        };
+        await store.writeCompanyModel({
+          ...company,
+          projects: company.projects.map((entry) => (entry.id === projectId ? nextProject : entry)),
+        });
+        formatOutput(
+          opts.json ? "json" : "text",
+          { ok: true, teamId: opts.teamId, projectId, businessConfig: nextBusinessConfig },
+          `Updated all business slots for ${opts.teamId}`,
+        );
+      },
+    );
 
   const resources = team.command("resources").description("Manage advisory resources for a team");
   resources
@@ -1157,6 +1478,7 @@ export function registerTeamCommands(program: Command): void {
     .requiredOption("--team-id <teamId>", "Team id (team-*)")
     .option("--json", "Output JSON", false)
     .action(async (opts: { teamId: string; json?: boolean }) => {
+      ensureCommandPermission("team.read");
       const company = await store.readCompanyModel();
       const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
       const rows = project.resources ?? [];
@@ -1180,6 +1502,7 @@ export function registerTeamCommands(program: Command): void {
     }, 20)
     .option("--json", "Output JSON", false)
     .action(async (opts: { teamId: string; limit: number; json?: boolean }) => {
+      ensureCommandPermission("team.read");
       const company = await store.readCompanyModel();
       const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
       const rows = (project.resourceEvents ?? []).slice().reverse().slice(0, opts.limit);
@@ -1256,6 +1579,7 @@ export function registerTeamCommands(program: Command): void {
         note?: string;
         json?: boolean;
       }) => {
+        ensureCommandPermission("team.resources.write");
         const company = await store.readCompanyModel();
         const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
         const type = parseResourceKind(opts.type);
@@ -1342,6 +1666,7 @@ export function registerTeamCommands(program: Command): void {
     .option("--note <note>", "Event note")
     .option("--json", "Output JSON", false)
     .action(async (opts: { teamId: string; resourceId: string; remaining: number; source: string; note?: string; json?: boolean }) => {
+      ensureCommandPermission("team.resources.write");
       const company = await store.readCompanyModel();
       const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
       const existingResources = project.resources ?? defaultProjectResources(projectId);
@@ -1392,6 +1717,7 @@ export function registerTeamCommands(program: Command): void {
     .option("--note <note>", "Event note")
     .option("--json", "Output JSON", false)
     .action(async (opts: { teamId: string; resourceId: string; source: string; note?: string; json?: boolean }) => {
+      ensureCommandPermission("team.resources.write");
       const company = await store.readCompanyModel();
       const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
       const resourceId = opts.resourceId.trim();
@@ -1435,6 +1761,7 @@ export function registerTeamCommands(program: Command): void {
     .option("--note <note>", "Event note")
     .option("--json", "Output JSON", false)
     .action(async (opts: { teamId: string; resourceId: string; amount: number; source: string; note?: string; json?: boolean }) => {
+      ensureCommandPermission("team.resources.write");
       const company = await store.readCompanyModel();
       const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
       const resources = project.resources ?? [];
@@ -1492,6 +1819,7 @@ export function registerTeamCommands(program: Command): void {
     .option("--note <note>", "Event note")
     .option("--json", "Output JSON", false)
     .action(async (opts: { teamId: string; resourceId: string; amount: number; source: string; note?: string; json?: boolean }) => {
+      ensureCommandPermission("team.resources.write");
       const company = await store.readCompanyModel();
       const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
       const resources = project.resources ?? [];
@@ -1541,6 +1869,7 @@ export function registerTeamCommands(program: Command): void {
     .requiredOption("--team-id <teamId>", "Team id (team-*)")
     .option("--json", "Output JSON", false)
     .action(async (opts: { teamId: string; json?: boolean }) => {
+      ensureCommandPermission("team.resources.write");
       const company = await store.readCompanyModel();
       const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
       const resources = project.resources && project.resources.length > 0 ? project.resources : defaultProjectResources(projectId);
@@ -1574,6 +1903,7 @@ export function registerTeamCommands(program: Command): void {
     .requiredOption("--team-id <teamId>", "Team id (team-*)")
     .option("--json", "Output JSON", false)
     .action(async (opts: { teamId: string; json?: boolean }) => {
+      ensureCommandPermission("team.business.write");
       const company = await store.readCompanyModel();
       const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
       const now = Date.now();
@@ -1639,6 +1969,428 @@ export function registerTeamCommands(program: Command): void {
       );
     });
 
+  const board = team.command("board").description("Manage Convex-backed team board tasks");
+  const boardTask = board.command("task").description("Task lifecycle commands");
+  boardTask
+    .command("add")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .requiredOption("--title <title>", "Task title")
+    .option("--task-id <taskId>", "Task id override")
+    .option("--owner-agent-id <agentId>", "Assigned agent id")
+    .option("--priority <priority>", "low|medium|high", "medium")
+    .option("--status <status>", "todo|in_progress|blocked|done", "todo")
+    .option("--actor-agent-id <agentId>", "Actor agent id", "main")
+    .option("--detail <detail>", "Optional detail")
+    .option("--json", "Output JSON", false)
+    .action(
+      async (opts: {
+        teamId: string;
+        title: string;
+        taskId?: string;
+        ownerAgentId?: string;
+        priority: string;
+        status: string;
+        actorAgentId: string;
+        detail?: string;
+        json?: boolean;
+      }) => {
+        ensureCommandPermission("team.board.write");
+        const company = await store.readCompanyModel();
+        const { projectId } = resolveProjectOrFail(company, opts.teamId);
+        const result = await postBoardCommand({
+          projectId,
+          command: "task_add",
+          taskId: opts.taskId?.trim() || undefined,
+          title: opts.title.trim(),
+          ownerAgentId: opts.ownerAgentId?.trim() || undefined,
+          priority: parseBoardTaskPriority(opts.priority),
+          status: parseBoardTaskStatus(opts.status),
+          actorType: "operator",
+          actorAgentId: opts.actorAgentId.trim(),
+          detail: opts.detail?.trim() || undefined,
+        });
+        formatOutput(
+          opts.json ? "json" : "text",
+          { ok: true, teamId: opts.teamId, projectId, result },
+          `Added task ${(result.taskId as string | undefined) ?? "unknown"} for ${opts.teamId}`,
+        );
+      },
+    );
+  boardTask
+    .command("move")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .requiredOption("--task-id <taskId>", "Task id")
+    .requiredOption("--status <status>", "todo|in_progress|blocked|done")
+    .option("--actor-agent-id <agentId>", "Actor agent id", "main")
+    .option("--detail <detail>", "Optional detail")
+    .option("--json", "Output JSON", false)
+    .action(async (opts: { teamId: string; taskId: string; status: string; actorAgentId: string; detail?: string; json?: boolean }) => {
+      ensureCommandPermission("team.board.write");
+      const company = await store.readCompanyModel();
+      const { projectId } = resolveProjectOrFail(company, opts.teamId);
+      const result = await postBoardCommand({
+        projectId,
+        command: "task_move",
+        taskId: opts.taskId.trim(),
+        status: parseBoardTaskStatus(opts.status),
+        actorType: "operator",
+        actorAgentId: opts.actorAgentId.trim(),
+        detail: opts.detail?.trim() || undefined,
+      });
+      formatOutput(
+        opts.json ? "json" : "text",
+        { ok: true, teamId: opts.teamId, projectId, result },
+        `Moved task ${opts.taskId} to ${opts.status}`,
+      );
+    });
+  boardTask
+    .command("update")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .requiredOption("--task-id <taskId>", "Task id")
+    .option("--title <title>", "Updated task title")
+    .option("--detail <detail>", "Updated task detail/notes")
+    .option("--due-at <timestamp>", "Due timestamp (ms epoch)", (value) => {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed) || parsed < 0) fail(`invalid_due_at:${value}`);
+      return parsed;
+    })
+    .option("--actor-agent-id <agentId>", "Actor agent id", "main")
+    .option("--json", "Output JSON", false)
+    .action(
+      async (opts: {
+        teamId: string;
+        taskId: string;
+        title?: string;
+        detail?: string;
+        dueAt?: number;
+        actorAgentId: string;
+        json?: boolean;
+      }) => {
+        ensureCommandPermission("team.board.write");
+        if (!opts.title?.trim() && !opts.detail?.trim() && typeof opts.dueAt !== "number") {
+          fail("task_update_requires_change:title|detail|due-at");
+        }
+        const company = await store.readCompanyModel();
+        const { projectId } = resolveProjectOrFail(company, opts.teamId);
+        const result = await postBoardCommand({
+          projectId,
+          command: "task_update",
+          taskId: opts.taskId.trim(),
+          title: opts.title?.trim() || undefined,
+          detail: opts.detail?.trim() || undefined,
+          dueAt: opts.dueAt,
+          actorType: "operator",
+          actorAgentId: opts.actorAgentId.trim(),
+        });
+        formatOutput(
+          opts.json ? "json" : "text",
+          { ok: true, teamId: opts.teamId, projectId, result },
+          `Updated task ${opts.taskId}`,
+        );
+      },
+    );
+  boardTask
+    .command("delete")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .requiredOption("--task-id <taskId>", "Task id")
+    .option("--actor-agent-id <agentId>", "Actor agent id", "main")
+    .option("--json", "Output JSON", false)
+    .action(async (opts: { teamId: string; taskId: string; actorAgentId: string; json?: boolean }) => {
+      ensureCommandPermission("team.board.write");
+      const company = await store.readCompanyModel();
+      const { projectId } = resolveProjectOrFail(company, opts.teamId);
+      const result = await postBoardCommand({
+        projectId,
+        command: "task_delete",
+        taskId: opts.taskId.trim(),
+        actorType: "operator",
+        actorAgentId: opts.actorAgentId.trim(),
+      });
+      formatOutput(
+        opts.json ? "json" : "text",
+        { ok: true, teamId: opts.teamId, projectId, result },
+        `Deleted task ${opts.taskId}`,
+      );
+    });
+  boardTask
+    .command("assign")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .requiredOption("--task-id <taskId>", "Task id")
+    .requiredOption("--owner-agent-id <agentId>", "Owner agent id")
+    .option("--actor-agent-id <agentId>", "Actor agent id", "main")
+    .option("--json", "Output JSON", false)
+    .action(async (opts: { teamId: string; taskId: string; ownerAgentId: string; actorAgentId: string; json?: boolean }) => {
+      ensureCommandPermission("team.board.write");
+      const company = await store.readCompanyModel();
+      const { projectId } = resolveProjectOrFail(company, opts.teamId);
+      const result = await postBoardCommand({
+        projectId,
+        command: "task_assign",
+        taskId: opts.taskId.trim(),
+        ownerAgentId: opts.ownerAgentId.trim(),
+        actorType: "operator",
+        actorAgentId: opts.actorAgentId.trim(),
+      });
+      formatOutput(
+        opts.json ? "json" : "text",
+        { ok: true, teamId: opts.teamId, projectId, result },
+        `Assigned task ${opts.taskId} to ${opts.ownerAgentId}`,
+      );
+    });
+  boardTask
+    .command("block")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .requiredOption("--task-id <taskId>", "Task id")
+    .option("--reason <reason>", "Block reason")
+    .option("--actor-agent-id <agentId>", "Actor agent id", "main")
+    .option("--json", "Output JSON", false)
+    .action(async (opts: { teamId: string; taskId: string; reason?: string; actorAgentId: string; json?: boolean }) => {
+      ensureCommandPermission("team.board.write");
+      const company = await store.readCompanyModel();
+      const { projectId } = resolveProjectOrFail(company, opts.teamId);
+      const result = await postBoardCommand({
+        projectId,
+        command: "task_block",
+        taskId: opts.taskId.trim(),
+        actorType: "operator",
+        actorAgentId: opts.actorAgentId.trim(),
+        detail: opts.reason?.trim() || undefined,
+      });
+      formatOutput(
+        opts.json ? "json" : "text",
+        { ok: true, teamId: opts.teamId, projectId, result },
+        `Blocked task ${opts.taskId}`,
+      );
+    });
+  boardTask
+    .command("done")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .requiredOption("--task-id <taskId>", "Task id")
+    .option("--note <note>", "Completion note")
+    .option("--actor-agent-id <agentId>", "Actor agent id", "main")
+    .option("--json", "Output JSON", false)
+    .action(async (opts: { teamId: string; taskId: string; note?: string; actorAgentId: string; json?: boolean }) => {
+      ensureCommandPermission("team.board.write");
+      const company = await store.readCompanyModel();
+      const { projectId } = resolveProjectOrFail(company, opts.teamId);
+      const result = await postBoardCommand({
+        projectId,
+        command: "task_done",
+        taskId: opts.taskId.trim(),
+        actorType: "operator",
+        actorAgentId: opts.actorAgentId.trim(),
+        detail: opts.note?.trim() || undefined,
+      });
+      formatOutput(
+        opts.json ? "json" : "text",
+        { ok: true, teamId: opts.teamId, projectId, result },
+        `Marked task ${opts.taskId} done`,
+      );
+    });
+  boardTask
+    .command("reopen")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .requiredOption("--task-id <taskId>", "Task id")
+    .option("--note <note>", "Reopen note")
+    .option("--actor-agent-id <agentId>", "Actor agent id", "main")
+    .option("--json", "Output JSON", false)
+    .action(async (opts: { teamId: string; taskId: string; note?: string; actorAgentId: string; json?: boolean }) => {
+      ensureCommandPermission("team.board.write");
+      const company = await store.readCompanyModel();
+      const { projectId } = resolveProjectOrFail(company, opts.teamId);
+      const result = await postBoardCommand({
+        projectId,
+        command: "task_reopen",
+        taskId: opts.taskId.trim(),
+        actorType: "operator",
+        actorAgentId: opts.actorAgentId.trim(),
+        detail: opts.note?.trim() || undefined,
+      });
+      formatOutput(
+        opts.json ? "json" : "text",
+        { ok: true, teamId: opts.teamId, projectId, result },
+        `Reopened task ${opts.taskId}`,
+      );
+    });
+  boardTask
+    .command("reprioritize")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .requiredOption("--task-id <taskId>", "Task id")
+    .requiredOption("--priority <priority>", "low|medium|high")
+    .option("--actor-agent-id <agentId>", "Actor agent id", "main")
+    .option("--json", "Output JSON", false)
+    .action(async (opts: { teamId: string; taskId: string; priority: string; actorAgentId: string; json?: boolean }) => {
+      ensureCommandPermission("team.board.write");
+      const company = await store.readCompanyModel();
+      const { projectId } = resolveProjectOrFail(company, opts.teamId);
+      const result = await postBoardCommand({
+        projectId,
+        command: "task_reprioritize",
+        taskId: opts.taskId.trim(),
+        priority: parseBoardTaskPriority(opts.priority),
+        actorType: "operator",
+        actorAgentId: opts.actorAgentId.trim(),
+      });
+      formatOutput(
+        opts.json ? "json" : "text",
+        { ok: true, teamId: opts.teamId, projectId, result },
+        `Reprioritized task ${opts.taskId} to ${opts.priority}`,
+      );
+    });
+  boardTask
+    .command("list")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .option("--status <status>", "todo|in_progress|blocked|done")
+    .option("--json", "Output JSON", false)
+    .action(async (opts: { teamId: string; status?: string; json?: boolean }) => {
+      ensureCommandPermission("team.read");
+      const company = await store.readCompanyModel();
+      const { projectId } = resolveProjectOrFail(company, opts.teamId);
+      const data = await postBoardQuery({
+        projectId,
+        query: "tasks",
+      });
+      const tasks = Array.isArray((data as { tasks?: unknown[] })?.tasks) ? ((data as { tasks: unknown[] }).tasks as unknown[]) : [];
+      const filtered =
+        opts.status?.trim() && tasks.length > 0
+          ? tasks.filter((entry) => {
+              if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
+              return (entry as { status?: string }).status === parseBoardTaskStatus(opts.status!.trim());
+            })
+          : tasks;
+      formatOutput(
+        opts.json ? "json" : "text",
+        { ok: true, teamId: opts.teamId, projectId, tasks: filtered },
+        filtered.length === 0
+          ? `${opts.teamId} has no board tasks`
+          : filtered
+              .map((row) => {
+                const task = row as { taskId?: string; status?: string; priority?: string; title?: string; ownerAgentId?: string };
+                return `${task.taskId ?? "unknown"} | ${task.status ?? "todo"} | ${task.priority ?? "medium"} | ${task.ownerAgentId ?? "unassigned"} | ${task.title ?? ""}`;
+              })
+              .join("\n"),
+      );
+    });
+
+  const bot = team.command("bot").description("Manage team command-bot activity logs");
+  bot
+    .command("log")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .requiredOption("--agent-id <agentId>", "Agent id")
+    .requiredOption("--activity-type <type>", "planning|research|executing|distributing|blocked|handoff|summary|status")
+    .requiredOption("--label <label>", "Activity label")
+    .option("--detail <detail>", "Activity detail")
+    .option("--task-id <taskId>", "Task id context")
+    .option("--skill-id <skillId>", "Skill id context")
+    .option("--state <state>", "Optional task state context")
+    .option("--step-key <stepKey>", "Idempotency key")
+    .option("--json", "Output JSON", false)
+    .action(
+      async (opts: {
+        teamId: string;
+        agentId: string;
+        activityType: string;
+        label: string;
+        detail?: string;
+        taskId?: string;
+        skillId?: string;
+        state?: string;
+        stepKey?: string;
+        json?: boolean;
+      }) => {
+        ensureCommandPermission("team.activity.write");
+        const company = await store.readCompanyModel();
+        const { projectId } = resolveProjectOrFail(company, opts.teamId);
+        const result = await postBoardCommand({
+          projectId,
+          command: "activity_log",
+          actorType: "agent",
+          actorAgentId: opts.agentId.trim(),
+          activityType: parseBoardActivityType(opts.activityType),
+          label: opts.label.trim(),
+          detail: opts.detail?.trim() || undefined,
+          taskId: opts.taskId?.trim() || undefined,
+          skillId: opts.skillId?.trim() || undefined,
+          status: opts.state?.trim() || undefined,
+          stepKey: opts.stepKey?.trim() || undefined,
+        });
+        formatOutput(
+          opts.json ? "json" : "text",
+          { ok: true, teamId: opts.teamId, projectId, result },
+          `Logged activity for ${opts.agentId} (${opts.activityType})`,
+        );
+      },
+    );
+  bot
+    .command("timeline")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .option("--agent-id <agentId>", "Filter agent")
+    .option("--limit <limit>", "Max rows", (value) => {
+      const parsed = Number.parseInt(value, 10);
+      if (!Number.isFinite(parsed) || parsed < 1) fail(`invalid_limit:${value}`);
+      return parsed;
+    }, 20)
+    .option("--json", "Output JSON", false)
+    .action(async (opts: { teamId: string; agentId?: string; limit: number; json?: boolean }) => {
+      ensureCommandPermission("team.read");
+      const company = await store.readCompanyModel();
+      const { projectId } = resolveProjectOrFail(company, opts.teamId);
+      const data = await postBoardQuery({
+        projectId,
+        query: "activity",
+        agentId: opts.agentId?.trim() || undefined,
+        limit: opts.limit,
+      });
+      const rows = Array.isArray(data) ? data : [];
+      formatOutput(
+        opts.json ? "json" : "text",
+        { ok: true, teamId: opts.teamId, projectId, events: rows },
+        rows.length === 0
+          ? `${opts.teamId} has no activity events`
+          : rows
+              .map((row) => {
+                const event = row as { occurredAt?: number; agentId?: string; activityType?: string; label?: string; taskId?: string };
+                const at = typeof event.occurredAt === "number" ? new Date(event.occurredAt).toISOString() : "unknown-time";
+                return `${at} | ${event.agentId ?? "unknown-agent"} | ${event.activityType ?? "status"} | ${event.label ?? ""} | ${event.taskId ?? "-"}`;
+              })
+              .join("\n"),
+      );
+    });
+  bot
+    .command("next")
+    .requiredOption("--team-id <teamId>", "Team id (team-*)")
+    .option("--agent-id <agentId>", "Agent id for personalized ranking")
+    .option("--limit <limit>", "Max rows", (value) => {
+      const parsed = Number.parseInt(value, 10);
+      if (!Number.isFinite(parsed) || parsed < 1) fail(`invalid_limit:${value}`);
+      return parsed;
+    }, 5)
+    .option("--json", "Output JSON", false)
+    .action(async (opts: { teamId: string; agentId?: string; limit: number; json?: boolean }) => {
+      ensureCommandPermission("team.read");
+      const company = await store.readCompanyModel();
+      const { projectId } = resolveProjectOrFail(company, opts.teamId);
+      const rows = await postBoardQuery({
+        projectId,
+        query: "next",
+        agentId: opts.agentId?.trim() || undefined,
+        limit: opts.limit,
+      });
+      const list = Array.isArray(rows) ? rows : [];
+      formatOutput(
+        opts.json ? "json" : "text",
+        { ok: true, teamId: opts.teamId, projectId, candidates: list },
+        list.length === 0
+          ? `${opts.teamId} has no next candidates`
+          : list
+              .map((row) => {
+                const candidate = row as { taskId?: string; priority?: string; status?: string; title?: string; ownerAgentId?: string };
+                return `${candidate.taskId ?? "unknown"} | ${candidate.priority ?? "medium"} | ${candidate.status ?? "todo"} | ${candidate.ownerAgentId ?? "unassigned"} | ${candidate.title ?? ""}`;
+              })
+              .join("\n"),
+      );
+    });
+
   const heartbeat = team.command("heartbeat").description("Manage team heartbeat profile");
   heartbeat
     .command("render")
@@ -1646,6 +2398,7 @@ export function registerTeamCommands(program: Command): void {
     .requiredOption("--role <role>", "Role: biz_pm|biz_executor")
     .option("--json", "Output JSON", false)
     .action(async (opts: { teamId: string; role: string; json?: boolean }) => {
+      ensureCommandPermission("team.read");
       if (opts.role !== "biz_pm" && opts.role !== "biz_executor") fail(`invalid_role:${opts.role}`);
       const company = await store.readCompanyModel();
       const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
@@ -1677,6 +2430,7 @@ export function registerTeamCommands(program: Command): void {
         productDetails?: string;
         json?: boolean;
       }) => {
+        ensureCommandPermission("team.heartbeat.write");
         const company = await store.readCompanyModel();
         const projectId = projectIdFromTeamId(opts.teamId);
         if (!company.projects.some((entry) => entry.id === projectId)) fail(`team_not_found:${opts.teamId}`);

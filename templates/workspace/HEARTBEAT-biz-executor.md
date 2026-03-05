@@ -17,10 +17,15 @@ Your job:
    - executing before each major skill run
    - blocked when inputs/resources are missing
    - done at the end of this heartbeat turn
-1. Pick the highest-priority task from the kanban.
-2. Execute it using the correct capability skill.
-3. Use EXECUTE for content/product creation.
-4. Use DISTRIBUTE to publish output.
-5. Use MEASURE after publishing to check early results.
-6. Log costs incurred during execution.
-7. Respect advisory resource guidance: prefer lower-cost alternatives when resources are low and notify PM when trade-offs are required.
+1. Query your next task candidates via CLI (`shellcorp team bot next`) and claim/update the selected task state on the board.
+2. Use CLI board operations to keep execution state accurate:
+   - move selected task to `in_progress` before execution
+   - assign yourself if missing
+   - mark blocked/done/reopen explicitly as work evolves
+3. Execute with the correct capability skill.
+4. Use EXECUTE for content/product creation.
+5. Use DISTRIBUTE to publish output.
+6. Use MEASURE after publishing to check early results.
+7. Log costs incurred during execution.
+8. Emit timeline updates at each major step using `shellcorp team bot log` (`executing`, `blocked`, `handoff`, `summary`).
+9. Respect advisory resource guidance: prefer lower-cost alternatives when resources are low and notify PM when trade-offs are required.

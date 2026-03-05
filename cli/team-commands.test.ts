@@ -104,7 +104,12 @@ async function readOpenclawAgentIds(stateDir: string): Promise<string[]> {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   delete process.env.OPENCLAW_STATE_DIR;
+  delete process.env.SHELLCORP_CONVEX_SITE_URL;
+  delete process.env.SHELLCORP_ACTOR_ROLE;
+  delete process.env.SHELLCORP_ALLOWED_PERMISSIONS;
+  delete process.env.SHELLCORP_BOARD_OPERATOR_TOKEN;
   process.exitCode = undefined;
 });
 
@@ -160,6 +165,38 @@ describe("team CLI", () => {
     expect(finalModel.roleSlots.filter((entry) => entry.projectId === "proj-alpha").every((entry) => entry.desiredCount === 0)).toBe(
       true,
     );
+  });
+
+  it("supports explicit team show and KPI set/clear commands", async () => {
+    const stateDir = await setupStateDir();
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+    await runCommand([
+      "team",
+      "create",
+      "--name",
+      "Omega",
+      "--description",
+      "Ops mission control",
+      "--goal",
+      "Stabilize automation",
+    ]);
+    await runCommand(["team", "show", "--team-id", "team-proj-omega", "--json"]);
+    await runCommand([
+      "team",
+      "kpi",
+      "set",
+      "--team-id",
+      "team-proj-omega",
+      "--kpi",
+      "conversion_rate",
+      "--kpi",
+      "net_profit",
+    ]);
+    await runCommand(["team", "kpi", "clear", "--team-id", "team-proj-omega"]);
+    const finalRaw = await readFile(path.join(stateDir, "company.json"), "utf-8");
+    const finalModel = JSON.parse(finalRaw) as CompanySnapshot;
+    const project = finalModel.projects.find((entry) => entry.id === "proj-omega");
+    expect(project?.kpis ?? []).toEqual([]);
   });
 
   it("sets team heartbeat profile and remaps agents", async () => {
@@ -288,13 +325,29 @@ describe("team CLI", () => {
       "--config-json",
       "{\"apiKey\":\"sk_test\"}",
     ]);
+    await runCommand([
+      "team",
+      "business",
+      "set-all",
+      "--team-id",
+      "team-proj-affiliate",
+      "--business-type",
+      "affiliate_marketing",
+      "--measure-skill-id",
+      "measure-v2",
+      "--execute-skill-id",
+      "execute-v2",
+      "--distribute-skill-id",
+      "distribute-v2",
+    ]);
 
     const finalRaw = await readFile(path.join(stateDir, "company.json"), "utf-8");
     const finalModel = JSON.parse(finalRaw) as CompanySnapshot;
     const project = finalModel.projects.find((entry) => entry.id === "proj-affiliate");
     expect(project?.businessConfig?.type).toBe("affiliate_marketing");
-    expect(project?.businessConfig?.slots.measure.skillId).toBe("stripe-revenue");
-    expect(project?.businessConfig?.slots.measure.config.apiKey).toBe("sk_test");
+    expect(project?.businessConfig?.slots.measure.skillId).toBe("measure-v2");
+    expect(project?.businessConfig?.slots.execute.skillId).toBe("execute-v2");
+    expect(project?.businessConfig?.slots.distribute.skillId).toBe("distribute-v2");
     expect(project?.ledger ?? []).toEqual([]);
     expect(project?.experiments ?? []).toEqual([]);
     expect(project?.metricEvents ?? []).toEqual([]);
@@ -483,6 +536,145 @@ describe("team CLI", () => {
     ids = await readOpenclawAgentIds(stateDir);
     expect(ids).not.toContain("gamma-builder");
     expect(ids).not.toContain("gamma-pm");
+  });
+
+  it("executes board and bot commands through Convex HTTP endpoints", async () => {
+    const stateDir = await setupStateDir();
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+    process.env.SHELLCORP_CONVEX_SITE_URL = "https://example.convex.site";
+
+    await runCommand([
+      "team",
+      "create",
+      "--name",
+      "Delta",
+      "--description",
+      "Delta team",
+      "--goal",
+      "Ship pipeline",
+      "--business-type",
+      "affiliate_marketing",
+    ]);
+
+    const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      const payload = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
+      if (url.endsWith("/board/command")) {
+        if (payload.command === "task_add") {
+          return new Response(JSON.stringify({ ok: true, duplicate: false, taskId: "task-1" }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ ok: true, duplicate: false, taskId: payload.taskId ?? "task-1" }), { status: 200 });
+      }
+      if (url.endsWith("/board/query")) {
+        if (payload.query === "tasks") {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              data: { tasks: [{ taskId: "task-1", title: "Draft content", status: "todo", priority: "high", ownerAgentId: "delta-executor" }] },
+            }),
+            { status: 200 },
+          );
+        }
+        if (payload.query === "activity") {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              data: [{ agentId: "delta-executor", activityType: "executing", label: "Working task-1", occurredAt: Date.now() }],
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: [{ taskId: "task-1", title: "Draft content", status: "todo", priority: "high", ownerAgentId: "delta-executor" }],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ ok: false, error: "unknown_endpoint" }), { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await runCommand([
+      "team",
+      "board",
+      "task",
+      "add",
+      "--team-id",
+      "team-proj-delta",
+      "--title",
+      "Draft content",
+      "--priority",
+      "high",
+      "--owner-agent-id",
+      "delta-executor",
+    ]);
+    await runCommand([
+      "team",
+      "board",
+      "task",
+      "update",
+      "--team-id",
+      "team-proj-delta",
+      "--task-id",
+      "task-1",
+      "--title",
+      "Draft launch copy",
+      "--detail",
+      "Updated via cli",
+    ]);
+    await runCommand(["team", "board", "task", "list", "--team-id", "team-proj-delta", "--json"]);
+    await runCommand([
+      "team",
+      "bot",
+      "log",
+      "--team-id",
+      "team-proj-delta",
+      "--agent-id",
+      "delta-executor",
+      "--activity-type",
+      "executing",
+      "--label",
+      "Working task-1",
+      "--task-id",
+      "task-1",
+    ]);
+    await runCommand(["team", "bot", "timeline", "--team-id", "team-proj-delta", "--json"]);
+    await runCommand(["team", "bot", "next", "--team-id", "team-proj-delta", "--json"]);
+    await runCommand([
+      "team",
+      "board",
+      "task",
+      "delete",
+      "--team-id",
+      "team-proj-delta",
+      "--task-id",
+      "task-1",
+    ]);
+
+    expect(fetchMock).toHaveBeenCalled();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/board/command"))).toBe(true);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/board/query"))).toBe(true);
+  });
+
+  it("enforces permission denials for restricted actor roles", async () => {
+    const stateDir = await setupStateDir();
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+    process.env.SHELLCORP_ACTOR_ROLE = "operator";
+    process.env.SHELLCORP_ALLOWED_PERMISSIONS = "team.read";
+    await expect(
+      runCommand([
+        "team",
+        "create",
+        "--name",
+        "DeniedTeam",
+        "--description",
+        "Should fail",
+        "--goal",
+        "N/A",
+      ]),
+    ).rejects.toThrow("permission_denied:team.meta.write:role=operator");
   });
 });
 

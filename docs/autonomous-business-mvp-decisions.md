@@ -82,6 +82,16 @@ Initial resource types in this slice:
 
 This layer is advisory-only (no hard executor blocking in MVP). Heartbeats consume resource snapshots for planning and prioritization.
 
+### 8) Team Command Board Is Convex-Canonical
+
+Business kanban/task execution state now uses Convex as canonical storage for team-isolated command boards:
+
+- `teamBoardTasks` for current task state
+- `teamBoardEvents` for append-only lifecycle events
+- `teamActivityEvents` for agent activity timeline ("what agents are doing")
+
+CLI and UI surfaces read/write these Convex tables directly for realtime visibility. Sidecar `company.json.tasks` is no longer canonical for business team board execution flow.
+
 ## Implemented Commands
 
 ### Team create with business mode
