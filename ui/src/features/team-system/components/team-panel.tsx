@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,8 @@ import { useAppStore } from "@/lib/app-store";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
 import { UI_Z } from "@/lib/z-index";
+import { isConvexEnabled } from "@/providers/convex-provider";
+import { api } from "../../../../../convex/_generated/api";
 
 /**
  * TEAM PANEL
@@ -42,7 +45,7 @@ interface TeamPanelProps {
   globalMode?: boolean;
 }
 
-type KanbanProviderFilter = "all" | "internal" | "notion" | "vibe" | "linear";
+type CommunicationsFilter = "all" | "planning" | "executing" | "blocked" | "handoff";
 
 type PanelTask = {
   id: string;
@@ -54,6 +57,16 @@ type PanelTask = {
   providerUrl?: string;
   syncState: "healthy" | "pending" | "conflict" | "error";
   syncError?: string;
+};
+
+type ActivityRow = {
+  _id: string;
+  agentId: string;
+  activityType: string;
+  label: string;
+  detail?: string;
+  taskId?: string;
+  occurredAt: number;
 };
 
 function deriveProjectId(teamId: string | null): string | null {
@@ -84,8 +97,6 @@ export function TeamPanel({
     companyModel,
     workload,
     refresh,
-    manualResync,
-    upsertFederationPolicy,
   } =
     useOfficeDataContext();
   const adapter = useOpenClawAdapter();
@@ -94,8 +105,11 @@ export function TeamPanel({
   const selectedProjectId = useAppStore((state) => state.selectedProjectId);
   const setSelectedProjectId = useAppStore((state) => state.setSelectedProjectId);
   const [activeTab, setActiveTab] = useState<"overview" | "kanban" | "projects" | "communications" | "business">(initialTab);
-  const [providerFilter, setProviderFilter] = useState<KanbanProviderFilter>("all");
-  const [resyncState, setResyncState] = useState<{ pending: boolean; error?: string }>({ pending: false });
+  const [communicationsFilter, setCommunicationsFilter] = useState<CommunicationsFilter>("all");
+  const [boardActionState, setBoardActionState] = useState<{ pending: boolean; error?: string; ok?: string }>({ pending: false });
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskPriority, setNewTaskPriority] = useState<"low" | "medium" | "high">("medium");
+  const [newTaskOwner, setNewTaskOwner] = useState("");
   const [builderDraft, setBuilderDraft] = useState(() => createBusinessBuilderDraft("none"));
   const [builderSaveState, setBuilderSaveState] = useState<{ pending: boolean; error?: string; ok?: string }>({ pending: false });
   const [previewState, setPreviewState] = useState<{
@@ -122,7 +136,29 @@ export function TeamPanel({
     return companyModel.projects.find((entry) => entry.id === projectId) ?? companyModel.projects[0] ?? null;
   }, [companyModel, projectId]);
 
+  const convexEnabled = isConvexEnabled();
+  const boardCommand = convexEnabled ? useMutation(api.board.boardCommand) : null;
+  const convexBoard = convexEnabled
+    ? useQuery(api.board.getProjectBoard, project?.id ? { projectId: project.id } : "skip")
+    : undefined;
+  const convexActivity = convexEnabled
+    ? useQuery(api.board.getProjectActivity, project?.id ? { projectId: project.id, limit: 60 } : "skip")
+    : undefined;
+
   const projectTasks = useMemo(() => {
+    if (convexEnabled && convexBoard?.tasks) {
+      return convexBoard.tasks.map((task) => ({
+        id: task.taskId,
+        title: task.title,
+        status: task.status as PanelTask["status"],
+        ownerAgentId: task.ownerAgentId,
+        priority: (task.priority as PanelTask["priority"]) ?? "medium",
+        provider: (task.provider as PanelTask["provider"]) ?? "internal",
+        providerUrl: task.providerUrl,
+        syncState: (task.syncState as PanelTask["syncState"]) ?? "healthy",
+        syncError: task.syncError,
+      }));
+    }
     if (!companyModel) return [];
     if (globalMode && !project) return companyModel.tasks;
     if (!project?.id) return [];
@@ -139,18 +175,42 @@ export function TeamPanel({
         syncState: task.syncState,
         syncError: task.syncError,
       }));
-  }, [companyModel, globalMode, project]);
+  }, [companyModel, convexBoard?.tasks, convexEnabled, globalMode, project]);
 
-  const policy = useMemo(() => {
-    if (!project?.id || !companyModel) return null;
-    return companyModel.federationPolicies.find((entry) => entry.projectId === project.id) ?? null;
-  }, [companyModel, project?.id]);
+  const activityRows = useMemo(() => {
+    if (!Array.isArray(convexActivity)) return [];
+    return convexActivity as ActivityRow[];
+  }, [convexActivity]);
+  const communicationRows = useMemo(() => {
+    if (convexEnabled) {
+      return activityRows.map((row) => ({
+        id: row._id,
+        agentId: row.agentId,
+        activityType: row.activityType,
+        label: row.label,
+        detail: row.detail,
+        occurredAt: row.occurredAt,
+        taskId: row.taskId,
+      }));
+    }
+    return projectTasks.slice(0, 60).map((task) => ({
+      id: task.id,
+      agentId: task.ownerAgentId ?? "unassigned",
+      activityType: task.status === "blocked" ? "blocked" : task.status === "in_progress" ? "executing" : "planning",
+      label: task.title,
+      detail: `Priority ${task.priority}`,
+      occurredAt: Date.now(),
+      taskId: task.id,
+    }));
+  }, [activityRows, convexEnabled, projectTasks]);
+  const filteredCommunicationRows = useMemo(() => {
+    if (communicationsFilter === "all") return communicationRows;
+    return communicationRows.filter((row) => row.activityType === communicationsFilter);
+  }, [communicationRows, communicationsFilter]);
 
   const visibleTasks = useMemo(() => {
-    const scopedByAgent = focusAgentId ? projectTasks.filter((task) => task.ownerAgentId === focusAgentId) : projectTasks;
-    if (providerFilter === "all") return scopedByAgent;
-    return scopedByAgent.filter((task) => task.provider === providerFilter);
-  }, [focusAgentId, projectTasks, providerFilter]);
+    return focusAgentId ? projectTasks.filter((task) => task.ownerAgentId === focusAgentId) : projectTasks;
+  }, [focusAgentId, projectTasks]);
   const columns = statusColumns(visibleTasks);
   const summary = workload.find((entry) => entry.projectId === (project?.id ?? projectId ?? ""));
   const panelTitle = globalMode ? "All Teams" : team?.name ?? "Team";
@@ -174,6 +234,19 @@ export function TeamPanel({
     return { ...resource, health };
   });
   const resourceEvents = (project?.resourceEvents ?? []).slice().reverse().slice(0, 12);
+  const allProjects = globalMode ? companyModel?.projects ?? [] : project ? [project] : [];
+  const projectTaskCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const task of companyModel?.tasks ?? []) {
+      const current = counts.get(task.projectId) ?? 0;
+      if (task.status !== "done") counts.set(task.projectId, current + 1);
+    }
+    if (project?.id) {
+      const convexOpen = projectTasks.filter((task) => task.status !== "done").length;
+      counts.set(project.id, Math.max(counts.get(project.id) ?? 0, convexOpen));
+    }
+    return counts;
+  }, [companyModel?.tasks, project?.id, projectTasks]);
   const currencyFormatter = useMemo(
     () =>
       new Intl.NumberFormat("en-US", {
@@ -184,6 +257,25 @@ export function TeamPanel({
       }),
     [],
   );
+  const ownerLabelById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const employee of globalMode ? employees : teamEmployees) {
+      map.set(employee._id, employee.name);
+      if (employee._id.startsWith("employee-")) {
+        map.set(employee._id.replace(/^employee-/, ""), employee.name);
+      }
+    }
+    return map;
+  }, [employees, globalMode, teamEmployees]);
+  const normalizedProjectGoal = project?.goal?.trim() ?? "";
+  const normalizedTeamDescription = team?.description?.trim() ?? "";
+  const cleanedTeamDescription = normalizedTeamDescription.replace(/\s*\|\s*open=\d+\s*closed=\d+\s*$/i, "").trim();
+  const teamBusinessDescription =
+    cleanedTeamDescription.length > 0 && cleanedTeamDescription !== normalizedProjectGoal
+      ? cleanedTeamDescription
+      : "";
+  const teamGoal = normalizedProjectGoal || "No goal set yet. Use the team CLI to define a clear business target.";
+  const teamKpis = project?.kpis ?? [];
 
   useEffect(() => {
     if (!isOpen) return;
@@ -203,30 +295,10 @@ export function TeamPanel({
 
   useEffect(() => {
     if (!isOpen) return;
-    setProviderFilter("all");
-    setResyncState({ pending: false });
+    setCommunicationsFilter("all");
   }, [isOpen, project?.id]);
 
   if (!globalMode && !team) return null;
-
-  async function handleManualResync(): Promise<void> {
-    if (!project?.id) return;
-    setResyncState({ pending: true });
-    const targetProvider = providerFilter === "all" ? undefined : providerFilter;
-    const result = await manualResync(project.id, targetProvider);
-    setResyncState({ pending: false, error: result.ok ? undefined : result.error ?? "manual_resync_failed" });
-  }
-
-  async function handleSavePolicy(nextCanonical: "internal" | "notion" | "vibe" | "linear"): Promise<void> {
-    if (!project?.id) return;
-    await upsertFederationPolicy({
-      projectId: project.id,
-      canonicalProvider: nextCanonical,
-      mirrors: policy?.mirrors ?? [],
-      writeBackEnabled: policy?.writeBackEnabled ?? false,
-      conflictPolicy: policy?.conflictPolicy ?? "canonical_wins",
-    });
-  }
 
   async function handleSaveBusinessBuilder(): Promise<void> {
     if (!project?.id || builderDraft.businessType === "none") return;
@@ -246,6 +318,29 @@ export function TeamPanel({
     setBuilderSaveState({ pending: false, ok: "Saved." });
   }
 
+  async function handleBoardCommand(command: string, payload: Record<string, unknown>, successMessage: string): Promise<void> {
+    if (!convexEnabled || !boardCommand || !project?.id) return;
+    setBoardActionState({ pending: true });
+    try {
+      await boardCommand({
+        projectId: project.id,
+        command,
+        actorType: "operator",
+        actorAgentId: "operator-ui",
+        ...payload,
+      });
+      setBoardActionState({ pending: false, ok: successMessage });
+      if (command === "task_add") {
+        setNewTaskTitle("");
+        setNewTaskOwner("");
+        setNewTaskPriority("medium");
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "board_command_failed";
+      setBoardActionState({ pending: false, error: message });
+    }
+  }
+
   async function handlePreview(role: "biz_pm" | "biz_executor"): Promise<void> {
     if (!project?.id || !teamId) return;
     if (previewState.role === role && previewState.text) {
@@ -263,7 +358,7 @@ export function TeamPanel({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[70vw] max-w-none h-[90vh] overflow-hidden p-0" style={{ zIndex: UI_Z.panelElevated }}>
+      <DialogContent className="min-w-[70vw] max-w-none h-[90vh] overflow-hidden p-0 flex flex-col" style={{ zIndex: UI_Z.panelElevated }}>
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle className="flex items-center gap-2">
             <span>{panelTitle}</span>
@@ -277,7 +372,7 @@ export function TeamPanel({
           onValueChange={(value) =>
             setActiveTab(value as "overview" | "kanban" | "projects" | "communications" | "business")
           }
-          className="flex h-full flex-col overflow-hidden px-6 pb-6"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6"
         >
           <TabsList className="mt-4 w-fit">
             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -287,15 +382,48 @@ export function TeamPanel({
             <TabsTrigger value="business">Business</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview" className="mt-4 flex-1 overflow-hidden">
+          <TabsContent value="overview" className="mt-4 min-h-0 flex-1 overflow-hidden">
             <ScrollArea className="h-full pr-3">
               <div className="space-y-4">
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Team Mission</CardTitle>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <CardTitle className="text-sm">Team Charter</CardTitle>
+                      <div className="flex items-center gap-2">
+                        {hasBusinessConfig ? <Badge variant="outline">Business configured</Badge> : <Badge variant="secondary">Builder mode</Badge>}
+                        <Badge variant="secondary">{project?.status ?? "active"}</Badge>
+                      </div>
+                    </div>
                   </CardHeader>
-                  <CardContent className="text-sm text-muted-foreground">
-                    {project?.goal ?? team?.description ?? "No mission details available yet."}
+                  <CardContent className="grid gap-3 text-sm md:grid-cols-2">
+                    <div className="space-y-1 rounded-md border bg-muted/20 p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Team Name</p>
+                      <p className="font-medium">{team?.name ?? panelTitle}</p>
+                    </div>
+                    <div className="space-y-1 rounded-md border bg-muted/20 p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Business Description</p>
+                      <p className="text-muted-foreground">
+                        {teamBusinessDescription || "No business description set yet. Use `team update --description` to define what this team does."}
+                      </p>
+                    </div>
+                    <div className="space-y-1 rounded-md border bg-muted/20 p-3 md:col-span-2">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Goal</p>
+                      <p>{teamGoal}</p>
+                    </div>
+                    <div className="space-y-2 rounded-md border bg-muted/20 p-3 md:col-span-2">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">KPIs</p>
+                      {teamKpis.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {teamKpis.map((kpi) => (
+                            <Badge key={`overview-kpi-${kpi}`} variant="outline">
+                              {kpi}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground">No KPIs set yet. Add KPI targets with `team kpi set` for this team.</p>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -320,7 +448,7 @@ export function TeamPanel({
                   </Card>
                 ) : null}
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                   <Card>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm">Members</CardTitle>
@@ -339,11 +467,22 @@ export function TeamPanel({
                     </CardHeader>
                     <CardContent className="text-2xl font-semibold capitalize">{summary?.queuePressure ?? "low"}</CardContent>
                   </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Profit Pulse</CardTitle>
+                    </CardHeader>
+                    <CardContent className={`text-2xl font-semibold ${projectProfitCents >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                      {hasBusinessConfig ? currencyFormatter.format(projectProfitCents / 100) : "--"}
+                    </CardContent>
+                  </Card>
                 </div>
 
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Team Members</CardTitle>
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="text-sm">Team Members</CardTitle>
+                      <span className="text-xs text-muted-foreground">Mission crew</span>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex flex-wrap gap-2">
@@ -362,10 +501,15 @@ export function TeamPanel({
                         </Button>
                       ) : null}
                     </div>
-                    <div className="space-y-2">
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                       {(globalMode ? employees : teamEmployees).map((employee) => (
-                        <div key={employee._id} className="rounded-md border p-2">
-                          <p className="text-sm font-medium">{employee.name}</p>
+                        <div key={employee._id} className="rounded-md border bg-muted/20 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium">{employee.name}</p>
+                            <Badge variant="outline" className="text-[10px] uppercase">
+                              {employee.jobTitle ?? "operator"}
+                            </Badge>
+                          </div>
                           <p className="text-xs text-muted-foreground">{employee.jobTitle ?? "Operator"}</p>
                         </div>
                       ))}
@@ -379,155 +523,316 @@ export function TeamPanel({
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="kanban" className="mt-4 flex-1 overflow-hidden">
+          <TabsContent value="kanban" className="mt-4 min-h-0 flex-1 overflow-hidden">
             {focusAgentId ? (
               <div className="mb-3 rounded-md border bg-muted/40 p-2 text-xs">
                 Showing tasks owned by `{focusAgentId}` in this panel scope.
               </div>
             ) : null}
-            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border bg-muted/20 p-2">
-              <label className="text-xs text-muted-foreground">Provider</label>
-              <select
-                className="rounded-md border bg-background px-2 py-1 text-xs"
-                value={providerFilter}
-                onChange={(event) => setProviderFilter(event.target.value as KanbanProviderFilter)}
-              >
-                <option value="all">all</option>
-                <option value="internal">internal</option>
-                <option value="notion">notion</option>
-                <option value="vibe">vibe</option>
-                <option value="linear">linear</option>
-              </select>
-              <label className="text-xs text-muted-foreground">Canonical</label>
-              <select
-                className="rounded-md border bg-background px-2 py-1 text-xs"
-                value={policy?.canonicalProvider ?? "internal"}
-                onChange={(event) => void handleSavePolicy(event.target.value as "internal" | "notion" | "vibe" | "linear")}
-              >
-                <option value="internal">internal</option>
-                <option value="notion">notion</option>
-                <option value="vibe">vibe</option>
-                <option value="linear">linear</option>
-              </select>
-              <Button size="sm" variant="outline" onClick={() => void handleManualResync()} disabled={resyncState.pending}>
-                {resyncState.pending ? "Resyncing..." : "Manual Resync"}
-              </Button>
-              {resyncState.error ? <span className="text-xs text-red-500">{resyncState.error}</span> : null}
+            <div className="mb-3 rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground">
+              Internal board mode: team execution runs on ShellCorp canonical tasks in this phase.
             </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {(["todo", "in_progress", "blocked", "done"] as const).map((status) => (
-                <Card key={status}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm capitalize">
-                      {status.replace("_", " ")} ({columns[status].length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {columns[status].map((task) => (
-                      <div key={task.id} className="rounded-md border p-2 text-sm">
-                        <div className="mb-1 flex items-center justify-between gap-2">
-                          <p className="truncate">{task.title}</p>
-                          <Badge variant="outline" className="text-[10px] uppercase">
-                            {task.provider}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {task.ownerAgentId ?? "unassigned"} · {task.priority}
-                        </p>
-                        <div className="mt-1 flex items-center gap-2">
-                          <Badge
-                            variant={
-                              task.syncState === "healthy"
-                                ? "secondary"
-                                : task.syncState === "pending"
-                                  ? "outline"
-                                  : task.syncState === "conflict"
-                                    ? "default"
-                                    : "destructive"
-                            }
-                            className="text-[10px]"
-                          >
-                            {task.syncState}
-                          </Badge>
-                          {task.providerUrl ? (
-                            <a
-                              href={task.providerUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[10px] text-primary underline-offset-2 hover:underline"
-                            >
-                              Open
-                            </a>
+            {convexEnabled ? (
+              <div className="mb-3 rounded-md border bg-muted/20 p-2">
+                <p className="mb-2 text-xs text-muted-foreground">Operator actions (Convex canonical board)</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    className="min-w-52 rounded-md border bg-background px-2 py-1 text-xs"
+                    placeholder="New task title"
+                    value={newTaskTitle}
+                    onChange={(event) => setNewTaskTitle(event.target.value)}
+                  />
+                  <select
+                    className="rounded-md border bg-background px-2 py-1 text-xs"
+                    value={newTaskPriority}
+                    onChange={(event) => setNewTaskPriority(event.target.value as "low" | "medium" | "high")}
+                  >
+                    <option value="low">low</option>
+                    <option value="medium">medium</option>
+                    <option value="high">high</option>
+                  </select>
+                  <select
+                    className="rounded-md border bg-background px-2 py-1 text-xs"
+                    value={newTaskOwner}
+                    onChange={(event) => setNewTaskOwner(event.target.value)}
+                  >
+                    <option value="">unassigned</option>
+                    {teamEmployees.map((employee) => (
+                      <option key={employee._id} value={employee._id}>
+                        {employee.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    disabled={boardActionState.pending || !newTaskTitle.trim()}
+                    onClick={() =>
+                      void handleBoardCommand(
+                        "task_add",
+                        {
+                          title: newTaskTitle.trim(),
+                          priority: newTaskPriority,
+                          status: "todo",
+                          ownerAgentId: newTaskOwner || undefined,
+                        },
+                        "Task added.",
+                      )
+                    }
+                  >
+                    {boardActionState.pending ? "Saving..." : "Create Task"}
+                  </Button>
+                </div>
+                {boardActionState.error ? <p className="mt-1 text-xs text-destructive">{boardActionState.error}</p> : null}
+                {boardActionState.ok ? <p className="mt-1 text-xs text-emerald-500">{boardActionState.ok}</p> : null}
+              </div>
+            ) : null}
+            <ScrollArea className="h-full pr-2">
+              <div className="grid grid-cols-1 gap-3 pb-2 md:grid-cols-2 xl:grid-cols-4">
+                {(["todo", "in_progress", "blocked", "done"] as const).map((status) => (
+                  <Card key={status}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm capitalize">
+                        {status.replace("_", " ")} ({columns[status].length})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {columns[status].map((task) => (
+                        <div key={task.id} className="rounded-md border p-2 text-sm">
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <p className="truncate">{task.title}</p>
+                            <Badge variant="outline" className="text-[10px] uppercase">
+                              internal
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {(task.ownerAgentId ? ownerLabelById.get(task.ownerAgentId) ?? task.ownerAgentId : "unassigned")} · {task.priority}
+                          </p>
+                          {convexEnabled ? (
+                            <div className="mt-2 space-y-1 border-t pt-2">
+                              <div className="flex flex-wrap items-center gap-1">
+                                <span className="text-[10px] text-muted-foreground">assign</span>
+                                <select
+                                  className="rounded border bg-background px-1 py-0.5 text-[10px]"
+                                  value={task.ownerAgentId ?? ""}
+                                  onChange={(event) =>
+                                    void handleBoardCommand(
+                                      "task_assign",
+                                      { taskId: task.id, ownerAgentId: event.target.value || undefined },
+                                      "Task assignee updated.",
+                                    )
+                                  }
+                                >
+                                  <option value="">unassigned</option>
+                                  {teamEmployees.map((employee) => (
+                                    <option key={employee._id} value={employee._id}>
+                                      {employee.name}
+                                    </option>
+                                  ))}
+                                </select>
+                                <span className="text-[10px] text-muted-foreground">priority</span>
+                                <select
+                                  className="rounded border bg-background px-1 py-0.5 text-[10px]"
+                                  value={task.priority}
+                                  onChange={(event) =>
+                                    void handleBoardCommand(
+                                      "task_reprioritize",
+                                      { taskId: task.id, priority: event.target.value },
+                                      "Task priority updated.",
+                                    )
+                                  }
+                                >
+                                  <option value="low">low</option>
+                                  <option value="medium">medium</option>
+                                  <option value="high">high</option>
+                                </select>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1">
+                                {task.status !== "blocked" ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 px-2 text-[10px]"
+                                    disabled={boardActionState.pending}
+                                    onClick={() => void handleBoardCommand("task_block", { taskId: task.id }, "Task blocked.")}
+                                  >
+                                    Block
+                                  </Button>
+                                ) : null}
+                                {task.status === "done" ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 px-2 text-[10px]"
+                                    disabled={boardActionState.pending}
+                                    onClick={() => void handleBoardCommand("task_reopen", { taskId: task.id }, "Task reopened.")}
+                                  >
+                                    Reopen
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 px-2 text-[10px]"
+                                    disabled={boardActionState.pending}
+                                    onClick={() => void handleBoardCommand("task_done", { taskId: task.id }, "Task marked done.")}
+                                  >
+                                    Done
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
                           ) : null}
                         </div>
-                        {task.syncError ? <p className="mt-1 text-[10px] text-red-500">{task.syncError}</p> : null}
-                      </div>
-                    ))}
-                    {columns[status].length === 0 ? <p className="text-xs text-muted-foreground">No tasks.</p> : null}
-                  </CardContent>
-                </Card>
-              ))}
+                      ))}
+                      {columns[status].length === 0 ? <p className="text-xs text-muted-foreground">No tasks.</p> : null}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="projects" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <ScrollArea className="h-full pr-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {allProjects.map((entry) => {
+                  const isActiveProject = project?.id === entry.id;
+                  const openCount = projectTaskCounts.get(entry.id) ?? 0;
+                  const entryRevenue = (entry.ledger ?? [])
+                    .filter((row) => row.type === "revenue")
+                    .reduce((total, row) => total + Math.max(0, Math.round(row.amount)), 0);
+                  const entryCost = (entry.ledger ?? [])
+                    .filter((row) => row.type === "cost")
+                    .reduce((total, row) => total + Math.max(0, Math.round(row.amount)), 0);
+                  const entryProfit = entryRevenue - entryCost;
+                  return (
+                    <Card key={entry.id} className={isActiveProject ? "border-primary/60" : undefined}>
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <CardTitle className="text-sm">{entry.name}</CardTitle>
+                          <Badge variant="secondary">{entry.status}</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-3 text-sm">
+                        <p className="line-clamp-2 text-muted-foreground">{entry.goal || "No goal available."}</p>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Open tasks</span>
+                          <span className="font-medium">{openCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Profit pulse</span>
+                          <span className={entryProfit >= 0 ? "font-medium text-emerald-500" : "font-medium text-red-500"}>
+                            {currencyFormatter.format(entryProfit / 100)}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {(entry.kpis ?? []).slice(0, 4).map((kpi) => (
+                            <Badge key={`${entry.id}-${kpi}`} variant="outline">
+                              {kpi}
+                            </Badge>
+                          ))}
+                          {(entry.kpis ?? []).length === 0 ? <span className="text-xs text-muted-foreground">No KPIs yet.</span> : null}
+                        </div>
+                        {globalMode ? (
+                          <Button
+                            size="sm"
+                            variant={isActiveProject ? "secondary" : "outline"}
+                            onClick={() => setSelectedProjectId(entry.id)}
+                          >
+                            {isActiveProject ? "Active scope" : "Focus project"}
+                          </Button>
+                        ) : null}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+                {allProjects.length === 0 ? (
+                  <Card>
+                    <CardContent className="pt-4 text-sm text-muted-foreground">No projects available yet.</CardContent>
+                  </Card>
+                ) : null}
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="communications" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <div className="grid h-full grid-cols-1 gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
+              <Card className="h-full">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Channels</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-xs">
+                  {([
+                    { id: "all", label: "all activity" },
+                    { id: "planning", label: "planning" },
+                    { id: "executing", label: "executing" },
+                    { id: "blocked", label: "blocked" },
+                    { id: "handoff", label: "handoff" },
+                  ] as const).map((item) => (
+                    <Button
+                      key={item.id}
+                      size="sm"
+                      variant={communicationsFilter === item.id ? "secondary" : "ghost"}
+                      className="w-full justify-start text-xs"
+                      onClick={() => setCommunicationsFilter(item.id)}
+                    >
+                      # {item.label}
+                    </Button>
+                  ))}
+                </CardContent>
+              </Card>
+              <Card className="h-full">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-sm"># team-internal</CardTitle>
+                    <Badge variant="outline" className="text-[10px] uppercase">
+                      {communicationsFilter}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex h-[calc(100%-3rem)] min-h-0 flex-col gap-3 overflow-hidden">
+                  <ScrollArea className="min-h-0 flex-1 rounded-md border p-3">
+                    <div className="space-y-2">
+                      {filteredCommunicationRows.map((row) => (
+                        <div key={row.id} className="rounded-md border bg-muted/20 p-2 text-sm">
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{row.agentId}</span>
+                              <Badge variant="secondary" className="text-[10px] uppercase">
+                                {row.activityType}
+                              </Badge>
+                            </div>
+                            <span className="text-xs text-muted-foreground">{new Date(row.occurredAt).toLocaleTimeString()}</span>
+                          </div>
+                          <p className="font-medium">{row.label}</p>
+                          {row.detail ? <p className="text-xs text-muted-foreground">{row.detail}</p> : null}
+                          {row.taskId ? <p className="text-[11px] text-muted-foreground">task: {row.taskId}</p> : null}
+                        </div>
+                      ))}
+                      {filteredCommunicationRows.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No activity yet. Agents should log updates with `shellcorp team bot log` during each heartbeat turn.
+                        </p>
+                      ) : null}
+                    </div>
+                  </ScrollArea>
+                  <div className="rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground">
+                    Internal ops feed. Use `shellcorp team bot log` for structured updates and timeline replay.
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 
-          <TabsContent value="projects" className="mt-4 flex-1 overflow-hidden">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Project Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p>
-                  <span className="font-medium">Project:</span> {project?.name ?? "No project mapped"}
-                </p>
-                <p>
-                  <span className="font-medium">Goal:</span> {project?.goal ?? "No goal available"}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {(project?.kpis ?? []).map((kpi) => (
-                    <Badge key={kpi} variant="outline">
-                      {kpi}
-                    </Badge>
-                  ))}
-                  {(project?.kpis ?? []).length === 0 ? <span className="text-xs text-muted-foreground">No KPI keys configured.</span> : null}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="communications" className="mt-4 flex-1 overflow-hidden">
-            <Card className="h-full">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Communication Handoff</CardTitle>
-              </CardHeader>
-              <CardContent className="h-[calc(100%-3rem)] overflow-hidden">
-                <ScrollArea className="h-full rounded-md border p-3">
-                  <div className="space-y-2">
-                    {projectTasks.slice(0, 30).map((task) => (
-                      <div key={task.id} className="rounded-md border p-2 text-sm">
-                        <div className="mb-1 flex items-center justify-between gap-2">
-                          <Badge variant="secondary">{task.ownerAgentId ?? "unassigned"}</Badge>
-                          <span className="text-xs text-muted-foreground">{task.status}</span>
-                        </div>
-                        <p>{task.title}</p>
-                      </div>
-                    ))}
-                    {projectTasks.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        No communication items yet. This team panel is ready, and live message streams will appear as OpenClaw events are mapped.
-                      </p>
-                    ) : null}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="business" className="mt-4 flex-1 overflow-hidden">
+          <TabsContent value="business" className="mt-4 min-h-0 flex-1 overflow-hidden">
             <ScrollArea className="h-full pr-2">
               <div className="space-y-4">
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Business Builder</CardTitle>
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="text-sm">Business Command Deck</CardTitle>
+                      <Badge variant="outline">{builderDraft.businessType}</Badge>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <BusinessBuilderForm value={builderDraft} onChange={setBuilderDraft} disabled={builderSaveState.pending} />
@@ -582,6 +887,7 @@ export function TeamPanel({
                 </Card>
                 {hasBusinessConfig ? (
                   <div className="space-y-4">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Financial + Capability + Telemetry</p>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <Card>
                       <CardHeader className="pb-2">
