@@ -397,6 +397,7 @@ const Employee = memo(function Employee({
 
     // Debug: Track shouldBeAtDesk state changes
     const shouldBeAtDeskRef = useRef<boolean>(false);
+    const [debugDeskDecision, setDebugDeskDecision] = useState<string>("");
 
     const movementSpeed = 1.5; // Units per second
     const arrivalThreshold = 0.1;
@@ -492,15 +493,26 @@ const Employee = memo(function Employee({
         let targetPathNode: THREE.Vector3 | null = null;
         let isMoving = false;
 
-        // Determine if employee should be at desk
-        // They go to desk if:
-        // 1. They are busy
-        // 2. They are the CEO
-        // 3. They don't want to wander
-        const shouldBeAtDesk = isBusy || isCEO || !wantsToWander;
+        // Prefer heartbeat state over raw sessionCount for movement:
+        // heartbeat sessions can stay open even when the agent is between tasks.
+        const hasHeartbeatState = typeof heartbeatState === "string";
+        const heartbeatRequiresDesk =
+            heartbeatState === "running" ||
+            heartbeatState === "planning" ||
+            heartbeatState === "executing" ||
+            heartbeatState === "blocked" ||
+            heartbeatState === "error";
+
+        // Determine if employee should be at desk.
+        // If heartbeat state is known, use it as source of truth; otherwise fall back to isBusy.
+        const shouldBeAtDesk = isCEO || !wantsToWander || (hasHeartbeatState ? heartbeatRequiresDesk : Boolean(isBusy));
 
         // Track shouldBeAtDesk state (for internal logic, no logging)
         shouldBeAtDeskRef.current = shouldBeAtDesk;
+        if (debugMode) {
+            const nextDecision = `${heartbeatState ?? "none"} -> ${shouldBeAtDesk ? "desk" : "wander"}`;
+            setDebugDeskDecision((prev) => (prev === nextDecision ? prev : nextDecision));
+        }
 
         if (shouldBeAtDesk) {
             // Going back to desk logic
@@ -886,6 +898,20 @@ const Employee = memo(function Employee({
                                     <div className="text-[10px] opacity-60 mt-0.5">{team}</div>
                                 )}
                             </div>
+                        </div>
+                    </Html>
+                )}
+
+                {/* Debug movement decision label */}
+                {debugMode && debugDeskDecision && (
+                    <Html
+                        position={[0, TOTAL_HEIGHT + 0.28, 0]}
+                        center
+                        zIndexRange={[100, 0]}
+                        style={{ pointerEvents: "none", userSelect: "none" }}
+                    >
+                        <div className="rounded bg-black/75 px-2 py-1 text-[10px] text-white shadow">
+                            {debugDeskDecision}
                         </div>
                     </Html>
                 )}

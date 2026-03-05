@@ -182,7 +182,8 @@ export const boardCommand = mutation({
       teamMembershipCache.set(agentId, inTeam);
       return inTeam;
     };
-    if (teamId && actorType === "agent") {
+    // Allow first status/activity breadcrumb to establish team membership history.
+    if (teamId && actorType === "agent" && command !== "activity_log") {
       if (!actorAgentId) throw new Error("missing_actor_agent_id");
       if (!(await isAgentInTeam(actorAgentId))) {
         throw new Error(`actor_not_in_team:${actorAgentId}:${teamId}`);

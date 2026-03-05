@@ -98,7 +98,7 @@ for agent in "${AGENTS[@]}"; do
 
   while [[ "$attempt" -le "$RETRIES" ]]; do
     detail="heartbeat_smoke attempt_${attempt}"
-    prompt="Read HEARTBEAT.md and follow it exactly. Then run: SHELLCORP_CONVEX_SITE_URL=$CONVEX_URL npm --prefix $REPO_PATH run shell -- team bot log --team-id $TEAM_ID --agent-id $agent --activity-type status --label heartbeat_smoke --detail '$detail'. Respond with STATUS: and HEARTBEAT_OK in your final output."
+    prompt="Read HEARTBEAT.md and follow it exactly. Then run: command -v shellcorp && export SHELLCORP_CONVEX_SITE_URL=$CONVEX_URL SHELLCORP_TEAM_ID=$TEAM_ID SHELLCORP_AGENT_ID=$agent && shellcorp status --state summary \"heartbeat_smoke $detail\". Respond with STATUS: and HEARTBEAT_OK in your final output."
     raw="$(openclaw agent --agent "$agent" --message "$prompt" --json 2>&1 || true)"
     payload="$(printf '%s' "$raw" | jq -r '.result.payloads[]?.text? // empty' 2>/dev/null || true)"
 
