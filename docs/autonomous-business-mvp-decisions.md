@@ -4,6 +4,8 @@
 
 This document captures the technical decisions and implementation details for the autonomous business MVP framework added to ShellCorp.
 
+For the full affiliate marketing agent workflow spec (product research, video gen, distribution, metrics), see `SC11`: `docs/specs/SC11-spec-affiliate-marketing-mvp.md`.
+
 ## Core Decisions
 
 ### 1) Team Structure: Always PM + Executor
