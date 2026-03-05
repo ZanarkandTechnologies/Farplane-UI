@@ -217,6 +217,14 @@ export function ProjectArtefactPanel({
     if (!activeFileKey) return null;
     return filteredFiles.find((file) => createFileKey(file) === activeFileKey) ?? null;
   }, [activeFileKey, filteredFiles]);
+  const activeFileKind = useMemo(() => {
+    if (!activeFile) return "text";
+    return inferArtefactFileKind(activeFile.name);
+  }, [activeFile]);
+  const activeVideoUrl = useMemo(() => {
+    if (!activeFile || activeFileKind !== "video") return "";
+    return `/openclaw/agents/${encodeURIComponent(activeFile.agentId)}/files/raw?name=${encodeURIComponent(activeFile.name)}`;
+  }, [activeFile, activeFileKind]);
 
   const hintRows = useMemo(
     () => taskHints.filter((entry) => typeof entry.artefactPath === "string" && entry.artefactPath.trim()),
@@ -228,6 +236,13 @@ export function ProjectArtefactPanel({
       setActiveFileContent("");
       setPreviewError("");
       setPreviewOpen(false);
+      return;
+    }
+    if (activeFileKind === "video") {
+      setActiveFileContent("");
+      setPreviewError("");
+      setPreviewLoading(false);
+      setPreviewOpen(true);
       return;
     }
     let cancelled = false;
@@ -252,7 +267,7 @@ export function ProjectArtefactPanel({
     return () => {
       cancelled = true;
     };
-  }, [activeFile, adapter]);
+  }, [activeFile, activeFileKind, adapter]);
 
   function handleHintClick(pathHint: string): void {
     setSelectedHintPath(pathHint);
@@ -450,7 +465,12 @@ export function ProjectArtefactPanel({
                 <ScrollArea className="h-[calc(100%-33px)] px-3 py-2">
                   {previewLoading ? <p className="text-sm text-muted-foreground">Loading file preview...</p> : null}
                   {!previewLoading && previewError ? <p className="text-sm text-destructive">{previewError}</p> : null}
-                  {!previewLoading && !previewError ? (
+                  {!previewLoading && !previewError && activeFileKind === "video" ? (
+                    <video className="max-h-44 w-full rounded border border-border/50 bg-black" controls preload="metadata" src={activeVideoUrl}>
+                      Your browser does not support video playback.
+                    </video>
+                  ) : null}
+                  {!previewLoading && !previewError && activeFileKind !== "video" ? (
                     <pre className="whitespace-pre-wrap break-words text-xs">{activeFileContent || "(empty file)"}</pre>
                   ) : null}
                 </ScrollArea>

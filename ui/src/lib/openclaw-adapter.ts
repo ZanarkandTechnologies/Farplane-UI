@@ -1742,19 +1742,41 @@ export class OpenClawAdapter {
   }
 
   async listAgentFiles(agentId: string): Promise<AgentsFilesListResult> {
+    const fallbackPath = `/openclaw/agents/${encodeURIComponent(agentId)}/files`;
     const result = await this.invokeGatewayMethod("agents.files.list", { agentId });
+    const parsed = result.ok ? toAgentsFilesListResult(result.payload) : null;
+    const needsFallback =
+      !parsed ||
+      parsed.files.length === 0 ||
+      parsed.files.every((file) => !file.path.includes("/") && !file.name.includes("/"));
+    if (!needsFallback) return parsed;
+    try {
+      const fallbackPayload = await this.readJson(fallbackPath);
+      const fallbackParsed = toAgentsFilesListResult(fallbackPayload);
+      if (fallbackParsed) return fallbackParsed;
+    } catch {
+      // Keep original error semantics when fallback is unavailable.
+    }
     if (!result.ok) throw new Error(result.error ?? "agents_files_list_failed");
-    const parsed = toAgentsFilesListResult(result.payload);
     if (!parsed) throw new Error("agents_files_list_invalid");
     return parsed;
   }
 
   async getAgentFile(agentId: string, name: string): Promise<AgentsFilesGetResult> {
     const result = await this.invokeGatewayMethod("agents.files.get", { agentId, name });
-    if (!result.ok) throw new Error(result.error ?? "agents_files_get_failed");
     const parsed = toAgentsFilesGetResult(result.payload);
-    if (!parsed) throw new Error("agents_files_get_invalid");
-    return parsed;
+    if (result.ok && parsed) return parsed;
+    try {
+      const fallbackPayload = await this.readJson(
+        `/openclaw/agents/${encodeURIComponent(agentId)}/files/get?name=${encodeURIComponent(name)}`,
+      );
+      const fallbackParsed = toAgentsFilesGetResult(fallbackPayload);
+      if (fallbackParsed) return fallbackParsed;
+    } catch {
+      // keep original error behavior
+    }
+    if (!result.ok) throw new Error(result.error ?? "agents_files_get_failed");
+    throw new Error("agents_files_get_invalid");
   }
 
   async saveAgentFile(agentId: string, name: string, content: string): Promise<AgentsFilesSetResult> {
@@ -1771,16 +1793,37 @@ export class OpenClawAdapter {
       return toProjectArtefactIndex(projectId.trim(), [], Date.now());
     }
     const normalizedProjectId = projectId.trim();
+    const hasProjectPath = (filePath: string): boolean => {
+      const normalized = filePath.replace(/\\/g, "/").toLowerCase();
+      const projectNeedle = `/projects/${normalizedProjectId.toLowerCase()}/`;
+      const legacyArtefactNeedle = "/artifacts/";
+      return normalized.includes(projectNeedle) || normalized.startsWith(`projects/${normalizedProjectId.toLowerCase()}/`) || normalized.includes(legacyArtefactNeedle);
+    };
     const groups = await Promise.all(
       dedupedAgentIds.map(async (agentId): Promise<ProjectArtefactGroup> => {
         try {
           const list = await this.listAgentFiles(agentId);
-          const files: ProjectArtefactEntry[] = list.files
+          let sourceList = list;
+          const baseHasProjectFiles = list.files.some((file) => hasProjectPath(file.path));
+          if (!baseHasProjectFiles) {
+            try {
+              const fallbackPayload = await this.readJson(`/openclaw/agents/${encodeURIComponent(agentId)}/files`);
+              const fallbackParsed = toAgentsFilesListResult(fallbackPayload);
+              if (fallbackParsed && fallbackParsed.files.length > list.files.length) {
+                sourceList = fallbackParsed;
+              } else if (fallbackParsed && fallbackParsed.files.some((file) => hasProjectPath(file.path))) {
+                sourceList = fallbackParsed;
+              }
+            } catch {
+              // keep default list on fallback failure
+            }
+          }
+          const files: ProjectArtefactEntry[] = sourceList.files
             .map((file) => ({
               ...file,
               projectId: normalizedProjectId,
               agentId,
-              workspace: list.workspace,
+              workspace: sourceList.workspace,
             }))
             .sort((left, right) => {
               const tsDelta = (right.updatedAtMs ?? 0) - (left.updatedAtMs ?? 0);

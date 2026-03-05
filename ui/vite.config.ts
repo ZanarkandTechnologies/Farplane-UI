@@ -217,6 +217,45 @@ async function listMarkdownFilesRecursively(targetDir: string): Promise<string[]
   return files.flat();
 }
 
+async function listWorkspaceFilesRecursively(workspacePath: string, currentDir: string = workspacePath): Promise<JsonObject[]> {
+  let rows: import("node:fs").Dirent[] = [];
+  try {
+    rows = await readdir(currentDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const files = await Promise.all(
+    rows.map(async (row): Promise<JsonObject[]> => {
+      const nextPath = path.join(currentDir, row.name);
+      if (row.isDirectory()) {
+        if (row.name === ".git" || row.name === "node_modules" || row.name === ".cursor") return [];
+        return listWorkspaceFilesRecursively(workspacePath, nextPath);
+      }
+      if (!row.isFile()) return [];
+      let size: number | undefined;
+      let updatedAtMs: number | undefined;
+      try {
+        const fileStat = await stat(nextPath);
+        size = fileStat.size;
+        updatedAtMs = fileStat.mtimeMs;
+      } catch {
+        // best effort metadata only
+      }
+      const relativePath = normalizePathForPayload(workspacePath, nextPath);
+      return [
+        {
+          name: relativePath,
+          path: relativePath,
+          missing: false,
+          ...(typeof size === "number" ? { size } : {}),
+          ...(typeof updatedAtMs === "number" ? { updatedAtMs } : {}),
+        } satisfies JsonObject,
+      ];
+    }),
+  );
+  return files.flat();
+}
+
 function parseMemoryLine(input: {
   line: string;
   sourcePath: string;
@@ -930,6 +969,122 @@ function shellcorpStateBridge() {
           } catch {
             writeJson(res, 500, { error: "memory_entries_unavailable", entries: [] });
           }
+          return;
+        }
+
+        const agentFilesListMatch = pathname.match(/^\/openclaw\/agents\/([^/]+)\/files$/);
+        if (method === "GET" && agentFilesListMatch) {
+          const agentId = decodeURIComponent(agentFilesListMatch[1]);
+          const configuredAgent = configuredAgents.find((agent) => String(agent.id ?? "").trim() === agentId);
+          if (!configuredAgent) {
+            writeJson(res, 404, { error: "agent_not_found", agentId, workspace: "", files: [] });
+            return;
+          }
+          const workspacePath = path.resolve(resolveWorkspace(config, configuredAgent));
+          const files = existsSync(workspacePath) ? await listWorkspaceFilesRecursively(workspacePath) : [];
+          writeJson(res, 200, { agentId, workspace: workspacePath, files });
+          return;
+        }
+
+        const agentFilesGetMatch = pathname.match(/^\/openclaw\/agents\/([^/]+)\/files\/get$/);
+        if (method === "GET" && agentFilesGetMatch) {
+          const agentId = decodeURIComponent(agentFilesGetMatch[1]);
+          const requestedName = url.searchParams.get("name") ?? "";
+          const safeName = requestedName.replace(/\\/g, "/").replace(/^\/+/, "");
+          if (!safeName || safeName.includes("..")) {
+            writeJson(res, 400, { error: "invalid_file_name" });
+            return;
+          }
+          const configuredAgent = configuredAgents.find((agent) => String(agent.id ?? "").trim() === agentId);
+          if (!configuredAgent) {
+            writeJson(res, 404, { error: "agent_not_found" });
+            return;
+          }
+          const workspacePath = path.resolve(resolveWorkspace(config, configuredAgent));
+          const filePath = path.resolve(path.join(workspacePath, safeName));
+          if (!filePath.startsWith(workspacePath)) {
+            writeJson(res, 400, { error: "invalid_file_path" });
+            return;
+          }
+          if (!existsSync(filePath)) {
+            writeJson(res, 404, { error: "file_not_found", agentId, workspace: workspacePath, file: { name: safeName, path: safeName, missing: true } });
+            return;
+          }
+          let content = "";
+          try {
+            content = await readFile(filePath, "utf-8");
+          } catch {
+            content = "";
+          }
+          let size: number | undefined;
+          let updatedAtMs: number | undefined;
+          try {
+            const fileStat = await stat(filePath);
+            size = fileStat.size;
+            updatedAtMs = fileStat.mtimeMs;
+          } catch {
+            // best effort metadata only
+          }
+          writeJson(res, 200, {
+            agentId,
+            workspace: workspacePath,
+            file: {
+              name: safeName,
+              path: safeName,
+              missing: false,
+              ...(typeof size === "number" ? { size } : {}),
+              ...(typeof updatedAtMs === "number" ? { updatedAtMs } : {}),
+              content,
+            },
+          });
+          return;
+        }
+
+        const agentFilesRawMatch = pathname.match(/^\/openclaw\/agents\/([^/]+)\/files\/raw$/);
+        if (method === "GET" && agentFilesRawMatch) {
+          const agentId = decodeURIComponent(agentFilesRawMatch[1]);
+          const requestedName = url.searchParams.get("name") ?? "";
+          const safeName = requestedName.replace(/\\/g, "/").replace(/^\/+/, "");
+          if (!safeName || safeName.includes("..")) {
+            writeJson(res, 400, { error: "invalid_file_name" });
+            return;
+          }
+          const configuredAgent = configuredAgents.find((agent) => String(agent.id ?? "").trim() === agentId);
+          if (!configuredAgent) {
+            writeJson(res, 404, { error: "agent_not_found" });
+            return;
+          }
+          const workspacePath = path.resolve(resolveWorkspace(config, configuredAgent));
+          const filePath = path.resolve(path.join(workspacePath, safeName));
+          if (!filePath.startsWith(workspacePath)) {
+            writeJson(res, 400, { error: "invalid_file_path" });
+            return;
+          }
+          if (!existsSync(filePath)) {
+            writeJson(res, 404, { error: "file_not_found" });
+            return;
+          }
+
+          let bytes: Buffer;
+          try {
+            bytes = await readFile(filePath);
+          } catch {
+            writeJson(res, 500, { error: "file_read_failed" });
+            return;
+          }
+
+          const ext = path.extname(filePath).toLowerCase();
+          const mimeByExt: Record<string, string> = {
+            ".mp4": "video/mp4",
+            ".webm": "video/webm",
+            ".ogg": "video/ogg",
+            ".mov": "video/quicktime",
+          };
+          const mime = mimeByExt[ext] ?? "application/octet-stream";
+          res.setHeader("content-type", mime);
+          res.setHeader("cache-control", "no-store");
+          (res as { statusCode?: number }).statusCode = 200;
+          (res as { end: (body: Buffer) => void }).end(bytes);
           return;
         }
 

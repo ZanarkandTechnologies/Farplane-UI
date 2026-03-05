@@ -278,3 +278,37 @@ describe("team business skill sync adapter", () => {
     expect(result.touchedAgents).toEqual([]);
   });
 });
+
+describe("agent files fallback", () => {
+  it("falls back to state bridge when gateway file list is shallow", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        agentId: "buffalos-ai-executor",
+        workspace: "/tmp/workspace-buffalos-ai-executor",
+        files: [
+          {
+            name: "projects/proj-buffalos-ai-v2/affiliate/videos/lamp-v1.mp4",
+            path: "projects/proj-buffalos-ai-v2/affiliate/videos/lamp-v1.mp4",
+            missing: false,
+          },
+        ],
+      }),
+    } as Response);
+    const wsClient = {
+      connected: true,
+      request: vi.fn(async () => ({
+        ok: true,
+        agentId: "buffalos-ai-executor",
+        workspace: "/tmp/workspace-buffalos-ai-executor",
+        files: [{ name: "HEARTBEAT.md", path: "HEARTBEAT.md", missing: false }],
+      })),
+    };
+    const adapter = new OpenClawAdapter("http://127.0.0.1:8787", "http://127.0.0.1:8787", wsClient as never);
+    const result = await adapter.listAgentFiles("buffalos-ai-executor");
+    expect(wsClient.request).toHaveBeenCalledWith("agents.files.list", { agentId: "buffalos-ai-executor" });
+    expect(fetchMock).toHaveBeenCalled();
+    expect(result.files.some((entry) => entry.path.includes("projects/proj-buffalos-ai-v2"))).toBe(true);
+  });
+});
