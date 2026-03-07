@@ -9,6 +9,33 @@ The Office System provides the 3D office environment where employees, teams, and
 
 ## Core Components
 
+### Object UI Bindings And Builder Panels ✅
+
+**Status**: Complete (Mar 2026)
+
+Office objects can now carry metadata-driven runtime UI bindings while keeping builder-only transform/config controls separate from normal scene interactions.
+
+**Behavior**:
+
+- **Builder mode**:
+  - Furniture/custom objects expose radial controls for move, rotate, resize, delete, and settings
+  - Settings open the Object Builder panel for embed configuration
+- **Normal mode**:
+  - Builder controls are hidden for office objects
+  - Configured objects open a routed runtime panel instead of the radial menu
+- **Embeds first**:
+  - Runtime panel supports iframe-backed embeds with an external-open fallback for blocked sites
+  - Metadata contract reserves future `skillBinding` support without changing the persistence shape
+
+**Key Files**:
+
+- **`office-object-ui.ts`**: typed metadata helpers for `uiBinding` and future `skillBinding`
+- **`components/object-config-panel.tsx`**: builder-only embed configuration panel
+- **`components/object-interaction-panel.tsx`**: runtime object panel/iframe viewer
+- **`components/interactive-object.tsx`**: builder gating, runtime click routing, persisted scaling
+
+---
+
 ### Interactive Object System ✅
 
 **Status**: Complete (Nov 22, 2025)

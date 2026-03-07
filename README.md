@@ -172,6 +172,7 @@ ShellCorp is UI-first:
 ## Current Product Value
 
 - Office personalization and decoration controls for operators.
+- Builder-configurable office objects that can open routed runtime panels, starting with iframe/embed-driven tool surfaces.
 - Team topology, role demand, KPI/goal shaping, and heartbeat controls.
 - Observability across team state, agent memory, and federated Kanban sync health.
 - Team/agent timeline visibility backed by Convex event streams (`teamId` + `projectId` scope).
