@@ -23,7 +23,10 @@ import { IDLE_DESTINATIONS, TOTAL_HEIGHT } from "@/constants";
 import type { Id } from "@/lib/entity-types";
 import type { AgentState } from "@/lib/openclaw-types";
 import { getRandomItem } from "@/lib/utils";
-import { findPathAStar } from "@/features/nav-system/pathfinding/a-star-pathfinding";
+import {
+  findPathAStar,
+  isGridInitialized,
+} from "@/features/nav-system/pathfinding/a-star-pathfinding";
 import {
   findAvailableDestination,
   releaseEmployeeReservations,
@@ -111,6 +114,10 @@ export function useEmployeeLocomotion({
 
   const findAndSetPath = useCallback(
     (startPos: THREE.Vector3, endPos: THREE.Vector3, goingToDesk = false) => {
+      if (!isGridInitialized()) {
+        return null;
+      }
+
       const finalDestination = goingToDesk ? endPos : findAvailableDestination(endPos, id);
       const newPath = findPathAStar(startPos, finalDestination);
 

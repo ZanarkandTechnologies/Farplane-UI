@@ -12,6 +12,7 @@ let worldOffsetZ = 0;
 let walkableGrid: boolean[][] = [];
 let currentObstaclePadding = OBSTACLE_PADDING; // Track current obstacle padding
 let currentDeskPadding = DESK_PADDING; // Track current desk padding
+let hasWarnedBeforeGridInitialization = false;
 
 // --- Getters for Grid Data (for visualization) ---
 export const getGridData = () => ({
@@ -22,8 +23,10 @@ export const getGridData = () => ({
     worldOffsetZ,
     walkableGrid,
     obstaclePadding: currentObstaclePadding,
-    deskPadding: currentDeskPadding,
+	deskPadding: currentDeskPadding,
 });
+
+export const isGridInitialized = (): boolean => walkableGrid.length > 0;
 
 // --- A* Node ---
 class PathNode {
@@ -57,6 +60,8 @@ export function initializeGrid(
     obstaclePadding?: number,
     deskPadding?: number
 ) {
+    hasWarnedBeforeGridInitialization = false;
+
     // Use provided padding values or defaults
     currentObstaclePadding = obstaclePadding !== undefined ? obstaclePadding : OBSTACLE_PADDING;
     currentDeskPadding = deskPadding !== undefined ? deskPadding : DESK_PADDING;
@@ -182,8 +187,11 @@ export function gridToWorld(gridX: number, gridZ: number): THREE.Vector3 {
  * @returns Array of world positions (Vector3) representing the path, or null if no path found.
  */
 export function findPathAStar(startWorldPos: THREE.Vector3, endWorldPos: THREE.Vector3): THREE.Vector3[] | null {
-    if (!walkableGrid.length) {
-        console.log("A* grid not initialized.");
+    if (!isGridInitialized()) {
+        if (!hasWarnedBeforeGridInitialization) {
+            hasWarnedBeforeGridInitialization = true;
+            console.warn("A* grid not initialized yet; skipping path request until office scene grid setup completes.");
+        }
         return null;
     }
 
