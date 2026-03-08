@@ -1,5 +1,5 @@
 import OfficeScene from './office-scene';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TeamOptionsDialog } from './dialogs/team-options-dialog';
 import SettingsDialog from './dialogs/settings-dialog';
 import { LogsDrawer } from './hud/logs-drawer';
@@ -19,6 +19,8 @@ import { SkillsPanel } from '@/features/office-system/components/skills-panel';
 import { TrainingModal } from '@/features/self-improvement-system/components/training-modal';
 import { TeamPanel } from '@/features/team-system/components/team-panel';
 import { preloadMeshes } from '@/features/office-system/systems/mesh-cache';
+import { buildOfficeBootstrapStages, getOfficeBootstrapState } from './office-bootstrap';
+import { OfficeLoader } from './office-loader';
 
 // Main Office Simulation Component
 export default function OfficeSimulation() {
@@ -41,6 +43,7 @@ export default function OfficeSimulation() {
     const isSettingsModalOpen = useAppStore(state => state.isSettingsModalOpen);
     const setIsSettingsModalOpen = useAppStore(state => state.setIsSettingsModalOpen);
     const [isLogsDrawerOpen, setIsLogsDrawerOpen] = useState(false);
+    const [navigationReady, setNavigationReady] = useState(false);
 
     // Get company ID from the first team (all teams should have same companyId)
     const companyId = company?._id;
@@ -57,6 +60,14 @@ export default function OfficeSimulation() {
     const customMeshSignature = useMemo(() => customMeshUrls.join("|"), [customMeshUrls]);
     const [loadedMeshSignature, setLoadedMeshSignature] = useState<string>(() => (customMeshUrls.length === 0 ? "" : "__pending__"));
     const meshesReady = customMeshUrls.length === 0 || loadedMeshSignature === customMeshSignature;
+    const dataReady = !isLoading;
+    const sceneShellReady = dataReady && meshesReady;
+
+    useEffect(() => {
+        if (!sceneShellReady) {
+            setNavigationReady(false);
+        }
+    }, [sceneShellReady]);
 
     useEffect(() => {
         if (customMeshUrls.length === 0) {
@@ -79,82 +90,106 @@ export default function OfficeSimulation() {
         };
     }, [customMeshUrls, customMeshSignature, loadedMeshSignature]);
 
-    if (isLoading || !meshesReady) {
-        return (
-            <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div>{isLoading ? "Loading office data..." : "Loading custom meshes..."}</div>
-            </div>
-        );
-    }
+    const bootstrapStages = useMemo(
+        () =>
+            buildOfficeBootstrapStages({
+                dataReady,
+                meshesReady,
+                navigationReady: sceneShellReady && navigationReady,
+            }),
+        [dataReady, meshesReady, navigationReady, sceneShellReady],
+    );
+
+    const bootstrapState = useMemo(
+        () => getOfficeBootstrapState(bootstrapStages),
+        [bootstrapStages],
+    );
+    const handleNavigationReady = useCallback(() => {
+        setNavigationReady(true);
+    }, []);
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-            <OfficeScene
-                teams={teams}
-                employees={employees}
-                desks={desks}
-                officeObjects={officeObjects}
-                companyId={companyId}
-            />
-
-            <ChatDialog />
-            <AgentMemoryPanel />
-            <ManageAgentModal />
-            <TrainingModal
-                isOpen={!!trainingEmployeeId}
-                onOpenChange={(open) => {
-                    if (!open) {
-                        setTrainingEmployeeId(null);
-                    }
-                }}
-                employeeName={employees.find((employee) => employee._id === trainingEmployeeId)?.name ?? "Agent"}
-            />
-            {/* Keep mounted so close/reopen preserves in-panel draft state; TeamPanel gates its expensive queries when closed. */}
-            <TeamPanel
-                teamId={activeTeamId}
-                isOpen={isTeamPanelOpen}
-                onOpenChange={(open) => setIsTeamPanelOpen(open)}
-                initialTab={kanbanFocusAgentId ? "kanban" : "overview"}
-                focusAgentId={kanbanFocusAgentId}
-            />
-            <TeamPanel
-                teamId={null}
-                isOpen={isGlobalTeamPanelOpen}
-                onOpenChange={(open) => {
-                    setIsGlobalTeamPanelOpen(open);
-                    if (!open) setKanbanFocusAgentId(null);
-                }}
-                globalMode
-            />
-            <AgentSessionPanel />
-            <SkillsPanel />
-            <ObjectConfigPanel />
-            <ObjectInteractionPanel />
-            <SettingsDialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen} />
-
-            <div className="pointer-events-none absolute top-4 left-4 z-[70]">
-                <div className="pointer-events-auto">
-                    <OfficeMenu />
-                </div>
-            </div>
-
-            <div className="pointer-events-none absolute bottom-4 right-4 z-[65]">
-                <LogsToggleButton isOpen={isLogsDrawerOpen} onToggle={() => setIsLogsDrawerOpen((prev) => !prev)} />
-            </div>
-            <div className="pointer-events-none absolute bottom-4 left-4 z-[65]">
-                <GatewayStatusPill />
-            </div>
-
-            <LogsDrawer open={isLogsDrawerOpen} onOpenChange={setIsLogsDrawerOpen} gatewayBase={gatewayBase} />
-
-            {/* Team options dialog rendered outside Canvas for stable layering */}
-            {activeTeamForOptions && (
-                <TeamOptionsDialog
-                    team={activeTeamForOptions}
-                    isOpen={isTeamOptionsDialogOpen}
-                    onOpenChange={setIsTeamOptionsDialogOpen}
+            {sceneShellReady ? (
+                <OfficeScene
+                    teams={teams}
+                    employees={employees}
+                    desks={desks}
+                    officeObjects={officeObjects}
+                    companyId={companyId}
+                    onNavigationReady={handleNavigationReady}
                 />
-            )}
+            ) : null}
+
+            {sceneShellReady ? (
+                <>
+                    <ChatDialog />
+                    <AgentMemoryPanel />
+                    <ManageAgentModal />
+                    <TrainingModal
+                        isOpen={!!trainingEmployeeId}
+                        onOpenChange={(open) => {
+                            if (!open) {
+                                setTrainingEmployeeId(null);
+                            }
+                        }}
+                        employeeName={employees.find((employee) => employee._id === trainingEmployeeId)?.name ?? "Agent"}
+                    />
+                    {/* Keep mounted so close/reopen preserves in-panel draft state; TeamPanel gates its expensive queries when closed. */}
+                    <TeamPanel
+                        teamId={activeTeamId}
+                        isOpen={isTeamPanelOpen}
+                        onOpenChange={(open) => setIsTeamPanelOpen(open)}
+                        initialTab={kanbanFocusAgentId ? "kanban" : "overview"}
+                        focusAgentId={kanbanFocusAgentId}
+                    />
+                    <TeamPanel
+                        teamId={null}
+                        isOpen={isGlobalTeamPanelOpen}
+                        onOpenChange={(open) => {
+                            setIsGlobalTeamPanelOpen(open);
+                            if (!open) setKanbanFocusAgentId(null);
+                        }}
+                        globalMode
+                    />
+                    <AgentSessionPanel />
+                    <SkillsPanel />
+                    <ObjectConfigPanel />
+                    <ObjectInteractionPanel />
+                    <SettingsDialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen} />
+
+                    <div className="pointer-events-none absolute top-4 left-4 z-[70]">
+                        <div className="pointer-events-auto">
+                            <OfficeMenu />
+                        </div>
+                    </div>
+
+                    <div className="pointer-events-none absolute bottom-4 right-4 z-[65]">
+                        <LogsToggleButton isOpen={isLogsDrawerOpen} onToggle={() => setIsLogsDrawerOpen((prev) => !prev)} />
+                    </div>
+                    <div className="pointer-events-none absolute bottom-4 left-4 z-[65]">
+                        <GatewayStatusPill />
+                    </div>
+
+                    <LogsDrawer open={isLogsDrawerOpen} onOpenChange={setIsLogsDrawerOpen} gatewayBase={gatewayBase} />
+
+                    {/* Team options dialog rendered outside Canvas for stable layering */}
+                    {activeTeamForOptions && (
+                        <TeamOptionsDialog
+                            team={activeTeamForOptions}
+                            isOpen={isTeamOptionsDialogOpen}
+                            onOpenChange={setIsTeamOptionsDialogOpen}
+                        />
+                    )}
+                </>
+            ) : null}
+
+            {!bootstrapState.isReady ? (
+                <OfficeLoader
+                    completionRatio={bootstrapState.completionRatio}
+                    stages={bootstrapStages}
+                />
+            ) : null}
         </div>
     );
 }

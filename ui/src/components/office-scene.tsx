@@ -145,6 +145,7 @@ interface SceneContentsProps {
     desks: DeskLayoutData[];
     officeObjects: OfficeObject[];
     companyId?: OfficeId<"companies">; // Add companyId for drag-and-drop functionality
+    onNavigationReady?: () => void;
 }
 
 const SceneContents = ({
@@ -153,6 +154,7 @@ const SceneContents = ({
     desks,
     officeObjects: allOfficeObjects,
     companyId,
+    onNavigationReady,
 }: SceneContentsProps) => {
     const enableOfficeObjects = import.meta.env.VITE_ENABLE_OFFICE_OBJECTS !== "false";
     // Use real store hooks with selectors to prevent unnecessary re-renders
@@ -175,6 +177,7 @@ const SceneContents = ({
     const registerObject = useObjectRegistrationStore(state => state.registerObject);
     const unregisterObject = useObjectRegistrationStore(state => state.unregisterObject);
     const getObjects = useObjectRegistrationStore(state => state.getObjects);
+    const registeredObjectCount = useObjectRegistrationStore(state => state.registeredObjects.size);
 
     // Detect if we're in dark mode for lighting/background adjustments.
     const [isDarkMode, setIsDarkMode] = useState(false);
@@ -475,17 +478,26 @@ const SceneContents = ({
             const objects = getObjects();
             const expectedCount = (allOfficeObjects?.length || 0) + (ceoDeskData ? 1 : 0);
 
-            // Only initialize if we have objects (if expected)
+            // Central bootstrap note:
+            // the global office loader treats nav-grid setup as one scene-level phase.
+            // Future startup phases should report into the parent coordinator instead of
+            // creating their own local splash states.
             if (expectedCount > 0 && objects.length > 0) {
                 initializeGrid(FLOOR_SIZE, objects, 2, 3);
+                onNavigationReady?.();
             } else if (expectedCount === 0) {
-                // Initialize empty grid if no obstacles expected
                 initializeGrid(FLOOR_SIZE, [], 2, 3);
+                onNavigationReady?.();
+            } else {
+                // Startup note:
+                // object refs can register slightly after the first loader pass. Re-running this
+                // effect on registration-count changes lets the scene finish nav bootstrap without
+                // introducing a separate retry loop here.
             }
         }, 500); // 500ms debounce to let all components mount/register
 
         return () => clearTimeout(timer);
-    }, [allOfficeObjects?.length, ceoDeskData, getObjects]); // Re-run when expected count changes
+    }, [allOfficeObjects?.length, ceoDeskData, getObjects, onNavigationReady, registeredObjectCount]); // Re-run when expected count changes
 
     // Camera animation when builder mode changes
     useEffect(() => {
