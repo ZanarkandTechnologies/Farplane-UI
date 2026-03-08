@@ -794,7 +794,7 @@ export function toPendingApproval(entry: unknown): PendingApprovalModel | null {
 export const COMPANY_STORAGE_KEY = "shellcorp.company-model.v1";
 export const OFFICE_OBJECTS_STORAGE_KEY = "shellcorp.office-objects.v1";
 export const CLUSTER_BOUNDARY_LIMIT = 17.5;
-const DEFAULT_COMPANY_MODEL: CompanyModel = {
+export const DEFAULT_COMPANY_MODEL: CompanyModel = {
   version: 1,
   departments: [
     {
@@ -1570,4 +1570,3 @@ export function parseConfiguredAgentsFromConfig(snapshot: OpenClawConfigSnapshot
     };
   });
 }
-

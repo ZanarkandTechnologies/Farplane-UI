@@ -1,2 +1,2 @@
-export { Employee } from "./employee";
-export type { EmployeeProps } from "./employee";
+export { Employee } from "./employee/index";
+export type { EmployeeProps } from "./employee/index";
