@@ -1,5 +1,7 @@
 # MEMORY
 
+2026-06-08 01:16 +0800 | decision | MEM-0226 | ui,farplane,sidecars,invariant | Farplane UI-owned sidecars are canonical under `~/.farplane` (`company.json`, `office.json`, `office-objects.json`, `pending-approvals.json`, and `assets/meshes`). OpenClaw runtime files remain OpenClaw-owned under `~/.openclaw` and must enter the UI through an explicit adapter rather than a legacy sidecar fallback.
+
 2026-03-19 12:05 +0000 | decision | MEM-0220 | docs,workflow,qa,invariant | Repo operating state is ticket-board-first: `tickets/*` is the canonical planning/execution board, `docs/TROUBLES.md` captures repeated misses, `docs/TASTE.md` carries shared UI doctrine, and QA should work from ticket-scoped evidence plus the repo-local QA guide instead of the legacy `docs/progress.md` flow.
 
 2026-03-17 15:55 +0000 | decision | MEM-0203 | ui,skills,openclaw,invariant | Skill surfaces must separate repo authoring from runtime availability: repo-local `skills/` is a development catalog only, global runtime skills are instance-level OpenClaw state (`~/.openclaw/skills` plus `openclaw.json.skills.entries`), and per-agent enable/disable is modeled by installing or removing skill packages under that agent workspace `skills/` directory rather than pretending repo presence equals runtime availability.

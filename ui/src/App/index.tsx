@@ -39,8 +39,8 @@ const fallbackAgents: AgentCardModel[] = [
   {
     agentId: "main",
     displayName: "Main Agent",
-    workspacePath: "~/.openclaw/workspace",
-    agentDir: "~/.openclaw/agents/main/agent",
+    workspacePath: "~/.codex",
+    agentDir: "~/.codex",
     sandboxMode: "off",
     toolPolicy: { allow: [], deny: [] },
     sessionCount: 0,

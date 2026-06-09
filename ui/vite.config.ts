@@ -23,23 +23,27 @@ type TeamRole = "builder" | "growth_marketer" | "pm" | "biz_pm" | "biz_executor"
 type BusinessType = "affiliate_marketing" | "content_creator" | "saas" | "custom";
 type BusinessEquipMode = "replace_minimum" | "append_only";
 
+const FARPLANE_HOME =
+  process.env.FARPLANE_STATE_DIR ||
+  process.env.FARPLANE_HOME ||
+  path.join(process.env.HOME || "", ".farplane");
 const OPENCLAW_HOME = process.env.OPENCLAW_STATE_DIR || path.join(process.env.HOME || "", ".openclaw");
 const OPENCLAW_CONFIG_PATH = process.env.OPENCLAW_CONFIG_PATH || path.join(OPENCLAW_HOME, "openclaw.json");
 const REPO_ROOT = path.resolve(__dirname, "..");
 const SKILLS_ROOT = path.join(REPO_ROOT, "skills");
-const COMPANY_MODEL_PATH = path.join(OPENCLAW_HOME, "company.json");
+const COMPANY_MODEL_PATH = path.join(FARPLANE_HOME, "company.json");
 const COMPANY_TEMPLATE_PATH = path.resolve(__dirname, "../templates/sidecar/company.template.json");
-const OFFICE_OBJECTS_PATH = path.join(OPENCLAW_HOME, "office-objects.json");
-const OFFICE_SETTINGS_PATH = path.join(OPENCLAW_HOME, "office.json");
+const OFFICE_OBJECTS_PATH = path.join(FARPLANE_HOME, "office-objects.json");
+const OFFICE_SETTINGS_PATH = path.join(FARPLANE_HOME, "office.json");
 const OFFICE_OBJECTS_TEMPLATE_PATH = path.resolve(
   __dirname,
   "../templates/sidecar/office-objects.template.json",
 );
-const PENDING_APPROVALS_PATH = path.join(OPENCLAW_HOME, "pending-approvals.json");
+const PENDING_APPROVALS_PATH = path.join(FARPLANE_HOME, "pending-approvals.json");
 const PENDING_APPROVALS_TEMPLATE_PATH = path.resolve(__dirname, "../templates/sidecar/pending-approvals.template.json");
 const BIZ_PM_HEARTBEAT_TEMPLATE_PATH = path.resolve(__dirname, "../templates/workspace/HEARTBEAT-biz-pm.md");
 const BIZ_EXECUTOR_HEARTBEAT_TEMPLATE_PATH = path.resolve(__dirname, "../templates/workspace/HEARTBEAT-biz-executor.md");
-const DEFAULT_MESH_ASSET_DIR = path.join(OPENCLAW_HOME, "assets", "meshes");
+const DEFAULT_MESH_ASSET_DIR = path.join(FARPLANE_HOME, "assets", "meshes");
 const CRON_JOBS_PATH = path.join(OPENCLAW_HOME, "cron", "jobs.json");
 const MESH_EXTENSIONS = new Set([".glb", ".gltf"]);
 const MESH_PREVIEW_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);

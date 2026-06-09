@@ -194,11 +194,16 @@ Skills are part of how ShellCorp makes agents easier to understand and operate. 
 - `ui/`: the Vite/React office UI and its local state bridge
 - `templates/`: bootstrap files for OpenClaw config, sidecars, and workspace scaffolding
 
-Canonical local state lives under `~/.openclaw`, especially:
+Canonical Farplane UI-owned sidecar state lives under `~/.farplane`, especially:
 
-- `~/.openclaw/openclaw.json`
-- `~/.openclaw/company.json`
-- `~/.openclaw/office-objects.json`
+- `~/.farplane/company.json`
+- `~/.farplane/office.json`
+- `~/.farplane/office-objects.json`
+- `~/.farplane/pending-approvals.json`
+- `~/.farplane/assets/meshes/`
+
+OpenClaw runtime files, when an OpenClaw adapter is configured, remain
+OpenClaw-owned under `~/.openclaw`.
 
 ## Development
 
@@ -275,7 +280,7 @@ Notes:
 - `npm run typecheck` is the workspace-wide TypeScript gate and includes the UI package.
 - `npm run typecheck:root` checks only the repo-root/CLI/Convex TypeScript program.
 - `npm run build` currently preserves the narrower root-owned build gate; use `npm run ui:build` for the Vite bundle.
-- The CLI and UI both read ShellCorp sidecars from `~/.openclaw`.
+- The UI reads Farplane-owned office sidecars from `~/.farplane`; OpenClaw runtime state remains adapter-owned.
 - The UI reads `VITE_*` values from `ui/.env.local`; backend/private env stays in the repo-root `.env.local`.
 - Optional: set `VITE_MESHY_API_KEY` (get one at meshy.ai) to enable **Generate with AI** in Decoration → Import; generated GLB furniture is saved to Custom Library.
 - The global `shellcorp` alias comes from the package `bin` entry plus `npm link`.

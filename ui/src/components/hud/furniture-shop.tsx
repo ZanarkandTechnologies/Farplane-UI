@@ -740,7 +740,7 @@ export function FurnitureShop({ isOpen, onOpenChange }: FurnitureShopProps) {
                 id="mesh-asset-dir"
                 value={meshAssetDir}
                 onChange={(event) => setMeshAssetDir(event.target.value)}
-                placeholder="~/.openclaw/assets/meshes"
+                placeholder="~/.farplane/assets/meshes"
               />
               <Button
                 onClick={() => void handleSaveMeshDir()}

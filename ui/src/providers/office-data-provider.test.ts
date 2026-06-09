@@ -37,11 +37,11 @@ function createOfficeSettings(): OfficeSettingsModel {
 function createEmployee(overrides: Partial<EmployeeData> = {}): EmployeeData {
   return {
     _id: "employee-main",
-    teamId: "team-openclaw",
+    teamId: "team-farplane",
     name: "Main Agent",
     initialPosition: [0, 0, 0],
     isBusy: false,
-    team: "OpenClaw Ops",
+    team: "Farplane",
     ...overrides,
   };
 }
@@ -211,13 +211,13 @@ describe("office-data-provider stabilization", () => {
 });
 
 describe("office-data-provider team synthesis", () => {
-  it("does not synthesize an OpenClaw Ops cluster when all projects are archived", () => {
+  it("does not synthesize a Farplane fallback cluster when all projects are archived", () => {
     const company = createCompanyModel({
       projects: [
         {
-          id: "proj-shellcorp-dev-team",
-          departmentId: "dept-products",
-          name: "ShellCorp Dev Team",
+          id: "proj-farplane-dev-team",
+          departmentId: "dept-farplane",
+          name: "Farplane Dev Team",
           githubUrl: "",
           status: "archived",
           goal: "Internal product loop",
@@ -239,9 +239,9 @@ describe("office-data-provider team synthesis", () => {
           lifecycleState: "active",
         },
         {
-          agentId: "shellcorp-dev-team-pm",
+          agentId: "farplane-dev-team-pm",
           role: "pm",
-          projectId: "proj-shellcorp-dev-team",
+          projectId: "proj-farplane-dev-team",
           heartbeatProfileId: "hb-ceo",
           lifecycleState: "retired",
         },
@@ -252,19 +252,19 @@ describe("office-data-provider team synthesis", () => {
       runtimeAgents: [
         createRuntimeAgent(),
         createRuntimeAgent({
-          agentId: "shellcorp-dev-team-pm",
-          displayName: "ShellCorp PM",
-          workspacePath: "/tmp/shellcorp-dev-team-pm",
-          agentDir: "/tmp/shellcorp-dev-team-pm/agent",
+          agentId: "farplane-dev-team-pm",
+          displayName: "Farplane PM",
+          workspacePath: "/tmp/farplane-dev-team-pm",
+          agentDir: "/tmp/farplane-dev-team-pm/agent",
         }),
       ],
       configuredAgents: [
         createRuntimeAgent(),
         createRuntimeAgent({
-          agentId: "shellcorp-dev-team-pm",
-          displayName: "ShellCorp PM",
-          workspacePath: "/tmp/shellcorp-dev-team-pm",
-          agentDir: "/tmp/shellcorp-dev-team-pm/agent",
+          agentId: "farplane-dev-team-pm",
+          displayName: "Farplane PM",
+          workspacePath: "/tmp/farplane-dev-team-pm",
+          agentDir: "/tmp/farplane-dev-team-pm/agent",
         }),
       ],
     });
@@ -272,13 +272,13 @@ describe("office-data-provider team synthesis", () => {
     const result = toOfficeData(unified, createOfficeSettings());
 
     expect(result.teams.map((team) => team._id)).toEqual(["team-management"]);
-    expect(result.officeObjects.every((object) => object.metadata?.teamId !== "team-openclaw")).toBe(
+    expect(result.officeObjects.every((object) => object.metadata?.teamId !== "team-farplane")).toBe(
       true,
     );
-    expect(result.employees.every((employee) => employee.team !== "OpenClaw Ops")).toBe(true);
+    expect(result.employees.every((employee) => employee.team !== "Farplane")).toBe(true);
   });
 
-  it("keeps the explicit OpenClaw Ops fallback when no agents are discovered", () => {
+  it("keeps the explicit Farplane fallback when no agents are discovered", () => {
     const unified = createUnifiedOfficeModel({
       runtimeAgents: [],
       configuredAgents: [],
@@ -286,8 +286,8 @@ describe("office-data-provider team synthesis", () => {
 
     const result = toOfficeData(unified, createOfficeSettings());
 
-    expect(result.teams.map((team) => team._id)).toContain("team-openclaw");
-    expect(result.officeObjects.some((object) => object.metadata?.teamId === "team-openclaw")).toBe(
+    expect(result.teams.map((team) => team._id)).toContain("team-farplane");
+    expect(result.officeObjects.some((object) => object.metadata?.teamId === "team-farplane")).toBe(
       true,
     );
   });

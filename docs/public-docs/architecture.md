@@ -64,9 +64,9 @@ flowchart TB
 ## Data Sources
 
 - `~/.openclaw/openclaw.json`
-- `~/.openclaw/company.json`
-- `~/.openclaw/office.json`
-- `~/.openclaw/office-objects.json`
+- `~/.farplane/company.json`
+- `~/.farplane/office.json`
+- `~/.farplane/office-objects.json`
 - `~/.openclaw/agents/<agentId>/sessions/sessions.json`
 - `~/.openclaw/agents/<agentId>/sessions/*.jsonl`
 - OpenClaw gateway APIs for session operations and message send/steer flows
@@ -80,11 +80,11 @@ ShellCorp intentionally uses a hybrid state model.
   - agent activity/event timelines
   - team board tasks
   - team board events
-- Local sidecars under `~/.openclaw` are canonical for structural and configuration state:
-  - `openclaw.json` for OpenClaw runtime config, bindings, plugin wiring, and agent provisioning
+- Local Farplane sidecars under `~/.farplane` are canonical for UI-owned structural state:
   - `company.json` for company/project metadata and sidecar-owned policies
   - `office.json` for room layout, decor, and camera/view settings
   - `office-objects.json` for persisted office object placement and team-cluster anchors
+- OpenClaw runtime config, when used, remains adapter-owned under `~/.openclaw/openclaw.json`.
 
 This split is deliberate for the current single-VPS/local-instance architecture:
 
@@ -101,11 +101,11 @@ Reasons:
 
 - The main realtime requirement was agent status, and that path is already in Convex.
 - A full migration would create a large blast radius across onboarding, CLI sidecar store, Vite bridge endpoints, office builder persistence, team lifecycle flows, and local fallback behavior.
-- `office.json` and `office-objects.json` are tightly coupled to builder invariants and local placement rules; centralizing them would add dual-write and split-brain risk unless the local sidecar path were fully removed.
+- `office.json` and `office-objects.json` are tightly coupled to builder invariants and local placement rules; keeping them as local Farplane sidecars avoids a hosted dual-write path while the product is single-operator/local-first.
 - `openclaw.json` is OpenClaw-owned runtime configuration, not just app data. Replacing that file boundary with Convex would add complexity without improving operator workflows.
 - The current optional-Convex setup lets the office still boot from local state even when Convex is unavailable.
 
-If future requirements change, the first candidate for migration is selected `company.json` metadata. The least suitable candidates are `openclaw.json`, `office.json`, and `office-objects.json`.
+If future requirements change, the first candidate for hosted/shared storage is selected `company.json` metadata. The least suitable hosted candidate is `openclaw.json`, because that remains adapter-owned runtime configuration.
 
 ## UI Adapter Contracts
 

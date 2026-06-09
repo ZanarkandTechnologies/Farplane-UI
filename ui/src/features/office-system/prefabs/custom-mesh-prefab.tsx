@@ -21,7 +21,7 @@ export const CustomMeshPrefab: GameObjectDefinition = {
       }
       return "Place custom mesh here?";
     },
-    hint: "Mesh loads from ~/.openclaw/assets/meshes through the OpenClaw bridge.",
+    hint: "Mesh loads from ~/.farplane/assets/meshes through the local office bridge.",
     behaviorId: "place_generic",
   },
 };

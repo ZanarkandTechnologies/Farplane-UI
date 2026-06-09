@@ -1,7 +1,7 @@
 [
   {
-    "id": "ceo-wall-front",
-    "identifier": "ceo-wall-front",
+    "id": "farplane-focus-wall-front",
+    "identifier": "farplane-focus-wall-front",
     "meshType": "glass-wall",
     "position": [
       0,
@@ -15,8 +15,8 @@
     ]
   },
   {
-    "id": "ceo-wall-left",
-    "identifier": "ceo-wall-left",
+    "id": "farplane-focus-wall-left",
+    "identifier": "farplane-focus-wall-left",
     "meshType": "glass-wall",
     "position": [
       -2,
@@ -30,8 +30,8 @@
     ]
   },
   {
-    "id": "ceo-wall-right",
-    "identifier": "ceo-wall-right",
+    "id": "farplane-focus-wall-right",
+    "identifier": "farplane-focus-wall-right",
     "meshType": "glass-wall",
     "position": [
       2,
@@ -141,8 +141,8 @@
     ]
   },
   {
-    "id": "world-monitor-console",
-    "identifier": "world-monitor-console",
+    "id": "farplane-map-console",
+    "identifier": "farplane-map-console",
     "meshType": "bookshelf",
     "position": [
       7,
@@ -155,17 +155,17 @@
       0
     ],
     "metadata": {
-      "displayName": "World Monitor",
+      "displayName": "Farplane Map",
       "uiBinding": {
         "kind": "embed",
-        "title": "World Monitor",
+        "title": "Farplane Map",
         "url": "http://localhost:3002/?lat=20.0000&lon=0.0000&zoom=1.00&view=global&timeRange=7d&layers=conflicts%2Cbases%2Chotspots%2Cnuclear%2Csanctions%2Cweather%2Ceconomic%2Cwaterways%2Coutages%2Cmilitary%2Cnatural%2CiranAttacks",
         "openMode": "panel",
         "aspectRatio": "wide"
       },
       "skillBinding": {
-        "skillId": "world-monitor",
-        "label": "World Monitor",
+        "skillId": "farplane-map",
+        "label": "Farplane Map",
         "effectMode": "random",
         "effectPool": [
           "ghost",

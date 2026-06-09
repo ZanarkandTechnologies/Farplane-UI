@@ -231,23 +231,23 @@ function buildDefaultFurnitureObjects(companyId: string): OfficeObject[] {
 }
 
 export function fallbackData(): OfficeDataContextValue {
-  const teamId = "team-openclaw";
+  const teamId = "team-farplane";
   const companyId = demoCompany._id;
   const teams: TeamData[] = [
     {
       _id: teamId,
       companyId,
-      name: "OpenClaw Ops",
-      description: "Default office cluster",
+      name: "Farplane",
+      description: "Default project cluster",
       deskCount: 3,
       clusterPosition: [0, 0, 8],
       employees: ["employee-main"],
     },
   ];
   const desks: DeskLayoutData[] = [
-    { id: "desk-openclaw-0", deskIndex: 0, team: "OpenClaw Ops" },
-    { id: "desk-openclaw-1", deskIndex: 1, team: "OpenClaw Ops" },
-    { id: "desk-openclaw-2", deskIndex: 2, team: "OpenClaw Ops" },
+    { id: "desk-farplane-0", deskIndex: 0, team: "Farplane" },
+    { id: "desk-farplane-1", deskIndex: 1, team: "Farplane" },
+    { id: "desk-farplane-2", deskIndex: 2, team: "Farplane" },
   ];
   const employees: EmployeeData[] = [
     {
@@ -256,19 +256,19 @@ export function fallbackData(): OfficeDataContextValue {
       teamId,
       builtInRole: "operator",
       name: "Main Agent",
-      team: "OpenClaw Ops",
+      team: "Farplane",
       initialPosition: [0, 0, 8],
       isBusy: false,
       isCEO: true,
       isSupervisor: false,
-      jobTitle: "OpenClaw Operator",
+      jobTitle: "Farplane Operator",
       status: "info",
-      statusMessage: "Waiting for OpenClaw adapter data.",
+      statusMessage: "Waiting for runtime adapter data.",
     },
   ];
   const officeObjects: OfficeObject[] = [
     {
-      _id: "cluster-openclaw",
+      _id: "cluster-farplane",
       companyId,
       meshType: "team-cluster",
       position: [0, 0, 8],

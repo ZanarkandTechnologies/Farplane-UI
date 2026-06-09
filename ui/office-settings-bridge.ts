@@ -8,7 +8,7 @@
  * - `officeFootprint` remains a derived compatibility box from the saved layout.
  *
  * USAGE:
- * - Import from `vite.config.ts` when reading or writing `/openclaw/office-settings`.
+ * - Import from `vite.config.ts` when reading or writing local office settings.
  *
  * MEMORY REFERENCES:
  * - MEM-0172
