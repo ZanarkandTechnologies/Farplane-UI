@@ -2,7 +2,7 @@
 
 This runbook now uses a comments-only integration path:
 
-- Internal ShellCorp remains canonical by default.
+- Internal Farplane remains canonical by default.
 - Notion is used for comment ingress/egress.
 - `notion-shell.tasks.*` methods are deprecated for active onboarding (keep them only for compatibility while migrating workflows to skills).
 
@@ -22,7 +22,7 @@ Minimal config shape:
   "plugins": {
     "enabled": true,
     "load": {
-      "paths": ["/home/kenjipcx/Zanarkand/ShellCorp/extensions/notion"]
+      "paths": ["/home/kenjipcx/Zanarkand/Farplane/extensions/notion"]
     },
     "entries": {
       "notion-shell": {
@@ -160,7 +160,7 @@ Use the FastAPI probe only if you need live payload fixtures.
 
 ## Step 8: Validate End-to-End Quickly
 
-1. Create/update a task in ShellCorp Kanban.
+1. Create/update a task in Farplane Kanban.
 2. Confirm it remains internal-canonical by default.
 3. Switch canonical to `notion` only when you want external ownership.
 4. Run `Manual Resync`.

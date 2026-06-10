@@ -15,10 +15,10 @@ describe("cli install helpers", () => {
   });
 
   async function createRepoFixture(): Promise<string> {
-    const repoRoot = await mkdtemp(path.join(os.tmpdir(), "shellcorp-cli-install-"));
+    const repoRoot = await mkdtemp(path.join(os.tmpdir(), "farplane-cli-install-"));
     await writeFile(
       path.join(repoRoot, "package.json"),
-      JSON.stringify({ name: "shellcorp-test", private: true }, null, 2),
+      JSON.stringify({ name: "farplane-test", private: true }, null, 2),
       "utf-8",
     );
     return repoRoot;
@@ -50,7 +50,7 @@ describe("cli install helpers", () => {
     expect(execRunner.mock.calls.map((call) => call[1])).toEqual([
       ["install"],
       ["run", "cli:bundle"],
-      ["unlink", "-g", "shellcorp"],
+      ["unlink", "-g", "farplane"],
       ["link"],
     ]);
     expect(result.status).toBe("reinstalled");

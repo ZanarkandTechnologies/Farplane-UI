@@ -1,6 +1,6 @@
 # Notion Plugin Quickstart
 
-Fastest path to install the ShellCorp Notion bridge on a VPS and verify the webhook in Notion.
+Fastest path to install the Farplane Notion bridge on a VPS and verify the webhook in Notion.
 
 ## What this gives you
 
@@ -12,13 +12,13 @@ Fastest path to install the ShellCorp Notion bridge on a VPS and verify the webh
 ## Prerequisites
 
 - OpenClaw already installed on the VPS
-- ShellCorp repo checked out on the VPS
+- Farplane repo checked out on the VPS
 - a public HTTPS host that reaches the OpenClaw gateway
 - your Notion integration secret
 
-## 1. Install ShellCorp on the VPS
+## 1. Install Farplane on the VPS
 
-From the ShellCorp repo:
+From the Farplane repo:
 
 ```bash
 pnpm install
@@ -151,9 +151,9 @@ or:
 Expected behavior:
 
 - Notion sends `comment.created`
-- ShellCorp validates the signature
-- ShellCorp retrieves the full comment text from Notion
-- ShellCorp forwards the message into OpenClaw `/hooks/agent`
+- Farplane validates the signature
+- Farplane retrieves the full comment text from Notion
+- Farplane forwards the message into OpenClaw `/hooks/agent`
 
 ## 8. Useful checks
 
@@ -186,4 +186,4 @@ jq '.hooks' ~/.openclaw/openclaw.json
 - [extensions/notion/README.md](../../extensions/notion/README.md)
 - [docs/how-to/sc06-kanban-notion-setup.md](./sc06-kanban-notion-setup.md)
 - [docs/how-to/notion-comment-hook-contract.md](./notion-comment-hook-contract.md)
-- [docs/how-to/vps-tailscale-shellcorp.md](./vps-tailscale-shellcorp.md)
+- [docs/how-to/vps-tailscale-farplane.md](./vps-tailscale-farplane.md)

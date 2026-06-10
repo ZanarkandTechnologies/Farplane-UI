@@ -4,7 +4,7 @@
  * MANAGE AGENT MODAL
  * ==================
  * Zanarkand-style modal shell with parity tabs while backend
- * capabilities are being wired for ShellCorp.
+ * capabilities are being wired for Farplane.
  *
  * KEY CONCEPTS:
  * - All tab state lives here and is passed down via props (no context needed at this scale).
@@ -120,6 +120,12 @@ export function ManageAgentModal(): ReactElement {
     ? (filesState.draftByName[activeFile.name] ?? activeFileBase)
     : "";
   const isActiveFileDirty = activeFile ? activeFileDraft !== activeFileBase : false;
+  const canEditAgentConfig = adapter.capabilities.agentConfigWrite;
+  const canUseWorkspaceFiles = adapter.capabilities.agentWorkspaceFiles;
+  const canUseToolPolicy = adapter.capabilities.toolPolicy;
+  const canUseChannels = adapter.capabilities.channels;
+  const canUseScheduler = adapter.capabilities.scheduler;
+  const canUseSkillRuntimeControls = adapter.capabilities.agentSkillRuntimeControls;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -128,6 +134,13 @@ export function ManageAgentModal(): ReactElement {
     setSaveStatus("");
     setFilesState(EMPTY_FILES_STATE);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (activeTab === "files" && !canUseWorkspaceFiles) setActiveTab("overview");
+    if (activeTab === "tools" && !canUseToolPolicy) setActiveTab("overview");
+    if (activeTab === "channels" && !canUseChannels) setActiveTab("overview");
+    if (activeTab === "cron" && !canUseScheduler) setActiveTab("overview");
+  }, [activeTab, canUseChannels, canUseScheduler, canUseToolPolicy, canUseWorkspaceFiles]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -470,8 +483,9 @@ export function ManageAgentModal(): ReactElement {
             Manage Agent: {employee?.name ?? "Agent"}
           </DialogTitle>
           <DialogDescription>
-            Configure OpenClaw-backed workspace, tools, channels, and cron settings. Per-agent
-            skill allowlists now live in Skill Studio.
+            {adapter.runtimeKind === "codex"
+              ? "Inspect Codex thread workers. Persistent agent configuration is available in OpenClaw adapter mode."
+              : "Configure OpenClaw-backed workspace, tools, channels, and cron settings. Per-agent skill allowlists now live in Skill Studio."}
           </DialogDescription>
         </DialogHeader>
 
@@ -482,10 +496,10 @@ export function ManageAgentModal(): ReactElement {
         >
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="files">Files</TabsTrigger>
-            <TabsTrigger value="tools">Tools</TabsTrigger>
-            <TabsTrigger value="channels">Channels</TabsTrigger>
-            <TabsTrigger value="cron">Cron Jobs</TabsTrigger>
+            <TabsTrigger value="files" disabled={!canUseWorkspaceFiles}>Files</TabsTrigger>
+            <TabsTrigger value="tools" disabled={!canUseToolPolicy}>Tools</TabsTrigger>
+            <TabsTrigger value="channels" disabled={!canUseChannels}>Channels</TabsTrigger>
+            <TabsTrigger value="cron" disabled={!canUseScheduler}>Cron Jobs</TabsTrigger>
           </TabsList>
           <ScrollArea className="h-full min-h-[65vh] max-h-[65vh] mt-4 pr-3">
             <TabsContent value="overview" className="space-y-4">
@@ -530,7 +544,7 @@ export function ManageAgentModal(): ReactElement {
         </Tabs>
 
         <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
-          <Button variant="outline" onClick={openSkillStudio} disabled={!selectedAgentId}>
+          <Button variant="outline" onClick={openSkillStudio} disabled={!selectedAgentId || !canUseSkillRuntimeControls}>
             Open Skill Studio
           </Button>
           <Button variant="outline" onClick={() => setManageAgentEmployeeId(null)}>
@@ -538,7 +552,7 @@ export function ManageAgentModal(): ReactElement {
           </Button>
           <Button
             onClick={() => void handleSaveConfig()}
-            disabled={!isDraftDirty || isSavingConfig || !selectedAgentId}
+            disabled={!canEditAgentConfig || !isDraftDirty || isSavingConfig || !selectedAgentId}
           >
             {isSavingConfig ? "Saving..." : "Save Changes"}
           </Button>

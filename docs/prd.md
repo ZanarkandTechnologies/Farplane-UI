@@ -1,4 +1,4 @@
-# Product Requirements Document: Shell Company
+# Product Requirements Document: Farplane AI
 
 **Status**: Draft  
 **Created**: 2026-02-21  
@@ -26,7 +26,7 @@ OpenClaw already solves agent runtime, routing, and plugin loading. The missing 
 
 ## Solution
 
-Build Shell Company as a UI-first control center on top of OpenClaw:
+Build Farplane AI as a UI-first control center on top of OpenClaw:
 
 1. **State mapping layer**: map OpenClaw state directories and gateway APIs into UI view models.
 2. **Minimal office UX**: keep the office metaphor, but optimize it for a small number of meaningful surfaces instead of a crowded default company.
@@ -36,11 +36,11 @@ Build Shell Company as a UI-first control center on top of OpenClaw:
 6. **Federated work orchestration**: unify external board work (Notion/Vibe/internal) into one operator surface.
 7. **Personalized presence and decor**: let operators style the office after the core founder-control loop is working.
 8. **Roster-first team oversight**: each team surface should show who each agent is, what they are doing now, and keep team coordination anchored to ticket activity and task memory instead of chat-style team conversation.
-9. **Session-scoped CLI actor identity**: agent-attributed ShellCorp CLI actions should resolve from an explicit shell-session actor claim so status, board activity, and targeted coordination are attributable without inventing a second auth/runtime layer.
+9. **Session-scoped CLI actor identity**: agent-attributed Farplane CLI actions should resolve from an explicit shell-session actor claim so status, board activity, and targeted coordination are attributable without inventing a second auth/runtime layer.
 
 ## State Shape Rule
 
-ShellCorp should only keep strong structure where routing and synchronization require it.
+Farplane should only keep strong structure where routing and synchronization require it.
 
 - Kanban/task identity, ordering, ownership, approval state, and session linkage stay structured.
 - Rich task and project working state should default to markdown text that humans and agents can rewrite directly.
@@ -57,7 +57,7 @@ This product should not invent a large proposal/config schema when a board task 
 - Notion integration is shipped as an in-repo OpenClaw plugin
 - Chat actions from UI are bridged back to OpenClaw gateway APIs
 - Task and project execution memory should stay inspectable as markdown-first working state with append-only audit logs
-- Agent-attributed CLI writes should resolve caller identity from a session-scoped env contract (`SHELLCORP_AGENT_ID`, derived team/project/role) rather than loose per-command guessing
+- Agent-attributed CLI writes should resolve caller identity from a session-scoped env contract (`FARPLANE_AGENT_ID`, derived team/project/role) rather than loose per-command guessing
 
 ## MVP Focus
 
@@ -75,9 +75,9 @@ Single VPS, one shared OpenClaw instance, a small number of active teams:
 
 ## Phase 2 Expansion Focus
 
-After MVP baseline stabilizes, Shell Company extends from "minimal founder-control office" to a broader autonomous company cockpit:
+After MVP baseline stabilizes, Farplane AI extends from "minimal founder-control office" to a broader autonomous company cockpit:
 
-- Keep operators in their preferred external tools (Notion/Vibe) while showing one unified mission view in Shell Company.
+- Keep operators in their preferred external tools (Notion/Vibe) while showing one unified mission view in Farplane AI.
 - Treat ticket lifecycle and agent-session lifecycle as linked operational primitives.
 - Convert provider data structures into reusable context tools/skills for agent execution.
 - Expose heartbeat/cron autonomy loops with explicit operator intervention controls.
@@ -107,7 +107,7 @@ After MVP baseline stabilizes, Shell Company extends from "minimal founder-contr
 - Large connector marketplace beyond Notion in first slice
 - Replacing OpenClaw core session/routing internals
 - Building proposal-specific command flows or data models when shared board metadata plus markdown task memory is sufficient
-- Rebuilding full Notion/Vibe UX inside Shell Company
+- Rebuilding full Notion/Vibe UX inside Farplane AI
 - Shipping a large default office full of prebuilt teams just to make the UI feel busy
 - Attempting fully automatic multi-master conflict resolution in first federation slice
 
@@ -127,7 +127,7 @@ After MVP baseline stabilizes, Shell Company extends from "minimal founder-contr
 
 ## Success Metrics
 
-- Founders can review work by lane on the kanban board, approve through the `review` lane, and execute team/bootstrap work through ShellCorp CLI
+- Founders can review work by lane on the kanban board, approve through the `review` lane, and execute team/bootstrap work through Farplane CLI
 - Operators can view the CEO and active teams from OpenClaw-backed data
 - Session timeline and chat bridge work for at least one real founder-to-team flow
 - Team overview surfaces show current agent presence with face/avatar, live state, and latest owned task context
@@ -135,7 +135,7 @@ After MVP baseline stabilizes, Shell Company extends from "minimal founder-contr
 - Notion plugin loads and runs under OpenClaw plugin system
 - Memory and Skills panels show actionable state for the CEO and active demo teams
 - Docs/README/specs fully reflect this OpenClaw-first architecture
-- Operators can track combined board activity from multiple providers in one ShellCorp view
+- Operators can track combined board activity from multiple providers in one Farplane view
 - Operators can close tickets through a clear ticket=session lifecycle rule with explicit close semantics
 - Provider indexing can generate reusable context tools with deterministic command naming
 - Heartbeat/autonomy state is visible with pause/resume/manual-run controls and traceability

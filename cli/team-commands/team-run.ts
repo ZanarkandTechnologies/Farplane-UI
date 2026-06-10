@@ -9,9 +9,9 @@
  * - Test mode is just a focused wrapper around team heartbeat config.
  *
  * USAGE:
- * - shellcorp team run show --team-id team-proj-alpha --json
- * - shellcorp team run live --team-id team-proj-alpha --cadence-minutes 1
- * - shellcorp team run test-mode --team-id team-proj-alpha --cadence-minutes 1
+ * - farplane team run show --team-id team-proj-alpha --json
+ * - farplane team run live --team-id team-proj-alpha --cadence-minutes 1
+ * - farplane team run test-mode --team-id team-proj-alpha --cadence-minutes 1
  *
  * MEMORY REFERENCES:
  * - MEM-0196

@@ -2,7 +2,7 @@
 
 ## Why This Exists
 
-This document captures the technical decisions and implementation details for the autonomous business MVP framework added to ShellCorp.
+This document captures the technical decisions and implementation details for the autonomous business MVP framework added to Farplane.
 
 For the full affiliate marketing agent workflow spec (product research, video gen, distribution, metrics), see `SC11`: `docs/specs/SC11-spec-affiliate-marketing-mvp.md`.
 
@@ -96,8 +96,8 @@ CLI and UI surfaces read/write these Convex tables directly for realtime visibil
 
 Status visibility uses a companion explicit self-report path:
 
-- `shellcorp status` writes canonical live state and timeline breadcrumbs through one unified event path.
-- `shellcorp team status report` and `shellcorp team bot log` remain compatibility commands.
+- `farplane status` writes canonical live state and timeline breadcrumbs through one unified event path.
+- `farplane team status report` and `farplane team bot log` remain compatibility commands.
 
 Both should be emitted in heartbeat turns: one for current state, one for event history.
 
@@ -137,7 +137,7 @@ Each project now supports:
 ### Team create with business mode
 
 ```bash
-shellcorp team create \
+farplane team create \
   --name "Affiliate Team" \
   --description "Affiliate business" \
   --goal "Reach $100 MRR" \
@@ -147,7 +147,7 @@ shellcorp team create \
 ### Update business capability slot
 
 ```bash
-shellcorp team business set \
+farplane team business set \
   --team-id team-proj-affiliate-team \
   --slot measure \
   --skill-id stripe-revenue \
@@ -157,7 +157,7 @@ shellcorp team business set \
 ### Update team resources
 
 ```bash
-shellcorp team resources set \
+farplane team resources set \
   --team-id team-proj-affiliate-team \
   --type cash_budget \
   --remaining 4200 \
@@ -167,41 +167,41 @@ shellcorp team resources set \
 ### Seed demo business data
 
 ```bash
-shellcorp team business seed-demo --team-id team-proj-affiliate-team
+farplane team business seed-demo --team-id team-proj-affiliate-team
 ```
 
 ### Team funds CLI
 
 ```bash
 # read current team account balance
-shellcorp team funds balance --team-id team-proj-affiliate-team
+farplane team funds balance --team-id team-proj-affiliate-team
 
 # add money (amount in cents)
-shellcorp team funds deposit \
+farplane team funds deposit \
   --team-id team-proj-affiliate-team \
   --amount 50000 \
   --source seed_capital \
   --note "initial funding"
 
 # record spend (amount in cents)
-shellcorp team funds spend \
+farplane team funds spend \
   --team-id team-proj-affiliate-team \
   --amount 1200 \
   --source openai_api \
   --note "content batch run"
 
 # view recent account events
-shellcorp team funds ledger --team-id team-proj-affiliate-team --limit 10
+farplane team funds ledger --team-id team-proj-affiliate-team --limit 10
 
 # status + timeline reporting during heartbeat turns
-shellcorp team status report \
+farplane team status report \
   --team-id team-proj-affiliate-team \
   --agent-id affiliate-pm \
   --state planning \
   --status-text "Reviewing board and resource constraints" \
   --step-key hb-affiliate-pm-001
 
-shellcorp team bot log \
+farplane team bot log \
   --team-id team-proj-affiliate-team \
   --agent-id affiliate-pm \
   --activity-type status \

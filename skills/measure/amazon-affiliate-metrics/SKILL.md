@@ -7,7 +7,7 @@ description: Read Amazon Associates metrics (clicks, conversions, commissions) a
 
 ## Goal
 
-Collect business outcome metrics from Amazon Associates and normalize them for ShellCorp business tracking.
+Collect business outcome metrics from Amazon Associates and normalize them for Farplane business tracking.
 
 ## Preconditions
 

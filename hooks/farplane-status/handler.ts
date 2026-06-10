@@ -201,17 +201,17 @@ export async function publishEvents(convexSiteUrl: string, events: ConvexStatusE
       throw new Error(`ingest returned ${response.status}${detail ? `: ${detail.slice(0, 240)}` : ""}`);
     }
     if (debugEnabled) {
-      console.info(`[shellcorp-status-hook] published ${row.eventType} for agent ${row.agentId}`);
+      console.info(`[farplane-status-hook] published ${row.eventType} for agent ${row.agentId}`);
     }
   }
 }
 
 export default async function transform(event: HookEvent): Promise<void> {
   const convexSiteUrl =
-    process.env.SHELLCORP_CONVEX_SITE_URL ??
+    process.env.FARPLANE_CONVEX_SITE_URL ??
     process.env.CONVEX_SITE_URL ??
     "http://127.0.0.1:3211";
-  const debugEnabled = process.env.SHELLCORP_STATUS_HOOK_DEBUG === "1";
+  const debugEnabled = process.env.FARPLANE_STATUS_HOOK_DEBUG === "1";
   if (!convexSiteUrl) return;
 
   try {
@@ -227,17 +227,17 @@ export default async function transform(event: HookEvent): Promise<void> {
             ? Object.keys(payloadValue as Record<string, unknown>).slice(0, 12).join(",")
             : "n/a";
         console.info(
-          `[shellcorp-status-hook] no matching events for ${event.type}:${event.action} session=${sessionKey || "n/a"} text="${text.slice(0, 120)}" keys=${topLevelKeys} payloadKeys=${payloadKeys}`,
+          `[farplane-status-hook] no matching events for ${event.type}:${event.action} session=${sessionKey || "n/a"} text="${text.slice(0, 120)}" keys=${topLevelKeys} payloadKeys=${payloadKeys}`,
         );
       }
       return;
     }
     if (debugEnabled) {
-      console.info(`[shellcorp-status-hook] publishing ${events.length} event(s) to ${convexSiteUrl}`);
+      console.info(`[farplane-status-hook] publishing ${events.length} event(s) to ${convexSiteUrl}`);
     }
     await publishEvents(convexSiteUrl, events, debugEnabled);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`[shellcorp-status-hook] failed to publish event: ${message}`);
+    console.error(`[farplane-status-hook] failed to publish event: ${message}`);
   }
 }

@@ -11,7 +11,7 @@ Prefer two layers when needed:
 
 - `SKILL.md` or legacy `skill.md`: workflow, commands, and guardrails.
 - Optional `skill.config.yaml`: structured Skill Studio metadata for UI, diagrams, dependencies, and safe package-level editing.
-- `tests/*.md` for skills with ShellCorp-native operational flows.
+- `tests/*.md` for skills with Farplane-native operational flows.
 
 ## Skill Contract Test Standard
 
@@ -53,7 +53,7 @@ Example:
 
 ## Notes
 
-- Contract tests use a temporary local ShellCorp state dir.
+- Contract tests use a temporary local Farplane state dir.
 - They are meant to prove that skill examples still work against the CLI.
 - They do not replace deeper unit or integration tests in `cli/`, `convex/`, or `ui/src/`.
 - If a workflow skill depends on a tool skill, keep the workflow in the higher-level skill and link to the tool skill for command syntax.

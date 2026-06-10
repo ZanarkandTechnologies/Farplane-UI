@@ -1,5 +1,5 @@
 {
-  "name": "ShellCorp",
+  "name": "farplane",
   "version": "0.1.0",
   "private": true,
   "workspaces": [
@@ -7,30 +7,30 @@
     "cli",
     "extensions/notion"
   ],
-  "description": "ShellCorp - single-brain, multi-hand AI operating system",
+  "description": "Farplane - single-brain, multi-hand AI operating system",
   "type": "module",
   "engines": {
     "node": ">=20"
   },
   "bin": {
-    "shellcorp": "./bin/shellcorp.js"
+    "farplane": "./bin/farplane.js"
   },
   "scripts": {
     "build": "npm run typecheck:root",
     "typecheck": "npm run typecheck:all",
     "typecheck:all": "npm run typecheck:root && npm run ui:typecheck",
     "typecheck:root": "tsc --noEmit",
-    "ui:typecheck": "npm run --workspace @shellcorp/ui typecheck",
+    "ui:typecheck": "npm run --workspace @farplane/ui typecheck",
     "lint": "biome lint --diagnostic-level=error --files-ignore-unknown=true --skip=style --skip=complexity --skip=a11y --skip=correctness/noUnusedImports --skip=correctness/useExhaustiveDependencies --skip=correctness/useHookAtTopLevel --skip=suspicious/noArrayIndexKey biome.json package.json cli/team-commands convex extensions/notion skills ui/src/components/hud ui/src/features/team-system ui/src/lib",
     "lint:fix": "biome lint --write --diagnostic-level=error --files-ignore-unknown=true --skip=style --skip=complexity --skip=a11y --skip=correctness/noUnusedImports --skip=correctness/useExhaustiveDependencies --skip=correctness/useHookAtTopLevel --skip=suspicious/noArrayIndexKey biome.json package.json cli/team-commands convex extensions/notion skills ui/src/components/hud ui/src/features/team-system ui/src/lib",
     "format": "biome format --write --files-ignore-unknown=true biome.json package.json cli/team-commands convex extensions/notion skills ui/src/components/hud ui/src/features/team-system ui/src/lib",
     "format:check": "biome check --files-ignore-unknown=true --linter-enabled=false --assist-enabled=false biome.json package.json cli/team-commands convex extensions/notion skills ui/src/components/hud ui/src/features/team-system ui/src/lib",
-    "shell": "npm run --workspace @shellcorp/cli shell --",
-    "cli:bundle": "npm run --workspace @shellcorp/cli bundle",
+    "shell": "npm run --workspace @farplane/cli shell --",
+    "cli:bundle": "npm run --workspace @farplane/cli bundle",
     "cli:reinstall": "tsx cli/cli-reinstall.ts",
     "prepare": "npm run cli:bundle",
-    "ui": "npm run --workspace @shellcorp/ui dev --",
-    "ui:build": "npm run --workspace @shellcorp/ui build --",
+    "ui": "npm run --workspace @farplane/ui dev --",
+    "ui:build": "npm run --workspace @farplane/ui build --",
     "mesh:previews": "tsx scripts/mesh-preview-scan.ts",
     "skills:sync:openclaw": "tsx scripts/sync-openclaw-skills.ts",
     "office:skill-smoke": "bash scripts/office-skill-smoke.sh",

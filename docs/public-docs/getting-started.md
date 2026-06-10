@@ -1,6 +1,6 @@
 # Getting Started
 
-This is the longer companion to the root `README.md`. The default setup path is now `shellcorp onboarding`, not manual template copying.
+This is the longer companion to the root `README.md`. The default setup path is now `farplane onboarding`, not manual template copying.
 
 ## Prerequisites
 
@@ -9,7 +9,7 @@ This is the longer companion to the root `README.md`. The default setup path is 
 - Access to the machine that will host `~/.openclaw`
 - OpenClaw onboarding already completed on that machine
 
-If OpenClaw has not yet created `~/.openclaw/openclaw.json` with the main CEO agent `main`, stop there first. ShellCorp onboarding now checks this before it writes ShellCorp-specific files.
+If OpenClaw has not yet created `~/.openclaw/openclaw.json` with the main CEO agent `main`, stop there first. Farplane onboarding now checks this before it writes Farplane-specific files.
 
 ## First Run
 
@@ -24,7 +24,7 @@ npm run shell -- ui
 Onboarding now handles:
 
 - missing sidecar JSON bootstrap in `~/.openclaw`
-- minimum OpenClaw config wiring for ShellCorp
+- minimum OpenClaw config wiring for Farplane
 - Notion plugin load-path and default entry setup
 - office style preset capture
 - staged progress output for each bootstrap phase
@@ -35,7 +35,7 @@ Onboarding now handles:
 
 ## UI Environment
 
-ShellCorp treats env files in two buckets:
+Farplane treats env files in two buckets:
 
 - repo-root `.env.local`: backend and private values such as Convex/OpenRouter/Notion tokens
 - `ui/.env.local`: UI-safe `VITE_*` values only
@@ -63,8 +63,8 @@ Global:
 
 ```bash
 npm link
-shellcorp onboarding
-shellcorp ui
+farplane onboarding
+farplane ui
 ```
 
 Useful follow-up checks:
@@ -72,15 +72,15 @@ Useful follow-up checks:
 ```bash
 npm run shell -- doctor team-data --json
 npm run shell -- office doctor --json
-npm run shell -- team monitor --team-id team-proj-shellcorp-dev-team --json
+npm run shell -- team monitor --team-id team-proj-farplane-dev-team --json
 ```
 
 Useful runtime loop for autonomous-team MVP work:
 
 ```bash
-npm run shell -- team create --name "ShellCorp Dev Team" --description "Internal product team" --goal "Improve ShellCorp" --auto-roles pm,builder
-npm run shell -- team run live --team-id team-proj-shellcorp-dev-team --cadence-minutes 1 --goal "Live demo loop" --json
-npm run shell -- team monitor --team-id team-proj-shellcorp-dev-team --json
+npm run shell -- team create --name "Farplane Dev Team" --description "Internal product team" --goal "Improve Farplane" --auto-roles pm,builder
+npm run shell -- team run live --team-id team-proj-farplane-dev-team --cadence-minutes 1 --goal "Live demo loop" --json
+npm run shell -- team monitor --team-id team-proj-farplane-dev-team --json
 ```
 
 Canonical files to inspect during a live run:

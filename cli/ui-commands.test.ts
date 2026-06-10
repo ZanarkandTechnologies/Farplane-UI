@@ -43,7 +43,7 @@ describe("ui CLI", () => {
     const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
     const { startUiDevServer } = await import("./ui-commands.js");
 
-    const startPromise = startUiDevServer({ cwd: "/tmp/shellcorp-ui", propagateSignal: false });
+    const startPromise = startUiDevServer({ cwd: "/tmp/farplane-ui", propagateSignal: false });
     child.emit("exit", null, "SIGINT");
     await startPromise;
 
@@ -51,7 +51,7 @@ describe("ui CLI", () => {
       expect.stringMatching(/^npm(\.cmd)?$/),
       ["run", "ui"],
       expect.objectContaining({
-        cwd: "/tmp/shellcorp-ui",
+        cwd: "/tmp/farplane-ui",
         stdio: "inherit",
       }),
     );
@@ -68,7 +68,7 @@ describe("ui CLI", () => {
     });
     const { startUiDevServer } = await import("./ui-commands.js");
 
-    const startPromise = startUiDevServer({ cwd: "C:/shellcorp-ui", propagateSignal: false });
+    const startPromise = startUiDevServer({ cwd: "C:/farplane-ui", propagateSignal: false });
     child.emit("exit", 0, null);
     await startPromise;
 
@@ -76,7 +76,7 @@ describe("ui CLI", () => {
       "npm run ui",
       [],
       expect.objectContaining({
-        cwd: "C:/shellcorp-ui",
+        cwd: "C:/farplane-ui",
         stdio: "inherit",
         shell: true,
       }),

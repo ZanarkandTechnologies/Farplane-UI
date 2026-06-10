@@ -16,9 +16,9 @@
     }
   },
   {
-    "id": "shellcorp-builder",
-    "name": "ShellCorp Builder",
-    "workspace": "/srv/agents/shellcorp-builder",
+    "id": "farplane-builder",
+    "name": "Farplane Builder",
+    "workspace": "/srv/agents/farplane-builder",
     "sandbox": {
       "mode": "workspace-write"
     },
@@ -32,9 +32,9 @@
     }
   },
   {
-    "id": "shellcorp-growth",
-    "name": "ShellCorp Growth",
-    "workspace": "/srv/agents/shellcorp-growth",
+    "id": "farplane-growth",
+    "name": "Farplane Growth",
+    "workspace": "/srv/agents/farplane-growth",
     "sandbox": {
       "mode": "workspace-write"
     },

@@ -628,7 +628,7 @@ export function FurnitureShop({ isOpen, onOpenChange }: FurnitureShopProps) {
           </p>
           <p className="text-sm text-muted-foreground">
             Requires a server-side Meshy key via{" "}
-            <code className="rounded bg-muted px-1">SHELLCORP_MESHY_API_KEY</code> or{" "}
+            <code className="rounded bg-muted px-1">FARPLANE_MESHY_API_KEY</code> or{" "}
             <code className="rounded bg-muted px-1">MESHY_API_KEY</code>.
           </p>
         </CardHeader>

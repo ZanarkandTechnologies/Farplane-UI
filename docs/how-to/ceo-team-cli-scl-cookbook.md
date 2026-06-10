@@ -1,9 +1,9 @@
 # CEO Team CLI + SCL Cookbook
 
-This guide is the docs-only SCL layer for ShellCorp phase 1.
+This guide is the docs-only SCL layer for Farplane phase 1.
 
 - **SCL in phase 1** means a command cookbook (intent -> exact CLI command).
-- The CEO agent can call ShellCorp CLI commands directly from shell access.
+- The CEO agent can call Farplane CLI commands directly from shell access.
 
 ## Runtime Source Of Truth
 
@@ -14,7 +14,7 @@ Commands mutate sidecar files in:
 
 ## CLI Entry
 
-Run from the ShellCorp repo:
+Run from the Farplane repo:
 
 ```bash
 npm run shell -- <command>
@@ -93,7 +93,7 @@ npm run shell -- team heartbeat set \
   --cadence-minutes 15 \
   --goal "Create or execute relevant tickets based on Kanban and team goals" \
   --team-description "Alpha delivery team" \
-  --product-details "ShellCorp core platform"
+  --product-details "Farplane core platform"
 ```
 
 ### 5) Archive a team

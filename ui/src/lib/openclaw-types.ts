@@ -583,7 +583,7 @@ export interface UnifiedOfficeModel {
     clampedClusterCount: number;
     outOfBoundsClusterObjectIds: string[];
     ceoAnchorMode: "glass-derived" | "fallback";
-    source: "gateway" | "localStorage" | "default";
+    source: "gateway" | "localStorage" | "default" | "codex";
   };
 }
 

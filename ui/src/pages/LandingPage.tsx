@@ -1,7 +1,7 @@
 /**
  * LANDING PAGE
  * ============
- * Public ShellCorp entry page that explains the founder-control workflow and
+ * Public Farplane entry page that explains the founder-control workflow and
  * routes directly into the AI office without an invite gate.
  *
  * KEY CONCEPTS:
@@ -50,9 +50,9 @@ export function LandingPage(): React.JSX.Element {
       <header className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <Link to="/" className="flex items-center gap-3">
-            <img src="/zanarkand-logo.png" alt="ShellCorp Logo" className="h-10 w-auto" />
+            <img src="/zanarkand-logo.png" alt="Farplane Logo" className="h-10 w-auto" />
             <div className="flex flex-col">
-              <span className="text-3xl font-bold">ShellCorp</span>
+              <span className="text-3xl font-bold">Farplane</span>
               <span className="text-sm text-muted-foreground">by Zanarkand</span>
             </div>
           </Link>
@@ -157,7 +157,7 @@ export function LandingPage(): React.JSX.Element {
       {/* Footer */}
       <footer className="relative border-t mt-auto py-4 bg-background/75 backdrop-blur-sm">
         <div className="container mx-auto px-4 flex flex-col gap-4 text-center text-base text-foreground/70 md:flex-row md:items-center md:justify-between">
-          <p>© 2026 ShellCorp by Zanarkand. All rights reserved.</p>
+          <p>© 2026 Farplane by Zanarkand. All rights reserved.</p>
           <Button asChild variant="outline">
             <Link to="/office">Go to office</Link>
           </Button>

@@ -1,0 +1,94 @@
+export type CodexJson = null | boolean | number | string | CodexJson[] | { [key: string]: CodexJson };
+
+export type CodexThreadStatus =
+  | { type: "notLoaded" }
+  | { type: "idle" }
+  | { type: "systemError" }
+  | { type: "active"; activeFlags?: unknown[] };
+
+export type CodexThreadItem =
+  | { type: "userMessage"; id: string; content?: Array<{ type?: string; text?: string }> }
+  | { type: "agentMessage"; id: string; text?: string; phase?: string | null }
+  | { type: "plan"; id: string; text?: string }
+  | { type: "reasoning"; id: string; summary?: string[]; content?: string[] }
+  | {
+      type: "commandExecution";
+      id: string;
+      command?: string;
+      cwd?: string;
+      status?: string;
+      aggregatedOutput?: string | null;
+      exitCode?: number | null;
+    }
+  | {
+      type: "mcpToolCall" | "dynamicToolCall";
+      id: string;
+      server?: string;
+      namespace?: string | null;
+      tool?: string;
+      status?: string;
+      arguments?: CodexJson;
+      result?: CodexJson | null;
+      error?: unknown;
+      success?: boolean | null;
+    }
+  | { type: "fileChange"; id: string; status?: string; changes?: unknown[] }
+  | { type: string; id?: string; [key: string]: unknown };
+
+export type CodexTurn = {
+  id: string;
+  items?: CodexThreadItem[];
+  status?: string;
+  startedAt?: number | null;
+  completedAt?: number | null;
+  durationMs?: number | null;
+  error?: unknown;
+};
+
+export type CodexThread = {
+  id: string;
+  sessionId?: string;
+  parentThreadId?: string | null;
+  preview?: string;
+  modelProvider?: string;
+  createdAt?: number;
+  updatedAt?: number;
+  status?: CodexThreadStatus;
+  path?: string | null;
+  cwd?: string;
+  source?: unknown;
+  agentNickname?: string | null;
+  agentRole?: string | null;
+  name?: string | null;
+  turns?: CodexTurn[];
+};
+
+export type CodexThreadListResponse = {
+  data?: CodexThread[];
+  nextCursor?: string | null;
+  backwardsCursor?: string | null;
+};
+
+export type CodexThreadReadResponse = {
+  thread?: CodexThread;
+};
+
+export type CodexThreadStartResponse = {
+  thread?: CodexThread;
+};
+
+export type CodexTurnStartResponse = {
+  turn?: CodexTurn;
+};
+
+export type CodexConfigReadResponse = {
+  config?: {
+    projects?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  origins?: unknown;
+};
+
+export type CodexRpcBridgeResponse<T> =
+  | { ok: true; result: T }
+  | { ok: false; error?: string };

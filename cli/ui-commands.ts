@@ -2,14 +2,14 @@
  * UI COMMANDS
  * ===========
  * Purpose
- * - Provide a ShellCorp-native alias for starting the UI dev server.
+ * - Provide a Farplane-native alias for starting the UI dev server.
  *
  * KEY CONCEPTS:
- * - ShellCorp CLI stays the primary operator entrypoint.
+ * - Farplane CLI stays the primary operator entrypoint.
  * - The UI command shells out to the repo-local `npm run ui`.
  *
  * USAGE:
- * - shellcorp ui
+ * - farplane ui
  *
  * MEMORY REFERENCES:
  * - MEM-0162
@@ -28,7 +28,7 @@ function npmCommand(): string {
 
 /** Repo root: parent of the cli package so `npm run ui` (root script) runs correctly. */
 function resolveRepoRoot(): string {
-  const override = process.env.SHELLCORP_REPO_ROOT?.trim();
+  const override = process.env.FARPLANE_REPO_ROOT?.trim();
   if (override) return path.resolve(override);
   const cliDir =
     typeof __dirname === "string" && __dirname.trim()
@@ -77,9 +77,9 @@ export async function startUiDevServer(options: StartUiDevServerOptions = {}): P
 export function registerUiCommands(program: Command): void {
   program
     .command("ui")
-    .description("Start the ShellCorp UI dev server")
+    .description("Start the Farplane UI dev server")
     .action(async () => {
-      console.log(cliSection("ShellCorp UI"));
+      console.log(cliSection("Farplane UI"));
       console.log(cliDim("Starting the Vite dev server with `npm run ui`."));
       console.log(cliBlue("Stop it with Ctrl+C. You can rerun this command any time."));
       console.log("");

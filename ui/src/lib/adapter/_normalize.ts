@@ -1208,8 +1208,8 @@ export function toPendingApproval(entry: unknown): PendingApprovalModel | null {
   };
 }
 
-export const COMPANY_STORAGE_KEY = "shellcorp.company-model.v1";
-export const OFFICE_OBJECTS_STORAGE_KEY = "shellcorp.office-objects.v1";
+export const COMPANY_STORAGE_KEY = "farplane.company-model.v1";
+export const OFFICE_OBJECTS_STORAGE_KEY = "farplane.office-objects.v1";
 export const CLUSTER_BOUNDARY_LIMIT = 17.5;
 export const DEFAULT_COMPANY_MODEL: CompanyModel = {
   version: 1,
@@ -1270,7 +1270,7 @@ export const DEFAULT_COMPANY_MODEL: CompanyModel = {
   channelBindings: [],
   heartbeatRuntime: {
     enabled: true,
-    pluginId: "shellcorp-heartbeat",
+    pluginId: "farplane-heartbeat",
     serviceId: "company-heartbeat-loop",
     cadenceMinutes: 10,
     notes: "Run via OpenClaw plugin service/hooks.",

@@ -92,7 +92,7 @@ export interface OfficeDataContextValue {
 const CLUSTER_MARGIN = 2;
 type EmployeeAppearance = NonNullable<EmployeeData["appearance"]>;
 
-const demoCompany: Company = { _id: "company-demo", name: "Shell Company" };
+const demoCompany: Company = { _id: "company-demo", name: "Farplane AI" };
 
 function isAppearanceClothesStyle(
   value: unknown,

@@ -1,7 +1,7 @@
 /**
  * SKILL CONTRACT TESTS
  * ====================
- * Execute file-based markdown skill procedures against the local ShellCorp CLI.
+ * Execute file-based markdown skill procedures against the local Farplane CLI.
  *
  * KEY CONCEPTS:
  * - Shared runtime helpers keep tests and UI demos on the same execution contract.
@@ -24,13 +24,13 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   delete process.env.OPENCLAW_STATE_DIR;
-  delete process.env.SHELLCORP_CONVEX_SITE_URL;
+  delete process.env.FARPLANE_CONVEX_SITE_URL;
   delete process.env.CONVEX_SITE_URL;
-  delete process.env.SHELLCORP_ACTOR_ROLE;
-  delete process.env.SHELLCORP_ALLOWED_PERMISSIONS;
-  delete process.env.SHELLCORP_BOARD_OPERATOR_TOKEN;
-  delete process.env.SHELLCORP_AGENT_ID;
-  delete process.env.SHELLCORP_TEAM_ID;
+  delete process.env.FARPLANE_ACTOR_ROLE;
+  delete process.env.FARPLANE_ALLOWED_PERMISSIONS;
+  delete process.env.FARPLANE_BOARD_OPERATOR_TOKEN;
+  delete process.env.FARPLANE_AGENT_ID;
+  delete process.env.FARPLANE_TEAM_ID;
   process.exitCode = undefined;
 });
 

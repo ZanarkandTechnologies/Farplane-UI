@@ -22,7 +22,7 @@
 export type OfficeOnboardingStep = "click-ceo" | "open-chat" | "open-shop" | "open-team";
 export type OfficeOnboardingSignal = "ceo-selected" | "chat-opened" | "shop-opened" | "team-opened";
 
-export const OFFICE_ONBOARDING_STORAGE_KEY = "shellcorp.office-onboarding.completed";
+export const OFFICE_ONBOARDING_STORAGE_KEY = "farplane.office-onboarding.completed";
 
 type CompanySeedOnboarding = {
   enabled?: boolean;

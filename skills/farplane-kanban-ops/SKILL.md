@@ -1,15 +1,15 @@
 ---
-name: shellcorp_kanban_ops
-description: Internal Kanban operations skill for agent task execution and status reporting through ShellCorp CLI.
+name: farplane_kanban_ops
+description: Internal Kanban operations skill for agent task execution and status reporting through Farplane CLI.
 ---
 
-# ShellCorp Kanban Ops Skill
+# Farplane Kanban Ops Skill
 
 Use this skill when an agent should only operate the team board and report progress, not perform full team administration.
 
 ## Entry Command
 
-Run from ShellCorp repo root:
+Run from Farplane repo root:
 
 ```bash
 npm run shell -- <command>
@@ -33,8 +33,8 @@ npm run shell -- team board task move --team-id team-proj-<slug> --task-id <task
 1. Log progress/status:
 
 ```bash
-export SHELLCORP_AGENT_ID=<agentId>
-export SHELLCORP_TEAM_ID=team-proj-<slug>
+export FARPLANE_AGENT_ID=<agentId>
+export FARPLANE_TEAM_ID=team-proj-<slug>
 
 npm run shell -- status \
   --state executing \
@@ -67,8 +67,8 @@ npm run shell -- team board task block --team-id team-proj-<slug> --task-id <tas
 
 Use least-privilege role/permissions:
 
-- `SHELLCORP_ACTOR_ROLE` (example: `biz_executor`)
-- `SHELLCORP_ALLOWED_PERMISSIONS` (example: `team.read,team.board.write,team.activity.write`)
+- `FARPLANE_ACTOR_ROLE` (example: `biz_executor`)
+- `FARPLANE_ALLOWED_PERMISSIONS` (example: `team.read,team.board.write,team.activity.write`)
 
 If denied, CLI returns:
 
@@ -78,6 +78,6 @@ If denied, CLI returns:
 
 - Always include `--team-id`.
 - Use `--json` when output is consumed by another tool.
-- Use `status` with `SHELLCORP_AGENT_ID` + `SHELLCORP_TEAM_ID` exported in-shell.
+- Use `status` with `FARPLANE_AGENT_ID` + `FARPLANE_TEAM_ID` exported in-shell.
 - Use `--step-key` for idempotent status logs.
 - Prefer `task update` over delete/recreate so history stays auditable.

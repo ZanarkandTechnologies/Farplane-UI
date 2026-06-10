@@ -5,7 +5,7 @@ This document defines the payload normalization and dispatch contract for Notion
 ## Goal
 
 - Keep the public webhook URL stable and plugin-owned.
-- Keep ShellCorp app canonical for workflow orchestration.
+- Keep Farplane app canonical for workflow orchestration.
 - Trigger agent runs from Notion comments only when intent is explicit (wake-word).
 
 ## Endpoint Contract

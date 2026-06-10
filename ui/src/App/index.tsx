@@ -406,7 +406,7 @@ export function App({ initialTab = "operations" }: AppProps): JSX.Element {
     <main className="app">
       <header className="panel topbar">
         <div>
-          <p className="eyebrow">Shell Company</p>
+          <p className="eyebrow">Farplane AI</p>
           <h1>OpenClaw Office Control Center</h1>
           <p className="eyebrow">Gateway: {gatewayBase}</p>
         </div>

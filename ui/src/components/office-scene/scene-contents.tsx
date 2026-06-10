@@ -132,6 +132,15 @@ export function SceneContents(props: OfficeSceneProps): JSX.Element {
     desks,
     officeViewSettings,
   });
+  const navigableOfficeObjectCount = useMemo(() => {
+    if (!enableOfficeObjects) return 0;
+    return officeObjects.filter((object) => {
+      if (object.meshType === "wall-art") return false;
+      if (object.meshType !== "team-cluster") return true;
+      const teamId = typeof object.metadata?.teamId === "string" ? object.metadata.teamId : "";
+      return teamById.has(teamId);
+    }).length;
+  }, [enableOfficeObjects, officeObjects, teamById]);
   const consultCameraTarget = useMemo<[number, number, number] | null>(() => {
     if (!isChatOpen || presentationMode !== "story") return null;
     const fallbackEmployeeId = (() => {
@@ -147,8 +156,7 @@ export function SceneContents(props: OfficeSceneProps): JSX.Element {
   const { orbitControlsRef, floorRef, createRegisteredObjectRef, getObjectRef } =
     useOfficeSceneBootstrap({
       officeLayout,
-      officeObjectCount:
-        officeObjects?.filter((object) => object.meshType !== "wall-art").length ?? 0,
+      officeObjectCount: navigableOfficeObjectCount,
       onNavigationReady,
     });
 

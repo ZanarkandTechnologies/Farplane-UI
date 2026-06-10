@@ -314,7 +314,7 @@ describe("team business skill sync adapter", () => {
             role: "biz_pm",
             mode: "replace_minimum",
             beforeSkills: [],
-            afterSkills: ["shellcorp-team-cli", "video-generator"],
+            afterSkills: ["farplane-team-cli", "video-generator"],
           },
         ],
       }),

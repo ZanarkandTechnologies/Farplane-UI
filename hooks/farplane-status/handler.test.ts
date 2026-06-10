@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { classifyEvent } from "./handler";
 
-describe("shellcorp-status hook transform", () => {
+describe("farplane-status hook transform", () => {
   it("classifies heartbeat start from inbound prompt", () => {
     const events = classifyEvent({
       type: "message",

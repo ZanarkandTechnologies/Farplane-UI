@@ -6,7 +6,7 @@
  * - Heartbeat file rendering and syncing from workspace templates.
  *
  * KEY CONCEPTS:
- * - Convex endpoint resolution prefers shell env, then persisted ShellCorp runtime config in `shellcorp.json`.
+ * - Convex endpoint resolution prefers shell env, then persisted Farplane runtime config in `farplane.json`.
  * - Heartbeat render helpers call readBoardSnapshot to fill template variables.
  *
  * USAGE:
@@ -40,7 +40,7 @@ import {
 
 function normalizeConvexSiteUrl(raw: string): string {
   if (!raw) {
-    throw new Error("missing_convex_site_url:set SHELLCORP_CONVEX_SITE_URL or rerun shellcorp onboarding");
+    throw new Error("missing_convex_site_url:set FARPLANE_CONVEX_SITE_URL or rerun farplane onboarding");
   }
   let parsed: URL;
   try {
@@ -56,9 +56,9 @@ function normalizeConvexSiteUrl(raw: string): string {
 
 async function readPersistedConvexSiteUrl(): Promise<string> {
   const stateRoot = resolveOpenclawStateRoot();
-  const shellcorpConfigPath = path.join(stateRoot, "shellcorp.json");
+  const farplaneConfigPath = path.join(stateRoot, "farplane.json");
   try {
-    const raw = await readFile(shellcorpConfigPath, "utf-8");
+    const raw = await readFile(farplaneConfigPath, "utf-8");
     const config = asRecord(JSON.parse(raw) as unknown);
     const convex = asRecord(config.convex);
     return typeof convex.siteUrl === "string" ? convex.siteUrl.trim() : "";
@@ -69,13 +69,13 @@ async function readPersistedConvexSiteUrl(): Promise<string> {
 
 async function resolveConvexSiteUrl(): Promise<string> {
   const envRaw =
-    process.env.SHELLCORP_CONVEX_SITE_URL?.trim() || process.env.CONVEX_SITE_URL?.trim() || "";
+    process.env.FARPLANE_CONVEX_SITE_URL?.trim() || process.env.CONVEX_SITE_URL?.trim() || "";
   if (envRaw) return normalizeConvexSiteUrl(envRaw);
 
   const persistedRaw = await readPersistedConvexSiteUrl();
   if (persistedRaw) return normalizeConvexSiteUrl(persistedRaw);
 
-  throw new Error("missing_convex_site_url:set SHELLCORP_CONVEX_SITE_URL or rerun shellcorp onboarding");
+  throw new Error("missing_convex_site_url:set FARPLANE_CONVEX_SITE_URL or rerun farplane onboarding");
 }
 
 function classifyFetchFailure(error: unknown): string {
@@ -108,12 +108,12 @@ export async function postConvexJson(
   const endpoint = `${baseUrl}${pathname}`;
   const headers: Record<string, string> = {
     "content-type": "application/json",
-    "x-shellcorp-actor-role": readActorRole(),
+    "x-farplane-actor-role": readActorRole(),
   };
-  const token = process.env.SHELLCORP_BOARD_OPERATOR_TOKEN?.trim();
-  if (token) headers["x-shellcorp-board-token"] = token;
-  const allowed = process.env.SHELLCORP_ALLOWED_PERMISSIONS?.trim();
-  if (allowed) headers["x-shellcorp-allowed-permissions"] = allowed;
+  const token = process.env.FARPLANE_BOARD_OPERATOR_TOKEN?.trim();
+  if (token) headers["x-farplane-board-token"] = token;
+  const allowed = process.env.FARPLANE_ALLOWED_PERMISSIONS?.trim();
+  if (allowed) headers["x-farplane-allowed-permissions"] = allowed;
 
   let response: Response;
   try {
@@ -238,7 +238,7 @@ export async function tryLogCliActivity(payload: {
   beatId?: string;
 }): Promise<void> {
   const actorAgentId =
-    payload.actorAgentId?.trim() || process.env.SHELLCORP_ACTOR_AGENT_ID?.trim() || "agent-unknown";
+    payload.actorAgentId?.trim() || process.env.FARPLANE_ACTOR_AGENT_ID?.trim() || "agent-unknown";
   try {
     await postBoardCommand({
       projectId: payload.projectId,
@@ -255,7 +255,7 @@ export async function tryLogCliActivity(payload: {
           : undefined,
       stepKey: `cli-log-${actorAgentId}-${Date.now()}`,
       status: "planning",
-      skillId: payload.source?.trim() || "shellcorp_cli",
+      skillId: payload.source?.trim() || "farplane_cli",
     });
   } catch {
     // Fire-and-forget sink: CLI sidecar mutations must still succeed even if Convex logging is unavailable.
@@ -437,7 +437,7 @@ export async function ensureOpenclawHeartbeatScaffold(opts: {
   const hooksNode = asRecord(config.hooks);
   const internalHooksNode = asRecord(hooksNode.internal);
   const hookEntriesNode = asRecord(internalHooksNode.entries);
-  const shellcorpStatusNode = asRecord(hookEntriesNode["shellcorp-status"]);
+  const farplaneStatusNode = asRecord(hookEntriesNode["farplane-status"]);
 
   const nextConfig = {
     ...config,
@@ -448,7 +448,7 @@ export async function ensureOpenclawHeartbeatScaffold(opts: {
         enabled: true,
         entries: {
           ...hookEntriesNode,
-          "shellcorp-status": { ...shellcorpStatusNode, enabled: true },
+          "farplane-status": { ...farplaneStatusNode, enabled: true },
         },
       },
     },

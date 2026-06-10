@@ -2,13 +2,13 @@ interface:
   display_name: "Create Team"
   short_description: "Workflow skill for shaping a team proposal from a business brief and advancing it through the founder approval path."
   brand_color: "#2563EB"
-  default_prompt: "Use this skill when the operator wants to start a new ShellCorp team from an idea rather than run a single CLI mutation."
+  default_prompt: "Use this skill when the operator wants to start a new Farplane team from an idea rather than run a single CLI mutation."
 policy:
   allow_implicit_invocation: true
 dependencies:
   tools: []
   skills:
-    - "shellcorp-team-cli"
+    - "farplane-team-cli"
   docs:
     - "./tests/team-proposal-lifecycle.md"
 state:
@@ -23,7 +23,7 @@ visualization:
     flowchart TD
       brief[Clarify business brief] --> research[Research operating shape]
       research --> proposal[Write proposal packet]
-      proposal --> persist[Persist through shellcorp-team-cli]
+      proposal --> persist[Persist through farplane-team-cli]
       persist --> review[Wait for founder review]
       review --> execute[Execute approved proposal]
 references:

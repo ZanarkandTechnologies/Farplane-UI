@@ -1,18 +1,18 @@
 # Feature: Teams, Workspaces, And Heartbeats
 
-This page explains how ShellCorp turns one business goal into a running OpenClaw-backed team.
+This page explains how Farplane turns one business goal into a running OpenClaw-backed team.
 
 ## Value
 
 - Keep the team model simple: define a goal, create agents, give them a workspace, and let them execute.
 - Make autonomous work explicit and auditable instead of hiding it behind vague background automation.
-- Keep OpenClaw as the runtime source of truth while ShellCorp handles orchestration and operator visibility.
+- Keep OpenClaw as the runtime source of truth while Farplane handles orchestration and operator visibility.
 
 ## The Mental Model
 
-ShellCorp starts with one office.
+Farplane starts with one office.
 
-When you create a team, ShellCorp does not invent a separate runtime. It provisions OpenClaw-backed agents, gives each one a workspace and runbook files, and then installs heartbeat jobs that wake those agents to keep working.
+When you create a team, Farplane does not invent a separate runtime. It provisions OpenClaw-backed agents, gives each one a workspace and runbook files, and then installs heartbeat jobs that wake those agents to keep working.
 
 The short version is:
 
@@ -21,11 +21,11 @@ The short version is:
 3. Provision OpenClaw runtime entries and per-agent workspaces.
 4. Write role/runbook files such as `AGENTS.md` and `HEARTBEAT.md`.
 5. Upsert cron heartbeat jobs.
-6. Let the agents execute and inspect their work from ShellCorp.
+6. Let the agents execute and inspect their work from Farplane.
 
 ## What Team Creation Provisions
 
-When ShellCorp creates team agents, it also provisions the matching OpenClaw runtime surfaces:
+When Farplane creates team agents, it also provisions the matching OpenClaw runtime surfaces:
 
 - `~/.openclaw/openclaw.json`
   - adds or updates `agents.list` entries
@@ -53,13 +53,13 @@ These files give the agent a local operating context. `HEARTBEAT.md` is the most
 
 `HEARTBEAT.md` is the runbook for an agent's autonomous loop.
 
-In practice, ShellCorp uses it to tell the agent what kind of work to prioritize and how to behave on each wake-up. Business templates already exist for PM and executor roles, and those templates are copied into the agent workspace during setup.
+In practice, Farplane uses it to tell the agent what kind of work to prioritize and how to behave on each wake-up. Business templates already exist for PM and executor roles, and those templates are copied into the agent workspace during setup.
 
 That is the current mechanism behind "just let them rip": they are not free-running without guidance, they are repeatedly woken up and told to follow their local heartbeat runbook.
 
 ## Heartbeat Scheduling
 
-ShellCorp writes cron jobs into:
+Farplane writes cron jobs into:
 
 - `~/.openclaw/cron/jobs.json`
 
@@ -78,7 +78,7 @@ The repo currently supports several team shapes, but the business-oriented model
 - PM-style agents coordinate, reprioritize, and manage KPI pressure
 - executor-style agents ship the work
 
-That separation gives ShellCorp a usable founder/control loop without requiring a huge org chart.
+That separation gives Farplane a usable founder/control loop without requiring a huge org chart.
 
 For the MVP operator workflow, the main CLI surfaces should stay even simpler:
 
@@ -97,7 +97,7 @@ The recommended live loop is:
 
 This keeps heartbeat-driven work inspectable and easy to test without forcing every team through a large preset or a hidden orchestration layer.
 
-## Where ShellCorp Stops And OpenClaw Starts
+## Where Farplane Stops And OpenClaw Starts
 
 OpenClaw owns:
 
@@ -107,7 +107,7 @@ OpenClaw owns:
 - plugins
 - tool policy and sandbox policy
 
-ShellCorp owns:
+Farplane owns:
 
 - team formation
 - founder/operator workflow
@@ -126,7 +126,7 @@ At a high level, yes:
 - install the heartbeat jobs
 - let them work
 
-But the important detail is that ShellCorp makes this explicit and inspectable. The agents are not running as an undocumented swarm. They have named workspaces, role files, heartbeat runbooks, session history, and a visible operator surface.
+But the important detail is that Farplane makes this explicit and inspectable. The agents are not running as an undocumented swarm. They have named workspaces, role files, heartbeat runbooks, session history, and a visible operator surface.
 
 That operator surface now centers on the Convex-backed team timeline surfaced through Team Timeline and `team monitor`.
 

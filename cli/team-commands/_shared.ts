@@ -166,26 +166,26 @@ export const execFileAsync = promisify(execFile);
 // ─── Permission helpers ───────────────────────────────────────────────────────
 
 export function readActorRole(): string {
-  return (process.env.SHELLCORP_ACTOR_ROLE?.trim().toLowerCase() || "operator").replace(
+  return (process.env.FARPLANE_ACTOR_ROLE?.trim().toLowerCase() || "operator").replace(
     /\s+/g,
     "_",
   );
 }
 
 export function readActorAgentId(): string | undefined {
-  const direct = process.env.SHELLCORP_AGENT_ID?.trim();
+  const direct = process.env.FARPLANE_AGENT_ID?.trim();
   if (direct) return direct;
-  const legacy = process.env.SHELLCORP_ACTOR_AGENT_ID?.trim();
+  const legacy = process.env.FARPLANE_ACTOR_AGENT_ID?.trim();
   return legacy || undefined;
 }
 
 export function readActorTeamId(): string | undefined {
-  const teamId = process.env.SHELLCORP_TEAM_ID?.trim();
+  const teamId = process.env.FARPLANE_TEAM_ID?.trim();
   return teamId || undefined;
 }
 
 export function readActorProjectId(): string | undefined {
-  const projectId = process.env.SHELLCORP_PROJECT_ID?.trim();
+  const projectId = process.env.FARPLANE_PROJECT_ID?.trim();
   return projectId || undefined;
 }
 
@@ -207,7 +207,7 @@ export function renderShellUnsets(keys: string[], shell: ShellName = "bash"): st
 }
 
 export function resolveAllowedPermissions(): Set<TeamPermission> | "all" {
-  const raw = process.env.SHELLCORP_ALLOWED_PERMISSIONS?.trim();
+  const raw = process.env.FARPLANE_ALLOWED_PERMISSIONS?.trim();
   if (raw) {
     const tokens = raw
       .split(",")
@@ -319,12 +319,12 @@ export function layeredHeartbeatTemplate(roleName: string, projectName: string):
     "- Emit `executing` when work starts and `blocked` whenever blocked.",
     "- If status report fails, retry once; if still failing, output `STATUS: MOCK_STATUS(report_failed)`.",
     "- Preflight checks:",
-    "  - `command -v shellcorp`",
-    '  - `export SHELLCORP_AGENT_ID="<agent-id>"`',
-    '  - `export SHELLCORP_TEAM_ID="<team-id>"`',
-    '  - `test -n "$SHELLCORP_CONVEX_SITE_URL" || test -n "$CONVEX_SITE_URL"`',
+    "  - `command -v farplane`",
+    '  - `export FARPLANE_AGENT_ID="<agent-id>"`',
+    '  - `export FARPLANE_TEAM_ID="<team-id>"`',
+    '  - `test -n "$FARPLANE_CONVEX_SITE_URL" || test -n "$CONVEX_SITE_URL"`',
     "- Preferred command pattern:",
-    '  shellcorp status --state planning "<your decision>"',
+    '  farplane status --state planning "<your decision>"',
     "- `status` writes both live status and timeline context in one call.",
     "- If tools are unavailable, output a clear MOCK_STATUS line instead.",
     "",
@@ -565,11 +565,11 @@ export function resolveCliActorContext(opts: {
   }
 
   if (!opts.allowOperator) {
-    throw new Error("missing_agent_identity:use_shellcorp_agent_login_or_--agent-id");
+    throw new Error("missing_agent_identity:use_farplane_agent_login_or_--agent-id");
   }
 
   if (!requestedTeamId) {
-    throw new Error("missing_team_id:use_--team-id_or_SHELLCORP_TEAM_ID");
+    throw new Error("missing_team_id:use_--team-id_or_FARPLANE_TEAM_ID");
   }
   const { projectId } = resolveProjectOrFail(opts.company, requestedTeamId);
   if (envProjectId && envProjectId !== projectId) {
@@ -761,8 +761,8 @@ export function buildTeamBusinessSkillTargets(project: CompanyModel["projects"][
   const trackerSkills = uniqueSkills(
     (project.resources ?? []).map((resource) => resource.trackerSkillId),
   );
-  const sharedCore = ["shellcorp-team-cli", "status-self-reporter"];
-  const pmCore = ["shellcorp-kanban-ops", "ledger-manager", "experiment-runner"];
+  const sharedCore = ["farplane-team-cli", "status-self-reporter"];
+  const pmCore = ["farplane-kanban-ops", "ledger-manager", "experiment-runner"];
   return {
     pmSkills: uniqueSkills([...sharedCore, ...pmCore, ...slotSkills, ...trackerSkills]),
     executorSkills: uniqueSkills([...sharedCore, ...slotSkills]),

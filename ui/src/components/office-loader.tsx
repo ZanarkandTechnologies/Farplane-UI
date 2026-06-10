@@ -6,7 +6,7 @@
  * KEY CONCEPTS:
  * - This module owns only the loading overlay presentation; bootstrap state lives in
  *   `office-bootstrap.ts` and `office-simulation.tsx`.
- * - The loader stays centered, but it must still read like the rest of ShellCorp's
+ * - The loader stays centered, but it must still read like the rest of Farplane's
  *   square-edged material HUD instead of inventing a separate visual language.
  * - Bootstrap stages render as wrapped status cards so long detail copy stays readable
  *   without truncation.
@@ -47,7 +47,7 @@ export function OfficeLoader({ completionRatio, stages }: OfficeLoaderProps): Re
 
           <div className="relative flex max-w-2xl flex-col items-center gap-3">
             <p className="text-xs font-medium uppercase tracking-[0.34em] text-muted-foreground">
-              ShellCorp
+              Farplane
             </p>
             <h2 className="text-3xl font-semibold tracking-[0.08em] text-foreground sm:text-4xl">
               Loading office

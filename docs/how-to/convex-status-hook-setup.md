@@ -1,18 +1,18 @@
 # Convex Status Reporting (Self-Report First)
 
-This runbook configures ShellCorp status tracking using agent self-reports to Convex. Hook-based message inference is optional diagnostics only and is disabled by default for production status.
+This runbook configures Farplane status tracking using agent self-reports to Convex. Hook-based message inference is optional diagnostics only and is disabled by default for production status.
 
 ## 1) Set environment variables
 
 In your OpenClaw gateway/agent environment:
 
-- `SHELLCORP_CONVEX_SITE_URL=https://<your-deployment>.convex.site`
+- `FARPLANE_CONVEX_SITE_URL=https://<your-deployment>.convex.site`
 
-Self-report tooling uses `SHELLCORP_CONVEX_SITE_URL` first, then `CONVEX_SITE_URL` as fallback.
+Self-report tooling uses `FARPLANE_CONVEX_SITE_URL` first, then `CONVEX_SITE_URL` as fallback.
 
 ## 2) Disable legacy status hook path (default)
 
-Use discovery `entries` config and do not enable `shellcorp-status` for primary status:
+Use discovery `entries` config and do not enable `farplane-status` for primary status:
 
 ```json
 {
@@ -20,7 +20,7 @@ Use discovery `entries` config and do not enable `shellcorp-status` for primary 
     "internal": {
       "enabled": true,
       "entries": {
-        "shellcorp-status": { "enabled": false }
+        "farplane-status": { "enabled": false }
       }
     }
   }

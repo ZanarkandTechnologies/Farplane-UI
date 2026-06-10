@@ -2,10 +2,10 @@
  * CLI INSTALL
  * ===========
  * Purpose
- * - Centralize ShellCorp CLI install and reinstall command flows.
+ * - Centralize Farplane CLI install and reinstall command flows.
  *
  * KEY CONCEPTS:
- * - The global `shellcorp` alias is managed through `npm link` at the repo root.
+ * - The global `farplane` alias is managed through `npm link` at the repo root.
  * - Reinstall refreshes dependencies, rebuilds the CLI bundle, and relinks the alias.
  *
  * USAGE:
@@ -91,7 +91,7 @@ export async function installShellcorpCli(params: {
       ok: false,
       status: "skipped",
       command,
-      note: "CLI install skipped. Run `npm link` later if you want the global `shellcorp` alias.",
+      note: "CLI install skipped. Run `npm link` later if you want the global `farplane` alias.",
     };
   }
 
@@ -115,7 +115,7 @@ export async function installShellcorpCli(params: {
       ok: true,
       status: "installed",
       command,
-      note: "Global `shellcorp` alias is installed for this repo.",
+      note: "Global `farplane` alias is installed for this repo.",
     };
   } catch (error) {
     const detail = extractErrorDetail(error);
@@ -172,7 +172,7 @@ export async function reinstallShellcorpCli(params: {
     }
   }
 
-  const unlinkStep = await runStep(params.repoRoot, ["unlink", "-g", "shellcorp"]);
+  const unlinkStep = await runStep(params.repoRoot, ["unlink", "-g", "farplane"]);
   steps.push(
     unlinkStep.ok
       ? unlinkStep
@@ -199,7 +199,7 @@ export async function reinstallShellcorpCli(params: {
     attempted: true,
     ok: true,
     status: "reinstalled",
-    note: "Global `shellcorp` alias was refreshed against the current repo checkout.",
+    note: "Global `farplane` alias was refreshed against the current repo checkout.",
     steps,
   };
 }

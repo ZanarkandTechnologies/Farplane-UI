@@ -1,6 +1,6 @@
 ---
-name: ShellCorp Refactor
-overview: "Systematic refactor of ShellCorp across remaining phases: extract shared utilities to eliminate DRY violations, decompose large UI components into folder-with-index structure, split the monolithic adapter file into domain modules, and apply targeted useMemo/hook optimizations in the office simulation. Guided by the tech-impl-plan and React best practices skills."
+name: Farplane Refactor
+overview: "Systematic refactor of Farplane across remaining phases: extract shared utilities to eliminate DRY violations, decompose large UI components into folder-with-index structure, split the monolithic adapter file into domain modules, and apply targeted useMemo/hook optimizations in the office simulation. Guided by the tech-impl-plan and React best practices skills."
 todos:
   - id: phase1-utils
     content: "Phase 1: Extract shared utilities — convex/_utils.ts, cli/constants.ts, ui/src/lib/format-utils.ts, ui/src/lib/entity-utils.ts, unify AgentState type"
@@ -23,7 +23,7 @@ todos:
 isProject: false
 ---
 
-# ShellCorp Refactor Plan
+# Farplane Refactor Plan
 
 ## Context
 

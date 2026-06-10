@@ -1,7 +1,7 @@
 /**
  * OPENCLAW ADAPTER
  * ================
- * Maps OpenClaw-backed HTTP surfaces into Shell Company UI contracts.
+ * Maps OpenClaw-backed HTTP surfaces into Farplane AI UI contracts.
  */
 import type {
   AgentLiveStatus,

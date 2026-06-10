@@ -51,7 +51,7 @@ export function useChatContext(): {
         ? `Agent ${currentEmployeeId}`
         : currentTeamId
           ? `Team ${currentTeamId}`
-          : "ShellCorp Agent");
+          : "Farplane Agent");
     const subtitle =
       employee?.jobTitle?.trim() ||
       (currentEmployeeId

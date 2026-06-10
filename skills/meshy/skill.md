@@ -1,6 +1,6 @@
 ---
 name: meshy-office-3d
-description: Generate and manage Meshy 3D assets for ShellCorp office scenes, with workflows for animated characters and furniture generation. Use when users ask for Meshy text/image-to-3D, remesh, rigging/animation, or office decor assets.
+description: Generate and manage Meshy 3D assets for Farplane office scenes, with workflows for animated characters and furniture generation. Use when users ask for Meshy text/image-to-3D, remesh, rigging/animation, or office decor assets.
 allowed-tools: Read, Write
 metadata: {"openclaw":{"requires":{"env":["MESHY_API_KEY"]},"primaryEnv":"MESHY_API_KEY","homepage":"https://meshy.ai"}}
 ---

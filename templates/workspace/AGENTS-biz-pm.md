@@ -2,7 +2,7 @@
 
 ## Role
 
-Business PM operator for a ShellCorp project.
+Business PM operator for a Farplane project.
 
 ## Objectives
 

@@ -1,4 +1,4 @@
-# Shell Company MVP Progress
+# Farplane AI MVP Progress
 
 Legacy reference document. The active planning and execution board now lives under `tickets/*`; do not use this file as the primary workflow surface for new work.
 
@@ -45,7 +45,7 @@ UI-first OpenClaw mapping pivot:
 - Fixed office placement persistence regression: drag-release updates now resolve canonical office-object IDs across UI/persistence boundaries, re-sync local transforms after reload, and preserve last confirmed transform on save failure; added targeted tests and QA artifacts for placement persistence.
 - Added two-phase Notion comment webhook flow: temporary FastAPI payload probe (`tools/notion-webhook-probe`) for verification/capture, then OpenClaw hooks mapping + transform hot-swap (`~/.openclaw/hooks/transforms/notion.ts`) with comments-first routing.
 - Added thin agent coordination on the CLI: `agent list`, `agent search`, and `agent send` now wrap native `openclaw agent` turns and emit one shared `handoff` breadcrumb into the team timeline instead of restoring a separate communications channel.
-- Added session-scoped CLI actor identity: `agent login`, `agent logout`, and `whoami` now establish env-backed caller context (`SHELLCORP_AGENT_ID` plus derived team/project/role), top-level `status` resolves from that shared context, and conflicting manual team/project overrides fail fast.
+- Added session-scoped CLI actor identity: `agent login`, `agent logout`, and `whoami` now establish env-backed caller context (`FARPLANE_AGENT_ID` plus derived team/project/role), top-level `status` resolves from that shared context, and conflicting manual team/project overrides fail fast.
 
 ---
 
@@ -56,8 +56,8 @@ UI-first OpenClaw mapping pivot:
 
 ## Mini-PRD Context
 
-- **Goal:** Ship a daily competitor-intel workflow that reads `skills/competitor-feature-scout/watchlist.md`, scans last-day commits with `skills/competitor-feature-scout/SKILL.md`, and posts bounded adoption findings to the main agent bot via ShellCorp CLI.
-- **User Outcome:** An operator or CEO agent can maintain a small repo watchlist and receive auditable, bounded follow-up work on the correct ShellCorp team board without manually re-checking the same commit ranges.
+- **Goal:** Ship a daily competitor-intel workflow that reads `skills/competitor-feature-scout/watchlist.md`, scans last-day commits with `skills/competitor-feature-scout/SKILL.md`, and posts bounded adoption findings to the main agent bot via Farplane CLI.
+- **User Outcome:** An operator or CEO agent can maintain a small repo watchlist and receive auditable, bounded follow-up work on the correct Farplane team board without manually re-checking the same commit ranges.
 - **Constraints:** Follow `MEM-0152` (watchlist-driven, modular, cheap query before deeper analysis, bounded task creation), `MEM-0153` (CLI-and-skill-first workflow ownership), existing `team board task add` / Convex board flow, and current OpenClaw cron job patterns under `~/.openclaw/cron/jobs.json`.
 - **Risks:** Repo fetch/auth ambiguity, duplicate tasks from repeated commit ranges, noisy heuristics, unclear boundary between deterministic CLI work and agent skill reasoning, and missing confidence/task-cap defaults.
 - **Success Criteria:** One command can run the workflow end-to-end for a watchlist subset; cron can trigger it on cadence; state prevents reprocessing; digests/proposal history are persisted; only capped high-confidence `adapt` items create tasks.
@@ -71,11 +71,11 @@ UI-first OpenClaw mapping pivot:
 ## Technical Implementation Plan
 
 - **Scope (this slice only):** CLI-first competitor-intel orchestration plus cron bootstrap and persisted artifacts. No new UI surface. No webhook mode.
-- **Skills to honor:** `competitor-feature-scout`, `shellcorp-team-cli`, `shellcorp-kanban-ops`, `status-self-reporter`. Delegation: Not needed.
-- **Recommended architecture:** Keep fetch/filter/state/task-boundary logic deterministic in ShellCorp CLI, and keep the higher-cost proposal reasoning skill-driven at the CEO-agent layer. The implementation should materialize the skill contracts as explicit artifact and command boundaries instead of inventing a second workflow backend.
+- **Skills to honor:** `competitor-feature-scout`, `farplane-team-cli`, `farplane-kanban-ops`, `status-self-reporter`. Delegation: Not needed.
+- **Recommended architecture:** Keep fetch/filter/state/task-boundary logic deterministic in Farplane CLI, and keep the higher-cost proposal reasoning skill-driven at the CEO-agent layer. The implementation should materialize the skill contracts as explicit artifact and command boundaries instead of inventing a second workflow backend.
 - **Touched Files / Interfaces / Systems:**
   - `skills/competitor-feature-scout/watchlist.md`
-  - `cli/shellcorp-cli.ts`
+  - `cli/farplane-cli.ts`
   - new `cli/meta-commands/*` registrar and helpers
   - `cli/sidecar-store.ts` or adjacent helper for `~/.openclaw/competitor-intel/**`
   - shared board-task creation helper extracted from `cli/team-commands/team-board.ts` if needed
@@ -124,7 +124,7 @@ UI-first OpenClaw mapping pivot:
 
 - **Test Case 3: Cron install writes a stable CEO workflow job**
   - Given: a CEO agent id and empty `~/.openclaw/cron/jobs.json`
-  - When: `npm run shell -- meta competitor-repos cron install --agent-id shellcorp-ceo`
+  - When: `npm run shell -- meta competitor-repos cron install --agent-id farplane-ceo`
   - Then: `jobs.json` contains one enabled competitor-meta job with the expected cadence and a payload message that explicitly tells the agent to run `competitor-feature-scout`.
   - Observable assertion: rerunning install updates the existing job instead of adding duplicates.
 
@@ -163,7 +163,7 @@ UI-first OpenClaw mapping pivot:
 
 - [ ] The operator can point at `skills/competitor-feature-scout/watchlist.md` and explain the whole workflow without additional config files.
 - [ ] The CEO agent prompt/job is explicit enough that the two research skills are actually usable in practice.
-- [ ] The produced tasks are obviously ShellCorp-native adaptations, not competitor copy notes.
+- [ ] The produced tasks are obviously Farplane-native adaptations, not competitor copy notes.
 
 ## Approval Handoff
 

@@ -907,7 +907,7 @@ export function registerTeamBoard(team: Command, store: SidecarStore): void {
     .option("--skill-id <skillId>", "Optional related skill id")
     .option("--session-key <sessionKey>", "Optional OpenClaw session key")
     .option("--beat-id <beatId>", "Optional heartbeat beat id")
-    .option("--source <source>", "Optional source label", "shellcorp_cli")
+    .option("--source <source>", "Optional source label", "farplane_cli")
     .option("--occurred-at <epochMs>", "Optional occurred timestamp", (value) => {
       const parsed = Number.parseInt(value, 10);
       if (!Number.isFinite(parsed) || parsed < 0) fail(`invalid_occurred_at:${value}`);
@@ -946,7 +946,7 @@ export function registerTeamBoard(team: Command, store: SidecarStore): void {
           skillId: opts.skillId?.trim() || undefined,
           sessionKey: opts.sessionKey?.trim() || undefined,
           beatId: optionalBeatId(opts.beatId),
-          source: opts.source?.trim() || "shellcorp_cli",
+          source: opts.source?.trim() || "farplane_cli",
           occurredAt: opts.occurredAt,
         });
         await writeBoardEvent({
@@ -960,7 +960,7 @@ export function registerTeamBoard(team: Command, store: SidecarStore): void {
             stepKey,
             skillId: opts.skillId?.trim() || undefined,
             sessionKey: opts.sessionKey?.trim() || undefined,
-            source: opts.source?.trim() || "shellcorp_cli",
+            source: opts.source?.trim() || "farplane_cli",
           },
         });
         formatOutput(

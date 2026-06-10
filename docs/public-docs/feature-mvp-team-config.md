@@ -1,6 +1,6 @@
 # Feature: MVP Team Config
 
-This is the reduced MVP surface for configuring and testing autonomous teams in ShellCorp.
+This is the reduced MVP surface for configuring and testing autonomous teams in Farplane.
 
 ## Why Simplify
 
@@ -26,13 +26,13 @@ Team config should answer:
 - what roles are expected
 - what resources or constraints exist
 
-ShellCorp now exposes this through:
+Farplane now exposes this through:
 
 ```bash
-shellcorp team config show --team-id team-proj-alpha --json
-shellcorp team config resources init --team-id team-proj-alpha
-shellcorp team config resources get --team-id team-proj-alpha
-shellcorp team config resources set --team-id team-proj-alpha --text "# Resources ..."
+farplane team config show --team-id team-proj-alpha --json
+farplane team config resources init --team-id team-proj-alpha
+farplane team config resources get --team-id team-proj-alpha
+farplane team config resources set --team-id team-proj-alpha --text "# Resources ..."
 ```
 
 ### Why resources are file-backed for now
@@ -60,27 +60,27 @@ Agent config should answer:
 - what heartbeat profile it follows
 - where its workspace lives
 
-ShellCorp now exposes this through:
+Farplane now exposes this through:
 
 ```bash
-shellcorp agent config show --agent-id alpha-pm --json
-shellcorp agent config set-skills --agent-id alpha-builder --skills shellcorp-team-cli,status-self-reporter
-shellcorp agent config set-heartbeat --agent-id alpha-pm --cadence-minutes 1 --goal "Fast demo loop"
-shellcorp agent monitor --agent-id alpha-pm --json
+farplane agent config show --agent-id alpha-pm --json
+farplane agent config set-skills --agent-id alpha-builder --skills farplane-team-cli,status-self-reporter
+farplane agent config set-heartbeat --agent-id alpha-pm --cadence-minutes 1 --goal "Fast demo loop"
+farplane agent monitor --agent-id alpha-pm --json
 ```
 
 Per-agent heartbeat edits create a dedicated agent heartbeat profile so one debug tweak does not silently mutate every other agent sharing a default profile.
 
 ### Run / test
 
-The MVP does not need a separate run engine. OpenClaw is the run engine. ShellCorp should only make it easy to retune the real heartbeat and inspect the runtime state.
+The MVP does not need a separate run engine. OpenClaw is the run engine. Farplane should only make it easy to retune the real heartbeat and inspect the runtime state.
 
-ShellCorp now exposes:
+Farplane now exposes:
 
 ```bash
-shellcorp team run show --team-id team-proj-alpha --json
-shellcorp team run live --team-id team-proj-alpha --cadence-minutes 1 --goal "Live demo loop"
-shellcorp team run test-mode --team-id team-proj-alpha --cadence-minutes 1 --goal "Fast demo loop"
+farplane team run show --team-id team-proj-alpha --json
+farplane team run live --team-id team-proj-alpha --cadence-minutes 1 --goal "Live demo loop"
+farplane team run test-mode --team-id team-proj-alpha --cadence-minutes 1 --goal "Fast demo loop"
 ```
 
 This keeps the loop straightforward:
@@ -107,11 +107,11 @@ Monitoring should stay readable. The operator mainly needs:
 - canonical event log path
 - recent structured events
 
-ShellCorp now exposes:
+Farplane now exposes:
 
 ```bash
-shellcorp team monitor --team-id team-proj-alpha --json
-shellcorp agent monitor --agent-id alpha-pm --json
+farplane team monitor --team-id team-proj-alpha --json
+farplane agent monitor --agent-id alpha-pm --json
 ```
 
 The canonical monitoring files are now:
@@ -119,7 +119,7 @@ The canonical monitoring files are now:
 - `~/.openclaw/projects/<projectId>/logs/`
 - `~/.openclaw/projects/<projectId>/outputs/`
 
-ShellCorp appends structured events for:
+Farplane appends structured events for:
 
 - live/test heartbeat cadence changes
 - task lifecycle changes
@@ -137,7 +137,7 @@ The MVP model is now:
 - `team run`
 - `monitor`
 
-Presets can still exist as bootstrapping helpers, but they should not be the main mental model, and ShellCorp should not maintain a second simulated runtime alongside OpenClaw.
+Presets can still exist as bootstrapping helpers, but they should not be the main mental model, and Farplane should not maintain a second simulated runtime alongside OpenClaw.
 
 The main mental model is explicit configuration plus fast iteration.
 

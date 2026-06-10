@@ -1,6 +1,6 @@
 # Feature: Decorations
 
-ShellCorp office decoration is CLI-first in the current phase.
+Farplane office decoration is CLI-first in the current phase.
 
 ## Value
 

@@ -100,7 +100,7 @@ Wake -> Read board state -> Decide action:
     -> Prioritize measurement and analysis
 
   ALWAYS:
-    -> Publish activity + live state via `shellcorp status`
+    -> Publish activity + live state via `farplane status`
 ```
 
 ### Executor Agent Heartbeat Loop
@@ -135,7 +135,7 @@ Wake -> Get next task from board -> Route by task type:
     -> Report findings to PM via activity log
 
   ALWAYS:
-    -> Report status transitions via `shellcorp status`
+    -> Report status transitions via `farplane status`
     -> Move task through board states (in_progress -> done)
 ```
 
@@ -155,8 +155,8 @@ Wake -> Get next task from board -> Route by task type:
 **CLI integration:**
 ```bash
 # Agent uses OpenClaw browser/computer-use to browse Amazon
-# Then creates tasks via ShellCorp CLI
-shellcorp team board task add \
+# Then creates tasks via Farplane CLI
+farplane team board task add \
   --team-id {teamId} \
   --title "Create video: {productName}" \
   --priority high \
@@ -192,7 +192,7 @@ infsh login
 2. Generate script: hook (3s) -> value demo (15s) -> CTA with affiliate link (5s)
 3. Choose model based on brief (avatar for UGC, veo for B-roll, remotion for data-driven)
 4. Run `infsh app run ...` and save output to workspace
-5. Log cost: `shellcorp team funds spend --team-id {id} --amount {cents} --source inference_sh --note "{model}"`
+5. Log cost: `farplane team funds spend --team-id {id} --amount {cents} --source inference_sh --note "{model}"`
 
 ### 3. TikTok Poster (`skills/distribute/tiktok-poster`)
 
@@ -208,7 +208,7 @@ infsh login
 
 **Post-publish:**
 - Capture post URL
-- Record via `shellcorp status --state distributing "Posted to TikTok: {url}"`
+- Record via `farplane status --state distributing "Posted to TikTok: {url}"`
 
 ### 4. Instagram Poster (`skills/distribute/instagram-poster`)
 
@@ -238,13 +238,13 @@ infsh login
 **Post-measurement:**
 ```bash
 # Write metric event
-shellcorp team business metric-add \
+farplane team business metric-add \
   --team-id {id} \
   --source amazon_associates \
   --metrics '{"clicks":240,"ordered_items":3,"revenue_cents":810}'
 
 # Write revenue to ledger if commission realized
-shellcorp team funds deposit \
+farplane team funds deposit \
   --team-id {id} \
   --amount {commissionCents} \
   --source amazon_associates \

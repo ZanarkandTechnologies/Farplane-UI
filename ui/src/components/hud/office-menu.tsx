@@ -6,7 +6,7 @@
  * Global office launcher for top-level HUD surfaces.
  *
  * KEY CONCEPTS:
- * - Keeps the operator menu focused on current ShellCorp workflows.
+ * - Keeps the operator menu focused on current Farplane workflows.
  * - Routes board-native human review through the shared CEO Workbench review view.
  *
  * USAGE:
@@ -215,7 +215,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
     }
 
     const qaWindow = window as typeof window & {
-      __SHELLCORP_QA__?: {
+      __FARPLANE_QA__?: {
         listPanels: () => Array<{
           description: string;
           id: OfficePanelActionId;
@@ -239,7 +239,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
       return true;
     };
 
-    qaWindow.__SHELLCORP_QA__ = {
+    qaWindow.__FARPLANE_QA__ = {
       listPanels: () =>
         officeActions
           .filter((action) => action.group === "panel")
@@ -255,7 +255,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
     };
 
     return () => {
-      delete qaWindow.__SHELLCORP_QA__;
+      delete qaWindow.__FARPLANE_QA__;
     };
   }, [officeActions]);
 

@@ -1,0 +1,319 @@
+"use client";
+
+/**
+ * CODEX RUNTIME ADAPTER
+ * =====================
+ * Default Farplane UI runtime for v0. It treats Codex as one flexible project
+ * worker and keeps persistent agent customization disabled until the Codex
+ * thread-map adapter exists.
+ */
+
+import { OpenClawAdapter } from "@/lib/openclaw-adapter";
+import {
+  CODEX_MAIN_AGENT_ID,
+  CodexAppServerClient,
+  findActiveTurnId,
+  parseCodexThreadId,
+  toCodexAgentCards,
+  toCodexCompanyModel,
+  toCodexLiveStatus,
+  toCodexMainLiveStatus,
+  toCodexSessionRows,
+  toCodexTimeline,
+  type CodexThread,
+} from "@/lib/codex-app-server";
+import type {
+  AgentCardModel,
+  AgentLiveStatus,
+  AgentIdentityResult,
+  AgentsListResult,
+  ChatSendRequest,
+  ChannelsStatusSnapshot,
+  CronJob,
+  CronStatus,
+  OpenClawConfigSnapshot,
+  SessionRowModel,
+  SessionTimelineModel,
+  ToolsCatalogResult,
+  UnifiedOfficeModel,
+} from "@/lib/openclaw-types";
+import type { GatewayWsClient } from "@/lib/gateway-ws-client";
+import type { RuntimeAdapterCapabilities } from "./contract";
+
+const CODEX_CAPABILITIES: RuntimeAdapterCapabilities = {
+  persistentAgents: false,
+  agentConfigWrite: false,
+  agentWorkspaceFiles: false,
+  agentSkillRuntimeControls: false,
+  toolPolicy: false,
+  channels: false,
+  scheduler: false,
+  sessionMessaging: true,
+  teamAgentProvisioning: false,
+  threadListing: true,
+  threadRead: true,
+  promptSend: true,
+  liveEvents: false,
+};
+
+function codexProjectPathsFromConfig(value: unknown): string[] {
+  if (!value || typeof value !== "object") return [];
+  const config = (value as { config?: { projects?: unknown } }).config;
+  const projects = config?.projects;
+  if (!projects || typeof projects !== "object" || Array.isArray(projects)) return [];
+  return Object.keys(projects).filter((projectPath) => projectPath.trim().length > 0);
+}
+
+function toCodexConfigSnapshot(
+  threads: CodexThread[],
+  projectPaths: string[] = [],
+): OpenClawConfigSnapshot {
+  const agents = toCodexAgentCards(threads);
+  const company = toCodexCompanyModel(threads, Date.now(), projectPaths);
+  return {
+    stateVersion: Date.now(),
+    config: {
+      runtime: { kind: "codex", label: "Codex" },
+      company,
+      agents: {
+        default: agents[0]?.agentId ?? CODEX_MAIN_AGENT_ID,
+        mainKey: CODEX_MAIN_AGENT_ID,
+        scope: "workspace",
+        list: agents.map((agent) => ({
+          id: agent.agentId,
+          name: agent.displayName,
+          workspacePath: agent.workspacePath,
+          agentDir: agent.agentDir,
+        })),
+      },
+    },
+  };
+}
+
+export class CodexRuntimeAdapter extends OpenClawAdapter {
+  readonly runtimeKind = "codex" as const;
+  readonly runtimeLabel = "Codex";
+  readonly capabilities = CODEX_CAPABILITIES;
+  private readonly codexClient: CodexAppServerClient;
+  private threadsCache: { loadedAt: number; threads: CodexThread[] } | null = null;
+  private projectPathsCache: { loadedAt: number; projectPaths: string[] } | null = null;
+
+  constructor(gatewayUrl: string, stateUrl: string = gatewayUrl, _wsClient?: GatewayWsClient) {
+    super(gatewayUrl, stateUrl);
+    this.codexClient = new CodexAppServerClient({ stateUrl });
+  }
+
+  private async listCodexThreads(options: { force?: boolean } = {}): Promise<CodexThread[]> {
+    const now = Date.now();
+    if (!options.force && this.threadsCache && now - this.threadsCache.loadedAt < 5000) {
+      return this.threadsCache.threads;
+    }
+    const response = await this.codexClient.listThreads(80);
+    const threads = Array.isArray(response.data) ? response.data.filter((thread) => thread.id) : [];
+    this.threadsCache = { loadedAt: now, threads };
+    return threads;
+  }
+
+  private async listCodexProjectPaths(options: { force?: boolean } = {}): Promise<string[]> {
+    const now = Date.now();
+    if (
+      !options.force &&
+      this.projectPathsCache &&
+      now - this.projectPathsCache.loadedAt < 30000
+    ) {
+      return this.projectPathsCache.projectPaths;
+    }
+    const response = await this.codexClient.readConfig();
+    const projectPaths = codexProjectPathsFromConfig(response);
+    this.projectPathsCache = { loadedAt: now, projectPaths };
+    return projectPaths;
+  }
+
+  async listAgents(): Promise<AgentCardModel[]> {
+    try {
+      const agents = toCodexAgentCards(await this.listCodexThreads());
+      if (agents.length > 0) return agents;
+    } catch {
+      // Codex mode can still render the local office shell before app-server is configured.
+    }
+    return toCodexAgentCards([]);
+  }
+
+  async getConfigSnapshot(): Promise<OpenClawConfigSnapshot> {
+    try {
+      const [threads, projectPaths] = await Promise.all([
+        this.listCodexThreads(),
+        this.listCodexProjectPaths().catch(() => []),
+      ]);
+      return toCodexConfigSnapshot(threads, projectPaths);
+    } catch {
+      return toCodexConfigSnapshot([]);
+    }
+  }
+
+  async getAgentsList(): Promise<AgentsListResult> {
+    const agents = await this.listAgents();
+    return {
+      defaultId: agents[0]?.agentId ?? CODEX_MAIN_AGENT_ID,
+      mainKey: CODEX_MAIN_AGENT_ID,
+      scope: "codex",
+      agents: agents.map((agent) => ({
+        id: agent.agentId,
+        name: agent.displayName,
+        identity: { name: agent.displayName, emoji: "C" },
+      })),
+    };
+  }
+
+  async getAgentIdentity(agentId: string): Promise<AgentIdentityResult | null> {
+    const agent = (await this.listAgents()).find((entry) => entry.agentId === agentId);
+    return {
+      agentId,
+      name: agent?.displayName ?? agentId,
+      avatar: "",
+      emoji: "C",
+    };
+  }
+
+  async getToolsCatalog(agentId: string): Promise<ToolsCatalogResult | null> {
+    return {
+      agentId,
+      profiles: [],
+      groups: [],
+    };
+  }
+
+  async getChannelsStatus(): Promise<ChannelsStatusSnapshot | null> {
+    return {
+      ts: Date.now(),
+      channelOrder: [],
+      channelLabels: {},
+      channels: {},
+      channelAccounts: {},
+      channelDefaultAccountId: {},
+    };
+  }
+
+  async getCronStatus(): Promise<CronStatus | null> {
+    return { enabled: false, jobs: 0 };
+  }
+
+  async listCronJobs(): Promise<CronJob[]> {
+    return [];
+  }
+
+  async getUnifiedOfficeModel(): Promise<UnifiedOfficeModel> {
+    const [threads, projectPaths] = await Promise.all([
+      this.listCodexThreads().catch(() => []),
+      this.listCodexProjectPaths().catch(() => []),
+    ]);
+    const company = toCodexCompanyModel(threads, Date.now(), projectPaths);
+    const officeAgentIds = new Set(company.agents.map((agent) => agent.agentId));
+    const runtimeAgents = [...toCodexAgentCards([]), ...toCodexAgentCards(threads)].filter((agent) =>
+      officeAgentIds.has(agent.agentId),
+    );
+    return {
+      company,
+      runtimeAgents,
+      configuredAgents: runtimeAgents,
+      officeObjects: [],
+      memory: [],
+      skills: [],
+      warnings: [],
+      workload: company.projects.map((project) => ({
+        projectId: project.id,
+        openTickets: company.agents.filter((agent) => agent.projectId === project.id).length,
+        closedTickets: 0,
+        queuePressure: "low" as const,
+      })),
+      diagnostics: {
+        configAgentCount: runtimeAgents.length,
+        runtimeAgentCount: runtimeAgents.length,
+        sidecarAgentCount: company.agents.length,
+        missingRuntimeAgentIds: [],
+        unmappedRuntimeAgentIds: [],
+        invalidOfficeObjects: [],
+        duplicateOfficeObjectIds: [],
+        officeObjectCount: 0,
+        clampedClusterCount: 0,
+        outOfBoundsClusterObjectIds: [],
+        ceoAnchorMode: "fallback",
+        source: "codex",
+      },
+    };
+  }
+
+  async getAgentsLiveStatus(agentIds: string[]): Promise<Record<string, AgentLiveStatus>> {
+    try {
+      const threads = await this.listCodexThreads();
+      const byThreadId = new Map(threads.map((thread) => [thread.id, thread]));
+      return Object.fromEntries(
+        [...new Set(agentIds.map((entry) => entry.trim()).filter(Boolean))].map((agentId) => {
+          if (agentId === CODEX_MAIN_AGENT_ID) return [agentId, toCodexMainLiveStatus()] as const;
+          const thread = byThreadId.get(parseCodexThreadId(agentId));
+          return [agentId, thread ? toCodexLiveStatus(thread) : toCodexMainLiveStatus()] as const;
+        }),
+      );
+    } catch {
+      return Object.fromEntries(
+        [...new Set(agentIds.map((entry) => entry.trim()).filter(Boolean))].map((agentId) => [
+          agentId,
+          { ...toCodexMainLiveStatus(), agentId },
+        ]),
+      );
+    }
+  }
+
+  async listSessions(agentId: string): Promise<SessionRowModel[]> {
+    try {
+      return toCodexSessionRows(agentId, await this.listCodexThreads());
+    } catch {
+      return [];
+    }
+  }
+
+  async getSessionTimeline(
+    agentId: string,
+    sessionKey: string,
+    limit = 200,
+  ): Promise<SessionTimelineModel> {
+    const threadId = parseCodexThreadId(sessionKey || agentId);
+    const response = await this.codexClient.readThread(threadId);
+    const thread = response.thread;
+    if (!thread) {
+      return { agentId, sessionKey, events: [] };
+    }
+    return toCodexTimeline(agentId, sessionKey, {
+      ...thread,
+      turns: (thread.turns ?? []).slice(-Math.max(1, limit)),
+    });
+  }
+
+  async sendMessage(
+    input: ChatSendRequest,
+  ): Promise<{ ok: boolean; eventId?: string; error?: string }> {
+    const message = input.message.trim();
+    if (!message) return { ok: false, error: "codex_message_empty" };
+    try {
+      let threadId = parseCodexThreadId(input.sessionKey || input.agentId);
+      if (!threadId || threadId === CODEX_MAIN_AGENT_ID) {
+        const started = await this.codexClient.startThread();
+        threadId = started.thread?.id ?? "";
+      }
+      if (!threadId) return { ok: false, error: "codex_thread_missing" };
+
+      const current = await this.codexClient.readThread(threadId).catch(() => null);
+      const activeTurnId = current?.thread ? findActiveTurnId(current.thread) : null;
+      const result = activeTurnId
+        ? await this.codexClient.steerTurn(threadId, activeTurnId, message)
+        : await this.codexClient.startTurn(threadId, message);
+      this.threadsCache = null;
+      return { ok: true, eventId: result.turn?.id };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : "codex_send_failed",
+      };
+    }
+  }
+}

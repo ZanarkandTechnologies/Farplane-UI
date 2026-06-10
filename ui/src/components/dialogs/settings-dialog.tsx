@@ -8,6 +8,11 @@ import { useAppStore } from "@/lib/app-store";
 import { getGatewayUiConfig } from "@/lib/gateway-config";
 import { setOfficeOnboardingCompleted } from "@/lib/office-onboarding";
 import type { OfficeSettingsModel } from "@/lib/openclaw-types";
+import {
+  getRuntimeAdapterKind,
+  saveRuntimeAdapterKind,
+  type RuntimeAdapterKind,
+} from "@/lib/runtime-adapters";
 import { UI_Z } from "@/lib/z-index";
 import { useGateway } from "@/providers/gateway-provider";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
@@ -42,6 +47,10 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   );
   const [languageInput, setLanguageInput] = useState(gatewayConfig.language);
   const [statusText, setStatusText] = useState("");
+  const [runtimeKindInput, setRuntimeKindInput] = useState<RuntimeAdapterKind>(() =>
+    getRuntimeAdapterKind(import.meta.env.VITE_FARPLANE_RUNTIME_ADAPTER),
+  );
+  const [runtimeStatusText, setRuntimeStatusText] = useState("");
   const [viewProfileInput, setViewProfileInput] = useState<OfficeSettingsModel["viewProfile"]>(
     officeSettings.viewProfile,
   );
@@ -63,6 +72,8 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     setDefaultSessionKeyInput(next.defaultSessionKey);
     setLanguageInput(next.language);
     setStatusText("");
+    setRuntimeKindInput(getRuntimeAdapterKind(import.meta.env.VITE_FARPLANE_RUNTIME_ADAPTER));
+    setRuntimeStatusText("");
     setViewProfileInput(officeSettings.viewProfile);
     setCameraOrientationInput(officeSettings.cameraOrientation);
     setOrbitControlsEnabled(officeSettings.orbitControlsEnabled);
@@ -98,6 +109,12 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     setDefaultSessionKeyInput(saved.defaultSessionKey);
     setLanguageInput(saved.language);
     setStatusText("Gateway config saved. Reconnecting gateway client...");
+  }
+
+  function handleApplyRuntimeMode(): void {
+    const saved = saveRuntimeAdapterKind(runtimeKindInput);
+    setRuntimeStatusText(`Runtime mode saved as ${saved}. Reloading...`);
+    window.setTimeout(() => window.location.reload(), 250);
   }
 
   async function handleSaveViewSettings(): Promise<void> {
@@ -253,11 +270,42 @@ export default function SettingsDialog(props: SettingsDialogProps) {
           </div>
 
           <div className="space-y-3 rounded-md border p-3">
+            <div className="flex flex-col gap-1">
+              <Label>Runtime Mode</Label>
+              <span className="text-xs text-muted-foreground">
+                Codex maps local projects and recent threads. OpenClaw enables persistent agent
+                customization and gateway-backed teams.
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Adapter</Label>
+              <select
+                className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+                value={runtimeKindInput}
+                onChange={(event) => setRuntimeKindInput(event.target.value as RuntimeAdapterKind)}
+              >
+                <option value="codex">Codex</option>
+                <option value="openclaw">OpenClaw</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={handleApplyRuntimeMode}>
+                Apply Runtime
+              </Button>
+            </div>
+            {runtimeStatusText ? (
+              <p className="text-xs text-muted-foreground">{runtimeStatusText}</p>
+            ) : null}
+          </div>
+
+          <div className="space-y-3 rounded-md border p-3">
             <div className="flex items-center justify-between">
               <div className="flex flex-col gap-1">
                 <Label>Gateway Access</Label>
                 <span className="text-xs text-muted-foreground">
-                  Configure connection values used by the UI bridge.
+                  Configure connection values used by OpenClaw and the Codex app-server bridge.
                 </span>
               </div>
               <span className={`text-xs ${connected ? "text-emerald-500" : "text-amber-500"}`}>

@@ -228,6 +228,6 @@ export const useAppStore = create<AppState>()(
 
 if (import.meta.env.DEV && typeof window !== "undefined") {
   // Exposed only in dev so QA scripts can poke the live store instance without importing a second module copy.
-  (window as typeof window & { __SHELLCORP_APP_STORE?: typeof useAppStore }).__SHELLCORP_APP_STORE =
+  (window as typeof window & { __FARPLANE_APP_STORE?: typeof useAppStore }).__FARPLANE_APP_STORE =
     useAppStore;
 }

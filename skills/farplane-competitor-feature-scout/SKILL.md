@@ -1,13 +1,13 @@
 ---
-name: shellcorp-competitor-feature-scout
-description: Daily competitor feature scout that reviews last-day commits, identifies useful features, posts findings to the main agent bot via ShellCorp CLI, and updates MEMORY with the latest processed SHA.
+name: farplane-competitor-feature-scout
+description: Daily competitor feature scout that reviews last-day commits, identifies useful features, posts findings to the main agent bot via Farplane CLI, and updates MEMORY with the latest processed SHA.
 ---
 
 # Competitor Feature Scout
 
 ## Why This Exists
 
-Reduce manual competitor tracking by converting the last day of repo activity into concrete, ShellCorp-native adoption suggestions.
+Reduce manual competitor tracking by converting the last day of repo activity into concrete, Farplane-native adoption suggestions.
 
 ## Files In This Skill Package
 
@@ -31,7 +31,7 @@ Reduce manual competitor tracking by converting the last day of repo activity in
 6. Decide for each feature:
    - `copy` (adopt now)
    - `drop` (ignore for now)
-7. Use ShellCorp CLI to post results to the main agent bot comment board.
+7. Use Farplane CLI to post results to the main agent bot comment board.
 8. Update `MEMORY.md` with:
    - latest processed SHA per repo
    - run timestamp
@@ -45,12 +45,12 @@ Reduce manual competitor tracking by converting the last day of repo activity in
 - Decision: `copy` or `drop`
 - Why
 - Useful snippet(s)
-- Suggested ShellCorp follow-up action
+- Suggested Farplane follow-up action
 
 ## Guardrails
 
 - Keep it daily and lightweight.
 - Focus on product-significant changes, not noise.
-- Do not copy code blindly; copy ideas and adapt to ShellCorp patterns.
+- Do not copy code blindly; copy ideas and adapt to Farplane patterns.
 - Keep posts concise and actionable.
 - Always update `MEMORY.md` after each successful run.

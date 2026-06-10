@@ -6,14 +6,14 @@ usage() {
 Usage: scripts/office-skill-smoke.sh --team-id <team-id> --agent-id <agent-id> --skill-id <skill-id> [options]
 
 Options:
-  --team-id <team-id>          Required team id (for example team-proj-shellcorp-v2)
+  --team-id <team-id>          Required team id (for example team-proj-farplane-v2)
   --agent-id <agent-id>        Required agent id to animate in the office
   --skill-id <skill-id>        Required skill id already bound to an office object
   --state <state>              planning|executing|blocked|done (default: executing)
   --status-text <text>         Bubble text to show in the office (default: "Testing <skill-id>")
   --step-key <step-key>        Optional idempotency key (default: generated)
-  --convex-url <url>           Convex site URL (default: SHELLCORP_CONVEX_SITE_URL or CONVEX_SITE_URL)
-  --repo-path <path>           ShellCorp repo path (default: script parent directory)
+  --convex-url <url>           Convex site URL (default: FARPLANE_CONVEX_SITE_URL or CONVEX_SITE_URL)
+  --repo-path <path>           Farplane repo path (default: script parent directory)
   --json                       Forward JSON output from the CLI
   --help                       Show this help
 
@@ -35,7 +35,7 @@ SKILL_ID=""
 STATE="executing"
 STATUS_TEXT=""
 STEP_KEY=""
-CONVEX_URL="${SHELLCORP_CONVEX_SITE_URL:-${CONVEX_SITE_URL:-}}"
+CONVEX_URL="${FARPLANE_CONVEX_SITE_URL:-${CONVEX_SITE_URL:-}}"
 REPO_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 JSON_MODE=0
 
@@ -120,7 +120,7 @@ fi
 cd "$REPO_PATH"
 
 if [[ -n "$CONVEX_URL" ]]; then
-  export SHELLCORP_CONVEX_SITE_URL="$CONVEX_URL"
+  export FARPLANE_CONVEX_SITE_URL="$CONVEX_URL"
 fi
 
 CMD=(

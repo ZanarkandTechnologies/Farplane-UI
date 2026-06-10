@@ -6,11 +6,11 @@ This study captures founder direction for the next stage after baseline OpenClaw
 
 ## Strategic Thesis
 
-Shell Company should become a personalized autonomous company cockpit:
+Farplane AI should become a personalized autonomous company cockpit:
 
 - Keep OpenClaw as runtime source of truth and execution engine.
 - Create strong operator value through observability, comfort, and personalization.
-- Let users continue working in external specialist tools (for example Notion/Vibe) while Shell Company aggregates and orchestrates.
+- Let users continue working in external specialist tools (for example Notion/Vibe) while Farplane AI aggregates and orchestrates.
 
 ## Value Pillars
 
@@ -29,7 +29,7 @@ Shell Company should become a personalized autonomous company cockpit:
 
 ## Product Direction Signals
 
-- External workflow tools should remain first-class; Shell Company should not clone full Notion/Vibe UX.
+- External workflow tools should remain first-class; Farplane AI should not clone full Notion/Vibe UX.
 - Federated Kanban is a near-term high-value step.
 - Ticket lifecycle should align with session lifecycle where possible (`ticket == session until explicit close`).
 - Heartbeat/autonomy loops should be visible and operable (pause/resume/manual controls with auditability).
@@ -37,7 +37,7 @@ Shell Company should become a personalized autonomous company cockpit:
 ## Recommended MVP Policy Decisions For Phase 2
 
 - Use canonical-provider-per-project for board ownership.
-- Maintain Shell Company as unified read and orchestration layer.
+- Maintain Farplane AI as unified read and orchestration layer.
 - Use deterministic conflict rules instead of multi-master merges in first slice.
 - Start with explicit sync status surfaces before adding advanced automation.
 

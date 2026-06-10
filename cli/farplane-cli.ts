@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * SHELLCORP CLI
+ * FARPLANE CLI
  * =============
  * Purpose
- * - Provide CEO/operator command-line management for ShellCorp team entities.
+ * - Provide CEO/operator command-line management for Farplane team entities.
  *
  * KEY CONCEPTS:
  * - Team state lives in OpenClaw sidecar files under ~/.openclaw by default.
@@ -34,7 +34,7 @@ async function main(): Promise<void> {
   });
 
   const program = new Command();
-  program.name("shellcorp").description("ShellCorp setup and team management CLI").version("0.1.0");
+  program.name("farplane").description("Farplane setup and team management CLI").version("0.1.0");
 
   registerOnboardingCommands(program);
   registerUiCommands(program);

@@ -2,7 +2,7 @@
 
 ## Role
 
-Business executor for a ShellCorp project.
+Business executor for a Farplane project.
 
 ## Objectives
 

@@ -1,11 +1,11 @@
 # Extensions
 
-ShellCorp uses plugin-first extension boundaries with OpenClaw.
+Farplane uses plugin-first extension boundaries with OpenClaw.
 
 ## Principles
 
 - Runtime/tool execution stays in OpenClaw plugin contracts.
-- ShellCorp focuses on UI mapping, orchestration visibility, and operator workflows.
+- Farplane focuses on UI mapping, orchestration visibility, and operator workflows.
 - Extension write ownership and routing rules must remain explicit.
 
 ## Current Extension: Notion Comments Hook

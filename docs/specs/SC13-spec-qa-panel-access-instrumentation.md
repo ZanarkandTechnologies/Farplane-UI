@@ -2,7 +2,7 @@
 
 ## Scope
 
-Define a deterministic access layer for ShellCorp's office panels so QA agents and keyboard-heavy operators can open global surfaces without relying on fragile scene clicks or speed-dial traversal.
+Define a deterministic access layer for Farplane's office panels so QA agents and keyboard-heavy operators can open global surfaces without relying on fragile scene clicks or speed-dial traversal.
 
 This first slice is global-panel-only. Context-heavy employee, team, and object actions remain follow-up scope.
 
@@ -24,7 +24,7 @@ The product need is not a second navigation shell. It is an instrumentation laye
 
 ## JTBD
 
-When I need to inspect or test a specific ShellCorp panel, I want a fast keyboard-first way to open it directly, so I can verify behavior without relying on scene clicks or repeated menu traversal.
+When I need to inspect or test a specific Farplane panel, I want a fast keyboard-first way to open it directly, so I can verify behavior without relying on scene clicks or repeated menu traversal.
 
 ## Product Rules
 

@@ -12,7 +12,7 @@ import { UI_Z } from "@/lib/z-index";
 /**
  * CHAT DIALOG
  * ===========
- * Zanarkand-parity chat modal shell for ShellCorp.
+ * Zanarkand-parity chat modal shell for Farplane.
  */
 export default function ChatDialog() {
   const isChatOpen = useChatStore((state) => state.isChatOpen);

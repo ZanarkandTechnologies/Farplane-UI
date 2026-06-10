@@ -4,7 +4,7 @@
  * Centralized OpenClaw gateway URL and auth token wiring for the UI.
  */
 
-const GATEWAY_UI_CONFIG_KEY = "shellcorp.gateway-config.v1";
+const GATEWAY_UI_CONFIG_KEY = "farplane.gateway-config.v1";
 const DEFAULT_GATEWAY_BASE = import.meta.env.VITE_GATEWAY_URL || "http://127.0.0.1:18789";
 const DEFAULT_GATEWAY_TOKEN = import.meta.env.VITE_GATEWAY_TOKEN || "";
 const DEFAULT_STATE_BASE =

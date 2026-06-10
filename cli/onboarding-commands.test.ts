@@ -10,7 +10,7 @@ import * as uiCommands from "./ui-commands.js";
 async function setupRepoFixture(
   input: { withPackageJson?: boolean } = {},
 ): Promise<{ repoRoot: string; stateDir: string }> {
-  const repoRoot = await mkdtemp(path.join(os.tmpdir(), "shellcorp-onboarding-repo-"));
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), "farplane-onboarding-repo-"));
   const stateDir = path.join(repoRoot, "state");
   await mkdir(path.join(repoRoot, "templates", "openclaw"), { recursive: true });
   await mkdir(path.join(repoRoot, "templates", "sidecar"), { recursive: true });
@@ -22,7 +22,7 @@ async function setupRepoFixture(
     `${JSON.stringify(
       {
         tools: { profile: "coding" },
-        hooks: { internal: { enabled: true, entries: { "shellcorp-status": { enabled: true } } } },
+        hooks: { internal: { enabled: true, entries: { "farplane-status": { enabled: true } } } },
         agents: {
           defaults: {
             heartbeat: { every: "3m", includeReasoning: true, target: "last", prompt: "heartbeat" },
@@ -164,11 +164,11 @@ async function setupRepoFixture(
       path.join(repoRoot, "package.json"),
       `${JSON.stringify(
         {
-          name: "shellcorp-test-fixture",
+          name: "farplane-test-fixture",
           version: "0.0.0",
           private: true,
           bin: {
-            shellcorp: "./bin/shellcorp.js",
+            farplane: "./bin/farplane.js",
           },
         },
         null,
@@ -176,7 +176,7 @@ async function setupRepoFixture(
       )}\n`,
       "utf-8",
     );
-    await writeFile(path.join(repoRoot, "bin", "shellcorp.js"), "#!/usr/bin/env node\n", "utf-8");
+    await writeFile(path.join(repoRoot, "bin", "farplane.js"), "#!/usr/bin/env node\n", "utf-8");
   }
 
   return { repoRoot, stateDir };
@@ -217,7 +217,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   setCliInstallExecFileRunnerForTests(null);
   delete process.env.OPENCLAW_STATE_DIR;
-  delete process.env.SHELLCORP_REPO_ROOT;
+  delete process.env.FARPLANE_REPO_ROOT;
   process.exitCode = undefined;
 });
 
@@ -225,7 +225,7 @@ describe("onboarding CLI", () => {
   it("fails preflight when OpenClaw has not been initialized yet", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     await runCommand(["onboarding", "--yes", "--json"]);
@@ -243,7 +243,7 @@ describe("onboarding CLI", () => {
   it("bootstraps required sidecars and generates ui env from repo env", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
     await seedOpenclawMainAgent(stateDir);
 
     await runCommand(["onboarding", "--yes", "--style", "cozy", "--gateway-token", "token-123"]);
@@ -259,7 +259,7 @@ describe("onboarding CLI", () => {
     const openclawRaw = await readFile(path.join(stateDir, "openclaw.json"), "utf-8");
     const openclaw = JSON.parse(openclawRaw) as {
       version?: unknown;
-      shellcorp?: unknown;
+      farplane?: unknown;
       plugins?: {
         load?: { paths?: string[] };
         entries?: { "notion-shell"?: unknown };
@@ -284,7 +284,7 @@ describe("onboarding CLI", () => {
       };
     };
     expect(openclaw.version).toBeUndefined();
-    expect(openclaw.shellcorp).toBeUndefined();
+    expect(openclaw.farplane).toBeUndefined();
     expect(openclaw.plugins?.load?.paths ?? []).toContain(
       path.join(repoRoot, "extensions", "notion"),
     );
@@ -307,9 +307,9 @@ describe("onboarding CLI", () => {
     expect(openclaw.channels?.notion?.accounts?.default?.requireWakeWord).toBe(true);
     expect(openclaw.channels?.notion?.accounts?.default?.wakeWords).toEqual(["@shell"]);
 
-    const shellcorpRaw = await readFile(path.join(stateDir, "shellcorp.json"), "utf-8");
-    const shellcorp = JSON.parse(shellcorpRaw) as { convex?: { siteUrl?: string } };
-    expect(shellcorp.convex?.siteUrl).toBe("https://demo.convex.cloud");
+    const farplaneRaw = await readFile(path.join(stateDir, "farplane.json"), "utf-8");
+    const farplane = JSON.parse(farplaneRaw) as { convex?: { siteUrl?: string } };
+    expect(farplane.convex?.siteUrl).toBe("https://demo.convex.cloud");
 
     const uiEnvRaw = await readFile(path.join(repoRoot, "ui", ".env.local"), "utf-8");
     expect(uiEnvRaw).toContain("VITE_GATEWAY_TOKEN=token-123");
@@ -356,7 +356,7 @@ describe("onboarding CLI", () => {
   it("preserves existing ui env keys and keeps existing notion bridge wiring", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
 
     await mkdir(stateDir, { recursive: true });
     await writeFile(
@@ -429,7 +429,7 @@ describe("onboarding CLI", () => {
   it("refreshes VITE_CONVEX_URL from the repo root env on rerun", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
     await seedOpenclawMainAgent(stateDir);
 
     await writeFile(
@@ -447,18 +447,18 @@ describe("onboarding CLI", () => {
 
     const uiEnvRaw = await readFile(path.join(repoRoot, "ui", ".env.local"), "utf-8");
     const openclawRaw = await readFile(path.join(stateDir, "openclaw.json"), "utf-8");
-    const openclaw = JSON.parse(openclawRaw) as { shellcorp?: { convex?: { siteUrl?: string } } };
-    const shellcorpRaw = await readFile(path.join(stateDir, "shellcorp.json"), "utf-8");
-    const shellcorp = JSON.parse(shellcorpRaw) as { convex?: { siteUrl?: string } };
+    const openclaw = JSON.parse(openclawRaw) as { farplane?: { convex?: { siteUrl?: string } } };
+    const farplaneRaw = await readFile(path.join(stateDir, "farplane.json"), "utf-8");
+    const farplane = JSON.parse(farplaneRaw) as { convex?: { siteUrl?: string } };
     expect(uiEnvRaw).toContain("VITE_CONVEX_URL=https://fresh-root.convex.site");
-    expect(openclaw.shellcorp).toBeUndefined();
-    expect(shellcorp.convex?.siteUrl).toBe("https://fresh-root.convex.site");
+    expect(openclaw.farplane).toBeUndefined();
+    expect(farplane.convex?.siteUrl).toBe("https://fresh-root.convex.site");
   });
 
-  it("prefers CONVEX_SITE_URL for persisted shellcorp CLI config when both Convex URLs exist", async () => {
+  it("prefers CONVEX_SITE_URL for persisted farplane CLI config when both Convex URLs exist", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
     await seedOpenclawMainAgent(stateDir);
 
     await writeFile(
@@ -469,15 +469,15 @@ describe("onboarding CLI", () => {
 
     await runCommand(["onboarding", "--yes"]);
 
-    const shellcorpRaw = await readFile(path.join(stateDir, "shellcorp.json"), "utf-8");
-    const shellcorp = JSON.parse(shellcorpRaw) as { convex?: { siteUrl?: string } };
-    expect(shellcorp.convex?.siteUrl).toBe("http://127.0.0.1:3211");
+    const farplaneRaw = await readFile(path.join(stateDir, "farplane.json"), "utf-8");
+    const farplane = JSON.parse(farplaneRaw) as { convex?: { siteUrl?: string } };
+    expect(farplane.convex?.siteUrl).toBe("http://127.0.0.1:3211");
   });
 
-  it("preserves persisted shellcorp convex site url when repo env is absent", async () => {
+  it("preserves persisted farplane convex site url when repo env is absent", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
     await seedOpenclawMainAgent(stateDir);
 
     await writeFile(path.join(repoRoot, ".env.local"), "NOTION_API_KEY=secret_test\n", "utf-8");
@@ -503,7 +503,7 @@ describe("onboarding CLI", () => {
       "utf-8",
     );
     await writeFile(
-      path.join(stateDir, "shellcorp.json"),
+      path.join(stateDir, "farplane.json"),
       `${JSON.stringify(
         {
           convex: { siteUrl: "https://persisted.convex.site" },
@@ -518,18 +518,18 @@ describe("onboarding CLI", () => {
 
     const uiEnvRaw = await readFile(path.join(repoRoot, "ui", ".env.local"), "utf-8");
     const openclawRaw = await readFile(path.join(stateDir, "openclaw.json"), "utf-8");
-    const openclaw = JSON.parse(openclawRaw) as { shellcorp?: unknown };
-    const shellcorpRaw = await readFile(path.join(stateDir, "shellcorp.json"), "utf-8");
-    const shellcorp = JSON.parse(shellcorpRaw) as { convex?: { siteUrl?: string } };
+    const openclaw = JSON.parse(openclawRaw) as { farplane?: unknown };
+    const farplaneRaw = await readFile(path.join(stateDir, "farplane.json"), "utf-8");
+    const farplane = JSON.parse(farplaneRaw) as { convex?: { siteUrl?: string } };
     expect(uiEnvRaw).toContain("VITE_CONVEX_URL=https://persisted.convex.site");
-    expect(openclaw.shellcorp).toBeUndefined();
-    expect(shellcorp.convex?.siteUrl).toBe("https://persisted.convex.site");
+    expect(openclaw.farplane).toBeUndefined();
+    expect(farplane.convex?.siteUrl).toBe("https://persisted.convex.site");
   });
 
   it("reports structured json output with doctor status", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
     await seedOpenclawMainAgent(stateDir);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -554,7 +554,7 @@ describe("onboarding CLI", () => {
   it("reports Convex as unreachable when the configured runtime is offline", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
     await seedOpenclawMainAgent(stateDir);
     await writeFile(
       path.join(repoRoot, ".env.local"),
@@ -586,7 +586,7 @@ describe("onboarding CLI", () => {
   it("skips auto-launch when Convex is configured but unreachable", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
     await seedOpenclawMainAgent(stateDir);
     await writeFile(
       path.join(repoRoot, ".env.local"),
@@ -615,7 +615,7 @@ describe("onboarding CLI", () => {
   it("auto-patches a missing main agent and still reports openclaw.json as updated", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
     await mkdir(stateDir, { recursive: true });
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -658,7 +658,7 @@ describe("onboarding CLI", () => {
   it("does not rewrite openclaw.json on rerun once notion bridge wiring is present", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
     await seedOpenclawMainAgent(stateDir);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
@@ -673,10 +673,10 @@ describe("onboarding CLI", () => {
     expect(payload.sidecars?.["openclaw.json"]).toBe("unchanged");
   });
 
-  it("removes invalid shellcorp-managed root keys from openclaw.json and migrates convex settings", async () => {
+  it("removes invalid farplane-managed root keys from openclaw.json and migrates convex settings", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
     await mkdir(stateDir, { recursive: true });
     await writeFile(path.join(repoRoot, ".env.local"), "NOTION_API_KEY=secret_test\n", "utf-8");
 
@@ -685,7 +685,7 @@ describe("onboarding CLI", () => {
       `${JSON.stringify(
         {
           version: 1,
-          shellcorp: { convex: { siteUrl: "https://persisted.convex.site" } },
+          farplane: { convex: { siteUrl: "https://persisted.convex.site" } },
           agents: {
             list: [
               {
@@ -705,18 +705,18 @@ describe("onboarding CLI", () => {
     await runCommand(["onboarding", "--yes", "--json"]);
 
     const openclawRaw = await readFile(path.join(stateDir, "openclaw.json"), "utf-8");
-    const openclaw = JSON.parse(openclawRaw) as { version?: unknown; shellcorp?: unknown };
-    const shellcorpRaw = await readFile(path.join(stateDir, "shellcorp.json"), "utf-8");
-    const shellcorp = JSON.parse(shellcorpRaw) as { convex?: { siteUrl?: string } };
+    const openclaw = JSON.parse(openclawRaw) as { version?: unknown; farplane?: unknown };
+    const farplaneRaw = await readFile(path.join(stateDir, "farplane.json"), "utf-8");
+    const farplane = JSON.parse(farplaneRaw) as { convex?: { siteUrl?: string } };
     expect(openclaw.version).toBeUndefined();
-    expect(openclaw.shellcorp).toBeUndefined();
-    expect(shellcorp.convex?.siteUrl).toBe("https://persisted.convex.site");
+    expect(openclaw.farplane).toBeUndefined();
+    expect(farplane.convex?.siteUrl).toBe("https://persisted.convex.site");
   });
 
   it("skips CLI install in --yes mode unless explicitly requested", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture({ withPackageJson: true });
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
     await seedOpenclawMainAgent(stateDir);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const execRunner = vi.fn(async () => ({ stdout: "", stderr: "" }));
@@ -735,7 +735,7 @@ describe("onboarding CLI", () => {
   it("runs npm link when --install-cli is requested", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture({ withPackageJson: true });
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
     await seedOpenclawMainAgent(stateDir);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const execRunner = vi.fn().mockResolvedValue({ stdout: "", stderr: "" });
@@ -759,7 +759,7 @@ describe("onboarding CLI", () => {
   it("records CLI install failure without failing onboarding", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture({ withPackageJson: true });
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
     await seedOpenclawMainAgent(stateDir);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const execRunner = vi.fn().mockRejectedValue(new Error("boom"));
@@ -781,7 +781,7 @@ describe("onboarding CLI", () => {
   it("lets --skip-install-cli override --install-cli", async () => {
     const { repoRoot, stateDir } = await setupRepoFixture({ withPackageJson: true });
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = repoRoot;
+    process.env.FARPLANE_REPO_ROOT = repoRoot;
     await seedOpenclawMainAgent(stateDir);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const execRunner = vi.fn().mockResolvedValue({ stdout: "", stderr: "" });

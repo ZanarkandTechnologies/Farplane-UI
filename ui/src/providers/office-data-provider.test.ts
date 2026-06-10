@@ -59,7 +59,7 @@ function createOfficeObject(overrides: Partial<OfficeObject> = {}): OfficeObject
 
 function createValue(params?: { employees?: EmployeeData[]; officeObjects?: OfficeObject[] }) {
   return {
-    company: { _id: "company-demo", name: "Shell Company" },
+    company: { _id: "company-demo", name: "Farplane AI" },
     teams: [],
     employees: params?.employees ?? [createEmployee()],
     officeObjects: params?.officeObjects ?? [createOfficeObject()],
@@ -121,7 +121,7 @@ function createCompanyModel(overrides: Partial<CompanyModel> = {}): CompanyModel
     channelBindings: [],
     heartbeatRuntime: {
       enabled: true,
-      pluginId: "shellcorp-heartbeat",
+      pluginId: "farplane-heartbeat",
       serviceId: "company-heartbeat-loop",
       cadenceMinutes: 10,
       notes: "Run heartbeat execution through OpenClaw.",

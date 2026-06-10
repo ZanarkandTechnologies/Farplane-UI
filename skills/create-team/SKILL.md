@@ -1,6 +1,6 @@
 ---
 name: create-team
-description: Start a new ShellCorp team or business unit from an idea brief. Use when an agent should gather missing details, research real-world team structure, decide roles/tools/skills, prepare a founder approval task, and then execute through shellcorp-team-cli after approval.
+description: Start a new Farplane team or business unit from an idea brief. Use when an agent should gather missing details, research real-world team structure, decide roles/tools/skills, prepare a founder approval task, and then execute through farplane-team-cli after approval.
 ---
 
 # Create Team Skill
@@ -14,7 +14,7 @@ This is a workflow skill. It should:
 3. Decide likely roles, tools, data sources, and supporting skills.
 4. Write a concise proposal for founder review.
 5. Wait for founder approval.
-6. Use `shellcorp-team-cli` to execute the approved plan.
+6. Use `farplane-team-cli` to execute the approved plan.
 
 ## Required Brief
 
@@ -60,7 +60,7 @@ Keep the rich reasoning in chat/session. Keep the task notes compact and resumab
 
 ### 4. Persist the proposal through the CLI
 
-Use `shellcorp-team-cli` proposal commands to create and advance the proposal lifecycle.
+Use `farplane-team-cli` proposal commands to create and advance the proposal lifecycle.
 
 Canonical flow:
 
@@ -77,9 +77,9 @@ If the CEO board workflow is active, mirror compact status into a CEO-owned boar
 - Do not execute until the proposal is approved.
 - If the founder requests changes, revise the same proposal/session instead of starting over.
 
-### 6. Execute through `shellcorp-team-cli`
+### 6. Execute through `farplane-team-cli`
 
-After approval, use `shellcorp-team-cli` to:
+After approval, use `farplane-team-cli` to:
 
 - create the team,
 - set business config,
@@ -91,7 +91,7 @@ After approval, use `shellcorp-team-cli` to:
 
 This workflow depends on:
 
-- [`skills/shellcorp-team-cli/SKILL.md`](/home/kenjipcx/Zanarkand/ShellCorp/skills/shellcorp-team-cli/SKILL.md)
+- [`skills/farplane-team-cli/SKILL.md`](/home/kenjipcx/Zanarkand/Farplane/skills/farplane-team-cli/SKILL.md)
 
 Use that skill for concrete command syntax and mutation rules.
 
@@ -103,7 +103,7 @@ Use that skill for concrete command syntax and mutation rules.
 
 ## Contract Tests
 
-- Executable workflow examples live under [`skills/create-team/tests/`](/home/kenjipcx/Zanarkand/ShellCorp/skills/create-team/tests).
+- Executable workflow examples live under [`skills/create-team/tests/`](/home/kenjipcx/Zanarkand/Farplane/skills/create-team/tests).
 - Run them with:
 
 ```bash

@@ -6,11 +6,11 @@
  *
  * KEY CONCEPTS:
  * - Preset flows are preview-first: they print the exact roles, heartbeat config, and skills before mutating state.
- * - The first preset is `dev`, which models a ShellCorp product team as a PM + builder core with an optional marketer role slot.
+ * - The first preset is `dev`, which models a Farplane product team as a PM + builder core with an optional marketer role slot.
  *
  * USAGE:
- * - shellcorp team preset dev --json
- * - shellcorp team preset dev --apply --with-cluster
+ * - farplane team preset dev --json
+ * - farplane team preset dev --apply --with-cluster
  *
  * MEMORY REFERENCES:
  * - MEM-0195
@@ -62,12 +62,12 @@ type WorkspaceSkillRow = {
   staleWorkspaceSkills: string[];
 };
 
-const DEV_PRESET_ID = "shellcorp_dev_team";
-const DEFAULT_TEAM_NAME = "ShellCorp Dev Team";
+const DEV_PRESET_ID = "farplane_dev_team";
+const DEFAULT_TEAM_NAME = "Farplane Dev Team";
 const DEFAULT_TEAM_DESCRIPTION =
   "Internal product team that scouts adjacent AI-office products, proposes bounded improvements, implements approved changes, and turns meaningful wins into operator-facing updates.";
 const DEFAULT_TEAM_GOAL =
-  "Continuously improve ShellCorp by scouting competitors, shaping actionable tickets, shipping approved improvements, and surfacing launch-worthy updates.";
+  "Continuously improve Farplane by scouting competitors, shaping actionable tickets, shipping approved improvements, and surfacing launch-worthy updates.";
 
 export type DevPresetApplyOptions = {
   teamId?: string;
@@ -90,9 +90,9 @@ function devPresetSkillPlan(marketerMode: MarketerMode): PresetSkillRow[] {
       role: "pm",
       label: "PM",
       targetSkills: [
-        "shellcorp-team-cli",
-        "shellcorp-kanban-ops",
-        "shellcorp-competitor-feature-scout",
+        "farplane-team-cli",
+        "farplane-kanban-ops",
+        "farplane-competitor-feature-scout",
         "create-team",
         "status-self-reporter",
       ],
@@ -100,13 +100,13 @@ function devPresetSkillPlan(marketerMode: MarketerMode): PresetSkillRow[] {
     {
       role: "builder",
       label: "Dev",
-      targetSkills: ["shellcorp-team-cli", "shellcorp-kanban-ops", "status-self-reporter"],
+      targetSkills: ["farplane-team-cli", "farplane-kanban-ops", "status-self-reporter"],
       note: "Builder stays tool-heavy by design; coding capability should come from the agent runtime plus CLI access.",
     },
     {
       role: "growth_marketer",
       label: "Marketer",
-      targetSkills: ["shellcorp-team-cli", "shellcorp-kanban-ops", "status-self-reporter"],
+      targetSkills: ["farplane-team-cli", "farplane-kanban-ops", "status-self-reporter"],
       note:
         marketerMode === "none"
           ? "Marketer is disabled for this preset."
@@ -315,7 +315,7 @@ export async function applyDevTeamPreset(
   const description = opts.description?.trim() || DEFAULT_TEAM_DESCRIPTION;
   const goal = opts.goal?.trim() || DEFAULT_TEAM_GOAL;
   const cadenceMinutes = opts.cadenceMinutes ?? 3;
-  const teamId = opts.teamId?.trim() || `team-proj-${toSlug(teamName) || "shellcorp-dev-team"}`;
+  const teamId = opts.teamId?.trim() || `team-proj-${toSlug(teamName) || "farplane-dev-team"}`;
   const projectId = projectIdFromTeamId(teamId);
   const existingProject = company.projects.find((entry) => entry.id === projectId);
   const skillPlan = devPresetSkillPlan(marketerMode);
@@ -346,7 +346,7 @@ export async function applyDevTeamPreset(
     },
   };
 
-  const slug = toSlug(teamName) || "shellcorp-dev-team";
+  const slug = toSlug(teamName) || "farplane-dev-team";
   const nextProject =
     existingProject ??
     ({
@@ -440,7 +440,7 @@ export function registerTeamPreset(team: Command, store: SidecarStore): void {
 
   preset
     .command("dev")
-    .description("Preview or apply the ShellCorp Dev Team preset")
+    .description("Preview or apply the Farplane Dev Team preset")
     .option("--team-id <teamId>", "Existing team id to reconfigure, or target id for new team")
     .option("--name <name>", "Team display name", DEFAULT_TEAM_NAME)
     .option("--description <description>", "Team description", DEFAULT_TEAM_DESCRIPTION)
@@ -471,7 +471,7 @@ export function registerTeamPreset(team: Command, store: SidecarStore): void {
         const teamName = opts.name.trim() || DEFAULT_TEAM_NAME;
         const description = opts.description.trim() || DEFAULT_TEAM_DESCRIPTION;
         const goal = opts.goal.trim() || DEFAULT_TEAM_GOAL;
-        const teamId = opts.teamId?.trim() || `team-proj-${toSlug(teamName) || "shellcorp-dev-team"}`;
+        const teamId = opts.teamId?.trim() || `team-proj-${toSlug(teamName) || "farplane-dev-team"}`;
         const projectId = projectIdFromTeamId(teamId);
         const company = await store.readCompanyModel();
         const existingProject = company.projects.find((entry) => entry.id === projectId);

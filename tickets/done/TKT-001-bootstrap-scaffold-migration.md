@@ -15,7 +15,7 @@
 
 ## Description
 
-Migrate ShellCorp from the older progress-doc scaffold to the current docs-first, ticket-board-first setup used by the coding system. This is an operating-files-only change intended to improve planning consistency and agent QA behavior.
+Migrate Farplane from the older progress-doc scaffold to the current docs-first, ticket-board-first setup used by the coding system. This is an operating-files-only change intended to improve planning consistency and agent QA behavior.
 
 ## Goal
 

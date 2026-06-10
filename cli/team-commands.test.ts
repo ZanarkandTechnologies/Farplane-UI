@@ -151,7 +151,7 @@ type MockBoardTask = {
 };
 
 async function setupStateDir(): Promise<string> {
-  const dir = await mkdtemp(path.join(os.tmpdir(), "shellcorp-cli-test-"));
+  const dir = await mkdtemp(path.join(os.tmpdir(), "farplane-cli-test-"));
   await writeFile(
     path.join(dir, "company.json"),
     `${JSON.stringify(baseCompany, null, 2)}\n`,
@@ -302,13 +302,13 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   delete process.env.OPENCLAW_STATE_DIR;
-  delete process.env.SHELLCORP_CONVEX_SITE_URL;
+  delete process.env.FARPLANE_CONVEX_SITE_URL;
   delete process.env.CONVEX_SITE_URL;
-  delete process.env.SHELLCORP_ACTOR_ROLE;
-  delete process.env.SHELLCORP_ALLOWED_PERMISSIONS;
-  delete process.env.SHELLCORP_BOARD_OPERATOR_TOKEN;
-  delete process.env.SHELLCORP_AGENT_ID;
-  delete process.env.SHELLCORP_TEAM_ID;
+  delete process.env.FARPLANE_ACTOR_ROLE;
+  delete process.env.FARPLANE_ALLOWED_PERMISSIONS;
+  delete process.env.FARPLANE_BOARD_OPERATOR_TOKEN;
+  delete process.env.FARPLANE_AGENT_ID;
+  delete process.env.FARPLANE_TEAM_ID;
   process.exitCode = undefined;
 });
 
@@ -368,7 +368,7 @@ describe("team CLI", () => {
     ).toBe(true);
   });
 
-  it("previews the ShellCorp dev preset without mutating state", async () => {
+  it("previews the Farplane dev preset without mutating state", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -385,14 +385,14 @@ describe("team CLI", () => {
       skillPlan?: Array<{ role?: string; targetSkills?: string[] }>;
     };
     expect(previewPayload.mode).toBe("preview");
-    expect(previewPayload.presetId).toBe("shellcorp_dev_team");
-    expect(previewPayload.teamId).toBe("team-proj-shellcorp-dev-team");
+    expect(previewPayload.presetId).toBe("farplane_dev_team");
+    expect(previewPayload.teamId).toBe("team-proj-farplane-dev-team");
     expect(previewPayload.marketerMode).toBe("elastic");
     expect(previewPayload.rolePlan?.persistent).toEqual(["pm", "builder"]);
     expect(previewPayload.rolePlan?.elastic).toEqual(["growth_marketer"]);
     expect(
       previewPayload.skillPlan?.find((entry) => entry.role === "pm")?.targetSkills ?? [],
-    ).toContain("shellcorp-competitor-feature-scout");
+    ).toContain("farplane-competitor-feature-scout");
 
     const companyRaw = await readFile(path.join(stateDir, "company.json"), "utf-8");
     const company = JSON.parse(companyRaw) as CompanySnapshot;
@@ -403,7 +403,7 @@ describe("team CLI", () => {
     logSpy.mockRestore();
   });
 
-  it("applies the ShellCorp dev preset with PM/Dev core and previewable skills", async () => {
+  it("applies the Farplane dev preset with PM/Dev core and previewable skills", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
 
@@ -418,27 +418,27 @@ describe("team CLI", () => {
         teamDescription?: string;
       }>;
     };
-    const project = company.projects.find((entry) => entry.id === "proj-shellcorp-dev-team");
-    expect(project?.name).toBe("ShellCorp Dev Team");
-    expect(project?.goal).toContain("Continuously improve ShellCorp");
+    const project = company.projects.find((entry) => entry.id === "proj-farplane-dev-team");
+    expect(project?.name).toBe("Farplane Dev Team");
+    expect(project?.goal).toContain("Continuously improve Farplane");
     expect(project?.kpis).toEqual([
       "feature-throughput",
       "review-throughput",
       "demo-readiness",
     ]);
 
-    const roleSlots = company.roleSlots.filter((entry) => entry.projectId === "proj-shellcorp-dev-team");
+    const roleSlots = company.roleSlots.filter((entry) => entry.projectId === "proj-farplane-dev-team");
     expect(roleSlots.find((entry) => entry.role === "pm")?.desiredCount).toBe(1);
     expect(roleSlots.find((entry) => entry.role === "builder")?.desiredCount).toBe(1);
     expect(roleSlots.find((entry) => entry.role === "growth_marketer")?.desiredCount).toBe(0);
 
-    const teamAgents = company.agents.filter((entry) => entry.projectId === "proj-shellcorp-dev-team");
+    const teamAgents = company.agents.filter((entry) => entry.projectId === "proj-farplane-dev-team");
     expect(teamAgents.map((entry) => entry.role)).toEqual(["pm", "builder"]);
-    expect(teamAgents.every((entry) => entry.heartbeatProfileId === "hb-team-proj-shellcorp-dev-team")).toBe(
+    expect(teamAgents.every((entry) => entry.heartbeatProfileId === "hb-team-proj-farplane-dev-team")).toBe(
       true,
     );
     const heartbeatProfile = company.heartbeatProfiles.find(
-      (entry) => entry.id === "hb-team-proj-shellcorp-dev-team",
+      (entry) => entry.id === "hb-team-proj-farplane-dev-team",
     );
     expect(heartbeatProfile?.cadenceMinutes).toBe(3);
     expect(heartbeatProfile?.teamDescription).toContain("Internal product team");
@@ -450,16 +450,16 @@ describe("team CLI", () => {
       };
     };
     const pmEntry = (openclawConfig.agents?.list ?? []).find(
-      (entry) => entry.id === "shellcorp-dev-team-pm",
+      (entry) => entry.id === "farplane-dev-team-pm",
     );
     const builderEntry = (openclawConfig.agents?.list ?? []).find(
-      (entry) => entry.id === "shellcorp-dev-team-builder",
+      (entry) => entry.id === "farplane-dev-team-builder",
     );
-    expect(pmEntry?.skills).toContain("shellcorp-competitor-feature-scout");
+    expect(pmEntry?.skills).toContain("farplane-competitor-feature-scout");
     expect(pmEntry?.skills).toContain("create-team");
     expect(builderEntry?.skills).toEqual([
-      "shellcorp-team-cli",
-      "shellcorp-kanban-ops",
+      "farplane-team-cli",
+      "farplane-kanban-ops",
       "status-self-reporter",
     ]);
     expect(pmEntry?.heartbeat?.every).toBe("3m");
@@ -468,34 +468,34 @@ describe("team CLI", () => {
     await access(
       path.join(
         stateDir,
-        "workspace-shellcorp-dev-team-pm",
+        "workspace-farplane-dev-team-pm",
         "skills",
-        "shellcorp-competitor-feature-scout",
+        "farplane-competitor-feature-scout",
         "SKILL.md",
       ),
     );
     await access(
       path.join(
         stateDir,
-        "workspace-shellcorp-dev-team-builder",
+        "workspace-farplane-dev-team-builder",
         "skills",
-        "shellcorp-team-cli",
+        "farplane-team-cli",
         "SKILL.md",
       ),
     );
-    await access(path.join(stateDir, "workspace-shellcorp-dev-team-pm", "PRESET.md"));
-    await access(path.join(stateDir, "workspace-shellcorp-dev-team-builder", "PRESET.md"));
+    await access(path.join(stateDir, "workspace-farplane-dev-team-pm", "PRESET.md"));
+    await access(path.join(stateDir, "workspace-farplane-dev-team-builder", "PRESET.md"));
 
     const officeObjects = await readOfficeObjects(stateDir);
     expect(
       officeObjects.some(
         (entry) =>
-          entry.meshType === "team-cluster" && entry.metadata?.teamId === "team-proj-shellcorp-dev-team",
+          entry.meshType === "team-cluster" && entry.metadata?.teamId === "team-proj-farplane-dev-team",
       ),
     ).toBe(true);
   });
 
-  it("reapplies the ShellCorp dev preset additively without deleting extra agents", async () => {
+  it("reapplies the Farplane dev preset additively without deleting extra agents", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
     await runCommand(["team", "preset", "dev", "--apply", "--json"]);
@@ -503,8 +503,8 @@ describe("team CLI", () => {
     const companyRaw = await readFile(path.join(stateDir, "company.json"), "utf-8");
     const company = JSON.parse(companyRaw) as CompanySnapshot;
     company.agents.push({
-      agentId: "shellcorp-dev-team-extra",
-      projectId: "proj-shellcorp-dev-team",
+      agentId: "farplane-dev-team-extra",
+      projectId: "proj-farplane-dev-team",
       heartbeatProfileId: "hb-pm",
       role: "builder",
     });
@@ -515,7 +515,7 @@ describe("team CLI", () => {
       "preset",
       "dev",
       "--team-id",
-      "team-proj-shellcorp-dev-team",
+      "team-proj-farplane-dev-team",
       "--apply",
       "--json",
     ]);
@@ -523,14 +523,14 @@ describe("team CLI", () => {
     const refreshedRaw = await readFile(path.join(stateDir, "company.json"), "utf-8");
     const refreshed = JSON.parse(refreshedRaw) as CompanySnapshot;
     expect(
-      refreshed.agents.some((entry) => entry.agentId === "shellcorp-dev-team-extra"),
+      refreshed.agents.some((entry) => entry.agentId === "farplane-dev-team-extra"),
     ).toBe(true);
   });
 
   it("shows team config and manages file-backed resources markdown", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_CONVEX_SITE_URL = "https://shellcorp.example";
+    process.env.FARPLANE_CONVEX_SITE_URL = "https://farplane.example";
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     vi.stubGlobal(
       "fetch",
@@ -625,7 +625,7 @@ describe("team CLI", () => {
       "--agent-id",
       "agent-team-builder",
       "--skills",
-      "shellcorp-team-cli,status-self-reporter",
+      "farplane-team-cli,status-self-reporter",
       "--sync-workspace",
       "--json",
     ]);
@@ -649,13 +649,13 @@ describe("team CLI", () => {
     const builderEntry = (openclawConfig.agents?.list ?? []).find(
       (entry) => entry.id === "agent-team-builder",
     );
-    expect(builderEntry?.skills).toEqual(["shellcorp-team-cli", "status-self-reporter"]);
+    expect(builderEntry?.skills).toEqual(["farplane-team-cli", "status-self-reporter"]);
     await access(
       path.join(
         stateDir,
         "workspace-agent-team-builder",
         "skills",
-        "shellcorp-team-cli",
+        "farplane-team-cli",
         "SKILL.md",
       ),
     );
@@ -714,7 +714,7 @@ describe("team CLI", () => {
   it("enables live mode through the simplified team run surface and syncs openclaw heartbeat cadence", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_CONVEX_SITE_URL = "https://shellcorp.example";
+    process.env.FARPLANE_CONVEX_SITE_URL = "https://farplane.example";
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     vi.stubGlobal(
       "fetch",
@@ -788,7 +788,7 @@ describe("team CLI", () => {
   it("includes runtime inspection paths in team monitor output", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_CONVEX_SITE_URL = "https://shellcorp.example";
+    process.env.FARPLANE_CONVEX_SITE_URL = "https://farplane.example";
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     vi.stubGlobal(
       "fetch",
@@ -850,7 +850,7 @@ describe("team CLI", () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    process.env.SHELLCORP_CONVEX_SITE_URL = "https://shellcorp.example";
+    process.env.FARPLANE_CONVEX_SITE_URL = "https://farplane.example";
     vi.stubGlobal(
       "fetch",
       vi.fn(async (_input: unknown, init?: RequestInit) => {
@@ -954,7 +954,7 @@ describe("team CLI", () => {
   it("reads recent team monitor activity from Convex timeline rows only", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_CONVEX_SITE_URL = "https://shellcorp.example";
+    process.env.FARPLANE_CONVEX_SITE_URL = "https://farplane.example";
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     await runCommand([
@@ -1029,8 +1029,8 @@ describe("team CLI", () => {
       agents?: { list?: Array<{ id?: string; workspace?: string }> };
     };
     const pmWorkspace =
-      openclaw.agents?.list?.find((entry) => entry.id === "shellcorp-dev-team-pm")?.workspace ?? "";
-    await access(path.join(pmWorkspace, "skills", "shellcorp-team-cli", "SKILL.md"));
+      openclaw.agents?.list?.find((entry) => entry.id === "farplane-dev-team-pm")?.workspace ?? "";
+    await access(path.join(pmWorkspace, "skills", "farplane-team-cli", "SKILL.md"));
     await access(path.join(pmWorkspace, "skills", "status-self-reporter", "SKILL.md"));
   });
 
@@ -1168,7 +1168,7 @@ describe("team CLI", () => {
   it("stores task memory directly on board tasks and supports the review lane", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_CONVEX_SITE_URL = "http://127.0.0.1:3211";
+    process.env.FARPLANE_CONVEX_SITE_URL = "http://127.0.0.1:3211";
     const boardTasks = installBoardMock();
 
     await runCommand([
@@ -1245,7 +1245,7 @@ describe("team CLI", () => {
   it("claims tasks for an agent and supports agent-scoped board views", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_CONVEX_SITE_URL = "http://127.0.0.1:3211";
+    process.env.FARPLANE_CONVEX_SITE_URL = "http://127.0.0.1:3211";
     const boardTasks = installBoardMock();
 
     await runCommand([
@@ -1746,9 +1746,9 @@ describe("team CLI", () => {
         "amazon-affiliate-metrics",
         "video-generator",
         "tiktok-poster",
-        "shellcorp-team-cli",
+        "farplane-team-cli",
         "status-self-reporter",
-        "shellcorp-kanban-ops",
+        "farplane-kanban-ops",
       ]),
     );
     expect(executor?.skills ?? []).toEqual(
@@ -1756,7 +1756,7 @@ describe("team CLI", () => {
         "amazon-affiliate-metrics",
         "video-generator",
         "tiktok-poster",
-        "shellcorp-team-cli",
+        "farplane-team-cli",
       ]),
     );
   });
@@ -2060,7 +2060,7 @@ describe("team CLI", () => {
   it("executes board and bot commands through Convex HTTP endpoints", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_CONVEX_SITE_URL = "https://example.convex.site";
+    process.env.FARPLANE_CONVEX_SITE_URL = "https://example.convex.site";
 
     await runCommand([
       "team",
@@ -2263,10 +2263,10 @@ describe("team CLI", () => {
     expect(queryPayloads.some((payload) => payload.teamId === "team-proj-delta")).toBe(true);
   });
 
-  it("resolves Convex site URL from persisted shellcorp sidecar config", async () => {
+  it("resolves Convex site URL from persisted farplane sidecar config", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    delete process.env.SHELLCORP_CONVEX_SITE_URL;
+    delete process.env.FARPLANE_CONVEX_SITE_URL;
     delete process.env.CONVEX_SITE_URL;
 
     await runCommand([
@@ -2283,7 +2283,7 @@ describe("team CLI", () => {
     ]);
 
     await writeFile(
-      path.join(stateDir, "shellcorp.json"),
+      path.join(stateDir, "farplane.json"),
       `${JSON.stringify(
         {
           convex: { siteUrl: "https://persisted.convex.site" },
@@ -2315,7 +2315,7 @@ describe("team CLI", () => {
   it("validates Convex site URL before board calls", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_CONVEX_SITE_URL = "127.0.0.1:3211";
+    process.env.FARPLANE_CONVEX_SITE_URL = "127.0.0.1:3211";
 
     await runCommand([
       "team",
@@ -2338,7 +2338,7 @@ describe("team CLI", () => {
   it("reports actionable board query network errors", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_CONVEX_SITE_URL = "http://127.0.0.1:3211";
+    process.env.FARPLANE_CONVEX_SITE_URL = "http://127.0.0.1:3211";
 
     await runCommand([
       "team",
@@ -2368,7 +2368,7 @@ describe("team CLI", () => {
   it("reports explicit status via /status/report endpoint", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_CONVEX_SITE_URL = "https://example.convex.site";
+    process.env.FARPLANE_CONVEX_SITE_URL = "https://example.convex.site";
 
     await runCommand([
       "team",
@@ -2434,9 +2434,9 @@ describe("team CLI", () => {
   it("supports top-level status shortcut and routes via board activity_log", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_CONVEX_SITE_URL = "https://example.convex.site";
-    process.env.SHELLCORP_AGENT_ID = "shortcut-executor";
-    process.env.SHELLCORP_TEAM_ID = "team-proj-shortcut";
+    process.env.FARPLANE_CONVEX_SITE_URL = "https://example.convex.site";
+    process.env.FARPLANE_AGENT_ID = "shortcut-executor";
+    process.env.FARPLANE_TEAM_ID = "team-proj-shortcut";
 
     await runCommand([
       "team",
@@ -2537,15 +2537,15 @@ describe("team CLI", () => {
 
     await runCommand(["agent", "login", "--agent-id", "alpha-pm"]);
     const loginOutput = String(logSpy.mock.calls.at(-1)?.[0] ?? "");
-    expect(loginOutput).toContain('export SHELLCORP_AGENT_ID="alpha-pm"');
-    expect(loginOutput).toContain('export SHELLCORP_TEAM_ID="team-proj-alpha"');
-    expect(loginOutput).toContain('export SHELLCORP_PROJECT_ID="proj-alpha"');
-    expect(loginOutput).toContain('export SHELLCORP_ACTOR_ROLE="pm"');
+    expect(loginOutput).toContain('export FARPLANE_AGENT_ID="alpha-pm"');
+    expect(loginOutput).toContain('export FARPLANE_TEAM_ID="team-proj-alpha"');
+    expect(loginOutput).toContain('export FARPLANE_PROJECT_ID="proj-alpha"');
+    expect(loginOutput).toContain('export FARPLANE_ACTOR_ROLE="pm"');
 
-    process.env.SHELLCORP_AGENT_ID = "alpha-pm";
-    process.env.SHELLCORP_TEAM_ID = "team-proj-alpha";
-    process.env.SHELLCORP_PROJECT_ID = "proj-alpha";
-    process.env.SHELLCORP_ACTOR_ROLE = "pm";
+    process.env.FARPLANE_AGENT_ID = "alpha-pm";
+    process.env.FARPLANE_TEAM_ID = "team-proj-alpha";
+    process.env.FARPLANE_PROJECT_ID = "proj-alpha";
+    process.env.FARPLANE_ACTOR_ROLE = "pm";
 
     await runCommand(["whoami", "--json"]);
     const whoamiPayload = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? "{}")) as {
@@ -2564,7 +2564,7 @@ describe("team CLI", () => {
   it("uses logged-in agent env to attribute top-level status without explicit flags", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_CONVEX_SITE_URL = "https://example.convex.site";
+    process.env.FARPLANE_CONVEX_SITE_URL = "https://example.convex.site";
 
     await runCommand([
       "team",
@@ -2579,10 +2579,10 @@ describe("team CLI", () => {
       "builder,pm",
     ]);
 
-    process.env.SHELLCORP_AGENT_ID = "alpha-pm";
-    process.env.SHELLCORP_TEAM_ID = "team-proj-alpha";
-    process.env.SHELLCORP_PROJECT_ID = "proj-alpha";
-    process.env.SHELLCORP_ACTOR_ROLE = "pm";
+    process.env.FARPLANE_AGENT_ID = "alpha-pm";
+    process.env.FARPLANE_TEAM_ID = "team-proj-alpha";
+    process.env.FARPLANE_PROJECT_ID = "proj-alpha";
+    process.env.FARPLANE_ACTOR_ROLE = "pm";
 
     const commandPayloads: Array<Record<string, unknown>> = [];
     const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
@@ -2625,10 +2625,10 @@ describe("team CLI", () => {
       "builder,pm",
     ]);
 
-    process.env.SHELLCORP_AGENT_ID = "alpha-pm";
-    process.env.SHELLCORP_TEAM_ID = "team-proj-wrong";
-    process.env.SHELLCORP_PROJECT_ID = "proj-alpha";
-    process.env.SHELLCORP_ACTOR_ROLE = "pm";
+    process.env.FARPLANE_AGENT_ID = "alpha-pm";
+    process.env.FARPLANE_TEAM_ID = "team-proj-wrong";
+    process.env.FARPLANE_PROJECT_ID = "proj-alpha";
+    process.env.FARPLANE_ACTOR_ROLE = "pm";
 
     await expect(runCommand(["whoami", "--json"])).rejects.toThrow(
       "actor_team_conflict:alpha-pm:team-proj-alpha:team-proj-wrong",
@@ -2638,7 +2638,7 @@ describe("team CLI", () => {
   it("sends coordination through openclaw agent and logs a handoff activity", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_CONVEX_SITE_URL = "https://example.convex.site";
+    process.env.FARPLANE_CONVEX_SITE_URL = "https://example.convex.site";
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     await runCommand([
@@ -2654,7 +2654,7 @@ describe("team CLI", () => {
       "builder,pm",
     ]);
 
-    const binDir = await mkdtemp(path.join(os.tmpdir(), "shellcorp-openclaw-bin-"));
+    const binDir = await mkdtemp(path.join(os.tmpdir(), "farplane-openclaw-bin-"));
     const argsFile = path.join(binDir, "openclaw-args.txt");
     const openclawPath = path.join(binDir, "openclaw");
     await writeFile(
@@ -2728,8 +2728,8 @@ describe("team CLI", () => {
   it("enforces permission denials for restricted actor roles", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_ACTOR_ROLE = "operator";
-    process.env.SHELLCORP_ALLOWED_PERMISSIONS = "team.read";
+    process.env.FARPLANE_ACTOR_ROLE = "operator";
+    process.env.FARPLANE_ALLOWED_PERMISSIONS = "team.read";
     await expect(
       runCommand([
         "team",
@@ -2747,7 +2747,7 @@ describe("team CLI", () => {
   it("requires board-write permission before task memory updates", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_CONVEX_SITE_URL = "http://127.0.0.1:3211";
+    process.env.FARPLANE_CONVEX_SITE_URL = "http://127.0.0.1:3211";
     installBoardMock();
 
     await runCommand([
@@ -2774,8 +2774,8 @@ describe("team CLI", () => {
       "Plan work",
     ]);
 
-    process.env.SHELLCORP_ACTOR_ROLE = "operator";
-    process.env.SHELLCORP_ALLOWED_PERMISSIONS = "team.read";
+    process.env.FARPLANE_ACTOR_ROLE = "operator";
+    process.env.FARPLANE_ALLOWED_PERMISSIONS = "team.read";
 
     await expect(
       runCommand([

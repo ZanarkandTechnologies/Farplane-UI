@@ -1,16 +1,16 @@
 ---
-name: shellcorp_team_cli
-description: Manage ShellCorp teams with the local shell CLI. Use when an agent already knows the intended team mutation and needs concrete commands for team create/update, board task operations, proposal state changes, heartbeat, business config, or validation.
+name: farplane_team_cli
+description: Manage Farplane teams with the local shell CLI. Use when an agent already knows the intended team mutation and needs concrete commands for team create/update, board task operations, proposal state changes, heartbeat, business config, or validation.
 ---
 
-# ShellCorp Team CLI Skill
+# Farplane Team CLI Skill
 
 Use this skill when the needed workflow is already decided and the agent needs command syntax plus mutation guardrails.
 It is CLI-first and permission-aware for agent execution.
 
 ## Command Entry
 
-Run commands from the ShellCorp repo root:
+Run commands from the Farplane repo root:
 
 ```bash
 npm run shell -- <command>
@@ -106,8 +106,8 @@ npm run shell -- team board task update \
 - Agent status + ops timeline:
 
 ```bash
-export SHELLCORP_AGENT_ID=buffalos-ai-pm
-export SHELLCORP_TEAM_ID=team-proj-buffalos-ai
+export FARPLANE_AGENT_ID=buffalos-ai-pm
+export FARPLANE_TEAM_ID=team-proj-buffalos-ai
 
 npm run shell -- status \
   --state planning \
@@ -170,11 +170,11 @@ npm run shell -- doctor team-data
 
 For the higher-level CEO workflow that gathers the brief, researches the team shape, prepares the proposal, and only then calls these commands, use:
 
-- [`skills/create-team/SKILL.md`](/home/kenjipcx/Zanarkand/ShellCorp/skills/create-team/SKILL.md)
+- [`skills/create-team/SKILL.md`](/home/kenjipcx/Zanarkand/Farplane/skills/create-team/SKILL.md)
 
 ## Contract Tests
 
-- This skill's executable command examples are covered under [`skills/shellcorp-team-cli/tests/`](/home/kenjipcx/Zanarkand/ShellCorp/skills/shellcorp-team-cli/tests).
+- This skill's executable command examples are covered under [`skills/farplane-team-cli/tests/`](/home/kenjipcx/Zanarkand/Farplane/skills/farplane-team-cli/tests).
 - Run them with:
 
 ```bash
@@ -184,9 +184,9 @@ pnpm run test:skills
 ## Permission Model (Agent Runtime)
 
 - Optional role input:
-  - `SHELLCORP_ACTOR_ROLE` (example: `operator`, `pm`, `readonly`)
+  - `FARPLANE_ACTOR_ROLE` (example: `operator`, `pm`, `readonly`)
 - Optional explicit permission override:
-  - `SHELLCORP_ALLOWED_PERMISSIONS` (comma-separated list or `*`)
+  - `FARPLANE_ALLOWED_PERMISSIONS` (comma-separated list or `*`)
 - Common mutation permission keys:
   - `team.meta.write`
   - `team.kpi.write`

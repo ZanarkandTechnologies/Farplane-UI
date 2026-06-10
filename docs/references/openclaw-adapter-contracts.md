@@ -12,7 +12,7 @@ The goal is to make it easy to:
 
 ## Architecture
 
-ShellCorp’s UI talks to two kinds of surfaces:
+Farplane’s UI talks to two kinds of surfaces:
 
 - **State HTTP surfaces** (read-only JSON): `GET {stateBase}/openclaw/...`
 - **Gateway WS methods** (RPC-style): e.g. `agents.list`, `skills.status`, `tools.catalog`
@@ -157,24 +157,24 @@ Most UI screens should prefer the high-level aggregate:
 - `skills`
 - `company` + workload/warnings
 
-## CLI bundling (for global `shellcorp`)
+## CLI bundling (for global `farplane`)
 
-To ensure global `shellcorp` works even when repo `node_modules` is missing, the CLI is bundled via esbuild.
+To ensure global `farplane` works even when repo `node_modules` is missing, the CLI is bundled via esbuild.
 
-- Source entry: `cli/shellcorp-cli.ts`
-- Bundle output: `dist/bundle/shellcorp-cli.cjs`
-- Wrapper: `bin/shellcorp.js` prefers the bundle when present.
+- Source entry: `cli/farplane-cli.ts`
+- Bundle output: `dist/bundle/farplane-cli.cjs`
+- Wrapper: `bin/farplane.js` prefers the bundle when present.
 
 Commands:
 
 ```bash
-npm --prefix /home/kenjipcx/Zanarkand/ShellCorp run cli:bundle
+npm --prefix /home/kenjipcx/Zanarkand/Farplane run cli:bundle
 ```
 
 Note: For piping JSON output to `jq`, prefer `npm --silent` to avoid `npm run` banner lines:
 
 ```bash
-npm --silent --prefix /home/kenjipcx/Zanarkand/ShellCorp run shell -- team board task list --team-id team-proj-shellcorp-v2 --json | jq .
+npm --silent --prefix /home/kenjipcx/Zanarkand/Farplane run shell -- team board task list --team-id team-proj-farplane-v2 --json | jq .
 ```
 
 ## Testing
@@ -186,7 +186,7 @@ Adapter unit tests live in:
 Run:
 
 ```bash
-npm --prefix /home/kenjipcx/Zanarkand/ShellCorp run test:once -- ui/src/lib/openclaw-adapter.test.ts
+npm --prefix /home/kenjipcx/Zanarkand/Farplane run test:once -- ui/src/lib/openclaw-adapter.test.ts
 ```
 
 ## Versioning guidance

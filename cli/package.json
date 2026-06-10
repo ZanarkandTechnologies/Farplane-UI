@@ -1,11 +1,11 @@
 {
-  "name": "@shellcorp/cli",
+  "name": "@farplane/cli",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "shell": "tsx shellcorp-cli.ts",
-    "bundle": "esbuild shellcorp-cli.ts --bundle --platform=node --format=cjs --target=node20 --outfile=../dist/bundle/shellcorp-cli.cjs",
+    "shell": "tsx farplane-cli.ts",
+    "bundle": "esbuild farplane-cli.ts --bundle --platform=node --format=cjs --target=node20 --outfile=../dist/bundle/farplane-cli.cjs",
     "typecheck": "tsc -p ../tsconfig.json --noEmit"
   },
   "dependencies": {

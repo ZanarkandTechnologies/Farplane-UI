@@ -4,7 +4,7 @@
  * CLI REINSTALL
  * =============
  * Purpose
- * - Provide a cross-platform entrypoint for refreshing the global ShellCorp CLI alias.
+ * - Provide a cross-platform entrypoint for refreshing the global Farplane CLI alias.
  *
  * KEY CONCEPTS:
  * - Reuses the shared reinstall helper so npm scripts, onboarding, and tests stay aligned.
@@ -12,7 +12,7 @@
  *
  * USAGE:
  * - npm run cli:reinstall
- * - tsx cli/cli-reinstall.ts --repo-root /path/to/ShellCorp
+ * - tsx cli/cli-reinstall.ts --repo-root /path/to/Farplane
  *
  * MEMORY REFERENCES:
  * - MEM-0178
@@ -54,7 +54,7 @@ export async function runCliReinstall(
   } = { log: console.log, error: console.error },
 ): Promise<number> {
   const repoRoot = readRepoRoot(argv);
-  io.log(`Refreshing ShellCorp CLI from ${repoRoot}`);
+  io.log(`Refreshing Farplane CLI from ${repoRoot}`);
   const result = await reinstallRunner({ repoRoot });
 
   for (const step of result.steps) {

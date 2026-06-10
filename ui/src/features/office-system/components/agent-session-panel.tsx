@@ -63,10 +63,11 @@ export function AgentSessionPanel() {
       setSessions([]);
       return;
     }
+    const agentId = selectedAgentId;
     let cancelled = false;
     async function loadSessions(): Promise<void> {
       try {
-        const rows = await adapter.listSessions(selectedAgentId);
+        const rows = await adapter.listSessions(agentId);
         if (cancelled) return;
         setSessions(rows);
         if (!selectedSessionKey && rows.length > 0) {
@@ -87,10 +88,12 @@ export function AgentSessionPanel() {
       setTimeline(null);
       return;
     }
+    const agentId = selectedAgentId;
+    const sessionKey = selectedSessionKey;
     let cancelled = false;
     async function loadTimeline(): Promise<void> {
       try {
-        const next = await adapter.getSessionTimeline(selectedAgentId, selectedSessionKey);
+        const next = await adapter.getSessionTimeline(agentId, sessionKey);
         if (!cancelled) setTimeline(next);
       } catch (error) {
         if (!cancelled) setErrorText(error instanceof Error ? error.message : "timeline_load_failed");

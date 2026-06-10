@@ -23,7 +23,7 @@ Create one canonical minimal starter-office seed based on your current sidecar l
 
 ## Acceptance Criteria
 
-- [ ] AC-1: ShellCorp onboarding seeds new installs with the canonical minimal office footprint, decor, and office objects instead of the current oversized defaults.
+- [ ] AC-1: Farplane onboarding seeds new installs with the canonical minimal office footprint, decor, and office objects instead of the current oversized defaults.
 - [ ] AC-2: A dedicated office CLI command can apply the same starter-office seed to an existing sidecar state without requiring manual JSON edits.
 - [ ] AC-3: Tests cover new-install seeding and explicit re-apply behavior for the starter-office command.
 
@@ -48,7 +48,7 @@ Create one canonical minimal starter-office seed based on your current sidecar l
 ## Build Notes
 
 - Your current live sidecar files show the desired starter footprint lives in both `~/.openclaw/office.json` and `~/.openclaw/office-objects.json`; copying objects alone would miss the reduced floor shape and decor.
-- Implemented a shared starter-office template loader in `cli/starter-office.ts`, seeded onboarding from `templates/sidecar/office.template.json` plus `templates/sidecar/office-objects.template.json`, and added `shellcorp office init [--force]` for manual reapply on existing installs.
+- Implemented a shared starter-office template loader in `cli/starter-office.ts`, seeded onboarding from `templates/sidecar/office.template.json` plus `templates/sidecar/office-objects.template.json`, and added `farplane office init [--force]` for manual reapply on existing installs.
 - Kept the world monitor in the portable starter seed by moving it off your personal custom mesh asset and onto a built-in `bookshelf` host with the same `uiBinding` and `skillBinding` metadata.
 
 ## QA Reconciliation

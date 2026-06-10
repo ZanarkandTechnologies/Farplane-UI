@@ -37,14 +37,14 @@ Miro Fish / world simulations / polymarket trading: I'd park this entirely. It's
 
 ## Demo This Week: The Self-Copying Team
 
-**Narrative:** *ShellCorp's first autonomous team doesn't sell anything — it makes ShellCorp better. Every morning it scans GitHub repos from other AI office projects, finds interesting commits, and the CEO presents adoption proposals. You approve one. A task lands on the board. The office ran itself overnight.*
+**Narrative:** *Farplane's first autonomous team doesn't sell anything — it makes Farplane better. Every morning it scans GitHub repos from other AI office projects, finds interesting commits, and the CEO presents adoption proposals. You approve one. A task lands on the board. The office ran itself overnight.*
 
 That's a 90-second story with a clear beginning, middle, and end.
 
 ### What already exists
 
-- `skills/shellcorp-competitor-feature-scout/` — skill, watchlist, memory files
-- `skills/shellcorp-competitor-feature-scout/watchlist.md` — placeholder, needs real repos
+- `skills/farplane-competitor-feature-scout/` — skill, watchlist, memory files
+- `skills/farplane-competitor-feature-scout/watchlist.md` — placeholder, needs real repos
 - CEO Workbench + Human Review flow — built in UI
 - Team Panel + board tasks — built in UI
 - Full technical plan for CLI commands — in `docs/progress.md`
@@ -78,7 +78,7 @@ You do NOT need `finalize` or full task auto-creation for the demo. The story wo
 
 ### Tier 1 — Core platform, build after demo
 
-- **Object-as-skill interface** (idea 3): This is your biggest differentiator. Gym bike = training object with a training skill bound to it. Agent "uses" an object as a tool call. This makes the office feel alive and functional at the same time. The `skill.config.yaml` + `metadata.skillBinding` pattern already exists in MEMORY — extend it so agents can propose which objects to interact with. This is the thing that separates ShellCorp from every "agent dashboard" product.
+- **Object-as-skill interface** (idea 3): This is your biggest differentiator. Gym bike = training object with a training skill bound to it. Agent "uses" an object as a tool call. This makes the office feel alive and functional at the same time. The `skill.config.yaml` + `metadata.skillBinding` pattern already exists in MEMORY — extend it so agents can propose which objects to interact with. This is the thing that separates Farplane from every "agent dashboard" product.
 - **High-ticket sales teams** (idea 1): Right mission, right revenue path. Build after demo. Needs real outreach tooling connected (email/LinkedIn/calendar).
 
 ### Tier 2 — Compelling but not urgent
@@ -98,7 +98,7 @@ You do NOT need `finalize` or full task auto-creation for the demo. The story wo
 
 ## Key Files to Touch for Demo
 
-- `[skills/shellcorp-competitor-feature-scout/watchlist.md](skills/shellcorp-competitor-feature-scout/watchlist.md)` — add real repos
+- `[skills/farplane-competitor-feature-scout/watchlist.md](skills/farplane-competitor-feature-scout/watchlist.md)` — add real repos
 - New `cli/meta-commands/` — `scout` command (designed in `docs/progress.md`)
 - `~/.openclaw/cron/jobs.json` — cron install target
 - `scripts/reset-demo-office.sh` — add a `competitor` demo profile that seeds the Intel team + one pre-approved proposal
@@ -107,7 +107,7 @@ You do NOT need `finalize` or full task auto-creation for the demo. The story wo
 
 ## What This Demo Proves
 
-- ShellCorp can run a real autonomous team with zero manual trigger
+- Farplane can run a real autonomous team with zero manual trigger
 - The CEO review + founder approval loop actually works
 - The office is the control surface for that loop (not a terminal)
 - The product story doesn't require money to be compelling yet

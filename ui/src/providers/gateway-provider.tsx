@@ -23,6 +23,7 @@ import {
   saveGatewayUiConfig,
 } from "@/lib/gateway-config";
 import { GatewayWsClient } from "@/lib/gateway-ws-client";
+import { getRuntimeAdapterKind } from "@/lib/runtime-adapters";
 
 type GatewayContextValue = {
   client: GatewayWsClient;
@@ -43,6 +44,8 @@ function toGatewayWsUrl(baseUrl: string): string {
 export function GatewayProvider({ children }: { children: ReactNode }): JSX.Element {
   const [connected, setConnected] = useState(false);
   const [config, setConfig] = useState<GatewayUiConfig>(() => getGatewayUiConfig());
+  const shouldConnectGateway =
+    getRuntimeAdapterKind(import.meta.env.VITE_FARPLANE_RUNTIME_ADAPTER) === "openclaw";
   const client = useMemo(
     () =>
       new GatewayWsClient({
@@ -54,11 +57,15 @@ export function GatewayProvider({ children }: { children: ReactNode }): JSX.Elem
   );
 
   useEffect(() => {
+    if (!shouldConnectGateway) {
+      setConnected(false);
+      return;
+    }
     client.start();
     return () => {
       client.stop();
     };
-  }, [client]);
+  }, [client, shouldConnectGateway]);
 
   const value = useMemo(
     () => ({

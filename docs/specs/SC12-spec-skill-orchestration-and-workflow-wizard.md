@@ -1,6 +1,6 @@
 # SC12: CEO Team Generation Workflow
 
-> Deprecated. The active replacement spec is [SC12-spec-board-native-task-planning-review.md](/home/kenjipcx/Zanarkand/ShellCorp/docs/specs/SC12-spec-board-native-task-planning-review.md).
+> Deprecated. The active replacement spec is [SC12-spec-board-native-task-planning-review.md](/home/kenjipcx/Zanarkand/Farplane/docs/specs/SC12-spec-board-native-task-planning-review.md).
 
 ## Status
 
@@ -33,40 +33,40 @@ The current product simplification for this spec is:
 
 ## Why This Exists
 
-The original SC12 drifted toward recreating workflow tooling inside the UI. That is the wrong ownership boundary for ShellCorp.
+The original SC12 drifted toward recreating workflow tooling inside the UI. That is the wrong ownership boundary for Farplane.
 
-OpenClaw already owns agent runtime and behavior. ShellCorp already has a local CLI for team creation and team mutation. The missing product layer is not another custom runtime. It is a clean operator workflow around the existing runtime:
+OpenClaw already owns agent runtime and behavior. Farplane already has a local CLI for team creation and team mutation. The missing product layer is not another custom runtime. It is a clean operator workflow around the existing runtime:
 
 1. founder tells the CEO agent to start a team for an idea,
 2. CEO agent asks follow-up questions until the idea passes a minimum gate,
 3. CEO agent researches the likely team shape, tools, and data sources,
-4. CEO agent creates or updates board tasks through ShellCorp CLI,
+4. CEO agent creates or updates board tasks through Farplane CLI,
 5. founder reviews work by operating the `review` lane in User Tasks,
-6. CEO agent executes approved work through ShellCorp CLI,
+6. CEO agent executes approved work through Farplane CLI,
 7. the created team appears in the existing office/team surfaces,
 8. created board tasks become the short-term task/session memory surface,
 9. heartbeat takes over.
 
 ## Existing Foundation To Reuse
 
-SC12 must build around current ShellCorp and OpenClaw primitives instead of introducing new runtime code.
+SC12 must build around current Farplane and OpenClaw primitives instead of introducing new runtime code.
 
 ### Reused product surfaces
 
-- [`ui/src/features/team-system/components/business-tab.tsx`](/home/kenjipcx/Zanarkand/ShellCorp/ui/src/features/team-system/components/business-tab.tsx)
-- [`ui/src/features/team-system/components/business-flow/business-readiness-panel.tsx`](/home/kenjipcx/Zanarkand/ShellCorp/ui/src/features/team-system/components/business-flow/business-readiness-panel.tsx)
-- [`ui/src/components/hud/user-tasks-panel.tsx`](/home/kenjipcx/Zanarkand/ShellCorp/ui/src/components/hud/user-tasks-panel.tsx)
-- [`ui/src/components/office-scene/use-office-scene-interactions.ts`](/home/kenjipcx/Zanarkand/ShellCorp/ui/src/components/office-scene/use-office-scene-interactions.ts)
-- [`cli/team-commands/team-business.ts`](/home/kenjipcx/Zanarkand/ShellCorp/cli/team-commands/team-business.ts)
-- [`skills/shellcorp-team-cli/SKILL.md`](/home/kenjipcx/Zanarkand/ShellCorp/skills/shellcorp-team-cli/SKILL.md)
+- [`ui/src/features/team-system/components/business-tab.tsx`](/home/kenjipcx/Zanarkand/Farplane/ui/src/features/team-system/components/business-tab.tsx)
+- [`ui/src/features/team-system/components/business-flow/business-readiness-panel.tsx`](/home/kenjipcx/Zanarkand/Farplane/ui/src/features/team-system/components/business-flow/business-readiness-panel.tsx)
+- [`ui/src/components/hud/user-tasks-panel.tsx`](/home/kenjipcx/Zanarkand/Farplane/ui/src/components/hud/user-tasks-panel.tsx)
+- [`ui/src/components/office-scene/use-office-scene-interactions.ts`](/home/kenjipcx/Zanarkand/Farplane/ui/src/components/office-scene/use-office-scene-interactions.ts)
+- [`cli/team-commands/team-business.ts`](/home/kenjipcx/Zanarkand/Farplane/cli/team-commands/team-business.ts)
+- [`skills/farplane-team-cli/SKILL.md`](/home/kenjipcx/Zanarkand/Farplane/skills/farplane-team-cli/SKILL.md)
 
 ### Reused capabilities
 
-- `shellcorp team create`
-- `shellcorp team business set-all`
-- `shellcorp team business equip-skills`
-- `shellcorp team board task add`
-- `shellcorp team board task update`
+- `farplane team create`
+- `farplane team business set-all`
+- `farplane team business equip-skills`
+- `farplane team board task add`
+- `farplane team board task update`
 - existing team readiness/business surfaces
 - existing OpenClaw heartbeat bootstrap and role templates
 - existing `task == session` direction from SC07
@@ -74,7 +74,7 @@ SC12 must build around current ShellCorp and OpenClaw primitives instead of intr
 ### Product rules
 
 - OpenClaw remains the runtime source of truth.
-- CEO behavior changes should come from skill instructions and heartbeat guidance, not new agent-runtime code in ShellCorp.
+- CEO behavior changes should come from skill instructions and heartbeat guidance, not new agent-runtime code in Farplane.
 - User Tasks is a filtered founder review surface over board tasks currently in `review`.
 - Team Panel and Business tab remain post-create inspection/editing surfaces, not the primary intake flow.
 - CEO planning work should prefer shared board/chat/session primitives over proposal-specific workflow stores.
@@ -87,12 +87,12 @@ SC12 must build around current ShellCorp and OpenClaw primitives instead of intr
    - create planning tickets when no actionable work exists,
    - write plan/context into task memory,
    - move tasks into `review` when human sign-off is needed.
-3. CEO agent persists the work as board tasks through ShellCorp CLI.
+3. CEO agent persists the work as board tasks through Farplane CLI.
 4. User Tasks shows the founder the board tasks currently in `review`.
 5. Founder approves by working the `review` lane.
-6. CEO agent monitors the board state and executes approved work through ShellCorp CLI.
-7. ShellCorp creates the team with existing create/business/equip/bootstrap flows.
-8. ShellCorp seeds the new team board with the initial tasks and working-memory template.
+6. CEO agent monitors the board state and executes approved work through Farplane CLI.
+7. Farplane creates the team with existing create/business/equip/bootstrap flows.
+8. Farplane seeds the new team board with the initial tasks and working-memory template.
 9. Existing office/team surfaces display the created team.
 10. Heartbeat governs the team after bootstrap by reading and updating task-backed memory.
 
@@ -286,7 +286,7 @@ SC12 is flexible in proposal generation and strict in execution.
 ## Acceptance Targets
 
 1. Founder can start with a business idea and receive a research-backed CEO proposal without manually configuring the Business tab first.
-2. The CEO can complete the proposal lifecycle with a ShellCorp skill doc plus CLI commands, without new agent-runtime code in ShellCorp.
+2. The CEO can complete the proposal lifecycle with a Farplane skill doc plus CLI commands, without new agent-runtime code in Farplane.
 3. User Tasks acts as the founder review and approval surface.
 4. Clicking the CEO desk opens a CEO workbench that reflects proposal workflow state.
 5. Approved proposals create teams through existing create/business/equip/bootstrap logic.

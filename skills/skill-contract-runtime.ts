@@ -5,7 +5,7 @@
  *
  * KEY CONCEPTS:
  * - Skill demos and tests both reuse the same markdown `json skill-test` contract.
- * - Execution happens against a temporary local ShellCorp state dir.
+ * - Execution happens against a temporary local Farplane state dir.
  * - Results are returned step-by-step so UI callers can inspect the workflow.
  *
  * USAGE:
@@ -102,7 +102,7 @@ const baseCompany = {
 };
 
 export async function setupSkillTestStateDir(): Promise<string> {
-  const dir = await mkdtemp(path.join(os.tmpdir(), "shellcorp-skill-test-"));
+  const dir = await mkdtemp(path.join(os.tmpdir(), "farplane-skill-test-"));
   await writeFile(path.join(dir, "company.json"), `${JSON.stringify(baseCompany, null, 2)}\n`, "utf-8");
   await writeFile(path.join(dir, "office-objects.json"), "[]\n", "utf-8");
   await writeFile(

@@ -5,7 +5,7 @@ usage() {
   cat <<'EOF'
 Usage: scripts/reset-demo-office.sh [options]
 
-Reset the active ShellCorp office into a small demo ladder:
+Reset the active Farplane office into a small demo ladder:
 - easy: Solo Affiliate Lab
 - medium: Micro SaaS Duo
 - hard: Autonomous Agency
@@ -16,7 +16,7 @@ Options:
                               ladder  = affiliate solo + micro-SaaS duo + autonomous agency
   --convex-url <url>          Convex site URL for board seeding
   --skip-board                Skip board task seeding even if Convex URL is available
-  --repo-path <path>          ShellCorp repo path (default: script parent directory)
+  --repo-path <path>          Farplane repo path (default: script parent directory)
   --dry-run                   Print commands without executing them
   --help                      Show this help
 
@@ -29,7 +29,7 @@ EOF
 
 PROFILE="ladder"
 REPO_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONVEX_URL="${SHELLCORP_CONVEX_SITE_URL:-${CONVEX_SITE_URL:-}}"
+CONVEX_URL="${FARPLANE_CONVEX_SITE_URL:-${CONVEX_SITE_URL:-}}"
 SKIP_BOARD=0
 DRY_RUN=0
 
@@ -88,7 +88,7 @@ fi
 
 cd "$REPO_PATH"
 
-if [[ ! -f "dist/bundle/shellcorp-cli.cjs" ]]; then
+if [[ ! -f "dist/bundle/farplane-cli.cjs" ]]; then
   npm run cli:bundle >/dev/null
 fi
 
@@ -97,13 +97,13 @@ if [[ -z "$CONVEX_URL" && -f ".env.local" ]]; then
 fi
 
 if [[ -n "$CONVEX_URL" ]]; then
-  export SHELLCORP_CONVEX_SITE_URL="$CONVEX_URL"
+  export FARPLANE_CONVEX_SITE_URL="$CONVEX_URL"
 elif [[ "$SKIP_BOARD" -eq 0 ]]; then
   echo "reset-demo-office:warn missing Convex site URL; board seeding will be skipped" >&2
   SKIP_BOARD=1
 fi
 
-RUNNER=(node dist/bundle/shellcorp-cli.cjs)
+RUNNER=(node dist/bundle/farplane-cli.cjs)
 RUN_STAMP="$(date +%Y%m%d%H%M%S)"
 RUN_SUFFIX="demo-${RUN_STAMP}"
 

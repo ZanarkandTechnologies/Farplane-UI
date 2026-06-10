@@ -16,10 +16,10 @@
   ],
   "projects": [
     {
-      "id": "proj-shellcorp",
+      "id": "proj-farplane",
       "departmentId": "dept-products",
-      "name": "ShellCorp",
-      "githubUrl": "https://github.com/your-org/shellcorp",
+      "name": "Farplane",
+      "githubUrl": "https://github.com/your-org/farplane",
       "status": "active",
       "goal": "Build an OpenClaw-native AI office control center.",
       "kpis": [
@@ -51,23 +51,23 @@
       "lifecycleState": "active"
     },
     {
-      "agentId": "shellcorp-builder",
+      "agentId": "farplane-builder",
       "role": "builder",
-      "projectId": "proj-shellcorp",
+      "projectId": "proj-farplane",
       "heartbeatProfileId": "hb-builder",
       "lifecycleState": "active"
     },
     {
-      "agentId": "shellcorp-growth",
+      "agentId": "farplane-growth",
       "role": "growth_marketer",
-      "projectId": "proj-shellcorp",
+      "projectId": "proj-farplane",
       "heartbeatProfileId": "hb-growth",
       "lifecycleState": "active"
     },
     {
-      "agentId": "shellcorp-pm",
+      "agentId": "farplane-pm",
       "role": "pm",
-      "projectId": "proj-shellcorp",
+      "projectId": "proj-farplane",
       "heartbeatProfileId": "hb-pm",
       "lifecycleState": "active"
     },
@@ -95,19 +95,19 @@
   ],
   "roleSlots": [
     {
-      "projectId": "proj-shellcorp",
+      "projectId": "proj-farplane",
       "role": "builder",
       "desiredCount": 1,
       "spawnPolicy": "queue_pressure"
     },
     {
-      "projectId": "proj-shellcorp",
+      "projectId": "proj-farplane",
       "role": "growth_marketer",
       "desiredCount": 1,
       "spawnPolicy": "queue_pressure"
     },
     {
-      "projectId": "proj-shellcorp",
+      "projectId": "proj-farplane",
       "role": "pm",
       "desiredCount": 1,
       "spawnPolicy": "queue_pressure"
@@ -133,19 +133,19 @@
   ],
   "tasks": [
     {
-      "id": "task-shellcorp-001",
-      "projectId": "proj-shellcorp",
+      "id": "task-farplane-001",
+      "projectId": "proj-farplane",
       "title": "Ship project and agent topology MVP.",
       "status": "in_progress",
-      "ownerAgentId": "shellcorp-builder",
+      "ownerAgentId": "farplane-builder",
       "priority": "high"
     },
     {
-      "id": "task-shellcorp-002",
-      "projectId": "proj-shellcorp",
+      "id": "task-farplane-002",
+      "projectId": "proj-farplane",
       "title": "Define customer-facing support response templates.",
       "status": "todo",
-      "ownerAgentId": "shellcorp-pm",
+      "ownerAgentId": "farplane-pm",
       "priority": "medium"
     },
     {
@@ -211,14 +211,14 @@
     {
       "platform": "slack",
       "externalChannelId": "C_CUSTOMER_SUPPORT",
-      "projectId": "proj-shellcorp",
+      "projectId": "proj-farplane",
       "agentRole": "pm",
       "routingMode": "default_pm"
     },
     {
       "platform": "discord",
       "externalChannelId": "123456789012345678",
-      "projectId": "proj-shellcorp",
+      "projectId": "proj-farplane",
       "agentRole": "pm",
       "routingMode": "default_pm"
     },
@@ -271,7 +271,7 @@
   ],
   "heartbeatRuntime": {
     "enabled": true,
-    "pluginId": "shellcorp-heartbeat",
+    "pluginId": "farplane-heartbeat",
     "serviceId": "company-heartbeat-loop",
     "cadenceMinutes": 10,
     "notes": "Run heartbeat execution inside OpenClaw plugin service/hooks so all sessions route through gateway."

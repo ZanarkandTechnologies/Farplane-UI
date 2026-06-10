@@ -45,13 +45,13 @@ const STEP_COPY: Record<OfficeOnboardingStep, StepCopy> = {
   "click-ceo": {
     eyebrow: "Step 1 of 4",
     title: "Start with the CEO",
-    body: "Click the CEO agent in the office. That is the fastest way to learn the ShellCorp control loop.",
+    body: "Click the CEO agent in the office. That is the fastest way to learn the Farplane control loop.",
     icon: MessageSquare,
   },
   "open-chat": {
     eyebrow: "Step 2 of 4",
     title: "Ask the CEO to build a team",
-    body: "Use the radial Chat action, then tell the CEO what goal you want. The point of the AI Office is that you ask for the outcome and the agent uses ShellCorp for you.",
+    body: "Use the radial Chat action, then tell the CEO what goal you want. The point of the AI Office is that you ask for the outcome and the agent uses Farplane for you.",
     icon: MessageSquare,
     prompt: 'Create a dedicated team to grow our affiliate revenue, and have them focus only on that goal.',
   },
@@ -231,7 +231,7 @@ export function OfficeOnboardingPanel(): React.JSX.Element | null {
               </div>
             ) : null}
             <p className="mt-3 text-xs text-muted-foreground">
-              ShellCorp is the UI. The agent can use the CLI for you.
+              Farplane is the UI. The agent can use the CLI for you.
             </p>
           </div>
         </div>

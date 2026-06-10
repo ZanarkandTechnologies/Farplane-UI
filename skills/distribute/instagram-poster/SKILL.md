@@ -26,7 +26,7 @@ Publish a prepared short-form asset to Instagram Reels and record enough metadat
 
 - Publish result (`success` or `failure`).
 - Post URL/ID when successful.
-- Activity and board updates in ShellCorp.
+- Activity and board updates in Farplane.
 
 ## Workflow
 

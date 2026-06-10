@@ -1,6 +1,6 @@
 ---
 name: status-self-reporter
-description: Publish explicit agent progress updates to ShellCorp Convex status backend.
+description: Publish explicit agent progress updates to Farplane Convex status backend.
 ---
 
 # Status Self Reporter
@@ -26,7 +26,7 @@ Make agent progress observable without relying on message hooks by writing expli
 ## Workflow
 
 1. Resolve Convex site URL:
-   - use `SHELLCORP_CONVEX_SITE_URL`
+   - use `FARPLANE_CONVEX_SITE_URL`
    - fallback to `CONVEX_SITE_URL`
 2. Build a compact payload:
    - `agentId`, `state`, `statusText`, `stepKey`
@@ -39,7 +39,7 @@ Make agent progress observable without relying on message hooks by writing expli
 ## Example
 
 ```bash
-curl -sS "$SHELLCORP_CONVEX_SITE_URL/status/report" -X POST \
+curl -sS "$FARPLANE_CONVEX_SITE_URL/status/report" -X POST \
   -H "content-type: application/json" \
   -d '{
     "agentId":"buffalos-ai-executor",

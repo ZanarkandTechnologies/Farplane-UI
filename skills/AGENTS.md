@@ -9,7 +9,7 @@ Define how repo-local skills are structured and how their examples are kept exec
 - Every production skill folder must contain a `SKILL.md` (or legacy `skill.md` until migrated).
 - Skill Studio metadata lives in optional `skill.config.yaml`; keep it small and package-scoped.
 - Prefer splitting workflow skills from tool skills when discovery and progressive disclosure differ.
-- Skills that drive ShellCorp CLI behavior should prefer executable examples over prose-only examples.
+- Skills that drive Farplane CLI behavior should prefer executable examples over prose-only examples.
 - Skill contract tests live beside the skill under `tests/*.md`.
 - Skill tests should exercise stable CLI workflows only; they must not depend on network access.
 - Rich reasoning belongs in `SKILL.md`; executable procedures belong in markdown test cases.
@@ -17,7 +17,7 @@ Define how repo-local skills are structured and how their examples are kept exec
 ## Testing
 
 - Run all skill contract tests with `pnpm run test:skills`.
-- Add at least one contract test for any new ShellCorp-first operational skill.
+- Add at least one contract test for any new Farplane-first operational skill.
 - Contract cases should validate observable state, not internal implementation details.
 
 ## Conventions

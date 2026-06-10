@@ -30,10 +30,10 @@ describe("skill effects", () => {
   it("builds a stable seed that ignores updated timestamps", () => {
     expect(
       buildSkillEffectSeed({
-        agentId: "shellcorp-pm",
+        agentId: "farplane-pm",
         skillId: "world-monitor",
         sessionKey: "session-1",
       }),
-    ).toBe("shellcorp-pm|world-monitor|session-1");
+    ).toBe("farplane-pm|world-monitor|session-1");
   });
 });

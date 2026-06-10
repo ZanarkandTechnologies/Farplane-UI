@@ -13,7 +13,7 @@ Team-level operator surfaces for overview, kanban, artefacts, timeline, and busi
 ## Minimal Example
 
 ```tsx
-<TeamPanel teamId="team-proj-shellcorp-dev-team" isOpen onOpenChange={() => {}} />
+<TeamPanel teamId="team-proj-farplane-dev-team" isOpen onOpenChange={() => {}} />
 ```
 
 ## How To Test

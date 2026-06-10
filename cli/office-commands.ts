@@ -9,8 +9,8 @@
  * - Office theme preset is stored in `company.json.officeStylePreset`.
  *
  * USAGE:
- * - shellcorp office print
- * - shellcorp office add plant --position -10,0,-10
+ * - farplane office print
+ * - farplane office add plant --position -10,0,-10
  *
  * MEMORY REFERENCES:
  * - MEM-0120
@@ -32,7 +32,7 @@ import {
   type OfficeSettingsModel,
   type OfficeStylePreset,
   type OfficeWallColorId,
-  resolveOpenclawHome,
+  resolveFarplaneHome,
 } from "./sidecar-store.js";
 import { readStarterOfficeTemplates } from "./starter-office.js";
 
@@ -532,8 +532,8 @@ async function writeMeshySpecFile(input: {
   assetType: string;
   deliverable: string;
 }): Promise<{ path: string; title: string }> {
-  const openclawHome = resolveOpenclawHome();
-  const assetsDir = path.join(openclawHome, "assets", "mesh");
+  const farplaneHome = resolveFarplaneHome();
+  const assetsDir = path.join(farplaneHome, "assets", "mesh");
   await mkdir(assetsDir, { recursive: true });
   const now = new Date();
   const createdAt = now.toISOString();
@@ -556,7 +556,7 @@ async function writeMeshySpecFile(input: {
 ${input.prompt}
 
 ## Clarified requirements
-- Intended for ShellCorp office decoration.
+- Intended for Farplane office decoration.
 - Keep style consistent with current office aesthetic.
 
 ## Assumptions
@@ -568,7 +568,7 @@ ${input.prompt}
 
 ## Next steps
 - Use meshy-asset-capture skill to refine and execute generation.
-- Import validated mesh and place via \`shellcorp office add custom-mesh ...\`.
+- Import validated mesh and place via \`farplane office add custom-mesh ...\`.
 `;
 
   await writeFile(targetPath, body, "utf-8");
@@ -973,22 +973,22 @@ export function registerOfficeCommands(program: Command): void {
     .option("--json", "Output JSON", false)
     .action((opts: { json?: boolean }) => {
       const examples = [
-        "shellcorp office decor",
-        "shellcorp office decor list",
-        "shellcorp office decor pack list",
-        "shellcorp office decor floor list",
-        "shellcorp office decor wall list",
-        "shellcorp office decor background list",
-        "shellcorp office decor painting list",
-        "shellcorp office decor pack apply clam-cabinet",
-        "shellcorp office decor floor set walnut_parquet",
-        "shellcorp office decor wall set sage_mist",
-        "shellcorp office decor background set midnight_tide",
-        "shellcorp office decor painting place back-center sunrise_blocks",
-        "shellcorp office decor painting clear back-center",
+        "farplane office decor",
+        "farplane office decor list",
+        "farplane office decor pack list",
+        "farplane office decor floor list",
+        "farplane office decor wall list",
+        "farplane office decor background list",
+        "farplane office decor painting list",
+        "farplane office decor pack apply clam-cabinet",
+        "farplane office decor floor set walnut_parquet",
+        "farplane office decor wall set sage_mist",
+        "farplane office decor background set midnight_tide",
+        "farplane office decor painting place back-center sunrise_blocks",
+        "farplane office decor painting clear back-center",
       ];
       const payload = {
-        purpose: "Configure ShellCorp office decoration through office.json and wall-art objects.",
+        purpose: "Configure Farplane office decoration through office.json and wall-art objects.",
         examples,
       };
       formatOutput(
@@ -1022,7 +1022,7 @@ export function registerOfficeCommands(program: Command): void {
           `Current background: ${settings.decor.backgroundId}`,
           `Paintings: ${payload.current.paintings.length}`,
           "",
-          "Use `shellcorp office decor floor|wall|background|painting|pack list` to inspect options.",
+          "Use `farplane office decor floor|wall|background|painting|pack list` to inspect options.",
         ].join("\n"),
       );
     });
@@ -1040,7 +1040,7 @@ export function registerOfficeCommands(program: Command): void {
         `Current background: ${settings.decor.backgroundId}`,
         `Paintings: ${payload.paintings.map((entry) => `${entry.slotId}=${entry.paintingPresetId}`).join(", ") || "none"}`,
         "",
-        "Use `shellcorp office decor list` for the full catalog.",
+        "Use `farplane office decor list` for the full catalog.",
       ].join("\n"),
     );
   });

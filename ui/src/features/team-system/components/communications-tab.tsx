@@ -110,7 +110,7 @@ export function CommunicationsTab({
             <div className="rounded-md border bg-muted/20 p-3">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Source</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                `shellcorp status`, board actions, and task-linked activity rows.
+                `farplane status`, board actions, and task-linked activity rows.
               </p>
             </div>
           </div>

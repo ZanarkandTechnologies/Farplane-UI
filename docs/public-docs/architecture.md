@@ -1,4 +1,4 @@
-# Shell Company Architecture
+# Farplane AI Architecture
 
 ## Canonical Indexes
 
@@ -7,18 +7,21 @@
 
 ## Direction
 
-Shell Company is a UI-first control center over OpenClaw.
+Farplane AI is a UI-first control center over OpenClaw.
 
 - OpenClaw owns runtime, bindings, sessions, and plugin lifecycle.
-- Shell Company owns gamified visualization, operator workflows, and state mapping UX.
+- Farplane AI owns gamified visualization, operator workflows, and state mapping UX.
 - Notion integration is delivered as an OpenClaw plugin inside this repository.
 
 ## System Overview
 
 ```mermaid
 flowchart LR
-  openclawState[OpenClawStateDirs] --> adapterLayer[UiAdapterLayer]
-  openclawGateway[OpenClawGatewayAPI] --> adapterLayer
+  codexAppServer[LocalCodexAppServer] --> codexBridge[CodexAppServerBridge]
+  codexBridge --> adapterLayer[UiAdapterLayer]
+  codexState[CodexFallbackState] --> adapterLayer
+  farplaneSidecars[FarplaneSidecars] --> adapterLayer
+  openclawGateway[OptionalOpenClawGatewayAPI] --> adapterLayer
   adapterLayer --> officeUi[GamifiedOfficeUI]
   officeUi --> chatBridge[ChatBridge]
   chatBridge --> openclawGateway
@@ -63,17 +66,18 @@ flowchart TB
 
 ## Data Sources
 
-- `~/.openclaw/openclaw.json`
+- local Codex app-server via the Vite `/codex/app-server/rpc` bridge
 - `~/.farplane/company.json`
 - `~/.farplane/office.json`
 - `~/.farplane/office-objects.json`
-- `~/.openclaw/agents/<agentId>/sessions/sessions.json`
-- `~/.openclaw/agents/<agentId>/sessions/*.jsonl`
-- OpenClaw gateway APIs for session operations and message send/steer flows
+- optional `~/.openclaw/openclaw.json`
+- optional `~/.openclaw/agents/<agentId>/sessions/sessions.json`
+- optional `~/.openclaw/agents/<agentId>/sessions/*.jsonl`
+- optional OpenClaw gateway APIs for session operations and message send/steer flows
 
 ## State Ownership
 
-ShellCorp intentionally uses a hybrid state model.
+Farplane intentionally uses a hybrid state model.
 
 - Convex is canonical for realtime operational state:
   - agent live status
@@ -84,6 +88,12 @@ ShellCorp intentionally uses a hybrid state model.
   - `company.json` for company/project metadata and sidecar-owned policies
   - `office.json` for room layout, decor, and camera/view settings
   - `office-objects.json` for persisted office object placement and team-cluster anchors
+- Codex is the default runtime adapter for v0. With `CODEX_APP_SERVER_URL`
+  configured on the local UI server, the Vite state bridge proxies app-server
+  JSON-RPC and the Codex adapter maps threads into temporary workers, sessions,
+  and chat timelines.
+- Without app-server, Codex mode supplies a `codex-main` placeholder so the
+  office shell still opens.
 - OpenClaw runtime config, when used, remains adapter-owned under `~/.openclaw/openclaw.json`.
 
 This split is deliberate for the current single-VPS/local-instance architecture:
@@ -123,7 +133,7 @@ If future requirements change, the first candidate for hosted/shared storage is 
 - Tool and sandbox policy enforcement
 - Plugin discovery/loading
 
-### Shell Company responsibilities
+### Farplane AI responsibilities
 
 - Agent/session visualization and gamified office interactions
 - Operator memory and skills dashboards

@@ -2,7 +2,7 @@
  * TEAM COMMANDS — INDEX
  * ======================
  * Purpose
- * - Composes all team-command domain registrars into the two public exports consumed by shellcorp-cli.
+ * - Composes all team-command domain registrars into the two public exports consumed by farplane-cli.
  * - Creates the sidecar store once and passes it to each sub-registrar.
  *
  * KEY CONCEPTS:
@@ -39,7 +39,7 @@ import { registerTeamRun } from "./team-run.js";
 export function registerTeamCommands(program: Command): void {
   const store = createSidecarStore();
 
-  // Top-level `shellcorp status` command (shorthand for activity_log on the active team).
+  // Top-level `farplane status` command (shorthand for activity_log on the active team).
   program
     .command("status")
     .description("Report agent status with auto-resolved team/agent context")
@@ -83,7 +83,7 @@ export function registerTeamCommands(program: Command): void {
           explicitTeamId: opts.teamId,
         });
         if (!actor.agentId || !actor.teamId || !actor.projectId) {
-          fail("missing_agent_identity:use_shellcorp_agent_login_or_--agent-id");
+          fail("missing_agent_identity:use_farplane_agent_login_or_--agent-id");
         }
         const activityType = resolveStatusActivityType(opts.state.trim());
         const label =

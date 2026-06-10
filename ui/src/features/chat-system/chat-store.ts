@@ -103,7 +103,7 @@ export const useChatStore = create<ChatState>()(
       setPresentationMode: (presentationMode) => set({ presentationMode }),
     }),
     {
-      name: "shellcorp-chat-store",
+      name: "farplane-chat-store",
       partialize: (state) => ({
         sidebarOpen: state.sidebarOpen,
         currentMode: state.currentMode,

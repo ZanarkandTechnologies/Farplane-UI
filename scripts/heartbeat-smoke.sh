@@ -6,9 +6,9 @@ usage() {
 Usage: scripts/heartbeat-smoke.sh --team-id <team-id> [options]
 
 Options:
-  --team-id <team-id>          Required team id (for example team-proj-shellcorp-v2)
-  --convex-url <url>           Convex site URL (default: SHELLCORP_CONVEX_SITE_URL or http://127.0.0.1:3211)
-  --repo-path <path>           ShellCorp repo path (default: script parent directory)
+  --team-id <team-id>          Required team id (for example team-proj-farplane-v2)
+  --convex-url <url>           Convex site URL (default: FARPLANE_CONVEX_SITE_URL or http://127.0.0.1:3211)
+  --repo-path <path>           Farplane repo path (default: script parent directory)
   --agents "a b c"             Optional space-delimited agent IDs (default: read from ~/.openclaw/openclaw.json)
   --retries <n>                Retries per agent on malformed output (default: 2)
   --help                       Show this help
@@ -23,7 +23,7 @@ require_command() {
 }
 
 TEAM_ID=""
-CONVEX_URL="${SHELLCORP_CONVEX_SITE_URL:-http://127.0.0.1:3211}"
+CONVEX_URL="${FARPLANE_CONVEX_SITE_URL:-http://127.0.0.1:3211}"
 REPO_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AGENTS_INPUT=""
 RETRIES=2
@@ -98,7 +98,7 @@ for agent in "${AGENTS[@]}"; do
 
   while [[ "$attempt" -le "$RETRIES" ]]; do
     detail="heartbeat_smoke attempt_${attempt}"
-    prompt="Read HEARTBEAT.md and follow it exactly. Then run: command -v shellcorp && export SHELLCORP_CONVEX_SITE_URL=$CONVEX_URL SHELLCORP_TEAM_ID=$TEAM_ID SHELLCORP_AGENT_ID=$agent && shellcorp status --state summary \"heartbeat_smoke $detail\". Respond with STATUS: and HEARTBEAT_OK in your final output."
+    prompt="Read HEARTBEAT.md and follow it exactly. Then run: command -v farplane && export FARPLANE_CONVEX_SITE_URL=$CONVEX_URL FARPLANE_TEAM_ID=$TEAM_ID FARPLANE_AGENT_ID=$agent && farplane status --state summary \"heartbeat_smoke $detail\". Respond with STATUS: and HEARTBEAT_OK in your final output."
     raw="$(openclaw agent --agent "$agent" --message "$prompt" --json 2>&1 || true)"
     payload="$(printf '%s' "$raw" | jq -r '.result.payloads[]?.text? // empty' 2>/dev/null || true)"
 

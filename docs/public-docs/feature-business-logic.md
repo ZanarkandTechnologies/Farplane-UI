@@ -1,6 +1,6 @@
 # Feature: Business Logic
 
-This page explains the operating model behind ShellCorp team execution.
+This page explains the operating model behind Farplane team execution.
 
 ## Core Model
 
@@ -77,7 +77,7 @@ Reference template:
 
 ## Kanban Federation Semantics
 
-ShellCorp uses canonical-provider-per-project policy:
+Farplane uses canonical-provider-per-project policy:
 
 - canonical provider (`internal`/`notion`/`vibe`) owns writes
 - unified read model is shown in UI

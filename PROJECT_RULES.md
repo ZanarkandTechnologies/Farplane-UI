@@ -1,4 +1,4 @@
-# Project Rules: ShellCorp
+# Project Rules: Farplane
 
 This file defines project-specific technical rules, stack details, and execution conventions.
 
@@ -14,7 +14,7 @@ This file defines project-specific technical rules, stack details, and execution
 
 ## Folder Structure
 
-- `cli/`: packaged ShellCorp CLI workspace
+- `cli/`: packaged Farplane CLI workspace
 - `convex/`: realtime backend functions and schema
 - `extensions/`: in-repo OpenClaw plugins and adapters
 - `skills/`: repo-local skill source packages for sync/install flows

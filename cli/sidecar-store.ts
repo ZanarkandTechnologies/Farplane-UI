@@ -2,7 +2,7 @@
  * SIDECAR STORE
  * =============
  * Purpose
- * - Read/write ShellCorp sidecar JSON files in ~/.openclaw.
+ * - Read/write Farplane sidecar JSON files in ~/.farplane.
  *
  * KEY CONCEPTS:
  * - Atomic file writes via temp file + rename.
@@ -859,7 +859,7 @@ export interface SidecarStore {
   officeObjectsPath: string;
   officeSettingsPath: string;
   openclawConfigPath: string;
-  shellcorpConfigPath: string;
+  farplaneConfigPath: string;
   readCompanyModel: () => Promise<CompanyModel>;
   writeCompanyModel: (model: CompanyModel) => Promise<void>;
   readOfficeObjects: () => Promise<OfficeObjectModel[]>;
@@ -891,19 +891,33 @@ export function resolveOpenclawHome(): string {
   return path.join(process.env.HOME || "", ".openclaw");
 }
 
+export function resolveFarplaneHome(): string {
+  if (process.env.FARPLANE_STATE_DIR && process.env.FARPLANE_STATE_DIR.trim()) {
+    return path.resolve(process.env.FARPLANE_STATE_DIR);
+  }
+  if (process.env.FARPLANE_HOME && process.env.FARPLANE_HOME.trim()) {
+    return path.resolve(process.env.FARPLANE_HOME);
+  }
+  if (process.env.OPENCLAW_STATE_DIR && process.env.OPENCLAW_STATE_DIR.trim()) {
+    return path.resolve(process.env.OPENCLAW_STATE_DIR);
+  }
+  return path.join(process.env.HOME || "", ".farplane");
+}
+
 export function createSidecarStore(): SidecarStore {
+  const farplaneHome = resolveFarplaneHome();
   const openclawHome = resolveOpenclawHome();
-  const companyPath = path.join(openclawHome, "company.json");
-  const officeObjectsPath = path.join(openclawHome, "office-objects.json");
-  const officeSettingsPath = path.join(openclawHome, "office.json");
+  const companyPath = path.join(farplaneHome, "company.json");
+  const officeObjectsPath = path.join(farplaneHome, "office-objects.json");
+  const officeSettingsPath = path.join(farplaneHome, "office.json");
   const openclawConfigPath = path.join(openclawHome, "openclaw.json");
-  const shellcorpConfigPath = path.join(openclawHome, "shellcorp.json");
+  const farplaneConfigPath = path.join(farplaneHome, "farplane.json");
   return {
     companyPath,
     officeObjectsPath,
     officeSettingsPath,
     openclawConfigPath,
-    shellcorpConfigPath,
+    farplaneConfigPath,
     readCompanyModel: async () => normalizeCompanyModel(await readJsonFile(companyPath, {})),
     writeCompanyModel: async (model) => writeJsonAtomic(companyPath, normalizeCompanyModel(model)),
     readOfficeObjects: async () =>
@@ -934,9 +948,9 @@ export function createSidecarStore(): SidecarStore {
     readOpenclawConfig: async () => asObject(await readJsonFile(openclawConfigPath, {})),
     writeOpenclawConfig: async (config) => writeJsonAtomic(openclawConfigPath, asObject(config)),
     readShellcorpConfig: async () =>
-      asObject(await readJsonFile(shellcorpConfigPath, {})) as ShellcorpConfigModel,
+      asObject(await readJsonFile(farplaneConfigPath, {})) as ShellcorpConfigModel,
     writeShellcorpConfig: async (config) =>
-      writeJsonAtomic(shellcorpConfigPath, asObject(config)),
+      writeJsonAtomic(farplaneConfigPath, asObject(config)),
     readOfficeStylePreset: async () => {
       const company = normalizeCompanyModel(await readJsonFile(companyPath, {}));
       return company.officeStylePreset ?? "default";

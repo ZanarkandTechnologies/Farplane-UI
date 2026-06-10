@@ -2,11 +2,11 @@
 
 ## Status
 
-Active SC12 replacement spec. This is the target workflow contract for ShellCorp task planning, human review, and agent execution.
+Active SC12 replacement spec. This is the target workflow contract for Farplane task planning, human review, and agent execution.
 
 ## Purpose
 
-Define the minimal workflow ShellCorp should support for agent-led planning:
+Define the minimal workflow Farplane should support for agent-led planning:
 
 - one canonical team board per team
 - markdown task memory as the working state

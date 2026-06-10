@@ -15,7 +15,7 @@ dependencies:
     - type: "mcp"
       value: "docs"
   skills:
-    - "shellcorp-team-cli"
+    - "farplane-team-cli"
   docs:
     - "./tests/demo.md"
 state:
@@ -41,7 +41,7 @@ demos:
 
     expect(manifest.interface.displayName).toBe("Create Team");
     expect(manifest.policy.allowImplicitInvocation).toBe(false);
-    expect(manifest.dependencies.skills).toEqual(["shellcorp-team-cli"]);
+    expect(manifest.dependencies.skills).toEqual(["farplane-team-cli"]);
     expect(manifest.visualization.mermaid).toContain("A --> B");
     expect(manifest.demos.defaultCaseId).toBe("demo");
   });
@@ -50,7 +50,7 @@ demos:
     const manifest = deriveSkillManifest(
       null,
       `---
-name: shellcorp scout
+name: farplane scout
 description: reads repo changes
 ---
 
@@ -62,7 +62,7 @@ flowchart TD
       "Scout",
     );
 
-    expect(manifest.interface.displayName).toBe("shellcorp scout");
+    expect(manifest.interface.displayName).toBe("farplane scout");
     expect(manifest.interface.shortDescription).toBe("reads repo changes");
     expect(manifest.visualization.mermaid).toContain("Watch --> Decide");
     expect(manifest.state.mode).toBe("stateless");

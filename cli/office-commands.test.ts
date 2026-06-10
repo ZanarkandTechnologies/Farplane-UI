@@ -70,7 +70,7 @@ interface OfficeSettingsSnapshot {
 }
 
 async function setupStateDir(): Promise<string> {
-  const dir = await mkdtemp(path.join(os.tmpdir(), "shellcorp-office-cli-test-"));
+  const dir = await mkdtemp(path.join(os.tmpdir(), "farplane-office-cli-test-"));
   await writeFile(
     path.join(dir, "company.json"),
     `${JSON.stringify(baseCompany, null, 2)}\n`,
@@ -107,11 +107,30 @@ async function runCommand(args: string[]): Promise<void> {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  delete process.env.FARPLANE_STATE_DIR;
+  delete process.env.FARPLANE_HOME;
+  delete process.env.FARPLANE_REPO_ROOT;
   delete process.env.OPENCLAW_STATE_DIR;
   process.exitCode = undefined;
 });
 
 describe("office CLI", () => {
+  it("prefers FARPLANE_STATE_DIR for office sidecar state", async () => {
+    const farplaneDir = await setupStateDir();
+    const openclawDir = await setupStateDir();
+    process.env.FARPLANE_STATE_DIR = farplaneDir;
+    process.env.OPENCLAW_STATE_DIR = openclawDir;
+
+    await runCommand(["office", "add", "plant", "--id", "plant-a", "--position", "-10,0,-10"]);
+
+    const farplaneRaw = await readFile(path.join(farplaneDir, "office-objects.json"), "utf-8");
+    const openclawRaw = await readFile(path.join(openclawDir, "office-objects.json"), "utf-8");
+    expect(JSON.parse(farplaneRaw)).toEqual([
+      expect.objectContaining({ id: "plant-a", meshType: "plant" }),
+    ]);
+    expect(JSON.parse(openclawRaw)).toEqual([]);
+  });
+
   it("adds, moves, and removes objects", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
@@ -127,7 +146,7 @@ describe("office CLI", () => {
   it("applies the starter office template through office init", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = "/home/kenjipcx/Zanarkand/ShellCorp";
+    process.env.FARPLANE_REPO_ROOT = path.resolve(process.cwd());
 
     await runCommand(["office", "init", "--force"]);
 
@@ -147,16 +166,16 @@ describe("office CLI", () => {
       id: string;
       metadata?: { displayName?: string; skillBinding?: { skillId?: string } };
     }>;
-    expect(objects.some((entry) => entry.id === "world-monitor-console")).toBe(true);
+    expect(objects.some((entry) => entry.id === "farplane-map-console")).toBe(true);
     expect(
-      objects.some((entry) => entry.metadata?.skillBinding?.skillId === "world-monitor"),
+      objects.some((entry) => entry.metadata?.skillBinding?.skillId === "farplane-map"),
     ).toBe(true);
   });
 
   it("guards office init when starter office data already exists", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.SHELLCORP_REPO_ROOT = "/home/kenjipcx/Zanarkand/ShellCorp";
+    process.env.FARPLANE_REPO_ROOT = path.resolve(process.cwd());
 
     await runCommand(["office", "add", "plant", "--id", "plant-a", "--position", "-10,0,-10"]);
 
@@ -248,9 +267,9 @@ describe("office CLI", () => {
 
     const payload = String(logSpy.mock.calls.at(-1)?.[0] ?? "");
     expect(payload).toContain("Office decor CLI");
-    expect(payload).toContain("shellcorp office decor floor list");
-    expect(payload).toContain("shellcorp office decor pack apply clam-cabinet");
-    expect(payload).toContain("shellcorp office decor background set midnight_tide");
+    expect(payload).toContain("farplane office decor floor list");
+    expect(payload).toContain("farplane office decor pack apply clam-cabinet");
+    expect(payload).toContain("farplane office decor background set midnight_tide");
   });
 
   it("lists floor, wall, and background options through the CLI", async () => {

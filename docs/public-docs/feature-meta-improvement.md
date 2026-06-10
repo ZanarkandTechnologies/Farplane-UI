@@ -1,12 +1,12 @@
 # Feature: Meta Improvement Loop
 
-This page explains the simplified competitor-scout workflow used by ShellCorp.
+This page explains the simplified competitor-scout workflow used by Farplane.
 
 ## Value
 
 - Reduce manual competitor tracking.
 - Turn yesterday's commits into actionable product decisions.
-- Push findings to the main agent bot through ShellCorp CLI.
+- Push findings to the main agent bot through Farplane CLI.
 
 ## Canonical Skill Package
 
@@ -24,7 +24,7 @@ Package contents:
 2. Fetch last-day commits (or since last SHA in `MEMORY.md`).
 3. Identify useful feature changes.
 4. Decide `copy` or `drop` for each feature.
-5. Post findings to the main agent bot via ShellCorp CLI.
+5. Post findings to the main agent bot via Farplane CLI.
 6. Update `skills/competitor-feature-scout/MEMORY.md` with latest processed SHA and run notes.
 
 ## Data Flow
@@ -34,7 +34,7 @@ flowchart TD
   Watchlist["watchlist.md"] --> Scout["competitor-feature-scout"]
   Scout --> Decisions["copy / drop decisions"]
   Scout --> Memory["MEMORY.md (last processed SHA)"]
-  Decisions --> Bot["ShellCorp CLI -> main agent bot"]
+  Decisions --> Bot["Farplane CLI -> main agent bot"]
   Bot --> Followup["optional follow-up board tasks"]
 ```
 
@@ -42,7 +42,7 @@ flowchart TD
 
 - Keep it daily and lightweight.
 - Focus on product-significant changes.
-- Do not blindly copy code. Adapt ideas to ShellCorp patterns.
+- Do not blindly copy code. Adapt ideas to Farplane patterns.
 - Keep posts concise and operator-readable.
 
 ## Related Docs

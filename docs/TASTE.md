@@ -27,6 +27,6 @@
 
 ## Project Overrides
 
-- The ShellCorp office should read like a founder control room, not a toy simulation.
+- The Farplane office should read like a founder control room, not a toy simulation.
 - Global menus and debug/test entrypoints should stay obvious enough for operator QA.
 - Tickets should reference this file briefly instead of repeating style doctrine inline.

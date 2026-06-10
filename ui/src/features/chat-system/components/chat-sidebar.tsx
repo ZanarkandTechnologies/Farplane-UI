@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, MessageSquare, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -49,23 +49,6 @@ export function ChatSidebar({
     const [isDeleting, setIsDeleting] = useState(false);
     const deleteTarget = threads?.find((thread) => thread._id === deleteTargetId) ?? null;
 
-    // #region agent log
-    useEffect(() => {
-        fetch("http://127.0.0.1:7441/ingest/6430476e-9d36-400f-ba65-8018f53bec18", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "8dc679" },
-            body: JSON.stringify({
-                sessionId: "8dc679",
-                location: "chat-sidebar.tsx:deleteTargetId-effect",
-                message: "deleteTargetId state changed",
-                data: { deleteTargetId, modalOpen: Boolean(deleteTargetId) },
-                timestamp: Date.now(),
-                hypothesisId: "H2",
-            }),
-        }).catch(() => {});
-    }, [deleteTargetId]);
-    // #endregion
-
     return (
         <div
             className={cn(
@@ -92,20 +75,6 @@ export function ChatSidebar({
                                         thread._id === threadId ? "bg-accent" : "",
                                     )}
                                     onClick={() => {
-                                        // #region agent log
-                                        fetch("http://127.0.0.1:7441/ingest/6430476e-9d36-400f-ba65-8018f53bec18", {
-                                            method: "POST",
-                                            headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "8dc679" },
-                                            body: JSON.stringify({
-                                                sessionId: "8dc679",
-                                                location: "chat-sidebar.tsx:row-click",
-                                                message: "session row clicked (onThreadSelect)",
-                                                data: { threadId: thread._id },
-                                                timestamp: Date.now(),
-                                                hypothesisId: "H3",
-                                            }),
-                                        }).catch(() => {});
-                                        // #endregion
                                         onThreadSelect(thread._id);
                                     }}
                                 >
@@ -118,20 +87,6 @@ export function ChatSidebar({
                                         size="sm"
                                         className="h-6 w-6 shrink-0 p-0 text-muted-foreground/80 hover:bg-destructive/20 hover:text-destructive"
                                         onClick={(event) => {
-                                            // #region agent log
-                                            fetch("http://127.0.0.1:7441/ingest/6430476e-9d36-400f-ba65-8018f53bec18", {
-                                                method: "POST",
-                                                headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "8dc679" },
-                                                body: JSON.stringify({
-                                                    sessionId: "8dc679",
-                                                    location: "chat-sidebar.tsx:trash-click",
-                                                    message: "trash button clicked",
-                                                    data: { threadId: thread._id },
-                                                    timestamp: Date.now(),
-                                                    hypothesisId: "H1",
-                                                }),
-                                            }).catch(() => {});
-                                            // #endregion
                                             event.stopPropagation();
                                             setDeleteError("");
                                             setDeleteTargetId(thread._id);
@@ -167,20 +122,6 @@ export function ChatSidebar({
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             disabled={isDeleting || !deleteTargetId}
                             onClick={async (event) => {
-                                // #region agent log
-                                fetch("http://127.0.0.1:7441/ingest/6430476e-9d36-400f-ba65-8018f53bec18", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "8dc679" },
-                                    body: JSON.stringify({
-                                        sessionId: "8dc679",
-                                        location: "chat-sidebar.tsx:confirm-delete-click",
-                                        message: "Delete confirm button clicked",
-                                        data: { deleteTargetId, isDeleting },
-                                        timestamp: Date.now(),
-                                        hypothesisId: "H4",
-                                    }),
-                                }).catch(() => {});
-                                // #endregion
                                 event.preventDefault();
                                 if (!deleteTargetId || isDeleting) return;
                                 setIsDeleting(true);
@@ -201,4 +142,3 @@ export function ChatSidebar({
         </div>
     );
 }
-

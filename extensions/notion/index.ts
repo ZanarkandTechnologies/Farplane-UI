@@ -348,7 +348,7 @@ export default function register(api: PluginApi): void {
         label: "Notion",
         selectionLabel: "Notion Comments",
         docsPath: "/channels/notion",
-        blurb: "Notion comments bridge for Shell Company workflows.",
+        blurb: "Notion comments bridge for Farplane AI workflows.",
         aliases: ["notion-comments"],
       },
       capabilities: { chatTypes: ["group", "direct"] },

@@ -2,7 +2,7 @@
  * ONBOARDING COMMANDS
  * ===================
  * Purpose
- * - Bootstrap the minimum ShellCorp/OpenClaw local state for first-run setup.
+ * - Bootstrap the minimum Farplane/OpenClaw local state for first-run setup.
  *
  * KEY CONCEPTS:
  * - Required sidecars live in `~/.openclaw`.
@@ -10,8 +10,8 @@
  * - Onboarding is idempotent and bootstraps the first-party Notion comment bridge.
  *
  * USAGE:
- * - shellcorp onboarding
- * - shellcorp onboarding --yes --style cozy --gateway-token token123
+ * - farplane onboarding
+ * - farplane onboarding --yes --style cozy --gateway-token token123
  *
  * MEMORY REFERENCES:
  * - MEM-0102
@@ -135,7 +135,7 @@ const CONTROLLED_UI_ENV_KEYS = [
   "VITE_STATE_URL",
   "VITE_CONVEX_URL",
 ] as const;
-const SHELLCORP_BANNER = `
+const FARPLANE_BANNER = `
 ███████╗██╗  ██╗███████╗██╗     ██╗      ██████╗ ██████╗ ██████╗ 
 ██╔════╝██║  ██║██╔════╝██║     ██║     ██╔════╝██╔═══██╗██╔══██╗
 ███████╗███████║█████╗  ██║     ██║     ██║     ██║   ██║██████╔╝
@@ -144,7 +144,7 @@ const SHELLCORP_BANNER = `
 ╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝
 `;
 const UI_START_COMMAND = "`npm run shell -- ui`";
-const UI_ALIAS_COMMAND = "`shellcorp ui`";
+const UI_ALIAS_COMMAND = "`farplane ui`";
 const CLI_INSTALL_COMMAND = "`npm link`";
 
 type OpenclawPreflight = {
@@ -155,7 +155,7 @@ type OpenclawPreflight = {
 };
 
 function resolveRepoRoot(): string {
-  const override = process.env.SHELLCORP_REPO_ROOT?.trim();
+  const override = process.env.FARPLANE_REPO_ROOT?.trim();
   if (override) return path.resolve(override);
   // In the bundled CJS CLI, __dirname is available while import.meta.url is not.
   const thisDir =
@@ -257,21 +257,21 @@ function ensureMainAgentInConfig(config: JsonObject): JsonObject {
 }
 
 function printOnboardingIntro(): void {
-  const banner = SHELLCORP_BANNER.trimEnd()
+  const banner = FARPLANE_BANNER.trimEnd()
     .split("\n")
     .map((line, index) => (index % 2 === 0 ? cliCyan(line) : cliBlue(line)))
     .join("\n");
   console.log(banner);
-  console.log(cliSection("ShellCorp Onboarding"));
-  console.log(cliDim("ShellCorp is the office UI and operator layer on top of OpenClaw."));
+  console.log(cliSection("Farplane Onboarding"));
+  console.log(cliDim("Farplane is the office UI and operator layer on top of OpenClaw."));
   console.log(
     cliDim(
-      "Before ShellCorp can bootstrap its own files, OpenClaw itself must already be onboarded.",
+      "Before Farplane can bootstrap its own files, OpenClaw itself must already be onboarded.",
     ),
   );
   console.log(
     cliYellow(
-      "If OpenClaw is not initialized, the main CEO agent will not exist and the ShellCorp office will not load correctly.",
+      "If OpenClaw is not initialized, the main CEO agent will not exist and the Farplane office will not load correctly.",
     ),
   );
   console.log("");
@@ -292,7 +292,7 @@ function printPreflightFailure(result: OpenclawPreflight): void {
   console.log(
     `- ${cliYellow("Confirm")} \`agents.list\` ${cliYellow("includes the main CEO agent with id")} \`main\`.`,
   );
-  console.log(`- ${cliGreen("Then rerun")} \`shellcorp onboarding\`.`);
+  console.log(`- ${cliGreen("Then rerun")} \`farplane onboarding\`.`);
 }
 
 function printStepStart(current: number, total: number, title: string): void {
@@ -580,7 +580,7 @@ function ensureNotionCommentBridgeDefaults(
 }
 
 function removeInvalidOpenclawRootKeys(config: JsonObject): JsonObject {
-  const { version: _removedVersion, shellcorp: _removedShellcorp, ...remaining } = config;
+  const { version: _removedVersion, farplane: _removedShellcorp, ...remaining } = config;
   return remaining;
 }
 
@@ -589,7 +589,7 @@ function ensureShellcorpDefaults(config: JsonObject): JsonObject {
   const hooks = asObject(config.hooks);
   const internal = asObject(hooks.internal);
   const entries = asObject(internal.entries);
-  const statusEntry = asObject(entries["shellcorp-status"]);
+  const statusEntry = asObject(entries["farplane-status"]);
   const agents = asObject(config.agents);
   const defaults = asObject(agents.defaults);
   const heartbeat = asObject(defaults.heartbeat);
@@ -606,7 +606,7 @@ function ensureShellcorpDefaults(config: JsonObject): JsonObject {
         enabled: internal.enabled !== false,
         entries: {
           ...entries,
-          "shellcorp-status": {
+          "farplane-status": {
             ...statusEntry,
             enabled: statusEntry.enabled !== false,
           },
@@ -644,7 +644,7 @@ function chooseShellcorpConvexSiteUrl(inputValues: {
   opts: OnboardingOptions;
 }): string {
   const convex = asObject(inputValues.currentShellcorpConfig.convex);
-  const legacyShellcorp = asObject(asObject(inputValues.legacyOpenclawConfig).shellcorp);
+  const legacyShellcorp = asObject(asObject(inputValues.legacyOpenclawConfig).farplane);
   const legacyConvex = asObject(legacyShellcorp.convex);
   return (
     inputValues.opts.convexUrl?.trim() ||
@@ -715,10 +715,10 @@ function buildNextSteps(inputValues: {
   repoRoot: string;
 }): string[] {
   const steps = [
-    "Start or restart the OpenClaw gateway so ShellCorp config changes are picked up.",
+    "Start or restart the OpenClaw gateway so Farplane config changes are picked up.",
     inputValues.cliInstall.ok
-      ? `Use ${UI_ALIAS_COMMAND} or ${UI_START_COMMAND} from the repo root to open the ShellCorp UI.`
-      : `Run ${CLI_INSTALL_COMMAND} from the repo root for the global \`shellcorp\` alias, or use ${UI_START_COMMAND} directly.`,
+      ? `Use ${UI_ALIAS_COMMAND} or ${UI_START_COMMAND} from the repo root to open the Farplane UI.`
+      : `Run ${CLI_INSTALL_COMMAND} from the repo root for the global \`farplane\` alias, or use ${UI_START_COMMAND} directly.`,
     "Use the in-app onboarding flow to finish connector setup and learn the office controls.",
     "Expose `/plugins/notion-shell/webhook` on your Gateway host, verify that exact URL in Notion, then post a page comment with `@shell ...` to test the bridge.",
     "Ask the CEO agent to create planning tickets on the board, move one into review, and approve it as your first office workflow.",
@@ -727,13 +727,13 @@ function buildNextSteps(inputValues: {
     steps.splice(
       1,
       0,
-      "Run `npx convex dev` (or use your existing Convex deployment), then rerun `shellcorp onboarding --convex-url <url>` to wire the UI.",
+      "Run `npx convex dev` (or use your existing Convex deployment), then rerun `farplane onboarding --convex-url <url>` to wire the UI.",
     );
   } else if (!inputValues.runtime.convex.reachable) {
     steps.splice(
       1,
       0,
-      `Start the Convex backend at \`${inputValues.runtime.convex.url}\` before opening the UI, then rerun \`shellcorp onboarding\` to verify the connection.`,
+      `Start the Convex backend at \`${inputValues.runtime.convex.url}\` before opening the UI, then rerun \`farplane onboarding\` to verify the connection.`,
     );
   }
   if (inputValues.openclawChanged) {
@@ -785,7 +785,7 @@ export function registerOnboardingCommands(program: Command): void {
       const existingShellcorpConfig = await store.readShellcorpConfig();
       const wasOpenclawPresent = await fileExists(store.openclawConfigPath);
       const openclawBeforeRaw = JSON.stringify(existingOpenclaw);
-      const shellcorpConfigBeforeRaw = JSON.stringify(existingShellcorpConfig);
+      const farplaneConfigBeforeRaw = JSON.stringify(existingShellcorpConfig);
       if (!opts.json) {
         printStepStart(1, totalSteps, "Checking OpenClaw");
       }
@@ -823,7 +823,7 @@ export function registerOnboardingCommands(program: Command): void {
                   "Complete the OpenClaw onboarding flow first.",
                   "Ensure `~/.openclaw/openclaw.json` exists.",
                   "Ensure `agents.list` contains the main CEO agent with id `main`.",
-                  "Rerun `shellcorp onboarding` after OpenClaw is ready.",
+                  "Rerun `farplane onboarding` after OpenClaw is ready.",
                 ],
               },
               null,
@@ -842,7 +842,7 @@ export function registerOnboardingCommands(program: Command): void {
       }
 
       if (!opts.json) {
-        printStepStart(2, totalSteps, "Loading ShellCorp templates");
+        printStepStart(2, totalSteps, "Loading Farplane templates");
       }
       const selectedStyle =
         normalizeOfficeStylePreset(opts.style) ??
@@ -904,9 +904,9 @@ export function registerOnboardingCommands(program: Command): void {
       nextOpenclaw = ensureNotionCommentBridgeDefaults(nextOpenclaw, rootEnv);
       const openclawBefore = openclawBeforeRaw;
       const openclawAfter = JSON.stringify(nextOpenclaw);
-      const shellcorpConfigAfter = JSON.stringify(nextShellcorpConfig);
+      const farplaneConfigAfter = JSON.stringify(nextShellcorpConfig);
       let openclawStatus: FileStatus = "unchanged";
-      let shellcorpConfigStatus: FileStatus = "unchanged";
+      let farplaneConfigStatus: FileStatus = "unchanged";
       if (!wasOpenclawPresent) {
         await store.writeOpenclawConfig(nextOpenclaw);
         openclawStatus = "created";
@@ -919,13 +919,13 @@ export function registerOnboardingCommands(program: Command): void {
         Object.keys(nextShellcorpConfig).length > 0
       ) {
         await store.writeShellcorpConfig(nextShellcorpConfig);
-        shellcorpConfigStatus = "created";
-      } else if (shellcorpConfigBeforeRaw !== shellcorpConfigAfter) {
+        farplaneConfigStatus = "created";
+      } else if (farplaneConfigBeforeRaw !== farplaneConfigAfter) {
         await store.writeShellcorpConfig(nextShellcorpConfig);
-        shellcorpConfigStatus = "updated";
+        farplaneConfigStatus = "updated";
       }
       sidecars["openclaw.json"] = openclawStatus;
-      sidecars["shellcorp.json"] = shellcorpConfigStatus;
+      sidecars["farplane.json"] = farplaneConfigStatus;
 
       await store.writeOfficeStylePreset(selectedStyle);
       if (!opts.json) {
@@ -934,7 +934,7 @@ export function registerOnboardingCommands(program: Command): void {
       }
 
       if (!opts.json) {
-        printStepStart(5, totalSteps, "Installing ShellCorp CLI");
+        printStepStart(5, totalSteps, "Installing Farplane CLI");
       }
       const shouldInstallCli =
         opts.skipInstallCli === true
@@ -944,7 +944,7 @@ export function registerOnboardingCommands(program: Command): void {
             : !opts.json &&
               opts.yes !== true &&
               (await promptForYesNo({
-                question: "Install the global `shellcorp` CLI alias now with `npm link`?",
+                question: "Install the global `farplane` CLI alias now with `npm link`?",
                 defaultValue: true,
                 skipPrompt: false,
               }));
@@ -955,7 +955,7 @@ export function registerOnboardingCommands(program: Command): void {
       if (!opts.json) {
         const cliNote =
           cliInstall.status === "installed"
-            ? "ShellCorp CLI alias is ready."
+            ? "Farplane CLI alias is ready."
             : cliInstall.status === "skipped"
               ? "CLI alias install skipped."
               : "CLI alias install failed; you can still continue with repo-local commands.";
@@ -1052,7 +1052,7 @@ export function registerOnboardingCommands(program: Command): void {
         (opts.launchUi === true ||
           (opts.yes !== true &&
             (await promptForYesNo({
-              question: "Launch the ShellCorp UI now?",
+              question: "Launch the Farplane UI now?",
               defaultValue: true,
               skipPrompt: false,
             }))));
@@ -1096,7 +1096,7 @@ export function registerOnboardingCommands(program: Command): void {
       if (opts.json) {
         console.log(JSON.stringify(result, null, 2));
       } else {
-        console.log(cliBold(cliGreen("shellcorp onboarding complete")));
+        console.log(cliBold(cliGreen("farplane onboarding complete")));
         console.log(cliSection("Summary"));
         console.log(`- ${cliKeyValue("state dir:", result.stateDir, "info")}`);
         console.log(`- ${cliKeyValue("office style:", result.officeStylePreset, "info")}`);

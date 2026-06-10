@@ -19,11 +19,11 @@ describe("cli reinstall entrypoint", () => {
     const error = vi.fn();
     setCliReinstallRunnerForTests(runner);
 
-    const exitCode = await runCliReinstall(["--repo-root", "/tmp/shellcorp"], { log, error });
+    const exitCode = await runCliReinstall(["--repo-root", "/tmp/farplane"], { log, error });
 
-    expect(runner).toHaveBeenCalledWith({ repoRoot: "/tmp/shellcorp" });
+    expect(runner).toHaveBeenCalledWith({ repoRoot: "/tmp/farplane" });
     expect(exitCode).toBe(0);
-    expect(log).toHaveBeenCalledWith("Refreshing ShellCorp CLI from /tmp/shellcorp");
+    expect(log).toHaveBeenCalledWith("Refreshing Farplane CLI from /tmp/farplane");
     expect(log).toHaveBeenCalledWith("ok: npm link");
     expect(log).toHaveBeenCalledWith("done");
     expect(error).not.toHaveBeenCalled();
@@ -44,7 +44,7 @@ describe("cli reinstall entrypoint", () => {
     const exitCode = await runCliReinstall([], { log, error });
 
     expect(exitCode).toBe(1);
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("Refreshing ShellCorp CLI from"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Refreshing Farplane CLI from"));
     expect(log).toHaveBeenCalledWith("failed: npm link (permission denied)");
     expect(error).toHaveBeenCalledWith("link failed");
   });

@@ -29,7 +29,7 @@ Read, in order:
 4. `docs/TASTE.md` when UI quality is in scope
 5. any product-specific runbook linked by the ticket
 
-For the office UI, use [`docs/how-to/ai-office-ui-qa-runbook.md`](/home/kenjipcx/Zanarkand/ShellCorp/docs/how-to/ai-office-ui-qa-runbook.md) as the domain-specific interaction map.
+For the office UI, use [`docs/how-to/ai-office-ui-qa-runbook.md`](/home/kenjipcx/Zanarkand/Farplane/docs/how-to/ai-office-ui-qa-runbook.md) as the domain-specific interaction map.
 
 ## Office QA Shortcuts And Hooks
 
@@ -65,9 +65,9 @@ Guardrails:
 In development builds:
 
 ```ts
-window.__SHELLCORP_QA__.listPanels();
-window.__SHELLCORP_QA__.openPanel("agent-session");
-window.__SHELLCORP_QA__.runCommand("builder-mode");
+window.__FARPLANE_QA__.listPanels();
+window.__FARPLANE_QA__.openPanel("agent-session");
+window.__FARPLANE_QA__.runCommand("builder-mode");
 ```
 
 Contract:

@@ -6,7 +6,7 @@
     "internal": {
       "enabled": true,
       "entries": {
-        "shellcorp-status": {
+        "farplane-status": {
           "enabled": true
         }
       }
@@ -42,9 +42,9 @@
         }
       },
       {
-        "id": "shellcorp-builder",
-        "name": "ShellCorp Builder",
-        "workspace": "/srv/agents/shellcorp-builder",
+        "id": "farplane-builder",
+        "name": "Farplane Builder",
+        "workspace": "/srv/agents/farplane-builder",
         "heartbeat": {
           "every": "3m"
         },
@@ -61,9 +61,9 @@
         }
       },
       {
-        "id": "shellcorp-pm",
-        "name": "ShellCorp PM",
-        "workspace": "/srv/agents/shellcorp-pm",
+        "id": "farplane-pm",
+        "name": "Farplane PM",
+        "workspace": "/srv/agents/farplane-pm",
         "heartbeat": {
           "every": "3m"
         },

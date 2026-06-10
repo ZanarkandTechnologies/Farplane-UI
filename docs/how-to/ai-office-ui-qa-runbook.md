@@ -1,6 +1,6 @@
 # AI Office UI QA Runbook
 
-QA-facing runbook for browser-agent testing of the ShellCorp AI Office. Documents the Sims-like interaction model, click entrypoints, panel access paths, and builder mode.
+QA-facing runbook for browser-agent testing of the Farplane AI Office. Documents the Sims-like interaction model, click entrypoints, panel access paths, and builder mode.
 
 ## Product Overview
 
@@ -117,9 +117,9 @@ Shortcut guardrails:
 In development builds only:
 
 ```ts
-window.__SHELLCORP_QA__.listPanels();
-window.__SHELLCORP_QA__.openPanel("agent-session");
-window.__SHELLCORP_QA__.runCommand("builder-mode");
+window.__FARPLANE_QA__.listPanels();
+window.__FARPLANE_QA__.openPanel("agent-session");
+window.__FARPLANE_QA__.runCommand("builder-mode");
 ```
 
 Notes:

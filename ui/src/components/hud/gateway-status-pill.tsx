@@ -3,6 +3,7 @@ import { Loader2, Wifi, WifiOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useGateway } from "@/providers/gateway-provider";
+import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
 
 type GatewayStatusSnapshot = {
   connected: boolean;
@@ -22,6 +23,7 @@ function createDisconnectedSnapshot(message: string): GatewayStatusSnapshot {
 
 export function GatewayStatusPill(): JSX.Element {
   const { client, connected } = useGateway();
+  const adapter = useOpenClawAdapter();
   const [snapshot, setSnapshot] = useState<GatewayStatusSnapshot>(() =>
     createDisconnectedSnapshot("Click to re-check"),
   );
@@ -46,12 +48,31 @@ export function GatewayStatusPill(): JSX.Element {
   }, [client]);
 
   useEffect(() => {
+    if (adapter.runtimeKind === "codex") {
+      return;
+    }
     if (!connected) {
       setSnapshot(createDisconnectedSnapshot("Socket disconnected"));
       return;
     }
     void refreshStatus();
-  }, [connected, refreshStatus]);
+  }, [adapter.runtimeKind, connected, refreshStatus]);
+
+  if (adapter.runtimeKind === "codex") {
+    return (
+      <div className="pointer-events-auto">
+        <Button
+          size="sm"
+          variant="secondary"
+          className="h-10 rounded-full border border-white/20 bg-black/65 px-4 text-white hover:bg-black/80"
+          title="Codex runtime is selected. OpenClaw gateway status is hidden in this mode."
+        >
+          <Wifi className="mr-2 h-4 w-4 text-sky-300" />
+          Codex Mode
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="pointer-events-auto">

@@ -1,6 +1,6 @@
 # Feature: Personalization And Custom Meshes
 
-This page explains how ShellCorp handles office decor, custom mesh assets, and skill-aware office objects.
+This page explains how Farplane handles office decor, custom mesh assets, and skill-aware office objects.
 
 ## Value
 
@@ -12,7 +12,7 @@ This page explains how ShellCorp handles office decor, custom mesh assets, and s
 
 Personalization in the current phase is split into two layers:
 
-- `decor`: floor, wall, background, paintings, and office objects managed through the ShellCorp CLI and office UI
+- `decor`: floor, wall, background, paintings, and office objects managed through the Farplane CLI and office UI
 - `custom meshes`: operator-provided `.glb` / `.gltf` files that can be imported, previewed, and placed as office objects
 
 Agent appearance and mesh-wrapper flows are part of the broader direction, but the fully generalized operator-facing appearance system is still governed by [SC09](../specs/SC09-spec-agent-personalization-and-mesh-wrapper.md).
@@ -26,7 +26,7 @@ The current custom mesh flow is:
 3. Add it to the office through the CLI or import it from the UI.
 4. Persist the object with `meshPublicPath` metadata so the office can render it as a real mesh.
 
-ShellCorp intentionally requires explicit mesh metadata for `custom-mesh` objects. If the object has no `meshPublicPath`, it is treated as invalid rather than silently rendering as a placeholder.
+Farplane intentionally requires explicit mesh metadata for `custom-mesh` objects. If the object has no `meshPublicPath`, it is treated as invalid rather than silently rendering as a placeholder.
 
 ## Where To Put GLB Files
 
@@ -42,7 +42,7 @@ Current public path convention:
 Example:
 
 - local file: `~/.openclaw/assets/meshes/dragon.glb`
-- public path used by ShellCorp: `/openclaw/assets/meshes/dragon.glb`
+- public path used by Farplane: `/openclaw/assets/meshes/dragon.glb`
 
 The UI import flow and office commands already assume this pattern.
 
@@ -58,15 +58,15 @@ This is the current catalog convention used by the furniture/import UI.
 ## CLI Examples
 
 ```bash
-shellcorp office add custom-mesh \
+farplane office add custom-mesh \
   --auto-place \
   --mesh-public-path /openclaw/assets/meshes/dragon.glb \
   --display-name "Dragon"
 ```
 
 ```bash
-shellcorp office doctor --reason missing_mesh_public_path
-shellcorp office doctor --fix
+farplane office doctor --reason missing_mesh_public_path
+farplane office doctor --fix
 ```
 
 ## UI Import Flow
@@ -81,7 +81,7 @@ This keeps the asset flow simple and local-first.
 
 ## Skill-Bound Office Objects
 
-ShellCorp also supports semantic skill bindings for office objects.
+Farplane also supports semantic skill bindings for office objects.
 
 The important model is:
 

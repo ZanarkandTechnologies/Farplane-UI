@@ -22,7 +22,7 @@ import path from "node:path";
 import type { OfficeObjectModel, OfficeSettingsModel } from "./sidecar-store.js";
 
 function resolveRepoRoot(): string {
-  const override = process.env.SHELLCORP_REPO_ROOT?.trim();
+  const override = process.env.FARPLANE_REPO_ROOT?.trim();
   if (override) return path.resolve(override);
   const candidateRoot = path.resolve(__dirname, "..");
   const templatesMarker = path.join(candidateRoot, "templates", "sidecar", "company.template.json");

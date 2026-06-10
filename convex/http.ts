@@ -2,7 +2,7 @@
  * CONVEX HTTP ROUTES
  * ==================
  * Purpose
- * - Expose thin HTTP ingress for ShellCorp CLI and external hooks over the canonical Convex runtime.
+ * - Expose thin HTTP ingress for Farplane CLI and external hooks over the canonical Convex runtime.
  *
  * KEY CONCEPTS:
  * - Board/status writes stay mutation-backed and CLI-safe.
@@ -27,16 +27,16 @@ const http = httpRouter();
 
 function readAuthHeaders(request: Request): { actorRole: string; allowedPermissions?: string } {
   const actorRole =
-    request.headers.get("x-shellcorp-actor-role")?.trim().toLowerCase() || "operator";
+    request.headers.get("x-farplane-actor-role")?.trim().toLowerCase() || "operator";
   const allowedPermissions =
-    request.headers.get("x-shellcorp-allowed-permissions")?.trim() || undefined;
+    request.headers.get("x-farplane-allowed-permissions")?.trim() || undefined;
   return { actorRole, allowedPermissions };
 }
 
 function hasBoardToken(request: Request): boolean {
-  const expected = process.env.SHELLCORP_BOARD_OPERATOR_TOKEN?.trim();
+  const expected = process.env.FARPLANE_BOARD_OPERATOR_TOKEN?.trim();
   if (!expected) return true;
-  const actual = request.headers.get("x-shellcorp-board-token")?.trim();
+  const actual = request.headers.get("x-farplane-board-token")?.trim();
   return Boolean(actual && actual === expected);
 }
 

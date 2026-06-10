@@ -2,14 +2,14 @@
 
 ## Purpose
 
-ShellCorp's command-line entrypoints for onboarding, thin team operations, board workflow, office management, and local install/link flows.
+Farplane's command-line entrypoints for onboarding, thin team operations, board workflow, office management, and local install/link flows.
 
 The CLI is broader than the intended MVP operating surface today. This document describes the current public entrypoints, calls out the parts that feel overbuilt, and sets the direction for simplification.
 
 ## Public API / entrypoints
 
 - `npm run shell -- <command>`
-- `shellcorp <command>` after `npm link`
+- `farplane <command>` after `npm link`
 - `npm run cli:reinstall`
 - `bash scripts/reinstall-cli.sh`
 
@@ -17,16 +17,16 @@ The CLI is broader than the intended MVP operating surface today. This document 
 
 ```bash
 npm run cli:reinstall
-shellcorp onboarding --yes
-eval "$(shellcorp agent login --agent-id alpha-pm)"
-shellcorp team list --json
-shellcorp team config show --team-id team-proj-alpha --json
-shellcorp team board task list --team-id team-proj-alpha --json
+farplane onboarding --yes
+eval "$(farplane agent login --agent-id alpha-pm)"
+farplane team list --json
+farplane team config show --team-id team-proj-alpha --json
+farplane team board task list --team-id team-proj-alpha --json
 ```
 
 ## Current Command Families
 
-- `onboarding`: first-run ShellCorp bootstrap on top of an already-onboarded OpenClaw install
+- `onboarding`: first-run Farplane bootstrap on top of an already-onboarded OpenClaw install
 - `ui`: launch the office UI
 - `team`: team lifecycle, board/task flow, business config, monitoring, presets, resources, funds, heartbeat, and run helpers
 - `agent`: agent config and runtime inspection
@@ -74,7 +74,7 @@ The product direction is thinner than the current command count suggests.
 
 ## Canonical State Model
 
-ShellCorp should stay thin and inspectable.
+Farplane should stay thin and inspectable.
 
 - The kanban board keeps the minimal structure needed for routing and execution:
   `taskId`, `projectId`, `teamId`, `status`, `priority`, ownership, timestamps, approval/session metadata.
@@ -104,41 +104,41 @@ This matches the current file-backed resource model and the append-only event st
 
 If you are building against the current product direction, start with:
 
-- `shellcorp onboarding`
-- `shellcorp ui`
-- `shellcorp team list`
-- `shellcorp team create`
-- `shellcorp team config show`
-- `shellcorp team config resources get`
-- `shellcorp team config resources set`
-- `shellcorp team board task add`
-- `shellcorp team board task update`
-- `shellcorp team board task move`
-- `shellcorp team board task memory set`
-- `shellcorp team board task memory append`
-- `shellcorp team board task claim`
-- `shellcorp team board task mine`
-- `shellcorp team board task list`
-- `shellcorp team monitor`
-- `shellcorp agent config show`
-- `shellcorp agent config set-skills`
-- `shellcorp agent config set-heartbeat`
-- `shellcorp agent monitor`
+- `farplane onboarding`
+- `farplane ui`
+- `farplane team list`
+- `farplane team create`
+- `farplane team config show`
+- `farplane team config resources get`
+- `farplane team config resources set`
+- `farplane team board task add`
+- `farplane team board task update`
+- `farplane team board task move`
+- `farplane team board task memory set`
+- `farplane team board task memory append`
+- `farplane team board task claim`
+- `farplane team board task mine`
+- `farplane team board task list`
+- `farplane team monitor`
+- `farplane agent config show`
+- `farplane agent config set-skills`
+- `farplane agent config set-heartbeat`
+- `farplane agent monitor`
 
 ## Example Workflow
 
 ```bash
-shellcorp onboarding --yes
-eval "$(shellcorp agent login --agent-id affiliate-lab-pm)"
-shellcorp whoami
-shellcorp ui
-shellcorp team create --name "Affiliate Lab" --description "Small affiliate loop" --goal "Publish and learn"
-shellcorp team config resources set --team-id team-proj-affiliate-lab --text $'# Resources\n\nbudget: small\nconstraints: stay text-first\n'
-shellcorp team board task add --team-id team-proj-affiliate-lab --title "Draft execution brief" --detail $'Goal: turn the approved idea into a working markdown brief.\n\nNext:\n- define first KPI\n- define first content batch'
-shellcorp team board task memory append --team-id team-proj-affiliate-lab --task-id task-1 --text $'## Plan\n- gather context\n- draft first KPI\n- move to review'
-shellcorp status --state planning "Triaging approved work"
-shellcorp team board task move --team-id team-proj-affiliate-lab --task-id task-1 --status review
-shellcorp team monitor --team-id team-proj-affiliate-lab --json
+farplane onboarding --yes
+eval "$(farplane agent login --agent-id affiliate-lab-pm)"
+farplane whoami
+farplane ui
+farplane team create --name "Affiliate Lab" --description "Small affiliate loop" --goal "Publish and learn"
+farplane team config resources set --team-id team-proj-affiliate-lab --text $'# Resources\n\nbudget: small\nconstraints: stay text-first\n'
+farplane team board task add --team-id team-proj-affiliate-lab --title "Draft execution brief" --detail $'Goal: turn the approved idea into a working markdown brief.\n\nNext:\n- define first KPI\n- define first content batch'
+farplane team board task memory append --team-id team-proj-affiliate-lab --task-id task-1 --text $'## Plan\n- gather context\n- draft first KPI\n- move to review'
+farplane status --state planning "Triaging approved work"
+farplane team board task move --team-id team-proj-affiliate-lab --task-id task-1 --status review
+farplane team monitor --team-id team-proj-affiliate-lab --json
 ```
 
 ## Session Identity
@@ -146,13 +146,13 @@ shellcorp team monitor --team-id team-proj-affiliate-lab --json
 Agent-attributed CLI commands should run inside a shell session that has a caller identity claim.
 
 ```bash
-eval "$(shellcorp agent login --agent-id alpha-pm)"
-shellcorp whoami --json
-shellcorp status --state planning "Starting my turn"
-shellcorp agent logout
+eval "$(farplane agent login --agent-id alpha-pm)"
+farplane whoami --json
+farplane status --state planning "Starting my turn"
+farplane agent logout
 ```
 
-ShellCorp treats `SHELLCORP_AGENT_ID` as the canonical caller identity for agent-attributed writes, then derives `teamId`, `projectId`, and role from `company.json`. Conflicting manual `SHELLCORP_TEAM_ID` or `SHELLCORP_PROJECT_ID` overrides fail fast.
+Farplane treats `FARPLANE_AGENT_ID` as the canonical caller identity for agent-attributed writes, then derives `teamId`, `projectId`, and role from `company.json`. Conflicting manual `FARPLANE_TEAM_ID` or `FARPLANE_PROJECT_ID` overrides fail fast.
 
 ## How To Think About Task State
 

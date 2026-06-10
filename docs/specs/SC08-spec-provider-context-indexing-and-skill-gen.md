@@ -2,7 +2,7 @@
 
 ## Scope
 
-Define how Shell Company indexes provider data structures (Notion databases, Vibe boards, internal task schemas) and generates deterministic context tools/skills that agents can invoke during OpenClaw sessions.
+Define how Farplane AI indexes provider data structures (Notion databases, Vibe boards, internal task schemas) and generates deterministic context tools/skills that agents can invoke during OpenClaw sessions.
 
 ## Canonical References
 
@@ -70,7 +70,7 @@ Define how Shell Company indexes provider data structures (Notion databases, Vib
 1. Operator selects provider/entity (or policy auto-triggers).
 2. Adapter fetches and normalizes provider schema.
 3. System computes `schemaVersion`; unchanged versions skip regeneration.
-4. Index entries persist locally for OpenClaw/ShellCorp read paths.
+4. Index entries persist locally for OpenClaw/Farplane read paths.
 5. Skills panel surfaces index health.
 
 ### Generate Tools/Skills

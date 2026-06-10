@@ -25,6 +25,7 @@ import {
 } from "../chat-message-utils";
 import { useAppStore } from "../../../lib/app-store";
 import { useGateway } from "../../../providers/gateway-provider";
+import { useOfficeRuntimeAdapter } from "../../../providers/openclaw-adapter-provider";
 
 type SubmissionStatus = "submitted" | "streaming" | "ready";
 type ChatGatewayEventPayload = {
@@ -496,6 +497,21 @@ function shouldDisplayWorkingOutputMessage(message: LocalChatMessage): boolean {
     return !isWorkingOutputMessage(message);
 }
 
+function mapTimelineEventToLocal(event: { role: string; text: string; ts: number; type?: string; eventId?: string }, index: number): LocalChatMessage[] {
+    const roleRaw = event.role.toLowerCase();
+    const role = roleRaw === "user" ? "user" : "assistant";
+    const kind = event.type === "tool" || event.type === "status" ? "working_output" : undefined;
+    return [
+        {
+            key: `${event.eventId ?? `${role}-${event.ts}-${index}`}`,
+            role,
+            text: event.text,
+            createdAt: event.ts,
+            kind,
+        },
+    ];
+}
+
 export function useChatMessages(threadId: string | null): {
     messages: LocalChatMessage[];
     handleSubmit: (messageParam: unknown) => Promise<void>;
@@ -513,6 +529,7 @@ export function useChatMessages(threadId: string | null): {
     const selectedSessionKey = useAppStore((state) => state.selectedSessionKey);
     const showWorkingOutput = useChatStore((state) => state.showWorkingOutput);
     const { client } = useGateway();
+    const adapter = useOfficeRuntimeAdapter();
     const seenAgentEventIdsRef = useRef<Set<string>>(new Set());
     const toolProgressByIdRef = useRef<Map<string, SharedToolProgressEntry>>(new Map());
 
@@ -530,6 +547,10 @@ export function useChatMessages(threadId: string | null): {
 
     const reloadHistory = useCallback(
         async (sessionKey: string): Promise<LocalChatMessage[]> => {
+            if (adapter.runtimeKind === "codex") {
+                const timeline = await adapter.getSessionTimeline(selectedAgentId ?? sessionKey, sessionKey, 200);
+                return timeline.events.flatMap((event, index) => mapTimelineEventToLocal(event, index));
+            }
             const result = await client.request<{ messages?: unknown[] }>("chat.history", {
                 sessionKey,
                 limit: 200,
@@ -537,22 +558,23 @@ export function useChatMessages(threadId: string | null): {
             const raw = Array.isArray(result?.messages) ? result.messages : [];
             return raw.flatMap((msg, i) => mapHistoryMessages(msg, i));
         },
-        [client],
+        [adapter, client, selectedAgentId],
     );
 
     useEffect(() => {
         if (!effectiveSessionKey) return;
+        const sessionKey = effectiveSessionKey;
         let cancelled = false;
         setStreamingText("");
         setActiveRunId(null);
         setSubmissionStatus("ready");
         async function loadHistory(): Promise<void> {
             try {
-                const mapped = await reloadHistory(effectiveSessionKey);
+                const mapped = await reloadHistory(sessionKey);
                 if (cancelled) return;
                 useChatStore.getState().setMessagesByThread({
                     ...useChatStore.getState().messagesByThread,
-                    [effectiveSessionKey]: mapped,
+                    [sessionKey]: mapped,
                 });
             } catch {
                 if (!cancelled) {
@@ -754,6 +776,25 @@ export function useChatMessages(threadId: string | null): {
             setActiveRunId(runId);
 
             try {
+                if (adapter.runtimeKind === "codex") {
+                    const result = await adapter.sendMessage({
+                        agentId: selectedAgentId,
+                        sessionKey: effectiveSessionKey,
+                        message: text,
+                    });
+                    if (!result.ok) {
+                        throw new Error(result.error ?? "codex_message_send_failed");
+                    }
+                    const mapped = await reloadHistory(effectiveSessionKey);
+                    useChatStore.getState().setMessagesByThread({
+                        ...useChatStore.getState().messagesByThread,
+                        [effectiveThreadId]: mapped.length > 0 ? mapped : useChatStore.getState().messagesByThread[effectiveThreadId],
+                    });
+                    setStreamingText("");
+                    setActiveRunId(null);
+                    setSubmissionStatus("ready");
+                    return;
+                }
                 await client.request("chat.send", {
                     sessionKey: effectiveSessionKey,
                     message: text,
@@ -774,17 +815,23 @@ export function useChatMessages(threadId: string | null): {
                 setSubmissionStatus("ready");
             }
         },
-        [client, effectiveSessionKey, effectiveThreadId, selectedAgentId],
+        [adapter, client, effectiveSessionKey, effectiveThreadId, reloadHistory, selectedAgentId],
     );
 
     const abort = useCallback(async (): Promise<void> => {
         if (!effectiveSessionKey) return;
+        if (adapter.runtimeKind === "codex") {
+            setStreamingText("");
+            setActiveRunId(null);
+            setSubmissionStatus("ready");
+            return;
+        }
         try {
             await client.request("chat.abort", { sessionKey: effectiveSessionKey });
         } catch {
             // Ignore abort errors; streaming handler will receive aborted event
         }
-    }, [client, effectiveSessionKey]);
+    }, [adapter.runtimeKind, client, effectiveSessionKey]);
 
     return {
         messages,

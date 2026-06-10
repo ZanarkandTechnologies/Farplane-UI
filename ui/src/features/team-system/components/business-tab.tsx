@@ -105,7 +105,7 @@ export function BusinessTab({
                   className="min-h-28"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Use `shellcorp team business context set --team-id ... --text ...` to update this
+                  Use `farplane team business context set --team-id ... --text ...` to update this
                   from CLI.
                 </p>
               </CardContent>

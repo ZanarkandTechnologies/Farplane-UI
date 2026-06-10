@@ -1,6 +1,6 @@
 interface:
   display_name: "Competitor Feature Scout"
-  short_description: "Track competitor repo changes, keep skill-local MEMORY state, and post bounded ShellCorp follow-up suggestions."
+  short_description: "Track competitor repo changes, keep skill-local MEMORY state, and post bounded Farplane follow-up suggestions."
   brand_color: "#0F766E"
   default_prompt: "Use this skill for daily competitor-repo monitoring when the goal is to extract product-significant ideas rather than copy code."
 policy:
@@ -8,7 +8,7 @@ policy:
 dependencies:
   tools: []
   skills:
-    - "shellcorp-kanban-ops"
+    - "farplane-kanban-ops"
   docs:
     - "./MEMORY.md"
 state:
@@ -27,7 +27,7 @@ visualization:
       watchlist[Read watchlist.md] --> memory[Read MEMORY.md cursor]
       memory --> scan[Inspect recent repo changes]
       scan --> decide{Copy or drop?}
-      decide --> post[Post ShellCorp follow-up]
+      decide --> post[Post Farplane follow-up]
       post --> update[Update MEMORY.md]
 references:
   - "./watchlist.md"

@@ -1,4 +1,4 @@
-# Notion Plugin (Shell Company)
+# Notion Plugin (Farplane AI)
 
 In-repo OpenClaw extension for Notion comments-first agent ingress, outbound page comments, and helper gateway methods.
 

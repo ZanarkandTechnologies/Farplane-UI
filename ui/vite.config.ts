@@ -39,6 +39,10 @@ const OFFICE_OBJECTS_TEMPLATE_PATH = path.resolve(
   __dirname,
   "../templates/sidecar/office-objects.template.json",
 );
+const OFFICE_SETTINGS_TEMPLATE_PATH = path.resolve(
+  __dirname,
+  "../templates/sidecar/office.template.json",
+);
 const PENDING_APPROVALS_PATH = path.join(FARPLANE_HOME, "pending-approvals.json");
 const PENDING_APPROVALS_TEMPLATE_PATH = path.resolve(__dirname, "../templates/sidecar/pending-approvals.template.json");
 const BIZ_PM_HEARTBEAT_TEMPLATE_PATH = path.resolve(__dirname, "../templates/workspace/HEARTBEAT-biz-pm.md");
@@ -140,7 +144,7 @@ async function resolveAgentWorkspacePath(agentId: string): Promise<string> {
 
 function writeJson(res: { setHeader: (k: string, v: string) => void; end: (body: string) => void }, status: number, payload: unknown): void {
   res.setHeader("content-type", "application/json");
-  res.setHeader("x-shellcorp-state-bridge", "vite");
+  res.setHeader("x-farplane-state-bridge", "vite");
   (res as { statusCode?: number }).statusCode = status;
   res.end(JSON.stringify(payload));
 }
@@ -153,13 +157,13 @@ function requestHeader(req: unknown, name: string): string {
 }
 
 function hasBridgeWriteAccess(req: unknown): boolean {
-  const expectedToken = process.env.SHELLCORP_STATE_BRIDGE_TOKEN?.trim();
+  const expectedToken = process.env.FARPLANE_STATE_BRIDGE_TOKEN?.trim();
   if (expectedToken) {
-    const providedToken = requestHeader(req, "x-shellcorp-state-bridge-token").trim();
+    const providedToken = requestHeader(req, "x-farplane-state-bridge-token").trim();
     if (!providedToken || providedToken !== expectedToken) return false;
   }
-  const role = requestHeader(req, "x-shellcorp-actor-role").trim().toLowerCase() || "operator";
-  const allowed = requestHeader(req, "x-shellcorp-allowed-permissions").trim();
+  const role = requestHeader(req, "x-farplane-actor-role").trim().toLowerCase() || "operator";
+  const allowed = requestHeader(req, "x-farplane-allowed-permissions").trim();
   if (!allowed) return role === "operator";
   if (allowed === "*") return true;
   const permissions = new Set(allowed.split(",").map((entry) => entry.trim()).filter(Boolean));
@@ -181,24 +185,154 @@ async function readBody(req: { on: (name: string, cb: (chunk?: Buffer) => void) 
   }
 }
 
+type JsonRpcMessage = {
+  id?: string | number;
+  method?: string;
+  params?: unknown;
+  result?: unknown;
+  error?: { code?: number; message?: string; data?: unknown };
+};
+
+function readCodexAppServerUrl(): string {
+  return (
+    process.env.CODEX_APP_SERVER_URL ||
+    process.env.FARPLANE_CODEX_APP_SERVER_URL ||
+    ""
+  ).trim();
+}
+
+async function requestCodexAppServerRpc(method: string, params: unknown): Promise<unknown> {
+  const appServerUrl = readCodexAppServerUrl();
+  if (!appServerUrl) {
+    throw new Error("codex_app_server_url_missing");
+  }
+  if (!appServerUrl.startsWith("ws://127.0.0.1") && !appServerUrl.startsWith("ws://localhost")) {
+    throw new Error("codex_app_server_url_must_be_local");
+  }
+  const WebSocketCtor = (globalThis as unknown as { WebSocket?: new (url: string) => unknown }).WebSocket;
+  if (!WebSocketCtor) {
+    throw new Error("websocket_runtime_unavailable");
+  }
+
+  const socket = new WebSocketCtor(appServerUrl) as {
+    readyState?: number;
+    send: (data: string) => void;
+    close: () => void;
+    addEventListener: (name: string, cb: (event?: unknown) => void, options?: unknown) => void;
+    removeEventListener?: (name: string, cb: (event?: unknown) => void) => void;
+  };
+
+  const waitForOpen = new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("codex_app_server_open_timeout")), 5000);
+    socket.addEventListener("open", () => {
+      clearTimeout(timer);
+      resolve();
+    }, { once: true });
+    socket.addEventListener("error", () => {
+      clearTimeout(timer);
+      reject(new Error("codex_app_server_unreachable"));
+    }, { once: true });
+  });
+
+  await waitForOpen;
+
+  let nextId = 1;
+  const pending = new Map<
+    string | number,
+    { resolve: (value: unknown) => void; reject: (error: Error) => void }
+  >();
+
+  const onMessage = (event?: unknown) => {
+    const rawData = (event as { data?: unknown } | undefined)?.data;
+    const text = typeof rawData === "string" ? rawData : rawData instanceof Buffer ? rawData.toString("utf-8") : "";
+    if (!text) return;
+    let parsed: JsonRpcMessage;
+    try {
+      parsed = JSON.parse(text) as JsonRpcMessage;
+    } catch {
+      return;
+    }
+    if (parsed.id === undefined) return;
+    const waiter = pending.get(parsed.id);
+    if (!waiter) return;
+    pending.delete(parsed.id);
+    if (parsed.error) {
+      waiter.reject(new Error(parsed.error.message || `codex_rpc_error:${parsed.error.code ?? "unknown"}`));
+      return;
+    }
+    waiter.resolve(parsed.result);
+  };
+
+  socket.addEventListener("message", onMessage);
+
+  const sendRequest = async (requestMethod: string, requestParams: unknown): Promise<unknown> => {
+    const id = nextId++;
+    const result = new Promise<unknown>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`codex_rpc_timeout:${requestMethod}`));
+      }, 15000);
+      pending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      });
+    });
+    socket.send(JSON.stringify({ id, method: requestMethod, params: requestParams }));
+    return result;
+  };
+
+  try {
+    await sendRequest("initialize", {
+      clientInfo: {
+        name: "farplane-ui",
+        title: "Farplane UI",
+        version: "0.1.0",
+      },
+      capabilities: {
+        experimentalApi: true,
+        requestAttestation: false,
+        optOutNotificationMethods: [],
+      },
+    });
+    socket.send(JSON.stringify({ method: "initialized" }));
+    return await sendRequest(method, params);
+  } finally {
+    socket.removeEventListener?.("message", onMessage);
+    socket.close();
+  }
+}
+
 function normalizeOfficeSettings(input: unknown): Required<OfficeSettings> {
   return normalizeBridgeOfficeSettings(input, DEFAULT_MESH_ASSET_DIR);
 }
 
 async function readOfficeSettings(): Promise<OfficeSettings> {
-  const raw = await readJsonFile<OfficeSettings>(OFFICE_SETTINGS_PATH, {
-    meshAssetDir: DEFAULT_MESH_ASSET_DIR,
-    officeFootprint: { width: 35, depth: 35 },
-    officeLayout: { version: 1, tileSize: 1, tiles: [] },
-    decor: {
-      floorPatternId: "sandstone_tiles",
-      wallColorId: "gallery_cream",
-      backgroundId: "shell_haze",
-    },
-    viewProfile: "free_orbit_3d",
-    orbitControlsEnabled: true,
-    cameraOrientation: "south_east",
-  });
+  let raw = await readJsonFile<OfficeSettings | null>(OFFICE_SETTINGS_PATH, null);
+  if (!raw) {
+    raw = await readJsonFile<OfficeSettings>(OFFICE_SETTINGS_TEMPLATE_PATH, {
+      meshAssetDir: DEFAULT_MESH_ASSET_DIR,
+      officeFootprint: { width: 35, depth: 35 },
+      officeLayout: { version: 1, tileSize: 1, tiles: [] },
+      decor: {
+        floorPatternId: "sandstone_tiles",
+        wallColorId: "gallery_cream",
+        backgroundId: "shell_haze",
+      },
+      viewProfile: "free_orbit_3d",
+      orbitControlsEnabled: true,
+      cameraOrientation: "south_east",
+    });
+    const seeded = normalizeOfficeSettings(raw);
+    await mkdir(path.dirname(OFFICE_SETTINGS_PATH), { recursive: true });
+    await writeFile(OFFICE_SETTINGS_PATH, `${JSON.stringify(seeded, null, 2)}\n`, "utf-8");
+    return seeded;
+  }
   return normalizeOfficeSettings(raw);
 }
 
@@ -279,7 +413,7 @@ function inferMeshExtensionFromUrl(rawUrl: string): ".glb" | ".gltf" {
 
 function getMeshyApiKey(): string {
   return (
-    process.env.SHELLCORP_MESHY_API_KEY?.trim() ||
+    process.env.FARPLANE_MESHY_API_KEY?.trim() ||
     process.env.MESHY_API_KEY?.trim() ||
     ""
   );
@@ -1070,8 +1204,8 @@ function buildTeamBusinessSkillTargets(project: JsonObject): { pmSkills: string[
       .map((resource) => (typeof resource.trackerSkillId === "string" ? resource.trackerSkillId : ""))
       .filter(Boolean),
   );
-  const sharedCore = ["shellcorp-team-cli", "status-self-reporter"];
-  const pmCore = ["shellcorp-kanban-ops", "ledger-manager", "experiment-runner"];
+  const sharedCore = ["farplane-team-cli", "status-self-reporter"];
+  const pmCore = ["farplane-kanban-ops", "ledger-manager", "experiment-runner"];
   return {
     pmSkills: uniqueSkills([...sharedCore, ...pmCore, ...slotSkills, ...trackerSkills]),
     executorSkills: uniqueSkills([...sharedCore, ...slotSkills]),
@@ -1237,9 +1371,9 @@ function renderHeartbeatTemplate(rawTemplate: string, project: JsonObject): stri
   return rendered;
 }
 
-function shellcorpStateBridge() {
+function farplaneStateBridge() {
   return {
-    name: "shellcorp-openclaw-state-bridge",
+    name: "farplane-openclaw-state-bridge",
     configureServer(server: {
       middlewares: { use: (cb: (req: { method?: string; url?: string; on: (name: string, cb: (chunk?: Buffer) => void) => void }, res: { setHeader: (k: string, v: string) => void; end: (body: string) => void }, next: () => void) => void) => void };
     }) {
@@ -1247,6 +1381,35 @@ function shellcorpStateBridge() {
         const method = (req.method || "GET").toUpperCase();
         const url = new URL(req.url || "/", "http://127.0.0.1:5173");
         const pathname = url.pathname;
+
+        if (pathname === "/codex/app-server/health") {
+          const appServerUrl = readCodexAppServerUrl();
+          writeJson(res, appServerUrl ? 200 : 503, {
+            ok: Boolean(appServerUrl),
+            configured: Boolean(appServerUrl),
+            transport: appServerUrl ? "websocket" : "missing",
+          });
+          return;
+        }
+
+        if (method === "POST" && pathname === "/codex/app-server/rpc") {
+          const body = (await readBody(req)) as JsonObject;
+          const rpcMethod = String(body.method ?? "").trim();
+          if (!rpcMethod) {
+            writeJson(res, 400, { ok: false, error: "codex_rpc_method_required" });
+            return;
+          }
+          try {
+            const result = await requestCodexAppServerRpc(rpcMethod, body.params ?? {});
+            writeJson(res, 200, { ok: true, result });
+          } catch (error) {
+            writeJson(res, 502, {
+              ok: false,
+              error: error instanceof Error ? error.message : "codex_rpc_failed",
+            });
+          }
+          return;
+        }
 
         if (!pathname.startsWith("/openclaw/")) {
           next();
@@ -1503,7 +1666,7 @@ function shellcorpStateBridge() {
           sessions[sessionKey] = {
             ...sessionRow,
             updatedAt: Date.now(),
-            lastTo: "ShellCorp UI",
+            lastTo: "Farplane UI",
           };
           const sessionsPath = path.join(OPENCLAW_HOME, "agents", agentId, "sessions", "sessions.json");
           await writeFile(sessionsPath, `${JSON.stringify(sessions, null, 2)}\n`, "utf-8");
@@ -2382,7 +2545,7 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },
   },
-  plugins: [shellcorpStateBridge(), tailwindcss(), react()],
+  plugins: [farplaneStateBridge(), tailwindcss(), react()],
   server: {
     host: "127.0.0.1",
     port: 5173,

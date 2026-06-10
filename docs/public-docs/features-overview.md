@@ -1,6 +1,6 @@
 # Features Overview
 
-ShellCorp provides an operator-facing office control center on top of OpenClaw runtime state.
+Farplane provides an operator-facing office control center on top of OpenClaw runtime state.
 
 ## Product Value
 
@@ -25,12 +25,12 @@ ShellCorp provides an operator-facing office control center on top of OpenClaw r
 
 | Feature | Value | Status | Canonical doc | Specs / memory |
 | --- | --- | --- | --- | --- |
-| ShellCorp CLI | Operate team topology, heartbeat policy, and office state | shipped | `docs/public-docs/feature-cli.md` | `MEM-0119`, `MEM-0120` |
-| Teams, workspaces, and heartbeats | Explain how ShellCorp provisions OpenClaw agents, workspaces, and scheduled execution loops | shipped baseline | `docs/public-docs/feature-teams-heartbeats.md` | `MEM-0124`, `SC10` |
+| Farplane CLI | Operate team topology, heartbeat policy, and office state | shipped | `docs/public-docs/feature-cli.md` | `MEM-0119`, `MEM-0120` |
+| Teams, workspaces, and heartbeats | Explain how Farplane provisions OpenClaw agents, workspaces, and scheduled execution loops | shipped baseline | `docs/public-docs/feature-teams-heartbeats.md` | `MEM-0124`, `SC10` |
 | Business logic model | Explain goals, KPIs, hard beats, and the team execution loop | shipped baseline + evolving | `docs/public-docs/feature-business-logic.md` | `SC06`, `SC07`, `SC10`, `MEM-0114` |
 | Personalization and custom meshes | Explain custom mesh placement, asset conventions, and skill-aware office object bindings | shipped baseline + evolving | `docs/public-docs/feature-personalization.md` | `SC09`, `MEM-0173` |
 | Office decorations | Personalize office objects and themes for better team visibility | shipped | `docs/public-docs/feature-decorations.md` | `MEM-0120`, `MEM-0169` |
-| Meta improvement loop | Watch competitor repos, propose ShellCorp-native adoption work, and feed the CEO workflow | planned scaffold | `docs/public-docs/feature-meta-improvement.md` | `MEM-0152` |
+| Meta improvement loop | Watch competitor repos, propose Farplane-native adoption work, and feed the CEO workflow | planned scaffold | `docs/public-docs/feature-meta-improvement.md` | `MEM-0152` |
 | Extensions | Integrate external systems through plugin-first contracts | shipped baseline | `docs/public-docs/extensions.md` | `MEM-0102`, `MEM-0117` |
 | Kanban federation controls | Canonical provider ownership and sync observability | in_progress | `docs/public-docs/feature-business-logic.md` | `SC06`, `MEM-0115` |
 | Ticket-session lifecycle | Ticket linked to agent session until explicit close/reopen | planned | `docs/public-docs/feature-business-logic.md` | `SC07`, `MEM-0112` |

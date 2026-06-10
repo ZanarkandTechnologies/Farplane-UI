@@ -1,6 +1,6 @@
 ---
 name: office-decorator
-description: Decorate and personalize the ShellCorp office through CLI-first workflows (print, list, add, move, remove, theme, meshy spec generation).
+description: Decorate and personalize the Farplane office through CLI-first workflows (print, list, add, move, remove, theme, meshy spec generation).
 allowed-tools: Bash, Read, Write
 ---
 
@@ -19,7 +19,7 @@ Use this skill when the operator says anything like:
 ## Outcome contract (must happen)
 
 - Inspect current office state before making changes.
-- Apply requested layout/theme/object changes using `shellcorp office` commands.
+- Apply requested layout/theme/object changes using `farplane office` commands.
 - Print the office again for verification.
 - Report exactly what changed (IDs, coordinates, theme).
 

@@ -9,9 +9,9 @@
  * - Resources stay file-backed in this MVP so operators can edit and audit them without another database surface.
  *
  * USAGE:
- * - shellcorp team config show --team-id team-proj-alpha --json
- * - shellcorp team config resources init --team-id team-proj-alpha
- * - shellcorp team monitor --team-id team-proj-alpha --json
+ * - farplane team config show --team-id team-proj-alpha --json
+ * - farplane team config resources init --team-id team-proj-alpha
+ * - farplane team monitor --team-id team-proj-alpha --json
  *
  * MEMORY REFERENCES:
  * - MEM-0196

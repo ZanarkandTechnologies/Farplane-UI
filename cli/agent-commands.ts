@@ -9,9 +9,9 @@
  * - Per-agent heartbeat edits get their own profile so one tweak does not silently mutate every agent sharing a default profile.
  *
  * USAGE:
- * - shellcorp agent config show --agent-id alpha-pm --json
- * - shellcorp agent config set-skills --agent-id alpha-builder --skills shellcorp-team-cli,status-self-reporter
- * - shellcorp agent config set-heartbeat --agent-id alpha-pm --cadence-minutes 1 --goal "Test loop"
+ * - farplane agent config show --agent-id alpha-pm --json
+ * - farplane agent config set-skills --agent-id alpha-builder --skills farplane-team-cli,status-self-reporter
+ * - farplane agent config set-heartbeat --agent-id alpha-pm --cadence-minutes 1 --goal "Test loop"
  *
  * MEMORY REFERENCES:
  * - MEM-0196
@@ -203,10 +203,10 @@ export function registerAgentCommands(program: Command): void {
         throw new Error(`agent_missing_project:${opts.agentId}`);
       }
       const exports = [
-        ["SHELLCORP_AGENT_ID", actor.agentId],
-        ["SHELLCORP_TEAM_ID", actor.teamId],
-        ["SHELLCORP_PROJECT_ID", actor.projectId],
-        ["SHELLCORP_ACTOR_ROLE", actor.actorRole],
+        ["FARPLANE_AGENT_ID", actor.agentId],
+        ["FARPLANE_TEAM_ID", actor.teamId],
+        ["FARPLANE_PROJECT_ID", actor.projectId],
+        ["FARPLANE_ACTOR_ROLE", actor.actorRole],
       ] as Array<[string, string]>;
       formatOutput(
         opts.json ? "json" : "text",
@@ -228,11 +228,11 @@ export function registerAgentCommands(program: Command): void {
     .action(async (opts: { shell?: string; json?: boolean }) => {
       const shell = parseShellName(opts.shell);
       const keys = [
-        "SHELLCORP_AGENT_ID",
-        "SHELLCORP_ACTOR_AGENT_ID",
-        "SHELLCORP_TEAM_ID",
-        "SHELLCORP_PROJECT_ID",
-        "SHELLCORP_ACTOR_ROLE",
+        "FARPLANE_AGENT_ID",
+        "FARPLANE_ACTOR_AGENT_ID",
+        "FARPLANE_TEAM_ID",
+        "FARPLANE_PROJECT_ID",
+        "FARPLANE_ACTOR_ROLE",
       ];
       formatOutput(
         opts.json ? "json" : "text",
@@ -248,7 +248,7 @@ export function registerAgentCommands(program: Command): void {
 
   program
     .command("whoami")
-    .description("Show the resolved ShellCorp caller context for this shell session")
+    .description("Show the resolved Farplane caller context for this shell session")
     .option("--json", "Output JSON", false)
     .action(async (opts: { json?: boolean }) => {
       const company = await store.readCompanyModel();
@@ -264,10 +264,10 @@ export function registerAgentCommands(program: Command): void {
           ok: true,
           actor,
           env: {
-            SHELLCORP_AGENT_ID: readActorAgentId() ?? null,
-            SHELLCORP_TEAM_ID: readActorTeamId() ?? null,
-            SHELLCORP_PROJECT_ID: readActorProjectId() ?? null,
-            SHELLCORP_ACTOR_ROLE: process.env.SHELLCORP_ACTOR_ROLE?.trim() || null,
+            FARPLANE_AGENT_ID: readActorAgentId() ?? null,
+            FARPLANE_TEAM_ID: readActorTeamId() ?? null,
+            FARPLANE_PROJECT_ID: readActorProjectId() ?? null,
+            FARPLANE_ACTOR_ROLE: process.env.FARPLANE_ACTOR_ROLE?.trim() || null,
           },
         },
         actor.agentId
@@ -384,7 +384,7 @@ export function registerAgentCommands(program: Command): void {
           explicitTeamId: opts.teamId,
         });
         const senderAgentId = actor.agentId;
-        if (!senderAgentId) throw new Error("missing_agent_identity:use_shellcorp_agent_login_or_--from");
+        if (!senderAgentId) throw new Error("missing_agent_identity:use_farplane_agent_login_or_--from");
         const sender = roster.find((entry) => entry.agentId === senderAgentId);
         const recipient = roster.find((entry) => entry.agentId === opts.to.trim());
         if (!recipient) throw new Error(`agent_not_found:${opts.to}`);
