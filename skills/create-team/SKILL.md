@@ -58,18 +58,20 @@ Summarize:
 
 Keep the rich reasoning in chat/session. Keep the task notes compact and resumable.
 
-### 4. Persist the proposal through the CLI
+### 4. Persist the proposal through the board
 
-Use `farplane-team-cli` proposal commands to create and advance the proposal lifecycle.
+Use `farplane-team-cli` board task commands to create and advance the proposal/review lifecycle.
 
 Canonical flow:
 
-- `team proposal create`
+- create or select the target planning team
+- `team board task add --task-type team_proposal --approval-state pending_review`
 - founder review / approval
-- `team proposal approve` or `team proposal request-changes`
-- `team proposal execute`
+- `team board task update --approval-state approved` or `--approval-state changes_requested`
+- execute approved setup through normal `team create`, `team business`, `team board`, and skill sync commands
+- update the proposal task with `--created-team-id` and `--created-project-id`
 
-If the CEO board workflow is active, mirror compact status into a CEO-owned board task for visibility and resume context, but keep the CLI proposal lifecycle as the tested execution path.
+The board task is the resumable approval record. Do not use the removed `team proposal` command family.
 
 ### 5. Wait for approval
 
@@ -99,7 +101,7 @@ Use that skill for concrete command syntax and mutation rules.
 
 - Proposal summary and task notes are short-term working memory.
 - The linked session is the richer reasoning thread.
-- On every meaningful step, update the persisted proposal state and any linked task so the workflow can resume later without transcript hunting.
+- On every meaningful step, update the persisted proposal board task so the workflow can resume later without transcript hunting.
 
 ## Contract Tests
 

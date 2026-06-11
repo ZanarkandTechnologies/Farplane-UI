@@ -141,15 +141,24 @@ npm run shell -- team heartbeat set \
 npm run shell -- team archive --team-id team-proj-buffalos-ai
 ```
 
-- Proposal lifecycle for CEO-led team generation:
+- Board-backed proposal lifecycle for CEO-led team generation:
 
 ```bash
-npm run shell -- team proposal list --json
-npm run shell -- team proposal show --proposal-id proposal-affiliate-content-team-123 --json
-npm run shell -- team proposal create --json-input '{"businessType":"affiliate_marketing","requestedBy":"founder","sourceAgentId":"main","ideaBrief":{"focus":"affiliate content engine","targetCustomer":"home office shoppers","primaryGoal":"ship weekly revenue-generating content","constraints":"low spend and proven channels only"}}'
-npm run shell -- team proposal approve --proposal-id proposal-affiliate-content-team-123 --note "Looks good"
-npm run shell -- team proposal request-changes --proposal-id proposal-affiliate-content-team-123 --note "Need clearer channel strategy"
-npm run shell -- team proposal execute --proposal-id proposal-affiliate-content-team-123 --json
+npm run shell -- team board task add \
+  --team-id team-proj-buffalos-ai \
+  --task-id task-affiliate-content-proposal \
+  --title "Launch affiliate content team" \
+  --task-type team_proposal \
+  --approval-state pending_review \
+  --linked-session-key agent:main:affiliate-content-engine \
+  --detail "Research summary, proposed roles, and next step"
+
+npm run shell -- team board task update \
+  --team-id team-proj-buffalos-ai \
+  --task-id task-affiliate-content-proposal \
+  --approval-state approved \
+  --created-team-id team-proj-affiliate-content-team \
+  --created-project-id proj-affiliate-content-team
 ```
 
 - Validate data integrity:

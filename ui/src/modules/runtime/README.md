@@ -23,8 +23,8 @@ private relative import.
 ## Boundaries
 
 - Keep runtime-generic UI/provider names free of OpenClaw-specific labels.
-- Keep OpenClaw-specific state/model contracts under `ui/src/lib/openclaw/`
-  until a future adapter-owned folder move is worth the churn.
+- Keep OpenClaw-specific state/model contracts under
+  `ui/src/modules/runtime/lib/openclaw/`.
 - Keep Codex app-server bridge code module-local because it exists to feed the
   Codex runtime adapter.
 - Do not add product panels here unless they configure or display runtime state.

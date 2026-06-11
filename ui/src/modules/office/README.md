@@ -157,8 +157,8 @@ modules/office/
 
 ## Integration Points
 
-- **App Store** (`lib/app-store.ts`): Global state for highlighted employees, dialog state
-- **Agent System** (`ui/src/lib/openclaw/adapter.ts`): Agent configurations, tools, skills
+- **App Store** (`ui/src/store/app-store.ts`): Global state for highlighted employees, dialog state
+- **Agent System** (`ui/src/modules/runtime/lib/openclaw/adapter.ts`): Agent configurations, tools, skills
 - **Chat System** (`features/chat-system/`): Employee DMs use agent configs
 - **Team System** (`modules/team-workspace/`): Team directory integration
 
@@ -168,4 +168,4 @@ modules/office/
 
 - **Nav System** (`features/nav-system/`): Pathfinding and navigation for employees
 - **Chat System** (`features/chat-system/`): Employee-agent communication
-- **Agent System** (`ui/src/lib/openclaw/adapter.ts`): Agent configuration backend
+- **Agent System** (`ui/src/modules/runtime/lib/openclaw/adapter.ts`): Agent configuration backend

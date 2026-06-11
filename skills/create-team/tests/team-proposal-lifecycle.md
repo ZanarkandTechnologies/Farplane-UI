@@ -1,59 +1,28 @@
-# Team Proposal Lifecycle
+# Team Creation Lifecycle
 
-This contract proves the create-team workflow examples still match the CLI-backed proposal lifecycle.
+This contract proves the create-team workflow examples still match the local CLI-backed team creation lifecycle.
+The board-backed proposal approval commands require Convex configuration, so they are documented in the skill body and covered by CLI tests instead of this filesystem-only skill contract.
 
 ```json skill-test
 {
-  "name": "team proposal lifecycle",
+  "name": "team creation lifecycle",
   "steps": [
     {
       "run": [
         "team",
-        "proposal",
         "create",
-        "--json-input",
-        "{\"businessType\":\"affiliate_marketing\",\"requestedBy\":\"founder\",\"sourceAgentId\":\"main\",\"ideaBrief\":{\"focus\":\"affiliate content engine\",\"targetCustomer\":\"home office shoppers\",\"primaryGoal\":\"ship weekly revenue-generating content\",\"constraints\":\"low spend and proven channels only\"}}"
-      ],
-      "captureLatestProposalId": true,
-      "expect": {
-        "companyProposalCount": 1
-      }
-    },
-    {
-      "run": [
-        "team",
-        "proposal",
-        "approve",
-        "--proposal-id",
-        "$LATEST_PROPOSAL_ID",
-        "--note",
-        "Looks good"
+        "--name",
+        "Affiliate Content Engine",
+        "--description",
+        "Planning team for home office affiliate content",
+        "--goal",
+        "Ship weekly revenue-generating content",
+        "--auto-roles",
+        "pm,builder"
       ],
       "expect": {
-        "companyProposalStates": [
-          {
-            "approvalStatus": "approved"
-          }
-        ]
-      }
-    },
-    {
-      "run": [
-        "team",
-        "proposal",
-        "execute",
-        "--proposal-id",
-        "$LATEST_PROPOSAL_ID"
-      ],
-      "expect": {
-        "companyProjectIdsInclude": ["proj-affiliate-content-engine-team"],
-        "companyProposalStates": [
-          {
-            "approvalStatus": "approved",
-            "executionStatus": "created"
-          }
-        ],
-        "openclawAgentIdsInclude": ["affiliate-content-engine-team-pm", "affiliate-content-engine-team-executor"]
+        "companyProjectIdsInclude": ["proj-affiliate-content-engine"],
+        "openclawAgentIdsInclude": ["affiliate-content-engine-pm", "affiliate-content-engine-builder"]
       }
     }
   ]
