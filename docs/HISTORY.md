@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-06-11 | refactor | MEM-0232 | ui,settings,modules | Moved the settings dialog shell, panels, and Codex office visibility hook into `ui/src/modules/settings/` with a module entrypoint so settings is owned as a product surface rather than a generic dialog folder.
+
 2026-06-11 | refactor | MEM-0231 | ui,runtime-adapters,providers | Renamed the generic runtime adapter React provider from the OpenClaw-specific provider name to `runtime-adapter-provider`, migrated active UI call sites to `useOfficeRuntimeAdapter`, and kept OpenClaw naming inside adapter-specific surfaces.
 
 2026-06-11 | standards | MEM-0230 | ui,modules,architecture | Adopted Valefor-style UI module rules for Farplane UI by adding `ui/src/modules/` operating docs and `docs/plans/ui-module-migration.md`, defining module migration targets for office/runtime/team/agent/skills/chat/settings/QA surfaces, and tightening project rules so new product-sized UI work grows inside module boundaries instead of catch-all `lib` or `features` folders.

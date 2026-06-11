@@ -2,7 +2,7 @@ import OfficeScene from "./office-scene";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TeamOptionsDialog } from "./dialogs/team-options-dialog";
 import { LayoutEditorHudProvider } from "./office-scene/layout-editor-hud-context";
-import SettingsDialog from "./dialogs/settings-dialog";
+import { SettingsDialog } from "@/modules/settings";
 import { LogsDrawer } from "./hud/logs-drawer";
 import { LogsToggleButton } from "./hud/logs-toggle-button";
 import { GatewayStatusPill } from "./hud/gateway-status-pill";
