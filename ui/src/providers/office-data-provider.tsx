@@ -53,6 +53,12 @@ const OfficeDataContext = createContext<OfficeDataContextValue | undefined>(unde
 
 export type { OfficeDataContextValue };
 
+declare global {
+  interface Window {
+    __FARPLANE_OFFICE_DATA__?: OfficeDataContextValue;
+  }
+}
+
 export function OfficeDataProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const sharedAdapter = useOfficeRuntimeAdapter();
   const [value, setValue] = useState<OfficeDataContextValue>({ ...fallbackData(), isLoading: true });
@@ -245,13 +251,27 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
 
   const memoizedValue = useMemo(() => value, [value]);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    window.__FARPLANE_OFFICE_DATA__ = memoizedValue;
+    return () => {
+      if (window.__FARPLANE_OFFICE_DATA__ === memoizedValue) {
+        delete window.__FARPLANE_OFFICE_DATA__;
+      }
+    };
+  }, [memoizedValue]);
+
   return <OfficeDataContext.Provider value={memoizedValue}>{children}</OfficeDataContext.Provider>;
 }
 
 export function useOfficeDataContext(): OfficeDataContextValue {
-  const context = useContext(OfficeDataContext);
+  const context = useOptionalOfficeDataContext();
   if (!context) {
     throw new Error("useOfficeDataContext must be used within OfficeDataProvider");
   }
   return context;
+}
+
+export function useOptionalOfficeDataContext(): OfficeDataContextValue | undefined {
+  return useContext(OfficeDataContext);
 }

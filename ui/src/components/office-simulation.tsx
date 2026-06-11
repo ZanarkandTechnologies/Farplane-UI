@@ -8,7 +8,11 @@ import { OfficeMenu } from "./hud/office-menu";
 import { OfficeOnboardingPanel } from "./hud/office-onboarding-panel";
 import { BuilderToolbar } from "./hud/builder-toolbar";
 import { CeoWorkbenchPanel } from "./hud/ceo-workbench-panel";
-import { useOfficeDataContext } from "@/providers/office-data-provider";
+import {
+  OfficeDataProvider,
+  useOfficeDataContext,
+  useOptionalOfficeDataContext,
+} from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
 import { gatewayBase } from "@/modules/runtime";
 import ChatDialog from "@/modules/chat/components/chat-dialog";
@@ -28,8 +32,20 @@ import { TeamPanel } from "@/modules/team-workspace";
 import { buildOfficeBootstrapStages, getOfficeBootstrapState } from "./office-bootstrap";
 import { OfficeLoader } from "./office-loader";
 
-// Main Office Simulation Component
 export default function OfficeSimulation() {
+  const officeDataContext = useOptionalOfficeDataContext();
+  if (!officeDataContext) {
+    return (
+      <OfficeDataProvider>
+        <OfficeSimulationContent />
+      </OfficeDataProvider>
+    );
+  }
+  return <OfficeSimulationContent />;
+}
+
+// Main Office Simulation Component
+function OfficeSimulationContent() {
   // Fetch office data from database (reactive!)
   const { company, teams, employees, desks, officeObjects, officeSettings, isLoading } =
     useOfficeDataContext();

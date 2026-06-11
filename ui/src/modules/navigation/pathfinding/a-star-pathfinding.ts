@@ -22,6 +22,13 @@ let currentObstaclePadding = OBSTACLE_PADDING; // Track current obstacle padding
 let currentDeskPadding = DESK_PADDING; // Track current desk padding
 let hasWarnedBeforeGridInitialization = false;
 
+function shouldLogPathfindingDiagnostics(): boolean {
+    return (
+        typeof window !== "undefined" &&
+        window.localStorage.getItem("farplane.debug.pathfinding") === "1"
+    );
+}
+
 // --- Getters for Grid Data (for visualization) ---
 export const getGridData = () => ({
     gridWidth,
@@ -91,8 +98,10 @@ export function initializeGrid(
     worldMinZ = layoutBounds ? layoutBounds.minWorldZ : -worldOffsetZ;
     walkableGrid = Array(gridWidth).fill(null).map(() => Array(gridDepth).fill(layoutBounds ? false : true));
 
-    console.log(`Initializing A* grid: ${gridWidth}x${gridDepth} (Cell size: ${CELL_SIZE})`);
-    console.log(`Using obstacle padding: ${currentObstaclePadding} cells, desk padding: ${currentDeskPadding} cells`);
+    if (shouldLogPathfindingDiagnostics()) {
+        console.log(`Initializing A* grid: ${gridWidth}x${gridDepth} (Cell size: ${CELL_SIZE})`);
+        console.log(`Using obstacle padding: ${currentObstaclePadding} cells, desk padding: ${currentDeskPadding} cells`);
+    }
 
     if (layoutBounds) {
         const tileSet = getOfficeLayoutTileSet(floorSize);
@@ -193,8 +202,7 @@ export function initializeGrid(
 
     // console.log(`A* grid initialized with ${walkableCellCount} walkable cells (${(walkableCellCount / (gridWidth * gridDepth) * 100).toFixed(1)}% of total)`);
 
-    // Warning if too few walkable cells
-    if (walkableCellCount < (gridWidth * gridDepth) * 0.2) {
+    if (shouldLogPathfindingDiagnostics() && walkableCellCount < (gridWidth * gridDepth) * 0.2) {
         console.warn('Very few walkable cells left after padding! Employees may have trouble finding paths.');
     }
 }
@@ -230,7 +238,9 @@ export function findPathAStar(
     if (!isGridInitialized()) {
         if (!hasWarnedBeforeGridInitialization) {
             hasWarnedBeforeGridInitialization = true;
-            console.warn("A* grid not initialized yet; skipping path request until office scene grid setup completes.");
+            if (shouldLogPathfindingDiagnostics()) {
+                console.warn("A* grid not initialized yet; skipping path request until office scene grid setup completes.");
+            }
         }
         return null;
     }
@@ -245,8 +255,8 @@ export function findPathAStar(
         const nearestStart = findNearestWalkable(startGrid.x, startGrid.z);
         const nearestEnd = findNearestWalkable(endGrid.x, endGrid.z);
         if (!nearestStart || !nearestEnd) {
-            if (!options.silent) {
-                console.error("A*: Could not find nearby walkable nodes for start/end.");
+            if (!options.silent && shouldLogPathfindingDiagnostics()) {
+                console.warn("A*: Could not find nearby walkable nodes for start/end.");
             }
             return null;
         }
@@ -302,7 +312,7 @@ export function findPathAStar(
         }
     }
 
-    if (!options.silent) {
+    if (!options.silent && shouldLogPathfindingDiagnostics()) {
         console.warn(`A*: No path found from (${startGrid.x},${startGrid.z}) to (${endGrid.x},${endGrid.z})`);
     }
     return null;
