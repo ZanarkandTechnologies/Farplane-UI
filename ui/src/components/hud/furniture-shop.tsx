@@ -349,10 +349,11 @@ export function FurnitureShop({ isOpen, onOpenChange }: FurnitureShopProps) {
       if (meshyAbortRef.current === controller) {
         meshyAbortRef.current = null;
       }
-      if (!isMountedRef.current) return;
-      setIsGeneratingMesh(false);
-      if (!controller.signal.aborted) {
-        setMeshyStatus(null);
+      if (isMountedRef.current) {
+        setIsGeneratingMesh(false);
+        if (!controller.signal.aborted) {
+          setMeshyStatus(null);
+        }
       }
     }
   };

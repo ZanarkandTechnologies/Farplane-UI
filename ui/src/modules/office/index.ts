@@ -17,4 +17,11 @@ export {
   getOfficeSkillAnchorPosition,
   getOfficeSkillAnchorPositionForOccupant,
 } from "./skill-targeting";
-export { resolveSkillEffectConfig } from "./skill-effects";
+export {
+  buildSkillEffectSeed,
+  normalizeSkillEffectPool,
+  resolveSkillEffectVariant,
+  type SkillEffectConfig,
+  type SkillEffectMode,
+  type SkillEffectVariant,
+} from "./skill-effects";
