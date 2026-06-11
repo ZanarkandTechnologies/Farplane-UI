@@ -89,6 +89,45 @@ export type CodexConfigReadResponse = {
   origins?: unknown;
 };
 
+export type CodexProjectReadModelTask = {
+  id: string;
+  projectId: string;
+  title: string;
+  status: "todo" | "in_progress" | "review" | "blocked" | "done";
+  ownerAgentId?: string;
+  priority?: "low" | "medium" | "high";
+  provider?: "internal" | "notion" | "vibe" | "linear";
+  canonicalProvider?: "internal" | "notion" | "vibe" | "linear";
+  providerUrl?: string;
+  artefactPath?: string;
+  syncState?: "healthy" | "pending" | "conflict" | "error";
+  syncError?: string;
+  updatedAt?: number;
+};
+
+export type CodexProjectManagerPin = {
+  projectId?: string;
+  projectPath?: string;
+  threadId: string;
+  label?: string;
+};
+
+export type CodexOfficeVisibilityConfig = {
+  recentThreadWindowMinutes?: number;
+  alwaysShowHeartbeatThreads?: boolean;
+  showAutomationThreadsAsHeartbeat?: boolean;
+  heartbeatThreadIds?: string[];
+  miscProjectName?: string;
+  miscPathIncludes?: string[];
+};
+
+export type CodexProjectReadModelResponse = {
+  generatedAt?: number;
+  ticketTasks?: CodexProjectReadModelTask[];
+  projectManagers?: CodexProjectManagerPin[];
+  officeVisibility?: CodexOfficeVisibilityConfig;
+};
+
 export type CodexRpcBridgeResponse<T> =
   | { ok: true; result: T }
   | { ok: false; error?: string };

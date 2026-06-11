@@ -5,6 +5,8 @@ import type {
   CodexThreadReadResponse,
   CodexThreadStartResponse,
   CodexTurnStartResponse,
+  CodexProjectReadModelResponse,
+  CodexOfficeVisibilityConfig,
 } from "./types";
 
 type FetchLike = typeof fetch;
@@ -57,6 +59,56 @@ export class CodexAppServerClient {
 
   async readConfig(): Promise<CodexConfigReadResponse> {
     return this.request<CodexConfigReadResponse>("config/read");
+  }
+
+  async readProjectModel(
+    projects: Array<{ projectId: string; projectPath: string }>,
+  ): Promise<CodexProjectReadModelResponse> {
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.stateUrl}/farplane/projects/read-model`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ projects }),
+      });
+    } catch {
+      throw new Error("farplane_project_read_model_unreachable");
+    }
+    if (!response.ok) {
+      throw new Error(`farplane_project_read_model_failed:${response.status}`);
+    }
+    return (await response.json()) as CodexProjectReadModelResponse;
+  }
+
+  async readOfficeVisibilityConfig(): Promise<CodexOfficeVisibilityConfig> {
+    const response = await this.fetchImpl(`${this.stateUrl}/farplane/codex-office`);
+    if (!response.ok) {
+      throw new Error(`farplane_codex_office_config_failed:${response.status}`);
+    }
+    const payload = (await response.json()) as { config?: CodexOfficeVisibilityConfig };
+    return payload.config ?? {};
+  }
+
+  async saveOfficeVisibilityConfig(
+    config: CodexOfficeVisibilityConfig,
+  ): Promise<CodexOfficeVisibilityConfig> {
+    const response = await this.fetchImpl(`${this.stateUrl}/farplane/codex-office`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ config }),
+    });
+    if (!response.ok) {
+      throw new Error(`farplane_codex_office_config_save_failed:${response.status}`);
+    }
+    const payload = (await response.json()) as {
+      ok?: boolean;
+      config?: CodexOfficeVisibilityConfig;
+      error?: string;
+    };
+    if (payload.ok === false) {
+      throw new Error(payload.error ?? "farplane_codex_office_config_save_failed");
+    }
+    return payload.config ?? config;
   }
 
   async readThread(threadId: string): Promise<CodexThreadReadResponse> {

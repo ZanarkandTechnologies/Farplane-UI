@@ -197,6 +197,7 @@ Skills are part of how Farplane makes agents easier to understand and operate. T
 Canonical Farplane UI-owned sidecar state lives under `~/.farplane`, especially:
 
 - `~/.farplane/company.json`
+- `~/.farplane/codex-office.json`
 - `~/.farplane/office.json`
 - `~/.farplane/office-objects.json`
 - `~/.farplane/pending-approvals.json`
@@ -207,6 +208,15 @@ Codex is the default office runtime adapter for Farplane UI v0. When
 the local state bridge proxies Codex app-server JSON-RPC and maps Codex threads
 into temporary office workers, sessions, and chat timelines. If the app-server
 is not configured, Codex mode degrades to a single `codex-main` placeholder.
+Codex office visibility is configured in `~/.farplane/codex-office.json`:
+`recentThreadWindowMinutes` controls which recent chats render as temporary
+employees, `heartbeatThreadIds` keeps selected threads visible even when old,
+`alwaysShowHeartbeatThreads` keeps heartbeat/running threads on the floor,
+`showAutomationThreadsAsHeartbeat` treats Codex `Automation:` threads as
+heartbeat employees, and unmatched/projectless chats are grouped under the
+configurable `miscProjectName` table. `miscPathIncludes` can force scratch
+folders such as `Documents/Codex` into that table even when Codex has
+registered them as project paths.
 OpenClaw runtime files, when the optional OpenClaw adapter is configured with
 `VITE_FARPLANE_RUNTIME_ADAPTER=openclaw`, remain OpenClaw-owned under
 `~/.openclaw`.

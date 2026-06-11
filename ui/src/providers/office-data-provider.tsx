@@ -233,9 +233,13 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
       isLoading: true,
     }));
     void load();
+    const timer = window.setInterval(() => {
+      void load();
+    }, 5000);
 
     return () => {
       cancelledRef.current = true;
+      window.clearInterval(timer);
     };
   }, [applyOfficeSettingsValue, load, sharedAdapter]);
 

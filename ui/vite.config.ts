@@ -22,6 +22,7 @@ type TaskSyncState = "healthy" | "pending" | "conflict" | "error";
 type TeamRole = "builder" | "growth_marketer" | "pm" | "biz_pm" | "biz_executor";
 type BusinessType = "affiliate_marketing" | "content_creator" | "saas" | "custom";
 type BusinessEquipMode = "replace_minimum" | "append_only";
+type TicketStatus = "todo" | "in_progress" | "review" | "blocked" | "done";
 
 const FARPLANE_HOME =
   process.env.FARPLANE_STATE_DIR ||
@@ -35,6 +36,8 @@ const COMPANY_MODEL_PATH = path.join(FARPLANE_HOME, "company.json");
 const COMPANY_TEMPLATE_PATH = path.resolve(__dirname, "../templates/sidecar/company.template.json");
 const OFFICE_OBJECTS_PATH = path.join(FARPLANE_HOME, "office-objects.json");
 const OFFICE_SETTINGS_PATH = path.join(FARPLANE_HOME, "office.json");
+const PROJECT_MANAGERS_PATH = path.join(FARPLANE_HOME, "project-managers.json");
+const CODEX_OFFICE_CONFIG_PATH = path.join(FARPLANE_HOME, "codex-office.json");
 const OFFICE_OBJECTS_TEMPLATE_PATH = path.resolve(
   __dirname,
   "../templates/sidecar/office-objects.template.json",
@@ -1026,6 +1029,224 @@ function normalizeFederatedTasks(tasks: unknown[]): JsonObject[] {
     .filter((entry): entry is JsonObject => entry !== null);
 }
 
+function normalizeTicketStatus(value: unknown): TicketStatus {
+  const status = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, "_");
+  if (status === "in_progress" || status === "doing" || status === "active") return "in_progress";
+  if (status === "review" || status === "qa" || status === "demo") return "review";
+  if (status === "blocked" || status === "stuck") return "blocked";
+  if (status === "done" || status === "closed" || status === "complete" || status === "completed") {
+    return "done";
+  }
+  return "todo";
+}
+
+function normalizeTicketPriority(value: unknown): "low" | "medium" | "high" {
+  const priority = String(value ?? "").trim().toLowerCase();
+  if (priority === "low") return "low";
+  if (priority === "high" || priority === "urgent" || priority === "critical") return "high";
+  return "medium";
+}
+
+function isSafeProjectPath(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const projectPath = value.trim();
+  if (!projectPath || projectPath.includes("\0")) return false;
+  return path.isAbsolute(projectPath);
+}
+
+function parseSimpleFrontMatter(markdown: string): Record<string, string> {
+  if (!markdown.startsWith("---")) return {};
+  const end = markdown.indexOf("\n---", 3);
+  if (end === -1) return {};
+  const frontMatter = markdown.slice(3, end).split(/\r?\n/g);
+  const parsed: Record<string, string> = {};
+  for (const line of frontMatter) {
+    const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
+    if (!match) continue;
+    parsed[match[1].trim()] = match[2].trim().replace(/^["']|["']$/g, "");
+  }
+  return parsed;
+}
+
+function inferTicketTitle(filePath: string, markdown: string, frontMatter: Record<string, string>): string {
+  const explicit = frontMatter.title || frontMatter.name || frontMatter.summary;
+  if (explicit?.trim()) return explicit.trim();
+  const heading = markdown.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  if (heading) return heading;
+  const parent = path.basename(path.dirname(filePath));
+  if (path.basename(filePath).toLowerCase() === "ticket.md" && parent) return parent;
+  return path.basename(filePath, path.extname(filePath));
+}
+
+function inferTicketId(projectId: string, projectPath: string, filePath: string, frontMatter: Record<string, string>): string {
+  const explicit = frontMatter.id || frontMatter.ticket || frontMatter.taskId || frontMatter.task_id;
+  if (explicit?.trim()) return `ticket:${projectId}:${explicit.trim()}`;
+  const relative = path.relative(projectPath, filePath).replace(/\\/g, "/");
+  return `ticket:${projectId}:${relative}`;
+}
+
+async function listTicketMarkdownFiles(
+  dir: string,
+  depth = 0,
+  files: string[] = [],
+): Promise<string[]> {
+  if (depth > 4 || files.length >= 200) return files;
+  let entries: Awaited<ReturnType<typeof readdir>>;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return files;
+  }
+  for (const entry of entries) {
+    if (files.length >= 200) break;
+    if (entry.name.startsWith(".")) continue;
+    const entryName = entry.name.toLowerCase();
+    if (entryName === "archive" || entryName === "artifacts") continue;
+    const entryPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      await listTicketMarkdownFiles(entryPath, depth + 1, files);
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    if (path.extname(entry.name).toLowerCase() !== ".md") continue;
+    if (entry.name.toLowerCase() === "readme.md") continue;
+    files.push(entryPath);
+  }
+  return files;
+}
+
+async function readProjectTicketTasks(project: {
+  projectId: string;
+  projectPath: string;
+}): Promise<JsonObject[]> {
+  const ticketsDir = path.join(project.projectPath, "tickets");
+  if (!(await isDirectory(ticketsDir))) return [];
+  const files = await listTicketMarkdownFiles(ticketsDir);
+  const tasks: JsonObject[] = [];
+  for (const filePath of files) {
+    let markdown = "";
+    try {
+      markdown = await readFile(filePath, "utf-8");
+    } catch {
+      continue;
+    }
+    const frontMatter = parseSimpleFrontMatter(markdown);
+    const fileStat = await stat(filePath).catch(() => null);
+    const relativePath = path.relative(project.projectPath, filePath).replace(/\\/g, "/");
+    tasks.push({
+      id: inferTicketId(project.projectId, project.projectPath, filePath, frontMatter),
+      projectId: project.projectId,
+      title: inferTicketTitle(filePath, markdown, frontMatter),
+      status: normalizeTicketStatus(frontMatter.status || frontMatter.state || frontMatter.phase),
+      ownerAgentId: frontMatter.ownerAgentId || frontMatter.owner || undefined,
+      priority: normalizeTicketPriority(frontMatter.priority),
+      provider: "internal",
+      canonicalProvider: "internal",
+      providerUrl: `file://${filePath}`,
+      artefactPath: relativePath,
+      syncState: "healthy",
+      updatedAt: fileStat?.mtimeMs ?? Date.now(),
+    });
+  }
+  return tasks;
+}
+
+function normalizeProjectManagers(
+  raw: unknown,
+): Array<{ projectId?: string; projectPath?: string; threadId: string; label?: string }> {
+  const rows: Array<{ projectId?: string; projectPath?: string; threadId: string; label?: string }> = [];
+  const pushRow = (entry: unknown, key?: string) => {
+    if (!entry || typeof entry !== "object") return;
+    const row = entry as JsonObject;
+    const threadId = String(row.threadId ?? row.managerThreadId ?? row.thread ?? "").trim();
+    if (!threadId) return;
+    const projectId = String(row.projectId ?? (key?.startsWith("codex-proj-") ? key : "")).trim();
+    const projectPath = String(row.projectPath ?? row.path ?? (!projectId && key ? key : "")).trim();
+    rows.push({
+      ...(projectId ? { projectId } : {}),
+      ...(projectPath ? { projectPath } : {}),
+      threadId,
+      label: typeof row.label === "string" ? row.label.trim() : undefined,
+    });
+  };
+  if (Array.isArray(raw)) {
+    raw.forEach((entry) => pushRow(entry));
+    return rows;
+  }
+  if (raw && typeof raw === "object") {
+    for (const [key, value] of Object.entries(raw as JsonObject)) {
+      if (typeof value === "string") {
+        rows.push(
+          key.startsWith("codex-proj-")
+            ? { projectId: key, threadId: value }
+            : { projectPath: key, threadId: value },
+        );
+        continue;
+      }
+      pushRow(value, key);
+    }
+  }
+  return rows;
+}
+
+function normalizePositiveNumber(value: unknown, fallback: number): number {
+  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map((entry) => String(entry ?? "").trim()).filter(Boolean))];
+}
+
+function normalizeCodexOfficeConfig(raw: unknown): JsonObject {
+  const config = raw && typeof raw === "object" ? (raw as JsonObject) : {};
+  const recentThreadWindowMinutes = normalizePositiveNumber(config.recentThreadWindowMinutes, 180);
+  const heartbeatThreadIds = normalizeStringList(config.heartbeatThreadIds);
+  const miscPathIncludes = normalizeStringList(config.miscPathIncludes);
+  return {
+    recentThreadWindowMinutes,
+    alwaysShowHeartbeatThreads: config.alwaysShowHeartbeatThreads !== false,
+    showAutomationThreadsAsHeartbeat: config.showAutomationThreadsAsHeartbeat !== false,
+    heartbeatThreadIds,
+    miscProjectName: typeof config.miscProjectName === "string" && config.miscProjectName.trim()
+      ? config.miscProjectName.trim()
+      : "Misc",
+    miscPathIncludes: miscPathIncludes.length > 0 ? miscPathIncludes : ["Documents/Codex"],
+  };
+}
+
+async function saveCodexOfficeConfig(input: unknown): Promise<JsonObject> {
+  const normalized = normalizeCodexOfficeConfig(input);
+  await mkdir(path.dirname(CODEX_OFFICE_CONFIG_PATH), { recursive: true });
+  await writeFile(CODEX_OFFICE_CONFIG_PATH, `${JSON.stringify(normalized, null, 2)}\n`, "utf-8");
+  return normalized;
+}
+
+async function buildProjectReadModel(input: unknown): Promise<JsonObject> {
+  const body = input && typeof input === "object" ? (input as JsonObject) : {};
+  const projects = Array.isArray(body.projects) ? body.projects : [];
+  const normalizedProjects = projects
+    .filter((entry): entry is JsonObject => Boolean(entry && typeof entry === "object"))
+    .map((entry) => ({
+      projectId: String(entry.projectId ?? "").trim(),
+      projectPath: String(entry.projectPath ?? "").trim(),
+    }))
+    .filter((entry) => entry.projectId && isSafeProjectPath(entry.projectPath));
+  const ticketTaskLists = await Promise.all(normalizedProjects.map((project) => readProjectTicketTasks(project)));
+  const managersRaw = await readJsonFile<unknown>(PROJECT_MANAGERS_PATH, {});
+  const officeConfigRaw = await readJsonFile<unknown>(CODEX_OFFICE_CONFIG_PATH, {});
+  return {
+    generatedAt: Date.now(),
+    ticketTasks: ticketTaskLists.flat(),
+    projectManagers: normalizeProjectManagers(managersRaw),
+    officeVisibility: normalizeCodexOfficeConfig(officeConfigRaw),
+  };
+}
+
 function toSlug(input: string): string {
   return input
     .toLowerCase()
@@ -1408,6 +1629,30 @@ function farplaneStateBridge() {
               error: error instanceof Error ? error.message : "codex_rpc_failed",
             });
           }
+          return;
+        }
+
+        if (method === "POST" && pathname === "/farplane/projects/read-model") {
+          const body = await readBody(req);
+          const readModel = await buildProjectReadModel(body);
+          writeJson(res, 200, readModel);
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/codex-office") {
+          const officeConfigRaw = await readJsonFile<unknown>(CODEX_OFFICE_CONFIG_PATH, {});
+          writeJson(res, 200, { config: normalizeCodexOfficeConfig(officeConfigRaw) });
+          return;
+        }
+
+        if (method === "POST" && pathname === "/farplane/codex-office") {
+          const body = await readBody(req);
+          const config = await saveCodexOfficeConfig(
+            body && typeof body === "object" && "config" in body
+              ? (body as JsonObject).config
+              : body,
+          );
+          writeJson(res, 200, { ok: true, config });
           return;
         }
 

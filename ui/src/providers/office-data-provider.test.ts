@@ -211,6 +211,80 @@ describe("office-data-provider stabilization", () => {
 });
 
 describe("office-data-provider team synthesis", () => {
+  it("keeps Codex office tables limited to active or CLI-pinned projects", () => {
+    const idleProject = {
+      id: "codex-proj-idle",
+      departmentId: "dept-farplane",
+      name: "Idle Project",
+      githubUrl: "",
+      status: "active" as const,
+      goal: "Keep this project in inventory without rendering an empty table",
+      kpis: [],
+      accountEvents: [],
+      ledger: [],
+      experiments: [],
+      metricEvents: [],
+      resources: [],
+      resourceEvents: [],
+    };
+    const pinnedProject = {
+      ...idleProject,
+      id: "codex-proj-pinned",
+      name: "Pinned Project",
+    };
+    const activeProject = {
+      ...idleProject,
+      id: "codex-proj-active",
+      name: "Active Project",
+    };
+    const company = createCompanyModel({
+      projects: [idleProject, pinnedProject, activeProject],
+      agents: [
+        {
+          agentId: "main",
+          role: "ceo",
+          heartbeatProfileId: "hb-ceo",
+          isCeo: true,
+          lifecycleState: "active",
+        },
+        {
+          agentId: "codex-worker",
+          role: "builder",
+          projectId: "codex-proj-active",
+          heartbeatProfileId: "hb-ceo",
+          lifecycleState: "active",
+        },
+      ],
+    });
+    const unified = createUnifiedOfficeModel({
+      company,
+      officeObjects: [
+        {
+          id: "team-cluster-team-codex-proj-pinned",
+          identifier: "team-cluster-team-codex-proj-pinned",
+          meshType: "team-cluster",
+          position: [3, 0, 0],
+          metadata: { teamId: "team-codex-proj-pinned" },
+        },
+      ],
+      diagnostics: {
+        ...createUnifiedOfficeModel().diagnostics,
+        source: "codex",
+      },
+    });
+
+    const result = toOfficeData(unified, createOfficeSettings());
+
+    expect(result.teams.map((team) => team._id)).toEqual([
+      "team-management",
+      "team-codex-proj-pinned",
+      "team-codex-proj-active",
+    ]);
+    expect(
+      result.officeObjects.some((object) => object.metadata?.teamId === "team-codex-proj-idle"),
+    ).toBe(false);
+  });
+
   it("does not synthesize a Farplane fallback cluster when all projects are archived", () => {
     const company = createCompanyModel({
       projects: [

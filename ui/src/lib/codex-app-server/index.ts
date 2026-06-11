@@ -2,6 +2,7 @@ export { CodexAppServerClient, createCodexAppServerClient } from "./client";
 export {
   CODEX_MAIN_AGENT_ID,
   CODEX_THREAD_PREFIX,
+  codexProjectId,
   findActiveTurnId,
   parseCodexThreadId,
   toCodexAgentCards,
@@ -19,4 +20,8 @@ export type {
   CodexThreadStartResponse,
   CodexTurn,
   CodexTurnStartResponse,
+  CodexProjectManagerPin,
+  CodexOfficeVisibilityConfig,
+  CodexProjectReadModelResponse,
+  CodexProjectReadModelTask,
 } from "./types";

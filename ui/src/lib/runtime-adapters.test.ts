@@ -180,10 +180,22 @@ describe("runtime adapters", () => {
           cwd: "/Users/example/project-x",
           updatedAt: 1769999000,
         },
+        {
+          id: "projectless-chat",
+          preview: "General chat",
+          updatedAt: 1769999500,
+        },
+        {
+          id: "documents-codex-chat",
+          preview: "Scratch Codex chat",
+          cwd: "/Users/example/Documents/Codex/2026-06-11/am-i-being-scammed-over-here",
+          updatedAt: 1769999500,
+        },
       ],
       nowMs,
       [
         "/Users/example",
+        "/Users/example/Documents/Codex/2026-06-11/am-i-being-scammed-over-here",
         "/workspace/farplane-ui",
         "/workspace/sigmax",
         "/workspace/sigmax/aikage",
@@ -196,8 +208,8 @@ describe("runtime adapters", () => {
       "example",
       "farplane-ui",
       "no-threads",
-      "project-x",
       "sigmax",
+      "Misc",
     ]);
     expect(company.agents).toEqual(
       expect.arrayContaining([
@@ -212,9 +224,20 @@ describe("runtime adapters", () => {
         }),
         expect.objectContaining({
           agentId: "codex-thread:nested-under-home",
-          projectId: "codex-proj-users-example-project-x",
+          projectId: "codex-proj-misc",
+        }),
+        expect.objectContaining({
+          agentId: "codex-thread:projectless-chat",
+          projectId: "codex-proj-misc",
+        }),
+        expect.objectContaining({
+          agentId: "codex-thread:documents-codex-chat",
+          projectId: "codex-proj-misc",
         }),
       ]),
+    );
+    expect(company.projects.some((project) => project.name === "am-i-being-scammed-over-here")).toBe(
+      false,
     );
     expect(company.projects.find((project) => project.name === "no-threads")).toEqual(
       expect.objectContaining({
@@ -224,5 +247,182 @@ describe("runtime adapters", () => {
     expect(company.agents.some((agent) => agent.agentId === "codex-thread:old-farplane")).toBe(
       false,
     );
+  });
+
+  it("uses Codex office visibility config for recency and heartbeat-pinned workers", () => {
+    const nowMs = 1770000000 * 1000;
+    const company = toCodexCompanyModel(
+      [
+        {
+          id: "old-hidden",
+          preview: "Too old for a short window",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769999000,
+        },
+        {
+          id: "old-heartbeat",
+          preview: "Heartbeat worker",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769900000,
+        },
+        {
+          id: "status-active",
+          preview: "Running worker",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769900000,
+          status: { type: "active" as const, activeFlags: [] },
+        },
+      ],
+      nowMs,
+      ["/workspace/farplane-ui"],
+      {
+        officeVisibility: {
+          recentThreadWindowMinutes: 5,
+          alwaysShowHeartbeatThreads: true,
+          heartbeatThreadIds: ["old-heartbeat"],
+        },
+      },
+    );
+
+    expect(company.agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-thread:old-heartbeat",
+          projectId: "codex-proj-workspace-farplane-ui",
+        }),
+        expect.objectContaining({
+          agentId: "codex-thread:status-active",
+          projectId: "codex-proj-workspace-farplane-ui",
+        }),
+      ]),
+    );
+    expect(company.agents.some((agent) => agent.agentId === "codex-thread:old-hidden")).toBe(false);
+  });
+
+  it("keeps Codex automation heartbeat threads visible when they are older than recency", () => {
+    const nowMs = 1770000000 * 1000;
+    const company = toCodexCompanyModel(
+      [
+        {
+          id: "notion-fields",
+          name: "Notion task field fill",
+          preview:
+            "Automation: Notion task field fill\nAutomation ID: notion-task-field-fill\nAutomation memory: $CODEX_HOME/automations/notion-task-field-fill/memory.md",
+          cwd: "/Users/example/life",
+          updatedAt: 1769900000,
+          status: { type: "notLoaded" as const },
+        },
+        {
+          id: "weekly-strategy",
+          name: "Weekly Strategy and Opportunity Planning",
+          preview:
+            "Automation: Weekly Strategy and Opportunity Planning\nAutomation ID: weekly-opportunity-deep-research\nAutomation memory: $CODEX_HOME/automations/weekly-opportunity-deep-research/memory.md",
+          cwd: "/Users/example/life",
+          updatedAt: 1769800000,
+          status: { type: "notLoaded" as const },
+        },
+        {
+          id: "ordinary-old-life-chat",
+          name: "Old life chat",
+          preview: "Not an automation",
+          cwd: "/Users/example/life",
+          updatedAt: 1769800000,
+          status: { type: "notLoaded" as const },
+        },
+      ],
+      nowMs,
+      ["/Users/example/life"],
+      {
+        officeVisibility: {
+          recentThreadWindowMinutes: 5,
+          alwaysShowHeartbeatThreads: true,
+          showAutomationThreadsAsHeartbeat: true,
+        },
+      },
+    );
+
+    expect(company.projects).toEqual([
+      expect.objectContaining({
+        id: "codex-proj-users-example-life",
+        name: "life",
+      }),
+    ]);
+    expect(company.agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-thread:notion-fields",
+          projectId: "codex-proj-users-example-life",
+        }),
+        expect.objectContaining({
+          agentId: "codex-thread:weekly-strategy",
+          projectId: "codex-proj-users-example-life",
+        }),
+      ]),
+    );
+    expect(company.agents.some((agent) => agent.agentId === "codex-thread:ordinary-old-life-chat")).toBe(
+      false,
+    );
+  });
+
+  it("keeps pinned Codex manager threads visible even when inactive", () => {
+    const nowMs = 1770000000 * 1000;
+    const company = toCodexCompanyModel(
+      [
+        {
+          id: "old-manager",
+          preview: "Long-running planning thread",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769980000,
+        },
+      ],
+      nowMs,
+      ["/workspace/farplane-ui"],
+      {
+        projectManagers: [
+          {
+            projectId: "codex-proj-workspace-farplane-ui",
+            threadId: "old-manager",
+          },
+        ],
+      },
+    );
+
+    expect(company.agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-thread:old-manager",
+          projectId: "codex-proj-workspace-farplane-ui",
+          role: "pm",
+        }),
+      ]),
+    );
+  });
+
+  it("maps ticket-folder read model tasks onto the Codex company board", () => {
+    const company = toCodexCompanyModel([], 1770000000 * 1000, ["/workspace/farplane-ui"], {
+      ticketTasks: [
+        {
+          id: "ticket:codex-proj-workspace-farplane-ui:TASK-1",
+          projectId: "codex-proj-workspace-farplane-ui",
+          title: "Sync tickets into Kanban",
+          status: "review",
+          priority: "high",
+          artefactPath: "tickets/TASK-1/ticket.md",
+          updatedAt: 1770000000,
+        },
+      ],
+    });
+
+    expect(company.tasks).toEqual([
+      expect.objectContaining({
+        id: "ticket:codex-proj-workspace-farplane-ui:TASK-1",
+        projectId: "codex-proj-workspace-farplane-ui",
+        title: "Sync tickets into Kanban",
+        status: "review",
+        priority: "high",
+        provider: "internal",
+        artefactPath: "tickets/TASK-1/ticket.md",
+      }),
+    ]);
   });
 });

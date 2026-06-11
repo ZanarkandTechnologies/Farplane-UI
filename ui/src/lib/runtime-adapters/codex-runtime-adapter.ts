@@ -12,6 +12,7 @@ import { OpenClawAdapter } from "@/lib/openclaw-adapter";
 import {
   CODEX_MAIN_AGENT_ID,
   CodexAppServerClient,
+  codexProjectId,
   findActiveTurnId,
   parseCodexThreadId,
   toCodexAgentCards,
@@ -39,6 +40,21 @@ import type {
 } from "@/lib/openclaw-types";
 import type { GatewayWsClient } from "@/lib/gateway-ws-client";
 import type { RuntimeAdapterCapabilities } from "./contract";
+
+function buildCodexWorkload(company: UnifiedOfficeModel["company"]): UnifiedOfficeModel["workload"] {
+  return company.projects.map((project) => {
+    const tasks = company.tasks.filter((task) => task.projectId === project.id);
+    const openTickets = tasks.filter((task) => task.status !== "done").length;
+    const closedTickets = tasks.filter((task) => task.status === "done").length;
+    const ratio = closedTickets === 0 ? openTickets : openTickets / closedTickets;
+    return {
+      projectId: project.id,
+      openTickets,
+      closedTickets,
+      queuePressure: ratio > 2 ? ("high" as const) : ratio > 1 ? ("medium" as const) : ("low" as const),
+    };
+  });
+}
 
 const CODEX_CAPABILITIES: RuntimeAdapterCapabilities = {
   persistentAgents: false,
@@ -203,11 +219,17 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
   }
 
   async getUnifiedOfficeModel(): Promise<UnifiedOfficeModel> {
-    const [threads, projectPaths] = await Promise.all([
+    const [threads, projectPaths, officeObjects] = await Promise.all([
       this.listCodexThreads().catch(() => []),
       this.listCodexProjectPaths().catch(() => []),
+      this.getOfficeObjects().catch(() => []),
     ]);
-    const company = toCodexCompanyModel(threads, Date.now(), projectPaths);
+    const projectRefs = projectPaths.map((projectPath) => ({
+      projectId: codexProjectId(projectPath),
+      projectPath,
+    }));
+    const readModel = await this.codexClient.readProjectModel(projectRefs).catch(() => ({}));
+    const company = toCodexCompanyModel(threads, Date.now(), projectPaths, readModel);
     const officeAgentIds = new Set(company.agents.map((agent) => agent.agentId));
     const runtimeAgents = [...toCodexAgentCards([]), ...toCodexAgentCards(threads)].filter((agent) =>
       officeAgentIds.has(agent.agentId),
@@ -216,16 +238,11 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
       company,
       runtimeAgents,
       configuredAgents: runtimeAgents,
-      officeObjects: [],
+      officeObjects,
       memory: [],
       skills: [],
       warnings: [],
-      workload: company.projects.map((project) => ({
-        projectId: project.id,
-        openTickets: company.agents.filter((agent) => agent.projectId === project.id).length,
-        closedTickets: 0,
-        queuePressure: "low" as const,
-      })),
+      workload: buildCodexWorkload(company),
       diagnostics: {
         configAgentCount: runtimeAgents.length,
         runtimeAgentCount: runtimeAgents.length,
@@ -234,7 +251,7 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
         unmappedRuntimeAgentIds: [],
         invalidOfficeObjects: [],
         duplicateOfficeObjectIds: [],
-        officeObjectCount: 0,
+        officeObjectCount: officeObjects.length,
         clampedClusterCount: 0,
         outOfBoundsClusterObjectIds: [],
         ceoAnchorMode: "fallback",

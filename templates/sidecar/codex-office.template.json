@@ -1,0 +1,8 @@
+{
+  "recentThreadWindowMinutes": 180,
+  "alwaysShowHeartbeatThreads": true,
+  "showAutomationThreadsAsHeartbeat": true,
+  "heartbeatThreadIds": [],
+  "miscProjectName": "Misc",
+  "miscPathIncludes": ["Documents/Codex"]
+}

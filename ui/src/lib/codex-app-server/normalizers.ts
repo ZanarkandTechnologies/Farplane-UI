@@ -2,15 +2,26 @@ import type {
   AgentCardModel,
   AgentLiveStatus,
   CompanyModel,
+  FederatedTaskModel,
   SessionRowModel,
   SessionTimelineEvent,
   SessionTimelineModel,
 } from "@/lib/openclaw-types";
-import type { CodexThread, CodexThreadItem, CodexThreadStatus, CodexTurn } from "./types";
+import type {
+  CodexProjectManagerPin,
+  CodexOfficeVisibilityConfig,
+  CodexProjectReadModelTask,
+  CodexThread,
+  CodexThreadItem,
+  CodexThreadStatus,
+  CodexTurn,
+} from "./types";
 
 export const CODEX_MAIN_AGENT_ID = "codex-main";
 export const CODEX_THREAD_PREFIX = "codex-thread:";
-const ACTIVE_THREAD_WINDOW_MS = 3 * 60 * 60 * 1000;
+const DEFAULT_ACTIVE_THREAD_WINDOW_MINUTES = 180;
+const CODEX_MISC_PROJECT_PATH = "farplane://codex/misc";
+const CODEX_MISC_PROJECT_ID = "codex-proj-misc";
 
 const CODEX_MAIN_AGENT: AgentCardModel = {
   agentId: CODEX_MAIN_AGENT_ID,
@@ -55,7 +66,8 @@ function slugify(value: string): string {
   return slug || "codex";
 }
 
-function codexProjectId(cwd: string): string {
+export function codexProjectId(cwd: string): string {
+  if (cwd === CODEX_MISC_PROJECT_PATH) return CODEX_MISC_PROJECT_ID;
   return `codex-proj-${slugify(cwd)}`;
 }
 
@@ -72,17 +84,48 @@ function isPathWithinProject(cwd: string, projectPath: string): boolean {
   return normalizedCwd === normalizedProject || normalizedCwd.startsWith(`${normalizedProject}/`);
 }
 
-function findBestProjectPath(cwd: string, projectPaths: string[]): string {
+function findBestProjectPath(cwd: string, projectPaths: string[]): string | null {
   const matches = projectPaths
     .filter((projectPath) => isPathWithinProject(cwd, projectPath))
     .sort((a, b) => normalizePath(b).length - normalizePath(a).length);
-  return matches[0] ?? cwd;
+  return matches[0] ?? null;
 }
 
-function isThreadRecentlyActive(thread: CodexThread, nowMs: number): boolean {
+function normalizeVisibilityConfig(config?: CodexOfficeVisibilityConfig): Required<CodexOfficeVisibilityConfig> {
+  return {
+    recentThreadWindowMinutes:
+      typeof config?.recentThreadWindowMinutes === "number" && Number.isFinite(config.recentThreadWindowMinutes)
+        ? Math.max(1, config.recentThreadWindowMinutes)
+        : DEFAULT_ACTIVE_THREAD_WINDOW_MINUTES,
+    alwaysShowHeartbeatThreads: config?.alwaysShowHeartbeatThreads !== false,
+    showAutomationThreadsAsHeartbeat: config?.showAutomationThreadsAsHeartbeat !== false,
+    heartbeatThreadIds: Array.isArray(config?.heartbeatThreadIds) ? config.heartbeatThreadIds : [],
+    miscProjectName: safeText(config?.miscProjectName) || "Misc",
+    miscPathIncludes: Array.isArray(config?.miscPathIncludes) ? config.miscPathIncludes : ["Documents/Codex"],
+  };
+}
+
+function isThreadRecentlyActive(thread: CodexThread, nowMs: number, windowMs: number): boolean {
   const updatedAt = secondsToMs(thread.updatedAt);
   if (!updatedAt) return false;
-  return nowMs - updatedAt <= ACTIVE_THREAD_WINDOW_MS;
+  return nowMs - updatedAt <= windowMs;
+}
+
+function isThreadStatusActive(thread: CodexThread): boolean {
+  return thread.status?.type === "active";
+}
+
+function isAutomationHeartbeatThread(thread: CodexThread): boolean {
+  const haystack = `${safeText(thread.name)}\n${safeText(thread.preview)}`;
+  return /^Automation:/m.test(haystack) && /Automation ID:/m.test(haystack);
+}
+
+function isMiscProjectPath(value: string, miscPathIncludes: string[]): boolean {
+  const normalized = normalizePath(value);
+  return miscPathIncludes
+    .map(safeText)
+    .filter(Boolean)
+    .some((pattern) => normalized.includes(normalizePath(pattern)));
 }
 
 export function parseCodexThreadId(value: string): string {
@@ -107,29 +150,114 @@ export function toCodexCompanyModel(
   threads: CodexThread[],
   nowMs = Date.now(),
   configuredProjectPaths: string[] = [],
+  readModel: {
+    ticketTasks?: CodexProjectReadModelTask[];
+    projectManagers?: CodexProjectManagerPin[];
+    officeVisibility?: CodexOfficeVisibilityConfig;
+  } = {},
 ): CompanyModel {
-  const projectPaths = [...new Set(configuredProjectPaths.map(safeText).filter(Boolean))];
-  const projectThreads = threads.filter((thread) => safeText(thread.cwd));
+  const visibility = normalizeVisibilityConfig(readModel.officeVisibility);
+  const projectPaths = [
+    ...new Set(
+      configuredProjectPaths
+        .map(safeText)
+        .filter(Boolean)
+        .filter((projectPath) => !isMiscProjectPath(projectPath, visibility.miscPathIncludes)),
+    ),
+  ];
+  const activeThreadWindowMs = visibility.recentThreadWindowMinutes * 60 * 1000;
+  const pinnedManagerThreadIds = new Set(
+    (readModel.projectManagers ?? []).map((pin) => safeText(pin.threadId)).filter(Boolean),
+  );
+  const heartbeatThreadIds = new Set(visibility.heartbeatThreadIds.map(safeText).filter(Boolean));
+  const projectThreads = threads;
   const threadsByProjectPath = new Map<string, CodexThread[]>();
   for (const projectPath of projectPaths) {
     threadsByProjectPath.set(projectPath, []);
   }
   for (const thread of projectThreads) {
     const cwd = safeText(thread.cwd);
-    const projectPath = findBestProjectPath(cwd, projectPaths);
-    if (projectPaths.length > 0 && projectPath === cwd && !isThreadRecentlyActive(thread, nowMs)) {
+    const isPinned = pinnedManagerThreadIds.has(thread.id);
+    const hasHeartbeat =
+      heartbeatThreadIds.has(thread.id) ||
+      isThreadStatusActive(thread) ||
+      (visibility.showAutomationThreadsAsHeartbeat && isAutomationHeartbeatThread(thread));
+    const isVisible =
+      isPinned ||
+      isThreadRecentlyActive(thread, nowMs, activeThreadWindowMs) ||
+      (visibility.alwaysShowHeartbeatThreads && hasHeartbeat);
+    if (!isVisible) {
       continue;
     }
+    const matchedProjectPath = cwd && !isMiscProjectPath(cwd, visibility.miscPathIncludes)
+      ? findBestProjectPath(cwd, projectPaths)
+      : null;
+    const projectPath =
+      matchedProjectPath && !isMiscProjectPath(matchedProjectPath, visibility.miscPathIncludes)
+        ? matchedProjectPath
+        : CODEX_MISC_PROJECT_PATH;
     threadsByProjectPath.set(projectPath, [...(threadsByProjectPath.get(projectPath) ?? []), thread]);
   }
-  const projectGroups = [...threadsByProjectPath.entries()].sort((a, b) =>
-    projectNameFromCwd(a[0]).localeCompare(projectNameFromCwd(b[0])),
+  const projectNameByPath = new Map<string, string>([[CODEX_MISC_PROJECT_PATH, visibility.miscProjectName]]);
+  const projectGroups = [...threadsByProjectPath.entries()]
+    .filter(([projectPath, rows]) => projectPath !== CODEX_MISC_PROJECT_PATH || rows.length > 0)
+    .sort((a, b) => {
+      if (a[0] === CODEX_MISC_PROJECT_PATH) return 1;
+      if (b[0] === CODEX_MISC_PROJECT_PATH) return -1;
+      return projectNameFromCwd(a[0]).localeCompare(projectNameFromCwd(b[0]));
+    });
+  const projectIdByPath = new Map(
+    projectGroups.map(([projectPath]) => [normalizePath(projectPath), codexProjectId(projectPath)]),
   );
-  const activeThreads = projectGroups.flatMap(([projectPath, rows]) =>
-    rows
-      .filter((thread) => isThreadRecentlyActive(thread, nowMs))
-      .map((thread) => ({ projectPath, thread })),
-  );
+  const managerPins = readModel.projectManagers ?? [];
+  const managerThreadIdsByProjectId = new Map<string, Set<string>>();
+  for (const pin of managerPins) {
+    const threadId = safeText(pin.threadId);
+    if (!threadId) continue;
+    const projectId =
+      safeText(pin.projectId) ||
+      (safeText(pin.projectPath) ? projectIdByPath.get(normalizePath(safeText(pin.projectPath))) : "") ||
+      "";
+    if (!projectId) continue;
+    const current = managerThreadIdsByProjectId.get(projectId) ?? new Set<string>();
+    current.add(threadId);
+    managerThreadIdsByProjectId.set(projectId, current);
+  }
+  const visibleThreadAgents = new Map<string, { projectPath: string; thread: CodexThread; isManager: boolean }>();
+  for (const [projectPath, rows] of projectGroups) {
+    const projectId = codexProjectId(projectPath);
+    const managerThreadIds = managerThreadIdsByProjectId.get(projectId) ?? new Set<string>();
+    for (const thread of rows) {
+      const isManager = managerThreadIds.has(thread.id);
+      const hasHeartbeat =
+        heartbeatThreadIds.has(thread.id) ||
+        isThreadStatusActive(thread) ||
+        (visibility.showAutomationThreadsAsHeartbeat && isAutomationHeartbeatThread(thread));
+      if (
+        !isManager &&
+        !isThreadRecentlyActive(thread, nowMs, activeThreadWindowMs) &&
+        !(visibility.alwaysShowHeartbeatThreads && hasHeartbeat)
+      ) {
+        continue;
+      }
+      visibleThreadAgents.set(thread.id, { projectPath, thread, isManager });
+    }
+  }
+  const tasks: FederatedTaskModel[] = (readModel.ticketTasks ?? []).map((task) => ({
+    id: task.id,
+    projectId: task.projectId,
+    title: task.title,
+    status: task.status,
+    ownerAgentId: task.ownerAgentId,
+    priority: task.priority ?? "medium",
+    provider: task.provider ?? "internal",
+    canonicalProvider: task.canonicalProvider ?? task.provider ?? "internal",
+    providerUrl: task.providerUrl,
+    artefactPath: task.artefactPath,
+    syncState: task.syncState ?? "healthy",
+    syncError: task.syncError,
+    updatedAt: task.updatedAt ?? nowMs,
+  }));
 
   return {
     version: 1,
@@ -144,11 +272,14 @@ export function toCodexCompanyModel(
     projects: projectGroups.map(([projectPath, rows]) => ({
       id: codexProjectId(projectPath),
       departmentId: "dept-codex-projects",
-      name: projectNameFromCwd(projectPath),
+      name: projectNameByPath.get(projectPath) ?? projectNameFromCwd(projectPath),
       githubUrl: "",
       status: "active",
-      goal: `Track ${rows.length} Codex thread${rows.length === 1 ? "" : "s"} for ${projectPath}.`,
-      kpis: ["recent_active_threads"],
+      goal:
+        projectPath === CODEX_MISC_PROJECT_PATH
+          ? `Track ${rows.length} projectless Codex chat${rows.length === 1 ? "" : "s"}.`
+          : `Track ${rows.length} Codex thread${rows.length === 1 ? "" : "s"} and local tickets for ${projectPath}.`,
+      kpis: ["recent_active_threads", "ticket_folder_board"],
       trackingContext: projectPath,
       accountEvents: [],
       ledger: [],
@@ -165,16 +296,21 @@ export function toCodexCompanyModel(
         isCeo: true,
         lifecycleState: "active",
       },
-      ...activeThreads.map(({ projectPath, thread }) => ({
+      ...[...visibleThreadAgents.values()].map(({ projectPath, thread, isManager }) => ({
         agentId: toThreadAgentId(thread.id),
-        role: "builder" as const,
+        role: isManager ? ("pm" as const) : ("builder" as const),
         projectId: codexProjectId(projectPath),
-        heartbeatProfileId: "hb-codex-thread",
+        heartbeatProfileId: isManager ? "hb-codex-manager" : "hb-codex-thread",
         lifecycleState: "active" as const,
       })),
     ],
-    roleSlots: [],
-    tasks: [],
+    roleSlots: projectGroups.map(([projectPath]) => ({
+      projectId: codexProjectId(projectPath),
+      role: "pm" as const,
+      desiredCount: managerThreadIdsByProjectId.has(codexProjectId(projectPath)) ? 1 : 0,
+      spawnPolicy: "manual" as const,
+    })),
+    tasks,
     federationPolicies: [],
     providerIndexProfiles: [],
     heartbeatProfiles: [
@@ -185,6 +321,14 @@ export function toCodexCompanyModel(
         teamDescription: "Codex project overview",
         productDetails: "Farplane UI maps Codex projects and recent threads.",
         goal: "Keep project/thread visibility current.",
+      },
+      {
+        id: "hb-codex-manager",
+        role: "pm",
+        cadenceMinutes: 0,
+        teamDescription: "Pinned Codex project manager thread",
+        productDetails: "Persistent planning context for one Codex project.",
+        goal: "Keep the project table visible and provide long-lived planning continuity.",
       },
       {
         id: "hb-codex-thread",
