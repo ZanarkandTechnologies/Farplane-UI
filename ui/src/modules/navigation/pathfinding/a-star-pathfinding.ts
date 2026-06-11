@@ -222,7 +222,11 @@ export function gridToWorld(gridX: number, gridZ: number): THREE.Vector3 {
  * @param endWorldPos World position of the end.
  * @returns Array of world positions (Vector3) representing the path, or null if no path found.
  */
-export function findPathAStar(startWorldPos: THREE.Vector3, endWorldPos: THREE.Vector3): THREE.Vector3[] | null {
+export function findPathAStar(
+    startWorldPos: THREE.Vector3,
+    endWorldPos: THREE.Vector3,
+    options: { silent?: boolean } = {}
+): THREE.Vector3[] | null {
     if (!isGridInitialized()) {
         if (!hasWarnedBeforeGridInitialization) {
             hasWarnedBeforeGridInitialization = true;
@@ -241,7 +245,9 @@ export function findPathAStar(startWorldPos: THREE.Vector3, endWorldPos: THREE.V
         const nearestStart = findNearestWalkable(startGrid.x, startGrid.z);
         const nearestEnd = findNearestWalkable(endGrid.x, endGrid.z);
         if (!nearestStart || !nearestEnd) {
-            console.error("A*: Could not find nearby walkable nodes for start/end.");
+            if (!options.silent) {
+                console.error("A*: Could not find nearby walkable nodes for start/end.");
+            }
             return null;
         }
         startGrid.x = nearestStart.x;
@@ -296,7 +302,9 @@ export function findPathAStar(startWorldPos: THREE.Vector3, endWorldPos: THREE.V
         }
     }
 
-    console.warn(`A*: No path found from (${startGrid.x},${startGrid.z}) to (${endGrid.x},${endGrid.z})`);
+    if (!options.silent) {
+        console.warn(`A*: No path found from (${startGrid.x},${startGrid.z}) to (${endGrid.x},${endGrid.z})`);
+    }
     return null;
 }
 

@@ -55,7 +55,8 @@ function isDestinationOccupied(position: THREE.Vector3, employeeId: string): boo
 export function findAvailableDestination(
     requestedDestination: THREE.Vector3,
     employeeId: string,
-    maxAttempts = 8
+    maxAttempts = 8,
+    options: { silent?: boolean } = {}
 ): THREE.Vector3 {
     // Check if the requested destination is already available
     if (!isDestinationOccupied(requestedDestination, employeeId)) {
@@ -92,8 +93,9 @@ export function findAvailableDestination(
         }
     }
 
-    // If we exhaust all alternatives, return original but with a warning
-    console.warn(`Employee ${employeeId} couldn't find alternative destination, using original.`);
+    if (!options.silent) {
+        console.warn(`Employee ${employeeId} couldn't find alternative destination, using original.`);
+    }
     reserveDestination(requestedDestination, employeeId);
     return requestedDestination;
 }

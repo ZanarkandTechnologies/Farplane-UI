@@ -22,6 +22,7 @@ import * as THREE from "three";
 import { IDLE_DESTINATIONS, TOTAL_HEIGHT } from "@/constants";
 import {
   findPathAStar,
+  getNearestValidPlacement,
   isGridInitialized,
 } from "@/modules/navigation/pathfinding/a-star-pathfinding";
 import {
@@ -32,6 +33,8 @@ import type { Id } from "@/lib/entity-types";
 import type { AgentState } from "@/modules/runtime";
 import { getRandomItem } from "@/lib/utils";
 import type { EmployeeAnimationMode } from "./employee-motion";
+
+const IDLE_DESTINATION_ATTEMPTS = Math.max(8, IDLE_DESTINATIONS.length * 2);
 
 type DebugPathData = {
   originalPath: THREE.Vector3[] | null;
@@ -131,18 +134,15 @@ export function useEmployeeLocomotion({
     }
   }, [activityEffectVariant, activityTargetPosition]);
 
-  const chooseNewIdleDestination = useCallback(() => {
-    const currentPos = groupRef.current?.position;
-    if (!currentPos) return null;
-
+  const chooseIdleDestinationCandidate = useCallback((currentPos: THREE.Vector3) => {
     let newDest: THREE.Vector3;
     do {
       newDest = getRandomItem(IDLE_DESTINATIONS).clone();
       newDest.y = TOTAL_HEIGHT / 2;
     } while (newDest.distanceTo(currentPos) < 1 && IDLE_DESTINATIONS.length > 1);
 
-    return findAvailableDestination(newDest, id);
-  }, [id]);
+    return getNearestValidPlacement(newDest, 12) ?? newDest;
+  }, []);
 
   const getRandomWaitTime = useCallback(() => Math.random() * 4 + 4, []);
 
@@ -170,6 +170,31 @@ export function useEmployeeLocomotion({
       return newPath;
     },
     [id],
+  );
+
+  const findAndSetIdlePath = useCallback(
+    (startPos: THREE.Vector3) => {
+      if (!isGridInitialized()) {
+        return null;
+      }
+
+      for (let attempt = 0; attempt < IDLE_DESTINATION_ATTEMPTS; attempt += 1) {
+        const candidate = chooseIdleDestinationCandidate(startPos);
+        const finalDestination = findAvailableDestination(candidate, id, 8, { silent: true });
+        const newPath = findPathAStar(startPos, finalDestination, { silent: true });
+
+        if (newPath) {
+          setPath(newPath);
+          setPathIndex(0);
+          return finalDestination;
+        }
+
+        releaseEmployeeReservations(id);
+      }
+
+      return null;
+    },
+    [chooseIdleDestinationCandidate, id],
   );
 
   useFrame((_, delta) => {
@@ -254,16 +279,16 @@ export function useEmployeeLocomotion({
       }
     } else if (idleState === "wandering") {
       if (!path) {
-        const newDest = chooseNewIdleDestination();
+        const newDest = findAndSetIdlePath(currentPos);
         if (newDest) {
           if (isGoingToDesk) {
             setIsGoingToDesk(false);
           }
-          const newPath = findAndSetPath(currentPos, newDest);
           setCurrentDestination(newDest);
-          if (!newPath) {
-            console.warn(`Employee ${id} could not find path to new destination.`);
-          }
+        } else {
+          setCurrentDestination(null);
+          setIdleState("waiting");
+          idleTimerRef.current = getRandomWaitTime();
         }
       } else if (pathIndex < path.length) {
         targetPathNode = path[pathIndex];
