@@ -52,6 +52,7 @@
     "discord.js": "latest",
     "grammy": "latest",
     "qrcode-terminal": "^0.12.0",
+    "three": "0.182.0",
     "zod": "latest"
   },
   "devDependencies": {
@@ -65,5 +66,8 @@
     "tsx": "latest",
     "typescript": "latest",
     "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "three": "0.182.0"
   }
 }

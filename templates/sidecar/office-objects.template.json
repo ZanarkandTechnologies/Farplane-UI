@@ -49,9 +49,9 @@
     "identifier": "plant-entry-right",
     "meshType": "plant",
     "position": [
-      3.5,
+      5,
       0,
-      -1
+      0
     ],
     "rotation": [
       0,
@@ -64,9 +64,9 @@
     "identifier": "plant-entry-left",
     "meshType": "plant",
     "position": [
-      -3.5,
+      -4,
       0,
-      -1
+      0
     ],
     "rotation": [
       0,
@@ -81,7 +81,7 @@
     "position": [
       -4,
       0,
-      -12
+      -8
     ],
     "rotation": [
       0,
@@ -94,9 +94,9 @@
     "identifier": "plant-center-left",
     "meshType": "plant",
     "position": [
-      -4,
+      5,
       0,
-      -8
+      -2
     ],
     "rotation": [
       0,
@@ -115,9 +115,9 @@
     "identifier": "pantry-main",
     "meshType": "pantry",
     "position": [
-      1,
+      -1,
       0,
-      -13
+      -12
     ],
     "rotation": [
       0,
@@ -130,9 +130,9 @@
     "identifier": "couch-main",
     "meshType": "couch",
     "position": [
-      8,
+      7,
       0,
-      -8
+      -11
     ],
     "rotation": [
       0,
@@ -147,7 +147,7 @@
     "position": [
       7,
       0,
-      -11
+      -5
     ],
     "rotation": [
       0,

@@ -64,11 +64,14 @@ type OfficeViewSettingsPanelProps = {
   cameraOrientation: OfficeSettingsModel["cameraOrientation"];
   orbitControlsEnabled: boolean;
   statusText: string;
+  shuffleStatusText: string;
   isSaving: boolean;
+  isShuffling: boolean;
   onViewProfileChange: (value: OfficeSettingsModel["viewProfile"]) => void;
   onCameraOrientationChange: (value: OfficeSettingsModel["cameraOrientation"]) => void;
   onOrbitControlsEnabledChange: (value: boolean) => void;
   onSave: () => void;
+  onShuffle: () => void;
 };
 
 export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
@@ -77,11 +80,14 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
     cameraOrientation,
     orbitControlsEnabled,
     statusText,
+    shuffleStatusText,
     isSaving,
+    isShuffling,
     onViewProfileChange,
     onCameraOrientationChange,
     onOrbitControlsEnabledChange,
     onSave,
+    onShuffle,
   } = props;
 
   return (
@@ -128,6 +134,21 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
         {isSaving ? "Saving..." : "Apply View"}
       </Button>
       {statusText ? <p className="text-xs text-muted-foreground">{statusText}</p> : null}
+
+      <div className="flex items-center justify-between gap-4 border-t pt-3">
+        <div className="flex flex-col gap-1">
+          <Label>Furniture Layout</Label>
+          <span className="text-xs text-muted-foreground">
+            Reflow tables and floor objects into open slots.
+          </span>
+        </div>
+        <Button size="sm" variant="outline" onClick={onShuffle} disabled={isShuffling}>
+          {isShuffling ? "Shuffling..." : "Shuffle"}
+        </Button>
+      </div>
+      {shuffleStatusText ? (
+        <p className="text-xs text-muted-foreground">{shuffleStatusText}</p>
+      ) : null}
     </div>
   );
 }

@@ -30,7 +30,7 @@ type SettingsDialogProps = {
 export default function SettingsDialog(props: SettingsDialogProps) {
   const { open, onOpenChange } = props;
   const adapter = useOfficeRuntimeAdapter();
-  const { officeSettings, refresh } = useOfficeDataContext();
+  const { officeObjects, officeSettings, refresh } = useOfficeDataContext();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const dialogOpen = typeof open === "boolean" ? open : uncontrolledOpen;
   const setDialogOpen = onOpenChange ?? setUncontrolledOpen;
@@ -65,6 +65,8 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   );
   const [viewStatusText, setViewStatusText] = useState("");
   const [isSavingViewSettings, setIsSavingViewSettings] = useState(false);
+  const [shuffleStatusText, setShuffleStatusText] = useState("");
+  const [isShufflingOffice, setIsShufflingOffice] = useState(false);
   const codexOfficeVisibility = useCodexOfficeVisibilitySettings({
     dialogOpen,
     stateBaseInput,
@@ -86,6 +88,7 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     setCameraOrientationInput(officeSettings.cameraOrientation);
     setOrbitControlsEnabled(officeSettings.orbitControlsEnabled);
     setViewStatusText("");
+    setShuffleStatusText("");
   }, [
     dialogOpen,
     officeSettings.cameraOrientation,
@@ -143,6 +146,21 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     setViewStatusText("Office view settings saved.");
   }
 
+  async function handleShuffleOffice(): Promise<void> {
+    setIsShufflingOffice(true);
+    setShuffleStatusText("");
+    const result = await adapter.shuffleOfficeObjects(officeObjects, { seed: Date.now() });
+    setIsShufflingOffice(false);
+    if (!result.ok) {
+      setShuffleStatusText(result.error ?? "Failed to shuffle office furniture.");
+      return;
+    }
+    await refresh();
+    setShuffleStatusText(
+      `Shuffled ${result.movedCount} object${result.movedCount === 1 ? "" : "s"} with ${result.placementViolationCount} collisions.`,
+    );
+  }
+
   function handleReplayOnboarding(): void {
     setOfficeOnboardingCompleted(false);
     setIsOfficeOnboardingVisible(true);
@@ -182,11 +200,14 @@ export default function SettingsDialog(props: SettingsDialogProps) {
               cameraOrientation={cameraOrientationInput}
               orbitControlsEnabled={orbitControlsEnabled}
               statusText={viewStatusText}
+              shuffleStatusText={shuffleStatusText}
               isSaving={isSavingViewSettings}
+              isShuffling={isShufflingOffice}
               onViewProfileChange={setViewProfileInput}
               onCameraOrientationChange={setCameraOrientationInput}
               onOrbitControlsEnabledChange={setOrbitControlsEnabled}
               onSave={() => void handleSaveViewSettings()}
+              onShuffle={() => void handleShuffleOffice()}
             />
           </TabsContent>
 

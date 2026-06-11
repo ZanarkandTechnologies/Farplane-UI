@@ -25,6 +25,14 @@ import {
   findPlacementViolations,
   isPlacementAreaFree,
 } from "./office-placement.js";
+import {
+  findLiveLayoutPlacementViolations,
+  getOfficeLayoutCandidatePositions,
+} from "./office-layout-placement.js";
+import {
+  arrangeOfficeObjectsForStudio,
+  shuffleOfficeObjects,
+} from "./office-arrange.js";
 import { renderOfficeAscii } from "./office-renderer.js";
 import {
   type CompanyModel,
@@ -225,86 +233,6 @@ function assertPositionUnoccupied(input: {
   if (!free) {
     fail(`position_occupied:x=${input.position[0]},z=${input.position[2]}`);
   }
-}
-
-const STUDIO_TEAM_LAYOUT: Array<[number, number, number]> = [
-  [0, 0, 14],
-  [-7, 0, 10],
-  [7, 0, 10],
-  [0, 0, 6],
-  [-14, 0, 8],
-  [14, 0, 8],
-  [-14, 0, 2],
-  [-7, 0, 3],
-  [7, 0, 3],
-  [14, 0, 2],
-  [-14, 0, -4],
-  [0, 0, -3],
-  [14, 0, -4],
-  [-14, 0, -11],
-  [6, 0, -8],
-  [14, 0, -10],
-  [4, 0, -14],
-];
-
-const STUDIO_PLANT_LAYOUT: Array<[number, number, number]> = [
-  [-16, 0, 15],
-  [16, 0, 15],
-  [-16, 0, -16],
-  [16, 0, -16],
-];
-
-function arrangePriority(object: OfficeObjectModel): number {
-  const id = object.id.toLowerCase();
-  const teamId = String(object.metadata?.teamId ?? "").toLowerCase();
-  const name = String(object.metadata?.name ?? "").toLowerCase();
-  const haystack = `${id} ${teamId} ${name}`;
-  if (teamId === "team-management" || name === "management") return 0;
-  if (haystack.includes("projects-farplane-ui")) return 2;
-  if (haystack.includes("projects-farplane")) return 1;
-  if (haystack.includes("kenjipcx-life")) return 3;
-  if (haystack.includes("codex-proj-misc")) return 4;
-  if (haystack.includes("scammed") || haystack.includes("scamcheck")) return 5;
-  if (haystack.includes("coding-harness")) return 6;
-  return 100;
-}
-
-function arrangeOfficeObjectsForStudio(objects: OfficeObjectModel[]): {
-  objects: OfficeObjectModel[];
-  moved: Array<{ id: string; position: [number, number, number] }>;
-} {
-  const teamObjects = objects
-    .filter((entry) => entry.meshType === "team-cluster")
-    .sort((left, right) => {
-      const priorityDelta = arrangePriority(left) - arrangePriority(right);
-      return priorityDelta === 0 ? left.id.localeCompare(right.id) : priorityDelta;
-    });
-  const teamPositionById = new Map<string, [number, number, number]>();
-  teamObjects.forEach((object, index) => {
-    const position = STUDIO_TEAM_LAYOUT[index] ?? STUDIO_TEAM_LAYOUT[STUDIO_TEAM_LAYOUT.length - 1];
-    teamPositionById.set(object.id, position);
-  });
-
-  let plantIndex = 0;
-  const moved: Array<{ id: string; position: [number, number, number] }> = [];
-  const nextObjects = objects.map((object) => {
-    const teamPosition = teamPositionById.get(object.id);
-    const plantPosition =
-      object.meshType === "plant" ? STUDIO_PLANT_LAYOUT[plantIndex++] : undefined;
-    const position = teamPosition ?? plantPosition;
-    if (!position) return object;
-    if (
-      object.position[0] === position[0] &&
-      object.position[1] === position[1] &&
-      object.position[2] === position[2]
-    ) {
-      return object;
-    }
-    moved.push({ id: object.id, position });
-    return { ...object, position };
-  });
-
-  return { objects: nextObjects, moved };
 }
 
 function collectValue(value: string, previous: string[]): string[] {
@@ -732,9 +660,10 @@ export function registerOfficeCommands(program: Command): void {
       }) => {
         const objects = await store.readOfficeObjects();
         const company = await store.readCompanyModel();
-        const placementViolations = findPlacementViolations({
+        const officeSettings = await store.readOfficeSettings();
+        const placementViolations = findLiveLayoutPlacementViolations({
           objects,
-          bounds: { halfExtent: HALF_FLOOR },
+          officeSettings,
         });
         if (opts.json) {
           console.log(
@@ -816,10 +745,11 @@ export function registerOfficeCommands(program: Command): void {
     .action(async (opts: { fix?: boolean; reason?: string[]; json?: boolean }) => {
       const objects = await store.readOfficeObjects();
       const company = await store.readCompanyModel();
+      const officeSettings = await store.readOfficeSettings();
       const allInvalid = findInvalidOfficeObjects({ objects, company });
-      const placementViolations = findPlacementViolations({
+      const placementViolations = findLiveLayoutPlacementViolations({
         objects,
-        bounds: { halfExtent: HALF_FLOOR },
+        officeSettings,
       });
       const reasonFilter = new Set(
         (opts.reason ?? []).map((entry) => entry.trim()).filter(Boolean),
@@ -915,10 +845,11 @@ export function registerOfficeCommands(program: Command): void {
     .option("--json", "Output JSON", false)
     .action(async (opts: { dryRun?: boolean; json?: boolean }) => {
       const objects = await store.readOfficeObjects();
+      const officeSettings = await store.readOfficeSettings();
       const arranged = arrangeOfficeObjectsForStudio(objects);
-      const placementViolations = findPlacementViolations({
+      const placementViolations = findLiveLayoutPlacementViolations({
         objects: arranged.objects,
-        bounds: { halfExtent: HALF_FLOOR },
+        officeSettings,
       });
       if (placementViolations.length > 0) {
         fail(`arrange_layout_invalid:placement_violations=${placementViolations.length}`);
@@ -937,6 +868,52 @@ export function registerOfficeCommands(program: Command): void {
         opts.json ? "json" : "text",
         payload,
         `${opts.dryRun ? "Previewed" : "Applied"} studio office arrangement (${arranged.moved.length} move${arranged.moved.length === 1 ? "" : "s"})`,
+      );
+    });
+
+  office
+    .command("shuffle")
+    .description("Shuffle floor furniture into a validated collision-free layout")
+    .option("--seed <seed>", "Deterministic shuffle seed")
+    .option("--dry-run", "Preview without writing sidecar state", false)
+    .option("--json", "Output JSON", false)
+    .action(async (opts: { seed?: string; dryRun?: boolean; json?: boolean }) => {
+      const objects = await store.readOfficeObjects();
+      const officeSettings = await store.readOfficeSettings();
+      const candidates = getOfficeLayoutCandidatePositions(officeSettings);
+      const canPlaceObject = (object: OfficeObjectModel, placedObjects: OfficeObjectModel[]) =>
+        findLiveLayoutPlacementViolations({
+          objects: [...placedObjects, object],
+          officeSettings,
+        }).length === 0;
+      const arranged = shuffleOfficeObjects(objects, {
+        seed: opts.seed,
+        teamCandidates: candidates,
+        decorCandidates: candidates,
+        canPlaceObject,
+      });
+      const placementViolations = findLiveLayoutPlacementViolations({
+        objects: arranged.objects,
+        officeSettings,
+      });
+      if (placementViolations.length > 0) {
+        fail(`shuffle_layout_invalid:placement_violations=${placementViolations.length}`);
+      }
+      if (!opts.dryRun) {
+        await store.writeOfficeObjects(arranged.objects);
+      }
+      const payload = {
+        ok: true,
+        dryRun: opts.dryRun === true,
+        seed: opts.seed ?? null,
+        movedCount: arranged.moved.length,
+        moved: arranged.moved,
+        placementViolationCount: placementViolations.length,
+      };
+      formatOutput(
+        opts.json ? "json" : "text",
+        payload,
+        `${opts.dryRun ? "Previewed" : "Applied"} shuffled office arrangement (${arranged.moved.length} move${arranged.moved.length === 1 ? "" : "s"})`,
       );
     });
 

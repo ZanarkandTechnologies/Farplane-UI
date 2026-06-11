@@ -57,6 +57,12 @@ export interface LayoutSolveResult {
   policy: LayoutPolicy;
 }
 
+export interface ClusterOccupancyFootprint {
+  width: number;
+  depth: number;
+  clearance: number;
+}
+
 const DESK_FOOTPRINT: MeshFootprint = {
   width: DESK_WIDTH,
   depth: DESK_DEPTH,
@@ -187,6 +193,44 @@ export function solveClusterLayout(
     transforms,
     anchor,
     policy,
+  };
+}
+
+export function getClusterOccupancyFootprint(count: number): ClusterOccupancyFootprint {
+  const safeCount = clampCount(count);
+  const solved = solveClusterLayout(safeCount, DESK_FOOTPRINT, DEFAULT_LAYOUT_POLICY);
+  const points: Array<{ x: number; z: number }> = [];
+
+  for (const transform of solved.transforms) {
+    const cos = Math.cos(transform.yaw);
+    const sin = Math.sin(transform.yaw);
+    for (const [localX, localZ] of [
+      [-DESK_WIDTH / 2, -DESK_DEPTH / 2],
+      [DESK_WIDTH / 2, -DESK_DEPTH / 2],
+      [-DESK_WIDTH / 2, DESK_DEPTH / 2],
+      [DESK_WIDTH / 2, DESK_DEPTH / 2],
+    ]) {
+      points.push({
+        x: transform.x + localX * cos + localZ * sin,
+        z: transform.z - localX * sin + localZ * cos,
+      });
+    }
+    const employee = getEmployeePositionAtDesk([transform.x, 0, transform.z], transform.yaw);
+    const employeeRadius = EMPLOYEE_RADIUS + 0.25;
+    points.push(
+      { x: employee[0] - employeeRadius, z: employee[2] - employeeRadius },
+      { x: employee[0] + employeeRadius, z: employee[2] + employeeRadius },
+    );
+  }
+
+  const minX = Math.min(...points.map((point) => point.x));
+  const maxX = Math.max(...points.map((point) => point.x));
+  const minZ = Math.min(...points.map((point) => point.z));
+  const maxZ = Math.max(...points.map((point) => point.z));
+  return {
+    width: Math.max(2.4, maxX - minX),
+    depth: Math.max(2.4, maxZ - minZ),
+    clearance: 0.15,
   };
 }
 

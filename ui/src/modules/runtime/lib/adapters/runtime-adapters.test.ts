@@ -67,6 +67,63 @@ describe("runtime adapters", () => {
     expect(openclaw.capabilities.agentConfigWrite).toBe(true);
   });
 
+  it("shuffles office objects through the state bridge", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/farplane/office-objects/shuffle")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            movedCount: 2,
+            placementViolationCount: 0,
+            objects: [
+              {
+                id: "team-cluster-team-alpha",
+                identifier: "team-cluster-team-alpha",
+                meshType: "team-cluster",
+                position: [7, 0, 8],
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({ ok: false }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const adapter = createOfficeRuntimeAdapter({ kind: "codex", stateUrl: "http://state" });
+    const result = await adapter.shuffleOfficeObjects(
+      [
+        {
+          _id: "team-cluster-team-alpha",
+          meshType: "team-cluster",
+          position: [0, 0, 0],
+          rotation: [0, 0, 0],
+        },
+      ],
+      { seed: "test-seed" },
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        ok: true,
+        movedCount: 2,
+        placementViolationCount: 0,
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://state/farplane/office-objects/shuffle",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining("test-seed"),
+      }),
+    );
+  });
+
   it("synthesizes a main Codex agent when no runtime registry is available", async () => {
     vi.stubGlobal(
       "fetch",

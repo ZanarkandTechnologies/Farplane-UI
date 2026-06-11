@@ -34,6 +34,7 @@ import {
 } from "@/modules/office/skill-targeting";
 import {
   getAbsoluteDeskPosition,
+  getClusterOccupancyFootprint,
   getDeskRotation,
   getEmployeePositionAtDesk,
 } from "@/modules/office/utils/layout";
@@ -48,6 +49,12 @@ import {
   getManagementAnchorFromOfficeLayout,
   type OfficeLayoutModel,
 } from "@/modules/office/lib/office-layout";
+import {
+  countObjectFootprintCollisions,
+  isObjectFootprintInsideLayout,
+  objectFootprintsCollide,
+  type ObjectFootprintInput,
+} from "@/modules/office/utils/object-footprints";
 import type {
   AgentCardModel,
   AgentLiveStatus,
@@ -63,6 +70,22 @@ import type {
   UnifiedOfficeModel,
 } from "@/modules/runtime";
 import type { Company, DeskLayoutData, EmployeeData, OfficeObject, TeamData } from "@/modules/office/lib/types";
+
+type ScenePlacementObject = ObjectFootprintInput;
+const DEFAULT_PROJECT_CLUSTER_POSITIONS: Array<[number, number, number]> = [
+  [0, 0, 13],
+  [-12, 0, 4.25],
+  [12, 0, 4.25],
+  [-12, 0, -4.5],
+  [0, 0, -4.5],
+  [12, 0, -4.5],
+  [-12, 0, -13],
+  [0, 0, -13],
+  [12, 0, -13],
+  [-12, 0, 13],
+  [12, 0, 13],
+  [0, 0, 4.25],
+];
 
 export interface OfficeDataContextValue {
   company: Company | null;
@@ -89,7 +112,6 @@ export interface OfficeDataContextValue {
   isLoading: boolean;
 }
 
-const CLUSTER_MARGIN = 2;
 type EmployeeAppearance = NonNullable<EmployeeData["appearance"]>;
 
 const demoCompany: Company = { _id: "company-demo", name: "Farplane AI" };
@@ -118,15 +140,113 @@ function isAppearancePetType(
   );
 }
 
-function clampClusterPositionForLayout(
-  position: [number, number, number],
-  layout: OfficeLayoutModel,
-): { position: [number, number, number]; clamped: boolean } {
-  const next = clampPositionToOfficeLayout(position, layout, CLUSTER_MARGIN);
+function getDefaultProjectClusterPosition(projectIndex: number): [number, number, number] {
+  const safeIndex = Number.isFinite(projectIndex) ? Math.max(0, Math.floor(projectIndex)) : 0;
+  return DEFAULT_PROJECT_CLUSTER_POSITIONS[safeIndex % DEFAULT_PROJECT_CLUSTER_POSITIONS.length] ?? [
+    0,
+    0,
+    8,
+  ];
+}
+
+function getTeamClusterPlacementMetadata(
+  metadata: Record<string, unknown> | undefined,
+  deskCount: number,
+): Record<string, unknown> {
+  const footprint = getClusterOccupancyFootprint(deskCount);
   return {
-    position: next,
-    clamped: next[0] !== position[0] || next[2] !== position[2],
+    ...(metadata ?? {}),
+    deskCount,
+    footprintWidth: footprint.width,
+    footprintDepth: footprint.depth,
+    footprintClearance: footprint.clearance,
   };
+}
+
+function resolveSceneObjectPosition(input: {
+  object: ScenePlacementObject;
+  officeLayout: OfficeLayoutModel;
+  reservedObjects: ScenePlacementObject[];
+  allowCollisionFallback?: boolean;
+}): [number, number, number] | null {
+  const clampedPreferred = clampPositionToOfficeLayout(input.object.position, input.officeLayout, 0);
+  const preferredObject = { ...input.object, position: clampedPreferred };
+  if (
+    isObjectFootprintInsideLayout(preferredObject, input.officeLayout) &&
+    !input.reservedObjects.some((object) => objectFootprintsCollide(preferredObject, object))
+  ) {
+    input.reservedObjects.push(preferredObject);
+    return clampedPreferred;
+  }
+
+  const candidates = input.officeLayout.tiles
+    .map((tile) => {
+      const [xRaw, zRaw] = tile.split(":");
+      return [Number(xRaw), input.object.position[1], Number(zRaw)] as [number, number, number];
+    })
+    .filter((position) => Number.isFinite(position[0]) && Number.isFinite(position[2]))
+    .sort((left, right) => {
+      const leftDistance =
+        (left[0] - input.object.position[0]) ** 2 + (left[2] - input.object.position[2]) ** 2;
+      const rightDistance =
+        (right[0] - input.object.position[0]) ** 2 + (right[2] - input.object.position[2]) ** 2;
+      return leftDistance - rightDistance;
+    });
+
+  let lowestCollisionCandidate: {
+    position: [number, number, number];
+    collisionCount: number;
+    distance: number;
+  } | null = null;
+
+  for (const position of candidates) {
+    const candidateObject = { ...input.object, position };
+    if (!isObjectFootprintInsideLayout(candidateObject, input.officeLayout)) continue;
+    const collisionCount = countObjectFootprintCollisions(candidateObject, input.reservedObjects);
+    if (collisionCount === 0) {
+      input.reservedObjects.push(candidateObject);
+      return position;
+    }
+    const distance =
+      (position[0] - input.object.position[0]) ** 2 + (position[2] - input.object.position[2]) ** 2;
+    if (
+      lowestCollisionCandidate === null ||
+      collisionCount < lowestCollisionCandidate.collisionCount ||
+      (collisionCount === lowestCollisionCandidate.collisionCount &&
+        distance < lowestCollisionCandidate.distance)
+    ) {
+      lowestCollisionCandidate = { position, collisionCount, distance };
+    }
+  }
+
+  if (input.allowCollisionFallback !== false && lowestCollisionCandidate) {
+    const fallbackObject = { ...input.object, position: lowestCollisionCandidate.position };
+    input.reservedObjects.push(fallbackObject);
+    return lowestCollisionCandidate.position;
+  }
+
+  return null;
+}
+
+function resolveTeamClusterScenePosition(input: {
+  position: [number, number, number];
+  deskCount: number;
+  officeLayout: OfficeLayoutModel;
+  reservedObjects: ScenePlacementObject[];
+  metadata?: Record<string, unknown>;
+  rotation?: [number, number, number];
+}): [number, number, number] {
+  return resolveSceneObjectPosition({
+    object: {
+      meshType: "team-cluster",
+      position: input.position,
+      metadata: getTeamClusterPlacementMetadata(input.metadata, input.deskCount),
+      rotation: input.rotation,
+    },
+    officeLayout: input.officeLayout,
+    reservedObjects: input.reservedObjects,
+    allowCollisionFallback: true,
+  }) ?? clampPositionToOfficeLayout(input.position, input.officeLayout, 0);
 }
 
 function shouldReplaceCanonicalSidecarObject(
@@ -377,12 +497,23 @@ export function toOfficeData(
   for (const object of sidecarObjects.filter((entry) => entry.meshType === "team-cluster")) {
     const resolvedTeamId = resolveTeamClusterTeamId(object);
     if (!resolvedTeamId) continue;
-    teamClusterAnchorsByTeamId.set(
-      resolvedTeamId,
-      clampClusterPositionForLayout(object.position, officeLayout).position,
-    );
+    teamClusterAnchorsByTeamId.set(resolvedTeamId, object.position);
   }
   const ceoAnchor = getManagementAnchorFromOfficeLayout(officeLayout);
+  const reservedSceneObjects: ScenePlacementObject[] = [];
+  const sidecarFurnitureEntries = sidecarObjects.filter(
+    (entry) => entry.meshType !== "team-cluster" && entry.meshType !== "wall-art",
+  );
+  let sidecarFurniture: OfficeObject[] = [];
+
+  const managementClusterPosition = resolveTeamClusterScenePosition({
+    position: teamClusterAnchorsByTeamId.get("team-management") ?? ceoAnchor,
+    deskCount: 1,
+    officeLayout,
+    reservedObjects: reservedSceneObjects,
+    metadata: { teamId: "team-management" },
+    rotation: persistedTeamClusterByTeamId.get("team-management")?.rotation,
+  });
 
   teams.push({
     _id: "team-management",
@@ -390,7 +521,7 @@ export function toOfficeData(
     name: "Management",
     description: "Executive control desk inside the dedicated management zone.",
     deskCount: 1,
-    clusterPosition: teamClusterAnchorsByTeamId.get("team-management") ?? ceoAnchor,
+    clusterPosition: managementClusterPosition,
     employees: [],
   });
 
@@ -398,6 +529,7 @@ export function toOfficeData(
     for (const [projectIndex, project] of projectList.entries()) {
       const teamId = `team-${project.id}`;
       const projectAgents = companyAgents.filter((agent) => agent.projectId === project.id);
+      const deskCount = Math.max(projectAgents.length, 1);
       projectToTeamId.set(project.id, teamId);
       const summary = workload.find((item) => item.projectId === project.id);
       const revenueCents = (project.ledger ?? [])
@@ -406,10 +538,16 @@ export function toOfficeData(
       const costCents = (project.ledger ?? [])
         .filter((entry) => entry.type === "cost")
         .reduce((total, entry) => total + Math.max(0, Math.round(entry.amount)), 0);
-      const fallbackAnchor: [number, number, number] = [projectIndex * 9 - 4, 0, 8];
-      const clusterPosition =
-        teamClusterAnchorsByTeamId.get(teamId) ??
-        clampClusterPositionForLayout(fallbackAnchor, officeLayout).position;
+      const persistedClusterPosition = teamClusterAnchorsByTeamId.get(teamId);
+      const persistedCluster = persistedTeamClusterByTeamId.get(teamId);
+      const clusterPosition = resolveTeamClusterScenePosition({
+        position: persistedClusterPosition ?? getDefaultProjectClusterPosition(projectIndex),
+        deskCount,
+        officeLayout,
+        reservedObjects: reservedSceneObjects,
+        metadata: { ...(persistedCluster?.metadata ?? {}), teamId },
+        rotation: persistedCluster?.rotation,
+      });
       const resources = (project.resources ?? []).map((resource) => {
         const softLimit = resource.policy.softLimit;
         const hardLimit = resource.policy.hardLimit;
@@ -438,7 +576,7 @@ export function toOfficeData(
         companyId,
         name: project.name,
         description: `${project.goal} | open=${summary?.openTickets ?? 0} closed=${summary?.closedTickets ?? 0}`,
-        deskCount: Math.max(projectAgents.length, 1),
+        deskCount,
         clusterPosition,
         employees: projectAgents.map((agent) => `employee-${agent.agentId}`),
         businessType: project.businessConfig?.type,
@@ -462,6 +600,32 @@ export function toOfficeData(
       });
     }
   }
+
+  sidecarFurniture = sidecarFurnitureEntries.flatMap((item) => {
+    const rotation = item.rotation ?? [0, 0, 0];
+    const metadata = { ...(item.metadata ?? {}) };
+    const position = resolveSceneObjectPosition({
+      object: {
+        meshType: item.meshType,
+        position: item.position,
+        metadata,
+        rotation,
+      },
+      officeLayout,
+      reservedObjects: reservedSceneObjects,
+      allowCollisionFallback: false,
+    });
+    if (!position) return [];
+    return {
+      _id: normalizeOfficeObjectId(item.id),
+      companyId,
+      meshType: item.meshType,
+      position,
+      rotation,
+      scale: item.scale,
+      metadata,
+    } satisfies OfficeObject;
+  });
 
   const desks: DeskLayoutData[] = teams.flatMap((team) =>
     Array.from(
@@ -527,30 +691,20 @@ export function toOfficeData(
 
   const clusterObjects: OfficeObject[] = teams.map((team, index) => {
     const persistedCluster = persistedTeamClusterByTeamId.get(team._id);
+    const deskCount = Math.max(team.deskCount ?? 1, 1);
     return {
       _id: persistedCluster?.id ?? `team-cluster-${team._id}`,
       companyId,
       meshType: "team-cluster",
-      position: team.clusterPosition ?? [index * 9 - 4, 0, 8],
+      position: team.clusterPosition ?? getDefaultProjectClusterPosition(Math.max(0, index - 1)),
       rotation: persistedCluster?.rotation ?? [0, 0, 0],
       scale: persistedCluster?.scale,
       metadata: {
-        ...(persistedCluster?.metadata ?? {}),
+        ...getTeamClusterPlacementMetadata(persistedCluster?.metadata, deskCount),
         teamId: team._id,
       },
     };
   });
-  const sidecarFurniture: OfficeObject[] = sidecarObjects
-    .filter((item) => item.meshType !== "team-cluster")
-    .map((item) => ({
-      _id: normalizeOfficeObjectId(item.id),
-      companyId,
-      meshType: item.meshType,
-      position: clampPositionToOfficeLayout(item.position, officeLayout, 1),
-      rotation: item.rotation ?? [0, 0, 0],
-      scale: item.scale,
-      metadata: { ...(item.metadata ?? {}) },
-    }));
   const officeObjects = [
     ...clusterObjects,
     ...(sidecarFurniture.length > 0 ? sidecarFurniture : buildDefaultFurnitureObjects(companyId)),

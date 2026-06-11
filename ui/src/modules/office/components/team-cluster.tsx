@@ -24,12 +24,28 @@ import { useAppStore } from "@/store";
 import { Text, Html } from "@react-three/drei";
 import {
   getClusterAnchor,
+  getClusterOccupancyFootprint,
   getDeskPosition,
   getDeskRotation,
 } from "@/modules/office/utils/layout";
 
 // Constants
 const MAX_DESKS_PER_TEAM = 6;
+const DEFAULT_OCCUPANCY_WIDTH = 9.2;
+const DEFAULT_OCCUPANCY_DEPTH = 7.4;
+const SIGN_LABEL_MAX_WIDTH = 1.05;
+
+function getPositiveMetadataNumber(metadata: Record<string, unknown> | undefined, key: string): number | null {
+  const value = metadata?.[key];
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function getSignFontSize(label: string): number {
+  if (label.length > 22) return 0.105;
+  if (label.length > 16) return 0.125;
+  if (label.length > 11) return 0.15;
+  return 0.18;
+}
 
 // ============================================================================
 // GHOST COMPONENT (For Placement Mode)
@@ -187,27 +203,30 @@ export default function TeamCluster({
     return [anchorX, 0.8, anchorZ];
   }, [desksWithPositions.length]);
   const tableHitTarget = useMemo(() => {
-    if (desksWithPositions.length === 0) {
-      return {
-        center: [0, 0.4, 0] as [number, number, number],
-        size: [3.4, 0.8, 3.2] as [number, number, number],
-      };
-    }
-    const xs = desksWithPositions.map((desk) => desk.position[0]);
-    const zs = desksWithPositions.map((desk) => desk.position[2]);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minZ = Math.min(...zs);
-    const maxZ = Math.max(...zs);
+    const footprint = getClusterOccupancyFootprint(Math.max(desksWithPositions.length, 1));
+    const width = getPositiveMetadataNumber(metadata, "footprintWidth") ?? footprint.width;
+    const depth = getPositiveMetadataNumber(metadata, "footprintDepth") ?? footprint.depth;
     return {
-      center: [(minX + maxX) / 2, 0.4, (minZ + maxZ) / 2] as [number, number, number],
-      size: [
-        Math.max(3.4, maxX - minX + 1.8),
-        0.8,
-        Math.max(3.2, maxZ - minZ + 1.6),
-      ] as [number, number, number],
+      center: [0, 0.4, 0] as [number, number, number],
+      size: [width, 0.8, depth] as [number, number, number],
     };
-  }, [desksWithPositions]);
+  }, [desksWithPositions.length, metadata]);
+  const occupancyMat = useMemo(
+    () => {
+      const solvedFootprint = getClusterOccupancyFootprint(Math.max(desks.length, 1));
+      return {
+        width:
+          getPositiveMetadataNumber(metadata, "footprintWidth") ??
+          solvedFootprint.width ??
+          DEFAULT_OCCUPANCY_WIDTH,
+        depth:
+          getPositiveMetadataNumber(metadata, "footprintDepth") ??
+          solvedFootprint.depth ??
+          DEFAULT_OCCUPANCY_DEPTH,
+      };
+    },
+    [desks.length, metadata],
+  );
 
   // Render conditions
   const isManagementCluster = team.name === "Management";
@@ -238,11 +257,11 @@ export default function TeamCluster({
         <group name="team-marker">
           {/* Floor Mat - Only visible in Builder/Placement mode */}
           {showCircle && (
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} receiveShadow>
-              <circleGeometry args={[2, 32]} />
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.018, 0]} receiveShadow>
+              <planeGeometry args={[occupancyMat.width, occupancyMat.depth]} />
               <meshStandardMaterial
                 color={isHovered ? "#a7f3d0" : "#e5e7eb"}
-                opacity={0.5}
+                opacity={0.22}
                 transparent
               />
             </mesh>
@@ -308,10 +327,12 @@ export default function TeamCluster({
                 {/* Team Name Text */}
                 <Text
                   position={[0, 0, 0.015]}
-                  fontSize={0.18}
+                  fontSize={getSignFontSize(team.name)}
+                  maxWidth={SIGN_LABEL_MAX_WIDTH}
                   color="white"
                   anchorX="center"
                   anchorY="middle"
+                  textAlign="center"
                   outlineWidth={0.01}
                   outlineColor="#000000"
                 >

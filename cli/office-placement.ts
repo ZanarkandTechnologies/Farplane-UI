@@ -45,14 +45,27 @@ export interface PlacementViolation {
   otherPosition?: [number, number, number];
 }
 
-const DEFAULT_FOOTPRINT: PlacementFootprint = { width: 2, depth: 2, clearance: 0 };
+export interface PlacementAabb {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
+
+const DEFAULT_FOOTPRINT: PlacementFootprint = { width: 2, depth: 2, clearance: 0.25 };
+export const TEAM_CLUSTER_VISUAL_FOOTPRINT: PlacementFootprint = {
+  width: 9.2,
+  depth: 7.4,
+  clearance: 0.5,
+};
+
 const FOOTPRINT_BY_MESH: Record<string, PlacementFootprint> = {
-  "team-cluster": { width: 4, depth: 4, clearance: 0.5 },
+  "team-cluster": TEAM_CLUSTER_VISUAL_FOOTPRINT,
   plant: { width: 1, depth: 1, clearance: 0.2 },
-  couch: { width: 3, depth: 2, clearance: 0.25 },
-  bookshelf: { width: 2, depth: 1, clearance: 0.2 },
-  pantry: { width: 2, depth: 2, clearance: 0.25 },
-  "glass-wall": { width: 1, depth: 3, clearance: 0.1 },
+  couch: { width: 3.4, depth: 2.2, clearance: 0.8 },
+  bookshelf: { width: 3.1, depth: 1.4, clearance: 0.65 },
+  pantry: { width: 7.2, depth: 2.4, clearance: 0.65 },
+  "glass-wall": { width: 4, depth: 0.35, clearance: 0.05 },
   "custom-mesh": { width: 2, depth: 2, clearance: 0.25 },
 };
 
@@ -80,6 +93,72 @@ export function getMeshFootprint(meshType: string, metadata?: Record<string, unk
   return { width, depth, clearance };
 }
 
+export function getObjectFootprint(object: {
+  meshType: string;
+  metadata?: Record<string, unknown>;
+  rotation?: [number, number, number];
+}): PlacementFootprint {
+  const footprint = getMeshFootprint(object.meshType, object.metadata);
+  const rotationY = object.rotation?.[1] ?? 0;
+  if (!Number.isFinite(rotationY)) return footprint;
+  const cos = Math.abs(Math.cos(rotationY));
+  const sin = Math.abs(Math.sin(rotationY));
+  return {
+    width: footprint.width * cos + footprint.depth * sin,
+    depth: footprint.width * sin + footprint.depth * cos,
+    clearance: footprint.clearance,
+  };
+}
+
+function getMeshFootprintOffset(meshType: string, metadata?: Record<string, unknown>): { x: number; z: number } {
+  const metadataOffsetX = metadata?.footprintOffsetX;
+  const metadataOffsetZ = metadata?.footprintOffsetZ;
+  const x =
+    typeof metadataOffsetX === "number" && Number.isFinite(metadataOffsetX)
+      ? metadataOffsetX
+      : meshType === "pantry"
+        ? 0.4
+        : 0;
+  const z =
+    typeof metadataOffsetZ === "number" && Number.isFinite(metadataOffsetZ)
+      ? metadataOffsetZ
+      : meshType === "pantry"
+        ? -0.5
+        : 0;
+  return { x, z };
+}
+
+function rotateOffset(offset: { x: number; z: number }, rotationY: number): { x: number; z: number } {
+  const cos = Math.cos(rotationY);
+  const sin = Math.sin(rotationY);
+  return {
+    x: offset.x * cos + offset.z * sin,
+    z: -offset.x * sin + offset.z * cos,
+  };
+}
+
+export function getObjectPlacementAabb(object: {
+  meshType: string;
+  position: [number, number, number];
+  metadata?: Record<string, unknown>;
+  rotation?: [number, number, number];
+}): PlacementAabb {
+  const footprint = getObjectFootprint(object);
+  const rotationY = object.rotation?.[1] ?? 0;
+  const offset = getMeshFootprintOffset(object.meshType, object.metadata);
+  const rotatedOffset = Number.isFinite(rotationY) ? rotateOffset(offset, rotationY) : offset;
+  const centerX = object.position[0] + rotatedOffset.x;
+  const centerZ = object.position[2] + rotatedOffset.z;
+  const halfWidth = effectiveHalfWidth(footprint);
+  const halfDepth = effectiveHalfDepth(footprint);
+  return {
+    minX: centerX - halfWidth,
+    maxX: centerX + halfWidth,
+    minZ: centerZ - halfDepth,
+    maxZ: centerZ + halfDepth,
+  };
+}
+
 function effectiveHalfWidth(footprint: PlacementFootprint): number {
   return footprint.width / 2 + footprint.clearance;
 }
@@ -88,25 +167,22 @@ function effectiveHalfDepth(footprint: PlacementFootprint): number {
   return footprint.depth / 2 + footprint.clearance;
 }
 
-function isCenterInsideBounds(position: [number, number, number], footprint: PlacementFootprint, bounds: PlacementBounds): boolean {
-  const [x, , z] = position;
-  const halfWidth = effectiveHalfWidth(footprint);
-  const halfDepth = effectiveHalfDepth(footprint);
+function isAabbInsideBounds(aabb: PlacementAabb, bounds: PlacementBounds): boolean {
   const limit = bounds.halfExtent;
-  return x >= -limit + halfWidth && x <= limit - halfWidth && z >= -limit + halfDepth && z <= limit - halfDepth;
+  return aabb.minX >= -limit && aabb.maxX <= limit && aabb.minZ >= -limit && aabb.maxZ <= limit;
 }
 
-function intersectsXZ(
-  leftPos: [number, number, number],
-  leftFootprint: PlacementFootprint,
-  rightPos: [number, number, number],
-  rightFootprint: PlacementFootprint,
-): boolean {
-  const dx = Math.abs(leftPos[0] - rightPos[0]);
-  const dz = Math.abs(leftPos[2] - rightPos[2]);
-  const overlapX = dx < effectiveHalfWidth(leftFootprint) + effectiveHalfWidth(rightFootprint);
-  const overlapZ = dz < effectiveHalfDepth(leftFootprint) + effectiveHalfDepth(rightFootprint);
-  return overlapX && overlapZ;
+function intersectsXZ(leftAabb: PlacementAabb, rightAabb: PlacementAabb): boolean {
+  return (
+    leftAabb.minX < rightAabb.maxX &&
+    leftAabb.maxX > rightAabb.minX &&
+    leftAabb.minZ < rightAabb.maxZ &&
+    leftAabb.maxZ > rightAabb.minZ
+  );
+}
+
+function canSharePlacementContact(leftMeshType: string, rightMeshType: string): boolean {
+  return leftMeshType === "glass-wall" && rightMeshType === "glass-wall";
 }
 
 export function findPlacementViolations(input: {
@@ -116,8 +192,7 @@ export function findPlacementViolations(input: {
   const violations: PlacementViolation[] = [];
 
   for (const object of input.objects) {
-    const footprint = getMeshFootprint(object.meshType, object.metadata);
-    if (!isCenterInsideBounds(object.position, footprint, input.bounds)) {
+    if (!isAabbInsideBounds(getObjectPlacementAabb(object), input.bounds)) {
       violations.push({
         type: "out_of_bounds",
         objectId: object.id,
@@ -131,12 +206,11 @@ export function findPlacementViolations(input: {
     for (let rightIndex = leftIndex + 1; rightIndex < input.objects.length; rightIndex += 1) {
       const left = input.objects[leftIndex];
       const right = input.objects[rightIndex];
+      if (canSharePlacementContact(left.meshType, right.meshType)) continue;
       if (
         intersectsXZ(
-          left.position,
-          getMeshFootprint(left.meshType, left.metadata),
-          right.position,
-          getMeshFootprint(right.meshType, right.metadata),
+          getObjectPlacementAabb(left),
+          getObjectPlacementAabb(right),
         )
       ) {
         violations.push({
@@ -159,17 +233,18 @@ export function isPlacementAreaFree(input: {
   position: [number, number, number];
   meshType: string;
   metadata?: Record<string, unknown>;
+  rotation?: [number, number, number];
   existingObjects: OfficeObjectModel[];
   bounds: PlacementBounds;
   ignoreObjectId?: string;
 }): boolean {
-  const targetFootprint = getMeshFootprint(input.meshType, input.metadata);
-  if (!isCenterInsideBounds(input.position, targetFootprint, input.bounds)) {
+  const targetAabb = getObjectPlacementAabb(input);
+  if (!isAabbInsideBounds(targetAabb, input.bounds)) {
     return false;
   }
   for (const object of input.existingObjects) {
     if (input.ignoreObjectId && object.id === input.ignoreObjectId) continue;
-    if (intersectsXZ(input.position, targetFootprint, object.position, getMeshFootprint(object.meshType, object.metadata))) {
+    if (intersectsXZ(targetAabb, getObjectPlacementAabb(object))) {
       return false;
     }
   }

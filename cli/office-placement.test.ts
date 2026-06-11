@@ -15,6 +15,18 @@ function makeObject(id: string, meshType: string, position: [number, number, num
   };
 }
 
+function makeRotatedObject(
+  id: string,
+  meshType: string,
+  position: [number, number, number],
+  rotation: [number, number, number],
+): OfficeObjectModel {
+  return {
+    ...makeObject(id, meshType, position),
+    rotation,
+  };
+}
+
 describe("office placement helpers", () => {
   it("accepts a free position inside bounds", () => {
     const free = isPlacementAreaFree({
@@ -91,6 +103,46 @@ describe("office placement helpers", () => {
         expect.objectContaining({
           type: "out_of_bounds",
           objectId: "team-edge",
+        }),
+      ]),
+    );
+  });
+
+  it("treats visually crowded team table lanes as collisions", () => {
+    const violations = findPlacementViolations({
+      bounds: { halfExtent: 17.5 },
+      objects: [
+        makeObject("team-farplane", "team-cluster", [-4, 0, 6]),
+        makeObject("team-misc", "team-cluster", [4, 0, 13]),
+      ],
+    });
+
+    expect(violations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "collision",
+          objectId: "team-farplane",
+          otherObjectId: "team-misc",
+        }),
+      ]),
+    );
+  });
+
+  it("reports padded decor collisions with rotated furniture", () => {
+    const violations = findPlacementViolations({
+      bounds: { halfExtent: 17.5 },
+      objects: [
+        makeRotatedObject("couch-main", "couch", [8, 0, -8], [0, Math.PI * 1.5, 0]),
+        makeObject("farplane-map-console", "bookshelf", [7, 0, -11]),
+      ],
+    });
+
+    expect(violations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "collision",
+          objectId: "couch-main",
+          otherObjectId: "farplane-map-console",
         }),
       ]),
     );

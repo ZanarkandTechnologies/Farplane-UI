@@ -17,18 +17,23 @@
 
 'use client';
 
-import { Box } from '@react-three/drei';
+import { Box, Text } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { getBuilderGridLinePositions } from '@/components/debug/builder-grid';
 import { getGridData } from '@/modules/navigation/pathfinding/a-star-pathfinding';
-import { getOfficeLayoutBounds } from '@/modules/office/lib/office-layout';
+import {
+  getOfficeLayoutBounds,
+  getOfficeLayoutTileSet,
+} from '@/modules/office/lib/office-layout';
+import { getObjectFootprintCells } from '@/modules/office/utils/object-footprints';
 import { useOfficeDataContext } from '@/providers/office-data-provider';
 
 const DEBUG_COLOR = 0xff0000;
 const BUILDER_COLOR = 0x0000ff;
 const BOTH_COLOR = 0x9932cc;
+const COORDINATE_LABEL_STEP = 4;
 
 interface GridCellVisual {
   key: string;
@@ -37,13 +42,27 @@ interface GridCellVisual {
   isWalkable: boolean;
 }
 
+interface CoordinateLabel {
+  key: string;
+  position: THREE.Vector3Tuple;
+  text: string;
+  color: string;
+}
+
+interface ObjectFootprintCell {
+  key: string;
+  position: THREE.Vector3Tuple;
+  color: string;
+  opacity: number;
+}
+
 interface UnifiedGridHelperProps {
   mode: 'debug' | 'builder' | 'both';
 }
 
 const UnifiedGridHelper = memo(function UnifiedGridHelper({ mode }: UnifiedGridHelperProps) {
   const { scene } = useThree();
-  const { officeSettings } = useOfficeDataContext();
+  const { officeObjects, officeSettings } = useOfficeDataContext();
   const gridRef = useRef<THREE.GridHelper | null>(null);
   const [gridVisualData, setGridVisualData] = useState<GridCellVisual[]>([]);
   const layoutBounds = useMemo(
@@ -54,6 +73,66 @@ const UnifiedGridHelper = memo(function UnifiedGridHelper({ mode }: UnifiedGridH
     () => (mode === 'debug' ? null : getBuilderGridLinePositions(layoutBounds)),
     [layoutBounds, mode],
   );
+  const coordinateLabels = useMemo<CoordinateLabel[]>(() => {
+    if (mode === 'debug') return [];
+    const labels: CoordinateLabel[] = [];
+    const xValues = new Set<number>([
+      layoutBounds.minTileX,
+      layoutBounds.maxTileX,
+      0,
+    ]);
+    const zValues = new Set<number>([
+      layoutBounds.minTileZ,
+      layoutBounds.maxTileZ,
+      0,
+    ]);
+    for (let x = layoutBounds.minTileX; x <= layoutBounds.maxTileX; x += 1) {
+      if (x % COORDINATE_LABEL_STEP === 0) xValues.add(x);
+    }
+    for (let z = layoutBounds.minTileZ; z <= layoutBounds.maxTileZ; z += 1) {
+      if (z % COORDINATE_LABEL_STEP === 0) zValues.add(z);
+    }
+    for (const x of xValues) {
+      if (x < layoutBounds.minTileX || x > layoutBounds.maxTileX) continue;
+      labels.push({
+        key: `x-${x}`,
+        position: [x, 0.065, layoutBounds.minWorldZ + 0.35],
+        text: `x ${x}`,
+        color: x === 0 ? '#111827' : '#1d4ed8',
+      });
+    }
+    for (const z of zValues) {
+      if (z < layoutBounds.minTileZ || z > layoutBounds.maxTileZ) continue;
+      labels.push({
+        key: `z-${z}`,
+        position: [layoutBounds.minWorldX + 0.35, 0.065, z],
+        text: `z ${z}`,
+        color: z === 0 ? '#111827' : '#7c3aed',
+      });
+    }
+    return labels;
+  }, [layoutBounds, mode]);
+  const objectFootprintCells = useMemo<ObjectFootprintCell[]>(() => {
+    const tileSet = getOfficeLayoutTileSet(officeSettings.officeLayout);
+    const cells: ObjectFootprintCell[] = [];
+    for (const object of officeObjects) {
+      if (object.meshType === 'wall-art') continue;
+      for (const cell of getObjectFootprintCells(object)) {
+        const isInsideFloor = tileSet.has(cell.key);
+        cells.push({
+          key: `${object._id}:${cell.key}`,
+          position: [cell.x, 0.045, cell.z],
+          color: isInsideFloor
+            ? object.meshType === 'team-cluster'
+              ? '#2563eb'
+              : '#f59e0b'
+            : '#ef4444',
+          opacity: isInsideFloor ? 0.22 : 0.42,
+        });
+      }
+    }
+    return cells;
+  }, [officeObjects, officeSettings.officeLayout]);
 
   useEffect(() => {
     const gridData = getGridData();
@@ -145,6 +224,37 @@ const UnifiedGridHelper = memo(function UnifiedGridHelper({ mode }: UnifiedGridH
             opacity={0.85}
           />
         </lineSegments>
+      ) : null}
+      {coordinateLabels.length > 0 ? (
+        <group name="builderCoordinateLabels">
+          {coordinateLabels.map((label) => (
+            <Text
+              key={label.key}
+              position={label.position}
+              rotation={[-Math.PI / 2, 0, 0]}
+              fontSize={0.28}
+              color={label.color}
+              anchorX="center"
+              anchorY="middle"
+            >
+              {label.text}
+            </Text>
+          ))}
+        </group>
+      ) : null}
+      {objectFootprintCells.length > 0 ? (
+        <group name="objectFootprintCells">
+          {objectFootprintCells.map((cell) => (
+            <Box key={cell.key} args={[0.92, 0.012, 0.92]} position={cell.position}>
+              <meshBasicMaterial
+                color={cell.color}
+                opacity={cell.opacity}
+                transparent
+                depthWrite={false}
+              />
+            </Box>
+          ))}
+        </group>
       ) : null}
       {gridVisualData.length > 0 ? (
         <group name="walkablePathVisualization">

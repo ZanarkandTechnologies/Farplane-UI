@@ -4,6 +4,12 @@ import { cp, mkdir, readdir, readFile, rm, writeFile, stat } from "node:fs/promi
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import {
+  findLiveLayoutPlacementViolations,
+  getOfficeLayoutCandidatePositions,
+} from "../cli/office-layout-placement";
+import { shuffleOfficeObjects } from "../cli/office-arrange";
+import type { OfficeObjectModel, OfficeSettingsModel } from "../cli/sidecar-store";
 import { buildNewTeamClusterObject } from "../cli/team-cluster-placement";
 import {
   getSkillStudioDetail,
@@ -1682,7 +1688,9 @@ function farplaneStateBridge() {
           return;
         }
 
-        if (!pathname.startsWith("/openclaw/")) {
+        const isOpenClawRoute = pathname.startsWith("/openclaw/");
+        const isFarplaneOfficeObjectRoute = pathname.startsWith("/farplane/office-objects/");
+        if (!isOpenClawRoute && !isFarplaneOfficeObjectRoute) {
           next();
           return;
         }
@@ -2411,6 +2419,81 @@ function farplaneStateBridge() {
           return;
         }
 
+        if (method === "POST" && pathname === "/farplane/office-objects/shuffle") {
+          if (!hasBridgeWriteAccess(req)) {
+            writeJson(res, 403, { ok: false, error: "forbidden" });
+            return;
+          }
+          const body = (await readBody(req)) as JsonObject;
+          const currentObjects = normalizeOfficeObjects(
+            await readJsonFile<unknown[]>(OFFICE_OBJECTS_PATH, []),
+          ) as unknown as OfficeObjectModel[];
+          const hasExplicitObjects = Array.isArray(body.objects);
+          const inputObjects = hasExplicitObjects ? (body.objects as unknown[]) : currentObjects;
+          const objects = normalizeOfficeObjects(inputObjects) as unknown as OfficeObjectModel[];
+          const seed =
+            typeof body.seed === "string" || typeof body.seed === "number" ? body.seed : Date.now();
+          try {
+            const officeSettings = (await readOfficeSettings()) as OfficeSettingsModel;
+            const candidates = getOfficeLayoutCandidatePositions(officeSettings);
+            const canPlaceObject = (
+              object: OfficeObjectModel,
+              placedObjects: OfficeObjectModel[],
+            ) =>
+              findLiveLayoutPlacementViolations({
+                objects: [...placedObjects, object],
+                officeSettings,
+              }).length === 0;
+            const arranged = shuffleOfficeObjects(objects, {
+              seed,
+              teamCandidates: candidates,
+              decorCandidates: candidates,
+              canPlaceObject,
+            });
+            const placementViolations = findLiveLayoutPlacementViolations({
+              objects: arranged.objects,
+              officeSettings,
+            });
+            if (placementViolations.length > 0) {
+              writeJson(res, 409, {
+                ok: false,
+                error: "office_shuffle_layout_invalid",
+                placementViolationCount: placementViolations.length,
+                placementViolations,
+              });
+              return;
+            }
+            const arrangedById = new Map(arranged.objects.map((object) => [object.id, object]));
+            const currentIds = new Set(currentObjects.map((object) => object.id));
+            const mergedObjects = hasExplicitObjects
+              ? [
+                  ...currentObjects.map((object) => arrangedById.get(object.id) ?? object),
+                  ...arranged.objects.filter((object) => !currentIds.has(object.id)),
+                ]
+              : arranged.objects;
+            await mkdir(path.dirname(OFFICE_OBJECTS_PATH), { recursive: true });
+            await writeFile(
+              OFFICE_OBJECTS_PATH,
+              `${JSON.stringify(mergedObjects, null, 2)}\n`,
+              "utf-8",
+            );
+            writeJson(res, 200, {
+              ok: true,
+              seed,
+              objects: mergedObjects,
+              movedCount: arranged.moved.length,
+              moved: arranged.moved,
+              placementViolationCount: placementViolations.length,
+            });
+          } catch (error) {
+            writeJson(res, 409, {
+              ok: false,
+              error: error instanceof Error ? error.message : "office_shuffle_failed",
+            });
+          }
+          return;
+        }
+
         if (method === "POST" && pathname === "/openclaw/company-model") {
           if (!hasBridgeWriteAccess(req)) {
             writeJson(res, 403, { ok: false, error: "forbidden" });
@@ -2814,7 +2897,18 @@ function farplaneStateBridge() {
 export default defineConfig({
   root: __dirname,
   resolve: {
-    alias: { "@": path.resolve(__dirname, "src") },
+    alias: {
+      "@": path.resolve(__dirname, "src"),
+      react: path.resolve(REPO_ROOT, "node_modules/react"),
+      "react/jsx-dev-runtime": path.resolve(REPO_ROOT, "node_modules/react/jsx-dev-runtime.js"),
+      "react/jsx-runtime": path.resolve(REPO_ROOT, "node_modules/react/jsx-runtime.js"),
+      "react-dom": path.resolve(REPO_ROOT, "node_modules/react-dom"),
+      "react-dom/client": path.resolve(REPO_ROOT, "node_modules/react-dom/client.js"),
+    },
+    dedupe: ["react", "react-dom"],
+  },
+  optimizeDeps: {
+    include: ["react", "react/jsx-runtime", "react/jsx-dev-runtime", "react-dom", "react-dom/client"],
   },
   plugins: [farplaneStateBridge(), tailwindcss(), react()],
   server: {

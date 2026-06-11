@@ -1670,6 +1670,60 @@ export class OpenClawAdapter {
     return { ok, objects: cleaned, error };
   }
 
+  async shuffleOfficeObjects(
+    objects: unknown[],
+    options: { seed?: string | number } = {},
+  ): Promise<{
+    ok: boolean;
+    objects: OfficeObjectSidecarModel[];
+    movedCount: number;
+    placementViolationCount: number;
+    error?: string;
+  }> {
+    const cleaned = normalizeArray(objects, toOfficeObjectSidecar);
+    try {
+      const response = await fetch(`${this.stateUrl}/farplane/office-objects/shuffle`, {
+        method: "POST",
+        headers: buildGatewayHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({
+          objects: cleaned,
+          seed: options.seed,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as Json;
+      const nextObjects = normalizeArray(payload.objects ?? cleaned, toOfficeObjectSidecar);
+      if (!response.ok || payload.ok === false) {
+        return {
+          ok: false,
+          objects: nextObjects,
+          movedCount: 0,
+          placementViolationCount: Number(payload.placementViolationCount ?? 0),
+          error:
+            typeof payload.error === "string"
+              ? payload.error
+              : `office_shuffle_failed:${response.status}`,
+        };
+      }
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(OFFICE_OBJECTS_STORAGE_KEY, JSON.stringify(nextObjects));
+      }
+      return {
+        ok: true,
+        objects: nextObjects,
+        movedCount: Number(payload.movedCount ?? 0),
+        placementViolationCount: Number(payload.placementViolationCount ?? 0),
+      };
+    } catch {
+      return {
+        ok: false,
+        objects: cleaned,
+        movedCount: 0,
+        placementViolationCount: 0,
+        error: "office_shuffle_unavailable",
+      };
+    }
+  }
+
   async upsertOfficeObject(
     object: OfficeObjectSidecarModel,
     options?: { currentObjects?: OfficeObjectSidecarModel[] },

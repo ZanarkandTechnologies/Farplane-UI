@@ -147,6 +147,7 @@ describe("office CLI", () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
     process.env.FARPLANE_REPO_ROOT = path.resolve(process.cwd());
+    const logSpy = vi.spyOn(console, "log");
 
     await runCommand(["office", "init", "--force"]);
 
@@ -170,6 +171,12 @@ describe("office CLI", () => {
     expect(
       objects.some((entry) => entry.metadata?.skillBinding?.skillId === "farplane-map"),
     ).toBe(true);
+
+    await runCommand(["office", "doctor", "--json"]);
+    const doctorPayload = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? "")) as {
+      placementViolationCount: number;
+    };
+    expect(doctorPayload.placementViolationCount).toBe(0);
   });
 
   it("guards office init when starter office data already exists", async () => {
@@ -405,9 +412,64 @@ describe("office CLI", () => {
     expect(objects.find((entry) => entry.id === "team-cluster-team-management")?.position).toEqual([
       0,
       0,
-      14,
+      13,
     ]);
     expect(objects.find((entry) => entry.id === "plant-a")?.position).toEqual([-16, 0, 15]);
+  });
+
+  it("shuffles office objects into collision-free slots", async () => {
+    const stateDir = await setupStateDir();
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+    await writeFile(
+      path.join(stateDir, "office-objects.json"),
+      `${JSON.stringify(
+        [
+          {
+            id: "team-cluster-team-management",
+            identifier: "team-cluster-team-management",
+            meshType: "team-cluster",
+            position: [0, 0, 0],
+            metadata: { teamId: "team-management", name: "Management" },
+          },
+          {
+            id: "team-cluster-team-alpha",
+            identifier: "team-cluster-team-alpha",
+            meshType: "team-cluster",
+            position: [0, 0, 0],
+            metadata: { teamId: "team-alpha", name: "Alpha" },
+          },
+          {
+            id: "team-cluster-team-beta",
+            identifier: "team-cluster-team-beta",
+            meshType: "team-cluster",
+            position: [0, 0, 0],
+            metadata: { teamId: "team-beta", name: "Beta" },
+          },
+          { id: "plant-a", identifier: "plant-a", meshType: "plant", position: [0, 0, 0] },
+        ],
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await runCommand(["office", "shuffle", "--seed", "test-seed", "--json"]);
+
+    const payload = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? "")) as {
+      ok: boolean;
+      placementViolationCount: number;
+      movedCount: number;
+    };
+    expect(payload.ok).toBe(true);
+    expect(payload.placementViolationCount).toBe(0);
+    expect(payload.movedCount).toBeGreaterThan(0);
+
+    await runCommand(["office", "doctor", "--json"]);
+    const doctorPayload = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? "")) as {
+      placementViolationCount: number;
+    };
+    expect(doctorPayload.placementViolationCount).toBe(0);
   });
 
   it("validates placement flags for office add", async () => {
@@ -573,7 +635,7 @@ describe("office CLI", () => {
     };
     expect(payload.ok).toBe(false);
     expect(payload.invalidCount).toBe(2);
-    expect(payload.placementViolationCount).toBe(1);
+    expect(payload.placementViolationCount).toBe(2);
     expect(payload.placementViolations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
