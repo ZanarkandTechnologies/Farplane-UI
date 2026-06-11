@@ -32,7 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore } from "@/lib/app-store";
 import { extractAgentId } from "@/lib/entity-utils";
 import { formatTimestamp } from "@/lib/format-utils";
-import type { AgentMemoryEntry, AgentsFilesListResult } from "@/lib/openclaw";
+import type { AgentMemoryEntry, AgentsFilesListResult } from "@/modules/runtime";
 import { UI_Z } from "@/lib/z-index";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";

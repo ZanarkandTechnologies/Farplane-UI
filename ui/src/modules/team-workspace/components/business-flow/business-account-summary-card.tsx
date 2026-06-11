@@ -16,7 +16,7 @@
  * - MEM-0131
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ProjectAccountModel, ProjectAccountEventModel } from "@/lib/openclaw";
+import type { ProjectAccountModel, ProjectAccountEventModel } from "@/modules/runtime";
 
 interface BusinessAccountSummaryCardProps {
   account: ProjectAccountModel;

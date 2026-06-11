@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { OfficeSettingsModel } from "@/lib/openclaw";
+import type { OfficeSettingsModel } from "@/modules/runtime";
 
 import { saveOfficeSettingsOptimistically } from "./office-layout-save";
 

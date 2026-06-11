@@ -23,7 +23,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { InstalledSkillEntry } from "@/lib/openclaw";
+import type { InstalledSkillEntry } from "@/modules/runtime";
 import type { GlobalSkillRow } from "./skills-panel.runtime";
 import type { GroupedInheritedRuntimeSkills } from "./skills-panel-types";
 

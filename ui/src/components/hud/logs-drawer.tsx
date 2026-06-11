@@ -3,12 +3,12 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useQuery } from "convex/react";
 
 import { api } from "../../../../convex/_generated/api";
-import { hasGatewayToken } from "@/lib/gateway-config";
+import { hasGatewayToken } from "@/modules/runtime";
 import type {
   SessionRowModel,
   SessionTimelineModel,
   UnifiedOfficeModel,
-} from "@/lib/openclaw";
+} from "@/modules/runtime";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

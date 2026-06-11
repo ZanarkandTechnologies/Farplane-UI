@@ -17,7 +17,7 @@
 import type { DeskLayoutData, EmployeeData, OfficeId, OfficeObject, TeamData } from "@/modules/office/lib/types";
 import type { OfficeLayoutModel } from "@/modules/office/lib/office-layout";
 import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
-import type { OfficeSettingsModel } from "@/lib/openclaw";
+import type { OfficeSettingsModel } from "@/modules/runtime";
 
 export interface OfficeSceneProps {
   teams: TeamData[];

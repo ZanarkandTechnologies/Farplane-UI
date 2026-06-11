@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { toOfficeObjectSidecar, toOfficeSettings } from "./_normalize";
+import { toOfficeObjectSidecar, toOfficeSettings } from "./normalize";
 
 describe("office settings normalization", () => {
   it("fills view defaults when older payloads omit them", () => {

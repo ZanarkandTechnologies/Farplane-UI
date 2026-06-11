@@ -73,10 +73,10 @@ import type {
   AgentSkillsInventory,
   GlobalSkillsInventory,
 } from "./types";
-import { buildGatewayHeaders } from "../gateway-config";
-import type { GatewayWsClient } from "../gateway-ws-client";
-import type { BusinessBuilderResourceDraft } from "../business-builder";
-import { createBusinessBuilderDraft, toProjectResources } from "../business-builder";
+import { buildGatewayHeaders } from "../gateway/config";
+import type { GatewayWsClient } from "../gateway/ws-client";
+import type { BusinessBuilderResourceDraft } from "@/lib/business-builder";
+import { createBusinessBuilderDraft, toProjectResources } from "@/lib/business-builder";
 
 import {
   normalizeArray,
@@ -150,7 +150,7 @@ import {
   OFFICE_OBJECTS_STORAGE_KEY,
   CLUSTER_BOUNDARY_LIMIT,
   DEFAULT_COMPANY_MODEL,
-} from "../adapter/_normalize";
+} from "./normalize";
 
 export {
   parseHeartbeatWindows,
@@ -162,7 +162,7 @@ export {
   hashSchemaVersion,
   toProviderIndexProfile,
   resolveCanonicalWriteProvider,
-} from "../adapter/_normalize";
+} from "./normalize";
 
 type Json = Record<string, unknown>;
 

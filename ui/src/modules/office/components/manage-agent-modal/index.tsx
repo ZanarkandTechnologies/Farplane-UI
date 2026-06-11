@@ -38,7 +38,7 @@ import type {
   CronJob,
   CronStatus,
   ToolsCatalogResult,
-} from "@/lib/openclaw";
+} from "@/modules/runtime";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useGateway } from "@/providers/gateway-provider";

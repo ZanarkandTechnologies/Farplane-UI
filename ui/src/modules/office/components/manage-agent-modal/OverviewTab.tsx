@@ -21,7 +21,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import type { AgentIdentityResult, AgentsListResult } from "@/lib/openclaw";
+import type { AgentIdentityResult, AgentsListResult } from "@/modules/runtime";
 import type { EmployeeData } from "@/modules/office/lib/types";
 import type { AgentConfigDraft, AgentUsageOverview } from "./_types";
 import { EmployeePreviewCard } from "./EmployeePreviewCard";

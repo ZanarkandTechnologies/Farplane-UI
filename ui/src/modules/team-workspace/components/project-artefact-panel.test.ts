@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ProjectArtefactEntry } from "../../../lib/openclaw";
+import type { ProjectArtefactEntry } from "@/modules/runtime";
 import {
   buildExplorerTree,
   createFileKey,

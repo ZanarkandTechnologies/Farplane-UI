@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { OfficeObjectSidecarModel } from "../../../lib/openclaw";
+import type { OfficeObjectSidecarModel } from "@/modules/runtime";
 import type { OfficeObject, TeamData } from "../lib/types";
 
 import {

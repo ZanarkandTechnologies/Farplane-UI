@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { gatewayBase } from "@/lib/gateway-config";
+import { gatewayBase } from "@/modules/runtime";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { formatTimestamp as fmtTs } from "@/lib/format-utils";
 import type {
@@ -14,7 +14,7 @@ import type {
   SessionRowModel,
   SessionTimelineModel,
   SkillItemModel,
-} from "@/lib/openclaw";
+} from "@/modules/runtime";
 
 import {
   MemorySection,

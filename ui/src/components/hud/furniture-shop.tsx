@@ -65,7 +65,7 @@ import {
   type OfficeWallColorId,
   type WallArtSlotId,
 } from "@/modules/office/lib/office-decor";
-import type { MeshAssetModel } from "@/lib/openclaw";
+import type { MeshAssetModel } from "@/modules/runtime";
 import { cn } from "@/lib/utils";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";

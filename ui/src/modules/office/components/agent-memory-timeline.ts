@@ -4,7 +4,7 @@
  * Builds timeline rows from Convex events or memory entries fallback.
  */
 
-import type { AgentMemoryEntry } from "@/lib/openclaw";
+import type { AgentMemoryEntry } from "@/modules/runtime";
 
 export type AgentEventRow = {
   _id: string;

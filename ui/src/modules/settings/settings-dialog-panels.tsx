@@ -2,7 +2,7 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { OfficeSettingsModel } from "@/lib/openclaw";
+import type { OfficeSettingsModel } from "@/modules/runtime";
 import type { RuntimeAdapterKind } from "@/modules/runtime";
 import type { CodexOfficeVisibilityForm } from "./use-codex-office-visibility-settings";
 

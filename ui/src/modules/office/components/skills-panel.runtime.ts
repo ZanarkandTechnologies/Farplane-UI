@@ -14,7 +14,7 @@
  * - MEM-0203
  */
 
-import type { GlobalSkillsInventory, SkillStatusReport } from "@/lib/openclaw";
+import type { GlobalSkillsInventory, SkillStatusReport } from "@/modules/runtime";
 
 export type GlobalSkillRow = {
   skillKey: string;

@@ -3,7 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { AgentFileEntry, AgentsFilesListResult } from "@/lib/openclaw";
+import type { AgentFileEntry, AgentsFilesListResult } from "@/modules/runtime";
 
 type FilesState = {
   list: AgentsFilesListResult | null;

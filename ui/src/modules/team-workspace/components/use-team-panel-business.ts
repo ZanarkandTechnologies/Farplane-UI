@@ -30,8 +30,8 @@ import type {
   ProjectAccountModel,
   ProjectModel,
   ProjectResourceModel,
-} from "@/lib/openclaw";
-import type { OpenClawAdapter } from "@/lib/openclaw";
+} from "@/modules/runtime";
+import type { OpenClawAdapter } from "@/modules/runtime";
 import type { BusinessSlotKey } from "./business-flow/business-skill-library";
 
 type TeamLike = {

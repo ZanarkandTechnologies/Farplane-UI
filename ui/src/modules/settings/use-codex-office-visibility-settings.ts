@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { CodexAppServerClient, type CodexOfficeVisibilityConfig } from "@/modules/runtime";
-import { getGatewayUiConfig } from "@/lib/gateway-config";
+import { getGatewayUiConfig } from "@/modules/runtime";
 
 const DEFAULT_RECENT_THREAD_WINDOW_MINUTES = 180;
 const DEFAULT_MISC_PROJECT_NAME = "Misc";

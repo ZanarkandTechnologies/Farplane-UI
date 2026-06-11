@@ -30,7 +30,7 @@ import React, {
   useState,
 } from "react";
 import { useAgentLiveStatuses } from "@/hooks/use-agent-live-status";
-import type { OpenClawAdapter } from "@/lib/openclaw";
+import type { OpenClawAdapter } from "@/modules/runtime";
 import type {
   AgentLiveStatus,
   FederatedTaskProvider,
@@ -39,7 +39,7 @@ import type {
   PendingApprovalModel,
   ProviderIndexProfile,
   UnifiedOfficeModel,
-} from "@/lib/openclaw";
+} from "@/modules/runtime";
 import {
   areStringArraysEqual,
   fallbackData,

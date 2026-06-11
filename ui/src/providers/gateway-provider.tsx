@@ -21,8 +21,8 @@ import {
   type GatewayUiConfig,
   getGatewayUiConfig,
   saveGatewayUiConfig,
-} from "@/lib/gateway-config";
-import { GatewayWsClient } from "@/lib/gateway-ws-client";
+} from "@/modules/runtime";
+import { GatewayWsClient } from "@/modules/runtime";
 import { getRuntimeAdapterKind } from "@/modules/runtime";
 
 type GatewayContextValue = {

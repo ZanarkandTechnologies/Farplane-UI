@@ -10,7 +10,7 @@ import type {
   SessionRowModel,
   SessionTimelineModel,
   SkillItemModel,
-} from "@/lib/openclaw";
+} from "@/modules/runtime";
 import { formatTimestamp as fmtTs } from "@/lib/format-utils";
 import { OfficeDataProvider } from "@/providers/office-data-provider";
 

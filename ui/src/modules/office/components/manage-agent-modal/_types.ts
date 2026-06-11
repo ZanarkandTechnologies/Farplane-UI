@@ -1,5 +1,5 @@
 /** Shared types for manage-agent-modal sub-modules. MEM-0144 */
-import type { SessionTimelineModel } from "@/lib/openclaw";
+import type { SessionTimelineModel } from "@/modules/runtime";
 
 export type SkillsMode = "all" | "selected" | "none";
 

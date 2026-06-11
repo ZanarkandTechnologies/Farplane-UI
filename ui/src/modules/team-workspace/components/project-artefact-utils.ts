@@ -1,4 +1,4 @@
-import type { ProjectArtefactEntry } from "../../../lib/openclaw";
+import type { ProjectArtefactEntry } from "@/modules/runtime";
 
 export const MAX_PROJECT_ARTEFACT_INDEX_FILES = 400;
 

@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore } from "@/lib/app-store";
-import { getGatewayUiConfig } from "@/lib/gateway-config";
+import { getGatewayUiConfig } from "@/modules/runtime";
 import { setOfficeOnboardingCompleted } from "@/modules/office/lib/office-onboarding";
-import type { OfficeSettingsModel } from "@/lib/openclaw";
+import type { OfficeSettingsModel } from "@/modules/runtime";
 import {
   getRuntimeAdapterKind,
   saveRuntimeAdapterKind,

@@ -1,4 +1,4 @@
-import type { AgentLiveStatus } from "./openclaw";
+import type { AgentLiveStatus } from "../openclaw";
 
 export function coerceLiveState(value: string): AgentLiveStatus["state"] {
   if (

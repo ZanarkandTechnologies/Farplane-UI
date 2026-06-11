@@ -5,7 +5,7 @@ import type {
   CompanyModel,
   OfficeSettingsModel,
   UnifiedOfficeModel,
-} from "@/lib/openclaw";
+} from "@/modules/runtime";
 import type { EmployeeData, OfficeObject } from "@/modules/office/lib/types";
 import {
   buildEmployeeSignature,

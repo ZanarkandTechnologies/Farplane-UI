@@ -63,7 +63,7 @@ import type {
   SkillStudioCatalogEntry,
   SkillStudioDetail,
   SkillStudioFileContent,
-} from "@/lib/openclaw";
+} from "@/modules/runtime";
 import { stringifySkillManifest } from "@/lib/skill-studio";
 import { UI_Z } from "@/lib/z-index";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";

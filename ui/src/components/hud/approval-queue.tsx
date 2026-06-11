@@ -20,7 +20,7 @@ import type {
   PendingApprovalModel,
   ApprovalActionType,
   ApprovalRiskLevel,
-} from "@/lib/openclaw";
+} from "@/modules/runtime";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {

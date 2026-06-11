@@ -38,7 +38,7 @@ import PathVisualizer from "@/features/nav-system/components/path-visualizer";
 import type { StatusType } from "@/features/nav-system/components/status-indicator";
 import { useAppStore } from "@/lib/app-store";
 import type { Id } from "@/lib/entity-types";
-import type { AgentState } from "@/lib/openclaw";
+import type { AgentState } from "@/modules/runtime";
 import { getRandomItem } from "@/lib/utils";
 import { ContextMenu } from "../context-menu";
 import {

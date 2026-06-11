@@ -1,5 +1,5 @@
 import type { StatusType } from "@/features/nav-system/components/status-indicator";
-import type { AgentState } from "@/lib/openclaw";
+import type { AgentState } from "@/modules/runtime";
 
 export type OfficeId<T extends string = string> = string & { __type?: T };
 

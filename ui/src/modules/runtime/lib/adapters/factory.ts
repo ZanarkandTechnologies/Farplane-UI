@@ -1,4 +1,4 @@
-import type { GatewayWsClient } from "../../../../lib/gateway-ws-client";
+import type { GatewayWsClient } from "../gateway/ws-client";
 import { CodexRuntimeAdapter } from "./codex-runtime-adapter";
 import type { OfficeRuntimeAdapter, RuntimeAdapterKind } from "./contract";
 import { OpenClawRuntimeAdapter } from "./openclaw-runtime-adapter";

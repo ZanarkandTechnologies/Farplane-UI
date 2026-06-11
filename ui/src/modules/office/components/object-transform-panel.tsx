@@ -42,7 +42,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppStore } from "@/lib/app-store";
-import type { CompanyOfficeObjectModel } from "@/lib/openclaw";
+import type { CompanyOfficeObjectModel } from "@/modules/runtime";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import {

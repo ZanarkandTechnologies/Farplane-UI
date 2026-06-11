@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useChatStore } from "@/features/chat-system/chat-store";
 import { useAppStore } from "@/lib/app-store";
-import type { AgentCardModel, SessionRowModel } from "@/lib/openclaw";
+import type { AgentCardModel, SessionRowModel } from "@/modules/runtime";
 import { useGateway } from "@/providers/gateway-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 

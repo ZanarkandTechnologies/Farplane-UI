@@ -21,7 +21,7 @@
 
 import { useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProjectArtefactEntry } from "@/lib/openclaw";
+import type { ProjectArtefactEntry } from "@/modules/runtime";
 import { isConvexEnabled } from "@/providers/convex-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { api } from "../../../../../convex/_generated/api";

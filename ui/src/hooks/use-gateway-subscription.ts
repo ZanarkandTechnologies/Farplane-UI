@@ -17,7 +17,7 @@
  * - MEM-0144 refactor: Phase 2 hook extraction
  */
 import { useEffect } from "react";
-import type { GatewayWsClient, GatewayEventFrame } from "@/lib/gateway-ws-client";
+import type { GatewayWsClient, GatewayEventFrame } from "@/modules/runtime";
 
 export function useGatewaySubscription(
   client: GatewayWsClient,

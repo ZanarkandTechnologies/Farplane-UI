@@ -1,6 +1,6 @@
 "use client";
 
-import type { CronJob, CronStatus } from "@/lib/openclaw";
+import type { CronJob, CronStatus } from "@/modules/runtime";
 
 export function CronPanel({
   status,
