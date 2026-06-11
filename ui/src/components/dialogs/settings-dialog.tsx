@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { ThemeToggle } from "@/components/theme/theme-toggle";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore } from "@/lib/app-store";
 import { getGatewayUiConfig } from "@/lib/gateway-config";
 import { setOfficeOnboardingCompleted } from "@/lib/office-onboarding";
@@ -17,6 +14,12 @@ import { UI_Z } from "@/lib/z-index";
 import { useGateway } from "@/providers/gateway-provider";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import {
+  GeneralSettingsPanel,
+  OfficeViewSettingsPanel,
+  RuntimeSettingsPanel,
+} from "./settings-dialog-panels";
+import { useCodexOfficeVisibilitySettings } from "./use-codex-office-visibility-settings";
 
 type SettingsDialogProps = {
   trigger?: React.ReactNode;
@@ -62,6 +65,11 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   );
   const [viewStatusText, setViewStatusText] = useState("");
   const [isSavingViewSettings, setIsSavingViewSettings] = useState(false);
+  const codexOfficeVisibility = useCodexOfficeVisibilitySettings({
+    dialogOpen,
+    stateBaseInput,
+    refreshOfficeData: refresh,
+  });
 
   useEffect(() => {
     if (!dialogOpen) return;
@@ -151,231 +159,67 @@ export default function SettingsDialog(props: SettingsDialogProps) {
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-6 py-4">
-          <div className="flex items-center justify-between">
-            <Label>Theme</Label>
-            <ThemeToggle />
-          </div>
+        <Tabs defaultValue="general" className="py-4">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="office">Office</TabsTrigger>
+            <TabsTrigger value="runtime">Runtime</TabsTrigger>
+          </TabsList>
 
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col gap-1">
-              <Label>Debug Mode</Label>
-              <span className="text-xs text-muted-foreground">Show paths and grid info</span>
-            </div>
-            <Button
-              onClick={() => setDebugMode(!debugMode)}
-              variant={debugMode ? "default" : "outline"}
-              size="sm"
-            >
-              {debugMode ? "On" : "Off"}
-            </Button>
-          </div>
+          <TabsContent value="general" className="mt-4 space-y-4">
+            <GeneralSettingsPanel
+              debugMode={debugMode}
+              isBuilderMode={isBuilderMode}
+              onDebugModeChange={setDebugMode}
+              onBuilderModeChange={setBuilderMode}
+              onReplayOnboarding={handleReplayOnboarding}
+            />
+          </TabsContent>
 
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col gap-1">
-              <Label>Builder Mode</Label>
-              <span className="text-xs text-muted-foreground">
-                Move furniture and arrange office
-              </span>
-            </div>
-            <Button
-              onClick={() => setBuilderMode(!isBuilderMode)}
-              variant={isBuilderMode ? "default" : "outline"}
-              size="sm"
-            >
-              {isBuilderMode ? "On" : "Off"}
-            </Button>
-          </div>
+          <TabsContent value="office" className="mt-4 space-y-3">
+            <OfficeViewSettingsPanel
+              viewProfile={viewProfileInput}
+              cameraOrientation={cameraOrientationInput}
+              orbitControlsEnabled={orbitControlsEnabled}
+              statusText={viewStatusText}
+              isSaving={isSavingViewSettings}
+              onViewProfileChange={setViewProfileInput}
+              onCameraOrientationChange={setCameraOrientationInput}
+              onOrbitControlsEnabledChange={setOrbitControlsEnabled}
+              onSave={() => void handleSaveViewSettings()}
+            />
+          </TabsContent>
 
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col gap-1">
-              <Label>Onboarding Tour</Label>
-              <span className="text-xs text-muted-foreground">
-                Replay the guided AI Office intro and CEO-first onboarding flow.
-              </span>
-            </div>
-            <Button onClick={handleReplayOnboarding} variant="outline" size="sm">
-              Replay
-            </Button>
-          </div>
-
-          <div className="space-y-3 rounded-md border p-3">
-            <div className="flex flex-col gap-1">
-              <Label>Office View</Label>
-              <span className="text-xs text-muted-foreground">
-                Switch between free-orbit 3D and a locked 2.5D game view.
-              </span>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">View Profile</Label>
-              <select
-                className="w-full rounded-md border bg-background px-2 py-2 text-sm"
-                value={viewProfileInput}
-                onChange={(event) =>
-                  setViewProfileInput(event.target.value as OfficeSettingsModel["viewProfile"])
-                }
-              >
-                <option value="free_orbit_3d">Free Orbit 3D</option>
-                <option value="fixed_2_5d">Isometric 2.5D</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Camera Orientation</Label>
-              <select
-                className="w-full rounded-md border bg-background px-2 py-2 text-sm"
-                value={cameraOrientationInput}
-                onChange={(event) =>
-                  setCameraOrientationInput(
-                    event.target.value as OfficeSettingsModel["cameraOrientation"],
-                  )
-                }
-              >
-                <option value="south_east">South East</option>
-                <option value="south_west">South West</option>
-                <option value="north_east">North East</option>
-                <option value="north_west">North West</option>
-              </select>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col gap-1">
-                <Label>Orbit Controls</Label>
-                <span className="text-xs text-muted-foreground">
-                  In fixed 2.5D, this keeps pan and zoom without unlocking rotation.
-                </span>
-              </div>
-              <Button
-                onClick={() => setOrbitControlsEnabled(!orbitControlsEnabled)}
-                variant={orbitControlsEnabled ? "default" : "outline"}
-                size="sm"
-              >
-                {orbitControlsEnabled ? "On" : "Off"}
-              </Button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                onClick={() => void handleSaveViewSettings()}
-                disabled={isSavingViewSettings}
-              >
-                {isSavingViewSettings ? "Saving..." : "Apply View"}
-              </Button>
-            </div>
-            {viewStatusText ? (
-              <p className="text-xs text-muted-foreground">{viewStatusText}</p>
+          <TabsContent value="runtime" className="mt-4 space-y-4">
+            <RuntimeSettingsPanel
+              runtimeKind={runtimeKindInput}
+              runtimeStatusText={runtimeStatusText}
+              connected={connected}
+              gatewayBase={gatewayBaseInput}
+              gatewayToken={gatewayTokenInput}
+              stateBase={stateBaseInput}
+              defaultSessionKey={defaultSessionKeyInput}
+              language={languageInput}
+              codexForm={codexOfficeVisibility.form}
+              codexStatusText={codexOfficeVisibility.statusText}
+              isSavingCodexSettings={codexOfficeVisibility.isSaving}
+              onRuntimeKindChange={setRuntimeKindInput}
+              onApplyRuntimeMode={handleApplyRuntimeMode}
+              onGatewayBaseChange={setGatewayBaseInput}
+              onGatewayTokenChange={setGatewayTokenInput}
+              onStateBaseChange={setStateBaseInput}
+              onDefaultSessionKeyChange={setDefaultSessionKeyInput}
+              onLanguageChange={setLanguageInput}
+              onConnectGateway={handleConnectGateway}
+              onRefreshGatewayConfig={handleRefreshGatewayConfig}
+              onCodexFormChange={codexOfficeVisibility.setForm}
+              onSaveCodexSettings={() => void codexOfficeVisibility.save()}
+            />
+            {runtimeKindInput === "openclaw" && statusText ? (
+              <p className="text-xs text-muted-foreground">{statusText}</p>
             ) : null}
-          </div>
-
-          <div className="space-y-3 rounded-md border p-3">
-            <div className="flex flex-col gap-1">
-              <Label>Runtime Mode</Label>
-              <span className="text-xs text-muted-foreground">
-                Codex maps local projects and recent threads. OpenClaw enables persistent agent
-                customization and gateway-backed teams.
-              </span>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Adapter</Label>
-              <select
-                className="w-full rounded-md border bg-background px-2 py-2 text-sm"
-                value={runtimeKindInput}
-                onChange={(event) => setRuntimeKindInput(event.target.value as RuntimeAdapterKind)}
-              >
-                <option value="codex">Codex</option>
-                <option value="openclaw">OpenClaw</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button size="sm" onClick={handleApplyRuntimeMode}>
-                Apply Runtime
-              </Button>
-            </div>
-            {runtimeStatusText ? (
-              <p className="text-xs text-muted-foreground">{runtimeStatusText}</p>
-            ) : null}
-          </div>
-
-          <div className="space-y-3 rounded-md border p-3">
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col gap-1">
-                <Label>Gateway Access</Label>
-                <span className="text-xs text-muted-foreground">
-                  Configure connection values used by OpenClaw and the Codex app-server bridge.
-                </span>
-              </div>
-              <span className={`text-xs ${connected ? "text-emerald-500" : "text-amber-500"}`}>
-                {connected ? "connected" : "disconnected"}
-              </span>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Gateway URL</Label>
-              <Input
-                value={gatewayBaseInput}
-                onChange={(event) => setGatewayBaseInput(event.target.value)}
-                placeholder="http://127.0.0.1:18789"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Gateway Token</Label>
-              <Input
-                type="password"
-                value={gatewayTokenInput}
-                onChange={(event) => setGatewayTokenInput(event.target.value)}
-                placeholder="optional bearer token"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">State Bridge URL</Label>
-              <Input
-                value={stateBaseInput}
-                onChange={(event) => setStateBaseInput(event.target.value)}
-                placeholder={
-                  typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:5173"
-                }
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Default Session Key</Label>
-              <Input
-                value={defaultSessionKeyInput}
-                onChange={(event) => setDefaultSessionKeyInput(event.target.value)}
-                placeholder="agent:main:..."
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Language</Label>
-              <select
-                className="w-full rounded-md border bg-background px-2 py-2 text-sm"
-                value={languageInput}
-                onChange={(event) => setLanguageInput(event.target.value)}
-              >
-                <option value="English">English</option>
-                <option value="Japanese">Japanese</option>
-                <option value="Chinese">Chinese</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button size="sm" onClick={handleConnectGateway}>
-                Connect
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleRefreshGatewayConfig}>
-                Refresh
-              </Button>
-            </div>
-            {statusText ? <p className="text-xs text-muted-foreground">{statusText}</p> : null}
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
