@@ -40,7 +40,7 @@ import {
 import {
   computeBusinessReadinessIssues,
   projectToBusinessBuilderDraft,
-} from "@/lib/business-builder";
+} from "@/modules/business";
 import { DEFAULT_OFFICE_FOOTPRINT } from "@/modules/office/lib/office-footprint";
 import {
   clampPositionToOfficeLayout,

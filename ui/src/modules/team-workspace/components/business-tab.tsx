@@ -27,8 +27,8 @@ import {
   TeamSkillEquipMatrix,
   type TeamSkillEquipRow,
 } from "./business-flow/team-skill-equip-matrix";
-import type { BusinessBuilderDraft } from "@/lib/business-builder";
-import type { BusinessReadinessIssue } from "@/lib/business-builder";
+import type { BusinessBuilderDraft } from "@/modules/business";
+import type { BusinessReadinessIssue } from "@/modules/business";
 
 interface BusinessTabProps {
   builderDraft: BusinessBuilderDraft;

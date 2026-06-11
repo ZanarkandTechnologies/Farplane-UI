@@ -20,7 +20,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { SessionTimelineModel } from "@/modules/runtime";
-import { buildTeamAiUsageSummary } from "@/lib/session-usage";
+import { buildTeamAiUsageSummary } from "@/modules/runtime";
 import type { OpenClawAdapter } from "@/modules/runtime";
 import {
   deriveAgentPresenceRows,

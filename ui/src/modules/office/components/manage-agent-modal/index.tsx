@@ -44,7 +44,7 @@ import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useGateway } from "@/providers/gateway-provider";
 import { UI_Z } from "@/lib/z-index";
 import { extractAgentId } from "@/lib/entity-utils";
-import { buildTeamAiUsageSummary } from "@/lib/session-usage";
+import { buildTeamAiUsageSummary } from "@/modules/runtime";
 import type { AgentConfigDraft, AgentUsageOverview, TabId } from "./_types";
 import {
   buildNextAgentConfig,

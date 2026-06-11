@@ -7,8 +7,8 @@ import type {
   BusinessBuilderDraft,
   BusinessBuilderResourceDraft,
   BusinessTypeOption,
-} from "@/lib/business-builder";
-import { createBusinessBuilderDraft } from "@/lib/business-builder";
+} from "@/modules/business";
+import { createBusinessBuilderDraft } from "@/modules/business";
 
 interface BusinessBuilderFormProps {
   value: BusinessBuilderDraft;

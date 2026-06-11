@@ -49,7 +49,7 @@ import {
   countReviewLaneTasks,
   resolveReviewBoardTasks,
   type ReviewBoardTask,
-} from "@/lib/review-board";
+} from "@/modules/review-board";
 
 type TaskLaneKey = "drafting" | "awaiting_review" | "approved" | "executed" | "rejected";
 

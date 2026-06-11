@@ -10,7 +10,7 @@ import {
   createBusinessBuilderDraft,
   type BusinessBuilderDraft,
   type BusinessTypeOption,
-} from "@/lib/business-builder";
+} from "@/modules/business";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 

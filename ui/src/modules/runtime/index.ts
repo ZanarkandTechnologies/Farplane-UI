@@ -62,6 +62,14 @@ export {
 
 export { coerceLiveState } from "./lib/live-status/live-status";
 
+export {
+  buildTeamAiUsageSummary,
+  emptyUsageTotals,
+  sumUsageTotals,
+  type TeamAiUsageSummary,
+  type TeamUsageSessionEntry,
+} from "./lib/session-usage/session-usage";
+
 export { OpenClawAdapter } from "./lib/openclaw";
 export type {
   AgentCardModel,

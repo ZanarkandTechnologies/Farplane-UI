@@ -43,7 +43,7 @@ import {
   countReviewLaneTasks,
   resolveReviewBoardTasks,
   type ReviewBoardTask,
-} from "@/lib/review-board";
+} from "@/modules/review-board";
 
 interface UserTasksPanelProps {
   isOpen: boolean;

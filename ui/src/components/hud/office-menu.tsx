@@ -29,7 +29,7 @@ import { useChatActions } from "@/features/chat-system/chat-store";
 import { OrganizationPanel } from "./organization-panel";
 import { api } from "../../../../convex/_generated/api";
 import { isConvexEnabled } from "@/providers/convex-provider";
-import { countReviewLaneTasks, resolveReviewBoardTasks } from "@/lib/review-board";
+import { countReviewLaneTasks, resolveReviewBoardTasks } from "@/modules/review-board";
 import { OfficeCommandPalette } from "./office-command-palette";
 import {
   OFFICE_COMMAND_PALETTE_SHORTCUT,

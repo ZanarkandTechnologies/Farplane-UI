@@ -15,7 +15,7 @@
  * - MEM-0131
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { BusinessReadinessIssue } from "@/lib/business-builder";
+import type { BusinessReadinessIssue } from "@/modules/business";
 
 interface BusinessReadinessPanelProps {
   issues: BusinessReadinessIssue[];

@@ -24,7 +24,7 @@ import {
   createBusinessBuilderDraft,
   projectToBusinessBuilderDraft,
   type BusinessBuilderDraft,
-} from "@/lib/business-builder";
+} from "@/modules/business";
 import type {
   ProjectAccountEventModel,
   ProjectAccountModel,

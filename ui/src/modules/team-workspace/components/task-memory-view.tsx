@@ -18,7 +18,7 @@
  */
 
 import { Badge } from "@/components/ui/badge";
-import { parseTaskMemory } from "@/lib/task-memory";
+import { parseTaskMemory } from "@/modules/team-workspace/lib/task-memory";
 
 type TaskMemoryViewProps = {
   notes?: string;

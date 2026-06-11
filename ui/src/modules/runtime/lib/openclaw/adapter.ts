@@ -75,8 +75,8 @@ import type {
 } from "./types";
 import { buildGatewayHeaders } from "../gateway/config";
 import type { GatewayWsClient } from "../gateway/ws-client";
-import type { BusinessBuilderResourceDraft } from "@/lib/business-builder";
-import { createBusinessBuilderDraft, toProjectResources } from "@/lib/business-builder";
+import type { BusinessBuilderResourceDraft } from "@/modules/business";
+import { createBusinessBuilderDraft, toProjectResources } from "@/modules/business";
 
 import {
   normalizeArray,
