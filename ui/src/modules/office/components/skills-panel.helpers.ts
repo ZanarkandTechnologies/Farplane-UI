@@ -16,7 +16,7 @@
  * - MEM-0188
  */
 
-import type { AgentConfigDraft } from "@/features/office-system/components/manage-agent-modal/_types";
+import type { AgentConfigDraft } from "@/modules/office/components/manage-agent-modal/_types";
 
 function dedupeSkills(skillIds: string[]): string[] {
   return [...new Set(skillIds.filter((skillId) => skillId.trim().length > 0))];

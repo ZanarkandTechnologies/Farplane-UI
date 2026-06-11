@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { AgentConfigDraft } from "@/features/office-system/components/manage-agent-modal/_types";
+import type { AgentConfigDraft } from "@/modules/office/components/manage-agent-modal/_types";
 
 import {
   getCustomSelectionDraft,

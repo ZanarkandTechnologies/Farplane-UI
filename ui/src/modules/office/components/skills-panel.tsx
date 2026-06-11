@@ -29,13 +29,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SkillsPanelControlsTab } from "@/features/office-system/components/skills-panel-controls-tab";
-import { SkillsPanelDemosTab } from "@/features/office-system/components/skills-panel-demos-tab";
-import { SkillsPanelDiagramTab } from "@/features/office-system/components/skills-panel-diagram-tab";
-import { SkillsPanelFilesTab } from "@/features/office-system/components/skills-panel-files-tab";
-import { SkillsPanelOverviewTab } from "@/features/office-system/components/skills-panel-overview-tab";
-import { SkillsPanelSidebar } from "@/features/office-system/components/skills-panel-sidebar";
-import { useSkillsPanelController } from "@/features/office-system/components/use-skills-panel-controller";
+import { SkillsPanelControlsTab } from "@/modules/office/components/skills-panel-controls-tab";
+import { SkillsPanelDemosTab } from "@/modules/office/components/skills-panel-demos-tab";
+import { SkillsPanelDiagramTab } from "@/modules/office/components/skills-panel-diagram-tab";
+import { SkillsPanelFilesTab } from "@/modules/office/components/skills-panel-files-tab";
+import { SkillsPanelOverviewTab } from "@/modules/office/components/skills-panel-overview-tab";
+import { SkillsPanelSidebar } from "@/modules/office/components/skills-panel-sidebar";
+import { useSkillsPanelController } from "@/modules/office/components/use-skills-panel-controller";
 import { UI_Z } from "@/lib/z-index";
 
 const SKILL_STUDIO_SIDEBAR_WIDTH = 380;

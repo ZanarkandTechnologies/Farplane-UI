@@ -17,14 +17,14 @@
 
 import type * as THREE from "three";
 import type { ThreeEvent } from "@react-three/fiber";
-import Bookshelf from "@/features/office-system/components/bookshelf";
-import Couch from "@/features/office-system/components/couch";
-import CustomMeshObject from "@/features/office-system/components/custom-mesh-object";
-import GlassWall from "@/features/office-system/components/glass-wall";
-import Pantry from "@/features/office-system/components/pantry";
-import Plant from "@/features/office-system/components/plant";
-import TeamCluster from "@/features/office-system/components/team-cluster";
-import WallArt from "@/features/office-system/components/wall-art";
+import Bookshelf from "@/modules/office/components/bookshelf";
+import Couch from "@/modules/office/components/couch";
+import CustomMeshObject from "@/modules/office/components/custom-mesh-object";
+import GlassWall from "@/modules/office/components/glass-wall";
+import Pantry from "@/modules/office/components/pantry";
+import Plant from "@/modules/office/components/plant";
+import TeamCluster from "@/modules/office/components/team-cluster";
+import WallArt from "@/modules/office/components/wall-art";
 import type { OfficeFootprint } from "@/lib/office-footprint";
 import type { DeskLayoutData, OfficeId, OfficeObject, TeamData } from "@/lib/types";
 

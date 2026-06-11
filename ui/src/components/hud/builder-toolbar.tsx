@@ -21,7 +21,7 @@ import { DoorOpen, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/app-store";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useLayoutEditorHud } from "@/components/office-scene/layout-editor-hud-context";
+import { useLayoutEditorHud } from "@/modules/office/scene/layout-editor-hud-context";
 
 export function BuilderToolbar(): JSX.Element | null {
   const { officeSettings } = useOfficeDataContext();

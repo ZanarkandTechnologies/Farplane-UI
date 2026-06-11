@@ -302,8 +302,8 @@ Use this table to drive browser-agent tests. Each panel lists all known entrypoi
 
 - Office menu: `ui/src/components/hud/office-menu.tsx`
 - Office panel registry: `ui/src/components/hud/office-panel-registry.ts`
-- Employee context menu: `ui/src/features/office-system/components/employee.tsx`
-- Interactive object: `ui/src/features/office-system/components/interactive-object.tsx`
-- Team cluster: `ui/src/features/office-system/components/team-cluster.tsx`
+- Employee context menu: `ui/src/modules/office/components/employee.tsx`
+- Interactive object: `ui/src/modules/office/components/interactive-object.tsx`
+- Team cluster: `ui/src/modules/office/components/team-cluster.tsx`
 - Team panel: `ui/src/modules/team-workspace/components/team-panel.tsx`
 - Office menu parity spec: `docs/research/qa-testing/office-menu-parity-spec.md`

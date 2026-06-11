@@ -1,4 +1,4 @@
-# Office System Module
+# Office Module
 
 ## Boundaries
 - Keep office-object runtime metadata normalized through `office-object-ui.ts`.

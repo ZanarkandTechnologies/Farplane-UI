@@ -49,7 +49,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { usePlacementSystem } from "@/features/office-system/systems/placement-system";
+import { usePlacementSystem } from "@/modules/office/systems/placement-system";
 import {
   getBackgroundPreset,
   getPaintingPreset,

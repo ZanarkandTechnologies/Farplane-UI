@@ -22,21 +22,21 @@
  * - MEM-0194
  */
 
-import { normalizeOfficeObjectId } from "@/features/office-system/components/office-object-id";
-import { parseOfficeObjectInteractionConfig } from "@/features/office-system/office-object-ui";
+import { normalizeOfficeObjectId } from "@/modules/office/components/office-object-id";
+import { parseOfficeObjectInteractionConfig } from "@/modules/office/office-object-ui";
 import {
   buildSkillEffectSeed,
   resolveSkillEffectVariant,
-} from "@/features/office-system/skill-effects";
+} from "@/modules/office/skill-effects";
 import {
   buildSkillTargetObjectMap,
   getOfficeSkillAnchorPositionForOccupant,
-} from "@/features/office-system/skill-targeting";
+} from "@/modules/office/skill-targeting";
 import {
   getAbsoluteDeskPosition,
   getDeskRotation,
   getEmployeePositionAtDesk,
-} from "@/features/office-system/utils/layout";
+} from "@/modules/office/utils/layout";
 import {
   computeBusinessReadinessIssues,
   projectToBusinessBuilderDraft,

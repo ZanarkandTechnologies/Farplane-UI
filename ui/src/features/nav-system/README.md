@@ -42,8 +42,8 @@ React components for visualizing and managing navigation.
 ## Integration Points
 
 Used by:
-- `components/office-scene.tsx` - Main office scene
-- `features/office-system/components/employee.tsx` - Employee movement
+- `modules/office/scene.tsx` - Main office scene
+- `modules/office/components/employee.tsx` - Employee movement
 - `hooks/use-drag-drop.ts` - Drag and drop interactions
 - `components/debug/*` - Debug visualization
 - `lib/types.ts` - Type definitions
@@ -73,6 +73,6 @@ features/nav-system/
 
 ## Related Systems
 
-- **Office System** (`features/office-system/`): Uses navigation for employee movement
-- **Interactive Objects** (`features/office-system/components/interactive-object.tsx`): Uses pathfinding for object placement
+- **Office System** (`modules/office/`): Uses navigation for employee movement
+- **Interactive Objects** (`modules/office/components/interactive-object.tsx`): Uses pathfinding for object placement
 

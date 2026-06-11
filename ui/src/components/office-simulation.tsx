@@ -1,7 +1,5 @@
-import OfficeScene from "./office-scene";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TeamOptionsDialog } from "./dialogs/team-options-dialog";
-import { LayoutEditorHudProvider } from "./office-scene/layout-editor-hud-context";
 import { SettingsDialog } from "@/modules/settings";
 import { LogsDrawer } from "./hud/logs-drawer";
 import { LogsToggleButton } from "./hud/logs-toggle-button";
@@ -14,15 +12,19 @@ import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/lib/app-store";
 import { gatewayBase } from "@/lib/gateway-config";
 import ChatDialog from "@/features/chat-system/components/chat-dialog";
-import { AgentMemoryPanel } from "@/features/office-system/components/agent-memory-panel";
-import { AgentSessionPanel } from "@/features/office-system/components/agent-session-panel";
-import { ManageAgentModal } from "@/features/office-system/components/manage-agent-modal";
-import { ObjectConfigPanel } from "@/features/office-system/components/object-config-panel";
-import { ObjectInteractionPanel } from "@/features/office-system/components/object-interaction-panel";
-import { ObjectTransformPanel } from "@/features/office-system/components/object-transform-panel";
-import { SkillsPanel } from "@/features/office-system/components/skills-panel";
+import {
+  AgentMemoryPanel,
+  AgentSessionPanel,
+  LayoutEditorHudProvider,
+  ManageAgentModal,
+  ObjectConfigPanel,
+  ObjectInteractionPanel,
+  ObjectTransformPanel,
+  OfficeScene,
+  preloadMeshes,
+  SkillsPanel,
+} from "@/modules/office";
 import { TeamPanel } from "@/modules/team-workspace";
-import { preloadMeshes } from "@/features/office-system/systems/mesh-cache";
 import { buildOfficeBootstrapStages, getOfficeBootstrapState } from "./office-bootstrap";
 import { OfficeLoader } from "./office-loader";
 

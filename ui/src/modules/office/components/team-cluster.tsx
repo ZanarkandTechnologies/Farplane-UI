@@ -26,7 +26,7 @@ import {
   getClusterAnchor,
   getDeskPosition,
   getDeskRotation,
-} from "@/features/office-system/utils/layout";
+} from "@/modules/office/utils/layout";
 
 // Constants
 const MAX_DESKS_PER_TEAM = 6;

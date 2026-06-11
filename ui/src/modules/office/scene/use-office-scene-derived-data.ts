@@ -16,12 +16,12 @@
  */
 
 import { useMemo } from "react";
-import type { DeskLayoutData, EmployeeData, TeamData } from "../../lib/types";
+import type { DeskLayoutData, EmployeeData, TeamData } from "../../../lib/types";
 import {
   getAbsoluteDeskPosition,
   getDeskPosition,
   getDeskRotation,
-} from "../../features/office-system/utils/layout";
+} from "../utils/layout";
 import type { OfficeSceneViewSettings } from "./view-profile";
 import {
   assignRandomStatuses,

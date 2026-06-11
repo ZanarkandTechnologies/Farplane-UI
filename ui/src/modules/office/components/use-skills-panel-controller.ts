@@ -22,16 +22,16 @@ import { useEffect, useMemo, useState } from "react";
 import {
   buildNextAgentConfig,
   resolveAgentConfigDraft,
-} from "@/features/office-system/components/manage-agent-modal/config-draft";
+} from "@/modules/office/components/manage-agent-modal/config-draft";
 import {
   isSkillEquipped,
   toggleSidebarSkill,
-} from "@/features/office-system/components/skills-panel.helpers";
+} from "@/modules/office/components/skills-panel.helpers";
 import {
   buildGlobalSkillRows,
   buildInheritedRuntimeSkillKeys,
   buildNextGlobalSkillConfig,
-} from "@/features/office-system/components/skills-panel.runtime";
+} from "@/modules/office/components/skills-panel.runtime";
 import {
   buildKnownAgentSkillIds,
   buildMermaidDocument,
@@ -44,14 +44,14 @@ import {
   mergeRuntimeStatus,
   splitLines,
   toManifestDraft,
-} from "@/features/office-system/components/skills-panel-data";
+} from "@/modules/office/components/skills-panel-data";
 import type {
   DetailTab,
   SkillsPanelDemoState,
   SkillsPanelFileState,
   SkillsPanelManifestState,
   SkillsPanelSelectionState,
-} from "@/features/office-system/components/skills-panel-types";
+} from "@/modules/office/components/skills-panel-types";
 import { usePollWithInterval } from "@/hooks/use-poll-with-interval";
 import { useAppStore } from "@/lib/app-store";
 import type {

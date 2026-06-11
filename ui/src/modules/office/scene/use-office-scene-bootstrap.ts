@@ -19,7 +19,7 @@
 import { createRef, useCallback, useEffect, useRef } from 'react';
 import type { OrbitControls } from '@react-three/drei';
 import type * as THREE from 'three';
-import { useObjectRegistrationStore } from '@/features/office-system/store/object-registration-store';
+import { useObjectRegistrationStore } from '@/modules/office/store/object-registration-store';
 import { initializeGrid } from '@/features/nav-system/pathfinding/a-star-pathfinding';
 import type { OfficeLayoutModel } from '@/lib/office-layout';
 

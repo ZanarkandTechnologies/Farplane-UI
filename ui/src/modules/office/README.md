@@ -1,4 +1,4 @@
-# Office System
+# Office Module
 
 > **Feature Status**: Active
 > **Last Updated**: Dec 2025
@@ -136,7 +136,7 @@ Dashboard-style agent management UI for configuring employee agents.
 ## File Structure
 
 ```text
-features/office-system/
+modules/office/
 ├── README.md                          # This file
 ├── index.ts                           # Public API exports
 ├── definitions.ts                     # Type definitions

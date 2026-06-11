@@ -7,7 +7,7 @@
  *
  * KEY CONCEPTS:
  * - This file stays thin and owns only the canvas shell plus external dialog mounting.
- * - Scene internals live under `components/office-scene/` so startup, rendering, and data shaping stay modular.
+ * - Scene internals live under `modules/office/scene/` so startup, rendering, and data shaping stay modular.
  *
  * USAGE:
  * - Render `OfficeScene` anywhere the office 3D experience should appear.
@@ -23,12 +23,12 @@ import * as THREE from "three";
 import { useChatStore } from "@/features/chat-system/chat-store";
 import { useAppStore } from "@/lib/app-store";
 import { getOfficeLayoutBounds } from "@/lib/office-layout";
-import { SceneContents } from "@/components/office-scene/scene-contents";
+import { SceneContents } from "@/modules/office/scene/scene-contents";
 import {
   getInitialOfficeCameraConfig,
   useOfficeSceneBackground,
-} from "@/components/office-scene/use-office-scene-camera";
-import type { OfficeSceneProps } from "@/components/office-scene/types";
+} from "@/modules/office/scene/use-office-scene-camera";
+import type { OfficeSceneProps } from "@/modules/office/scene/types";
 
 const OfficeScene = memo((props: OfficeSceneProps) => {
   const background = useOfficeSceneBackground(props.officeDecorSettings);

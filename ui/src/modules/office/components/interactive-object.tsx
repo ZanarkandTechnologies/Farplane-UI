@@ -3,7 +3,7 @@ import { Move, Settings, SlidersVertical, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OFFICE_INTERACTION_COLORS } from "@/config/office-theme";
-import { constrainOfficeObjectPositionForLayout } from "@/features/office-system/components/office-object-placement";
+import { constrainOfficeObjectPositionForLayout } from "@/modules/office/components/office-object-placement";
 import { useAppStore } from "@/lib/app-store";
 import type { OfficeId } from "@/lib/types";
 import { useOfficeDataContext } from "@/providers/office-data-provider";

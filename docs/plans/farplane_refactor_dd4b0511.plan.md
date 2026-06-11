@@ -35,10 +35,10 @@ isProject: false
 
 - `ui/src/lib/openclaw/adapter.ts` — 2767L
 - `ui/src/components/ai-elements/prompt-input.tsx` — 1392L
-- `ui/src/features/office-system/components/manage-agent-modal.tsx` — 1133L
-- `ui/src/features/office-system/components/employee.tsx` — 947L
+- `ui/src/modules/office/components/manage-agent-modal.tsx` — 1133L
+- `ui/src/modules/office/components/employee.tsx` — 947L
 - `ui/src/App.tsx` — 840L
-- `ui/src/components/office-scene.tsx` — 835L
+- `ui/src/modules/office/scene.tsx` — 835L
 - `ui/src/lib/openclaw/types.ts` — 790L
 - `ui/src/providers/office-data-provider.tsx` — 752L
 - `cli/sidecar-store.ts` — 745L
@@ -161,7 +161,7 @@ Extract WebSocket subscription primitive shared between `use-chat-messages.ts` a
 
 ## Phase 3 — Office Simulation Component Decomposition (Medium Risk)
 
-### 3a. `[employee.tsx](ui/src/features/office-system/components/employee.tsx)` 947L → folder
+### 3a. `[employee.tsx](ui/src/modules/office/components/employee.tsx)` 947L → folder
 
 ```
 employee/
@@ -175,13 +175,13 @@ employee/
 - `useMemo` on SAMPLE_MESSAGES lookup (module-level constant, but currently triggers inline array every render)
 - Extract `ProfileHead` as a standalone mesh — avoids re-rendering entire avatar on heartbeat state change
 
-### 3b. `[office-scene.tsx](ui/src/components/office-scene.tsx)` 835L
+### 3b. `[office-scene.tsx](ui/src/modules/office/scene.tsx)` 835L
 
 - Extract `getCSSColor` / OKLCH→RGB converter → `ui/src/lib/color-utils.ts` (also usable in team-cluster.tsx)
 - Extract `SAMPLE_MESSAGES` → `ui/src/constants/idle-messages.ts`
 - `useMemo` on entity arrays: employees map, team-clusters map, office-object render list — these currently re-derive on every parent render
 
-### 3c. `[manage-agent-modal.tsx](ui/src/features/office-system/components/manage-agent-modal.tsx)` 1133L → folder
+### 3c. `[manage-agent-modal.tsx](ui/src/modules/office/components/manage-agent-modal.tsx)` 1133L → folder
 
 ```
 manage-agent-modal/

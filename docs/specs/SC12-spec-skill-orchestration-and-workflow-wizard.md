@@ -56,7 +56,7 @@ SC12 must build around current Farplane and OpenClaw primitives instead of intro
 - [`ui/src/modules/team-workspace/components/business-tab.tsx`](/home/kenjipcx/Zanarkand/Farplane/ui/src/modules/team-workspace/components/business-tab.tsx)
 - [`ui/src/modules/team-workspace/components/business-flow/business-readiness-panel.tsx`](/home/kenjipcx/Zanarkand/Farplane/ui/src/modules/team-workspace/components/business-flow/business-readiness-panel.tsx)
 - [`ui/src/components/hud/user-tasks-panel.tsx`](/home/kenjipcx/Zanarkand/Farplane/ui/src/components/hud/user-tasks-panel.tsx)
-- [`ui/src/components/office-scene/use-office-scene-interactions.ts`](/home/kenjipcx/Zanarkand/Farplane/ui/src/components/office-scene/use-office-scene-interactions.ts)
+- [`ui/src/modules/office/scene/use-office-scene-interactions.ts`](/home/kenjipcx/Zanarkand/Farplane/ui/src/modules/office/scene/use-office-scene-interactions.ts)
 - [`cli/team-commands/team-business.ts`](/home/kenjipcx/Zanarkand/Farplane/cli/team-commands/team-business.ts)
 - [`skills/farplane-team-cli/SKILL.md`](/home/kenjipcx/Zanarkand/Farplane/skills/farplane-team-cli/SKILL.md)
 
