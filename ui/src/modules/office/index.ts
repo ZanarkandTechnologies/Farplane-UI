@@ -13,7 +13,8 @@ export { LayoutEditorHudProvider, useLayoutEditorHud } from "./scene/layout-edit
 export { normalizeOfficeObjectId } from "./components/office-object-id";
 export { parseOfficeObjectInteractionConfig } from "./office-object-ui";
 export {
-  resolveOfficeSkillTargetAnchors,
-  type SkillTargetAnchor,
+  buildSkillTargetObjectMap,
+  getOfficeSkillAnchorPosition,
+  getOfficeSkillAnchorPositionForOccupant,
 } from "./skill-targeting";
 export { resolveSkillEffectConfig } from "./skill-effects";
