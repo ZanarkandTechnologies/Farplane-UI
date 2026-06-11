@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { useAppStore } from "../../lib/app-store";
+import { useAppStore } from "@/store";
 
 type ChatMode = "Chat" | "Files" | "Config";
 export type ChatPresentationMode = "classic" | "story";

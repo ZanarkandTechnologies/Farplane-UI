@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { BookOpen } from "lucide-react";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 
 /**
  * SKILL MANAGER

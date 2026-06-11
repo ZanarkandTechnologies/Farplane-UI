@@ -29,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import { UI_Z } from "@/lib/z-index";
 import { endObjectInteractionTrace } from "../utils/object-interaction-perf";
 

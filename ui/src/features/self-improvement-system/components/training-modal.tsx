@@ -25,7 +25,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 
 interface TrainingModalProps {
   isOpen: boolean;

@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import { api } from "../../../../../convex/_generated/api";
 
 /**

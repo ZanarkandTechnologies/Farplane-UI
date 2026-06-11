@@ -23,7 +23,7 @@ import { useQuery } from "convex/react";
 import { Menu } from "lucide-react";
 import { SpeedDial, type SpeedDialItem } from "@/components/ui/speed-dial";
 import { useNavigate } from "react-router-dom";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import { FurnitureShop } from "./furniture-shop";
 import { useChatActions } from "@/features/chat-system/chat-store";
 import { OrganizationPanel } from "./organization-panel";

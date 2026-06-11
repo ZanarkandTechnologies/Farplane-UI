@@ -28,7 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { User } from "lucide-react";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import type {
   AgentFileEntry,
   AgentIdentityResult,

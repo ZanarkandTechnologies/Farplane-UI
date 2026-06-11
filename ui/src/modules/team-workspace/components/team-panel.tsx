@@ -26,7 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useChatActions } from "@/features/chat-system/chat-store";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import { UI_Z } from "@/lib/z-index";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";

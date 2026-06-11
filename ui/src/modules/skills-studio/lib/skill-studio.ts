@@ -26,7 +26,7 @@ import type {
   SkillManifestToolDependency,
   SkillManifestVisualization,
   SkillStateMode,
-} from "./openclaw";
+} from "@/modules/runtime";
 
 type JsonLike = Record<string, unknown>;
 

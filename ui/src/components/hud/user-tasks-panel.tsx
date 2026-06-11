@@ -23,7 +23,7 @@ import { Bell, ClipboardList, Loader2, Terminal } from "lucide-react";
 
 import { api } from "../../../../convex/_generated/api";
 import { isConvexEnabled } from "@/providers/convex-provider";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import {
   Dialog,
   DialogContent,

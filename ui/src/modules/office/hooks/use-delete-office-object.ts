@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import type { OfficeId } from "@/modules/office/lib/types";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import { resolvePersistedOfficeObjectId } from "../components/office-object-id";
 import { refreshOfficeDataSafely } from "../components/office-object-refresh";
 

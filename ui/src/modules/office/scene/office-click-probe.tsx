@@ -5,7 +5,7 @@
  */
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import type { EmployeeData, TeamData } from "@/modules/office/lib/types";
 
 type ProbeTargetKind = "employee" | "team";

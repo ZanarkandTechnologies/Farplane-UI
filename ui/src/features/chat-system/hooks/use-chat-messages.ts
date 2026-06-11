@@ -23,7 +23,7 @@ import {
     mapHistoryMessageToLocal as mapHistoryMessages,
     type ToolProgressEntry as SharedToolProgressEntry,
 } from "../chat-message-utils";
-import { useAppStore } from "../../../lib/app-store";
+import { useAppStore } from "@/store";
 import { useGateway } from "../../../providers/gateway-provider";
 import { useOfficeRuntimeAdapter } from "../../../modules/runtime";
 

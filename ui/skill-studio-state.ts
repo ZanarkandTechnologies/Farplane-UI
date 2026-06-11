@@ -27,12 +27,12 @@ import type {
   SkillStudioDetail,
   SkillStudioFileContent,
   SkillStudioFileEntry,
-} from "./src/lib/openclaw";
+} from "./src/modules/runtime";
 import {
   deriveSkillManifest,
   extractSkillFrontmatter,
   stringifySkillManifest,
-} from "./src/lib/skill-studio";
+} from "./src/modules/skills-studio";
 import {
   collectSkillContractTests,
   extractSkillContract,

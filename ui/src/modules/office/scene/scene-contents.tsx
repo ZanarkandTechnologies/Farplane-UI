@@ -26,7 +26,7 @@ import { SmartGrid } from "@/components/debug/unified-grid-helper";
 import { PlacementHandler } from "@/components/placement-handler";
 import type { StatusType } from "@/features/nav-system/components/status-indicator";
 import { Employee } from "@/modules/office/components/employee";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import { useChatStore } from "@/features/chat-system/chat-store";
 import { extractAgentId } from "@/lib/entity-utils";
 import { OfficeLayoutEditor } from "./office-layout-editor";

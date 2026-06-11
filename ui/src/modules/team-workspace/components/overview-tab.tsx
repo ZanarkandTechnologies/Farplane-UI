@@ -34,7 +34,7 @@ import {
   LEG_HEIGHT,
   TOTAL_HEIGHT,
 } from "@/constants";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import {
   PRIORITY_COLORS,
   STATUS_LABELS,

@@ -31,7 +31,7 @@ import {
 
 import { api } from "../../../../convex/_generated/api";
 import { CeoTaskDetailModal } from "./ceo-task-detail-modal";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import { useChatActions } from "@/features/chat-system/chat-store";
 import { TaskMemoryView } from "@/modules/team-workspace";
 import { isConvexEnabled } from "@/providers/convex-provider";

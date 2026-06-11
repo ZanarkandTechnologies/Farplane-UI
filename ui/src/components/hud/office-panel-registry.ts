@@ -31,7 +31,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import type { CeoWorkbenchView } from "@/lib/app-store";
+import type { CeoWorkbenchView } from "@/store";
 
 const SECONDARY_BUTTON_COLOR = "bg-secondary hover:bg-secondary/80 text-secondary-foreground";
 const EMPHASIZED_BUTTON_COLOR = "bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30";

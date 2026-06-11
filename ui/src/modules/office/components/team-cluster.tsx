@@ -20,7 +20,7 @@ import type { TeamData, DeskLayoutData } from "@/modules/office/lib/types";
 import type { ThreeEvent } from "@react-three/fiber";
 import Desk from "./desk";
 import { InteractiveObject } from "./interactive-object";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import { Text, Html } from "@react-three/drei";
 import {
   getClusterAnchor,

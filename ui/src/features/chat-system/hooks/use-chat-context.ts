@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useChatStore } from "@/features/chat-system/chat-store";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import {
   getDisplayInitials,
   type StoryChatPersona,

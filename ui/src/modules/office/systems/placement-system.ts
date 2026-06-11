@@ -21,7 +21,7 @@
  * // In the Scene (PlacementHandler):
  * const { confirmCoordinatePlacement } = usePlacementSystem();
  * */
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import * as THREE from "three";
 import { useCallback } from "react";
 import { OfficeId } from "@/modules/office/lib/types";

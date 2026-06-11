@@ -53,7 +53,7 @@ import type {
   SkillsPanelSelectionState,
 } from "@/modules/office/components/skills-panel-types";
 import { usePollWithInterval } from "@/hooks/use-poll-with-interval";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import type {
   AgentSkillsInventory,
   GlobalSkillsInventory,
@@ -64,7 +64,7 @@ import type {
   SkillStudioDetail,
   SkillStudioFileContent,
 } from "@/modules/runtime";
-import { stringifySkillManifest } from "@/lib/skill-studio";
+import { stringifySkillManifest } from "@/modules/skills-studio";
 import { UI_Z } from "@/lib/z-index";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 

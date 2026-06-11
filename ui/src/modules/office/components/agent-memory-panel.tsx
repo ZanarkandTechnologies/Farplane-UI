@@ -29,7 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import { extractAgentId } from "@/lib/entity-utils";
 import { formatTimestamp } from "@/lib/format-utils";
 import type { AgentMemoryEntry, AgentsFilesListResult } from "@/modules/runtime";

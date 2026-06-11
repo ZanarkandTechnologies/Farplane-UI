@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import type { AgentCardModel, HeartbeatWindow, SessionRowModel, SessionTimelineModel } from "@/modules/runtime";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { UI_Z } from "@/lib/z-index";

@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import { UI_Z } from "@/lib/z-index";
 import { TaskMemoryView } from "./task-memory-view";
 import {

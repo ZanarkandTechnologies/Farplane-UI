@@ -20,7 +20,7 @@
 import { Html, Plane } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import {
   applyOfficeLayoutPaint,
   expandOfficeLayoutRemovalStroke,

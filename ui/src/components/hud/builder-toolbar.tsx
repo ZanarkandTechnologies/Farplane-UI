@@ -19,7 +19,7 @@
 import { useEffect } from "react";
 import { DoorOpen, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useLayoutEditorHud } from "@/modules/office/scene/layout-editor-hud-context";
 

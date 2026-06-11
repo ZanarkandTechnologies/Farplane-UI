@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useAppStore } from "@/lib/app-store";
+import { useAppStore } from "@/store";
 import { cn } from "@/lib/utils";
 import { UI_Z } from "@/lib/z-index";
 import type { EmployeeData } from "@/modules/office/lib/types";
