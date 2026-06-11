@@ -30,6 +30,7 @@ import { useAppStore } from "@/lib/app-store";
 import { useChatStore } from "@/features/chat-system/chat-store";
 import { extractAgentId } from "@/lib/entity-utils";
 import { OfficeLayoutEditor } from "./office-layout-editor";
+import { OfficeClickProbe } from "./office-click-probe";
 import { OfficeLighting } from "./office-lighting";
 import { OfficeObjectRenderer } from "./office-object-renderer";
 import { OfficeRoomShell } from "./office-room-shell";
@@ -238,6 +239,9 @@ export function SceneContents(props: OfficeSceneProps): JSX.Element {
         zoomRange={isFixed25 ? { minZoom, maxZoom } : undefined}
       />
       <OfficeLayoutEditor />
+      {import.meta.env.DEV ? (
+        <OfficeClickProbe teams={teams} employees={employeesForScene} />
+      ) : null}
       {!sceneBuilderMode &&
         employeesForScene.map((employee) => (
           <Employee

@@ -51,6 +51,7 @@ import {
 import { getEmployeeAnimationPose } from "./employee-motion";
 import { ProfileHead } from "./ProfileHead";
 import { EmployeeStatusBubbles } from "./StatusBubbles";
+import { recordDevEmployeePosition } from "./use-dev-employee-position-probe";
 import { useEmployeeLocomotion } from "./use-employee-locomotion";
 
 type AvatarPalette = {
@@ -534,6 +535,7 @@ const Employee = memo(function Employee({
 
   useFrame((state) => {
     if (groupRef.current) {
+      recordDevEmployeePosition(id, groupRef);
       const isAtRestScale =
         hoverScale === 1 &&
         Math.abs(groupRef.current.scale.x - 1) < 0.001 &&
@@ -638,6 +640,11 @@ const Employee = memo(function Employee({
           setIsHovered(false);
         }}
       >
+        <mesh name={`employee-hit-target-${id}`} position={[0, 0.68, 0]}>
+          <cylinderGeometry args={[0.8, 0.9, TOTAL_HEIGHT + 0.55, 20]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+
         <group ref={avatarRef}>
           <AvatarShell
             colors={finalColors}

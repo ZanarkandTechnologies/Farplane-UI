@@ -93,6 +93,7 @@ export default function TeamCluster({
   const currentDeskCount = desks.length;
   const isAtCapacity = currentDeskCount >= MAX_DESKS_PER_TEAM;
   const remainingSlots = MAX_DESKS_PER_TEAM - currentDeskCount;
+  const overflowDeskCount = Math.max(0, currentDeskCount - MAX_DESKS_PER_TEAM);
 
   // Handle cluster click
   const handleClusterClick = (event: ThreeEvent<MouseEvent>) => {
@@ -174,10 +175,10 @@ export default function TeamCluster({
           ? a.originalIndex - b.originalIndex
           : a.persistedIndex - b.persistedIndex,
       );
-    return orderedDesks.map(({ desk }, layoutIndex) => ({
+    return orderedDesks.slice(0, MAX_DESKS_PER_TEAM).map(({ desk }, layoutIndex, visibleDesks) => ({
       id: desk.id,
-      position: getDeskPosition(clusterPos, layoutIndex, orderedDesks.length),
-      rotationY: getDeskRotation(layoutIndex, orderedDesks.length),
+      position: getDeskPosition(clusterPos, layoutIndex, visibleDesks.length),
+      rotationY: getDeskRotation(layoutIndex, visibleDesks.length),
     }));
   }, [desks]);
 
@@ -185,6 +186,28 @@ export default function TeamCluster({
     const [anchorX, , anchorZ] = getClusterAnchor(desksWithPositions.length);
     return [anchorX, 0.8, anchorZ];
   }, [desksWithPositions.length]);
+  const tableHitTarget = useMemo(() => {
+    if (desksWithPositions.length === 0) {
+      return {
+        center: [0, 0.4, 0] as [number, number, number],
+        size: [3.4, 0.8, 3.2] as [number, number, number],
+      };
+    }
+    const xs = desksWithPositions.map((desk) => desk.position[0]);
+    const zs = desksWithPositions.map((desk) => desk.position[2]);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minZ = Math.min(...zs);
+    const maxZ = Math.max(...zs);
+    return {
+      center: [(minX + maxX) / 2, 0.4, (minZ + maxZ) / 2] as [number, number, number],
+      size: [
+        Math.max(3.4, maxX - minX + 1.8),
+        0.8,
+        Math.max(3.2, maxZ - minZ + 1.6),
+      ] as [number, number, number],
+    };
+  }, [desksWithPositions]);
 
   // Render conditions
   const isManagementCluster = team.name === "Management";
@@ -206,6 +229,11 @@ export default function TeamCluster({
         onPointerLeave={shouldEnableLocalHover ? () => setIsHovered(false) : undefined}
         onClick={handleClusterClick}
       >
+        <mesh name={`team-hit-target-${team._id}`} position={tableHitTarget.center}>
+          <boxGeometry args={tableHitTarget.size} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+
         {/* Team Marker/Base */}
         <group name="team-marker">
           {/* Floor Mat - Only visible in Builder/Placement mode */}
@@ -309,6 +337,29 @@ export default function TeamCluster({
               isHovered={shouldEnableLocalHover && isHovered}
             />
           ))}
+
+          {overflowDeskCount > 0 && (
+            <group name="team-round-table-overflow" position={[0, 0, 2.25]}>
+              <mesh position={[0, 0.38, 0]} castShadow receiveShadow>
+                <cylinderGeometry args={[0.75, 0.75, 0.12, 32]} />
+                <meshStandardMaterial color={isHovered ? "#dbeafe" : "#f8fafc"} roughness={0.75} />
+              </mesh>
+              <mesh position={[0, 0.18, 0]} castShadow>
+                <cylinderGeometry args={[0.08, 0.12, 0.36, 12]} />
+                <meshStandardMaterial color="#64748b" roughness={0.8} />
+              </mesh>
+              <Text
+                position={[0, 0.48, 0]}
+                rotation={[-Math.PI / 2, 0, 0]}
+                fontSize={0.24}
+                color="#0f172a"
+                anchorX="center"
+                anchorY="middle"
+              >
+                +{overflowDeskCount}
+              </Text>
+            </group>
+          )}
         </group>
 
         {/* Team Label - Always visible in builder mode, otherwise on hover */}

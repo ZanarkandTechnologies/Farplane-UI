@@ -164,16 +164,20 @@ export function OfficeRoomShell(props: {
           (segment.id.endsWith(":east") && frontWalls.frontEast);
         const opacity = isFront && isFixed25 ? frontWallOpacity : baseWallOpacity;
         return (
-          <Box
+          <mesh
             key={segment.id}
-            args={[segment.width, WALL_HEIGHT, segment.depth]}
             position={segment.position}
             rotation={segment.rotation}
             castShadow
             receiveShadow
             name={`wall-${segment.id}`}
-            onClick={onBackgroundClick}
+            ref={(mesh) => {
+              if (mesh) {
+                mesh.raycast = () => {};
+              }
+            }}
           >
+            <boxGeometry args={[segment.width, WALL_HEIGHT, segment.depth]} />
             <meshStandardMaterial
               color={wallColor}
               emissive={sceneBuilderMode ? officeTheme.scene.floor : "#000000"}
@@ -181,7 +185,7 @@ export function OfficeRoomShell(props: {
               transparent
               opacity={opacity}
             />
-          </Box>
+          </mesh>
         );
       })}
     </>

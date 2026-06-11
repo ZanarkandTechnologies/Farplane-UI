@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { WALL_HEIGHT, WALL_THICKNESS } from "@/constants";
 import {
   applyOfficeLayoutPaint,
   clampPositionToOfficeLayout,
@@ -36,6 +37,29 @@ describe("office layout helpers", () => {
     );
     expect(clampPositionToOfficeLayout([4, 0, 4], layout, 0)).toEqual([1, 0, 0]);
     expect(getOfficeLayoutWallSegments(layout)).toHaveLength(6);
+  });
+
+  it("places generated walls flush with tile floor edges", () => {
+    const layout = normalizeOfficeLayout(
+      { tiles: [officeLayoutTileKey(0, 0)] },
+      { width: 3, depth: 3 },
+    );
+    const segments = getOfficeLayoutWallSegments(layout);
+
+    expect(segments).toHaveLength(4);
+    for (const segment of segments) {
+      expect(segment.position[1] - WALL_HEIGHT / 2).toBeCloseTo(0);
+    }
+    expect(segments.find((segment) => segment.id.endsWith(":north"))).toMatchObject({
+      position: [0, WALL_HEIGHT / 2, -0.5 + WALL_THICKNESS / 2],
+      width: 1,
+      depth: WALL_THICKNESS,
+    });
+    expect(segments.find((segment) => segment.id.endsWith(":west"))).toMatchObject({
+      position: [-0.5 + WALL_THICKNESS / 2, WALL_HEIGHT / 2, 0],
+      width: WALL_THICKNESS,
+      depth: 1,
+    });
   });
 
   it("fills enclosed holes after drawing a closed outline", () => {

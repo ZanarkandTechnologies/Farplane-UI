@@ -17,6 +17,7 @@
  * - MEM-0165
  */
 
+import { WALL_HEIGHT, WALL_THICKNESS } from "@/constants";
 import type { OfficeFootprint } from "@/lib/office-footprint";
 
 export interface OfficeLayoutModel {
@@ -391,8 +392,9 @@ export function expandOfficeLayoutRemovalStroke(
 export function getOfficeLayoutWallSegments(layout: OfficeLayoutModel): OfficeWallSegment[] {
   const tileSet = getOfficeLayoutTileSet(layout);
   const segments: OfficeWallSegment[] = [];
-  const wallThickness = 0.18;
+  const wallThickness = WALL_THICKNESS;
   const inset = wallThickness / 2;
+  const wallCenterY = WALL_HEIGHT / 2;
   for (const tileKey of tileSet) {
     const tile = parseOfficeLayoutTileKey(tileKey);
     if (!tile) continue;
@@ -400,7 +402,7 @@ export function getOfficeLayoutWallSegments(layout: OfficeLayoutModel): OfficeWa
       {
         key: officeLayoutTileKey(tile.x, tile.z - 1),
         id: `${tileKey}:north`,
-        position: [tile.x, 1.5, tile.z - 0.5 + inset] as [number, number, number],
+        position: [tile.x, wallCenterY, tile.z - 0.5 + inset] as [number, number, number],
         rotation: [0, 0, 0] as [number, number, number],
         width: 1,
         depth: wallThickness,
@@ -408,7 +410,7 @@ export function getOfficeLayoutWallSegments(layout: OfficeLayoutModel): OfficeWa
       {
         key: officeLayoutTileKey(tile.x, tile.z + 1),
         id: `${tileKey}:south`,
-        position: [tile.x, 1.5, tile.z + 0.5 - inset] as [number, number, number],
+        position: [tile.x, wallCenterY, tile.z + 0.5 - inset] as [number, number, number],
         rotation: [0, 0, 0] as [number, number, number],
         width: 1,
         depth: wallThickness,
@@ -416,7 +418,7 @@ export function getOfficeLayoutWallSegments(layout: OfficeLayoutModel): OfficeWa
       {
         key: officeLayoutTileKey(tile.x - 1, tile.z),
         id: `${tileKey}:west`,
-        position: [tile.x - 0.5 + inset, 1.5, tile.z] as [number, number, number],
+        position: [tile.x - 0.5 + inset, wallCenterY, tile.z] as [number, number, number],
         rotation: [0, 0, 0] as [number, number, number],
         width: wallThickness,
         depth: 1,
@@ -424,7 +426,7 @@ export function getOfficeLayoutWallSegments(layout: OfficeLayoutModel): OfficeWa
       {
         key: officeLayoutTileKey(tile.x + 1, tile.z),
         id: `${tileKey}:east`,
-        position: [tile.x + 0.5 - inset, 1.5, tile.z] as [number, number, number],
+        position: [tile.x + 0.5 - inset, wallCenterY, tile.z] as [number, number, number],
         rotation: [0, 0, 0] as [number, number, number],
         width: wallThickness,
         depth: 1,
