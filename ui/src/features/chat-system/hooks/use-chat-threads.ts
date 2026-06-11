@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useChatStore } from "@/features/chat-system/chat-store";
 import { useAppStore } from "@/lib/app-store";
-import type { AgentCardModel, SessionRowModel } from "@/lib/openclaw-types";
+import type { AgentCardModel, SessionRowModel } from "@/lib/openclaw";
 import { useGateway } from "@/providers/gateway-provider";
-import { useOfficeRuntimeAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 
 type AgentsListResult = { agents: Array<{ id: string; name?: string; identity?: { name?: string } }> };
 type SessionsListResult = { sessions: Array<{ key: string; label?: string; displayName?: string; surface?: string; updatedAt?: number | null; sessionId?: string }> };

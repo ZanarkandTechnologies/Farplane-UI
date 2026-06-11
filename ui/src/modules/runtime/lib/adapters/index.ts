@@ -5,7 +5,7 @@ export {
   toCodexCompanyModel,
   toCodexSessionRows,
   toCodexTimeline,
-} from "@/lib/codex-app-server";
+} from "../codex-app-server";
 export { createOfficeRuntimeAdapter } from "./factory";
 export { OpenClawRuntimeAdapter } from "./openclaw-runtime-adapter";
 export {

@@ -15,7 +15,7 @@
  * - MEM-0168
  */
 
-import type { OfficeSettingsModel } from "@/lib/openclaw-types";
+import type { OfficeSettingsModel } from "@/lib/openclaw";
 
 export type OfficeSceneViewSettings = Pick<
   OfficeSettingsModel,

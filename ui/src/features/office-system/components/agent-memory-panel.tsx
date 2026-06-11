@@ -32,10 +32,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore } from "@/lib/app-store";
 import { extractAgentId } from "@/lib/entity-utils";
 import { formatTimestamp } from "@/lib/format-utils";
-import type { AgentMemoryEntry, AgentsFilesListResult } from "@/lib/openclaw-types";
+import type { AgentMemoryEntry, AgentsFilesListResult } from "@/lib/openclaw";
 import { UI_Z } from "@/lib/z-index";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { KanbanTab } from "@/features/team-system/components/kanban-tab";
 import {
   extractArtefactPath,
@@ -88,7 +88,7 @@ function formatEntryType(type?: AgentMemoryEntry["type"]): string {
 }
 
 export function AgentMemoryPanel(): ReactElement | null {
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
   const { employees, companyModel } = useOfficeDataContext();
   const memoryPanelEmployeeId = useAppStore((state) => state.memoryPanelEmployeeId);
   const setMemoryPanelEmployeeId = useAppStore((state) => state.setMemoryPanelEmployeeId);

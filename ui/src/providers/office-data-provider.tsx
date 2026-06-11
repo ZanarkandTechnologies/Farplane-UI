@@ -30,7 +30,7 @@ import React, {
   useState,
 } from "react";
 import { useAgentLiveStatuses } from "@/hooks/use-agent-live-status";
-import type { OpenClawAdapter } from "@/lib/openclaw-adapter";
+import type { OpenClawAdapter } from "@/lib/openclaw";
 import type {
   AgentLiveStatus,
   FederatedTaskProvider,
@@ -39,7 +39,7 @@ import type {
   PendingApprovalModel,
   ProviderIndexProfile,
   UnifiedOfficeModel,
-} from "@/lib/openclaw-types";
+} from "@/lib/openclaw";
 import {
   areStringArraysEqual,
   fallbackData,
@@ -47,14 +47,14 @@ import {
   type OfficeDataContextValue,
 } from "@/providers/office-data-mapper";
 import { stabilizeOfficeData } from "@/providers/office-data-stability";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 
 const OfficeDataContext = createContext<OfficeDataContextValue | undefined>(undefined);
 
 export type { OfficeDataContextValue };
 
 export function OfficeDataProvider({ children }: { children: ReactNode }): React.JSX.Element {
-  const sharedAdapter = useOpenClawAdapter();
+  const sharedAdapter = useOfficeRuntimeAdapter();
   const [value, setValue] = useState<OfficeDataContextValue>({ ...fallbackData(), isLoading: true });
   const [agentIds, setAgentIds] = useState<string[]>([]);
   const adapterRef = useRef<OpenClawAdapter | null>(null);

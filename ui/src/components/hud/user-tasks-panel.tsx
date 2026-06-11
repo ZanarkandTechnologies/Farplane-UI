@@ -174,7 +174,7 @@ export function UserTasksPanel({ isOpen, onOpenChange }: UserTasksPanelProps): J
             Founder review is a filtered view over CEO board tasks waiting for approval, not a
             separate workflow store.
             {isMock
-              ? " Showing mock tasks so the SC12 review flow stays visible before live board data exists."
+              ? " Showing mock tasks so the task review flow stays visible before live board data exists."
               : ""}
           </DialogDescription>
         </DialogHeader>

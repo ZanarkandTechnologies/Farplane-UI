@@ -7,7 +7,7 @@ import { AppRouter } from "@/AppRouter";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { FarplaneConvexProvider } from "@/providers/convex-provider";
 import { GatewayProvider } from "@/providers/gateway-provider";
-import { OpenClawAdapterProvider } from "@/providers/openclaw-adapter-provider";
+import { RuntimeAdapterProvider } from "@/modules/runtime";
 import "./styles.css";
 
 document.documentElement.classList.add("dark");
@@ -17,11 +17,11 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
       <FarplaneConvexProvider>
         <GatewayProvider>
-          <OpenClawAdapterProvider>
+          <RuntimeAdapterProvider>
             <BrowserRouter>
               <AppRouter />
             </BrowserRouter>
-          </OpenClawAdapterProvider>
+          </RuntimeAdapterProvider>
         </GatewayProvider>
       </FarplaneConvexProvider>
       <Toaster />

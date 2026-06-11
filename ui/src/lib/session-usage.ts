@@ -14,7 +14,7 @@
  * MEMORY REFERENCES:
  * - MEM-0131
  */
-import type { SessionTimelineModel, SessionUsageTotals } from "./openclaw-types";
+import type { SessionTimelineModel, SessionUsageTotals } from "./openclaw";
 
 export interface TeamUsageSessionEntry {
   agentId: string;

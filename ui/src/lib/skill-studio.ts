@@ -26,7 +26,7 @@ import type {
   SkillManifestToolDependency,
   SkillManifestVisualization,
   SkillStateMode,
-} from "./openclaw-types";
+} from "./openclaw";
 
 type JsonLike = Record<string, unknown>;
 

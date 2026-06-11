@@ -63,10 +63,10 @@ import type {
   SkillStudioCatalogEntry,
   SkillStudioDetail,
   SkillStudioFileContent,
-} from "@/lib/openclaw-types";
+} from "@/lib/openclaw";
 import { stringifySkillManifest } from "@/lib/skill-studio";
 import { UI_Z } from "@/lib/z-index";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 
 type ControllerResult = {
   isOpen: boolean;
@@ -119,7 +119,7 @@ export function useSkillsPanelController(): ControllerResult {
   const selectedSkillId = useAppStore((state) => state.selectedSkillStudioSkillId);
   const setSelectedSkillId = useAppStore((state) => state.setSelectedSkillStudioSkillId);
   const focusAgentId = useAppStore((state) => state.skillStudioFocusAgentId);
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
 
   const [skills, setSkills] = useState<SkillStudioCatalogEntry[]>([]);
   const [selectedDetail, setSelectedDetail] = useState<SkillStudioDetail | null>(null);

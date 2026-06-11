@@ -5,7 +5,7 @@ import {
   projectToBusinessBuilderDraft,
   toProjectResources,
 } from "./business-builder";
-import type { ProjectModel } from "./openclaw-types";
+import type { ProjectModel } from "./openclaw";
 
 describe("business builder helpers", () => {
   it("creates draft with empty slots and default resources", () => {

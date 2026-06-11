@@ -8,7 +8,7 @@ import type {
   SessionRowModel,
   SessionTimelineModel,
   UnifiedOfficeModel,
-} from "@/lib/openclaw-types";
+} from "@/lib/openclaw";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isConvexEnabled } from "@/providers/convex-provider";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 
 type LogsDrawerProps = {
   open: boolean;
@@ -32,7 +32,7 @@ export function LogsDrawer({
   onOpenChange,
   gatewayBase,
 }: LogsDrawerProps): React.JSX.Element {
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
   const convexEnabled = isConvexEnabled();
   const [unified, setUnified] = useState<UnifiedOfficeModel | null>(null);
   const [sessions, setSessions] = useState<SessionRowModel[]>([]);

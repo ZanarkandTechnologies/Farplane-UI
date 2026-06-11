@@ -5,16 +5,16 @@ import {
   createOfficeRuntimeAdapter,
   getRuntimeAdapterKind,
   type OfficeRuntimeAdapter,
-} from "@/lib/runtime-adapters";
+} from "./lib/adapters";
 import { useGateway } from "@/providers/gateway-provider";
 
-type OpenClawAdapterContextValue = {
+type RuntimeAdapterContextValue = {
   adapter: OfficeRuntimeAdapter;
 };
 
-const OpenClawAdapterContext = createContext<OpenClawAdapterContextValue | null>(null);
+const RuntimeAdapterContext = createContext<RuntimeAdapterContextValue | null>(null);
 
-export function OpenClawAdapterProvider({ children }: { children: ReactNode }): ReactElement {
+export function RuntimeAdapterProvider({ children }: { children: ReactNode }): ReactElement {
   const { client: wsClient, config } = useGateway();
   const runtimeKind = getRuntimeAdapterKind(import.meta.env.VITE_FARPLANE_RUNTIME_ADAPTER);
   const value = useMemo(
@@ -27,19 +27,13 @@ export function OpenClawAdapterProvider({ children }: { children: ReactNode }): 
     }),
     [config.stateBase, runtimeKind, wsClient],
   );
-  return (
-    <OpenClawAdapterContext.Provider value={value}>{children}</OpenClawAdapterContext.Provider>
-  );
+  return <RuntimeAdapterContext.Provider value={value}>{children}</RuntimeAdapterContext.Provider>;
 }
 
 export function useOfficeRuntimeAdapter(): OfficeRuntimeAdapter {
-  const context = useContext(OpenClawAdapterContext);
+  const context = useContext(RuntimeAdapterContext);
   if (!context) {
-    throw new Error("useOfficeRuntimeAdapter must be used within OpenClawAdapterProvider");
+    throw new Error("useOfficeRuntimeAdapter must be used within RuntimeAdapterProvider");
   }
   return context.adapter;
-}
-
-export function useOpenClawAdapter(): OfficeRuntimeAdapter {
-  return useOfficeRuntimeAdapter();
 }

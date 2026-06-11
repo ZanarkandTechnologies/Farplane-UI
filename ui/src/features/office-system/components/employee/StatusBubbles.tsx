@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { Html } from "@react-three/drei";
 
-import type { AgentState } from "@/lib/openclaw-types";
+import type { AgentState } from "@/lib/openclaw";
 import StatusIndicator, { type StatusType } from "@/features/nav-system/components/status-indicator";
 
 /**

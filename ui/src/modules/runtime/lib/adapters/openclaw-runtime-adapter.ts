@@ -7,7 +7,7 @@
  * routing, scheduler state, and OpenClaw gateway operations.
  */
 
-import { OpenClawAdapter } from "@/lib/openclaw-adapter";
+import { OpenClawAdapter } from "../../../../lib/openclaw";
 import type { RuntimeAdapterCapabilities } from "./contract";
 
 const OPENCLAW_CAPABILITIES: RuntimeAdapterCapabilities = {

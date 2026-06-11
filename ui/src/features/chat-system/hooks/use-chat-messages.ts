@@ -25,7 +25,7 @@ import {
 } from "../chat-message-utils";
 import { useAppStore } from "../../../lib/app-store";
 import { useGateway } from "../../../providers/gateway-provider";
-import { useOfficeRuntimeAdapter } from "../../../providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "../../../modules/runtime";
 
 type SubmissionStatus = "submitted" | "streaming" | "ready";
 type ChatGatewayEventPayload = {

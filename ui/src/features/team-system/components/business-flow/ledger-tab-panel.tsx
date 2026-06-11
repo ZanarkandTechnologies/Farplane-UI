@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { ProjectAccountEventModel, ProjectAccountModel } from "@/lib/openclaw-types";
+import type { ProjectAccountEventModel, ProjectAccountModel } from "@/lib/openclaw";
 import type { TeamAiUsageSummary } from "@/lib/session-usage";
 import { BusinessAccountSummaryCard } from "./business-account-summary-card";
 

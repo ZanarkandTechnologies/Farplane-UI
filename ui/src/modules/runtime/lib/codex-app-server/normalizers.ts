@@ -6,7 +6,7 @@ import type {
   SessionRowModel,
   SessionTimelineEvent,
   SessionTimelineModel,
-} from "@/lib/openclaw-types";
+} from "../../../../lib/openclaw";
 import type {
   CodexProjectManagerPin,
   CodexOfficeVisibilityConfig,

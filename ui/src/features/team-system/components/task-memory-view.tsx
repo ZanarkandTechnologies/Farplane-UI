@@ -3,11 +3,11 @@
 /**
  * TASK MEMORY VIEW
  * ================
- * Shared rendered view for compact SC12 task memory notes.
+ * Shared rendered view for compact task memory notes.
  *
  * KEY CONCEPTS:
  * - Renders markdown-ish task notes as readable sections instead of raw text blobs.
- * - Works in compact cards and full detail views so SC12 memory looks consistent across the UI.
+ * - Works in compact cards and full detail views so task memory looks consistent across the UI.
  *
  * USAGE:
  * - Mounted inside CEO Workbench, User Tasks, and Task Detail modal.
@@ -18,7 +18,7 @@
  */
 
 import { Badge } from "@/components/ui/badge";
-import { parseTaskMemory } from "@/lib/sc12-task-memory";
+import { parseTaskMemory } from "@/lib/task-memory";
 
 type TaskMemoryViewProps = {
   notes?: string;

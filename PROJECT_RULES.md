@@ -24,6 +24,26 @@ This file defines project-specific technical rules, stack details, and execution
 - `qa/`: reusable browser QA runbooks, cookbook pages, shortcuts, probes, and evidence expectations
 - `tickets/`: filesystem board (`todo/`, `review/`, `building/`, `done/`, `templates/`)
 
+## UI Modularity Rules
+
+- Treat `ui/src/modules/` as the target home for reusable operator workflows
+  and route-mounted product surfaces.
+- Model modules around operator jobs, not file type: office, runtime,
+  team-workspace, agent-workspace, skills-studio, chat, settings, and qa-tools.
+- Keep module components, hooks, local logic, tests, fixtures, and docs inside
+  the owning module.
+- Export intentional public surfaces through each module's `index.ts`.
+- Keep helpers local until there is a second real caller.
+- Promote cross-module contracts into domain-named `ui/src/lib/<domain>/`
+  folders rather than catch-all utility files.
+- Keep runtime-specific code behind runtime adapter folders or module-local
+  runtime panels; OpenClaw-specific UI/library code belongs under `openclaw/`
+  or the OpenClaw adapter path.
+- Use `features/` as a migration source for existing systems, but do not grow
+  it for new product-sized surfaces.
+- Substantial modules should include short `README.md` and `AGENTS.md` wrappers
+  plus module-local `docs/feature-registry.md` and `docs/qa-runbook.md`.
+
 ## Conventions
 
 - Naming: camelCase for functions/variables, PascalCase for types/classes/components
@@ -33,7 +53,8 @@ This file defines project-specific technical rules, stack details, and execution
 - Workflow: `tickets/*` is the active board; `docs/progress.md` is legacy reference only
 - QA: use `qa/README.md` and `qa/cookbook/*` as the canonical QA entrypoint; older `docs/how-to/*` QA guides remain reference runbooks
 - Security: treat inbound channel payloads as untrusted; keep secrets in env/secret resolvers and out of browser bundles/logs
-- Shared utilities: prefer domain-scoped `ui/src/lib`, feature-local `utils/`, or existing shared helpers before adding new helpers inside large components
+- Shared utilities: prefer module-local helpers, domain-scoped `ui/src/lib`,
+  or existing shared helpers before adding new helpers inside large components
 
 ## Runtime / QA Commands
 

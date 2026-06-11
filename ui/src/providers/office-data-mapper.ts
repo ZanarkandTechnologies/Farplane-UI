@@ -61,7 +61,7 @@ import type {
   ProviderIndexProfile,
   ReconciliationWarning,
   UnifiedOfficeModel,
-} from "@/lib/openclaw-types";
+} from "@/lib/openclaw";
 import type { Company, DeskLayoutData, EmployeeData, OfficeObject, TeamData } from "@/lib/types";
 
 export interface OfficeDataContextValue {

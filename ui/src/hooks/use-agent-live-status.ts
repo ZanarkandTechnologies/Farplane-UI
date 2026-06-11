@@ -2,7 +2,7 @@ import { useQuery } from "convex/react";
 import { useMemo, useRef } from "react";
 
 import { coerceLiveState } from "@/lib/live-status";
-import type { AgentLiveStatus } from "@/lib/openclaw-types";
+import type { AgentLiveStatus } from "@/lib/openclaw";
 import { isConvexEnabled } from "@/providers/convex-provider";
 import { api } from "../../../convex/_generated/api";
 

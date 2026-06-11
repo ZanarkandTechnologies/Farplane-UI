@@ -29,7 +29,7 @@ import {
   releaseEmployeeReservations,
 } from "@/features/nav-system/pathfinding/destination-registry";
 import type { Id } from "@/lib/entity-types";
-import type { AgentState } from "@/lib/openclaw-types";
+import type { AgentState } from "@/lib/openclaw";
 import { getRandomItem } from "@/lib/utils";
 import type { EmployeeAnimationMode } from "./employee-motion";
 

@@ -12,7 +12,7 @@ todos:
     content: "Phase 3: Decompose office simulation — employee.tsx folder split, office-scene.tsx color/idle extraction + useMemo, manage-agent-modal.tsx folder split, A* singleton refactor"
     status: pending
   - id: phase4-adapter
-    content: "Phase 4: Split openclaw-adapter.ts (2767L) into adapter/ domain modules with shared _normalize.ts helper"
+    content: "Phase 4: Split openclaw/adapter.ts (2767L) into adapter/ domain modules with shared _normalize.ts helper"
     status: pending
   - id: phase6-cleanup
     content: "Phase 5: App.tsx and prompt-input.tsx compound folder cleanup with JSX hoisting"
@@ -33,13 +33,13 @@ isProject: false
 
 ## Files Targeted (400+ lines)
 
-- `ui/src/lib/openclaw-adapter.ts` — 2767L
+- `ui/src/lib/openclaw/adapter.ts` — 2767L
 - `ui/src/components/ai-elements/prompt-input.tsx` — 1392L
 - `ui/src/features/office-system/components/manage-agent-modal.tsx` — 1133L
 - `ui/src/features/office-system/components/employee.tsx` — 947L
 - `ui/src/App.tsx` — 840L
 - `ui/src/components/office-scene.tsx` — 835L
-- `ui/src/lib/openclaw-types.ts` — 790L
+- `ui/src/lib/openclaw/types.ts` — 790L
 - `ui/src/providers/office-data-provider.tsx` — 752L
 - `cli/sidecar-store.ts` — 745L
 - `cli/office-commands.ts` — 647L
@@ -57,7 +57,7 @@ flowchart TD
     C1 --> E[convex/events.ts]
   end
   subgraph adapter [Service Layer]
-    F[openclaw-adapter.ts\n2767L] --> F1[adapter/index.ts]
+    F[openclaw/adapter.ts\n2767L] --> F1[adapter/index.ts]
     F --> F2[adapter/agent-ops.ts]
     F --> F3[adapter/session-ops.ts]
     F --> F4[adapter/board-ops.ts]
@@ -114,7 +114,7 @@ Extract from `[convex/board.ts](convex/board.ts)`, `[convex/status.ts](convex/st
 
 - Unify `extractAgentId` / `extractAgentIdFromEmployee` — same "strip `employee-` prefix" logic in 2 files
 
-### 1e. `openclaw-types.ts` — Unify `AgentState` type
+### 1e. `openclaw/types.ts` — Unify `AgentState` type
 
 - `"running" | "ok" | "no_work" | ...` inlined 4× → one exported `AgentState` union, re-imported everywhere
 
@@ -212,7 +212,7 @@ Low risk since only `use-employee-locomotion` (after 3a) calls it.
 
 ## Phase 4 — OpenClaw Adapter Split (High Impact, Moderate Risk)
 
-`[openclaw-adapter.ts](ui/src/lib/openclaw-adapter.ts)` at 2767L is the single largest UI file. Split into domain modules, all re-exported from `adapter/index.ts` to preserve import compatibility.
+`[openclaw/adapter.ts](ui/src/lib/openclaw/adapter.ts)` at 2767L is the single largest UI file. Split into domain modules, all re-exported from `adapter/index.ts` to preserve import compatibility.
 
 ```
 ui/src/lib/adapter/

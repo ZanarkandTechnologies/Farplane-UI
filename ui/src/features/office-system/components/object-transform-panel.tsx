@@ -42,9 +42,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppStore } from "@/lib/app-store";
-import type { CompanyOfficeObjectModel } from "@/lib/openclaw-types";
+import type { CompanyOfficeObjectModel } from "@/lib/openclaw";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import {
   canObjectScale,
   getNextRotationY,
@@ -103,7 +103,7 @@ function clampPanelPosition(position: PanelPosition): PanelPosition {
 }
 
 export function ObjectTransformPanel(): ReactElement | null {
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
   const { officeObjects, officeSettings, refresh } = useOfficeDataContext();
   const isBuilderMode = useAppStore((state) => state.isBuilderMode);
   const activeObjectTransformId = useAppStore((state) => state.activeObjectTransformId);

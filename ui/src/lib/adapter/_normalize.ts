@@ -78,7 +78,7 @@ import type {
   CapabilitySlotModel,
   BusinessConfigModel,
   TeamBusinessSkillSyncResult,
-} from "../openclaw-types";
+} from "../openclaw";
 import { normalizeOfficeDecorSettings } from "../office-decor";
 import { getOfficeFootprintFromLayout, normalizeOfficeLayout } from "../office-layout";
 import { DEFAULT_OFFICE_FOOTPRINT, normalizeOfficeFootprint } from "../office-footprint";

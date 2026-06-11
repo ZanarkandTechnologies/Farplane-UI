@@ -11,7 +11,7 @@ import {
   toProviderIndexProfile,
   toTask,
   toTimeline,
-} from "./openclaw-adapter";
+} from "./index";
 
 afterEach(() => {
   vi.restoreAllMocks();

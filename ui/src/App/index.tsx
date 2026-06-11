@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { gatewayBase } from "@/lib/gateway-config";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { formatTimestamp as fmtTs } from "@/lib/format-utils";
 import type {
   AgentCardModel,
@@ -14,7 +14,7 @@ import type {
   SessionRowModel,
   SessionTimelineModel,
   SkillItemModel,
-} from "@/lib/openclaw-types";
+} from "@/lib/openclaw";
 
 import {
   MemorySection,
@@ -48,7 +48,7 @@ const fallbackAgents: AgentCardModel[] = [
 ];
 
 export function App({ initialTab = "operations" }: AppProps): JSX.Element {
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
   const [activeTab, setActiveTab] = useState<UiTab>(initialTab);
   const [agents, setAgents] = useState<AgentCardModel[]>([]);
   const [sessions, setSessions] = useState<SessionRowModel[]>([]);

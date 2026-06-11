@@ -1,4 +1,4 @@
-import type { CompanyOfficeObjectModel } from "@/lib/openclaw-types";
+import type { CompanyOfficeObjectModel } from "@/lib/openclaw";
 
 export function canObjectScale(meshType: CompanyOfficeObjectModel["meshType"] | string): boolean {
   return meshType !== "team-cluster";

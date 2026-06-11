@@ -23,7 +23,7 @@ import {
   saveGatewayUiConfig,
 } from "@/lib/gateway-config";
 import { GatewayWsClient } from "@/lib/gateway-ws-client";
-import { getRuntimeAdapterKind } from "@/lib/runtime-adapters";
+import { getRuntimeAdapterKind } from "@/modules/runtime";
 
 type GatewayContextValue = {
   client: GatewayWsClient;

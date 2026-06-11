@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { collectTaskMemoryLinks, parseTaskMemory } from "./sc12-task-memory";
+import { collectTaskMemoryLinks, parseTaskMemory } from "./task-memory";
 
-describe("sc12 task memory helpers", () => {
+describe("task memory helpers", () => {
   it("parses markdown headings and bullets into sections", () => {
     const parsed = parseTaskMemory(
       [

@@ -15,7 +15,7 @@
  * - MEM-0175
  */
 
-import type { OfficeSettingsModel } from "@/lib/openclaw-types";
+import type { OfficeSettingsModel } from "@/lib/openclaw";
 
 export async function saveOfficeSettingsOptimistically(params: {
   previousSettings: OfficeSettingsModel;

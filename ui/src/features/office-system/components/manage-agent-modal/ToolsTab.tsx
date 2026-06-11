@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { ToolCatalogGroup, ToolCatalogProfile, ToolsCatalogResult } from "@/lib/openclaw-types";
+import type { ToolCatalogGroup, ToolCatalogProfile, ToolsCatalogResult } from "@/lib/openclaw";
 import type { AgentConfigDraft } from "./_types";
 
 function toCommaList(value: string[]): string {

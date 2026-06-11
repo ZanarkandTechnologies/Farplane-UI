@@ -7,7 +7,7 @@ import { constrainOfficeObjectPositionForLayout } from "@/features/office-system
 import { useAppStore } from "@/lib/app-store";
 import type { OfficeId } from "@/lib/types";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { DraggableController } from "../controllers/draggable-controller";
 import { parseOfficeObjectInteractionConfig } from "../office-object-ui";
 import { beginObjectInteractionTrace } from "../utils/object-interaction-perf";
@@ -90,7 +90,7 @@ export function InteractiveObject({
   const contentRef = useRef<THREE.Group>(null);
   const controllerRef = useRef<DraggableController | null>(null);
   const { camera, gl } = useThree();
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
   const { officeSettings, refresh } = useOfficeDataContext();
   const objectIdString = `object-${objectId}`;
   const [localPosition, setLocalPosition] = useState<[number, number, number]>(initialPosition);

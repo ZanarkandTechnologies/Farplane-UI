@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { AgentFileEntry, AgentMemoryEntry } from "@/lib/openclaw-types";
+import type { AgentFileEntry, AgentMemoryEntry } from "@/lib/openclaw";
 
 import {
   buildAgentMemoryFileGroups,

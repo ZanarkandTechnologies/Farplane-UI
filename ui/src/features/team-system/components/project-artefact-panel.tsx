@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import {
   buildExplorerTree,
   createFileKey,
@@ -105,7 +105,7 @@ export function ProjectArtefactPanel({
   trackingContext,
   onBack,
 }: ProjectArtefactPanelProps): ReactElement {
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
   const [query, setQuery] = useState("");
   const [activeFileKey, setActiveFileKey] = useState<string | null>(null);
   const [activeFileContent, setActiveFileContent] = useState("");

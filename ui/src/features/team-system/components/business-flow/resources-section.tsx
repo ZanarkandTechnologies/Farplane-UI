@@ -16,7 +16,7 @@
  * - MEM-0122
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ProjectResourceModel } from "@/lib/openclaw-types";
+import type { ProjectResourceModel } from "@/lib/openclaw";
 
 interface ResourcesSectionProps {
   resources: ProjectResourceModel[];

@@ -20,7 +20,7 @@ import type {
   PendingApprovalModel,
   ApprovalActionType,
   ApprovalRiskLevel,
-} from "@/lib/openclaw-types";
+} from "@/lib/openclaw";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -31,7 +31,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { UI_Z } from "@/lib/z-index";
 
 type ApprovalQueueProps = {
@@ -161,7 +161,7 @@ function ApprovalCard({
 }
 
 export function ApprovalQueue({ isOpen, onOpenChange }: ApprovalQueueProps) {
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
   const [approvals, setApprovals] = useState<PendingApprovalModel[]>([]);
   const [resolving, setResolving] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);

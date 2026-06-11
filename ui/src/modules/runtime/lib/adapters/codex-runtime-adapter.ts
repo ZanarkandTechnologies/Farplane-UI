@@ -8,7 +8,7 @@
  * thread-map adapter exists.
  */
 
-import { OpenClawAdapter } from "@/lib/openclaw-adapter";
+import { OpenClawAdapter } from "../../../../lib/openclaw";
 import {
   CODEX_MAIN_AGENT_ID,
   CodexAppServerClient,
@@ -22,7 +22,7 @@ import {
   toCodexSessionRows,
   toCodexTimeline,
   type CodexThread,
-} from "@/lib/codex-app-server";
+} from "../codex-app-server";
 import type {
   AgentCardModel,
   AgentLiveStatus,
@@ -37,8 +37,8 @@ import type {
   SessionTimelineModel,
   ToolsCatalogResult,
   UnifiedOfficeModel,
-} from "@/lib/openclaw-types";
-import type { GatewayWsClient } from "@/lib/gateway-ws-client";
+} from "../../../../lib/openclaw";
+import type { GatewayWsClient } from "../../../../lib/gateway-ws-client";
 import type { RuntimeAdapterCapabilities } from "./contract";
 
 function buildCodexWorkload(company: UnifiedOfficeModel["company"]): UnifiedOfficeModel["workload"] {

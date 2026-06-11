@@ -4,16 +4,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore } from "@/lib/app-store";
 import { getGatewayUiConfig } from "@/lib/gateway-config";
 import { setOfficeOnboardingCompleted } from "@/lib/office-onboarding";
-import type { OfficeSettingsModel } from "@/lib/openclaw-types";
+import type { OfficeSettingsModel } from "@/lib/openclaw";
 import {
   getRuntimeAdapterKind,
   saveRuntimeAdapterKind,
   type RuntimeAdapterKind,
-} from "@/lib/runtime-adapters";
+} from "@/modules/runtime";
 import { UI_Z } from "@/lib/z-index";
 import { useGateway } from "@/providers/gateway-provider";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import {
   GeneralSettingsPanel,
   OfficeViewSettingsPanel,
@@ -29,7 +29,7 @@ type SettingsDialogProps = {
 
 export default function SettingsDialog(props: SettingsDialogProps) {
   const { open, onOpenChange } = props;
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
   const { officeSettings, refresh } = useOfficeDataContext();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const dialogOpen = typeof open === "boolean" ? open : uncontrolledOpen;

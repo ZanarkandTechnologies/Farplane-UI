@@ -29,7 +29,7 @@ import { useChatActions } from "@/features/chat-system/chat-store";
 import { useAppStore } from "@/lib/app-store";
 import { UI_Z } from "@/lib/z-index";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { LedgerTabPanel } from "./business-flow/ledger-tab-panel";
 import { BusinessTab } from "./business-tab";
 import { KanbanTab } from "./kanban-tab";
@@ -61,7 +61,7 @@ export function TeamPanel({
   globalMode = false,
 }: TeamPanelProps) {
   const { teams, employees, companyModel, workload, refresh } = useOfficeDataContext();
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
   const { openEmployeeChat } = useChatActions();
   const selectedProjectId = useAppStore((state) => state.selectedProjectId);
   const setSelectedProjectId = useAppStore((state) => state.setSelectedProjectId);

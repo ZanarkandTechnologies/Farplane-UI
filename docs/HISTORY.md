@@ -1,5 +1,11 @@
 # HISTORY
 
+2026-06-11 | refactor | MEM-0231 | ui,runtime-adapters,providers | Renamed the generic runtime adapter React provider from the OpenClaw-specific provider name to `runtime-adapter-provider`, migrated active UI call sites to `useOfficeRuntimeAdapter`, and kept OpenClaw naming inside adapter-specific surfaces.
+
+2026-06-11 | standards | MEM-0230 | ui,modules,architecture | Adopted Valefor-style UI module rules for Farplane UI by adding `ui/src/modules/` operating docs and `docs/plans/ui-module-migration.md`, defining module migration targets for office/runtime/team/agent/skills/chat/settings/QA surfaces, and tightening project rules so new product-sized UI work grows inside module boundaries instead of catch-all `lib` or `features` folders.
+
+2026-06-11 | refactor | MEM-0229 | ui,lib,openclaw,task-memory | Moved OpenClaw-specific UI library files into `ui/src/lib/openclaw/`, added a folder barrel for OpenClaw contracts/adapter imports, and renamed the stale `sc12-task-memory` helper to the generic `task-memory` surface.
+
 2026-06-11 | standards | MEM-0228 | deep-init,qa,hooks,architecture | Migrated Farplane UI toward the current deep-init project standard by adding architecture/bootstrap/lessons/spec-index docs, a repo-owned `qa/` cookbook surface, and opt-in local hook scaffolding with a pragmatic pre-push gate.
 
 2026-06-09 | architecture | MEM-0227 | ui,farplane,runtime-adapters | Added a runtime adapter boundary with Codex as the default Farplane UI adapter and OpenClaw as an optional adapter path.

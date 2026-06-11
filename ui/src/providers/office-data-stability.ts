@@ -1,4 +1,4 @@
-import type { OfficeSettingsModel } from "@/lib/openclaw-types";
+import type { OfficeSettingsModel } from "@/lib/openclaw";
 import type { EmployeeData, OfficeObject } from "@/lib/types";
 
 type OfficeDataStabilityShape = {

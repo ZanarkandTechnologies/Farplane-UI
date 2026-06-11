@@ -3,7 +3,7 @@ import type {
   ProjectResourceModel,
   ResourceLowBehavior,
   ResourceType,
-} from "./openclaw-types";
+} from "./openclaw";
 
 export type BusinessTypeOption =
   | "none"

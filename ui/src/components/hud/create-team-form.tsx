@@ -12,7 +12,7 @@ import {
   type BusinessTypeOption,
 } from "@/lib/business-builder";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 
 interface CreateTeamFormProps {
   onDone?: () => void;
@@ -31,7 +31,7 @@ function parseKpiList(input: string): string[] {
 
 export function CreateTeamForm({ onDone }: CreateTeamFormProps): React.JSX.Element {
   const { refresh } = useOfficeDataContext();
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [goal, setGoal] = useState("");

@@ -26,7 +26,7 @@ import * as THREE from "three";
 import { useCallback } from "react";
 import { OfficeId } from "@/lib/types";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 
 import { getGameObjectDefinition } from "../components/object-registry";
 import {
@@ -46,7 +46,7 @@ export function usePlacementSystem() {
     const setPlacementMode = useAppStore(state => state.setPlacementMode);
     const { active, type, data } = placementMode;
 
-    const adapter = useOpenClawAdapter();
+    const adapter = useOfficeRuntimeAdapter();
     const { refresh: refreshOfficeData } = useOfficeDataContext();
 
     async function createTeamAndPlace(input: {

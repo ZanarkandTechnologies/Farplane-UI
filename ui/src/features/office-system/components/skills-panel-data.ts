@@ -22,7 +22,7 @@ import type {
   SkillStatusReport,
   SkillStudioCatalogEntry,
   SkillStudioDetail,
-} from "@/lib/openclaw-types";
+} from "@/lib/openclaw";
 import type { GlobalSkillRow } from "./skills-panel.runtime";
 import type {
   GroupedInheritedRuntimeSkills,

@@ -21,9 +21,9 @@
 
 import { useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProjectArtefactEntry } from "@/lib/openclaw-types";
+import type { ProjectArtefactEntry } from "@/lib/openclaw";
 import { isConvexEnabled } from "@/providers/convex-provider";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { api } from "../../../../../convex/_generated/api";
 import {
   deriveProjectScopeRoots,
@@ -84,7 +84,7 @@ export function useTeamPanelArtefactState(input: {
 } {
   const { projectId, teamId, agentIds, taskHints, trackingContext } = input;
   const convexEnabled = isConvexEnabled();
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
   const [fallbackFiles, setFallbackFiles] = useState<IndexedArtefactFile[]>([]);
   const [fallbackIndexedAtMs, setFallbackIndexedAtMs] = useState<number>();
   const [fallbackLoading, setFallbackLoading] = useState(false);

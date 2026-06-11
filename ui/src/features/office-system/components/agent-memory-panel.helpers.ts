@@ -17,7 +17,7 @@
  * - MEM-0191
  */
 
-import type { AgentFileEntry, AgentMemoryEntry } from "@/lib/openclaw-types";
+import type { AgentFileEntry, AgentMemoryEntry } from "@/lib/openclaw";
 
 export type AgentMemoryFileGroup = {
   key: string;

@@ -10,8 +10,8 @@ import {
   toCodexCompanyModel,
   toCodexSessionRows,
   toCodexTimeline,
-} from "./runtime-adapters";
-import { CodexAppServerClient } from "./codex-app-server";
+} from "../..";
+import { CodexAppServerClient } from "../..";
 
 afterEach(() => {
   vi.unstubAllGlobals();

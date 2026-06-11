@@ -3,7 +3,7 @@
 import { useState, type ReactElement } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { SkillItemModel, SkillStatusReport } from "@/lib/openclaw-types";
+import type { SkillItemModel, SkillStatusReport } from "@/lib/openclaw";
 import type { AgentConfigDraft } from "./_types";
 
 type SkillsPanelProps = {

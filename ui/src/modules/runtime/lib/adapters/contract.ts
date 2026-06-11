@@ -1,4 +1,4 @@
-import type { OpenClawAdapter } from "@/lib/openclaw-adapter";
+import type { OpenClawAdapter } from "../../../../lib/openclaw";
 
 export type RuntimeAdapterKind = "codex" | "openclaw";
 

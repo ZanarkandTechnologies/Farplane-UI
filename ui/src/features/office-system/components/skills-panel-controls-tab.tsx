@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import type { SkillManifest } from "@/lib/openclaw-types";
+import type { SkillManifest } from "@/lib/openclaw";
 import type {
   SkillsPanelManifestState,
   SkillsPanelSelectionState,

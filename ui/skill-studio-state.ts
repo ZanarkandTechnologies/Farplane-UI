@@ -27,7 +27,7 @@ import type {
   SkillStudioDetail,
   SkillStudioFileContent,
   SkillStudioFileEntry,
-} from "./src/lib/openclaw-types";
+} from "./src/lib/openclaw";
 import {
   deriveSkillManifest,
   extractSkillFrontmatter,

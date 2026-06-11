@@ -65,10 +65,10 @@ import {
   type OfficeWallColorId,
   type WallArtSlotId,
 } from "@/lib/office-decor";
-import type { MeshAssetModel } from "@/lib/openclaw-types";
+import type { MeshAssetModel } from "@/lib/openclaw";
 import { cn } from "@/lib/utils";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 
 type TabId = "catalog" | "decor" | "custom" | "import";
 
@@ -133,7 +133,7 @@ export function FurnitureShop({ isOpen, onOpenChange }: FurnitureShopProps) {
   const { company, officeSettings, officeObjects, refresh, applyOfficeSettings } =
     useOfficeDataContext();
   const { startPlacement } = usePlacementSystem();
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
 
   const [activeTab, setActiveTab] = useState<TabId>("catalog");
   const [meshAssets, setMeshAssets] = useState<MeshAssetModel[]>([]);

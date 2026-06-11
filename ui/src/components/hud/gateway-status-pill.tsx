@@ -3,7 +3,7 @@ import { Loader2, Wifi, WifiOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useGateway } from "@/providers/gateway-provider";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 
 type GatewayStatusSnapshot = {
   connected: boolean;
@@ -23,7 +23,7 @@ function createDisconnectedSnapshot(message: string): GatewayStatusSnapshot {
 
 export function GatewayStatusPill(): JSX.Element {
   const { client, connected } = useGateway();
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
   const [snapshot, setSnapshot] = useState<GatewayStatusSnapshot>(() =>
     createDisconnectedSnapshot("Click to re-check"),
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ProjectArtefactEntry } from "../../../lib/openclaw-types";
+import type { ProjectArtefactEntry } from "../../../lib/openclaw";
 import {
   buildExplorerTree,
   createFileKey,

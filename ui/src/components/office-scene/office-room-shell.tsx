@@ -30,7 +30,7 @@ import {
   type OfficeLayoutModel,
 } from "@/lib/office-layout";
 import type { OfficeFootprint } from "@/lib/office-footprint";
-import type { OfficeSettingsModel } from "@/lib/openclaw-types";
+import type { OfficeSettingsModel } from "@/lib/openclaw";
 import type { OfficeSceneViewSettings } from "./view-profile";
 
 /** In fixed 2.5D, the two "front" walls (facing camera) get zoom-based opacity; others stay full. */

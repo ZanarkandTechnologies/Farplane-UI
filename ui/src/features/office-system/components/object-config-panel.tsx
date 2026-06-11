@@ -37,7 +37,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppStore } from "@/lib/app-store";
 import { UI_Z } from "@/lib/z-index";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 
 import {
   buildOfficeObjectMetadata,
@@ -59,7 +59,7 @@ export function ObjectConfigPanel() {
   const setActiveObjectConfigId = useAppStore((state) => state.setActiveObjectConfigId);
   const isBuilderMode = useAppStore((state) => state.isBuilderMode);
   const { officeObjects } = useOfficeDataContext();
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
 
   const officeObject = useMemo(
     () => officeObjects.find((item) => item._id === activeObjectConfigId) ?? null,

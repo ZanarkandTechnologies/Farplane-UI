@@ -8,13 +8,7 @@ export default defineConfig({
     },
   },
   test: {
-    projects: [
-      {
-        test: {
-          include: ["**/*.test.ts"],
-          environment: "node",
-        },
-      },
-    ],
+    include: ["**/*.test.ts"],
+    environment: "node",
   },
 });

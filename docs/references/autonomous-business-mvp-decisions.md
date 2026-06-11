@@ -228,8 +228,8 @@ farplane team bot log \
 
 - `cli/sidecar-store.ts`
 - `cli/team-commands.ts`
-- `ui/src/lib/openclaw-types.ts`
-- `ui/src/lib/openclaw-adapter.ts`
+- `ui/src/lib/openclaw/types.ts`
+- `ui/src/lib/openclaw/adapter.ts`
 - `ui/src/features/team-system/components/business-flow/*`
 - `ui/src/providers/office-data-provider.tsx`
 - `ui/src/features/team-system/components/team-panel.tsx`

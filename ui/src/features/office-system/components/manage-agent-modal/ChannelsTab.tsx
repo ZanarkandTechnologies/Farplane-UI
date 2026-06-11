@@ -1,6 +1,6 @@
 "use client";
 
-import type { ChannelAccountSnapshot, ChannelsStatusSnapshot } from "@/lib/openclaw-types";
+import type { ChannelAccountSnapshot, ChannelsStatusSnapshot } from "@/lib/openclaw";
 
 function summarizeAccounts(accounts: ChannelAccountSnapshot[]): string {
   const connected = accounts.filter((entry) => entry.connected === true || entry.running === true).length;

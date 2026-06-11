@@ -11,7 +11,7 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import type { OfficeId } from "@/lib/types";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useAppStore } from "@/lib/app-store";
 import { resolvePersistedOfficeObjectId } from "../components/office-object-id";
 import { refreshOfficeDataSafely } from "../components/office-object-refresh";
@@ -33,7 +33,7 @@ export function useDeleteOfficeObject(objectId: OfficeId<"officeObjects">): {
   deleteObject: () => Promise<void>;
   isDeleting: boolean;
 } {
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
   const { officeObjects, refresh } = useOfficeDataContext();
   const setActiveObjectTransformId = useAppStore((state) => state.setActiveObjectTransformId);
   const [isDeleting, setIsDeleting] = useState(false);

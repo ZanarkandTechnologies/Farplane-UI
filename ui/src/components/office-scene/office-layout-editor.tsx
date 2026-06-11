@@ -33,7 +33,7 @@ import {
   parseOfficeLayoutTileKey,
 } from "@/lib/office-layout";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useLayoutEditorHudRegistration } from "./layout-editor-hud-context";
 import {
   describeOfficeLayoutRemovalBlockers,
@@ -81,7 +81,7 @@ function getTeamOverlayLabel(name: string, position: [number, number, number]): 
 }
 
 export function OfficeLayoutEditor(): JSX.Element | null {
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
   const { officeSettings, officeObjects, teams, applyOfficeSettings } = useOfficeDataContext();
   const isBuilderMode = useAppStore((state) => state.isBuilderMode);
   const debugMode = useAppStore((state) => state.debugMode);

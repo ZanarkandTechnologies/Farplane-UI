@@ -22,7 +22,7 @@ import type {
   SkillStatusReport,
   SkillStudioDetail,
   SkillStudioFileContent,
-} from "@/lib/openclaw-types";
+} from "@/lib/openclaw";
 import type { GlobalSkillRow } from "./skills-panel.runtime";
 
 export type DetailTab = "overview" | "files" | "diagram" | "demos" | "controls";

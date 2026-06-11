@@ -1,10 +1,10 @@
 /**
- * SC12 TASK MEMORY HELPERS
- * ========================
+ * TASK MEMORY HELPERS
+ * ===================
  * Parses compact task notes into structured task-memory sections.
  *
  * KEY CONCEPTS:
- * - SC12 task notes act like a lightweight working-memory page.
+ * - Task notes act like a lightweight working-memory page.
  * - Markdown-ish headings, `Label: value`, bullets, and links should remain readable in the UI.
  *
  * USAGE:

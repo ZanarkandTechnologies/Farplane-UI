@@ -38,9 +38,9 @@ import type {
   CronJob,
   CronStatus,
   ToolsCatalogResult,
-} from "@/lib/openclaw-types";
+} from "@/lib/openclaw";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useOpenClawAdapter } from "@/providers/openclaw-adapter-provider";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useGateway } from "@/providers/gateway-provider";
 import { UI_Z } from "@/lib/z-index";
 import { extractAgentId } from "@/lib/entity-utils";
@@ -88,7 +88,7 @@ export function ManageAgentModal(): ReactElement {
   const employee = employees.find((row) => row._id === manageAgentEmployeeId) ?? null;
   const isOpen = !!manageAgentEmployeeId;
   const { connected: gatewayConnected } = useGateway();
-  const adapter = useOpenClawAdapter();
+  const adapter = useOfficeRuntimeAdapter();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [agentsList, setAgentsList] = useState<AgentsListResult | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);

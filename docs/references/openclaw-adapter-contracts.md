@@ -2,8 +2,8 @@
 
 This doc describes the **UI-facing adapter contract** implemented by:
 
-- `ui/src/lib/openclaw-adapter.ts` (`OpenClawAdapter`)
-- `ui/src/lib/openclaw-types.ts` (TypeScript models)
+- `ui/src/lib/openclaw/adapter.ts` (`OpenClawAdapter`)
+- `ui/src/lib/openclaw/types.ts` (TypeScript models)
 
 The goal is to make it easy to:
 
@@ -19,7 +19,7 @@ Farplane’s UI talks to two kinds of surfaces:
 
 In the UI, the adapter is injected via:
 
-- `ui/src/providers/openclaw-adapter-provider.tsx`
+- `ui/src/modules/runtime/runtime-adapter-provider.tsx`
 
 ```ts
 adapter: new OpenClawAdapter("", stateBase, wsClient)
@@ -181,12 +181,12 @@ npm --silent --prefix /home/kenjipcx/Zanarkand/Farplane run shell -- team board 
 
 Adapter unit tests live in:
 
-- `ui/src/lib/openclaw-adapter.test.ts`
+- `ui/src/lib/openclaw/adapter.test.ts`
 
 Run:
 
 ```bash
-npm --prefix /home/kenjipcx/Zanarkand/Farplane run test:once -- ui/src/lib/openclaw-adapter.test.ts
+npm --prefix /home/kenjipcx/Zanarkand/Farplane run test:once -- ui/src/lib/openclaw/adapter.test.ts
 ```
 
 ## Versioning guidance

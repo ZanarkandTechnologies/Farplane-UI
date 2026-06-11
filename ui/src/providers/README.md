@@ -1,10 +1,9 @@
 # Providers
 
-Purpose: app-level React providers that bridge gateway/OpenClaw data and expose stable UI context.
+Purpose: app-level React providers that bridge gateway/runtime data and expose stable UI context.
 
 Public entrypoints:
 - `office-data-provider.tsx`: office scene/team context
-- `openclaw-adapter-provider.tsx`: adapter instance
 - `gateway-provider.tsx`: gateway status/context
 - `convex-provider.tsx`: Convex wiring
 

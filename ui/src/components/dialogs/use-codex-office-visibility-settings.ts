@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CodexAppServerClient, type CodexOfficeVisibilityConfig } from "@/lib/codex-app-server";
+import { CodexAppServerClient, type CodexOfficeVisibilityConfig } from "@/modules/runtime";
 import { getGatewayUiConfig } from "@/lib/gateway-config";
 
 const DEFAULT_RECENT_THREAD_WINDOW_MINUTES = 180;

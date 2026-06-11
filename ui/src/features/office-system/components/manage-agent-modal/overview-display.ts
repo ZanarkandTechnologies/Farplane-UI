@@ -16,7 +16,7 @@
  * - MEM-0160
  */
 
-import type { AgentIdentityResult, AgentsListResult } from "@/lib/openclaw-types";
+import type { AgentIdentityResult, AgentsListResult } from "@/lib/openclaw";
 import type { EmployeeData } from "@/lib/types";
 import type { AgentUsageOverview } from "./_types";
 

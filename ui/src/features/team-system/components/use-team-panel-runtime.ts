@@ -19,9 +19,9 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import type { SessionTimelineModel } from "@/lib/openclaw-types";
+import type { SessionTimelineModel } from "@/lib/openclaw";
 import { buildTeamAiUsageSummary } from "@/lib/session-usage";
-import type { OpenClawAdapter } from "@/lib/openclaw-adapter";
+import type { OpenClawAdapter } from "@/lib/openclaw";
 import {
   deriveAgentPresenceRows,
   type AgentCandidate,

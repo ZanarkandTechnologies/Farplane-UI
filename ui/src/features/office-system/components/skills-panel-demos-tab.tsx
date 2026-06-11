@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { SkillDemoRunResult } from "@/lib/openclaw-types";
+import type { SkillDemoRunResult } from "@/lib/openclaw";
 import type { SkillsPanelDemoState, SkillsPanelSelectionState } from "./skills-panel-types";
 
 type Props = {
