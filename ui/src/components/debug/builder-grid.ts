@@ -15,7 +15,7 @@
  * - MEM-0173
  */
 
-import type { OfficeLayoutBounds } from '../../lib/office-layout';
+import type { OfficeLayoutBounds } from '../modules/office/lib/office-layout';
 
 export function getBuilderGridLinePositions(bounds: OfficeLayoutBounds): Float32Array {
   const points: number[] = [];

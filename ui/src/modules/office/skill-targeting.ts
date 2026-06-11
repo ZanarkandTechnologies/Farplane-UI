@@ -20,7 +20,7 @@
  * - MEM-0175
  */
 
-import type { OfficeObject } from "@/lib/types";
+import type { OfficeObject } from "@/modules/office/lib/types";
 import { parseOfficeObjectInteractionConfig } from "./office-object-ui";
 
 const DEFAULT_OBJECT_OFFSET = 2.1;

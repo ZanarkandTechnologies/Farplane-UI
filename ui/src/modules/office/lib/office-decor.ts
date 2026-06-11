@@ -16,7 +16,7 @@
  * - MEM-0169
  */
 
-import { WALL_HEIGHT, WALL_THICKNESS } from "../constants";
+import { WALL_HEIGHT, WALL_THICKNESS } from "@/constants";
 import { getOfficeFootprintHalfExtents, type OfficeFootprint } from "./office-footprint";
 
 export type OfficeFloorPatternId = "sandstone_tiles" | "graphite_grid" | "walnut_parquet";

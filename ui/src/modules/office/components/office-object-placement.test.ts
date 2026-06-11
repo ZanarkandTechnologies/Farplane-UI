@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeOfficeLayout, officeLayoutTileKey } from "../../../lib/office-layout";
+import { normalizeOfficeLayout, officeLayoutTileKey } from "../lib/office-layout";
 
 import {
   constrainOfficeObjectPositionForLayout,

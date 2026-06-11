@@ -14,7 +14,7 @@
  */
 
 import type { getOfficeTheme } from "@/config/office-theme";
-import { getOfficeLayoutBounds, type OfficeLayoutModel } from "@/lib/office-layout";
+import { getOfficeLayoutBounds, type OfficeLayoutModel } from "@/modules/office/lib/office-layout";
 import type { OfficeSceneViewSettings } from "./view-profile";
 
 export function OfficeLighting(props: {

@@ -15,9 +15,9 @@
  */
 
 import { normalizeOfficeObjectId } from "../components/office-object-id";
-import { isPositionInsideOfficeLayout, type OfficeLayoutModel } from "../../../lib/office-layout";
+import { isPositionInsideOfficeLayout, type OfficeLayoutModel } from "../lib/office-layout";
 import type { OfficeObjectSidecarModel } from "../../../lib/openclaw";
-import type { OfficeObject, TeamData } from "../../../lib/types";
+import type { OfficeObject, TeamData } from "../lib/types";
 
 const OBJECT_MARGIN = 1;
 const TEAM_CLUSTER_MARGIN = 2;

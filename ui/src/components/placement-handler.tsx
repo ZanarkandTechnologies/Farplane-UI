@@ -25,7 +25,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { usePlacementSystem } from "@/modules/office/systems/placement-system";
 import { getGameObjectDefinition } from "@/modules/office/components/object-registry";
 import { AlertCircle } from "lucide-react";
-import { getOfficeLayoutBounds, isPointInsideOfficeLayout } from "@/lib/office-layout";
+import { getOfficeLayoutBounds, isPointInsideOfficeLayout } from "@/modules/office/lib/office-layout";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 
 type PlacementCoordinates = [number, number, number] | null;

@@ -21,15 +21,15 @@ import * as THREE from "three";
 import { WALL_HEIGHT } from "@/constants";
 import type { getOfficeTheme } from "@/config/office-theme";
 import type { ThreeEvent } from "@react-three/fiber";
-import { getFloorPatternPreset, getWallColorPreset } from "@/lib/office-decor";
+import { getFloorPatternPreset, getWallColorPreset } from "@/modules/office/lib/office-decor";
 import {
   getOfficeLayoutBounds,
   getOfficeLayoutTileSet,
   getOfficeLayoutWallSegments,
   parseOfficeLayoutTileKey,
   type OfficeLayoutModel,
-} from "@/lib/office-layout";
-import type { OfficeFootprint } from "@/lib/office-footprint";
+} from "@/modules/office/lib/office-layout";
+import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
 import type { OfficeSettingsModel } from "@/lib/openclaw";
 import type { OfficeSceneViewSettings } from "./view-profile";
 

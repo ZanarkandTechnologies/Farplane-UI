@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { OFFICE_INTERACTION_COLORS } from "@/config/office-theme";
 import { constrainOfficeObjectPositionForLayout } from "@/modules/office/components/office-object-placement";
 import { useAppStore } from "@/lib/app-store";
-import type { OfficeId } from "@/lib/types";
+import type { OfficeId } from "@/modules/office/lib/types";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { DraggableController } from "../controllers/draggable-controller";

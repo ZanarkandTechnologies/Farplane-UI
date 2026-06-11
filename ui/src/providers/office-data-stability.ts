@@ -1,5 +1,5 @@
 import type { OfficeSettingsModel } from "@/lib/openclaw";
-import type { EmployeeData, OfficeObject } from "@/lib/types";
+import type { EmployeeData, OfficeObject } from "@/modules/office/lib/types";
 
 type OfficeDataStabilityShape = {
   company: { _id: string; name: string } | null;

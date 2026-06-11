@@ -9,7 +9,7 @@
 
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import type { OfficeId } from "@/lib/types";
+import type { OfficeId } from "@/modules/office/lib/types";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useAppStore } from "@/lib/app-store";

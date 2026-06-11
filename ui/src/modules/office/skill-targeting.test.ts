@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { OfficeObject } from "@/lib/types";
+import type { OfficeObject } from "@/modules/office/lib/types";
 import {
   buildSkillTargetObjectMap,
   getOfficeSkillAnchorPosition,

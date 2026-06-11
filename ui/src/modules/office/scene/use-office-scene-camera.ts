@@ -20,7 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { getOfficeTheme } from "@/config/office-theme";
 import type { OfficeSettingsModel } from "@/lib/openclaw";
-import { getBackgroundPreset, type OfficeDecorSettings } from "@/lib/office-decor";
+import { getBackgroundPreset, type OfficeDecorSettings } from "@/modules/office/lib/office-decor";
 import { buildConsultCameraState } from "./consult-camera";
 import {
   getOfficeSceneViewState,

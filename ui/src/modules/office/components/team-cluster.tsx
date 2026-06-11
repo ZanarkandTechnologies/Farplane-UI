@@ -16,7 +16,7 @@
  */
 import { useState, useMemo } from "react";
 import type { Id } from "@/lib/entity-types";
-import type { TeamData, DeskLayoutData } from "@/lib/types";
+import type { TeamData, DeskLayoutData } from "@/modules/office/lib/types";
 import type { ThreeEvent } from "@react-three/fiber";
 import Desk from "./desk";
 import { InteractiveObject } from "./interactive-object";

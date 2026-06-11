@@ -19,7 +19,7 @@ import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/lib/app-store";
 import { cn } from "@/lib/utils";
 import { UI_Z } from "@/lib/z-index";
-import type { EmployeeData } from "@/lib/types";
+import type { EmployeeData } from "@/modules/office/lib/types";
 import { CreateTeamForm } from "@/components/hud/create-team-form";
 
 interface OrganizationPanelProps {

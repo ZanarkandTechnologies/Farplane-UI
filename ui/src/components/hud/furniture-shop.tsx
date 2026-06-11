@@ -64,7 +64,7 @@ import {
   type OfficePaintingPresetId,
   type OfficeWallColorId,
   type WallArtSlotId,
-} from "@/lib/office-decor";
+} from "@/modules/office/lib/office-decor";
 import type { MeshAssetModel } from "@/lib/openclaw";
 import { cn } from "@/lib/utils";
 import { useOfficeDataContext } from "@/providers/office-data-provider";

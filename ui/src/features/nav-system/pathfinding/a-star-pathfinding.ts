@@ -3,8 +3,8 @@ import {
     getOfficeLayoutBounds,
     getOfficeLayoutTileSet,
     type OfficeLayoutModel
-} from '../../../lib/office-layout';
-import type { OfficeFootprint } from '@/lib/office-footprint';
+} from '@/modules/office/lib/office-layout';
+import type { OfficeFootprint } from '@/modules/office/lib/office-footprint';
 
 // --- Grid Configuration ---
 const CELL_SIZE = 0.5; // Size of each grid cell in world units

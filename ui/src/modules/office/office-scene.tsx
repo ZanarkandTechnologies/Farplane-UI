@@ -22,7 +22,7 @@ import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
 import { useChatStore } from "@/features/chat-system/chat-store";
 import { useAppStore } from "@/lib/app-store";
-import { getOfficeLayoutBounds } from "@/lib/office-layout";
+import { getOfficeLayoutBounds } from "@/modules/office/lib/office-layout";
 import { SceneContents } from "@/modules/office/scene/scene-contents";
 import {
   getInitialOfficeCameraConfig,

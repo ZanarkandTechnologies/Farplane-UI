@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore } from "@/lib/app-store";
 import { getGatewayUiConfig } from "@/lib/gateway-config";
-import { setOfficeOnboardingCompleted } from "@/lib/office-onboarding";
+import { setOfficeOnboardingCompleted } from "@/modules/office/lib/office-onboarding";
 import type { OfficeSettingsModel } from "@/lib/openclaw";
 import {
   getRuntimeAdapterKind,

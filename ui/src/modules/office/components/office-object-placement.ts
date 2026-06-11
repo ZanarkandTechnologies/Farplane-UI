@@ -15,7 +15,7 @@
  * - MEM-0186
  */
 
-import { clampPositionToOfficeLayout, type OfficeLayoutModel } from "../../../lib/office-layout";
+import { clampPositionToOfficeLayout, type OfficeLayoutModel } from "../lib/office-layout";
 
 export function getOfficeObjectPlacementMargin(meshType: string): number {
   return meshType === "team-cluster" ? 2 : 1;

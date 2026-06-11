@@ -79,9 +79,9 @@ import type {
   BusinessConfigModel,
   TeamBusinessSkillSyncResult,
 } from "../openclaw";
-import { normalizeOfficeDecorSettings } from "../office-decor";
-import { getOfficeFootprintFromLayout, normalizeOfficeLayout } from "../office-layout";
-import { DEFAULT_OFFICE_FOOTPRINT, normalizeOfficeFootprint } from "../office-footprint";
+import { normalizeOfficeDecorSettings } from "@/modules/office/lib/office-decor";
+import { getOfficeFootprintFromLayout, normalizeOfficeLayout } from "@/modules/office/lib/office-layout";
+import { DEFAULT_OFFICE_FOOTPRINT, normalizeOfficeFootprint } from "@/modules/office/lib/office-footprint";
 
 type Json = Record<string, unknown>;
 const HEARTBEAT_START_PATTERN = /read\s+heartbeat\.md[\s\S]*current\s+time:/i;

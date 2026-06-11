@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { OfficeLayoutBounds } from '@/lib/office-layout';
+import type { OfficeLayoutBounds } from '@/modules/office/lib/office-layout';
 
 import { getBuilderGridLinePositions } from './builder-grid';
 

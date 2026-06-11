@@ -24,7 +24,7 @@
 import { useAppStore } from "@/lib/app-store";
 import * as THREE from "three";
 import { useCallback } from "react";
-import { OfficeId } from "@/lib/types";
+import { OfficeId } from "@/modules/office/lib/types";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 

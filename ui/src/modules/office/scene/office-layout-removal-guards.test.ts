@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { OfficeObjectSidecarModel } from "../../../lib/openclaw";
-import type { OfficeObject, TeamData } from "../../../lib/types";
+import type { OfficeObject, TeamData } from "../lib/types";
 
 import {
   describeOfficeLayoutRemovalBlockers,

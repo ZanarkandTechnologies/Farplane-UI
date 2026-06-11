@@ -30,7 +30,7 @@ import {
   setOfficeOnboardingCompleted,
   shouldShowOfficeOnboarding,
   type OfficeOnboardingStep,
-} from "@/lib/office-onboarding";
+} from "@/modules/office/lib/office-onboarding";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 
 type StepCopy = {

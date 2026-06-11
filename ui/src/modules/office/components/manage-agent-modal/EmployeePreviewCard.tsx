@@ -34,7 +34,7 @@ import {
   SKIN_COLORS,
   TOTAL_HEIGHT,
 } from "@/constants";
-import type { EmployeeData } from "@/lib/types";
+import type { EmployeeData } from "@/modules/office/lib/types";
 
 type AppearanceOverrides = {
   clothesStyle?: "default" | "dj" | "professional" | "techBro";

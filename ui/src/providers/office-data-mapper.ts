@@ -41,13 +41,13 @@ import {
   computeBusinessReadinessIssues,
   projectToBusinessBuilderDraft,
 } from "@/lib/business-builder";
-import { DEFAULT_OFFICE_FOOTPRINT } from "@/lib/office-footprint";
+import { DEFAULT_OFFICE_FOOTPRINT } from "@/modules/office/lib/office-footprint";
 import {
   clampPositionToOfficeLayout,
   createRectangularOfficeLayout,
   getManagementAnchorFromOfficeLayout,
   type OfficeLayoutModel,
-} from "@/lib/office-layout";
+} from "@/modules/office/lib/office-layout";
 import type {
   AgentCardModel,
   AgentLiveStatus,
@@ -62,7 +62,7 @@ import type {
   ReconciliationWarning,
   UnifiedOfficeModel,
 } from "@/lib/openclaw";
-import type { Company, DeskLayoutData, EmployeeData, OfficeObject, TeamData } from "@/lib/types";
+import type { Company, DeskLayoutData, EmployeeData, OfficeObject, TeamData } from "@/modules/office/lib/types";
 
 export interface OfficeDataContextValue {
   company: Company | null;

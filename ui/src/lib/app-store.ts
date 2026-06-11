@@ -3,9 +3,9 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 
-import type { OfficeId } from "@/lib/types";
-import type { TeamData } from "@/lib/types";
-import type { OfficeOnboardingStep } from "@/lib/office-onboarding";
+import type { OfficeId } from "@/modules/office/lib/types";
+import type { TeamData } from "@/modules/office/lib/types";
+import type { OfficeOnboardingStep } from "@/modules/office/lib/office-onboarding";
 
 type PlacementMode = {
   active: boolean;

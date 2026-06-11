@@ -31,7 +31,7 @@ import {
   hasOfficeLayoutTile,
   officeLayoutTileKey,
   parseOfficeLayoutTileKey,
-} from "@/lib/office-layout";
+} from "@/modules/office/lib/office-layout";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useLayoutEditorHudRegistration } from "./layout-editor-hud-context";

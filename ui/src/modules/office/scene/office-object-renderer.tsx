@@ -25,8 +25,8 @@ import Pantry from "@/modules/office/components/pantry";
 import Plant from "@/modules/office/components/plant";
 import TeamCluster from "@/modules/office/components/team-cluster";
 import WallArt from "@/modules/office/components/wall-art";
-import type { OfficeFootprint } from "@/lib/office-footprint";
-import type { DeskLayoutData, OfficeId, OfficeObject, TeamData } from "@/lib/types";
+import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
+import type { DeskLayoutData, OfficeId, OfficeObject, TeamData } from "@/modules/office/lib/types";
 
 export function OfficeObjectRenderer(props: {
   officeObjects: OfficeObject[];

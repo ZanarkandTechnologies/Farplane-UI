@@ -9,7 +9,7 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { TeamData } from "@/lib/types";
+import { TeamData } from "@/modules/office/lib/types";
 
 interface TeamOptionsDialogProps {
     team: TeamData;

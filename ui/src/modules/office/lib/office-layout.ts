@@ -18,7 +18,7 @@
  */
 
 import { WALL_HEIGHT, WALL_THICKNESS } from "@/constants";
-import type { OfficeFootprint } from "@/lib/office-footprint";
+import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
 
 export interface OfficeLayoutModel {
   version: 1;

@@ -23,7 +23,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { getBuilderGridLinePositions } from '@/components/debug/builder-grid';
 import { getGridData } from '@/features/nav-system/pathfinding/a-star-pathfinding';
-import { getOfficeLayoutBounds } from '@/lib/office-layout';
+import { getOfficeLayoutBounds } from '@/modules/office/lib/office-layout';
 import { useOfficeDataContext } from '@/providers/office-data-provider';
 
 const DEBUG_COLOR = 0xff0000;

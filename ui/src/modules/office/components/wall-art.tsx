@@ -23,8 +23,8 @@ import {
   getWallArtSlots,
   type OfficePaintingPresetId,
   type WallArtSlotId,
-} from "@/lib/office-decor";
-import type { OfficeFootprint } from "@/lib/office-footprint";
+} from "@/modules/office/lib/office-decor";
+import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
 
 function buildPaintingTexture(presetId: OfficePaintingPresetId): THREE.CanvasTexture | null {
   if (typeof document === "undefined") return null;

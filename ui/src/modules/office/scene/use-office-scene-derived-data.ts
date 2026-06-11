@@ -16,7 +16,7 @@
  */
 
 import { useMemo } from "react";
-import type { DeskLayoutData, EmployeeData, TeamData } from "../../../lib/types";
+import type { DeskLayoutData, EmployeeData, TeamData } from "../lib/types";
 import {
   getAbsoluteDeskPosition,
   getDeskPosition,

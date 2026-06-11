@@ -18,7 +18,7 @@
 
 import { SAMPLE_MESSAGES } from "../../../constants/idle-messages";
 import type { StatusType } from "../../../features/nav-system/components/status-indicator";
-import type { DeskLayoutData, EmployeeData, TeamData } from "../../../lib/types";
+import type { DeskLayoutData, EmployeeData, TeamData } from "../lib/types";
 
 function hashString(str: string): number {
   if (!str || str.length === 0) return 0;

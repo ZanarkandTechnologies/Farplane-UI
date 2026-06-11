@@ -17,7 +17,7 @@
  */
 
 import type { AgentIdentityResult, AgentsListResult } from "@/lib/openclaw";
-import type { EmployeeData } from "@/lib/types";
+import type { EmployeeData } from "@/modules/office/lib/types";
 import type { AgentUsageOverview } from "./_types";
 
 type UsageMeter = {

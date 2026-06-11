@@ -40,7 +40,7 @@ import { useOfficeSceneCameraTransition, useOfficeSceneTheme } from "./use-offic
 import { useOfficeSceneDerivedData } from "./use-office-scene-derived-data";
 import { useOfficeSceneInteractions } from "./use-office-scene-interactions";
 import { getOfficeSceneViewState, isFixedOfficeSceneView } from "./view-profile";
-import { getOfficeLayoutBounds } from "@/lib/office-layout";
+import { getOfficeLayoutBounds } from "@/modules/office/lib/office-layout";
 
 /** Clamps orthographic camera zoom to [minZoom, maxZoom] each frame when in fixed 2.5D. */
 function ZoomClamp({ minZoom, maxZoom }: { minZoom: number; maxZoom: number }) {

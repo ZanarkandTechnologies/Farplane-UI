@@ -14,9 +14,9 @@
  * - MEM-0143
  */
 
-import type { DeskLayoutData, EmployeeData, OfficeId, OfficeObject, TeamData } from "@/lib/types";
-import type { OfficeLayoutModel } from "@/lib/office-layout";
-import type { OfficeFootprint } from "@/lib/office-footprint";
+import type { DeskLayoutData, EmployeeData, OfficeId, OfficeObject, TeamData } from "@/modules/office/lib/types";
+import type { OfficeLayoutModel } from "@/modules/office/lib/office-layout";
+import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
 import type { OfficeSettingsModel } from "@/lib/openclaw";
 
 export interface OfficeSceneProps {
