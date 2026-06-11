@@ -14,7 +14,7 @@
  * - MEM-0155
  */
 
-import type { PanelTask } from "@/features/team-system/components/team-panel-types";
+import type { PanelTask } from "@/modules/team-workspace";
 
 export type ReviewBoardTask = PanelTask & {
   projectId: string;

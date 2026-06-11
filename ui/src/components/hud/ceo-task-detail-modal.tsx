@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 
 import { api } from "../../../../convex/_generated/api";
-import { TaskMemoryView } from "@/features/team-system/components/task-memory-view";
+import { TaskMemoryView } from "@/modules/team-workspace";
 import type { ReviewBoardTask } from "@/lib/review-board";
 import { UI_Z } from "@/lib/z-index";
 import { Badge } from "@/components/ui/badge";

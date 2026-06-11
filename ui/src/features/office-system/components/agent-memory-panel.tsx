@@ -36,11 +36,11 @@ import type { AgentMemoryEntry, AgentsFilesListResult } from "@/lib/openclaw";
 import { UI_Z } from "@/lib/z-index";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
-import { KanbanTab } from "@/features/team-system/components/kanban-tab";
 import {
   extractArtefactPath,
+  KanbanTab,
   type PanelTask,
-} from "@/features/team-system/components/team-panel-types";
+} from "@/modules/team-workspace";
 import {
   buildAgentMemoryFileGroups,
   getDefaultAgentMemoryFileName,

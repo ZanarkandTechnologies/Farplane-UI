@@ -160,7 +160,7 @@ features/office-system/
 - **App Store** (`lib/app-store.ts`): Global state for highlighted employees, dialog state
 - **Agent System** (`ui/src/lib/openclaw/adapter.ts`): Agent configurations, tools, skills
 - **Chat System** (`features/chat-system/`): Employee DMs use agent configs
-- **Team System** (`features/team-system/`): Team directory integration
+- **Team System** (`modules/team-workspace/`): Team directory integration
 
 ---
 

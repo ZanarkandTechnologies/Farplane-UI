@@ -230,9 +230,9 @@ farplane team bot log \
 - `cli/team-commands.ts`
 - `ui/src/lib/openclaw/types.ts`
 - `ui/src/lib/openclaw/adapter.ts`
-- `ui/src/features/team-system/components/business-flow/*`
+- `ui/src/modules/team-workspace/components/business-flow/*`
 - `ui/src/providers/office-data-provider.tsx`
-- `ui/src/features/team-system/components/team-panel.tsx`
+- `ui/src/modules/team-workspace/components/team-panel.tsx`
 - `ui/src/components/hud/create-team-form.tsx`
 - `ui/src/components/hud/create-team-panel.tsx`
 - `ui/src/components/hud/organization-panel.tsx`

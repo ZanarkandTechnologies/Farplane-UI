@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-06-11 | refactor | MEM-0233 | ui,team-workspace,modules | Moved the Team System UI surface into `ui/src/modules/team-workspace/`, added a module barrel for Team Panel/Kanban/Task Memory exports, and kept team workspace docs with the owning module.
+
 2026-06-11 | refactor | MEM-0232 | ui,settings,modules | Moved the settings dialog shell, panels, and Codex office visibility hook into `ui/src/modules/settings/` with a module entrypoint so settings is owned as a product surface rather than a generic dialog folder.
 
 2026-06-11 | refactor | MEM-0231 | ui,runtime-adapters,providers | Renamed the generic runtime adapter React provider from the OpenClaw-specific provider name to `runtime-adapter-provider`, migrated active UI call sites to `useOfficeRuntimeAdapter`, and kept OpenClaw naming inside adapter-specific surfaces.

@@ -37,8 +37,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import type { TaskApprovalState } from "@/features/team-system/components/team-panel-types";
-import { TaskMemoryView } from "@/features/team-system/components/task-memory-view";
+import type { TaskApprovalState } from "@/modules/team-workspace";
+import { TaskMemoryView } from "@/modules/team-workspace";
 import {
   countReviewLaneTasks,
   resolveReviewBoardTasks,

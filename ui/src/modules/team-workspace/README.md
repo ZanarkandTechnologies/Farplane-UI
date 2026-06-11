@@ -1,11 +1,13 @@
-# Team System
+# Team Workspace Module
 
 ## Purpose
 
-Team-level operator surfaces for overview, kanban, artefacts, timeline, and business workflows.
+Team-level operator surfaces for overview, kanban, artefacts, timeline, memory,
+and business workflows.
 
 ## Public API / Entrypoints
 
+- `index.ts`
 - `components/team-panel.tsx`
 - Tab components under `components/`
 - Shared types in `components/team-panel-types.ts`

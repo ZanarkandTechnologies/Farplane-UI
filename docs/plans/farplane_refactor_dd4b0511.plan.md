@@ -43,7 +43,7 @@ isProject: false
 - `ui/src/providers/office-data-provider.tsx` — 752L
 - `cli/sidecar-store.ts` — 745L
 - `cli/office-commands.ts` — 647L
-- `ui/src/features/team-system/components/team-panel.tsx` — 609L
+- `ui/src/modules/team-workspace/components/team-panel.tsx` — 609L
 - `convex/board.ts` — 583L, `convex/status.ts` — 484L
 
 ## Architecture After Refactor

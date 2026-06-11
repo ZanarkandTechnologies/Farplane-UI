@@ -1,4 +1,4 @@
-# TEAM SYSTEM
+# Team Workspace Module
 
 ## Boundaries
 

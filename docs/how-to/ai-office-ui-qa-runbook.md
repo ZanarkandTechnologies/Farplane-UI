@@ -305,5 +305,5 @@ Use this table to drive browser-agent tests. Each panel lists all known entrypoi
 - Employee context menu: `ui/src/features/office-system/components/employee.tsx`
 - Interactive object: `ui/src/features/office-system/components/interactive-object.tsx`
 - Team cluster: `ui/src/features/office-system/components/team-cluster.tsx`
-- Team panel: `ui/src/features/team-system/components/team-panel.tsx`
+- Team panel: `ui/src/modules/team-workspace/components/team-panel.tsx`
 - Office menu parity spec: `docs/research/qa-testing/office-menu-parity-spec.md`

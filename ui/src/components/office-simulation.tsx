@@ -21,7 +21,7 @@ import { ObjectConfigPanel } from "@/features/office-system/components/object-co
 import { ObjectInteractionPanel } from "@/features/office-system/components/object-interaction-panel";
 import { ObjectTransformPanel } from "@/features/office-system/components/object-transform-panel";
 import { SkillsPanel } from "@/features/office-system/components/skills-panel";
-import { TeamPanel } from "@/features/team-system/components/team-panel";
+import { TeamPanel } from "@/modules/team-workspace";
 import { preloadMeshes } from "@/features/office-system/systems/mesh-cache";
 import { buildOfficeBootstrapStages, getOfficeBootstrapState } from "./office-bootstrap";
 import { OfficeLoader } from "./office-loader";
