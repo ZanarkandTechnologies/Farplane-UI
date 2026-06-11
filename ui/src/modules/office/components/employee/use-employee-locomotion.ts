@@ -35,6 +35,8 @@ import { getRandomItem } from "@/lib/utils";
 import type { EmployeeAnimationMode } from "./employee-motion";
 
 const IDLE_DESTINATION_ATTEMPTS = Math.max(8, IDLE_DESTINATIONS.length * 2);
+const PATH_RETRY_COOLDOWN_MS = 2500;
+const DESTINATION_KEY_PRECISION = 2;
 
 type DebugPathData = {
   originalPath: THREE.Vector3[] | null;
@@ -61,6 +63,14 @@ type UseEmployeeLocomotionResult = {
   isGoingToDesk: boolean;
   animationMode: EmployeeAnimationMode;
 };
+
+function getDestinationKey(destination: THREE.Vector3, mode: "desk" | "idle"): string {
+  return [
+    mode,
+    destination.x.toFixed(DESTINATION_KEY_PRECISION),
+    destination.z.toFixed(DESTINATION_KEY_PRECISION),
+  ].join(":");
+}
 
 export function useEmployeeLocomotion({
   id,
@@ -94,6 +104,7 @@ export function useEmployeeLocomotion({
   const idleTimerRef = useRef(0);
   const debugPathUpdateRef = useRef(0);
   const activityTargetRef = useRef<THREE.Vector3 | null>(null);
+  const failedPathRef = useRef<{ key: string; retryAfter: number } | null>(null);
 
   const movementSpeed = 1.5;
   const arrivalThreshold = 0.1;
@@ -153,7 +164,14 @@ export function useEmployeeLocomotion({
       }
 
       const finalDestination = goingToDesk ? endPos : findAvailableDestination(endPos, id);
-      const newPath = findPathAStar(startPos, finalDestination);
+      let newPath = findPathAStar(startPos, finalDestination, { silent: true });
+
+      if (!newPath && goingToDesk) {
+        const reachableDeskNeighbor = getNearestValidPlacement(endPos, 16);
+        if (reachableDeskNeighbor && reachableDeskNeighbor.distanceTo(finalDestination) > 0.05) {
+          newPath = findPathAStar(startPos, reachableDeskNeighbor, { silent: true });
+        }
+      }
 
       if (newPath) {
         if (goingToDesk && newPath.length > 0) {
@@ -165,6 +183,7 @@ export function useEmployeeLocomotion({
 
         setPath(newPath);
         setPathIndex(0);
+        failedPathRef.current = null;
       }
 
       return newPath;
@@ -251,11 +270,27 @@ export function useEmployeeLocomotion({
       if (distanceToDesk > arrivalThreshold) {
         const needsNewPath = !path || !isGoingToDesk;
         if (needsNewPath) {
-          if (!isGoingToDesk) {
-            setIsGoingToDesk(true);
+          const now = performance.now();
+          const pathKey = getDestinationKey(deskPosition, "desk");
+          const recentFailure = failedPathRef.current;
+          const canRetry =
+            !recentFailure || recentFailure.key !== pathKey || now >= recentFailure.retryAfter;
+
+          if (canRetry) {
+            if (!isGoingToDesk) {
+              setIsGoingToDesk(true);
+            }
+            const nextPath = findAndSetPath(currentPos.clone(), deskPosition.clone(), true);
+            setCurrentDestination(deskPosition);
+            if (!nextPath) {
+              failedPathRef.current = {
+                key: pathKey,
+                retryAfter: now + PATH_RETRY_COOLDOWN_MS,
+              };
+              setIsGoingToDesk(false);
+              setCurrentDestination(null);
+            }
           }
-          findAndSetPath(currentPos.clone(), deskPosition.clone(), true);
-          setCurrentDestination(deskPosition);
         }
 
         if (path && pathIndex < path.length) {
