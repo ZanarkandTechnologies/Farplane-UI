@@ -25,4 +25,5 @@ Filesystem board for planning and execution.
 - Root contract: `AGENTS.md`
 - Planning prompt: `docs/prompts/plan.md`
 - Build prompt: `docs/prompts/build.md`
-- QA guide: `docs/how-to/qa-agent-guide.md`
+- QA guide: `qa/README.md`
+- Office QA cookbook: `qa/cookbook/office.md`

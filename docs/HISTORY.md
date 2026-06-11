@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-06-11 | standards | MEM-0228 | deep-init,qa,hooks,architecture | Migrated Farplane UI toward the current deep-init project standard by adding architecture/bootstrap/lessons/spec-index docs, a repo-owned `qa/` cookbook surface, and opt-in local hook scaffolding with a pragmatic pre-push gate.
+
 2026-06-09 | architecture | MEM-0227 | ui,farplane,runtime-adapters | Added a runtime adapter boundary with Codex as the default Farplane UI adapter and OpenClaw as an optional adapter path.
 
 2026-06-08 01:16 +0800 | migration | MEM-0226 | ui,farplane,sidecars | Moved Farplane UI-owned sidecar defaults and bridge storage from `~/.openclaw` to `~/.farplane`, removed demo pending-approval seeds, replaced Farplane/OpenClaw starter topology with a Farplane-native project seed, and documented OpenClaw runtime state as adapter-owned rather than legacy fallback state.

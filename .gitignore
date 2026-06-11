@@ -13,5 +13,7 @@ skills/external/
 
 # Ignore .files
 .*/
+!.githooks/
+!.githooks/*
 
 /docs/research/*/*
