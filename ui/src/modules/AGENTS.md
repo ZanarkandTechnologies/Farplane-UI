@@ -18,8 +18,12 @@ surfaces, not generic file buckets.
 - Keep module UI, hooks, local logic, types, fixtures, tests, and docs inside
   the owning module.
 - Keep internal helpers private unless exported through the module `index.ts`.
-- Keep reusable primitives in `ui/src/components/ui`; keep cross-module domain
-  contracts in named `ui/src/lib/<domain>/` folders.
+- Keep shadcn-style primitives in `ui/src/components/ui`, global app state in
+  `ui/src/store`, and tiny cross-module primitives in `ui/src/lib`.
+- Put durable cross-module domain behavior in an owning module, not in
+  `ui/src/lib`.
+- Treat `ui/src/features` as legacy staging. Do not add new feature islands
+  there; migrate touched feature islands into `ui/src/modules/<domain>`.
 - Keep runtime-specific code behind runtime adapter folders or module-local
   runtime panels.
 - Register renderable modules explicitly at the app entrypoint, launcher

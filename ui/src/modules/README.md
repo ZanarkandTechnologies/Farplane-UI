@@ -2,21 +2,25 @@
 
 ## Purpose
 
-Reusable product and workflow surfaces for Farplane UI. A module owns a
+Canonical product and workflow surfaces for Farplane UI. A module owns a
 coherent operator experience: the route or panel shell, local components, local
 logic, types, configuration, docs, tests, and public entrypoint for that
 experience.
 
-Use modules for feature-sized surfaces that can be opened, routed, tested, or
-explained as one product capability. Keep small shared primitives in
-`ui/src/components/ui`, and keep true cross-module contracts in domain-named
-folders under `ui/src/lib`.
+Use modules for durable surfaces that can be opened, routed, tested, or
+explained as one product capability. Keep shadcn-style UI primitives in
+`ui/src/components/ui`, global app state in `ui/src/store`, and tiny
+cross-module primitives in `ui/src/lib`.
 
 ## Current Shape
 
-Farplane UI still has legacy `features/`, `components/`, `providers`, and
-`lib` surfaces. Treat those as source neighborhoods during migration, not as a
-reason to keep growing catch-all folders.
+Farplane UI still has legacy `features/`, `components/`, and `providers`
+surfaces. Treat those as source neighborhoods during migration, not as a reason
+to keep growing catch-all folders.
+
+`modules/` is the forward standard. `features/` is legacy staging: existing
+feature islands may remain until touched, but new product/domain work should
+start under `modules/`.
 
 ```text
 office/          target owner for the office scene, room shell, layout builder,
@@ -29,8 +33,14 @@ agent-workspace/ target owner for employee context, agent sessions, manage-agent
                  workflows, and agent-local runtime configuration
 skills-studio/   target owner for skill catalog, skill files, demos, and
                  per-agent skill assignment UI
-chat/            target owner for chat sidebar, dialogs, messages, composer,
+chat/            target owner for legacy features/chat-system: chat sidebar,
+                 dialogs, messages, composer,
                  and transcript rendering
+navigation/      target owner for legacy features/nav-system: pathfinding,
+                 nav mesh, path visualization, and destination registry
+remote-cua/      target owner for legacy features/remote-cua-system
+self-improvement/ target owner for legacy features/self-improvement-system,
+                 unless folded into skills-studio
 settings/        target owner for settings dialog sections and runtime-specific
                  configuration panels
 qa-tools/        target owner for operator/dev probes such as clickability and
@@ -75,8 +85,8 @@ they should grow inward before leaking helpers into global folders.
 1. Put local workflow code inside the owning module first.
 2. Export only intentional public surfaces through `index.ts`.
 3. Keep helpers local until there is a second real caller.
-4. Promote cross-module contracts into domain-named `ui/src/lib/<domain>/`
-   folders, not generic utility buckets.
+4. Promote durable cross-module domain behavior into an owning module, not
+   generic utility buckets.
 5. Register route-mounted or globally launched modules at the app entrypoint or
    launcher registry that renders them.
 6. Add targeted tests for derived logic and a module QA note for user-visible
@@ -92,6 +102,8 @@ they should grow inward before leaking helpers into global folders.
 - Do not add catch-all `utils.ts` files for domain behavior.
 - Do not duplicate module behavior across README, AGENTS, and project docs;
   keep detailed behavior in the nearest module doc.
+- Do not add new folders under `ui/src/features`; migrate touched legacy
+  feature islands into `ui/src/modules/<domain>`.
 
 ## Test
 
