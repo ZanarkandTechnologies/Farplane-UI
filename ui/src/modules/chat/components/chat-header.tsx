@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import type { ChatPresentationMode } from "@/features/chat-system/chat-store";
+import type { ChatPresentationMode } from "@/modules/chat/chat-store";
 import { Clapperboard, Menu, X, Wrench } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 

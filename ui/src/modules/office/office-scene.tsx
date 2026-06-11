@@ -20,7 +20,7 @@
 import { memo, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
-import { useChatStore } from "@/features/chat-system/chat-store";
+import { useChatStore } from "@/modules/chat/chat-store";
 import { useAppStore } from "@/store";
 import { getOfficeLayoutBounds } from "@/modules/office/lib/office-layout";
 import { SceneContents } from "@/modules/office/scene/scene-contents";

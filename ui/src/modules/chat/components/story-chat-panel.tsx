@@ -18,12 +18,12 @@
  * - MEM-0160
  */
 
-import type { LocalChatMessage } from "@/features/chat-system/chat-store";
-import { MessageRenderer } from "@/features/chat-system/components/message-renderer";
+import type { LocalChatMessage } from "@/modules/chat/chat-store";
+import { MessageRenderer } from "@/modules/chat/components/message-renderer";
 import {
   buildStoryChatView,
   type StoryChatPersona,
-} from "@/features/chat-system/story-chat-display";
+} from "@/modules/chat/story-chat-display";
 import { Sparkles } from "lucide-react";
 
 type StoryChatPanelProps = {

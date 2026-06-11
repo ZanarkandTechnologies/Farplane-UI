@@ -1,13 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import { useChatStore } from "@/features/chat-system/chat-store";
+import { useChatStore } from "@/modules/chat/chat-store";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
 import {
   getDisplayInitials,
   type StoryChatPersona,
-} from "@/features/chat-system/story-chat-display";
+} from "@/modules/chat/story-chat-display";
 import { extractAgentId } from "@/lib/entity-utils";
 
 export function useChatContext(): {

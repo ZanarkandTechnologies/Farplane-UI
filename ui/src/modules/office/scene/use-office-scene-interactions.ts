@@ -19,7 +19,7 @@
 import { useCallback } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
 import { useAppStore } from '@/store';
-import { useChatActions } from '@/features/chat-system';
+import { useChatActions } from '@/modules/chat';
 import type { EmployeeData, TeamData } from '@/modules/office/lib/types';
 
 export function useOfficeSceneInteractions(params: {

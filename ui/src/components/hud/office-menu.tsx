@@ -25,7 +25,7 @@ import { SpeedDial, type SpeedDialItem } from "@/components/ui/speed-dial";
 import { useNavigate } from "react-router-dom";
 import { useAppStore } from "@/store";
 import { FurnitureShop } from "./furniture-shop";
-import { useChatActions } from "@/features/chat-system/chat-store";
+import { useChatActions } from "@/modules/chat/chat-store";
 import { OrganizationPanel } from "./organization-panel";
 import { api } from "../../../../convex/_generated/api";
 import { isConvexEnabled } from "@/providers/convex-provider";

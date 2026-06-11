@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useChatStore } from "@/features/chat-system/chat-store";
+import { useChatStore } from "@/modules/chat/chat-store";
 import { useAppStore } from "@/store";
 import type { AgentCardModel, SessionRowModel } from "@/modules/runtime";
 import { useGateway } from "@/providers/gateway-provider";

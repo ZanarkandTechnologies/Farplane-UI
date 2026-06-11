@@ -34,8 +34,8 @@ import {
   SKIN_COLORS,
   TOTAL_HEIGHT,
 } from "@/constants";
-import PathVisualizer from "@/features/nav-system/components/path-visualizer";
-import type { StatusType } from "@/features/nav-system/components/status-indicator";
+import PathVisualizer from "@/modules/navigation/components/path-visualizer";
+import type { StatusType } from "@/modules/navigation/components/status-indicator";
 import { useAppStore } from "@/store";
 import type { Id } from "@/lib/entity-types";
 import type { AgentState } from "@/modules/runtime";

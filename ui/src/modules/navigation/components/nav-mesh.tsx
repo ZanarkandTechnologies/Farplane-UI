@@ -1,5 +1,5 @@
 import { useMemo, useRef } from "react";
-import { getGridData } from "@/features/nav-system/pathfinding/a-star-pathfinding";
+import { getGridData } from "@/modules/navigation/pathfinding/a-star-pathfinding";
 import * as THREE from "three";
 
 interface NavMeshProps {

@@ -1,6 +1,6 @@
 # Navigation System
 
-> **Feature Status**: Active
+> **Module Status**: Active
 > **Last Updated**: Dec 2025
 
 ## Overview
@@ -9,7 +9,7 @@ The Navigation System provides pathfinding algorithms and navigation components 
 
 ## Architecture
 
-Combined `lib/pathfinding` + `components/navigation` into a unified feature module.
+Combined `lib/pathfinding` + `components/navigation` into a unified module.
 
 **Structure**:
 - **Pathfinding Algorithms** (`pathfinding/`): Core pathfinding logic
@@ -51,7 +51,7 @@ Used by:
 ## File Structure
 
 ```
-features/nav-system/
+modules/navigation/
 ├── README.md              # This file
 ├── index.ts               # Public API exports
 ├── pathfinding/           # Pathfinding algorithms
@@ -62,11 +62,11 @@ features/nav-system/
 
 ## Migration History
 
-**Refactored**: Combined `lib/pathfinding` + `components/navigation` → `features/nav-system`
-- Moved pathfinding algorithms to `features/nav-system/pathfinding/`
-- Moved navigation components to `features/nav-system/components/`
+**Refactored**: Combined `lib/pathfinding` + `components/navigation` → `modules/navigation`
+- Moved pathfinding algorithms to `modules/navigation/pathfinding/`
+- Moved navigation components to `modules/navigation/components/`
 - Updated all imports (7 files)
-- Created public API (`features/nav-system/index.ts`)
+- Created public API (`modules/navigation/index.ts`)
 - Removed old directories
 
 ---
@@ -75,4 +75,3 @@ features/nav-system/
 
 - **Office System** (`modules/office/`): Uses navigation for employee movement
 - **Interactive Objects** (`modules/office/components/interactive-object.tsx`): Uses pathfinding for object placement
-

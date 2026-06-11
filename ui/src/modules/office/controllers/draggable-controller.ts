@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { getGridData } from "@/features/nav-system/pathfinding/a-star-pathfinding";
+import { getGridData } from "@/modules/navigation/pathfinding/a-star-pathfinding";
 
 type DragPositionConstraint = (position: THREE.Vector3) => THREE.Vector3;
 

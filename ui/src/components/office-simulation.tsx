@@ -11,7 +11,7 @@ import { CeoWorkbenchPanel } from "./hud/ceo-workbench-panel";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
 import { gatewayBase } from "@/modules/runtime";
-import ChatDialog from "@/features/chat-system/components/chat-dialog";
+import ChatDialog from "@/modules/chat/components/chat-dialog";
 import {
   AgentMemoryPanel,
   AgentSessionPanel,

@@ -159,13 +159,13 @@ modules/office/
 
 - **App Store** (`ui/src/store/app-store.ts`): Global state for highlighted employees, dialog state
 - **Agent System** (`ui/src/modules/runtime/lib/openclaw/adapter.ts`): Agent configurations, tools, skills
-- **Chat System** (`features/chat-system/`): Employee DMs use agent configs
+- **Chat System** (`modules/chat/`): Employee DMs use agent configs
 - **Team System** (`modules/team-workspace/`): Team directory integration
 
 ---
 
 ## Related Systems
 
-- **Nav System** (`features/nav-system/`): Pathfinding and navigation for employees
-- **Chat System** (`features/chat-system/`): Employee-agent communication
+- **Nav System** (`modules/navigation/`): Pathfinding and navigation for employees
+- **Chat System** (`modules/chat/`): Employee-agent communication
 - **Agent System** (`ui/src/modules/runtime/lib/openclaw/adapter.ts`): Agent configuration backend

@@ -22,7 +22,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MessageSquare, ShoppingBag, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { useChatStore } from "@/features/chat-system/chat-store";
+import { useChatStore } from "@/modules/chat/chat-store";
 import { useAppStore } from "@/store";
 import { UI_Z } from "@/lib/z-index";
 import {

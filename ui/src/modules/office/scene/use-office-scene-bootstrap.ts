@@ -20,7 +20,7 @@ import { createRef, useCallback, useEffect, useRef } from 'react';
 import type { OrbitControls } from '@react-three/drei';
 import type * as THREE from 'three';
 import { useObjectRegistrationStore } from '@/modules/office/store/object-registration-store';
-import { initializeGrid } from '@/features/nav-system/pathfinding/a-star-pathfinding';
+import { initializeGrid } from '@/modules/navigation/pathfinding/a-star-pathfinding';
 import type { OfficeLayoutModel } from '@/modules/office/lib/office-layout';
 
 export function useOfficeSceneBootstrap(params: {

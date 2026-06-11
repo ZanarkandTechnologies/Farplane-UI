@@ -22,7 +22,7 @@ import { useThree } from '@react-three/fiber';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { getBuilderGridLinePositions } from '@/components/debug/builder-grid';
-import { getGridData } from '@/features/nav-system/pathfinding/a-star-pathfinding';
+import { getGridData } from '@/modules/navigation/pathfinding/a-star-pathfinding';
 import { getOfficeLayoutBounds } from '@/modules/office/lib/office-layout';
 import { useOfficeDataContext } from '@/providers/office-data-provider';
 

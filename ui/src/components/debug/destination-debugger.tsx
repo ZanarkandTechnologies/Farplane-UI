@@ -1,6 +1,6 @@
 import { useEffect, useRef, memo } from 'react';
 import * as THREE from 'three';
-import { getActiveDestinations } from '@/features/nav-system/pathfinding/destination-registry';
+import { getActiveDestinations } from '@/modules/navigation/pathfinding/destination-registry';
 import { useFrame } from '@react-three/fiber';
 
 /**

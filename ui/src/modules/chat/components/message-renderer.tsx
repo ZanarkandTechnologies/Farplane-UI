@@ -22,7 +22,7 @@ import {
     ToolOutput,
 } from "@/components/ai-elements/tool";
 import { CodeBlock } from "@/components/ai-elements/code-block";
-import type { LocalChatMessage } from "@/features/chat-system/chat-store";
+import type { LocalChatMessage } from "@/modules/chat/chat-store";
 import { cn } from "@/lib/utils";
 
 type WorkingOutputCard = {

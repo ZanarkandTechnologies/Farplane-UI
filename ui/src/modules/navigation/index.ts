@@ -2,13 +2,13 @@
  * NAVIGATION SYSTEM (Public API)
  * ==============================
  * 
- * This is the public API for the Navigation System feature module.
+ * This is the public API for the Navigation module.
  * Import from here when using navigation components, pathfinding utilities,
- * or types from outside this feature module.
+ * or types from outside this module.
  * 
  * USAGE:
  * ------
- * import { NavMesh, PathVisualizer, findPathAStar } from '@/features/nav-system';
+ * import { NavMesh, PathVisualizer, findPathAStar } from '@/modules/navigation';
  */
 
 // Pathfinding Algorithms & Utilities
@@ -36,4 +36,3 @@ export {
 export { NavMesh } from './components/nav-mesh';
 export { default as PathVisualizer } from './components/path-visualizer';
 export { default as StatusIndicator, type StatusType } from './components/status-indicator';
-

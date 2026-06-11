@@ -1,11 +1,11 @@
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { useChatStore, type LocalChatMessage } from "@/features/chat-system/chat-store";
-import { useChatContext, useChatThreads, useChatMessages } from "@/features/chat-system/hooks";
-import { ChatSidebar } from "@/features/chat-system/components/chat-sidebar";
-import { ChatHeader } from "@/features/chat-system/components/chat-header";
-import { MessageRenderer } from "@/features/chat-system/components/message-renderer";
-import { ChatInput } from "@/features/chat-system/components/chat-input";
-import { StoryChatPanel } from "@/features/chat-system/components/story-chat-panel";
+import { useChatStore, type LocalChatMessage } from "@/modules/chat/chat-store";
+import { useChatContext, useChatThreads, useChatMessages } from "@/modules/chat/hooks";
+import { ChatSidebar } from "@/modules/chat/components/chat-sidebar";
+import { ChatHeader } from "@/modules/chat/components/chat-header";
+import { MessageRenderer } from "@/modules/chat/components/message-renderer";
+import { ChatInput } from "@/modules/chat/components/chat-input";
+import { StoryChatPanel } from "@/modules/chat/components/story-chat-panel";
 import { Sparkles } from "lucide-react";
 import { UI_Z } from "@/lib/z-index";
 

@@ -22,8 +22,7 @@ surfaces, not generic file buckets.
   `ui/src/store`, and tiny cross-module primitives in `ui/src/lib`.
 - Put durable cross-module domain behavior in an owning module, not in
   `ui/src/lib`.
-- Treat `ui/src/features` as legacy staging. Do not add new feature islands
-  there; migrate touched feature islands into `ui/src/modules/<domain>`.
+- Do not add product/domain folders outside `ui/src/modules`.
 - Keep runtime-specific code behind runtime adapter folders or module-local
   runtime panels.
 - Register renderable modules explicitly at the app entrypoint, launcher

@@ -15,7 +15,7 @@
  * - MEM-0107
  */
 
-import type { LocalChatMessage } from "@/features/chat-system/chat-store";
+import type { LocalChatMessage } from "@/modules/chat/chat-store";
 
 export type StoryChatPersona = {
   displayName: string;

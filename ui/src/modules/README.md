@@ -14,13 +14,9 @@ cross-module primitives in `ui/src/lib`.
 
 ## Current Shape
 
-Farplane UI still has legacy `features/`, `components/`, and `providers`
-surfaces. Treat those as source neighborhoods during migration, not as a reason
-to keep growing catch-all folders.
-
-`modules/` is the forward standard. `features/` is legacy staging: existing
-feature islands may remain until touched, but new product/domain work should
-start under `modules/`.
+Farplane UI product/domain code lives under `modules/`. Shared visual
+primitives live under `components/ui`, app-wide store state lives under
+`store`, and app providers stay under `providers`.
 
 ```text
 office/          target owner for the office scene, room shell, layout builder,
@@ -33,13 +29,12 @@ agent-workspace/ target owner for employee context, agent sessions, manage-agent
                  workflows, and agent-local runtime configuration
 skills-studio/   target owner for skill catalog, skill files, demos, and
                  per-agent skill assignment UI
-chat/            target owner for legacy features/chat-system: chat sidebar,
-                 dialogs, messages, composer,
+chat/            target owner for chat sidebar, dialogs, messages, composer,
                  and transcript rendering
-navigation/      target owner for legacy features/nav-system: pathfinding,
+navigation/      target owner for pathfinding,
                  nav mesh, path visualization, and destination registry
-remote-cua/      target owner for legacy features/remote-cua-system
-self-improvement/ target owner for legacy features/self-improvement-system,
+remote-cua/      target owner for remote computer-view UI
+self-improvement/ target owner for self-improvement and training UI,
                  unless folded into skills-studio
 settings/        target owner for settings dialog sections and runtime-specific
                  configuration panels
@@ -47,8 +42,8 @@ qa-tools/        target owner for operator/dev probes such as clickability and
                  scene diagnostics
 ```
 
-These folders are migration targets. Add a module folder when a touched feature
-needs a real boundary; do not move unrelated files only to satisfy the map.
+Add a module folder when a new durable product/domain surface needs a real
+boundary.
 
 ## Module Contract
 
@@ -102,8 +97,7 @@ they should grow inward before leaking helpers into global folders.
 - Do not add catch-all `utils.ts` files for domain behavior.
 - Do not duplicate module behavior across README, AGENTS, and project docs;
   keep detailed behavior in the nearest module doc.
-- Do not add new folders under `ui/src/features`; migrate touched legacy
-  feature islands into `ui/src/modules/<domain>`.
+- Do not add product/domain folders outside `ui/src/modules`.
 
 ## Test
 

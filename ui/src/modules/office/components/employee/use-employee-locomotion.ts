@@ -23,11 +23,11 @@ import { IDLE_DESTINATIONS, TOTAL_HEIGHT } from "@/constants";
 import {
   findPathAStar,
   isGridInitialized,
-} from "@/features/nav-system/pathfinding/a-star-pathfinding";
+} from "@/modules/navigation/pathfinding/a-star-pathfinding";
 import {
   findAvailableDestination,
   releaseEmployeeReservations,
-} from "@/features/nav-system/pathfinding/destination-registry";
+} from "@/modules/navigation/pathfinding/destination-registry";
 import type { Id } from "@/lib/entity-types";
 import type { AgentState } from "@/modules/runtime";
 import { getRandomItem } from "@/lib/utils";

@@ -4,7 +4,7 @@ import { memo } from "react";
 import { Html } from "@react-three/drei";
 
 import type { AgentState } from "@/modules/runtime";
-import StatusIndicator, { type StatusType } from "@/features/nav-system/components/status-indicator";
+import StatusIndicator, { type StatusType } from "@/modules/navigation/components/status-indicator";
 
 /**
  * EMPLOYEE STATUS BUBBLES
