@@ -100,6 +100,7 @@ function normalizeVisibilityConfig(config?: CodexOfficeVisibilityConfig): Requir
     alwaysShowHeartbeatThreads: config?.alwaysShowHeartbeatThreads !== false,
     showAutomationThreadsAsHeartbeat: config?.showAutomationThreadsAsHeartbeat !== false,
     heartbeatThreadIds: Array.isArray(config?.heartbeatThreadIds) ? config.heartbeatThreadIds : [],
+    projectlessThreadIds: Array.isArray(config?.projectlessThreadIds) ? config.projectlessThreadIds : [],
     miscProjectName: safeText(config?.miscProjectName) || "Misc",
     miscPathIncludes: Array.isArray(config?.miscPathIncludes) ? config.miscPathIncludes : ["Documents/Codex"],
   };
@@ -170,6 +171,7 @@ export function toCodexCompanyModel(
     (readModel.projectManagers ?? []).map((pin) => safeText(pin.threadId)).filter(Boolean),
   );
   const heartbeatThreadIds = new Set(visibility.heartbeatThreadIds.map(safeText).filter(Boolean));
+  const projectlessThreadIds = new Set(visibility.projectlessThreadIds.map(safeText).filter(Boolean));
   const projectThreads = threads;
   const threadsByProjectPath = new Map<string, CodexThread[]>();
   for (const projectPath of projectPaths) {
@@ -189,7 +191,7 @@ export function toCodexCompanyModel(
     if (!isVisible) {
       continue;
     }
-    const matchedProjectPath = cwd && !isMiscProjectPath(cwd, visibility.miscPathIncludes)
+    const matchedProjectPath = cwd && !projectlessThreadIds.has(thread.id) && !isMiscProjectPath(cwd, visibility.miscPathIncludes)
       ? findBestProjectPath(cwd, projectPaths)
       : null;
     const projectPath =

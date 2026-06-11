@@ -89,6 +89,15 @@ export type CodexConfigReadResponse = {
   origins?: unknown;
 };
 
+export type CodexUiStateResponse = {
+  savedWorkspaceRoots?: string[];
+  activeWorkspaceRoots?: string[];
+  projectOrder?: string[];
+  pinnedProjectIds?: string[];
+  pinnedThreadIds?: string[];
+  projectlessThreadIds?: string[];
+};
+
 export type CodexProjectReadModelTask = {
   id: string;
   projectId: string;
@@ -117,6 +126,7 @@ export type CodexOfficeVisibilityConfig = {
   alwaysShowHeartbeatThreads?: boolean;
   showAutomationThreadsAsHeartbeat?: boolean;
   heartbeatThreadIds?: string[];
+  projectlessThreadIds?: string[];
   miscProjectName?: string;
   miscPathIncludes?: string[];
 };
@@ -131,3 +141,10 @@ export type CodexProjectReadModelResponse = {
 export type CodexRpcBridgeResponse<T> =
   | { ok: true; result: T }
   | { ok: false; error?: string };
+
+export type CodexAppServerHealthResponse = {
+  ok: boolean;
+  configured?: boolean;
+  transport?: string;
+  error?: string;
+};

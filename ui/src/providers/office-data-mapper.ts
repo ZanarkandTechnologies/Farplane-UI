@@ -359,12 +359,6 @@ export function toOfficeData(
   >();
 
   const rootConfig = configSnapshot?.config as Record<string, unknown> | undefined;
-  const runtimeConfig =
-    rootConfig && typeof rootConfig.runtime === "object"
-      ? (rootConfig.runtime as Record<string, unknown>)
-      : undefined;
-  const isCodexRuntime =
-    runtimeConfig?.kind === "codex" || unified.diagnostics?.source === "codex";
   if (rootConfig && typeof rootConfig.agentAppearances === "object") {
     const appearancesNode = rootConfig.agentAppearances as Record<string, unknown>;
     for (const [agentId, value] of Object.entries(appearancesNode)) {
@@ -404,10 +398,6 @@ export function toOfficeData(
     for (const [projectIndex, project] of projectList.entries()) {
       const teamId = `team-${project.id}`;
       const projectAgents = companyAgents.filter((agent) => agent.projectId === project.id);
-      const hasPinnedCluster = persistedTeamClusterByTeamId.has(teamId);
-      if (isCodexRuntime && projectAgents.length === 0 && !hasPinnedCluster) {
-        continue;
-      }
       projectToTeamId.set(project.id, teamId);
       const summary = workload.find((item) => item.projectId === project.id);
       const revenueCents = (project.ledger ?? [])

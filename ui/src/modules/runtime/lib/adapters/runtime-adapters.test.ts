@@ -99,6 +99,45 @@ describe("runtime adapters", () => {
     });
   });
 
+  it("skips Codex RPC calls when app-server health is unavailable", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/codex/app-server/health")) {
+        return new Response(JSON.stringify({ ok: false, configured: false }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.endsWith("/farplane/codex-ui-state")) {
+        return new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.endsWith("/farplane/projects/read-model")) {
+        return new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: false, error: "unexpected" }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const adapter = new CodexRuntimeAdapter("", "http://state");
+    await expect(adapter.getUnifiedOfficeModel()).resolves.toEqual(
+      expect.objectContaining({
+        runtimeAgents: [expect.objectContaining({ agentId: CODEX_MAIN_AGENT_ID })],
+      }),
+    );
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input).endsWith("/codex/app-server/rpc")),
+    ).toBe(false);
+  });
+
   it("maps Codex threads into workers, sessions, and timelines", () => {
     const thread = {
       id: "thread-1",
@@ -393,6 +432,118 @@ describe("runtime adapters", () => {
           agentId: "codex-thread:old-manager",
           projectId: "codex-proj-workspace-farplane-ui",
           role: "pm",
+        }),
+      ]),
+    );
+  });
+
+  it("prefers Codex UI project roots over stale trusted config projects", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith("/codex/app-server/health")) {
+          return new Response(
+            JSON.stringify({ ok: true, configured: true, transport: "websocket" }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        if (url.endsWith("/codex/app-server/rpc")) {
+          const body = JSON.parse(String(init?.body ?? "{}")) as { method?: string };
+          if (body.method === "thread/list") {
+            return new Response(
+              JSON.stringify({
+                ok: true,
+                result: {
+                  data: [
+                    {
+                      id: "recent-farplane",
+                      preview: "Recent Farplane work",
+                      cwd: "/workspace/farplane",
+                      updatedAt: 1770000000,
+                      status: { type: "active" },
+                    },
+                    {
+                      id: "recent-stale",
+                      preview: "Recent stale project work",
+                      cwd: "/workspace/codexter",
+                      updatedAt: 1770000000,
+                      status: { type: "active" },
+                    },
+                  ],
+                },
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            );
+          }
+          if (body.method === "config/read") {
+            return new Response(
+              JSON.stringify({
+                ok: true,
+                result: {
+                  config: {
+                    projects: {
+                      "/workspace/codexter": {},
+                      "/workspace/shellcorp": {},
+                    },
+                  },
+                },
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            );
+          }
+        }
+        if (url.endsWith("/farplane/codex-ui-state")) {
+          return new Response(
+            JSON.stringify({
+              savedWorkspaceRoots: ["/workspace/farplane", "/workspace/life"],
+              pinnedProjectIds: ["/workspace/farplane"],
+              projectOrder: ["/workspace/farplane"],
+              pinnedThreadIds: ["pinned-life-manager"],
+              projectlessThreadIds: ["recent-stale"],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        if (url.endsWith("/farplane/projects/read-model")) {
+          return new Response(
+            JSON.stringify({
+              generatedAt: 1770000000 * 1000,
+              ticketTasks: [],
+              projectManagers: [],
+              officeVisibility: {
+                recentThreadWindowMinutes: 180,
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        return new Response(JSON.stringify({}), {
+          status: 404,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+
+    const adapter = new CodexRuntimeAdapter("", "http://state");
+    const office = await adapter.getUnifiedOfficeModel();
+
+    expect(office.company.projects.map((project) => project.name)).toEqual([
+      "farplane",
+      "life",
+      "Misc",
+    ]);
+    expect(office.company.projects.some((project) => project.name === "codexter")).toBe(false);
+    expect(office.company.projects.some((project) => project.name === "shellcorp")).toBe(false);
+    expect(office.company.agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-thread:recent-farplane",
+          projectId: "codex-proj-workspace-farplane",
+        }),
+        expect.objectContaining({
+          agentId: "codex-thread:recent-stale",
+          projectId: "codex-proj-misc",
         }),
       ]),
     );

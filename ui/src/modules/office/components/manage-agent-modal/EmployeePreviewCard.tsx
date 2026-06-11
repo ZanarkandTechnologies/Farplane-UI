@@ -346,7 +346,7 @@ export function EmployeePreviewCard({
       <p className="text-sm font-medium">Office character preview</p>
       <div className="overflow-hidden rounded-md border bg-background">
         <div className="h-56 w-full">
-          <Canvas camera={{ position: [0, 0.58, 3.2], fov: 24 }} shadows>
+          <Canvas camera={{ position: [0, 0.58, 3.2], fov: 24 }} shadows="percentage">
             <ambientLight intensity={1.4} />
             <directionalLight position={[2, 3, 4]} intensity={2.2} castShadow />
             <directionalLight position={[-2, 1.5, 2]} intensity={0.8} />

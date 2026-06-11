@@ -211,7 +211,7 @@ describe("office-data-provider stabilization", () => {
 });
 
 describe("office-data-provider team synthesis", () => {
-  it("keeps Codex office tables limited to active or CLI-pinned projects", () => {
+  it("keeps Codex project tables visible while limiting employees to visible threads", () => {
     const idleProject = {
       id: "codex-proj-idle",
       departmentId: "dept-farplane",
@@ -277,12 +277,16 @@ describe("office-data-provider team synthesis", () => {
 
     expect(result.teams.map((team) => team._id)).toEqual([
       "team-management",
+      "team-codex-proj-idle",
       "team-codex-proj-pinned",
       "team-codex-proj-active",
     ]);
     expect(
-      result.officeObjects.some((object) => object.metadata?.teamId === "team-codex-proj-idle"),
+      result.employees.some((employee) => employee.teamId === "team-codex-proj-idle"),
     ).toBe(false);
+    expect(
+      result.officeObjects.some((object) => object.metadata?.teamId === "team-codex-proj-idle"),
+    ).toBe(true);
   });
 
   it("does not synthesize a Farplane fallback cluster when all projects are archived", () => {

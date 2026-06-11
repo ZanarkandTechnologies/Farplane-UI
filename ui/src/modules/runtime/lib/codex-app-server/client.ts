@@ -7,6 +7,8 @@ import type {
   CodexTurnStartResponse,
   CodexProjectReadModelResponse,
   CodexOfficeVisibilityConfig,
+  CodexUiStateResponse,
+  CodexAppServerHealthResponse,
 } from "./types";
 
 type FetchLike = typeof fetch;
@@ -57,8 +59,28 @@ export class CodexAppServerClient {
     });
   }
 
+  async readHealth(): Promise<CodexAppServerHealthResponse> {
+    try {
+      const response = await this.fetchImpl(`${this.stateUrl}/codex/app-server/health`);
+      if (!response.ok) {
+        return { ok: false, configured: false, error: `codex_app_server_health_failed:${response.status}` };
+      }
+      return (await response.json()) as CodexAppServerHealthResponse;
+    } catch {
+      return { ok: false, configured: false, error: "codex_app_server_health_unreachable" };
+    }
+  }
+
   async readConfig(): Promise<CodexConfigReadResponse> {
     return this.request<CodexConfigReadResponse>("config/read");
+  }
+
+  async readUiState(): Promise<CodexUiStateResponse> {
+    const response = await this.fetchImpl(`${this.stateUrl}/farplane/codex-ui-state`);
+    if (!response.ok) {
+      throw new Error(`farplane_codex_ui_state_failed:${response.status}`);
+    }
+    return (await response.json()) as CodexUiStateResponse;
   }
 
   async readProjectModel(

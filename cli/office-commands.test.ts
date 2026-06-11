@@ -326,6 +326,90 @@ describe("office CLI", () => {
     expect(payload).toContain('"plant-a"');
   });
 
+  it("prints placement violations in office map json", async () => {
+    const stateDir = await setupStateDir();
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+    await writeFile(
+      path.join(stateDir, "office-objects.json"),
+      `${JSON.stringify(
+        [
+          { id: "team-a", identifier: "team-a", meshType: "team-cluster", position: [0, 0, 0] },
+          { id: "team-b", identifier: "team-b", meshType: "team-cluster", position: [1, 0, 1] },
+        ],
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await runCommand(["office", "print", "--json"]);
+    const payload = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? "")) as {
+      placementViolationCount: number;
+      placementViolations: Array<{ type: string; objectId: string; otherObjectId?: string }>;
+    };
+    expect(payload.placementViolationCount).toBe(1);
+    expect(payload.placementViolations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "collision",
+          objectId: "team-a",
+          otherObjectId: "team-b",
+        }),
+      ]),
+    );
+  });
+
+  it("arranges office objects atomically with placement validation", async () => {
+    const stateDir = await setupStateDir();
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+    await writeFile(
+      path.join(stateDir, "office-objects.json"),
+      `${JSON.stringify(
+        [
+          {
+            id: "team-cluster-team-management",
+            identifier: "team-cluster-team-management",
+            meshType: "team-cluster",
+            position: [0, 0, 0],
+            metadata: { teamId: "team-management", name: "Management" },
+          },
+          {
+            id: "cluster-alpha",
+            identifier: "cluster-alpha",
+            meshType: "team-cluster",
+            position: [12, 0, 12],
+            metadata: { teamId: "team-proj-alpha", name: "Alpha" },
+          },
+          { id: "plant-a", identifier: "plant-a", meshType: "plant", position: [4, 0, 0] },
+        ],
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await runCommand(["office", "arrange", "--json"]);
+    const payload = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? "")) as {
+      ok: boolean;
+      placementViolationCount: number;
+      movedCount: number;
+    };
+    expect(payload.ok).toBe(true);
+    expect(payload.placementViolationCount).toBe(0);
+    expect(payload.movedCount).toBeGreaterThan(0);
+
+    const raw = await readFile(path.join(stateDir, "office-objects.json"), "utf-8");
+    const objects = JSON.parse(raw) as Array<{ id: string; position: [number, number, number] }>;
+    expect(objects.find((entry) => entry.id === "team-cluster-team-management")?.position).toEqual([
+      0,
+      0,
+      14,
+    ]);
+    expect(objects.find((entry) => entry.id === "plant-a")?.position).toEqual([-16, 0, 15]);
+  });
+
   it("validates placement flags for office add", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
@@ -484,9 +568,21 @@ describe("office CLI", () => {
       ok: boolean;
       invalidCount: number;
       invalid: Array<{ id: string; reasons: string[] }>;
+      placementViolationCount: number;
+      placementViolations: Array<{ type: string; objectId: string; otherObjectId?: string }>;
     };
     expect(payload.ok).toBe(false);
     expect(payload.invalidCount).toBe(2);
+    expect(payload.placementViolationCount).toBe(1);
+    expect(payload.placementViolations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "collision",
+          objectId: "dragon-bad",
+          otherObjectId: "cluster-bad",
+        }),
+      ]),
+    );
     expect(
       payload.invalid.some(
         (entry) => entry.id === "dragon-bad" && entry.reasons.includes("missing_mesh_public_path"),

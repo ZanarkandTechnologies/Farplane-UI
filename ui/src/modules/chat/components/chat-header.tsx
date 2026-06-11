@@ -10,6 +10,7 @@ interface ChatHeaderProps {
   subtitle?: string;
   showWorkingOutput?: boolean;
   onToggleWorkingOutput?: () => void;
+  showSidebarToggle?: boolean;
   presentationMode?: ChatPresentationMode;
   onTogglePresentationMode?: () => void;
   storyMode?: boolean;
@@ -23,6 +24,7 @@ export function ChatHeader({
   subtitle,
   showWorkingOutput = false,
   onToggleWorkingOutput,
+  showSidebarToggle = true,
   presentationMode = "classic",
   onTogglePresentationMode,
   storyMode = false,
@@ -33,7 +35,7 @@ export function ChatHeader({
       className={`sticky top-0 z-10 border-b ${storyMode ? "border-border/70 bg-background/95 text-foreground" : "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"}`}
     >
       <div className="px-4 py-3 flex items-center gap-4">
-        {!storyMode ? (
+        {!storyMode && showSidebarToggle ? (
           <Button variant="ghost" size="sm" onClick={onToggleSidebar} className="h-8 w-8 p-0">
             {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </Button>

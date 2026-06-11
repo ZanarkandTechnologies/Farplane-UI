@@ -35,6 +35,16 @@ export interface AutoPlacementInput {
   gridStep?: number;
 }
 
+export interface PlacementViolation {
+  type: "collision" | "out_of_bounds";
+  objectId: string;
+  otherObjectId?: string;
+  meshType: string;
+  otherMeshType?: string;
+  position: [number, number, number];
+  otherPosition?: [number, number, number];
+}
+
 const DEFAULT_FOOTPRINT: PlacementFootprint = { width: 2, depth: 2, clearance: 0 };
 const FOOTPRINT_BY_MESH: Record<string, PlacementFootprint> = {
   "team-cluster": { width: 4, depth: 4, clearance: 0.5 },
@@ -99,6 +109,52 @@ function intersectsXZ(
   return overlapX && overlapZ;
 }
 
+export function findPlacementViolations(input: {
+  objects: OfficeObjectModel[];
+  bounds: PlacementBounds;
+}): PlacementViolation[] {
+  const violations: PlacementViolation[] = [];
+
+  for (const object of input.objects) {
+    const footprint = getMeshFootprint(object.meshType, object.metadata);
+    if (!isCenterInsideBounds(object.position, footprint, input.bounds)) {
+      violations.push({
+        type: "out_of_bounds",
+        objectId: object.id,
+        meshType: object.meshType,
+        position: object.position,
+      });
+    }
+  }
+
+  for (let leftIndex = 0; leftIndex < input.objects.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < input.objects.length; rightIndex += 1) {
+      const left = input.objects[leftIndex];
+      const right = input.objects[rightIndex];
+      if (
+        intersectsXZ(
+          left.position,
+          getMeshFootprint(left.meshType, left.metadata),
+          right.position,
+          getMeshFootprint(right.meshType, right.metadata),
+        )
+      ) {
+        violations.push({
+          type: "collision",
+          objectId: left.id,
+          otherObjectId: right.id,
+          meshType: left.meshType,
+          otherMeshType: right.meshType,
+          position: left.position,
+          otherPosition: right.position,
+        });
+      }
+    }
+  }
+
+  return violations;
+}
+
 export function isPlacementAreaFree(input: {
   position: [number, number, number];
   meshType: string;
@@ -152,4 +208,3 @@ export function findFirstOpenPlacement(input: AutoPlacementInput): [number, numb
   }
   return null;
 }
-

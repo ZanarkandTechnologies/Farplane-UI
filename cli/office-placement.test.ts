@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { OfficeObjectModel } from "./sidecar-store.js";
-import { findFirstOpenPlacement, isPlacementAreaFree } from "./office-placement.js";
+import {
+  findFirstOpenPlacement,
+  findPlacementViolations,
+  isPlacementAreaFree,
+} from "./office-placement.js";
 
 function makeObject(id: string, meshType: string, position: [number, number, number]): OfficeObjectModel {
   return {
@@ -66,5 +70,29 @@ describe("office placement helpers", () => {
     });
     expect(position).toBeNull();
   });
-});
 
+  it("reports collisions and out-of-bounds objects", () => {
+    const violations = findPlacementViolations({
+      bounds: { halfExtent: 17.5 },
+      objects: [
+        makeObject("team-a", "team-cluster", [0, 0, 0]),
+        makeObject("team-b", "team-cluster", [1, 0, 1]),
+        makeObject("team-edge", "team-cluster", [17, 0, 0]),
+      ],
+    });
+
+    expect(violations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "collision",
+          objectId: "team-a",
+          otherObjectId: "team-b",
+        }),
+        expect.objectContaining({
+          type: "out_of_bounds",
+          objectId: "team-edge",
+        }),
+      ]),
+    );
+  });
+});

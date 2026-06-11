@@ -20,7 +20,11 @@ import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Command } from "commander";
 import { FLOOR_SIZE, HALF_FLOOR } from "./constants.js";
-import { findFirstOpenPlacement, isPlacementAreaFree } from "./office-placement.js";
+import {
+  findFirstOpenPlacement,
+  findPlacementViolations,
+  isPlacementAreaFree,
+} from "./office-placement.js";
 import { renderOfficeAscii } from "./office-renderer.js";
 import {
   type CompanyModel,
@@ -221,6 +225,86 @@ function assertPositionUnoccupied(input: {
   if (!free) {
     fail(`position_occupied:x=${input.position[0]},z=${input.position[2]}`);
   }
+}
+
+const STUDIO_TEAM_LAYOUT: Array<[number, number, number]> = [
+  [0, 0, 14],
+  [-7, 0, 10],
+  [7, 0, 10],
+  [0, 0, 6],
+  [-14, 0, 8],
+  [14, 0, 8],
+  [-14, 0, 2],
+  [-7, 0, 3],
+  [7, 0, 3],
+  [14, 0, 2],
+  [-14, 0, -4],
+  [0, 0, -3],
+  [14, 0, -4],
+  [-14, 0, -11],
+  [6, 0, -8],
+  [14, 0, -10],
+  [4, 0, -14],
+];
+
+const STUDIO_PLANT_LAYOUT: Array<[number, number, number]> = [
+  [-16, 0, 15],
+  [16, 0, 15],
+  [-16, 0, -16],
+  [16, 0, -16],
+];
+
+function arrangePriority(object: OfficeObjectModel): number {
+  const id = object.id.toLowerCase();
+  const teamId = String(object.metadata?.teamId ?? "").toLowerCase();
+  const name = String(object.metadata?.name ?? "").toLowerCase();
+  const haystack = `${id} ${teamId} ${name}`;
+  if (teamId === "team-management" || name === "management") return 0;
+  if (haystack.includes("projects-farplane-ui")) return 2;
+  if (haystack.includes("projects-farplane")) return 1;
+  if (haystack.includes("kenjipcx-life")) return 3;
+  if (haystack.includes("codex-proj-misc")) return 4;
+  if (haystack.includes("scammed") || haystack.includes("scamcheck")) return 5;
+  if (haystack.includes("coding-harness")) return 6;
+  return 100;
+}
+
+function arrangeOfficeObjectsForStudio(objects: OfficeObjectModel[]): {
+  objects: OfficeObjectModel[];
+  moved: Array<{ id: string; position: [number, number, number] }>;
+} {
+  const teamObjects = objects
+    .filter((entry) => entry.meshType === "team-cluster")
+    .sort((left, right) => {
+      const priorityDelta = arrangePriority(left) - arrangePriority(right);
+      return priorityDelta === 0 ? left.id.localeCompare(right.id) : priorityDelta;
+    });
+  const teamPositionById = new Map<string, [number, number, number]>();
+  teamObjects.forEach((object, index) => {
+    const position = STUDIO_TEAM_LAYOUT[index] ?? STUDIO_TEAM_LAYOUT[STUDIO_TEAM_LAYOUT.length - 1];
+    teamPositionById.set(object.id, position);
+  });
+
+  let plantIndex = 0;
+  const moved: Array<{ id: string; position: [number, number, number] }> = [];
+  const nextObjects = objects.map((object) => {
+    const teamPosition = teamPositionById.get(object.id);
+    const plantPosition =
+      object.meshType === "plant" ? STUDIO_PLANT_LAYOUT[plantIndex++] : undefined;
+    const position = teamPosition ?? plantPosition;
+    if (!position) return object;
+    if (
+      object.position[0] === position[0] &&
+      object.position[1] === position[1] &&
+      object.position[2] === position[2]
+    ) {
+      return object;
+    }
+    moved.push({ id: object.id, position });
+    return { ...object, position };
+  });
+
+  return { objects: nextObjects, moved };
 }
 
 function collectValue(value: string, previous: string[]): string[] {
@@ -648,11 +732,17 @@ export function registerOfficeCommands(program: Command): void {
       }) => {
         const objects = await store.readOfficeObjects();
         const company = await store.readCompanyModel();
+        const placementViolations = findPlacementViolations({
+          objects,
+          bounds: { halfExtent: HALF_FLOOR },
+        });
         if (opts.json) {
           console.log(
             JSON.stringify(
               {
                 objects,
+                placementViolationCount: placementViolations.length,
+                placementViolations,
                 teams: company.projects.map((project) => ({
                   teamId: `team-${project.id}`,
                   name: project.name,
@@ -671,7 +761,21 @@ export function registerOfficeCommands(program: Command): void {
           showLegend: opts.legend,
           useColor: opts.color !== false && Boolean(process.stdout.isTTY),
         });
-        console.log(rendered);
+        if (placementViolations.length === 0) {
+          console.log(rendered);
+          return;
+        }
+        console.log(
+          [
+            rendered,
+            "",
+            `Placement violations: ${placementViolations.length}`,
+            ...placementViolations.map((entry) => {
+              const other = entry.otherObjectId ? ` <-> ${entry.otherObjectId}` : "";
+              return `- ${entry.type}: ${entry.objectId}${other}`;
+            }),
+          ].join("\n"),
+        );
       },
     );
 
@@ -713,6 +817,10 @@ export function registerOfficeCommands(program: Command): void {
       const objects = await store.readOfficeObjects();
       const company = await store.readCompanyModel();
       const allInvalid = findInvalidOfficeObjects({ objects, company });
+      const placementViolations = findPlacementViolations({
+        objects,
+        bounds: { halfExtent: HALF_FLOOR },
+      });
       const reasonFilter = new Set(
         (opts.reason ?? []).map((entry) => entry.trim()).filter(Boolean),
       );
@@ -728,11 +836,13 @@ export function registerOfficeCommands(program: Command): void {
         await store.writeOfficeObjects(next);
       }
       const payload = {
-        ok: invalid.length === 0,
+        ok: invalid.length === 0 && placementViolations.length === 0,
         totalInvalidCount: allInvalid.length,
         invalidCount: invalid.length,
         filteredByReason: [...reasonFilter],
         invalid,
+        placementViolationCount: placementViolations.length,
+        placementViolations,
         fixed: opts.fix === true,
         removed,
       };
@@ -740,13 +850,19 @@ export function registerOfficeCommands(program: Command): void {
         console.log(JSON.stringify(payload, null, 2));
         return;
       }
-      if (invalid.length === 0) {
+      if (invalid.length === 0 && placementViolations.length === 0) {
         console.log("office-objects: ok");
         return;
       }
-      console.log(`office-objects: invalid (${invalid.length})`);
+      console.log(
+        `office-objects: invalid=${invalid.length} placement-violations=${placementViolations.length}`,
+      );
       for (const entry of invalid) {
         console.log(`- ${entry.id} | ${entry.meshType} | ${entry.reasons.join(",")}`);
+      }
+      for (const entry of placementViolations) {
+        const other = entry.otherObjectId ? ` <-> ${entry.otherObjectId}` : "";
+        console.log(`- placement:${entry.type} | ${entry.objectId}${other}`);
       }
       if (opts.fix) {
         console.log(`removed ${removed.length} invalid objects`);
@@ -788,7 +904,39 @@ export function registerOfficeCommands(program: Command): void {
             (entry) =>
               `${entry.teamId || "(unlinked)"} | ${entry.name || "Unnamed"} | agents=${entry.agentCount}`,
           )
-          .join("\n"),
+        .join("\n"),
+      );
+    });
+
+  office
+    .command("arrange")
+    .description("Arrange office furniture into a validated studio layout")
+    .option("--dry-run", "Preview without writing sidecar state", false)
+    .option("--json", "Output JSON", false)
+    .action(async (opts: { dryRun?: boolean; json?: boolean }) => {
+      const objects = await store.readOfficeObjects();
+      const arranged = arrangeOfficeObjectsForStudio(objects);
+      const placementViolations = findPlacementViolations({
+        objects: arranged.objects,
+        bounds: { halfExtent: HALF_FLOOR },
+      });
+      if (placementViolations.length > 0) {
+        fail(`arrange_layout_invalid:placement_violations=${placementViolations.length}`);
+      }
+      if (!opts.dryRun) {
+        await store.writeOfficeObjects(arranged.objects);
+      }
+      const payload = {
+        ok: true,
+        dryRun: opts.dryRun === true,
+        movedCount: arranged.moved.length,
+        moved: arranged.moved,
+        placementViolationCount: placementViolations.length,
+      };
+      formatOutput(
+        opts.json ? "json" : "text",
+        payload,
+        `${opts.dryRun ? "Previewed" : "Applied"} studio office arrangement (${arranged.moved.length} move${arranged.moved.length === 1 ? "" : "s"})`,
       );
     });
 

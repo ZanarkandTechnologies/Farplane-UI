@@ -22,6 +22,7 @@ import {
   toCodexSessionRows,
   toCodexTimeline,
   type CodexThread,
+  type CodexUiStateResponse,
 } from "../codex-app-server";
 import type {
   AgentCardModel,
@@ -80,6 +81,44 @@ function codexProjectPathsFromConfig(value: unknown): string[] {
   return Object.keys(projects).filter((projectPath) => projectPath.trim().length > 0);
 }
 
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean))];
+}
+
+function codexProjectPathsFromUiState(value: CodexUiStateResponse): string[] {
+  return [
+    ...new Set([
+      ...normalizeStringList(value.pinnedProjectIds),
+      ...normalizeStringList(value.projectOrder),
+      ...normalizeStringList(value.savedWorkspaceRoots),
+      ...normalizeStringList(value.activeWorkspaceRoots),
+    ]),
+  ];
+}
+
+function mergeCodexUiStateIntoReadModel(
+  readModel: Awaited<ReturnType<CodexAppServerClient["readProjectModel"]>>,
+  uiState: CodexUiStateResponse,
+) {
+  const heartbeatThreadIds = [
+    ...normalizeStringList(readModel.officeVisibility?.heartbeatThreadIds),
+    ...normalizeStringList(uiState.pinnedThreadIds),
+  ];
+  const projectlessThreadIds = [
+    ...normalizeStringList(readModel.officeVisibility?.projectlessThreadIds),
+    ...normalizeStringList(uiState.projectlessThreadIds),
+  ];
+  return {
+    ...readModel,
+    officeVisibility: {
+      ...readModel.officeVisibility,
+      heartbeatThreadIds: [...new Set(heartbeatThreadIds)],
+      projectlessThreadIds: [...new Set(projectlessThreadIds)],
+    },
+  };
+}
+
 function toCodexConfigSnapshot(
   threads: CodexThread[],
   projectPaths: string[] = [],
@@ -106,6 +145,17 @@ function toCodexConfigSnapshot(
   };
 }
 
+function dedupeAgentsById(agents: AgentCardModel[]): AgentCardModel[] {
+  const seen = new Set<string>();
+  const deduped: AgentCardModel[] = [];
+  for (const agent of agents) {
+    if (seen.has(agent.agentId)) continue;
+    seen.add(agent.agentId);
+    deduped.push(agent);
+  }
+  return deduped;
+}
+
 export class CodexRuntimeAdapter extends OpenClawAdapter {
   readonly runtimeKind = "codex" as const;
   readonly runtimeLabel = "Codex";
@@ -113,16 +163,33 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
   private readonly codexClient: CodexAppServerClient;
   private threadsCache: { loadedAt: number; threads: CodexThread[] } | null = null;
   private projectPathsCache: { loadedAt: number; projectPaths: string[] } | null = null;
+  private uiStateCache: { loadedAt: number; uiState: CodexUiStateResponse } | null = null;
+  private healthCache: { loadedAt: number; available: boolean } | null = null;
 
   constructor(gatewayUrl: string, stateUrl: string = gatewayUrl, _wsClient?: GatewayWsClient) {
     super(gatewayUrl, stateUrl);
     this.codexClient = new CodexAppServerClient({ stateUrl });
   }
 
+  private async isCodexAppServerAvailable(options: { force?: boolean } = {}): Promise<boolean> {
+    const now = Date.now();
+    if (!options.force && this.healthCache && now - this.healthCache.loadedAt < 5000) {
+      return this.healthCache.available;
+    }
+    const health = await this.codexClient.readHealth();
+    const available = health.ok === true && health.configured !== false;
+    this.healthCache = { loadedAt: now, available };
+    return available;
+  }
+
   private async listCodexThreads(options: { force?: boolean } = {}): Promise<CodexThread[]> {
     const now = Date.now();
     if (!options.force && this.threadsCache && now - this.threadsCache.loadedAt < 5000) {
       return this.threadsCache.threads;
+    }
+    if (!(await this.isCodexAppServerAvailable(options))) {
+      this.threadsCache = { loadedAt: now, threads: [] };
+      return [];
     }
     const response = await this.codexClient.listThreads(80);
     const threads = Array.isArray(response.data) ? response.data.filter((thread) => thread.id) : [];
@@ -139,10 +206,24 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
     ) {
       return this.projectPathsCache.projectPaths;
     }
-    const response = await this.codexClient.readConfig();
-    const projectPaths = codexProjectPathsFromConfig(response);
+    const uiState = await this.readCodexUiState(options).catch(() => null);
+    const projectPathsFromUiState = uiState ? codexProjectPathsFromUiState(uiState) : [];
+    const projectPaths =
+      projectPathsFromUiState.length > 0 || !(await this.isCodexAppServerAvailable(options))
+        ? projectPathsFromUiState
+        : codexProjectPathsFromConfig(await this.codexClient.readConfig());
     this.projectPathsCache = { loadedAt: now, projectPaths };
     return projectPaths;
+  }
+
+  private async readCodexUiState(options: { force?: boolean } = {}): Promise<CodexUiStateResponse> {
+    const now = Date.now();
+    if (!options.force && this.uiStateCache && now - this.uiStateCache.loadedAt < 30000) {
+      return this.uiStateCache.uiState;
+    }
+    const uiState = await this.codexClient.readUiState();
+    this.uiStateCache = { loadedAt: now, uiState };
+    return uiState;
   }
 
   async listAgents(): Promise<AgentCardModel[]> {
@@ -219,20 +300,26 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
   }
 
   async getUnifiedOfficeModel(): Promise<UnifiedOfficeModel> {
-    const [threads, projectPaths, officeObjects] = await Promise.all([
+    const [threads, projectPaths, officeObjects, uiState] = await Promise.all([
       this.listCodexThreads().catch(() => []),
       this.listCodexProjectPaths().catch(() => []),
       this.getOfficeObjects().catch(() => []),
+      this.readCodexUiState().catch(() => ({})),
     ]);
     const projectRefs = projectPaths.map((projectPath) => ({
       projectId: codexProjectId(projectPath),
       projectPath,
     }));
-    const readModel = await this.codexClient.readProjectModel(projectRefs).catch(() => ({}));
+    const readModel = mergeCodexUiStateIntoReadModel(
+      await this.codexClient.readProjectModel(projectRefs).catch(() => ({})),
+      uiState,
+    );
     const company = toCodexCompanyModel(threads, Date.now(), projectPaths, readModel);
     const officeAgentIds = new Set(company.agents.map((agent) => agent.agentId));
-    const runtimeAgents = [...toCodexAgentCards([]), ...toCodexAgentCards(threads)].filter((agent) =>
-      officeAgentIds.has(agent.agentId),
+    const runtimeAgents = dedupeAgentsById(
+      [...toCodexAgentCards([]), ...toCodexAgentCards(threads)].filter((agent) =>
+        officeAgentIds.has(agent.agentId),
+      ),
     );
     return {
       company,
@@ -295,6 +382,9 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
     limit = 200,
   ): Promise<SessionTimelineModel> {
     const threadId = parseCodexThreadId(sessionKey || agentId);
+    if (!(await this.isCodexAppServerAvailable())) {
+      return { agentId, sessionKey, events: [] };
+    }
     const response = await this.codexClient.readThread(threadId);
     const thread = response.thread;
     if (!thread) {
@@ -312,6 +402,9 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
     const message = input.message.trim();
     if (!message) return { ok: false, error: "codex_message_empty" };
     try {
+      if (!(await this.isCodexAppServerAvailable({ force: true }))) {
+        return { ok: false, error: "codex_app_server_unavailable" };
+      }
       let threadId = parseCodexThreadId(input.sessionKey || input.agentId);
       if (!threadId || threadId === CODEX_MAIN_AGENT_ID) {
         const started = await this.codexClient.startThread();

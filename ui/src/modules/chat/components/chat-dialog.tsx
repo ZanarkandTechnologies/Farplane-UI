@@ -8,6 +8,7 @@ import { ChatInput } from "@/modules/chat/components/chat-input";
 import { StoryChatPanel } from "@/modules/chat/components/story-chat-panel";
 import { Sparkles } from "lucide-react";
 import { UI_Z } from "@/lib/z-index";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 
 /**
  * CHAT DIALOG
@@ -23,6 +24,7 @@ export default function ChatDialog() {
   const setShowWorkingOutput = useChatStore((state) => state.setShowWorkingOutput);
   const presentationMode = useChatStore((state) => state.presentationMode);
   const setPresentationMode = useChatStore((state) => state.setPresentationMode);
+  const adapter = useOfficeRuntimeAdapter();
 
   const { headerTitle, headerSubtitle, isEmployeeScopedChat, storyPersona } = useChatContext();
   const {
@@ -49,6 +51,8 @@ export default function ChatDialog() {
     : null;
   const stageMessages = streamingMessage ? [...messages, streamingMessage] : messages;
   const isStoryMode = presentationMode === "story";
+  const isCodexMode = adapter.runtimeKind === "codex";
+  const showConversationSidebar = !isStoryMode && !isCodexMode;
 
   return (
     <Dialog open={isChatOpen} onOpenChange={setIsChatOpen}>
@@ -62,7 +66,7 @@ export default function ChatDialog() {
         <div
           className={`flex flex-1 h-full min-h-0 overflow-hidden ${isStoryMode ? "bg-transparent" : "bg-background"}`}
         >
-          {!isStoryMode ? (
+          {showConversationSidebar ? (
             <ChatSidebar
               threads={threads}
               subthreadsMap={subthreadsMap}
@@ -81,6 +85,7 @@ export default function ChatDialog() {
               onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
               title={headerTitle}
               subtitle={headerSubtitle}
+              showSidebarToggle={showConversationSidebar}
               showWorkingOutput={showWorkingOutput}
               onToggleWorkingOutput={() => setShowWorkingOutput(!showWorkingOutput)}
               presentationMode={presentationMode}
@@ -90,7 +95,7 @@ export default function ChatDialog() {
               storyMode={isStoryMode}
               onClose={() => setIsChatOpen(false)}
             />
-            {!isStoryMode && !isEmployeeScopedChat ? (
+            {!isStoryMode && !isEmployeeScopedChat && !isCodexMode ? (
               <div
                 className={`px-4 py-2 border-b ${isStoryMode ? "bg-stone-950/90 border-white/10" : "bg-background/80"}`}
               >

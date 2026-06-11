@@ -24,4 +24,5 @@ export type {
   CodexOfficeVisibilityConfig,
   CodexProjectReadModelResponse,
   CodexProjectReadModelTask,
+  CodexUiStateResponse,
 } from "./types";

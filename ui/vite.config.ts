@@ -28,6 +28,8 @@ const FARPLANE_HOME =
   process.env.FARPLANE_STATE_DIR ||
   process.env.FARPLANE_HOME ||
   path.join(process.env.HOME || "", ".farplane");
+const CODEX_HOME = process.env.CODEX_HOME || path.join(process.env.HOME || "", ".codex");
+const CODEX_GLOBAL_STATE_PATH = path.join(CODEX_HOME, ".codex-global-state.json");
 const OPENCLAW_HOME = process.env.OPENCLAW_STATE_DIR || path.join(process.env.HOME || "", ".openclaw");
 const OPENCLAW_CONFIG_PATH = process.env.OPENCLAW_CONFIG_PATH || path.join(OPENCLAW_HOME, "openclaw.json");
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -1206,17 +1208,36 @@ function normalizeCodexOfficeConfig(raw: unknown): JsonObject {
   const config = raw && typeof raw === "object" ? (raw as JsonObject) : {};
   const recentThreadWindowMinutes = normalizePositiveNumber(config.recentThreadWindowMinutes, 180);
   const heartbeatThreadIds = normalizeStringList(config.heartbeatThreadIds);
+  const projectlessThreadIds = normalizeStringList(config.projectlessThreadIds);
   const miscPathIncludes = normalizeStringList(config.miscPathIncludes);
   return {
     recentThreadWindowMinutes,
     alwaysShowHeartbeatThreads: config.alwaysShowHeartbeatThreads !== false,
     showAutomationThreadsAsHeartbeat: config.showAutomationThreadsAsHeartbeat !== false,
     heartbeatThreadIds,
+    projectlessThreadIds,
     miscProjectName: typeof config.miscProjectName === "string" && config.miscProjectName.trim()
       ? config.miscProjectName.trim()
       : "Misc",
     miscPathIncludes: miscPathIncludes.length > 0 ? miscPathIncludes : ["Documents/Codex"],
   };
+}
+
+function normalizeCodexUiState(raw: unknown): JsonObject {
+  const state = raw && typeof raw === "object" ? (raw as JsonObject) : {};
+  return {
+    savedWorkspaceRoots: normalizeStringList(state["electron-saved-workspace-roots"]),
+    activeWorkspaceRoots: normalizeStringList(state["active-workspace-roots"]),
+    projectOrder: normalizeStringList(state["project-order"]),
+    pinnedProjectIds: normalizeStringList(state["pinned-project-ids"]),
+    pinnedThreadIds: normalizeStringList(state["pinned-thread-ids"]),
+    projectlessThreadIds: normalizeStringList(state["projectless-thread-ids"]),
+  };
+}
+
+async function readCodexUiState(): Promise<JsonObject> {
+  const raw = await readJsonFile<unknown>(CODEX_GLOBAL_STATE_PATH, {});
+  return normalizeCodexUiState(raw);
 }
 
 async function saveCodexOfficeConfig(input: unknown): Promise<JsonObject> {
@@ -1605,7 +1626,7 @@ function farplaneStateBridge() {
 
         if (pathname === "/codex/app-server/health") {
           const appServerUrl = readCodexAppServerUrl();
-          writeJson(res, appServerUrl ? 200 : 503, {
+          writeJson(res, 200, {
             ok: Boolean(appServerUrl),
             configured: Boolean(appServerUrl),
             transport: appServerUrl ? "websocket" : "missing",
@@ -1642,6 +1663,11 @@ function farplaneStateBridge() {
         if (method === "GET" && pathname === "/farplane/codex-office") {
           const officeConfigRaw = await readJsonFile<unknown>(CODEX_OFFICE_CONFIG_PATH, {});
           writeJson(res, 200, { config: normalizeCodexOfficeConfig(officeConfigRaw) });
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/codex-ui-state") {
+          writeJson(res, 200, await readCodexUiState());
           return;
         }
 

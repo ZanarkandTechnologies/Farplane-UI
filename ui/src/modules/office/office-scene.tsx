@@ -52,7 +52,7 @@ const OfficeScene = memo((props: OfficeSceneProps) => {
   return (
     <Canvas
       key={`${initialCameraConfig.projection}-${forcePerspective ? "forced" : "normal"}`}
-      shadows
+      shadows="percentage"
       orthographic={initialCameraConfig.projection === "orthographic"}
       camera={{
         position: initialCameraConfig.position,
