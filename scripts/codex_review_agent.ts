@@ -1,6 +1,7 @@
 #!/usr/bin/env tsx
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { homedir } from "node:os";
 import { Codex } from "@openai/codex-sdk";
 
 type ReviewFinding = {
@@ -122,19 +123,27 @@ function pickEnv(keys: string[]): Record<string, string> {
 }
 
 async function main() {
-  const [reviewGuide, context] = await Promise.all([
+  const [reviewGuide, codeReviewSkill, reactGuide, context] = await Promise.all([
     readFile(resolve(root, "docs/code_review.md"), "utf8"),
+    readOptional(defaultCodeReviewSkillPath()),
+    readOptional(defaultReactGuidePath()),
     readFile(contextPath, "utf8"),
   ]);
 
   const prompt = [
-    "You are acting as a read-only reviewer for a proposed Farplane UI code change.",
-    "Focus on correctness, maintainability, UX-visible regressions, security/privacy, and verification gaps.",
-    "Flag only actionable issues introduced or exposed by the diff. Avoid style nits.",
-    "Use deterministic check output as evidence. If checks failed, explain the user-impacting issue and likely fix.",
+    "You are acting as a read-only pre-push diff reviewer for Farplane UI.",
+    "Follow the Farplane code-review skill contract for lightweight local diff review.",
+    "Use the Farplane UI review guide as the repo-specific overlay.",
+    "Prioritize branch-level maintainability, modularity, consolidation, file placement, documentation, and React guideline drift before ordinary task correctness.",
     "If the diff is too large or truncated, say what remains uncertain in follow_ups.",
     "",
-    "## Review Guide",
+    "## Farplane Code Review Skill Contract",
+    codeReviewSkill || "No installed code-review skill found. Run the Farplane install script to link ~/.codex/skills/code-review/SKILL.md.",
+    "",
+    "## React / Frontend Guideline Contract",
+    reactGuide || "No installed vercel-react-best-practices skill found. Ignore this section unless frontend rules are supplied by project docs.",
+    "",
+    "## Farplane UI Review Guide Overlay",
     reviewGuide,
     "",
     "## Review Context",
@@ -172,6 +181,28 @@ async function main() {
   if (strict && !result.patch_correct) {
     process.exit(1);
   }
+}
+
+async function readOptional(path: string): Promise<string> {
+  try {
+    return await readFile(path, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+function defaultCodeReviewSkillPath(): string {
+  if (process.env.CODEX_REVIEW_SKILL_FILE) return process.env.CODEX_REVIEW_SKILL_FILE;
+  if (process.env.CODEX_HOME) return join(process.env.CODEX_HOME, "skills", "code-review", "SKILL.md");
+  return join(homedir(), ".codex", "skills", "code-review", "SKILL.md");
+}
+
+function defaultReactGuidePath(): string {
+  if (process.env.CODEX_REVIEW_REACT_GUIDE_FILE) return process.env.CODEX_REVIEW_REACT_GUIDE_FILE;
+  if (process.env.CODEX_HOME) {
+    return join(process.env.CODEX_HOME, "skills", "vercel-react-best-practices", "SKILL.md");
+  }
+  return join(homedir(), ".codex", "skills", "vercel-react-best-practices", "SKILL.md");
 }
 
 main().catch(async (error: unknown) => {

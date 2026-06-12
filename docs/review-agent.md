@@ -8,8 +8,13 @@ updated: 2026-06-12
 # Codex Review Agent Loop
 
 Farplane UI uses deterministic checks first and a Codex SDK reviewer second.
-The reviewer is a second pair of eyes for drift, modularity, risky commits, and
-missed proof. It runs during local pre-push by default as an advisory check.
+The reviewer is a second pair of eyes for maintainability drift, modularity,
+cross-commit consolidation, risky commits, and missed proof. It runs during
+local pre-push by default as an advisory check.
+
+The SDK reviewer loads the installed Farplane `code-review` skill as the
+reusable review contract, then applies `docs/code_review.md` as the Farplane
+UI-specific overlay.
 
 ## Commands
 
@@ -26,6 +31,11 @@ missed proof. It runs during local pre-push by default as an advisory check.
 - `STRICT_AGENT_REVIEW=1`: run required agent review during pre-push.
 - `CODEX_REVIEW_MODEL=<model>`: override the Codex SDK model.
 - `CODEX_REVIEW_TIMEOUT_MS=<ms>`: abort the review turn after a timeout.
+- `CODEX_REVIEW_SKILL_FILE=<path>`: override the Farplane `code-review` skill
+  file. Defaults to `~/.codex/skills/code-review/SKILL.md`.
+- `CODEX_REVIEW_REACT_GUIDE_FILE=<path>`: override the React/frontend
+  guideline skill file. Defaults to
+  `~/.codex/skills/vercel-react-best-practices/SKILL.md`.
 - `FARPLANE_REVIEW_DIFF_LINES=<n>`: change the diff line cap in review context.
 - `FARPLANE_REVIEW_UNTRACKED_LINES=<n>`: change the per-file cap for untracked
   text files in review context.
@@ -39,7 +49,8 @@ missed proof. It runs during local pre-push by default as an advisory check.
 
 Pre-push writes artifacts to `.farplane/reviews/pre-push-latest/`:
 
-- `context.md`: deterministic checks, changed files, commits, and truncated diffs.
+- `context.md`: deterministic checks, changed files, commits, project
+  maintainability standards, nearby module docs, and truncated diffs.
 - `review.prompt.md`: exact prompt sent to Codex.
 - `review.json`: structured review output.
 - `review.md`: human-readable summary.

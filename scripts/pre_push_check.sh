@@ -26,6 +26,10 @@ case "$review_dir/" in
     exit 2
     ;;
 esac
+if [ "$review_dir" = "$reviews_root" ]; then
+  echo "Refuse unsafe FARPLANE_PRE_PUSH_REVIEW_DIR equal to reviews root: $review_dir" >&2
+  exit 2
+fi
 log_dir="$review_dir/checks"
 cleanup() {
   rm -f "$warn_tmp" "$block_tmp"

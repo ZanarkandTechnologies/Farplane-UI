@@ -53,6 +53,42 @@ truncate_file_to_block() {
   } >>"$OUTPUT"
 }
 
+truncate_repo_file_to_block() {
+  local title="$1"
+  local path="$2"
+  local lines="${3:-160}"
+  [ -f "$ROOT/$path" ] || return 0
+  truncate_file_to_block "$title" "$ROOT/$path" "$lines"
+}
+
+changed_files_since_base() {
+  git -C "$ROOT" diff --name-only "$base_ref"...HEAD
+  git -C "$ROOT" diff --name-only
+  git -C "$ROOT" diff --cached --name-only
+}
+
+collect_neighbor_docs() {
+  {
+    echo
+    echo "## Changed File Neighbor Docs"
+  } >>"$OUTPUT"
+
+  changed_files_since_base | sort -u | while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    dir="$(dirname "$path")"
+    while [ "$dir" != "." ] && [ "$dir" != "/" ]; do
+      for doc in AGENTS.md README.md; do
+        if [ -f "$ROOT/$dir/$doc" ]; then
+          printf '%s\n' "$dir/$doc"
+        fi
+      done
+      dir="$(dirname "$dir")"
+    done
+  done | sort -u | sed -n '1,24p' | while IFS= read -r doc_path; do
+    truncate_repo_file_to_block "$doc_path" "$doc_path" 120
+  done
+}
+
 is_review_text_file() {
   case "$1" in
     *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs|*.json|*.md|*.sh|*.bash|*.zsh|*.css|*.scss|*.sass|*.html|*.toml|*.yaml|*.yml)
@@ -84,6 +120,17 @@ write_command_block "Git Status" git status --short --branch
 write_command_block "Commits Since Base" git log --oneline --decorate --no-merges "${base_ref}..HEAD"
 write_command_block "Changed Files Since Base" git diff --name-status "$base_ref"...HEAD
 write_command_block "Diff Stat Since Base" git diff --stat "$base_ref"...HEAD
+
+{
+  echo
+  echo "## Project Maintainability Standards"
+} >>"$OUTPUT"
+truncate_repo_file_to_block "Root AGENTS.md" "AGENTS.md" 140
+truncate_repo_file_to_block "PROJECT_RULES.md" "PROJECT_RULES.md" 180
+truncate_repo_file_to_block "docs/code_review.md" "docs/code_review.md" 180
+truncate_repo_file_to_block "ui/src/modules/README.md" "ui/src/modules/README.md" 180
+truncate_repo_file_to_block "src/modules/README.md" "src/modules/README.md" 180
+collect_neighbor_docs
 
 if [ -n "$CHECK_LOG_DIR" ] && [ -d "$CHECK_LOG_DIR" ]; then
   {
