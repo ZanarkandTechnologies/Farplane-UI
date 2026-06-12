@@ -36,6 +36,8 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   const setDialogOpen = onOpenChange ?? setUncontrolledOpen;
   const debugMode = useAppStore((state) => state.debugMode);
   const setDebugMode = useAppStore((state) => state.setDebugMode);
+  const officeOverlays = useAppStore((state) => state.officeOverlays);
+  const setOfficeOverlay = useAppStore((state) => state.setOfficeOverlay);
   const isBuilderMode = useAppStore((state) => state.isBuilderMode);
   const setBuilderMode = useAppStore((state) => state.setBuilderMode);
   const setIsOfficeOnboardingVisible = useAppStore((state) => state.setIsOfficeOnboardingVisible);
@@ -187,8 +189,10 @@ export default function SettingsDialog(props: SettingsDialogProps) {
           <TabsContent value="general" className="mt-4 space-y-4">
             <GeneralSettingsPanel
               debugMode={debugMode}
+              officeOverlays={officeOverlays}
               isBuilderMode={isBuilderMode}
               onDebugModeChange={setDebugMode}
+              onOfficeOverlayChange={setOfficeOverlay}
               onBuilderModeChange={setBuilderMode}
               onReplayOnboarding={handleReplayOnboarding}
             />

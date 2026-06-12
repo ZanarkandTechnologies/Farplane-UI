@@ -1,15 +1,53 @@
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { OfficeSettingsModel } from "@/modules/runtime";
 import type { RuntimeAdapterKind } from "@/modules/runtime";
+import type { OfficeOverlayKey, OfficeOverlaySettings } from "@/store";
 import type { CodexOfficeVisibilityForm } from "./use-codex-office-visibility-settings";
+
+const DEBUG_OVERLAY_OPTIONS: Array<{ key: OfficeOverlayKey; label: string; description: string }> =
+  [
+    {
+      key: "grid",
+      label: "Walkability grid",
+      description: "Navigation cells and blocked/open pathing tiles.",
+    },
+    {
+      key: "occupancy",
+      label: "Object occupancy",
+      description: "Furniture, team-cluster, and out-of-floor footprint cells.",
+    },
+    {
+      key: "paths",
+      label: "Agent paths",
+      description: "Live route lines and movement decisions for employees.",
+    },
+    {
+      key: "destinations",
+      label: "Reserved destinations",
+      description: "Active navigation target reservations.",
+    },
+    {
+      key: "areas",
+      label: "Team areas",
+      description: "Hierarchy-derived office districts.",
+    },
+    {
+      key: "layout",
+      label: "Layout labels",
+      description: "Tile coordinates and protected anchor labels while editing.",
+    },
+  ];
 
 type GeneralSettingsPanelProps = {
   debugMode: boolean;
+  officeOverlays: OfficeOverlaySettings;
   isBuilderMode: boolean;
   onDebugModeChange: (value: boolean) => void;
+  onOfficeOverlayChange: (key: OfficeOverlayKey, value: boolean) => void;
   onBuilderModeChange: (value: boolean) => void;
   onReplayOnboarding: () => void;
 };
@@ -17,8 +55,10 @@ type GeneralSettingsPanelProps = {
 export function GeneralSettingsPanel(props: GeneralSettingsPanelProps) {
   const {
     debugMode,
+    officeOverlays,
     isBuilderMode,
     onDebugModeChange,
+    onOfficeOverlayChange,
     onBuilderModeChange,
     onReplayOnboarding,
   } = props;
@@ -32,10 +72,31 @@ export function GeneralSettingsPanel(props: GeneralSettingsPanelProps) {
 
       <ToggleRow
         label="Debug Mode"
-        description="Show paths and grid info"
+        description="Enable diagnostic office overlays"
         enabled={debugMode}
         onToggle={() => onDebugModeChange(!debugMode)}
       />
+
+      <div className="space-y-2 rounded-md border border-border/70 p-3">
+        <div className="flex flex-col gap-1">
+          <Label>Debug Overlays</Label>
+          <span className="text-xs text-muted-foreground">
+            Debug Mode is a master switch. These categories opt in one at a time.
+          </span>
+        </div>
+        <div className="space-y-1.5">
+          {DEBUG_OVERLAY_OPTIONS.map((option) => (
+            <OverlayToggle
+              key={option.key}
+              label={option.label}
+              description={option.description}
+              enabled={officeOverlays[option.key]}
+              disabled={!debugMode}
+              onToggle={(value) => onOfficeOverlayChange(option.key, value)}
+            />
+          ))}
+        </div>
+      </div>
 
       <ToggleRow
         label="Builder Mode"
@@ -56,6 +117,34 @@ export function GeneralSettingsPanel(props: GeneralSettingsPanelProps) {
         </Button>
       </div>
     </div>
+  );
+}
+
+function OverlayToggle(props: {
+  label: string;
+  description: string;
+  enabled: boolean;
+  disabled: boolean;
+  onToggle: (value: boolean) => void;
+}) {
+  const { label, description, enabled, disabled, onToggle } = props;
+  return (
+    <label
+      className={`grid grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-md px-2 py-2 text-sm transition-colors ${
+        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-muted"
+      }`}
+    >
+      <Checkbox
+        checked={enabled}
+        disabled={disabled}
+        onCheckedChange={(value) => onToggle(value === true)}
+        className="mt-0.5"
+      />
+      <span className="grid min-w-0 gap-0.5">
+        <span className="font-medium leading-none">{label}</span>
+        <span className="text-xs leading-snug text-muted-foreground">{description}</span>
+      </span>
+    </label>
   );
 }
 

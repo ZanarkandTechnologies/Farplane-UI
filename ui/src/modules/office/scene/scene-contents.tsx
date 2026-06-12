@@ -20,9 +20,8 @@
 import { OrbitControls } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useState, useRef, useEffect } from "react";
-import * as THREE from "three";
-import { DestinationDebugger } from "@/components/debug/destination-debugger";
-import { SmartGrid } from "@/components/debug/unified-grid-helper";
+import type React from "react";
+import type * as THREE from "three";
 import { PlacementHandler } from "@/components/placement-handler";
 import type { StatusType } from "@/modules/navigation/components/status-indicator";
 import { Employee } from "@/modules/office/components/employee";
@@ -31,6 +30,10 @@ import { useChatStore } from "@/modules/chat/chat-store";
 import { extractAgentId } from "@/lib/entity-utils";
 import { OfficeLayoutEditor } from "./office-layout-editor";
 import { OfficeClickProbe } from "./office-click-probe";
+import {
+  getOfficeDebugOverlayPlan,
+  OfficeDebugOverlaySystem,
+} from "./office-debug-overlay-system";
 import { OfficeLighting } from "./office-lighting";
 import { OfficeObjectRenderer } from "./office-object-renderer";
 import { OfficeRoomShell } from "./office-room-shell";
@@ -75,12 +78,13 @@ function useCameraZoomWhenFixed(minZoom: number, maxZoom: number, enabled: boole
   return zoom;
 }
 
-export function SceneContents(props: OfficeSceneProps): JSX.Element {
+export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
   const {
     teams,
     employees,
     desks,
     officeObjects,
+    officeAreas,
     officeFootprint,
     officeLayout,
     officeDecorSettings,
@@ -92,6 +96,7 @@ export function SceneContents(props: OfficeSceneProps): JSX.Element {
 
   const isBuilderMode = useAppStore((state) => state.isBuilderMode);
   const debugMode = useAppStore((state) => state.debugMode);
+  const officeOverlays = useAppStore((state) => state.officeOverlays);
   const isAnimatingCamera = useAppStore((state) => state.isAnimatingCamera);
   const setAnimatingCamera = useAppStore((state) => state.setAnimatingCamera);
   const isDragging = useAppStore((state) => state.isDragging);
@@ -109,6 +114,16 @@ export function SceneContents(props: OfficeSceneProps): JSX.Element {
     sceneBuilderMode && officeViewSettings.viewProfile === "fixed_2_5d";
   const forcePerspective = isStoryMode || shouldForceBuilderPerspective;
   const isLayoutEditing = sceneBuilderMode && activeBuilderTool !== null;
+  const overlayPlan = useMemo(
+    () =>
+      getOfficeDebugOverlayPlan({
+        debugMode,
+        officeOverlays,
+        sceneBuilderMode,
+        placementActive: placementMode.active,
+      }),
+    [debugMode, officeOverlays, placementMode.active, sceneBuilderMode],
+  );
   // MEM-0170 decision: fixed 2.5D uses compact scene overlays so Html cards cannot occlude the office.
   const useCompactSceneOverlays = isStoryMode ? false : isFixedOfficeSceneView(officeViewSettings);
   const layoutCenter = useMemo(() => {
@@ -238,7 +253,7 @@ export function SceneContents(props: OfficeSceneProps): JSX.Element {
         cameraZoom={isFixed25 ? cameraZoom : undefined}
         zoomRange={isFixed25 ? { minZoom, maxZoom } : undefined}
       />
-      <OfficeLayoutEditor />
+      <OfficeLayoutEditor showDebugLabels={overlayPlan.showLayoutDebugLabels} />
       {import.meta.env.DEV ? (
         <OfficeClickProbe teams={teams} employees={employeesForScene} />
       ) : null}
@@ -258,7 +273,8 @@ export function SceneContents(props: OfficeSceneProps): JSX.Element {
             isSupervisor={employee.isSupervisor}
             gender={employee.gender}
             onClick={handleEmployeeClick}
-            debugMode={debugMode}
+            debugMode={overlayPlan.showAgentPaths}
+            debugPathOverlay={overlayPlan.showAgentPaths}
             status={(employee.status || "none") as StatusType}
             statusMessage={employee.statusMessage}
             wantsToWander={employee.wantsToWander}
@@ -277,12 +293,11 @@ export function SceneContents(props: OfficeSceneProps): JSX.Element {
 
       {officeObjectsRendered}
 
-      <SmartGrid
-        debugMode={debugMode}
-        isBuilderMode={sceneBuilderMode}
-        placementActive={placementMode.active}
+      <OfficeDebugOverlaySystem
+        officeAreas={officeAreas}
+        plan={overlayPlan}
+        sceneBuilderMode={sceneBuilderMode}
       />
-      {debugMode ? <DestinationDebugger /> : null}
       {enableOfficeObjects ? <PlacementHandler /> : null}
     </>
   );

@@ -1,46 +1,31 @@
 import { describe, expect, it } from 'vitest';
 
-import type { OfficeLayoutBounds } from '@/modules/office/lib/office-layout';
+import { officeLayoutTileKey, type OfficeLayoutModel } from '@/modules/office/lib/office-layout';
 
 import { getBuilderGridLinePositions } from './builder-grid';
 
 describe('unified builder grid geometry', () => {
-  it('matches rectangular layout bounds instead of forcing a square helper', () => {
-    const bounds: OfficeLayoutBounds = {
-      minTileX: 0,
-      maxTileX: 3,
-      minTileZ: 0,
-      maxTileZ: 1,
-      minWorldX: -0.5,
-      maxWorldX: 3.5,
-      minWorldZ: -0.5,
-      maxWorldZ: 1.5,
-      centerX: 1.5,
-      centerZ: 0.5,
-      width: 4,
-      depth: 2,
+  it('draws only the live tile mask instead of the layout bounding rectangle', () => {
+    const layout: OfficeLayoutModel = {
+      version: 1,
+      tileSize: 1,
+      tiles: [
+        officeLayoutTileKey(0, 0),
+        officeLayoutTileKey(1, 0),
+        officeLayoutTileKey(0, 1),
+      ],
     };
 
-    const positions = getBuilderGridLinePositions(bounds);
+    const positions = getBuilderGridLinePositions(layout);
 
-    const verticalLines = bounds.width + 1;
-    const horizontalLines = bounds.depth + 1;
-    expect(positions).toHaveLength((verticalLines + horizontalLines) * 2 * 3);
-    expect(Array.from(positions.slice(0, 6))).toEqual([
-      -0.5,
-      expect.closeTo(0.01, 5),
-      -0.5,
-      -0.5,
-      expect.closeTo(0.01, 5),
-      1.5,
-    ]);
-    expect(Array.from(positions.slice(-6))).toEqual([
-      -0.5,
-      expect.closeTo(0.01, 5),
-      1.5,
-      3.5,
-      expect.closeTo(0.01, 5),
-      1.5,
-    ]);
+    expect(positions).toHaveLength(10 * 2 * 3);
+    const segments = new Set<string>();
+    for (let index = 0; index < positions.length; index += 6) {
+      segments.add(
+        `${positions[index]}:${positions[index + 2]}|${positions[index + 3]}:${positions[index + 5]}`,
+      );
+    }
+    expect(segments.has('1.5:0.5|1.5:1.5')).toBe(false);
+    expect(segments.has('0.5:1.5|1.5:1.5')).toBe(false);
   });
 });

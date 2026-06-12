@@ -19,6 +19,7 @@
 
 import { Html, Plane } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
+import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppStore } from "@/store";
 import {
@@ -80,11 +81,14 @@ function getTeamOverlayLabel(name: string, position: [number, number, number]): 
   return `${name} (${position[0]}:${position[2]})`;
 }
 
-export function OfficeLayoutEditor(): JSX.Element | null {
+export function OfficeLayoutEditor({
+  showDebugLabels = false,
+}: {
+  showDebugLabels?: boolean;
+}): React.JSX.Element | null {
   const adapter = useOfficeRuntimeAdapter();
   const { officeSettings, officeObjects, teams, applyOfficeSettings } = useOfficeDataContext();
   const isBuilderMode = useAppStore((state) => state.isBuilderMode);
-  const debugMode = useAppStore((state) => state.debugMode);
   const activeBuilderTool = useAppStore((state) => state.activeBuilderTool);
   const [strokeCells, setStrokeCells] = useState<Set<string>>(new Set());
   const [isPainting, setIsPainting] = useState(false);
@@ -441,7 +445,7 @@ export function OfficeLayoutEditor(): JSX.Element | null {
         </mesh>
       ))}
 
-      {debugMode
+      {showDebugLabels
         ? previewCoordinateLabels.map((cell) => (
             <Html
               key={`label-${cell.key}`}
@@ -471,7 +475,7 @@ export function OfficeLayoutEditor(): JSX.Element | null {
             distanceFactor={16}
           >
             <div className="rounded border border-red-500/60 bg-background/92 px-2 py-1 text-[10px] font-medium text-foreground shadow-sm">
-              {debugMode
+              {showDebugLabels
                 ? `Management (${managementAnchor[0]}:${managementAnchor[2]})`
                 : "Management"}
             </div>
@@ -492,7 +496,7 @@ export function OfficeLayoutEditor(): JSX.Element | null {
                 distanceFactor={16}
               >
                 <div className="rounded border border-sky-500/60 bg-background/92 px-2 py-1 text-[10px] font-medium text-foreground shadow-sm">
-                  {debugMode ? overlay.label : overlay.name}
+                  {showDebugLabels ? overlay.label : overlay.name}
                 </div>
               </Html>
             </group>

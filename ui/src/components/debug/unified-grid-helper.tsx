@@ -18,14 +18,14 @@
 'use client';
 
 import { Box, Text } from '@react-three/drei';
-import { useThree } from '@react-three/fiber';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { getBuilderGridLinePositions } from '@/components/debug/builder-grid';
 import { getGridData } from '@/modules/navigation/pathfinding/a-star-pathfinding';
 import {
   getOfficeLayoutBounds,
   getOfficeLayoutTileSet,
+  officeLayoutTileKey,
 } from '@/modules/office/lib/office-layout';
 import { getObjectFootprintCells } from '@/modules/office/systems/occupancy-system';
 import { useOfficeDataContext } from '@/providers/office-data-provider';
@@ -57,24 +57,31 @@ interface ObjectFootprintCell {
 }
 
 interface UnifiedGridHelperProps {
-  mode: 'debug' | 'builder' | 'both';
+  showDebugGrid: boolean;
+  showBuilderGrid: boolean;
+  showOccupancy: boolean;
 }
 
-const UnifiedGridHelper = memo(function UnifiedGridHelper({ mode }: UnifiedGridHelperProps) {
-  const { scene } = useThree();
+const UnifiedGridHelper = memo(function UnifiedGridHelper({
+  showDebugGrid,
+  showBuilderGrid,
+  showOccupancy,
+}: UnifiedGridHelperProps) {
   const { officeObjects, officeSettings } = useOfficeDataContext();
-  const gridRef = useRef<THREE.GridHelper | null>(null);
   const [gridVisualData, setGridVisualData] = useState<GridCellVisual[]>([]);
   const layoutBounds = useMemo(
     () => getOfficeLayoutBounds(officeSettings.officeLayout),
     [officeSettings.officeLayout],
   );
-  const builderGridPositions = useMemo(
-    () => (mode === 'debug' ? null : getBuilderGridLinePositions(layoutBounds)),
-    [layoutBounds, mode],
+  const tileGridPositions = useMemo(
+    () =>
+      showBuilderGrid || showDebugGrid
+        ? getBuilderGridLinePositions(officeSettings.officeLayout)
+        : null,
+    [officeSettings.officeLayout, showBuilderGrid, showDebugGrid],
   );
   const coordinateLabels = useMemo<CoordinateLabel[]>(() => {
-    if (mode === 'debug') return [];
+    if (!showBuilderGrid) return [];
     const labels: CoordinateLabel[] = [];
     const xValues = new Set<number>([
       layoutBounds.minTileX,
@@ -111,8 +118,9 @@ const UnifiedGridHelper = memo(function UnifiedGridHelper({ mode }: UnifiedGridH
       });
     }
     return labels;
-  }, [layoutBounds, mode]);
+  }, [layoutBounds, showBuilderGrid]);
   const objectFootprintCells = useMemo<ObjectFootprintCell[]>(() => {
+    if (!showOccupancy) return [];
     const tileSet = getOfficeLayoutTileSet(officeSettings.officeLayout);
     const cells: ObjectFootprintCell[] = [];
     for (const object of officeObjects) {
@@ -132,48 +140,10 @@ const UnifiedGridHelper = memo(function UnifiedGridHelper({ mode }: UnifiedGridH
       }
     }
     return cells;
-  }, [officeObjects, officeSettings.officeLayout]);
+  }, [officeObjects, officeSettings.officeLayout, showOccupancy]);
 
   useEffect(() => {
-    const gridData = getGridData();
-    if (mode !== 'debug') {
-      if (gridRef.current) {
-        scene.remove(gridRef.current);
-        gridRef.current.dispose();
-        gridRef.current = null;
-      }
-      return;
-    }
-
-    if (gridData.cellSize === 0) {
-      console.warn('Grid not initialized, UnifiedGridHelper cannot render.');
-      return;
-    }
-
-    const gridCellSize = gridData.cellSize;
-    const size = gridData.gridWidth * gridData.cellSize;
-    const divisions = Math.max(1, Math.round(size / gridCellSize));
-
-    const newGrid = new THREE.GridHelper(size, divisions, DEBUG_COLOR, DEBUG_COLOR);
-    newGrid.position.set(layoutBounds.centerX, 0.01, layoutBounds.centerZ);
-
-    if (gridRef.current) {
-      scene.remove(gridRef.current);
-      gridRef.current.dispose();
-    }
-
-    scene.add(newGrid);
-    gridRef.current = newGrid;
-
-    return () => {
-      scene.remove(newGrid);
-      newGrid.dispose();
-    };
-  }, [layoutBounds.centerX, layoutBounds.centerZ, mode, scene]);
-
-  useEffect(() => {
-    const shouldShowWalkableCells = mode === 'debug' || mode === 'both';
-    if (!shouldShowWalkableCells) {
+    if (!showDebugGrid) {
       setGridVisualData([]);
       return;
     }
@@ -184,6 +154,7 @@ const UnifiedGridHelper = memo(function UnifiedGridHelper({ mode }: UnifiedGridH
       return;
     }
 
+    const floorTiles = getOfficeLayoutTileSet(officeSettings.officeLayout);
     const visuals: GridCellVisual[] = [];
     const gridYPosition = 0.02;
 
@@ -192,6 +163,7 @@ const UnifiedGridHelper = memo(function UnifiedGridHelper({ mode }: UnifiedGridH
         const isWalkable = walkableGrid[x][z];
         const worldX = x * cellSize - worldOffsetX + cellSize / 2;
         const worldZ = z * cellSize - worldOffsetZ + cellSize / 2;
+        if (!floorTiles.has(officeLayoutTileKey(worldX, worldZ))) continue;
         visuals.push({
           key: `${x}-${z}`,
           position: [worldX, gridYPosition, worldZ],
@@ -202,24 +174,22 @@ const UnifiedGridHelper = memo(function UnifiedGridHelper({ mode }: UnifiedGridH
     }
 
     setGridVisualData(visuals);
-  }, [mode]);
+  }, [officeSettings.officeLayout, showDebugGrid]);
 
   const { cellSize } = getGridData();
 
   return (
     <group name="unifiedGridHelper">
-      {builderGridPositions ? (
+      {tileGridPositions ? (
         <lineSegments name="builderTileGrid">
           <bufferGeometry>
             <bufferAttribute
               attach="attributes-position"
-              array={builderGridPositions}
-              count={builderGridPositions.length / 3}
-              itemSize={3}
+              args={[tileGridPositions, 3]}
             />
           </bufferGeometry>
           <lineBasicMaterial
-            color={mode === 'both' ? BOTH_COLOR : BUILDER_COLOR}
+            color={showDebugGrid && showBuilderGrid ? BOTH_COLOR : showDebugGrid ? DEBUG_COLOR : BUILDER_COLOR}
             transparent
             opacity={0.85}
           />
@@ -242,7 +212,7 @@ const UnifiedGridHelper = memo(function UnifiedGridHelper({ mode }: UnifiedGridH
           ))}
         </group>
       ) : null}
-      {objectFootprintCells.length > 0 ? (
+      {showOccupancy && objectFootprintCells.length > 0 ? (
         <group name="objectFootprintCells">
           {objectFootprintCells.map((cell) => (
             <Box key={cell.key} args={[0.92, 0.012, 0.92]} position={cell.position}>
@@ -279,22 +249,23 @@ const UnifiedGridHelper = memo(function UnifiedGridHelper({ mode }: UnifiedGridH
 });
 
 interface SmartGridProps {
-  debugMode: boolean;
-  isBuilderMode: boolean;
-  placementActive?: boolean;
+  showDebugGrid: boolean;
+  showBuilderGrid: boolean;
+  showOccupancy: boolean;
 }
 
-export const SmartGrid = memo(function SmartGrid({ debugMode, isBuilderMode, placementActive }: SmartGridProps) {
-  if (!debugMode && !isBuilderMode && !placementActive) return null;
+export const SmartGrid = memo(function SmartGrid({
+  showDebugGrid,
+  showBuilderGrid,
+  showOccupancy,
+}: SmartGridProps) {
+  if (!showDebugGrid && !showBuilderGrid && !showOccupancy) return null;
 
-  let gridMode: 'debug' | 'builder' | 'both';
-  if (debugMode && (isBuilderMode || placementActive)) {
-    gridMode = 'both';
-  } else if (debugMode) {
-    gridMode = 'debug';
-  } else {
-    gridMode = 'builder';
-  }
-
-  return <UnifiedGridHelper mode={gridMode} />;
+  return (
+    <UnifiedGridHelper
+      showDebugGrid={showDebugGrid}
+      showBuilderGrid={showBuilderGrid}
+      showOccupancy={showOccupancy}
+    />
+  );
 });

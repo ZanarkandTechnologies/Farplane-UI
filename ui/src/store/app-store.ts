@@ -14,6 +14,14 @@ type PlacementMode = {
 };
 
 export type BuilderTool = "paint-floor" | "remove-floor" | null;
+export type OfficeOverlayKey =
+  | "grid"
+  | "occupancy"
+  | "paths"
+  | "destinations"
+  | "areas"
+  | "layout";
+export type OfficeOverlaySettings = Record<OfficeOverlayKey, boolean>;
 
 type ObjectPanelAspectRatio = "wide" | "square" | "tall";
 export type CeoWorkbenchView = "board" | "review";
@@ -60,6 +68,8 @@ interface AppState {
   setActiveChatParticipant: (participant: Record<string, unknown> | null) => void;
   debugMode: boolean;
   setDebugMode: (enabled: boolean) => void;
+  officeOverlays: OfficeOverlaySettings;
+  setOfficeOverlay: (key: OfficeOverlayKey, enabled: boolean) => void;
   isBuilderMode: boolean;
   setBuilderMode: (enabled: boolean) => void;
   activeBuilderTool: BuilderTool;
@@ -145,6 +155,20 @@ export const useAppStore = create<AppState>()(
     setActiveChatParticipant: (participant) => set({ activeChatParticipant: participant }),
     debugMode: false,
     setDebugMode: (enabled) => set({ debugMode: enabled }),
+    officeOverlays: {
+      grid: false,
+      occupancy: false,
+      paths: false,
+      destinations: false,
+      areas: false,
+      layout: false,
+    },
+    setOfficeOverlay: (key, enabled) =>
+      set((state) =>
+        state.officeOverlays[key] === enabled
+          ? state
+          : { officeOverlays: { ...state.officeOverlays, [key]: enabled } },
+      ),
     isBuilderMode: false,
     setBuilderMode: (enabled) => set({ isBuilderMode: enabled }),
     activeBuilderTool: null,

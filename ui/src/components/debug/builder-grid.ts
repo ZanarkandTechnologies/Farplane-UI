@@ -15,15 +15,36 @@
  * - MEM-0173
  */
 
-import type { OfficeLayoutBounds } from '../modules/office/lib/office-layout';
+import {
+  parseOfficeLayoutTileKey,
+  type OfficeLayoutModel,
+} from '@/modules/office/lib/office-layout';
 
-export function getBuilderGridLinePositions(bounds: OfficeLayoutBounds): Float32Array {
+function addSegment(points: number[], seen: Set<string>, start: [number, number], end: [number, number]): void {
+  const [left, right] =
+    start[0] < end[0] || (start[0] === end[0] && start[1] <= end[1])
+      ? [start, end]
+      : [end, start];
+  const key = `${left[0]}:${left[1]}|${right[0]}:${right[1]}`;
+  if (seen.has(key)) return;
+  seen.add(key);
+  points.push(left[0], 0.01, left[1], right[0], 0.01, right[1]);
+}
+
+export function getBuilderGridLinePositions(layout: OfficeLayoutModel): Float32Array {
   const points: number[] = [];
-  for (let x = bounds.minWorldX; x <= bounds.maxWorldX + 0.001; x += 1) {
-    points.push(x, 0.01, bounds.minWorldZ, x, 0.01, bounds.maxWorldZ);
-  }
-  for (let z = bounds.minWorldZ; z <= bounds.maxWorldZ + 0.001; z += 1) {
-    points.push(bounds.minWorldX, 0.01, z, bounds.maxWorldX, 0.01, z);
+  const seen = new Set<string>();
+  for (const tileKey of layout.tiles) {
+    const tile = parseOfficeLayoutTileKey(tileKey);
+    if (!tile) continue;
+    const minX = tile.x - 0.5;
+    const maxX = tile.x + 0.5;
+    const minZ = tile.z - 0.5;
+    const maxZ = tile.z + 0.5;
+    addSegment(points, seen, [minX, minZ], [maxX, minZ]);
+    addSegment(points, seen, [maxX, minZ], [maxX, maxZ]);
+    addSegment(points, seen, [maxX, maxZ], [minX, maxZ]);
+    addSegment(points, seen, [minX, maxZ], [minX, minZ]);
   }
   return new Float32Array(points);
 }
