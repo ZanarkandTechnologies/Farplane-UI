@@ -28,6 +28,7 @@ This file is loaded every loop. Keep it operational and concise.
 - Memory: `docs/MEMORY.md`
 - Lessons: `docs/LESSONS.md`
 - QA: `qa/README.md`, then the relevant `qa/cookbook/*` page
+- Code review: `docs/code_review.md` and `docs/review-agent.md`
 
 ## Notes
 

@@ -27,6 +27,9 @@
     "format:check": "biome check --files-ignore-unknown=true --linter-enabled=false --assist-enabled=false biome.json package.json cli/team-commands convex extensions/notion skills ui/src/components/hud ui/src/modules/team-workspace ui/src/lib",
     "quality:smells": "bash scripts/code_smell_check.sh full",
     "quality:smells:staged": "bash scripts/code_smell_check.sh staged",
+    "review:context": "bash scripts/collect_review_context.sh .farplane/reviews/latest/context.md",
+    "review:agent": "tsx scripts/codex_review_agent.ts",
+    "review:prepush": "bash scripts/run_pre_push_review.sh",
     "shell": "npm run --workspace @farplane/cli shell --",
     "cli:bundle": "npm run --workspace @farplane/cli bundle",
     "cli:reinstall": "tsx cli/cli-reinstall.ts",
@@ -60,6 +63,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
     "@edge-runtime/vm": "^5.0.0",
+    "@openai/codex-sdk": "^0.139.0",
     "@types/node": "latest",
     "@types/qrcode-terminal": "^0.12.2",
     "concurrently": "^9.2.1",

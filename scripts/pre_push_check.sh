@@ -10,12 +10,30 @@ STRICT_ADVISORY="${PRE_PUSH_STRICT_ADVISORY:-0}"
 
 warn_tmp="$(mktemp)"
 block_tmp="$(mktemp)"
-log_dir="$(mktemp -d)"
+reviews_root="$ROOT/.farplane/reviews"
+review_dir="${FARPLANE_PRE_PUSH_REVIEW_DIR:-$reviews_root/pre-push-latest}"
+case "$review_dir" in
+  /*) ;;
+  *) review_dir="$ROOT/$review_dir" ;;
+esac
+mkdir -p "$reviews_root" "$(dirname "$review_dir")"
+reviews_root="$(cd "$reviews_root" && pwd -P)"
+review_dir="$(cd "$(dirname "$review_dir")" && pwd -P)/$(basename "$review_dir")"
+case "$review_dir/" in
+  "$reviews_root"/*) ;;
+  *)
+    echo "Refuse unsafe FARPLANE_PRE_PUSH_REVIEW_DIR outside $reviews_root: $review_dir" >&2
+    exit 2
+    ;;
+esac
+log_dir="$review_dir/checks"
 cleanup() {
   rm -f "$warn_tmp" "$block_tmp"
-  rm -rf "$log_dir"
 }
 trap cleanup EXIT
+
+rm -rf "$review_dir"
+mkdir -p "$log_dir"
 
 is_excluded_path() {
   case "$1" in
@@ -119,5 +137,13 @@ run_required "UI production build" npm run ui:build
 run_advisory "lint" npm run lint
 run_advisory "tests" npm run test:once
 run_advisory "full typecheck" npm run typecheck
+
+if [ "${STRICT_AGENT_REVIEW:-0}" = "1" ]; then
+  run_required "codex agent review" env FARPLANE_PRE_PUSH_REVIEW_DIR="$review_dir" npm run review:prepush
+elif [ "${FARPLANE_AGENT_REVIEW:-0}" = "1" ]; then
+  run_advisory "codex agent review" env FARPLANE_PRE_PUSH_REVIEW_DIR="$review_dir" npm run review:prepush
+else
+  echo "Skip Codex agent review. Set FARPLANE_AGENT_REVIEW=1 for advisory review or STRICT_AGENT_REVIEW=1 to require it."
+fi
 
 echo "Pre-push checks completed."
