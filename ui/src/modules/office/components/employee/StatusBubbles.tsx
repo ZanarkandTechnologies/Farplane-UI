@@ -4,6 +4,7 @@ import { memo } from "react";
 import { Html } from "@react-three/drei";
 
 import type { AgentState } from "@/modules/runtime";
+import type { EmployeeActivityState } from "@/modules/office/lib/types";
 import StatusIndicator, { type StatusType } from "@/modules/navigation/components/status-indicator";
 
 /**
@@ -21,12 +22,20 @@ import StatusIndicator, { type StatusType } from "@/modules/navigation/component
 
 type StatusBubble = { label: string; weight?: number };
 
+type ActivityBadgeStyle = {
+  label: string;
+  className: string;
+};
+
 type EmployeeStatusBubblesProps = {
   currentStatus: StatusType;
   statusMessage?: string;
   effectiveNotificationCount: number;
   heartbeatState?: AgentState;
   heartbeatBubbles: StatusBubble[];
+  activityState?: EmployeeActivityState;
+  activityLabel?: string;
+  activityDetail?: string;
   isHovered: boolean;
   isHighlighted: boolean;
   name: string;
@@ -39,12 +48,101 @@ type EmployeeStatusBubblesProps = {
   useCompactOverlayMode?: boolean;
 };
 
+
+function getActivityBadgeStyle(state: EmployeeActivityState): ActivityBadgeStyle {
+  switch (state) {
+    case "running":
+      return {
+        label: "Running",
+        className: "border-sky-300/70 bg-sky-950/90 text-sky-50 shadow-sky-950/30",
+      };
+    case "waiting":
+      return {
+        label: "Waiting",
+        className: "border-amber-300/70 bg-amber-950/90 text-amber-50 shadow-amber-950/30",
+      };
+    case "failed":
+      return {
+        label: "Failed",
+        className: "border-rose-300/70 bg-rose-950/90 text-rose-50 shadow-rose-950/30",
+      };
+    case "review":
+      return {
+        label: "Review",
+        className: "border-violet-300/70 bg-violet-950/90 text-violet-50 shadow-violet-950/30",
+      };
+    case "done":
+      return {
+        label: "Done",
+        className: "border-emerald-300/70 bg-emerald-950/90 text-emerald-50 shadow-emerald-950/30",
+      };
+    default:
+      return {
+        label: "Idle",
+        className: "border-slate-300/70 bg-slate-950/90 text-slate-50 shadow-slate-950/30",
+      };
+  }
+}
+
+function EmployeeActivityBadge({
+  state,
+  label,
+  detail,
+  title,
+  focused,
+  totalHeight,
+  compact,
+}: {
+  state: EmployeeActivityState;
+  label?: string;
+  detail?: string;
+  title: string;
+  focused: boolean;
+  totalHeight: number;
+  compact: boolean;
+}) {
+  const style = getActivityBadgeStyle(state);
+  const displayLabel = label?.trim() || style.label;
+  const showDetail = focused && !compact && detail?.trim() && detail.trim() !== displayLabel;
+  const displayTitle = title.trim();
+
+  return (
+    <Html
+      position={[0, totalHeight + 0.46, 0]}
+      center
+      zIndexRange={[110, 0]}
+      style={{ pointerEvents: "none", userSelect: "none" }}
+    >
+      <div
+        className={`w-[200px] max-w-[200px] rounded-md border px-3 py-2 text-[11px] font-semibold leading-none shadow-lg backdrop-blur ${style.className}`}
+      >
+        {displayTitle ? (
+          <div className="line-clamp-2 whitespace-normal leading-snug">{displayTitle}</div>
+        ) : null}
+        <div className={displayTitle ? "mt-1 flex items-center gap-1.5" : "flex items-center gap-1.5"}>
+          <span className="shrink-0 truncate uppercase tracking-[0.08em] text-[9px] opacity-80">
+            {displayLabel}
+          </span>
+          {showDetail ? (
+            <span className="min-w-0 truncate text-[10px] font-medium opacity-70">
+              {detail?.trim()}
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </Html>
+  );
+}
+
 export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
   currentStatus,
   statusMessage,
   effectiveNotificationCount,
   heartbeatState,
   heartbeatBubbles,
+  activityState,
+  activityLabel,
+  activityDetail,
   isHovered,
   isHighlighted,
   name,
@@ -57,9 +155,27 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
   useCompactOverlayMode = false,
 }: EmployeeStatusBubblesProps) {
   const showRichEmployeeLabels = !useCompactOverlayMode;
+  const hasActivityText = Boolean(activityLabel?.trim() || activityDetail?.trim());
+  const hasActivityBadge =
+    typeof activityState === "string" && (activityState !== "idle" || hasActivityText);
+  const showActivityBadge = hasActivityBadge && (isHovered || isHighlighted);
+  const richLabelOffset = showActivityBadge ? 0.86 : 0.5;
+  const onboardingOffset = showActivityBadge ? 1.28 : 1.05;
 
   return (
     <>
+      {showActivityBadge ? (
+        <EmployeeActivityBadge
+          state={activityState ?? "idle"}
+          label={activityLabel}
+          detail={activityDetail ?? statusMessage}
+          title={name}
+          focused={isHovered || isHighlighted}
+          totalHeight={totalHeight}
+          compact={useCompactOverlayMode}
+        />
+      ) : null}
+
       <StatusIndicator
         status={currentStatus}
         message={statusMessage}
@@ -74,9 +190,9 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
         compactOnly={useCompactOverlayMode}
       />
 
-      {showRichEmployeeLabels && (isHovered || isHighlighted) && (
+      {showRichEmployeeLabels && !showActivityBadge && (isHovered || isHighlighted) && (
         <Html
-          position={[0, totalHeight + 0.5, 0]}
+          position={[0, totalHeight + richLabelOffset, 0]}
           center
           zIndexRange={[100, 0]}
           style={{ pointerEvents: "none", userSelect: "none" }}
@@ -99,7 +215,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
 
       {showRichEmployeeLabels && onboardingPrompt ? (
         <Html
-          position={[0, totalHeight + 1.05, 0]}
+          position={[0, totalHeight + onboardingOffset, 0]}
           center
           zIndexRange={[100, 0]}
           style={{ pointerEvents: "none", userSelect: "none" }}

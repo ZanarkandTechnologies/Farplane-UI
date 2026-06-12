@@ -39,6 +39,7 @@ import type { StatusType } from "@/modules/navigation/components/status-indicato
 import { useAppStore } from "@/store";
 import type { Id } from "@/lib/entity-types";
 import type { AgentState } from "@/modules/runtime";
+import type { EmployeeActivityState } from "@/modules/office/lib/types";
 import { getRandomItem } from "@/lib/utils";
 import { ContextMenu } from "../context-menu";
 import {
@@ -83,6 +84,10 @@ export interface EmployeeProps {
   teamId?: string;
   notificationCount?: number;
   notificationPriority?: number;
+  activityState?: EmployeeActivityState;
+  activityLabel?: string;
+  activityDetail?: string;
+  activityUpdatedAt?: number;
   heartbeatState?: AgentState;
   heartbeatBubbles?: Array<{ label: string; weight?: number }>;
   profileImageUrl?: string;
@@ -286,6 +291,10 @@ const Employee = memo(function Employee({
   teamId,
   notificationCount = 0,
   notificationPriority = 0,
+  activityState,
+  activityLabel,
+  activityDetail,
+  activityUpdatedAt,
   heartbeatState,
   heartbeatBubbles = [],
   useCompactOverlayMode = false,
@@ -313,6 +322,10 @@ const Employee = memo(function Employee({
   const projectionRingRef = useRef<THREE.Mesh>(null);
   const sourcePulseRef = useRef<THREE.Mesh>(null);
   const blinkRingRef = useRef<THREE.Mesh>(null);
+  const visibleActivityState = activityState;
+  const visibleActivityLabel = activityLabel;
+  const visibleActivityDetail = activityDetail;
+  void activityUpdatedAt;
   const activityEffectStartedAtRef = useRef<number>(0);
   const lastActivityEffectKeyRef = useRef("");
 
@@ -689,6 +702,9 @@ const Employee = memo(function Employee({
           effectiveNotificationCount={isGhostProjectionActive ? 0 : effectiveNotificationCount}
           heartbeatState={heartbeatState}
           heartbeatBubbles={isGhostProjectionActive ? [] : heartbeatBubbles}
+          activityState={isGhostProjectionActive ? undefined : visibleActivityState}
+          activityLabel={isGhostProjectionActive ? undefined : visibleActivityLabel}
+          activityDetail={isGhostProjectionActive ? undefined : visibleActivityDetail}
           isHovered={isHovered}
           isHighlighted={isHighlighted}
           name={name}
@@ -740,6 +756,9 @@ const Employee = memo(function Employee({
             effectiveNotificationCount={0}
             heartbeatState={heartbeatState}
             heartbeatBubbles={heartbeatBubbles}
+            activityState={visibleActivityState}
+            activityLabel={visibleActivityLabel}
+            activityDetail={visibleActivityDetail}
             isHovered={false}
             isHighlighted={false}
             name={name}

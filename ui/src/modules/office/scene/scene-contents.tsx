@@ -283,6 +283,10 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
             teamId={employee.teamId}
             notificationCount={employee.notificationCount}
             notificationPriority={employee.notificationPriority}
+            activityState={employee.activityState}
+            activityLabel={employee.activityLabel}
+            activityDetail={employee.activityDetail}
+            activityUpdatedAt={employee.activityUpdatedAt}
             heartbeatState={employee.heartbeatState}
             heartbeatBubbles={employee.heartbeatBubbles}
             profileImageUrl={employee.profileImageUrl}

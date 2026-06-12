@@ -2,6 +2,7 @@ import type { StatusType } from "@/modules/navigation/components/status-indicato
 import type { AgentState } from "@/modules/runtime";
 
 export type OfficeId<T extends string = string> = string & { __type?: T };
+export type EmployeeActivityState = "idle" | "running" | "waiting" | "failed" | "review" | "done";
 
 export interface Company {
   _id: OfficeId<"companies">;
@@ -98,6 +99,10 @@ export interface EmployeeData extends Employee {
   hasActiveComputerSession?: boolean;
   notificationCount?: number;
   notificationPriority?: number;
+  activityState?: EmployeeActivityState;
+  activityLabel?: string;
+  activityDetail?: string;
+  activityUpdatedAt?: number;
   heartbeatState?: AgentState;
   heartbeatBubbles?: Array<{ label: string; weight: number }>;
 }

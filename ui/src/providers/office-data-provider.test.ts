@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type {
   AgentCardModel,
+  AgentLiveStatus,
   CompanyModel,
   OfficeSettingsModel,
   UnifiedOfficeModel,
@@ -287,6 +288,71 @@ describe("office-data-provider team synthesis", () => {
     expect(
       result.officeObjects.some((object) => object.metadata?.teamId === "team-codex-proj-idle"),
     ).toBe(true);
+  });
+
+  it("keeps idle thread detail available for employee hover badges", () => {
+    const liveStatus: Record<string, AgentLiveStatus> = {
+      "codex-worker": {
+        agentId: "codex-worker",
+        sessionKey: "codex-thread:thread-idle",
+        state: "idle",
+        statusText: "Codex thread idle.",
+        bubbles: [],
+        updatedAt: 1770000000000,
+      },
+    };
+    const company = createCompanyModel({
+      agents: [
+        {
+          agentId: "main",
+          role: "ceo",
+          heartbeatProfileId: "hb-ceo",
+          isCeo: true,
+          lifecycleState: "active",
+        },
+        {
+          agentId: "codex-worker",
+          role: "builder",
+          projectId: "codex-proj-idle",
+          heartbeatProfileId: "hb-ceo",
+          lifecycleState: "active",
+        },
+      ],
+    });
+    const unified = createUnifiedOfficeModel({
+      company,
+      runtimeAgents: [
+        createRuntimeAgent(),
+        createRuntimeAgent({
+          agentId: "codex-worker",
+          displayName: "Idle Track Title",
+          workspacePath: "/tmp/codex-worker",
+          agentDir: "/tmp/codex-worker/agent",
+        }),
+      ],
+      configuredAgents: [
+        createRuntimeAgent(),
+        createRuntimeAgent({
+          agentId: "codex-worker",
+          displayName: "Idle Track Title",
+          workspacePath: "/tmp/codex-worker",
+          agentDir: "/tmp/codex-worker/agent",
+        }),
+      ],
+    });
+
+    const result = toOfficeData(unified, createOfficeSettings(), [], liveStatus);
+    const employee = result.employees.find((entry) => entry._id === "employee-codex-worker");
+
+    expect(employee).toEqual(
+      expect.objectContaining({
+        name: "Idle Track Title",
+        statusMessage: "Codex thread idle.",
+        activityState: "idle",
+        activityDetail: "Codex thread idle.",
+        heartbeatState: "idle",
+      }),
+    );
   });
 
   it("does not synthesize a Farplane fallback cluster when all projects are archived", () => {

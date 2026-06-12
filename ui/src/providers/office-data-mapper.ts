@@ -69,9 +69,21 @@ import type {
   ReconciliationWarning,
   UnifiedOfficeModel,
 } from "@/modules/runtime";
-import type { Company, DeskLayoutData, EmployeeData, OfficeObject, TeamData } from "@/modules/office/lib/types";
+import type {
+  Company,
+  DeskLayoutData,
+  EmployeeActivityState,
+  EmployeeData,
+  OfficeObject,
+  TeamData,
+} from "@/modules/office/lib/types";
 
 type ScenePlacementObject = OfficePlacementObject;
+type EmployeeActivitySummary = {
+  state: EmployeeActivityState;
+  label?: string;
+  detail?: string;
+};
 const DEFAULT_PROJECT_CLUSTER_POSITIONS: Array<[number, number, number]> = [
   [0, 0, 13],
   [-12, 0, 4.25],
@@ -225,6 +237,64 @@ function dedupeCanonicalSidecarObjects(
     }
   }
   return [...byCanonicalId.values()];
+}
+
+function hasLiveStatusHint(liveStatus: AgentLiveStatus | undefined, pattern: RegExp): boolean {
+  if (!liveStatus) return false;
+  return [
+    liveStatus.statusText,
+    liveStatus.currentSkillId,
+    ...liveStatus.bubbles.map((bubble) => bubble.label),
+  ].some((value) => typeof value === "string" && pattern.test(value));
+}
+
+function firstLiveBubbleLabel(liveStatus: AgentLiveStatus | undefined): string | undefined {
+  return liveStatus?.bubbles.find((bubble) => bubble.label.trim().length > 0)?.label;
+}
+
+function deriveEmployeeActivity(liveStatus?: AgentLiveStatus): EmployeeActivitySummary {
+  if (!liveStatus) return { state: "idle" };
+
+  if (
+    (liveStatus.state === "idle" || liveStatus.state === "no_work") &&
+    liveStatus.bubbles.length === 0
+  ) {
+    return { state: "idle", detail: liveStatus.statusText };
+  }
+
+  if (hasLiveStatusHint(liveStatus, /\b(review|reviewing|reviewer)\b/i)) {
+    return { state: "review", label: "Review", detail: liveStatus.statusText };
+  }
+
+  if (hasLiveStatusHint(liveStatus, /\b(waiting|approval|blocked|needs input|confirm)\b/i)) {
+    return { state: "waiting", label: "Waiting", detail: liveStatus.statusText };
+  }
+
+  if (liveStatus.state === "error") {
+    return { state: "failed", label: "Failed", detail: liveStatus.statusText };
+  }
+
+  if (liveStatus.state === "blocked") {
+    return { state: "waiting", label: "Waiting", detail: liveStatus.statusText };
+  }
+
+  if (
+    liveStatus.state === "running" ||
+    liveStatus.state === "planning" ||
+    liveStatus.state === "executing"
+  ) {
+    return {
+      state: "running",
+      label: firstLiveBubbleLabel(liveStatus) ?? "Running",
+      detail: liveStatus.statusText,
+    };
+  }
+
+  if (liveStatus.state === "done" || liveStatus.state === "ok") {
+    return { state: "done", label: "Done", detail: liveStatus.statusText };
+  }
+
+  return { state: "idle", detail: liveStatus.statusText };
 }
 
 function resolveTeamClusterTeamId(
@@ -739,6 +809,7 @@ export function toOfficeData(
                     ? "info"
                     : undefined;
 
+    const activity = deriveEmployeeActivity(liveStatus);
     const appearance = appearanceByAgentId.get(agent.agentId);
 
     return {
@@ -784,6 +855,10 @@ export function toOfficeData(
       statusMessage: liveStatus?.statusText ?? heartbeat?.goal ?? "Idle",
       notificationCount: agentApprovals?.count,
       notificationPriority: agentApprovals?.maxRisk,
+      activityState: activity.state,
+      activityLabel: activity.label,
+      activityDetail: activity.detail,
+      activityUpdatedAt: liveStatus?.updatedAt,
       heartbeatState: liveStatus?.state,
       heartbeatBubbles:
         liveStatus?.bubbles?.map((bubble) => ({ label: bubble.label, weight: bubble.weight })) ??
