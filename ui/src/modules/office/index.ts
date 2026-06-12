@@ -7,6 +7,27 @@ export { ObjectInteractionPanel } from "./components/object-interaction-panel";
 export { ObjectTransformPanel } from "./components/object-transform-panel";
 export { SkillsPanel } from "./components/skills-panel";
 export { preloadMeshes } from "./systems/mesh-cache";
+export {
+  buildOfficeOccupancyGrid,
+  canPlaceOfficeObject,
+  getOfficeCollisionReport,
+  getObjectFootprint,
+  getObjectFootprintCells,
+  isObjectFootprintInsideLayout,
+  objectFootprintsCollide,
+  type ObjectFootprintInput,
+  type OfficeCollisionReport,
+  type OfficeOccupancyGrid,
+} from "./systems/occupancy-system";
+export {
+  canReserveOfficeObject,
+  createOfficePlacementReservation,
+  getOfficeLayoutCandidatePositions,
+  reserveOfficeObjectPlacement,
+  type OfficePlacementObject,
+  type OfficePlacementReservation,
+  type OfficePlacementResult,
+} from "./systems/placement-engine";
 export { usePlacementSystem } from "./systems/placement-system";
 export { getGameObjectDefinition } from "./components/object-registry";
 export { LayoutEditorHudProvider, useLayoutEditorHud } from "./scene/layout-editor-hud-context";

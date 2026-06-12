@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePlacementSystem } from "@/modules/office/systems/placement-system";
 import { getGameObjectDefinition } from "@/modules/office/components/object-registry";
+import { canPlaceOfficeObjectAtPosition } from "@/modules/office/components/office-object-placement";
 import { AlertCircle } from "lucide-react";
 import { getOfficeLayoutBounds, isPointInsideOfficeLayout } from "@/modules/office/lib/office-layout";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
@@ -31,7 +32,7 @@ import { useOfficeDataContext } from "@/providers/office-data-provider";
 type PlacementCoordinates = [number, number, number] | null;
 
 export function PlacementHandler() {
-    const { officeSettings } = useOfficeDataContext();
+    const { officeObjects, officeSettings } = useOfficeDataContext();
     const {
         isActive,
         currentType: type,
@@ -84,6 +85,23 @@ export function PlacementHandler() {
         target.z = Math.round(target.z / snap) * snap;
         target.y = 0;
         if (!isPointInsideOfficeLayout([target.x, target.y, target.z], officeSettings.officeLayout)) {
+            hoverPositionRef.current = null;
+            if (ghostRef.current) {
+                ghostRef.current.visible = false;
+            }
+            return;
+        }
+        const builtInMeshTypes = ["plant", "couch", "bookshelf", "pantry", "team-cluster"] as const;
+        const meshType = builtInMeshTypes.includes(type as (typeof builtInMeshTypes)[number])
+            ? String(type)
+            : "custom-mesh";
+        if (!canPlaceOfficeObjectAtPosition({
+            position: [target.x, target.y, target.z],
+            layout: officeSettings.officeLayout,
+            meshType,
+            officeObjects,
+            metadata: data ?? undefined,
+        })) {
             hoverPositionRef.current = null;
             if (ghostRef.current) {
                 ghostRef.current.visible = false;

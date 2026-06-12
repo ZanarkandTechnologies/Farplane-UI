@@ -3,7 +3,10 @@ import { Move, Settings, SlidersVertical, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OFFICE_INTERACTION_COLORS } from "@/config/office-theme";
-import { constrainOfficeObjectPositionForLayout } from "@/modules/office/components/office-object-placement";
+import {
+  canPlaceOfficeObjectAtPosition,
+  constrainOfficeObjectPositionForLayout,
+} from "@/modules/office/components/office-object-placement";
 import { useAppStore } from "@/store";
 import type { OfficeId } from "@/modules/office/lib/types";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
@@ -91,7 +94,7 @@ export function InteractiveObject({
   const controllerRef = useRef<DraggableController | null>(null);
   const { camera, gl } = useThree();
   const adapter = useOfficeRuntimeAdapter();
-  const { officeSettings, refresh } = useOfficeDataContext();
+  const { officeObjects, officeSettings, refresh } = useOfficeDataContext();
   const objectIdString = `object-${objectId}`;
   const [localPosition, setLocalPosition] = useState<[number, number, number]>(initialPosition);
   const [localRotation, setLocalRotation] = useState<[number, number, number]>(initialRotation);
@@ -211,6 +214,19 @@ export function InteractiveObject({
           officeSettings.officeLayout,
           objectType,
         );
+        if (
+          !canPlaceOfficeObjectAtPosition({
+            position: constrained,
+            layout: officeSettings.officeLayout,
+            meshType: objectType,
+            officeObjects,
+            metadata,
+            rotation: localRotation,
+            ignoreObjectId: String(objectId),
+          })
+        ) {
+          return new THREE.Vector3(...lastConfirmedPositionRef.current);
+        }
         return new THREE.Vector3(...constrained);
       },
     );
@@ -225,7 +241,10 @@ export function InteractiveObject({
     isDragEnabled,
     objectId,
     objectType,
+    officeObjects,
     officeSettings.officeLayout,
+    metadata,
+    localRotation,
     persistOfficeObject,
     setGlobalDragging,
   ]);

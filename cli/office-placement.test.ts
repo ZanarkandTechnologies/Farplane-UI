@@ -3,8 +3,10 @@ import type { OfficeObjectModel } from "./sidecar-store.js";
 import {
   findFirstOpenPlacement,
   findPlacementViolations,
+  getObjectFootprint as getCliObjectFootprint,
   isPlacementAreaFree,
 } from "./office-placement.js";
+import { getObjectFootprint as getUiObjectFootprint } from "@/modules/office/systems/occupancy-system";
 
 function makeObject(id: string, meshType: string, position: [number, number, number]): OfficeObjectModel {
   return {
@@ -28,6 +30,20 @@ function makeRotatedObject(
 }
 
 describe("office placement helpers", () => {
+  it("keeps CLI and UI engine default footprints aligned", () => {
+    for (const meshType of [
+      "team-cluster",
+      "plant",
+      "couch",
+      "bookshelf",
+      "pantry",
+      "glass-wall",
+      "custom-mesh",
+    ]) {
+      expect(getCliObjectFootprint({ meshType })).toEqual(getUiObjectFootprint({ meshType }));
+    }
+  });
+
   it("accepts a free position inside bounds", () => {
     const free = isPlacementAreaFree({
       position: [0, 0, 0],

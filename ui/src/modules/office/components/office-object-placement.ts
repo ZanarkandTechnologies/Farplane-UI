@@ -16,6 +16,11 @@
  */
 
 import { clampPositionToOfficeLayout, type OfficeLayoutModel } from "../lib/office-layout";
+import type { OfficeObject } from "../lib/types";
+import {
+  canReserveOfficeObject,
+  createOfficePlacementReservation,
+} from "../systems/placement-engine";
 
 export function getOfficeObjectPlacementMargin(meshType: string): number {
   return meshType === "team-cluster" ? 2 : 1;
@@ -32,4 +37,35 @@ export function constrainOfficeObjectPositionForLayout(
     Math.round(position[2]),
   ];
   return clampPositionToOfficeLayout(snapped, layout, getOfficeObjectPlacementMargin(meshType));
+}
+
+export function canPlaceOfficeObjectAtPosition(input: {
+  position: [number, number, number];
+  layout: OfficeLayoutModel;
+  meshType: string;
+  officeObjects: OfficeObject[];
+  metadata?: Record<string, unknown>;
+  rotation?: [number, number, number];
+  ignoreObjectId?: string;
+}): boolean {
+  const reservation = createOfficePlacementReservation(
+    input.officeObjects
+      .filter((object) => String(object._id) !== input.ignoreObjectId)
+      .map((object) => ({
+        meshType: object.meshType,
+        position: object.position,
+        metadata: object.metadata,
+        rotation: object.rotation,
+      })),
+  );
+  return canReserveOfficeObject({
+    object: {
+      meshType: input.meshType,
+      position: input.position,
+      metadata: input.metadata,
+      rotation: input.rotation,
+    },
+    layout: input.layout,
+    reservation,
+  });
 }

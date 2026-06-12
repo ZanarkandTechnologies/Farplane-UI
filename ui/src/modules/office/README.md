@@ -9,6 +9,29 @@ The Office System provides the 3D office environment where employees, teams, and
 
 ## Core Components
 
+### Office Occupancy And Placement Engine ✅
+
+**Status**: Active (Jun 2026)
+
+Office placement now has a system-owned contract instead of scattered
+component/provider heuristics.
+
+**Key files**:
+
+- **`systems/occupancy-system.ts`**: object footprints, claimed cells, layout containment, collision reports, pathfinding-ready walkability derivation
+- **`systems/placement-engine.ts`**: placement reservations, candidate ordering, legal-slot selection
+- **`utils/object-footprints.ts`**: compatibility re-export only; new code should import from `systems/occupancy-system`
+
+**Consumers**:
+
+- Generated project/team table placement in the office data mapper
+- Builder drag and exact transform validation
+- Debug grid occupancy overlays
+- CLI placement/shuffle parity checks
+- Future A* pathfinding integration through `buildOfficeWalkabilityGrid`
+
+---
+
 ### Object UI Bindings And Builder Panels ✅
 
 **Status**: Complete (Mar 2026)

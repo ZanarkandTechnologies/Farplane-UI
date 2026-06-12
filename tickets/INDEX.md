@@ -16,3 +16,4 @@ None.
 ## Done
 
 - `TKT-001` - bootstrap scaffold migration (`tickets/done/TKT-001-bootstrap-scaffold-migration.md`)
+- `TKT-004` - office engine occupancy system and quality gates (`tickets/done/TKT-004-office-engine-occupancy-and-quality-gates.md`)

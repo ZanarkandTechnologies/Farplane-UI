@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "No required pre-commit checks configured."
-echo "Use pre-push for Farplane's heavier local gate."
+ROOT="$(git rev-parse --show-toplevel)"
+
+echo "Run pre-commit smell check."
+(cd "$ROOT" && npm run quality:smells:staged)

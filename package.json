@@ -25,6 +25,8 @@
     "lint:fix": "biome lint --write --diagnostic-level=error --files-ignore-unknown=true --skip=style --skip=complexity --skip=a11y --skip=correctness/noUnusedImports --skip=correctness/useExhaustiveDependencies --skip=correctness/useHookAtTopLevel --skip=suspicious/noArrayIndexKey biome.json package.json cli/team-commands convex extensions/notion skills ui/src/components/hud ui/src/modules/team-workspace ui/src/lib",
     "format": "biome format --write --files-ignore-unknown=true biome.json package.json cli/team-commands convex extensions/notion skills ui/src/components/hud ui/src/modules/team-workspace ui/src/lib",
     "format:check": "biome check --files-ignore-unknown=true --linter-enabled=false --assist-enabled=false biome.json package.json cli/team-commands convex extensions/notion skills ui/src/components/hud ui/src/modules/team-workspace ui/src/lib",
+    "quality:smells": "bash scripts/code_smell_check.sh full",
+    "quality:smells:staged": "bash scripts/code_smell_check.sh staged",
     "shell": "npm run --workspace @farplane/cli shell --",
     "cli:bundle": "npm run --workspace @farplane/cli bundle",
     "cli:reinstall": "tsx cli/cli-reinstall.ts",

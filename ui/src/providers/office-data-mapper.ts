@@ -50,11 +50,11 @@ import {
   type OfficeLayoutModel,
 } from "@/modules/office/lib/office-layout";
 import {
-  countObjectFootprintCollisions,
-  isObjectFootprintInsideLayout,
-  objectFootprintsCollide,
-  type ObjectFootprintInput,
-} from "@/modules/office/utils/object-footprints";
+  createOfficePlacementReservation,
+  reserveOfficeObjectPlacement,
+  type OfficePlacementObject,
+  type OfficePlacementReservation,
+} from "@/modules/office/systems/placement-engine";
 import type {
   AgentCardModel,
   AgentLiveStatus,
@@ -71,7 +71,7 @@ import type {
 } from "@/modules/runtime";
 import type { Company, DeskLayoutData, EmployeeData, OfficeObject, TeamData } from "@/modules/office/lib/types";
 
-type ScenePlacementObject = ObjectFootprintInput;
+type ScenePlacementObject = OfficePlacementObject;
 const DEFAULT_PROJECT_CLUSTER_POSITIONS: Array<[number, number, number]> = [
   [0, 0, 13],
   [-12, 0, 4.25],
@@ -166,73 +166,22 @@ function getTeamClusterPlacementMetadata(
 function resolveSceneObjectPosition(input: {
   object: ScenePlacementObject;
   officeLayout: OfficeLayoutModel;
-  reservedObjects: ScenePlacementObject[];
+  reservation: OfficePlacementReservation;
   allowCollisionFallback?: boolean;
 }): [number, number, number] | null {
-  const clampedPreferred = clampPositionToOfficeLayout(input.object.position, input.officeLayout, 0);
-  const preferredObject = { ...input.object, position: clampedPreferred };
-  if (
-    isObjectFootprintInsideLayout(preferredObject, input.officeLayout) &&
-    !input.reservedObjects.some((object) => objectFootprintsCollide(preferredObject, object))
-  ) {
-    input.reservedObjects.push(preferredObject);
-    return clampedPreferred;
-  }
-
-  const candidates = input.officeLayout.tiles
-    .map((tile) => {
-      const [xRaw, zRaw] = tile.split(":");
-      return [Number(xRaw), input.object.position[1], Number(zRaw)] as [number, number, number];
-    })
-    .filter((position) => Number.isFinite(position[0]) && Number.isFinite(position[2]))
-    .sort((left, right) => {
-      const leftDistance =
-        (left[0] - input.object.position[0]) ** 2 + (left[2] - input.object.position[2]) ** 2;
-      const rightDistance =
-        (right[0] - input.object.position[0]) ** 2 + (right[2] - input.object.position[2]) ** 2;
-      return leftDistance - rightDistance;
-    });
-
-  let lowestCollisionCandidate: {
-    position: [number, number, number];
-    collisionCount: number;
-    distance: number;
-  } | null = null;
-
-  for (const position of candidates) {
-    const candidateObject = { ...input.object, position };
-    if (!isObjectFootprintInsideLayout(candidateObject, input.officeLayout)) continue;
-    const collisionCount = countObjectFootprintCollisions(candidateObject, input.reservedObjects);
-    if (collisionCount === 0) {
-      input.reservedObjects.push(candidateObject);
-      return position;
-    }
-    const distance =
-      (position[0] - input.object.position[0]) ** 2 + (position[2] - input.object.position[2]) ** 2;
-    if (
-      lowestCollisionCandidate === null ||
-      collisionCount < lowestCollisionCandidate.collisionCount ||
-      (collisionCount === lowestCollisionCandidate.collisionCount &&
-        distance < lowestCollisionCandidate.distance)
-    ) {
-      lowestCollisionCandidate = { position, collisionCount, distance };
-    }
-  }
-
-  if (input.allowCollisionFallback !== false && lowestCollisionCandidate) {
-    const fallbackObject = { ...input.object, position: lowestCollisionCandidate.position };
-    input.reservedObjects.push(fallbackObject);
-    return lowestCollisionCandidate.position;
-  }
-
-  return null;
+  return reserveOfficeObjectPlacement({
+    object: input.object,
+    layout: input.officeLayout,
+    reservation: input.reservation,
+    allowCollisionFallback: input.allowCollisionFallback,
+  })?.position ?? null;
 }
 
 function resolveTeamClusterScenePosition(input: {
   position: [number, number, number];
   deskCount: number;
   officeLayout: OfficeLayoutModel;
-  reservedObjects: ScenePlacementObject[];
+  reservation: OfficePlacementReservation;
   metadata?: Record<string, unknown>;
   rotation?: [number, number, number];
 }): [number, number, number] {
@@ -244,7 +193,7 @@ function resolveTeamClusterScenePosition(input: {
       rotation: input.rotation,
     },
     officeLayout: input.officeLayout,
-    reservedObjects: input.reservedObjects,
+    reservation: input.reservation,
     allowCollisionFallback: true,
   }) ?? clampPositionToOfficeLayout(input.position, input.officeLayout, 0);
 }
@@ -500,7 +449,7 @@ export function toOfficeData(
     teamClusterAnchorsByTeamId.set(resolvedTeamId, object.position);
   }
   const ceoAnchor = getManagementAnchorFromOfficeLayout(officeLayout);
-  const reservedSceneObjects: ScenePlacementObject[] = [];
+  const scenePlacementReservation = createOfficePlacementReservation();
   const sidecarFurnitureEntries = sidecarObjects.filter(
     (entry) => entry.meshType !== "team-cluster" && entry.meshType !== "wall-art",
   );
@@ -510,7 +459,7 @@ export function toOfficeData(
     position: teamClusterAnchorsByTeamId.get("team-management") ?? ceoAnchor,
     deskCount: 1,
     officeLayout,
-    reservedObjects: reservedSceneObjects,
+    reservation: scenePlacementReservation,
     metadata: { teamId: "team-management" },
     rotation: persistedTeamClusterByTeamId.get("team-management")?.rotation,
   });
@@ -544,7 +493,7 @@ export function toOfficeData(
         position: persistedClusterPosition ?? getDefaultProjectClusterPosition(projectIndex),
         deskCount,
         officeLayout,
-        reservedObjects: reservedSceneObjects,
+        reservation: scenePlacementReservation,
         metadata: { ...(persistedCluster?.metadata ?? {}), teamId },
         rotation: persistedCluster?.rotation,
       });
@@ -612,7 +561,7 @@ export function toOfficeData(
         rotation,
       },
       officeLayout,
-      reservedObjects: reservedSceneObjects,
+      reservation: scenePlacementReservation,
       allowCollisionFallback: false,
     });
     if (!position) return [];

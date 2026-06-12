@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { normalizeOfficeLayout, officeLayoutTileKey } from "../lib/office-layout";
 
 import {
+  canPlaceOfficeObjectAtPosition,
   constrainOfficeObjectPositionForLayout,
   getOfficeObjectPlacementMargin,
 } from "./office-object-placement";
@@ -43,5 +44,40 @@ describe("office object placement", () => {
     expect(constrainOfficeObjectPositionForLayout([3.2, 0, 1.1], layout, "plant")).toEqual([
       3, 0, 1,
     ]);
+  });
+
+  it("rejects placements that collide with existing office objects", () => {
+    const layout = normalizeOfficeLayout(
+      {
+        tiles: [
+          officeLayoutTileKey(0, 0),
+          officeLayoutTileKey(1, 0),
+          officeLayoutTileKey(2, 0),
+          officeLayoutTileKey(0, 1),
+          officeLayoutTileKey(1, 1),
+          officeLayoutTileKey(2, 1),
+          officeLayoutTileKey(0, 2),
+          officeLayoutTileKey(1, 2),
+          officeLayoutTileKey(2, 2),
+        ],
+      },
+      { width: 3, depth: 3 },
+    );
+
+    expect(
+      canPlaceOfficeObjectAtPosition({
+        position: [1, 0, 1],
+        layout,
+        meshType: "plant",
+        officeObjects: [
+          {
+            _id: "plant-a",
+            meshType: "plant",
+            position: [1, 0, 1],
+            rotation: [0, 0, 0],
+          },
+        ],
+      }),
+    ).toBe(false);
   });
 });

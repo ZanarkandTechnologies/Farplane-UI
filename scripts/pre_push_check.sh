@@ -100,6 +100,8 @@ run_advisory() {
 
 collect_source_file_sizes
 
+run_required "code smell check" npm run quality:smells
+
 print_ranked_list "Warn: large tracked source files detected" "$warn_tmp"
 
 if [ -s "$block_tmp" ]; then

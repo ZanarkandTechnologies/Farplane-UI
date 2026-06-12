@@ -51,7 +51,10 @@ import {
   getNextUniformScale,
 } from "./object-transform-panel.helpers";
 import { resolvePersistedOfficeObjectId } from "./office-object-id";
-import { constrainOfficeObjectPositionForLayout } from "./office-object-placement";
+import {
+  canPlaceOfficeObjectAtPosition,
+  constrainOfficeObjectPositionForLayout,
+} from "./office-object-placement";
 import { refreshOfficeDataSafely } from "./office-object-refresh";
 
 type TransformDraft = {
@@ -251,6 +254,20 @@ export function ObjectTransformPanel(): ReactElement | null {
       parseNumber(draft.rotationY, activeObject.rotation?.[1] ?? 0),
       activeObject.rotation?.[2] ?? 0,
     ];
+    if (
+      !canPlaceOfficeObjectAtPosition({
+        position: nextPosition,
+        layout: officeSettings.officeLayout,
+        meshType: activeObject.meshType,
+        officeObjects,
+        metadata: activeObject.metadata,
+        rotation: nextRotation,
+        ignoreObjectId: activeObject._id,
+      })
+    ) {
+      setErrorMessage("That transform collides with another object or leaves the floor.");
+      return;
+    }
     const nextScalar = Math.min(
       3,
       Math.max(0.4, parseNumber(draft.scale, activeObject.scale?.[0] ?? 1)),

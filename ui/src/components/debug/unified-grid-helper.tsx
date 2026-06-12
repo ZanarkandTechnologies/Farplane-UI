@@ -27,7 +27,7 @@ import {
   getOfficeLayoutBounds,
   getOfficeLayoutTileSet,
 } from '@/modules/office/lib/office-layout';
-import { getObjectFootprintCells } from '@/modules/office/utils/object-footprints';
+import { getObjectFootprintCells } from '@/modules/office/systems/occupancy-system';
 import { useOfficeDataContext } from '@/providers/office-data-provider';
 
 const DEBUG_COLOR = 0xff0000;
