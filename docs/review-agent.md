@@ -9,7 +9,7 @@ updated: 2026-06-12
 
 Farplane UI uses deterministic checks first and a Codex SDK reviewer second.
 The reviewer is a second pair of eyes for drift, modularity, risky commits, and
-missed proof. It is opt-in for local pre-push by default.
+missed proof. It runs during local pre-push by default as an advisory check.
 
 ## Commands
 
@@ -17,12 +17,12 @@ missed proof. It is opt-in for local pre-push by default.
 - `npm run review:context`: writes `.farplane/reviews/latest/context.md`.
 - `npm run review:agent`: reviews `.farplane/reviews/latest/context.md`.
 - `npm run review:prepush`: collects pre-push context and runs the reviewer.
-- `bash scripts/pre_push_check.sh`: runs deterministic gates; optionally runs
-  agent review when enabled.
+- `bash scripts/pre_push_check.sh`: runs deterministic gates, then advisory
+  agent review.
 
 ## Environment
 
-- `FARPLANE_AGENT_REVIEW=1`: run advisory agent review during pre-push.
+- `FARPLANE_SKIP_AGENT_REVIEW=1`: skip the advisory agent review during pre-push.
 - `STRICT_AGENT_REVIEW=1`: run required agent review during pre-push.
 - `CODEX_REVIEW_MODEL=<model>`: override the Codex SDK model.
 - `CODEX_REVIEW_TIMEOUT_MS=<ms>`: abort the review turn after a timeout.

@@ -140,10 +140,10 @@ run_advisory "full typecheck" npm run typecheck
 
 if [ "${STRICT_AGENT_REVIEW:-0}" = "1" ]; then
   run_required "codex agent review" env FARPLANE_PRE_PUSH_REVIEW_DIR="$review_dir" npm run review:prepush
-elif [ "${FARPLANE_AGENT_REVIEW:-0}" = "1" ]; then
-  run_advisory "codex agent review" env FARPLANE_PRE_PUSH_REVIEW_DIR="$review_dir" npm run review:prepush
+elif [ "${FARPLANE_SKIP_AGENT_REVIEW:-0}" = "1" ]; then
+  echo "Skip Codex agent review because FARPLANE_SKIP_AGENT_REVIEW=1."
 else
-  echo "Skip Codex agent review. Set FARPLANE_AGENT_REVIEW=1 for advisory review or STRICT_AGENT_REVIEW=1 to require it."
+  run_advisory "codex agent review" env FARPLANE_PRE_PUSH_REVIEW_DIR="$review_dir" npm run review:prepush
 fi
 
 echo "Pre-push checks completed."
