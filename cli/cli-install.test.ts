@@ -50,7 +50,7 @@ describe("cli install helpers", () => {
     expect(execRunner.mock.calls.map((call) => call[1])).toEqual([
       ["install"],
       ["run", "cli:bundle"],
-      ["unlink", "-g", "farplane"],
+      ["unlink", "-g", "farplane-ui"],
       ["link"],
     ]);
     expect(result.status).toBe("reinstalled");

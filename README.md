@@ -4,7 +4,7 @@ One AI office for running an OpenClaw-powered business.
 
 Farplane is the founder-facing orchestration layer for OpenClaw. Start with one office, define a goal, ask the CEO to form a team, approve the plan, and run the work from a control surface that is operational, customizable, and actually fun to use.
 
-OpenClaw stays the system of record for agents, sessions, routing, and plugins. Farplane adds the office, the CLI, the review loop, and the operator surfaces that turn raw agent runtime into something you can steer like a business.
+OpenClaw stays the system of record for agents, sessions, routing, and plugins. Farplane adds the office, the Core-owned CLI, the review loop, and the operator surfaces that turn raw agent runtime into something you can steer like a business.
 
 ## What Is Farplane?
 
@@ -55,7 +55,7 @@ The main MVP loop is founder control, not artificial office scale.
 
 - `CEO-led team formation`: create teams through a proposal and approval loop instead of hardcoding a company upfront
 - `Office UI`: run Farplane from a visual office with focused operator surfaces instead of a pile of raw terminals
-- `Farplane CLI`: onboard, manage teams, inspect office state, run doctor checks, and handle office decor from the command line
+- `Farplane CLI`: Core-owned command routing for onboarding, teams, office state, doctor checks, and office decor
 - `Session-scoped CLI identity`: agents can soft-login per shell session so status, coordination, and board writes resolve caller identity consistently without repeating `--agent-id`
 - `Skills workbench`: inspect skills, demos, file-backed metadata, and per-agent skill configuration from one place
 - `Memory and session visibility`: inspect agent memory, session context, and current work state from OpenClaw-backed data
@@ -108,11 +108,11 @@ From the repo root:
 
 ```bash
 npm install
-npm link
-npm run shell -- onboarding
+farplane ui link "$PWD"
+farplane onboarding
 eval "$(farplane agent login --agent-id main)"
-npm run shell -- whoami
-npm run shell -- ui
+farplane whoami
+farplane ui start
 ```
 
 What `farplane onboarding` does:
@@ -121,7 +121,7 @@ What `farplane onboarding` does:
 - creates missing Farplane sidecar JSON under `~/.openclaw`
 - creates or updates `~/.openclaw/openclaw.json` with the minimum Farplane wiring
 - adds the in-repo Notion plugin load path and default `notion-shell` entry
-- offers to install the global `farplane` CLI alias with `npm link`
+- expects the global `farplane` CLI to be owned by Farplane Core and delegates module commands into this checkout
 - asks for a basic office style preset
 - shows a staged bootstrap flow so you can see each setup phase complete
 - generates `ui/.env.local` with safe `VITE_*` values
@@ -148,8 +148,8 @@ Use this when you want to show the product story clearly instead of loading a cr
 
 ```bash
 npm install
-npm link
-npm run shell -- onboarding --launch-ui
+farplane ui link "$PWD"
+farplane onboarding --launch-ui
 scripts/reset-demo-office.sh --profile ladder
 ```
 
@@ -227,9 +227,9 @@ From the repo root:
 
 ```bash
 npm install
-npm link
-npm run shell -- onboarding --yes
-npm run shell -- ui
+farplane ui link "$PWD"
+farplane onboarding --yes
+farplane ui start
 ```
 
 Validation:
@@ -243,7 +243,7 @@ npm run build
 Refresh the global CLI alias after pulling repo updates:
 
 ```bash
-npm run cli:reinstall
+cd ../Farplane && farplane install
 ```
 
 Useful commands:
@@ -279,7 +279,7 @@ Realtime shared operational memory now lives in Convex-backed team/task surfaces
 - `npm run shell -- office decor background list`
 - `npm run shell -- office decor pack apply clam-cabinet`
 - `npm run shell -- office decor background set midnight_tide`
-- `npm run cli:reinstall`
+- `npm run cli:reinstall` for the module-local `farplane-ui` alias only
 - `farplane ui`
 - `npm run shell -- doctor team-data --json`
 - `npm run shell -- office doctor --json`
@@ -300,7 +300,7 @@ Notes:
 - Optional Codex app-server smoke: run `codex app-server --listen ws://127.0.0.1:47891`, then launch the UI with `CODEX_APP_SERVER_URL=ws://127.0.0.1:47891 npm run ui -- --host 127.0.0.1`.
 - The UI reads `VITE_*` values from `ui/.env.local`; backend/private env stays in the repo-root `.env.local`.
 - Optional: set `VITE_MESHY_API_KEY` (get one at meshy.ai) to enable **Generate with AI** in Decoration → Import; generated GLB furniture is saved to Custom Library.
-- The global `farplane` alias comes from the package `bin` entry plus `npm link`.
+- The global `farplane` alias comes from Farplane Core. This repo exposes only the module-local `farplane-ui` package bin for direct checkout development.
 - `templates/` is only for bootstrap and scaffolding. It is not the live source of truth after onboarding runs.
 
 ## More Docs

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * FARPLANE CLI
- * =============
+ * FARPLANE UI MODULE CLI
+ * =======================
  * Purpose
  * - Provide CEO/operator command-line management for Farplane team entities.
  *
@@ -34,7 +34,7 @@ async function main(): Promise<void> {
   });
 
   const program = new Command();
-  program.name("farplane").description("Farplane setup and team management CLI").version("0.1.0");
+  program.name("farplane-ui").description("Farplane UI module CLI").version("0.1.0");
 
   registerOnboardingCommands(program);
   registerUiCommands(program);

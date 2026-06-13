@@ -2,11 +2,11 @@
  * CLI INSTALL
  * ===========
  * Purpose
- * - Centralize Farplane CLI install and reinstall command flows.
+ * - Centralize Farplane-UI module CLI install and reinstall command flows.
  *
  * KEY CONCEPTS:
- * - The global `farplane` alias is managed through `npm link` at the repo root.
- * - Reinstall refreshes dependencies, rebuilds the CLI bundle, and relinks the alias.
+ * - The module-local `farplane-ui` alias is managed through `npm link` at the repo root.
+ * - Reinstall refreshes dependencies, rebuilds the CLI bundle, and relinks the module alias.
  *
  * USAGE:
  * - installShellcorpCli({ repoRoot, requested: true })
@@ -91,7 +91,7 @@ export async function installShellcorpCli(params: {
       ok: false,
       status: "skipped",
       command,
-      note: "CLI install skipped. Run `npm link` later if you want the global `farplane` alias.",
+      note: "CLI install skipped. Run `npm link` later if you want the module-local `farplane-ui` alias.",
     };
   }
 
@@ -115,7 +115,7 @@ export async function installShellcorpCli(params: {
       ok: true,
       status: "installed",
       command,
-      note: "Global `farplane` alias is installed for this repo.",
+      note: "Module-local `farplane-ui` alias is installed for this repo.",
     };
   } catch (error) {
     const detail = extractErrorDetail(error);
@@ -124,7 +124,7 @@ export async function installShellcorpCli(params: {
       ok: false,
       status: "failed",
       command,
-      note: `CLI install failed (${detail}). Run \`npm link\` manually from the repo root if you want the global alias.`,
+      note: `CLI install failed (${detail}). Run \`npm link\` manually from the repo root if you want the module-local alias.`,
     };
   }
 }
@@ -172,7 +172,7 @@ export async function reinstallShellcorpCli(params: {
     }
   }
 
-  const unlinkStep = await runStep(params.repoRoot, ["unlink", "-g", "farplane"]);
+  const unlinkStep = await runStep(params.repoRoot, ["unlink", "-g", "farplane-ui"]);
   steps.push(
     unlinkStep.ok
       ? unlinkStep
@@ -199,7 +199,7 @@ export async function reinstallShellcorpCli(params: {
     attempted: true,
     ok: true,
     status: "reinstalled",
-    note: "Global `farplane` alias was refreshed against the current repo checkout.",
+    note: "Module-local `farplane-ui` alias was refreshed against the current repo checkout.",
     steps,
   };
 }

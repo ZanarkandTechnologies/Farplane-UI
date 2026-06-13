@@ -1,15 +1,16 @@
-# CLI
+# Farplane-UI Module CLI
 
 ## Purpose
 
-Farplane's command-line entrypoints for onboarding, thin team operations, board workflow, office management, and local install/link flows.
+Farplane-UI's module-local command implementations for onboarding, thin team operations, board workflow, office management, and local UI launch flows.
 
-The CLI is broader than the intended MVP operating surface today. This document describes the current public entrypoints, calls out the parts that feel overbuilt, and sets the direction for simplification.
+Farplane Core owns the global `farplane` command. This repo keeps the UI/office/team implementation surface and can be reached through Core delegation or through the module-local `farplane-ui` bin when working directly in this checkout.
 
 ## Public API / entrypoints
 
 - `npm run shell -- <command>`
-- `farplane <command>` after `npm link`
+- `farplane <command>` through the Core CLI after `farplane ui link /path/to/Farplane-UI`
+- `farplane-ui <command>` after `npm link` in this repo, for module-local development only
 - `npm run cli:reinstall`
 - `bash scripts/reinstall-cli.sh`
 
@@ -17,6 +18,7 @@ The CLI is broader than the intended MVP operating surface today. This document 
 
 ```bash
 npm run cli:reinstall
+farplane ui link /path/to/Farplane-UI
 farplane onboarding --yes
 eval "$(farplane agent login --agent-id alpha-pm)"
 farplane team list --json
@@ -90,7 +92,7 @@ In practice, this means:
 
 ## Simplification Direction
 
-The CLI simplification target is:
+The module CLI simplification target is:
 
 1. Keep structure around the shared kanban board.
 2. Prefer markdown files or markdown bodies for task/project working state.
@@ -128,6 +130,7 @@ If you are building against the current product direction, start with:
 ## Example Workflow
 
 ```bash
+farplane ui link /path/to/Farplane-UI
 farplane onboarding --yes
 eval "$(farplane agent login --agent-id affiliate-lab-pm)"
 farplane whoami

@@ -6,7 +6,7 @@ import {
   getObjectFootprint as getCliObjectFootprint,
   isPlacementAreaFree,
 } from "./office-placement.js";
-import { getObjectFootprint as getUiObjectFootprint } from "@/modules/office/systems/occupancy-system";
+import { getObjectFootprint as getUiObjectFootprint } from "../ui/src/modules/office/lib/object-footprints.js";
 
 function makeObject(id: string, meshType: string, position: [number, number, number]): OfficeObjectModel {
   return {

@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 const binDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(binDir, "..");
 
-// Prefer a bundled CLI artifact so global `farplane` can run without repo node_modules.
+// Prefer a bundled CLI artifact so module-local `farplane-ui` can run without repo node_modules.
 const bundledCliPath = resolve(repoRoot, "dist", "bundle", "farplane-cli.cjs");
 const args = process.argv.slice(2);
 
@@ -30,10 +30,10 @@ if (existsSync(bundledCliPath)) {
   // Legacy fallback: run repo-local script (requires repo node_modules + tsx).
   const tsxPath = resolve(repoRoot, "node_modules", "tsx");
   if (!existsSync(tsxPath)) {
-    console.error("farplane: missing bundled CLI artifact and repo dependencies.");
-    console.error(`farplane: expected either ${bundledCliPath} OR ${tsxPath}`);
-    console.error("farplane: fix: cd " + repoRoot + " && npm install");
-    console.error("farplane: then: npm --prefix " + repoRoot + " run cli:bundle");
+    console.error("farplane-ui: missing bundled CLI artifact and repo dependencies.");
+    console.error(`farplane-ui: expected either ${bundledCliPath} OR ${tsxPath}`);
+    console.error("farplane-ui: fix: cd " + repoRoot + " && npm install");
+    console.error("farplane-ui: then: npm --prefix " + repoRoot + " run cli:bundle");
     process.exit(1);
   }
 
@@ -51,4 +51,3 @@ if (existsSync(bundledCliPath)) {
     process.exit(code ?? 1);
   });
 }
-
