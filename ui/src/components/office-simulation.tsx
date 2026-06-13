@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { TeamOptionsDialog } from "./dialogs/team-options-dialog";
 import { SettingsDialog } from "@/modules/settings";
 import { LogsDrawer } from "./hud/logs-drawer";
@@ -10,11 +11,14 @@ import { BuilderToolbar } from "./hud/builder-toolbar";
 import { CeoWorkbenchPanel } from "./hud/ceo-workbench-panel";
 import {
   OfficeDataProvider,
-  useOfficeDataContext,
   useOptionalOfficeDataContext,
 } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
 import { gatewayBase } from "@/modules/runtime";
+import {
+  selectOfficeWorldContextData,
+  useOfficeWorldStore,
+} from "@/modules/office/store";
 import ChatDialog from "@/modules/chat/components/chat-dialog";
 import {
   AgentMemoryPanel,
@@ -46,9 +50,8 @@ export default function OfficeSimulation() {
 
 // Main Office Simulation Component
 function OfficeSimulationContent() {
-  // Fetch office data from database (reactive!)
   const { company, teams, employees, desks, officeObjects, officeAreas, officeSettings, isLoading } =
-    useOfficeDataContext();
+    useOfficeWorldStore(useShallow(selectOfficeWorldContextData));
 
   // Get team options dialog state from app store with selectors
   const isTeamOptionsDialogOpen = useAppStore((state) => state.isTeamOptionsDialogOpen);

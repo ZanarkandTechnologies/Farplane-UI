@@ -29,6 +29,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useAgentLiveStatuses } from "@/hooks/use-agent-live-status";
 import type {
   AgentLiveStatus,
@@ -45,21 +46,28 @@ import {
   toOfficeData,
   type OfficeDataContextValue,
 } from "@/providers/office-data-mapper";
-import { stabilizeOfficeData } from "@/providers/office-data-stability";
+import {
+  selectOfficeWorldContextData,
+  useOfficeWorldStore,
+  type OfficeWorldChangedKey,
+  type OfficeWorldRefreshReason,
+  type OfficeWorldSnapshot,
+} from "@/modules/office/store";
 import { useOfficeRuntimeAdapter, type OfficeRuntimeAdapter } from "@/modules/runtime";
 
 const OfficeDataContext = createContext<OfficeDataContextValue | undefined>(undefined);
 
 export type { OfficeDataContextValue };
 
-type OfficeDataRefreshReason =
-  | "initial"
-  | "poll"
-  | "manual"
-  | "settings"
-  | "resync"
-  | "policy"
-  | "provider-profile";
+type OfficeDataRefreshReason = OfficeWorldRefreshReason;
+type OfficeDataActions = Pick<
+  OfficeDataContextValue,
+  | "refresh"
+  | "applyOfficeSettings"
+  | "manualResync"
+  | "upsertFederationPolicy"
+  | "upsertProviderIndexProfile"
+>;
 
 function isCodexAgentId(agentId: string): boolean {
   return agentId === "codex-main" || agentId.startsWith("codex-thread:");
@@ -107,9 +115,48 @@ function logOfficeRefresh(
   console.debug("[farplane:office-refresh]", event, details);
 }
 
+function toOfficeWorldSnapshot(
+  data: OfficeDataContextValue,
+  liveStatusByAgentId: Record<string, AgentLiveStatus>,
+  error?: string,
+): OfficeWorldSnapshot {
+  return {
+    company: data.company,
+    teams: data.teams,
+    employees: data.employees,
+    desks: data.desks,
+    officeObjects: data.officeObjects,
+    officeAreas: data.officeAreas,
+    officeSettings: data.officeSettings,
+    companyModel: data.companyModel,
+    workload: data.workload,
+    warnings: data.warnings,
+    liveStatusByAgentId,
+    isLoading: data.isLoading,
+    error,
+  };
+}
+
+function applyOfficeWorldSnapshot(
+  snapshot: OfficeWorldSnapshot,
+  reason: OfficeDataRefreshReason,
+): OfficeWorldChangedKey[] {
+  return useOfficeWorldStore.getState().applySnapshot(snapshot, reason);
+}
+
 export function OfficeDataProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const sharedAdapter = useOfficeRuntimeAdapter();
-  const [value, setValue] = useState<OfficeDataContextValue>({ ...fallbackData(), isLoading: true });
+  const worldContextData = useOfficeWorldStore(useShallow(selectOfficeWorldContextData));
+  const [actions, setActions] = useState<OfficeDataActions>(() => {
+    const fallback = fallbackData();
+    return {
+      refresh: fallback.refresh,
+      applyOfficeSettings: fallback.applyOfficeSettings,
+      manualResync: fallback.manualResync,
+      upsertFederationPolicy: fallback.upsertFederationPolicy,
+      upsertProviderIndexProfile: fallback.upsertProviderIndexProfile,
+    };
+  });
   const [agentIds, setAgentIds] = useState<string[]>([]);
   const adapterRef = useRef<OfficeRuntimeAdapter | null>(null);
   const cancelledRef = useRef(false);
@@ -136,7 +183,14 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
     () => (settings: OfficeSettingsModel) => {
       const unified = latestUnifiedRef.current;
       if (!unified) {
-        setValue((current) => ({ ...current, officeSettings: settings }));
+        const current = useOfficeWorldStore.getState();
+        applyOfficeWorldSnapshot(
+          {
+            ...current,
+            officeSettings: settings,
+          },
+          "settings",
+        );
         return;
       }
       const pendingApprovals = latestApprovalsRef.current;
@@ -146,21 +200,13 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
         convexStatuses: liveStatusByConvexRef.current,
         runtimeKind: runtimeKindRef.current,
       });
-      setValue((current) => {
-        const next = stabilizeOfficeData(
-          current,
+      applyOfficeWorldSnapshot(
+        toOfficeWorldSnapshot(
           toOfficeData(unified, settings, pendingApprovals, statusByAgent),
-        );
-        if (next === current) return current;
-        return {
-          ...next,
-          refresh: current.refresh,
-          applyOfficeSettings: current.applyOfficeSettings,
-          manualResync: current.manualResync,
-          upsertFederationPolicy: current.upsertFederationPolicy,
-          upsertProviderIndexProfile: current.upsertProviderIndexProfile,
-        };
-      });
+          statusByAgent,
+        ),
+        "settings",
+      );
     },
     [],
   );
@@ -212,51 +258,51 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
             logOfficeRefresh("drop-stale", { reason, generation });
             return;
           }
-          setValue((current) => {
-            const next = stabilizeOfficeData(
-              current,
-              toOfficeData(unified, officeSettings, pendingApprovals, statusByAgent, configSnapshot),
-            );
-            const elapsedMs = Math.round(performance.now() - startedAt);
-            if (next === current) {
-              logOfficeRefresh("unchanged", {
-                reason,
-                elapsedMs,
-                agents: nextAgentIds.length,
-                objects: current.officeObjects.length,
-              });
-              return current;
-            }
+          const officeData = toOfficeData(
+            unified,
+            officeSettings,
+            pendingApprovals,
+            statusByAgent,
+            configSnapshot,
+          );
+          const changedKeys = applyOfficeWorldSnapshot(
+            toOfficeWorldSnapshot(officeData, statusByAgent),
+            reason,
+          );
+          const elapsedMs = Math.round(performance.now() - startedAt);
+          if (changedKeys.length === 0) {
+            logOfficeRefresh("unchanged", {
+              reason,
+              elapsedMs,
+              agents: nextAgentIds.length,
+              objects: officeData.officeObjects.length,
+              changedKeys,
+            });
+          } else {
             logOfficeRefresh("changed", {
               reason,
               elapsedMs,
               agents: nextAgentIds.length,
-              objects: next.officeObjects.length,
-              employees: next.employees.length,
+              objects: officeData.officeObjects.length,
+              employees: officeData.employees.length,
+              changedKeys,
             });
-            return {
-              ...next,
-              refresh: current.refresh,
-              applyOfficeSettings: current.applyOfficeSettings,
-              manualResync: current.manualResync,
-              upsertFederationPolicy: current.upsertFederationPolicy,
-              upsertProviderIndexProfile: current.upsertProviderIndexProfile,
-            };
-          });
+          }
         } catch (error) {
           logOfficeRefresh("error", {
             reason,
             message: error instanceof Error ? error.message : String(error),
           });
           if (cancelledRef.current || generation !== loadGenerationRef.current) return;
-          setValue((current) => ({
-            ...fallbackData(),
-            refresh: current.refresh,
-            applyOfficeSettings: current.applyOfficeSettings,
-            manualResync: current.manualResync,
-            upsertFederationPolicy: current.upsertFederationPolicy,
-            upsertProviderIndexProfile: current.upsertProviderIndexProfile,
-          }));
+          const fallback = fallbackData();
+          applyOfficeWorldSnapshot(
+            toOfficeWorldSnapshot(
+              { ...fallback, isLoading: false },
+              {},
+              error instanceof Error ? error.message : String(error),
+            ),
+            "error",
+          );
         }
       })();
 
@@ -286,25 +332,23 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
     if (!unified) return;
     const pendingApprovals = latestApprovalsRef.current;
     latestLiveStatusSignatureRef.current = nextStatusSignature;
-    setValue((current) => {
-      const next = stabilizeOfficeData(
-        current,
+    const current = useOfficeWorldStore.getState();
+    const changedKeys = applyOfficeWorldSnapshot(
+      toOfficeWorldSnapshot(
         toOfficeData(
           unified,
           current.officeSettings,
           pendingApprovals,
           mergedStatus,
         ),
-      );
-      if (next === current) return current;
-      return {
-        ...next,
-        refresh: current.refresh,
-        applyOfficeSettings: current.applyOfficeSettings,
-        manualResync: current.manualResync,
-        upsertFederationPolicy: current.upsertFederationPolicy,
-        upsertProviderIndexProfile: current.upsertProviderIndexProfile,
-      };
+        mergedStatus,
+      ),
+      "live-status",
+    );
+    logOfficeRefresh(changedKeys.length === 0 ? "unchanged" : "changed", {
+      reason: "live-status",
+      agents: agentIds.length,
+      changedKeys,
     });
   }, [agentIds, liveStatusByConvex, sharedAdapter.runtimeKind]);
 
@@ -349,15 +393,14 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
       return { ok: result.ok, error: result.error };
     }
 
-    setValue((current) => ({
-      ...current,
+    setActions({
       refresh,
       applyOfficeSettings: applyOfficeSettingsValue,
       manualResync,
       upsertFederationPolicy,
       upsertProviderIndexProfile,
-      isLoading: true,
-    }));
+    });
+    useOfficeWorldStore.getState().setLoading(true, "initial");
     void load("initial");
     const timer = window.setInterval(() => {
       void load("poll");
@@ -370,7 +413,13 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
     };
   }, [applyOfficeSettingsValue, load, sharedAdapter]);
 
-  const memoizedValue = useMemo(() => value, [value]);
+  const memoizedValue = useMemo<OfficeDataContextValue>(
+    () => ({
+      ...worldContextData,
+      ...actions,
+    }),
+    [actions, worldContextData],
+  );
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;

@@ -9,6 +9,37 @@ The Office System provides the 3D office environment where employees, teams, and
 
 ## Core Components
 
+### Office World Store And Reconciliation ✅
+
+**Status**: Active (Jun 2026)
+
+The office scene now has a module-local state boundary for adapter-derived world
+state. Runtime snapshots from Codex/OpenClaw are reconciled into the Zustand
+office world store before render-facing consumers read them, so background
+polling can report precise changed keys instead of rebroadcasting a full fresh
+office tree.
+
+**Ownership**:
+
+- **`store/office-world-store.ts`**: canonical adapter-derived office world
+  state for teams, employees, desks, office objects, office areas, settings,
+  workload, warnings, live status, loading/error metadata, and debug counters
+- **`store/office-world-reconciliation.ts`**: pure snapshot reconciliation,
+  semantic reference preservation, normalized lookup maps, and changed-key
+  reporting
+- **`store/office-world-selectors.ts`**: narrow selector surfaces for scene,
+  bootstrap, and compatibility context consumers
+- **`ui/src/store/app-store.ts`**: transient UI intent only, including selected
+  objects, open panels, builder mode, overlays, modals, and onboarding state
+- **`ui/src/providers/office-data-provider.tsx`**: adapter polling and
+  compatibility context; it commits snapshots into the office world store
+
+**Rule**: adapter-derived world state belongs in the office world store;
+interaction intent belongs in `useAppStore`; runtime-specific fetching stays
+behind runtime adapters and providers.
+
+---
+
 ### Office Occupancy And Placement Engine ✅
 
 **Status**: Active (Jun 2026)

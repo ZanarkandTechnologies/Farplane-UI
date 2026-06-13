@@ -16,7 +16,15 @@
  */
 "use client";
 
-import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  type ReactElement,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   type GatewayUiConfig,
   getGatewayUiConfig,
@@ -41,7 +49,17 @@ function toGatewayWsUrl(baseUrl: string): string {
   return `ws://${baseUrl}`;
 }
 
-export function GatewayProvider({ children }: { children: ReactNode }): JSX.Element {
+function shouldLogGatewayLifecycle(): boolean {
+  if (!import.meta.env.DEV || typeof window === "undefined") return false;
+  return window.localStorage.getItem("farplane.debug.gateway") === "1";
+}
+
+function logGatewayLifecycle(event: string, details: Record<string, unknown> = {}): void {
+  if (!shouldLogGatewayLifecycle()) return;
+  console.debug("[farplane:gateway]", event, details);
+}
+
+export function GatewayProvider({ children }: { children: ReactNode }): ReactElement {
   const [connected, setConnected] = useState(false);
   const [config, setConfig] = useState<GatewayUiConfig>(() => getGatewayUiConfig());
   const shouldConnectGateway =
@@ -51,21 +69,29 @@ export function GatewayProvider({ children }: { children: ReactNode }): JSX.Elem
       new GatewayWsClient({
         url: toGatewayWsUrl(config.gatewayBase),
         token: config.gatewayToken,
-        onConnectionStateChange: setConnected,
+        onConnectionStateChange: (nextConnected) => {
+          logGatewayLifecycle("connection-state", { connected: nextConnected });
+          setConnected(nextConnected);
+        },
       }),
     [config.gatewayBase, config.gatewayToken],
   );
 
   useEffect(() => {
     if (!shouldConnectGateway) {
+      logGatewayLifecycle("disabled", {
+        runtimeAdapter: import.meta.env.VITE_FARPLANE_RUNTIME_ADAPTER ?? "codex",
+      });
       setConnected(false);
       return;
     }
+    logGatewayLifecycle("start", { url: toGatewayWsUrl(config.gatewayBase) });
     client.start();
     return () => {
+      logGatewayLifecycle("stop", { url: toGatewayWsUrl(config.gatewayBase) });
       client.stop();
     };
-  }, [client, shouldConnectGateway]);
+  }, [client, config.gatewayBase, shouldConnectGateway]);
 
   const value = useMemo(
     () => ({
@@ -74,6 +100,11 @@ export function GatewayProvider({ children }: { children: ReactNode }): JSX.Elem
       config,
       updateConfig: (next: Partial<GatewayUiConfig>) => {
         const saved = saveGatewayUiConfig(next);
+        logGatewayLifecycle("config-updated", {
+          gatewayBaseChanged: saved.gatewayBase !== config.gatewayBase,
+          stateBaseChanged: saved.stateBase !== config.stateBase,
+          tokenChanged: saved.gatewayToken !== config.gatewayToken,
+        });
         setConfig(saved);
         return saved;
       },
