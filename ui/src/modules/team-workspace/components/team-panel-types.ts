@@ -20,6 +20,7 @@ export type TabKey =
   | "projects"
   | "memory"
   | "timeline"
+  | "telemetry"
   | "business"
   | "ledger";
 
@@ -40,7 +41,14 @@ export type TaskApprovalState =
   | "executed";
 
 export type CommunicationsFilter = "all" | "planning" | "executing" | "blocked" | "handoff";
-export type TeamMemoryEntryKind = "note" | "decision" | "handoff" | "result" | "risk" | "summary";
+export type TeamMemoryEntryKind =
+  | "note"
+  | "decision"
+  | "handoff"
+  | "result"
+  | "risk"
+  | "summary"
+  | "document";
 export type TeamMemoryAuthorType = "agent" | "operator" | "system";
 
 export type PanelTask = {
@@ -95,6 +103,8 @@ export type TeamMemoryRow = {
   kind: TeamMemoryEntryKind;
   body: string;
   createdAt: number;
+  sourcePath?: string;
+  title?: string;
 };
 
 export type AgentCandidate = {

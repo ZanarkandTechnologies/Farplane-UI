@@ -58,6 +58,12 @@ const PENDING_APPROVALS_PATH = path.join(FARPLANE_HOME, "pending-approvals.json"
 const PENDING_APPROVALS_TEMPLATE_PATH = path.resolve(__dirname, "../templates/sidecar/pending-approvals.template.json");
 const BIZ_PM_HEARTBEAT_TEMPLATE_PATH = path.resolve(__dirname, "../templates/workspace/HEARTBEAT-biz-pm.md");
 const BIZ_EXECUTOR_HEARTBEAT_TEMPLATE_PATH = path.resolve(__dirname, "../templates/workspace/HEARTBEAT-biz-executor.md");
+const FARPLANE_MEMORY_FILES = [
+  { path: "docs/MEMORY.md", title: "Memory", kind: "memory" },
+  { path: "docs/LESSONS.md", title: "Lessons", kind: "lessons" },
+  { path: "docs/TROUBLES.md", title: "Troubles", kind: "troubles" },
+  { path: "docs/HISTORY.md", title: "History", kind: "history" },
+] as const;
 const DEFAULT_MESH_ASSET_DIR = path.join(FARPLANE_HOME, "assets", "meshes");
 const CRON_JOBS_PATH = path.join(OPENCLAW_HOME, "cron", "jobs.json");
 const MESH_EXTENSIONS = new Set([".glb", ".gltf"]);
@@ -1162,6 +1168,32 @@ async function readProjectTicketTasks(project: {
   return tasks;
 }
 
+async function readFarplaneMemoryFiles(): Promise<JsonObject[]> {
+  const rows: JsonObject[] = [];
+  for (const file of FARPLANE_MEMORY_FILES) {
+    const absolutePath = path.join(REPO_ROOT, file.path);
+    let content = "";
+    let updatedAtMs = Date.now();
+    try {
+      const [raw, fileStat] = await Promise.all([readFile(absolutePath, "utf-8"), stat(absolutePath)]);
+      content = raw;
+      updatedAtMs = fileStat.mtimeMs;
+    } catch {
+      content = "";
+    }
+    rows.push({
+      id: file.path,
+      title: file.title,
+      kind: file.kind,
+      path: file.path,
+      content,
+      updatedAtMs,
+      exists: content.trim().length > 0,
+    });
+  }
+  return rows;
+}
+
 function normalizeProjectManagers(
   raw: unknown,
 ): Array<{ projectId?: string; projectPath?: string; threadId: string; label?: string }> {
@@ -1709,6 +1741,12 @@ function farplaneStateBridge() {
 
         if (method === "GET" && pathname === "/farplane/codex-ui-state") {
           writeJson(res, 200, await readCodexUiState());
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/memory-files") {
+          const files = await readFarplaneMemoryFiles();
+          writeJson(res, 200, { files });
           return;
         }
 

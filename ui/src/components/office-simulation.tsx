@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { TeamOptionsDialog } from "./dialogs/team-options-dialog";
 import { SettingsDialog } from "@/modules/settings";
+import { TelemetryPanel } from "@/modules/telemetry";
 import { LogsDrawer } from "./hud/logs-drawer";
 import { LogsToggleButton } from "./hud/logs-toggle-button";
 import { GatewayStatusPill } from "./hud/gateway-status-pill";
@@ -66,6 +67,8 @@ function OfficeSimulationContent() {
   const setKanbanFocusAgentId = useAppStore((state) => state.setKanbanFocusAgentId);
   const isSettingsModalOpen = useAppStore((state) => state.isSettingsModalOpen);
   const setIsSettingsModalOpen = useAppStore((state) => state.setIsSettingsModalOpen);
+  const isTelemetryPanelOpen = useAppStore((state) => state.isTelemetryPanelOpen);
+  const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
   const [isLogsDrawerOpen, setIsLogsDrawerOpen] = useState(false);
   const [navigationReady, setNavigationReady] = useState(false);
 
@@ -183,6 +186,7 @@ function OfficeSimulationContent() {
           <ObjectInteractionPanel />
           <CeoWorkbenchPanel />
           <SettingsDialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen} />
+          <TelemetryPanel open={isTelemetryPanelOpen} onOpenChange={setIsTelemetryPanelOpen} />
 
           <div className="pointer-events-none absolute top-4 left-4 z-[70]">
             <div className="pointer-events-auto">

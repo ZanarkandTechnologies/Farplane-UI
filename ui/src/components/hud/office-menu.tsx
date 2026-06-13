@@ -54,6 +54,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
   const setIsGlobalTeamPanelOpen = useAppStore((state) => state.setIsGlobalTeamPanelOpen);
   const setIsAgentSessionPanelOpen = useAppStore((state) => state.setIsAgentSessionPanelOpen);
   const setIsSkillsPanelOpen = useAppStore((state) => state.setIsSkillsPanelOpen);
+  const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
   const setSelectedSkillStudioSkillId = useAppStore((state) => state.setSelectedSkillStudioSkillId);
   const setSkillStudioFocusAgentId = useAppStore((state) => state.setSkillStudioFocusAgentId);
   const setActiveTeamId = useAppStore((state) => state.setActiveTeamId);
@@ -141,6 +142,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         openGlobalTeamWorkspace,
         openOrganization: () => setIsOrganizationOpen(true),
         openSettings: () => setIsSettingsModalOpen(true),
+        openTelemetry: () => setIsTelemetryPanelOpen(true),
         toggleBuilderMode: handleBuilderModeToggle,
         userTaskCount,
       }),
@@ -159,6 +161,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
       setIsSkillsPanelOpen,
       openGlobalTeamWorkspace,
       setIsSettingsModalOpen,
+      setIsTelemetryPanelOpen,
       handleBuilderModeToggle,
       userTaskCount,
     ],

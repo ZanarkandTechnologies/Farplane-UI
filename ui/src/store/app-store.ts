@@ -111,6 +111,8 @@ interface AppState {
   setIsAgentSessionPanelOpen: (isOpen: boolean) => void;
   isSkillsPanelOpen: boolean;
   setIsSkillsPanelOpen: (isOpen: boolean) => void;
+  isTelemetryPanelOpen: boolean;
+  setIsTelemetryPanelOpen: (isOpen: boolean) => void;
   selectedSkillStudioSkillId: string | null;
   setSelectedSkillStudioSkillId: (skillId: string | null) => void;
   skillStudioFocusAgentId: string | null;
@@ -223,6 +225,8 @@ export const useAppStore = create<AppState>()(
     setIsAgentSessionPanelOpen: (isOpen) => set({ isAgentSessionPanelOpen: isOpen }),
     isSkillsPanelOpen: false,
     setIsSkillsPanelOpen: (isOpen) => set({ isSkillsPanelOpen: isOpen }),
+    isTelemetryPanelOpen: false,
+    setIsTelemetryPanelOpen: (isOpen) => set({ isTelemetryPanelOpen: isOpen }),
     selectedSkillStudioSkillId: null,
     setSelectedSkillStudioSkillId: (skillId) => set({ selectedSkillStudioSkillId: skillId }),
     skillStudioFocusAgentId: null,

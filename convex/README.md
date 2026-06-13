@@ -1,90 +1,25 @@
-# Welcome to your Convex functions directory!
+# Farplane Convex Backend
 
-Write your Convex functions here.
-See https://docs.convex.dev/functions for more.
+This directory owns Farplane's shared Convex backend for office runtime status,
+team boards, artefact metadata, and cloud telemetry.
 
-A query function that takes two arguments looks like:
+## Shape
 
-```ts
-// convex/myFunctions.ts
-import { query } from "./_generated/server";
-import { v } from "convex/values";
+- `schema.ts` composes module-owned table definitions.
+- `http.ts` is the thin HTTP router for CLI/hooks ingress.
+- `modules/runtimeTelemetry/` owns activity lifecycle telemetry.
+- `modules/agentActivity/` owns `agentEvents` and `agentStatus`.
+- `modules/teamBoard/` owns `teamBoardTasks` and `teamBoardEvents`.
+- `modules/projectArtefacts/` owns `projectArtefactIndex`.
 
-export const myQueryFunction = query({
-  // Validators for arguments.
-  args: {
-    first: v.number(),
-    second: v.string(),
-  },
+Root files such as `board.ts`, `status.ts`, `events.ts`, and `team_artefacts.ts`
+are compatibility entrypoints for existing generated API paths. Prefer new
+implementation work inside the owning module folder.
 
-  // Function implementation.
-  handler: async (ctx, args) => {
-    // Read the database as many times as you need here.
-    // See https://docs.convex.dev/database/reading-data.
-    const documents = await ctx.db.query("tablename").collect();
+Team/project memory is intentionally file-backed through Farplane Markdown docs,
+not a Convex table.
 
-    // Arguments passed from the client are properties of the args object.
-    console.log(args.first, args.second);
+## Checks
 
-    // Write arbitrary JavaScript here: filter, aggregate, build derived data,
-    // remove non-public properties, or create new objects.
-    return documents;
-  },
-});
-```
-
-Using this query function in a React component looks like:
-
-```ts
-const data = useQuery(api.myFunctions.myQueryFunction, {
-  first: 10,
-  second: "hello",
-});
-```
-
-A mutation function looks like:
-
-```ts
-// convex/myFunctions.ts
-import { mutation } from "./_generated/server";
-import { v } from "convex/values";
-
-export const myMutationFunction = mutation({
-  // Validators for arguments.
-  args: {
-    first: v.string(),
-    second: v.string(),
-  },
-
-  // Function implementation.
-  handler: async (ctx, args) => {
-    // Insert or modify documents in the database here.
-    // Mutations can also read from the database like queries.
-    // See https://docs.convex.dev/database/writing-data.
-    const message = { body: args.first, author: args.second };
-    const id = await ctx.db.insert("messages", message);
-
-    // Optionally, return a value from your mutation.
-    return await ctx.db.get("messages", id);
-  },
-});
-```
-
-Using this mutation function in a React component looks like:
-
-```ts
-const mutation = useMutation(api.myFunctions.myMutationFunction);
-function handleButtonPress() {
-  // fire and forget, the most common way to use mutations
-  mutation({ first: "Hello!", second: "me" });
-  // OR
-  // use the result once the mutation has completed
-  mutation({ first: "Hello!", second: "me" }).then((result) =>
-    console.log(result),
-  );
-}
-```
-
-Use the Convex CLI to push your functions to a deployment. See everything
-the Convex CLI can do by running `npx convex -h` in your project root
-directory. To learn more, launch the docs with `npx convex docs`.
+- `npx tsc -p convex/tsconfig.json --noEmit`
+- `npm run test:once -- convex/<relevant-test>.test.ts`

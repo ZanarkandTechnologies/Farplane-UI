@@ -19,6 +19,7 @@
 
 import {
   Activity,
+  BarChart3,
   BookOpen,
   BriefcaseBusiness,
   Building2,
@@ -55,6 +56,7 @@ export type OfficePanelActionId =
   | "organization"
   | "team-workspace"
   | "agent-session"
+  | "telemetry"
   | "global-skills"
   | "ceo-chat"
   | "ceo-workbench"
@@ -93,6 +95,7 @@ export type OfficePanelRegistryDependencies = {
   openGlobalTeamWorkspace: () => void;
   openOrganization: () => void;
   openSettings: () => void;
+  openTelemetry: () => void;
   toggleBuilderMode: () => void;
   userTaskCount: number;
 };
@@ -213,6 +216,17 @@ export function createOfficePanelActions(
       shortcut: { key: "a", label: "Alt+Shift+A", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openAgentSession,
+    },
+    {
+      id: "telemetry",
+      label: "Telemetry",
+      description: "Open overall project and team runtime telemetry.",
+      group: "panel",
+      icon: BarChart3,
+      keywords: ["telemetry", "agent hours", "runtime", "projects", "dashboard"],
+      shortcut: { key: "m", label: "Alt+Shift+M", altKey: true, shiftKey: true },
+      color: SECONDARY_BUTTON_COLOR,
+      perform: deps.openTelemetry,
     },
     {
       id: "global-skills",

@@ -36,6 +36,7 @@ import { KanbanTab } from "./kanban-tab";
 import { OverviewTab } from "./overview-tab";
 import { ProjectsTab } from "./projects-tab";
 import { TeamMemoryTab } from "./team-memory-tab";
+import { TelemetryTab } from "./telemetry-tab";
 import { deriveProjectId, type TabKey } from "./team-panel-types";
 import { TimelineTab } from "./timeline-tab";
 import { useTeamPanelBoardState } from "./use-team-panel-board";
@@ -122,9 +123,8 @@ export function TeamPanel({
       teamScopeId,
     });
 
-  const { memoryRows, composeState, appendOperatorNote } = useTeamPanelMemoryState({
+  const { memoryRows, composeState, reloadMemory } = useTeamPanelMemoryState({
     activeProjectId,
-    teamScopeId,
   });
 
   const {
@@ -246,6 +246,7 @@ export function TeamPanel({
             <TabsTrigger value="projects">Artefacts</TabsTrigger>
             <TabsTrigger value="memory">Memory</TabsTrigger>
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
+            <TabsTrigger value="telemetry">Telemetry</TabsTrigger>
             <TabsTrigger value="business">Business</TabsTrigger>
             <TabsTrigger value="ledger">Ledger</TabsTrigger>
           </TabsList>
@@ -302,10 +303,9 @@ export function TeamPanel({
             <TeamMemoryTab
               projectId={project?.id ?? null}
               teamId={teamScopeId}
-              convexEnabled={convexEnabled}
               memoryRows={memoryRows}
               composeState={composeState}
-              onAppendOperatorNote={appendOperatorNote}
+              onReloadMemory={reloadMemory}
             />
           </TabsContent>
 
@@ -315,6 +315,14 @@ export function TeamPanel({
               teamScopeId={teamScopeId}
               activityFeedCandidates={activityFeedCandidates}
               communicationRows={communicationRows}
+            />
+          </TabsContent>
+
+          <TabsContent value="telemetry" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <TelemetryTab
+              projectId={project?.id ?? null}
+              teamId={teamScopeId}
+              title={project?.name ?? panelTitle}
             />
           </TabsContent>
 

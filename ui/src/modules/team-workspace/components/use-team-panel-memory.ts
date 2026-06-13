@@ -4,11 +4,11 @@
  * TEAM PANEL MEMORY STATE
  * =======================
  * Purpose
- * - Encapsulate realtime team memory queries plus operator append state.
+ * - Encapsulate Farplane project memory document loading for the Team Panel.
  *
  * KEY CONCEPTS:
- * - Shared team memory is append-only and Convex-backed.
- * - The panel only needs a small composer for operator notes; agents can use the same mutation later.
+ * - Canonical team memory lives in repository Markdown files, not Convex.
+ * - This hook shapes those files into display rows while richer document UIs evolve.
  *
  * USAGE:
  * - Call from TeamPanel with the resolved project/team scope.
@@ -17,15 +17,11 @@
  * - MEM-0209
  */
 
-import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
-import { api } from "../../../../../convex/_generated/api";
-import { isConvexEnabled } from "@/providers/convex-provider";
-import type { TeamMemoryEntryKind, TeamMemoryRow } from "./team-panel-types";
+import { useEffect, useMemo, useState } from "react";
+import type { TeamMemoryRow } from "./team-panel-types";
 
 interface UseTeamPanelMemoryStateInput {
   activeProjectId: string | undefined;
-  teamScopeId: string | null;
 }
 
 interface MemoryComposeState {
@@ -34,76 +30,87 @@ interface MemoryComposeState {
   ok?: string;
 }
 
+interface FarplaneMemoryFilePayload {
+  id?: unknown;
+  title?: unknown;
+  kind?: unknown;
+  path?: unknown;
+  content?: unknown;
+  updatedAtMs?: unknown;
+}
+
+function toMemoryRow(row: FarplaneMemoryFilePayload): TeamMemoryRow | null {
+  const path = typeof row.path === "string" ? row.path : "";
+  const content = typeof row.content === "string" ? row.content : "";
+  if (!path) return null;
+  const title = typeof row.title === "string" && row.title.trim() ? row.title.trim() : path;
+  const id = typeof row.id === "string" && row.id.trim() ? row.id.trim() : path;
+  const updatedAtMs = typeof row.updatedAtMs === "number" ? row.updatedAtMs : Date.now();
+  return {
+    id,
+    projectId: "farplane",
+    authorType: "system",
+    kind: "document",
+    body: content,
+    createdAt: updatedAtMs,
+    sourcePath: path,
+    title,
+  };
+}
+
 export function useTeamPanelMemoryState({
   activeProjectId,
-  teamScopeId,
 }: UseTeamPanelMemoryStateInput): {
-  convexEnabled: boolean;
   memoryRows: TeamMemoryRow[];
   composeState: MemoryComposeState;
-  appendOperatorNote: (input: { kind: TeamMemoryEntryKind; body: string }) => Promise<boolean>;
+  reloadMemory: () => void;
 } {
-  const convexEnabled = isConvexEnabled();
+  const [memoryRows, setMemoryRows] = useState<TeamMemoryRow[]>([]);
   const [composeState, setComposeState] = useState<MemoryComposeState>({ pending: false });
+  const [reloadToken, setReloadToken] = useState(0);
 
-  const appendEntry = useMutation(api.team_memory.appendTeamMemoryEntry);
-  const memoryQuery = useQuery(
-    api.team_memory.listProjectTeamMemory,
-    convexEnabled && activeProjectId ? { projectId: activeProjectId, limit: 160 } : "skip",
-  );
-
-  const memoryRows = useMemo(
-    (): TeamMemoryRow[] =>
-      Array.isArray(memoryQuery)
-        ? memoryQuery.map((row) => ({
-            id: String(row._id),
-            teamId: row.teamId,
-            projectId: row.projectId,
-            taskId: row.taskId,
-            agentId: row.agentId,
-            authorType: row.authorType as TeamMemoryRow["authorType"],
-            kind: row.kind as TeamMemoryEntryKind,
-            body: row.body,
-            createdAt: row.createdAt,
-          }))
-        : [],
-    [memoryQuery],
-  );
-
-  async function appendOperatorNote(input: {
-    kind: TeamMemoryEntryKind;
-    body: string;
-  }): Promise<boolean> {
-    if (!convexEnabled || !activeProjectId) return false;
-    const body = input.body.trim();
-    if (!body) {
-      setComposeState({ pending: false, error: "memory_body_required" });
-      return false;
+  useEffect(() => {
+    if (!activeProjectId) {
+      setMemoryRows([]);
+      setComposeState({ pending: false });
+      return;
     }
+    let cancelled = false;
     setComposeState({ pending: true });
-    try {
-      await appendEntry({
-        teamId: teamScopeId ?? undefined,
-        projectId: activeProjectId,
-        authorType: "operator",
-        kind: input.kind,
-        body,
+    fetch("/farplane/memory-files")
+      .then((response) => {
+        if (!response.ok) throw new Error(`memory_files_failed:${response.status}`);
+        return response.json() as Promise<{ files?: FarplaneMemoryFilePayload[] }>;
+      })
+      .then((payload) => {
+        if (cancelled) return;
+        const rows = Array.isArray(payload.files)
+          ? payload.files.map(toMemoryRow).filter((row): row is TeamMemoryRow => row !== null)
+          : [];
+        setMemoryRows(rows);
+        setComposeState({ pending: false });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setMemoryRows([]);
+        setComposeState({
+          pending: false,
+          error: error instanceof Error ? error.message : "memory_files_failed",
+        });
       });
-      setComposeState({ pending: false, ok: "Note added." });
-      return true;
-    } catch (error) {
-      setComposeState({
-        pending: false,
-        error: error instanceof Error ? error.message : "team_memory_append_failed",
-      });
-      return false;
-    }
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProjectId, reloadToken]);
+
+  const sortedRows = useMemo(
+    () => [...memoryRows].sort((left, right) => left.id.localeCompare(right.id)),
+    [memoryRows],
+  );
 
   return {
-    convexEnabled,
-    memoryRows,
+    memoryRows: sortedRows,
     composeState,
-    appendOperatorNote,
+    reloadMemory: () => setReloadToken((current) => current + 1),
   };
 }

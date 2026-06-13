@@ -40,6 +40,11 @@ describe("app store perf guards", () => {
     expect(useAppStore.getState().skillStudioFocusAgentId).toBe("main");
   });
 
+  it("stores Telemetry panel open state", () => {
+    useAppStore.getState().setIsTelemetryPanelOpen(true);
+    expect(useAppStore.getState().isTelemetryPanelOpen).toBe(true);
+  });
+
   it("stores builder transform target", () => {
     useAppStore.getState().setActiveObjectTransformId("plant-1" as never);
     expect(useAppStore.getState().activeObjectTransformId).toBe("plant-1");

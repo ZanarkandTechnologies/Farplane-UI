@@ -66,6 +66,7 @@ describe("office panel registry", () => {
       openGlobalTeamWorkspace,
       openOrganization: vi.fn(),
       openSettings: vi.fn(),
+      openTelemetry: vi.fn(),
       toggleBuilderMode,
       userTaskCount: 3,
     });

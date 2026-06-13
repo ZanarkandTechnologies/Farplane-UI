@@ -15,11 +15,21 @@ import type * as board_http_contract from "../board_http_contract.js";
 import type * as crons from "../crons.js";
 import type * as events from "../events.js";
 import type * as http from "../http.js";
+import type * as modules_agentActivity_contracts from "../modules/agentActivity/contracts.js";
+import type * as modules_agentActivity_events from "../modules/agentActivity/events.js";
+import type * as modules_agentActivity_httpContracts from "../modules/agentActivity/httpContracts.js";
+import type * as modules_agentActivity_status from "../modules/agentActivity/status.js";
+import type * as modules_projectArtefacts_artefacts from "../modules/projectArtefacts/artefacts.js";
+import type * as modules_runtimeTelemetry_runtimeTelemetry from "../modules/runtimeTelemetry/runtimeTelemetry.js";
+import type * as modules_runtimeTelemetry_telemetry from "../modules/runtimeTelemetry/telemetry.js";
+import type * as modules_runtimeTelemetry_validators from "../modules/runtimeTelemetry/validators.js";
+import type * as modules_teamBoard_board from "../modules/teamBoard/board.js";
+import type * as modules_teamBoard_contracts from "../modules/teamBoard/contracts.js";
+import type * as modules_teamBoard_httpContracts from "../modules/teamBoard/httpContracts.js";
 import type * as status from "../status.js";
 import type * as status_contract from "../status_contract.js";
 import type * as status_http_contract from "../status_http_contract.js";
 import type * as team_artefacts from "../team_artefacts.js";
-import type * as team_memory from "../team_memory.js";
 
 import type {
   ApiFromModules,
@@ -35,11 +45,21 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   events: typeof events;
   http: typeof http;
+  "modules/agentActivity/contracts": typeof modules_agentActivity_contracts;
+  "modules/agentActivity/events": typeof modules_agentActivity_events;
+  "modules/agentActivity/httpContracts": typeof modules_agentActivity_httpContracts;
+  "modules/agentActivity/status": typeof modules_agentActivity_status;
+  "modules/projectArtefacts/artefacts": typeof modules_projectArtefacts_artefacts;
+  "modules/runtimeTelemetry/runtimeTelemetry": typeof modules_runtimeTelemetry_runtimeTelemetry;
+  "modules/runtimeTelemetry/telemetry": typeof modules_runtimeTelemetry_telemetry;
+  "modules/runtimeTelemetry/validators": typeof modules_runtimeTelemetry_validators;
+  "modules/teamBoard/board": typeof modules_teamBoard_board;
+  "modules/teamBoard/contracts": typeof modules_teamBoard_contracts;
+  "modules/teamBoard/httpContracts": typeof modules_teamBoard_httpContracts;
   status: typeof status;
   status_contract: typeof status_contract;
   status_http_contract: typeof status_http_contract;
   team_artefacts: typeof team_artefacts;
-  team_memory: typeof team_memory;
 }>;
 
 /**
