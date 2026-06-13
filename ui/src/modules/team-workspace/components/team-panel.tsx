@@ -125,6 +125,10 @@ export function TeamPanel({
 
   const { memoryRows, composeState, reloadMemory } = useTeamPanelMemoryState({
     activeProjectId,
+    activeProjectPath:
+      typeof project?.trackingContext === "string" && project.trackingContext.trim()
+        ? project.trackingContext.trim()
+        : undefined,
   });
 
   const {
@@ -302,6 +306,11 @@ export function TeamPanel({
           <TabsContent value="memory" className="mt-4 min-h-0 flex-1 overflow-hidden">
             <TeamMemoryTab
               projectId={project?.id ?? null}
+              projectPath={
+                typeof project?.trackingContext === "string" && project.trackingContext.trim()
+                  ? project.trackingContext.trim()
+                  : null
+              }
               teamId={teamScopeId}
               memoryRows={memoryRows}
               composeState={composeState}

@@ -68,7 +68,7 @@ unneeded Convex team memory table and keep team memory file-backed.
 - Prefer module-local implementations and schemas for new work.
 - `npx convex codegen` succeeded and generated module API bindings while retaining root compatibility paths.
 - Removed Convex team memory after user clarified shared memory should stay file-backed through Farplane Markdown docs.
-- Team Panel Memory now fetches `/farplane/memory-files`, which serves `docs/MEMORY.md`, `docs/LESSONS.md`, `docs/TROUBLES.md`, and `docs/HISTORY.md`.
+- Team Panel Memory now fetches `/farplane/memory-files?projectPath=<activeProject.trackingContext>`, which serves `docs/MEMORY.md`, `docs/LESSONS.md`, `docs/TROUBLES.md`, and `docs/HISTORY.md` from that active project root.
 - Full workspace `npm run typecheck` still fails on pre-existing `cli/office-placement.test.ts` alias debt.
 - Full `npm run ui:typecheck` still fails on existing broad UI debt; filtered output has no hits for `team-memory`, `use-team-panel-memory`, `team-panel-types`, `team-panel.tsx`, or `vite.config`.
 
@@ -84,7 +84,7 @@ unneeded Convex team memory table and keep team memory file-backed.
 
 - Module docs under `convex/modules/*/{README.md,AGENTS.md}`
 - Generated API proof: `convex/_generated/api.d.ts` includes new module paths.
-- Team memory route: `ui/vite.config.ts` `/farplane/memory-files`
+- Team memory route: `ui/vite.config.ts` `/farplane/memory-files?projectPath=<absoluteProjectPath>`
 
 ## Required Evidence
 

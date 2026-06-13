@@ -3,10 +3,10 @@
 /**
  * TEAM MEMORY TAB
  * ===============
- * Read-only Farplane memory document viewer for the Team Panel.
+ * Read-only active-project memory document viewer for the Team Panel.
  *
  * KEY CONCEPTS:
- * - Canonical team memory lives in repo Markdown files, not Convex.
+ * - Canonical team memory lives in each project's deep-init Markdown files, not Convex.
  * - This surface renders the current file corpus while richer document-specific UIs evolve.
  *
  * USAGE:
@@ -27,6 +27,7 @@ import type { TeamMemoryRow } from "./team-panel-types";
 
 interface TeamMemoryTabProps {
   projectId: string | null;
+  projectPath: string | null;
   teamId: string | null;
   memoryRows: TeamMemoryRow[];
   composeState: { pending: boolean; error?: string; ok?: string };
@@ -35,6 +36,7 @@ interface TeamMemoryTabProps {
 
 export function TeamMemoryTab({
   projectId,
+  projectPath,
   teamId,
   memoryRows,
   composeState,
@@ -67,6 +69,7 @@ export function TeamMemoryTab({
         <CardContent className="flex h-[calc(100%-3rem)] min-h-0 flex-col gap-3 overflow-hidden">
           <div className="space-y-1 rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground">
             <p>Project: {projectId ?? "none"}</p>
+            <p className="break-all">Path: {projectPath ?? "none"}</p>
             <p>Team: {teamId ?? "none"}</p>
             <p>Files loaded: {memoryRows.length}</p>
           </div>
@@ -112,7 +115,7 @@ export function TeamMemoryTab({
             <div className="space-y-1">
               <CardTitle className="text-sm">{activeEntry?.title ?? "Memory Document"}</CardTitle>
               <p className="text-xs text-muted-foreground">
-                Farplane repository memory rendered from Markdown source files.
+                Active project memory rendered from Markdown source files.
               </p>
             </div>
             {activeEntry ? (

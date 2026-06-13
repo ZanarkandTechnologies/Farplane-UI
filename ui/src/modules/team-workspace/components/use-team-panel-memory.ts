@@ -4,10 +4,10 @@
  * TEAM PANEL MEMORY STATE
  * =======================
  * Purpose
- * - Encapsulate Farplane project memory document loading for the Team Panel.
+ * - Encapsulate active-project memory document loading for the Team Panel.
  *
  * KEY CONCEPTS:
- * - Canonical team memory lives in repository Markdown files, not Convex.
+ * - Canonical team memory lives in each project's deep-init Markdown files, not Convex.
  * - This hook shapes those files into display rows while richer document UIs evolve.
  *
  * USAGE:
@@ -22,6 +22,7 @@ import type { TeamMemoryRow } from "./team-panel-types";
 
 interface UseTeamPanelMemoryStateInput {
   activeProjectId: string | undefined;
+  activeProjectPath: string | undefined;
 }
 
 interface MemoryComposeState {
@@ -60,6 +61,7 @@ function toMemoryRow(row: FarplaneMemoryFilePayload): TeamMemoryRow | null {
 
 export function useTeamPanelMemoryState({
   activeProjectId,
+  activeProjectPath,
 }: UseTeamPanelMemoryStateInput): {
   memoryRows: TeamMemoryRow[];
   composeState: MemoryComposeState;
@@ -70,14 +72,15 @@ export function useTeamPanelMemoryState({
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
-    if (!activeProjectId) {
+    if (!activeProjectId || !activeProjectPath) {
       setMemoryRows([]);
-      setComposeState({ pending: false });
+      setComposeState({ pending: false, error: activeProjectId ? "project_path_missing" : undefined });
       return;
     }
     let cancelled = false;
     setComposeState({ pending: true });
-    fetch("/farplane/memory-files")
+    const params = new URLSearchParams({ projectPath: activeProjectPath });
+    fetch(`/farplane/memory-files?${params.toString()}`)
       .then((response) => {
         if (!response.ok) throw new Error(`memory_files_failed:${response.status}`);
         return response.json() as Promise<{ files?: FarplaneMemoryFilePayload[] }>;
@@ -101,7 +104,7 @@ export function useTeamPanelMemoryState({
     return () => {
       cancelled = true;
     };
-  }, [activeProjectId, reloadToken]);
+  }, [activeProjectId, activeProjectPath, reloadToken]);
 
   const sortedRows = useMemo(
     () => [...memoryRows].sort((left, right) => left.id.localeCompare(right.id)),

@@ -58,7 +58,7 @@ const PENDING_APPROVALS_PATH = path.join(FARPLANE_HOME, "pending-approvals.json"
 const PENDING_APPROVALS_TEMPLATE_PATH = path.resolve(__dirname, "../templates/sidecar/pending-approvals.template.json");
 const BIZ_PM_HEARTBEAT_TEMPLATE_PATH = path.resolve(__dirname, "../templates/workspace/HEARTBEAT-biz-pm.md");
 const BIZ_EXECUTOR_HEARTBEAT_TEMPLATE_PATH = path.resolve(__dirname, "../templates/workspace/HEARTBEAT-biz-executor.md");
-const FARPLANE_MEMORY_FILES = [
+const PROJECT_MEMORY_FILES = [
   { path: "docs/MEMORY.md", title: "Memory", kind: "memory" },
   { path: "docs/LESSONS.md", title: "Lessons", kind: "lessons" },
   { path: "docs/TROUBLES.md", title: "Troubles", kind: "troubles" },
@@ -1168,10 +1168,11 @@ async function readProjectTicketTasks(project: {
   return tasks;
 }
 
-async function readFarplaneMemoryFiles(): Promise<JsonObject[]> {
+async function readProjectMemoryFiles(projectPath: string): Promise<JsonObject[]> {
+  const rootPath = path.resolve(projectPath);
   const rows: JsonObject[] = [];
-  for (const file of FARPLANE_MEMORY_FILES) {
-    const absolutePath = path.join(REPO_ROOT, file.path);
+  for (const file of PROJECT_MEMORY_FILES) {
+    const absolutePath = path.join(rootPath, file.path);
     let content = "";
     let updatedAtMs = Date.now();
     try {
@@ -1186,6 +1187,7 @@ async function readFarplaneMemoryFiles(): Promise<JsonObject[]> {
       title: file.title,
       kind: file.kind,
       path: file.path,
+      projectPath: rootPath,
       content,
       updatedAtMs,
       exists: content.trim().length > 0,
@@ -1745,8 +1747,13 @@ function farplaneStateBridge() {
         }
 
         if (method === "GET" && pathname === "/farplane/memory-files") {
-          const files = await readFarplaneMemoryFiles();
-          writeJson(res, 200, { files });
+          const projectPath = url.searchParams.get("projectPath")?.trim() ?? "";
+          if (!isSafeProjectPath(projectPath)) {
+            writeJson(res, 400, { error: "project_path_required", files: [] });
+            return;
+          }
+          const files = await readProjectMemoryFiles(projectPath);
+          writeJson(res, 200, { projectPath: path.resolve(projectPath), files });
           return;
         }
 
