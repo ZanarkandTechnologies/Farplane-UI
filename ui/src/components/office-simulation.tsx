@@ -47,7 +47,7 @@ export default function OfficeSimulation() {
 // Main Office Simulation Component
 function OfficeSimulationContent() {
   // Fetch office data from database (reactive!)
-  const { company, teams, employees, desks, officeObjects, officeSettings, isLoading } =
+  const { company, teams, employees, desks, officeObjects, officeAreas, officeSettings, isLoading } =
     useOfficeDataContext();
 
   // Get team options dialog state from app store with selectors
@@ -139,6 +139,7 @@ function OfficeSimulationContent() {
           employees={employees}
           desks={desks}
           officeObjects={officeObjects}
+          officeAreas={officeAreas}
           officeFootprint={officeSettings.officeFootprint}
           officeLayout={officeSettings.officeLayout}
           officeDecorSettings={officeSettings.decor}

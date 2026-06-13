@@ -98,6 +98,7 @@ export type {
   DepartmentModel,
   ExperimentModel,
   FederationProjectPolicy,
+  FederatedTaskProvider,
   FederatedTaskModel,
   GlobalSkillsInventory,
   HeartbeatProfileModel,

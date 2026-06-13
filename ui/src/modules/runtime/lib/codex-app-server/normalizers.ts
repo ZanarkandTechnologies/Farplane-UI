@@ -8,8 +8,8 @@ import type {
   SessionTimelineModel,
 } from "../openclaw";
 import type {
-  CodexProjectManagerPin,
   CodexOfficeVisibilityConfig,
+  CodexProjectManagerPin,
   CodexProjectReadModelTask,
   CodexThread,
   CodexThreadItem,
@@ -20,6 +20,7 @@ import type {
 export const CODEX_MAIN_AGENT_ID = "codex-main";
 export const CODEX_THREAD_PREFIX = "codex-thread:";
 const DEFAULT_ACTIVE_THREAD_WINDOW_MINUTES = 180;
+const RECENT_IDLE_UPDATE_READY_MS = 60 * 60 * 1000;
 const CODEX_MISC_PROJECT_PATH = "farplane://codex/misc";
 const CODEX_MISC_PROJECT_ID = "codex-proj-misc";
 
@@ -46,7 +47,9 @@ function basename(filePath: string): string {
 }
 
 function threadTitle(thread: CodexThread): string {
-  return safeText(thread.name) || safeText(thread.preview) || basename(safeText(thread.cwd)) || thread.id;
+  return (
+    safeText(thread.name) || safeText(thread.preview) || basename(safeText(thread.cwd)) || thread.id
+  );
 }
 
 function toThreadAgentId(threadId: string): string {
@@ -91,18 +94,41 @@ function findBestProjectPath(cwd: string, projectPaths: string[]): string | null
   return matches[0] ?? null;
 }
 
-function normalizeVisibilityConfig(config?: CodexOfficeVisibilityConfig): Required<CodexOfficeVisibilityConfig> {
+type NormalizedCodexOfficeVisibilityConfig = Required<
+  Omit<CodexOfficeVisibilityConfig, "ceoThreadId" | "leadershipPins">
+> & {
+  ceoThreadId: string;
+  leadershipPins: {
+    ceoThreadId: string;
+    projectManagers: CodexProjectManagerPin[];
+  };
+};
+
+function normalizeVisibilityConfig(
+  config?: CodexOfficeVisibilityConfig,
+): NormalizedCodexOfficeVisibilityConfig {
+  const ceoThreadId =
+    safeText(config?.ceoThreadId) || safeText(config?.leadershipPins?.ceoThreadId);
+  const projectManagers = config?.projectManagers ?? config?.leadershipPins?.projectManagers ?? [];
   return {
     recentThreadWindowMinutes:
-      typeof config?.recentThreadWindowMinutes === "number" && Number.isFinite(config.recentThreadWindowMinutes)
+      typeof config?.recentThreadWindowMinutes === "number" &&
+      Number.isFinite(config.recentThreadWindowMinutes)
         ? Math.max(1, config.recentThreadWindowMinutes)
         : DEFAULT_ACTIVE_THREAD_WINDOW_MINUTES,
     alwaysShowHeartbeatThreads: config?.alwaysShowHeartbeatThreads !== false,
     showAutomationThreadsAsHeartbeat: config?.showAutomationThreadsAsHeartbeat !== false,
+    ceoThreadId,
+    projectManagers,
+    leadershipPins: { ceoThreadId, projectManagers },
     heartbeatThreadIds: Array.isArray(config?.heartbeatThreadIds) ? config.heartbeatThreadIds : [],
-    projectlessThreadIds: Array.isArray(config?.projectlessThreadIds) ? config.projectlessThreadIds : [],
+    projectlessThreadIds: Array.isArray(config?.projectlessThreadIds)
+      ? config.projectlessThreadIds
+      : [],
     miscProjectName: safeText(config?.miscProjectName) || "Misc",
-    miscPathIncludes: Array.isArray(config?.miscPathIncludes) ? config.miscPathIncludes : ["Documents/Codex"],
+    miscPathIncludes: Array.isArray(config?.miscPathIncludes)
+      ? config.miscPathIncludes
+      : ["Documents/Codex"],
   };
 }
 
@@ -114,6 +140,29 @@ function isThreadRecentlyActive(thread: CodexThread, nowMs: number, windowMs: nu
 
 function isThreadStatusActive(thread: CodexThread): boolean {
   return thread.status?.type === "active";
+}
+
+function threadActivityUpdatedAtMs(thread: CodexThread): number | undefined {
+  const updatedAt = secondsToMs(thread.updatedAt);
+  const completedTurnAt = [...(thread.turns ?? [])]
+    .map((turn) => secondsToMs(turn.completedAt))
+    .filter((value): value is number => typeof value === "number")
+    .sort((a, b) => b - a)[0];
+  return Math.max(updatedAt ?? 0, completedTurnAt ?? 0) || undefined;
+}
+
+function latestTurn(thread: CodexThread): CodexTurn | undefined {
+  return [...(thread.turns ?? [])].reverse()[0];
+}
+
+function hasRecentOpenTurn(thread: CodexThread, nowMs = Date.now()): boolean {
+  const turn = latestTurn(thread);
+  if (!turn || turn.completedAt) return false;
+  const startedAt = secondsToMs(turn.startedAt);
+  const updatedAt = threadActivityUpdatedAtMs(thread);
+  const latest = Math.max(startedAt ?? 0, updatedAt ?? 0);
+  if (!latest) return false;
+  return nowMs - latest <= RECENT_IDLE_UPDATE_READY_MS;
 }
 
 function isAutomationHeartbeatThread(thread: CodexThread): boolean {
@@ -166,12 +215,28 @@ export function toCodexCompanyModel(
         .filter((projectPath) => !isMiscProjectPath(projectPath, visibility.miscPathIncludes)),
     ),
   ];
-  const activeThreadWindowMs = visibility.recentThreadWindowMinutes * 60 * 1000;
-  const pinnedManagerThreadIds = new Set(
-    (readModel.projectManagers ?? []).map((pin) => safeText(pin.threadId)).filter(Boolean),
+  const projectPathByProjectId = new Map(
+    projectPaths.map((projectPath) => [codexProjectId(projectPath), projectPath]),
   );
+  const activeThreadWindowMs = visibility.recentThreadWindowMinutes * 60 * 1000;
+  const managerPins = [...(readModel.projectManagers ?? []), ...visibility.projectManagers];
+  const pinnedManagerThreadIds = new Set(
+    managerPins.map((pin) => safeText(pin.threadId)).filter(Boolean),
+  );
+  const pinnedManagerProjectPathByThreadId = new Map<string, string>();
+  for (const pin of managerPins) {
+    const threadId = safeText(pin.threadId);
+    if (!threadId) continue;
+    const projectPath =
+      projectPathByProjectId.get(safeText(pin.projectId)) ||
+      projectPaths.find((candidate) => normalizePath(candidate) === normalizePath(pin.projectPath));
+    if (projectPath) pinnedManagerProjectPathByThreadId.set(threadId, projectPath);
+  }
+  const ceoThreadId = visibility.ceoThreadId;
   const heartbeatThreadIds = new Set(visibility.heartbeatThreadIds.map(safeText).filter(Boolean));
-  const projectlessThreadIds = new Set(visibility.projectlessThreadIds.map(safeText).filter(Boolean));
+  const projectlessThreadIds = new Set(
+    visibility.projectlessThreadIds.map(safeText).filter(Boolean),
+  );
   const projectThreads = threads;
   const threadsByProjectPath = new Map<string, CodexThread[]>();
   for (const projectPath of projectPaths) {
@@ -180,27 +245,39 @@ export function toCodexCompanyModel(
   for (const thread of projectThreads) {
     const cwd = safeText(thread.cwd);
     const isPinned = pinnedManagerThreadIds.has(thread.id);
+    const isCeoThread = ceoThreadId === thread.id;
     const hasHeartbeat =
       heartbeatThreadIds.has(thread.id) ||
       isThreadStatusActive(thread) ||
       (visibility.showAutomationThreadsAsHeartbeat && isAutomationHeartbeatThread(thread));
     const isVisible =
+      isCeoThread ||
       isPinned ||
       isThreadRecentlyActive(thread, nowMs, activeThreadWindowMs) ||
       (visibility.alwaysShowHeartbeatThreads && hasHeartbeat);
     if (!isVisible) {
       continue;
     }
-    const matchedProjectPath = cwd && !projectlessThreadIds.has(thread.id) && !isMiscProjectPath(cwd, visibility.miscPathIncludes)
-      ? findBestProjectPath(cwd, projectPaths)
-      : null;
+    const pinnedManagerProjectPath = pinnedManagerProjectPathByThreadId.get(thread.id);
+    const matchedProjectPath =
+      pinnedManagerProjectPath ??
+      (cwd &&
+      !projectlessThreadIds.has(thread.id) &&
+      !isMiscProjectPath(cwd, visibility.miscPathIncludes)
+        ? findBestProjectPath(cwd, projectPaths)
+        : null);
     const projectPath =
       matchedProjectPath && !isMiscProjectPath(matchedProjectPath, visibility.miscPathIncludes)
         ? matchedProjectPath
         : CODEX_MISC_PROJECT_PATH;
-    threadsByProjectPath.set(projectPath, [...(threadsByProjectPath.get(projectPath) ?? []), thread]);
+    threadsByProjectPath.set(projectPath, [
+      ...(threadsByProjectPath.get(projectPath) ?? []),
+      thread,
+    ]);
   }
-  const projectNameByPath = new Map<string, string>([[CODEX_MISC_PROJECT_PATH, visibility.miscProjectName]]);
+  const projectNameByPath = new Map<string, string>([
+    [CODEX_MISC_PROJECT_PATH, visibility.miscProjectName],
+  ]);
   const projectGroups = [...threadsByProjectPath.entries()]
     .filter(([projectPath, rows]) => projectPath !== CODEX_MISC_PROJECT_PATH || rows.length > 0)
     .sort((a, b) => {
@@ -211,31 +288,37 @@ export function toCodexCompanyModel(
   const projectIdByPath = new Map(
     projectGroups.map(([projectPath]) => [normalizePath(projectPath), codexProjectId(projectPath)]),
   );
-  const managerPins = readModel.projectManagers ?? [];
   const managerThreadIdsByProjectId = new Map<string, Set<string>>();
   for (const pin of managerPins) {
     const threadId = safeText(pin.threadId);
     if (!threadId) continue;
     const projectId =
       safeText(pin.projectId) ||
-      (safeText(pin.projectPath) ? projectIdByPath.get(normalizePath(safeText(pin.projectPath))) : "") ||
+      (safeText(pin.projectPath)
+        ? projectIdByPath.get(normalizePath(safeText(pin.projectPath)))
+        : "") ||
       "";
     if (!projectId) continue;
     const current = managerThreadIdsByProjectId.get(projectId) ?? new Set<string>();
     current.add(threadId);
     managerThreadIdsByProjectId.set(projectId, current);
   }
-  const visibleThreadAgents = new Map<string, { projectPath: string; thread: CodexThread; isManager: boolean }>();
+  const visibleThreadAgents = new Map<
+    string,
+    { projectPath: string; thread: CodexThread; isManager: boolean }
+  >();
   for (const [projectPath, rows] of projectGroups) {
     const projectId = codexProjectId(projectPath);
     const managerThreadIds = managerThreadIdsByProjectId.get(projectId) ?? new Set<string>();
     for (const thread of rows) {
       const isManager = managerThreadIds.has(thread.id);
+      const isCeoThread = ceoThreadId === thread.id;
       const hasHeartbeat =
         heartbeatThreadIds.has(thread.id) ||
         isThreadStatusActive(thread) ||
         (visibility.showAutomationThreadsAsHeartbeat && isAutomationHeartbeatThread(thread));
       if (
+        !isCeoThread &&
         !isManager &&
         !isThreadRecentlyActive(thread, nowMs, activeThreadWindowMs) &&
         !(visibility.alwaysShowHeartbeatThreads && hasHeartbeat)
@@ -245,6 +328,7 @@ export function toCodexCompanyModel(
       visibleThreadAgents.set(thread.id, { projectPath, thread, isManager });
     }
   }
+  const hasVisibleCeoThread = Boolean(ceoThreadId && visibleThreadAgents.has(ceoThreadId));
   const tasks: FederatedTaskModel[] = (readModel.ticketTasks ?? []).map((task) => ({
     id: task.id,
     projectId: task.projectId,
@@ -291,18 +375,33 @@ export function toCodexCompanyModel(
       resourceEvents: [],
     })),
     agents: [
-      {
-        agentId: CODEX_MAIN_AGENT_ID,
-        role: "ceo",
-        heartbeatProfileId: "hb-codex-main",
-        isCeo: true,
-        lifecycleState: "active",
-      },
+      ...(hasVisibleCeoThread
+        ? []
+        : [
+            {
+              agentId: CODEX_MAIN_AGENT_ID,
+              role: "ceo" as const,
+              heartbeatProfileId: "hb-codex-main",
+              isCeo: true,
+              lifecycleState: "active" as const,
+            },
+          ]),
       ...[...visibleThreadAgents.values()].map(({ projectPath, thread, isManager }) => ({
         agentId: toThreadAgentId(thread.id),
-        role: isManager ? ("pm" as const) : ("builder" as const),
+        role:
+          hasVisibleCeoThread && thread.id === ceoThreadId
+            ? ("ceo" as const)
+            : isManager
+              ? ("pm" as const)
+              : ("builder" as const),
         projectId: codexProjectId(projectPath),
-        heartbeatProfileId: isManager ? "hb-codex-manager" : "hb-codex-thread",
+        heartbeatProfileId:
+          hasVisibleCeoThread && thread.id === ceoThreadId
+            ? "hb-codex-thread-ceo"
+            : isManager
+              ? "hb-codex-manager"
+              : "hb-codex-thread",
+        isCeo: hasVisibleCeoThread && thread.id === ceoThreadId,
         lifecycleState: "active" as const,
       })),
     ],
@@ -323,6 +422,15 @@ export function toCodexCompanyModel(
         teamDescription: "Codex project overview",
         productDetails: "Farplane UI maps Codex projects and recent threads.",
         goal: "Keep project/thread visibility current.",
+      },
+      {
+        id: "hb-codex-thread-ceo",
+        role: "ceo",
+        cadenceMinutes: 0,
+        teamDescription: "Pinned Codex CEO thread",
+        productDetails:
+          "Long-running strategy thread that replaces the synthetic management table.",
+        goal: "Keep office direction visible through the operator-selected CEO thread.",
       },
       {
         id: "hb-codex-manager",
@@ -347,14 +455,16 @@ export function toCodexCompanyModel(
       pluginId: "codex-app-server",
       serviceId: "codex-thread-map",
       cadenceMinutes: 0,
-      notes: "Codex mode derives projects from thread cwd and employees from recently active threads.",
+      notes:
+        "Codex mode derives projects from thread cwd and employees from recently active threads.",
     },
   };
 }
 
 export function toCodexSessionRows(agentId: string, threads: CodexThread[]): SessionRowModel[] {
   const threadId = parseCodexThreadId(agentId);
-  const rows = agentId === CODEX_MAIN_AGENT_ID ? threads : threads.filter((thread) => thread.id === threadId);
+  const rows =
+    agentId === CODEX_MAIN_AGENT_ID ? threads : threads.filter((thread) => thread.id === threadId);
   return rows.map((thread) => ({
     agentId: toThreadAgentId(thread.id),
     sessionKey: toThreadAgentId(thread.id),
@@ -369,7 +479,10 @@ export function toCodexSessionRows(agentId: string, threads: CodexThread[]): Ses
 function itemText(item: CodexThreadItem): string {
   if (item.type === "userMessage") {
     return Array.isArray(item.content)
-      ? item.content.map((part) => safeText(part.text)).filter(Boolean).join("\n")
+      ? item.content
+          .map((part) => safeText(part.text))
+          .filter(Boolean)
+          .join("\n")
       : "";
   }
   if (item.type === "agentMessage" || item.type === "plan") return safeText(item.text);
@@ -391,7 +504,12 @@ function itemText(item: CodexThreadItem): string {
 }
 
 function itemEventType(item: CodexThreadItem): SessionTimelineEvent["type"] {
-  if (item.type === "commandExecution" || item.type === "mcpToolCall" || item.type === "dynamicToolCall" || item.type === "fileChange") {
+  if (
+    item.type === "commandExecution" ||
+    item.type === "mcpToolCall" ||
+    item.type === "dynamicToolCall" ||
+    item.type === "fileChange"
+  ) {
     return "tool";
   }
   if (item.type === "plan" || item.type === "reasoning") return "status";
@@ -406,7 +524,12 @@ function itemRole(item: CodexThreadItem): string {
   return "system";
 }
 
-function toTimelineEvent(item: CodexThreadItem, turn: CodexTurn, fallbackTs: number, index: number): SessionTimelineEvent {
+function toTimelineEvent(
+  item: CodexThreadItem,
+  turn: CodexTurn,
+  fallbackTs: number,
+  index: number,
+): SessionTimelineEvent {
   const ts = secondsToMs(turn.startedAt) ?? fallbackTs + index;
   return {
     ts,
@@ -419,10 +542,16 @@ function toTimelineEvent(item: CodexThreadItem, turn: CodexTurn, fallbackTs: num
   };
 }
 
-export function toCodexTimeline(agentId: string, sessionKey: string, thread: CodexThread): SessionTimelineModel {
+export function toCodexTimeline(
+  agentId: string,
+  sessionKey: string,
+  thread: CodexThread,
+): SessionTimelineModel {
   const fallbackTs = secondsToMs(thread.updatedAt) ?? Date.now();
   const events = (thread.turns ?? [])
-    .flatMap((turn) => (turn.items ?? []).map((item, index) => toTimelineEvent(item, turn, fallbackTs, index)))
+    .flatMap((turn) =>
+      (turn.items ?? []).map((item, index) => toTimelineEvent(item, turn, fallbackTs, index)),
+    )
     .filter((event) => event.text.trim().length > 0)
     .sort((a, b) => a.ts - b.ts);
   return {
@@ -432,23 +561,101 @@ export function toCodexTimeline(agentId: string, sessionKey: string, thread: Cod
   };
 }
 
-function statusState(status: CodexThreadStatus | undefined): AgentLiveStatus["state"] {
+function hasRecentIdleUpdate(thread: CodexThread, nowMs = Date.now()): boolean {
+  if (thread.status?.type !== "idle" && thread.status?.type !== "notLoaded") return false;
+  if (hasRecentOpenTurn(thread, nowMs)) return false;
+  const updatedAt = threadActivityUpdatedAtMs(thread);
+  if (!updatedAt) return false;
+  return nowMs - updatedAt <= RECENT_IDLE_UPDATE_READY_MS;
+}
+
+function statusState(
+  thread: CodexThread,
+  status: CodexThreadStatus | undefined,
+  nowMs = Date.now(),
+): AgentLiveStatus["state"] {
   if (!status) return "idle";
   if (status.type === "active") return "running";
   if (status.type === "systemError") return "error";
+  if (hasRecentOpenTurn(thread, nowMs)) return "running";
+  if (hasRecentIdleUpdate(thread, nowMs)) return "done";
   if (status.type === "idle") return "idle";
   return "idle";
 }
 
-export function toCodexLiveStatus(thread: CodexThread): AgentLiveStatus {
-  const state = statusState(thread.status);
+function statusText(
+  thread: CodexThread,
+  status: CodexThreadStatus | undefined,
+  nowMs = Date.now(),
+): string {
+  if (!status) return "Codex thread status unavailable.";
+  if (status.type === "active") return "Codex turn running.";
+  if (status.type === "systemError") return "Codex thread error.";
+  if (hasRecentOpenTurn(thread, nowMs)) return "Codex turn running.";
+  if (hasRecentIdleUpdate(thread, nowMs)) return "Codex response ready.";
+  if (status.type === "notLoaded") return "Codex thread not loaded yet.";
+  return "Codex thread idle.";
+}
+
+function activeFlagLabel(value: unknown): string {
+  if (typeof value === "string") return safeText(value);
+  if (!value || typeof value !== "object") return "";
+  const record = value as Record<string, unknown>;
+  return (
+    safeText(record.label) ||
+    safeText(record.name) ||
+    safeText(record.type) ||
+    safeText(record.kind) ||
+    ""
+  );
+}
+
+function statusBubbles(
+  thread: CodexThread,
+  status: CodexThreadStatus | undefined,
+  nowMs = Date.now(),
+): AgentLiveStatus["bubbles"] {
+  if (!status) return [];
+  if (status.type === "active") {
+    const flagBubbles = (status.activeFlags ?? [])
+      .map(activeFlagLabel)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((label, index) => ({
+        id: `codex-active-flag-${index}-${slugify(label)}`,
+        label,
+        weight: 90 - index,
+      }));
+    return [{ id: "codex-thread-running", label: "Running", weight: 100 }, ...flagBubbles];
+  }
+  if (status.type === "systemError") {
+    return [{ id: "codex-thread-error", label: "Error", weight: 100 }];
+  }
+  if (hasRecentOpenTurn(thread, nowMs)) {
+    return [{ id: "codex-thread-running", label: "Running", weight: 100 }];
+  }
+  if (hasRecentIdleUpdate(thread, nowMs)) {
+    return [{ id: "codex-thread-update-ready", label: "Update ready", weight: 100 }];
+  }
+  if (status.type === "notLoaded") {
+    return [{ id: "codex-thread-not-loaded", label: "Not loaded", weight: 50 }];
+  }
+  return [];
+}
+
+export function toCodexLiveStatus(
+  thread: CodexThread,
+  options: { nowMs?: number } = {},
+): AgentLiveStatus {
+  const nowMs = options.nowMs ?? Date.now();
+  const state = statusState(thread, thread.status, nowMs);
   return {
     agentId: toThreadAgentId(thread.id),
     sessionKey: toThreadAgentId(thread.id),
     state,
-    statusText: state === "running" ? "Codex turn running." : state === "error" ? "Codex thread error." : "Codex thread idle.",
-    updatedAt: secondsToMs(thread.updatedAt),
-    bubbles: [],
+    statusText: statusText(thread, thread.status, nowMs),
+    updatedAt: threadActivityUpdatedAtMs(thread),
+    bubbles: statusBubbles(thread, thread.status, nowMs),
   };
 }
 
@@ -464,7 +671,12 @@ export function toCodexMainLiveStatus(): AgentLiveStatus {
 export function findActiveTurnId(thread: CodexThread): string | null {
   const active = [...(thread.turns ?? [])].reverse().find((turn) => {
     const status = safeText(turn.status).toLowerCase();
-    return status === "running" || status === "in_progress" || status === "inprogress" || status === "active";
+    return (
+      status === "running" ||
+      status === "in_progress" ||
+      status === "inprogress" ||
+      status === "active"
+    );
   });
   return active?.id ?? null;
 }

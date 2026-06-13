@@ -2,16 +2,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   CODEX_MAIN_AGENT_ID,
+  CodexAppServerClient,
   CodexRuntimeAdapter,
-  OpenClawRuntimeAdapter,
   createOfficeRuntimeAdapter,
+  OpenClawRuntimeAdapter,
   resolveRuntimeAdapterKind,
   toCodexAgentCards,
   toCodexCompanyModel,
+  toCodexLiveStatus,
   toCodexSessionRows,
   toCodexTimeline,
 } from "../..";
-import { CodexAppServerClient } from "../..";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -248,6 +249,264 @@ describe("runtime adapters", () => {
     ]);
   });
 
+  it("maps Codex thread status into loader-friendly live status", () => {
+    expect(
+      toCodexLiveStatus({
+        id: "running-thread",
+        preview: "Running work",
+        updatedAt: 1770000000,
+        status: {
+          type: "active",
+          activeFlags: ["Planning", { label: "Tool call" }],
+        },
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        agentId: "codex-thread:running-thread",
+        sessionKey: "codex-thread:running-thread",
+        state: "running",
+        statusText: "Codex turn running.",
+        updatedAt: 1770000000000,
+        bubbles: [
+          { id: "codex-thread-running", label: "Running", weight: 100 },
+          { id: "codex-active-flag-0-planning", label: "Planning", weight: 90 },
+          { id: "codex-active-flag-1-tool-call", label: "Tool call", weight: 89 },
+        ],
+      }),
+    );
+
+    expect(
+      toCodexLiveStatus({
+        id: "error-thread",
+        preview: "Broken work",
+        status: { type: "systemError" },
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        state: "error",
+        statusText: "Codex thread error.",
+        bubbles: [{ id: "codex-thread-error", label: "Error", weight: 100 }],
+      }),
+    );
+
+    expect(
+      toCodexLiveStatus({
+        id: "idle-thread",
+        preview: "Idle work",
+        status: { type: "idle" },
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        state: "idle",
+        statusText: "Codex thread idle.",
+        bubbles: [],
+      }),
+    );
+
+    expect(
+      toCodexLiveStatus(
+        {
+          id: "recent-idle-thread",
+          preview: "Just replied",
+          updatedAt: 1770000100,
+          status: { type: "idle" },
+        },
+        { nowMs: 1770000105_000 },
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        state: "done",
+        statusText: "Codex response ready.",
+        updatedAt: 1770000100000,
+        bubbles: [{ id: "codex-thread-update-ready", label: "Update ready", weight: 100 }],
+      }),
+    );
+
+    expect(
+      toCodexLiveStatus(
+        {
+          id: "not-loaded-running-thread",
+          preview: "Still working",
+          updatedAt: 1770000100,
+          status: { type: "notLoaded" },
+          turns: [{ id: "turn-1", status: "interrupted", startedAt: 1770000090 }],
+        },
+        { nowMs: 1770000105_000 },
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        state: "running",
+        statusText: "Codex turn running.",
+        bubbles: [{ id: "codex-thread-running", label: "Running", weight: 100 }],
+      }),
+    );
+
+    expect(
+      toCodexLiveStatus(
+        {
+          id: "not-loaded-completed-thread",
+          preview: "New reply",
+          updatedAt: 1770000100,
+          status: { type: "notLoaded" },
+          turns: [{ id: "turn-1", status: "completed", completedAt: 1770000100 }],
+        },
+        { nowMs: 1770000105_000 },
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        state: "done",
+        statusText: "Codex response ready.",
+        bubbles: [{ id: "codex-thread-update-ready", label: "Update ready", weight: 100 }],
+      }),
+    );
+
+    expect(
+      toCodexLiveStatus({
+        id: "not-loaded-thread",
+        preview: "Cold work",
+        status: { type: "notLoaded" },
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        state: "idle",
+        statusText: "Codex thread not loaded yet.",
+        bubbles: [{ id: "codex-thread-not-loaded", label: "Not loaded", weight: 50 }],
+      }),
+    );
+  });
+
+  it("gets Codex live status from thread/list without reading full transcripts", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/codex/app-server/health")) {
+        return new Response(JSON.stringify({ ok: true, configured: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.endsWith("/codex/app-server/rpc")) {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { method?: string };
+        if (body.method === "thread/list") {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              result: {
+                data: [
+                  {
+                    id: "thread-running",
+                    preview: "Running thread",
+                    status: { type: "active", activeFlags: [] },
+                  },
+                ],
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        return new Response(JSON.stringify({ ok: false, error: "unexpected_rpc" }), {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: false, error: "unexpected" }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const adapter = new CodexRuntimeAdapter("", "http://state");
+
+    await expect(adapter.getAgentsLiveStatus(["codex-thread:thread-running"])).resolves.toEqual({
+      "codex-thread:thread-running": expect.objectContaining({
+        agentId: "codex-thread:thread-running",
+        state: "running",
+        statusText: "Codex turn running.",
+      }),
+    });
+    const rpcMethods = fetchMock.mock.calls
+      .filter(([input]) => String(input).endsWith("/codex/app-server/rpc"))
+      .map(([, init]) => JSON.parse(String(init?.body ?? "{}")).method);
+    expect(rpcMethods).toEqual(["thread/list"]);
+  });
+
+  it("hydrates notLoaded Codex live status from thread/read for visible thread agents", async () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/codex/app-server/health")) {
+        return new Response(JSON.stringify({ ok: true, configured: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.endsWith("/codex/app-server/rpc")) {
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          method?: string;
+          params?: { threadId?: string };
+        };
+        if (body.method === "thread/list") {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              result: {
+                data: [
+                  {
+                    id: "thread-running",
+                    preview: "Running thread",
+                    updatedAt: nowSeconds,
+                    status: { type: "notLoaded" },
+                  },
+                ],
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        if (body.method === "thread/read" && body.params?.threadId === "thread-running") {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              result: {
+                thread: {
+                  id: "thread-running",
+                  preview: "Running thread",
+                  updatedAt: nowSeconds,
+                  status: { type: "notLoaded" },
+                  turns: [{ id: "turn-1", status: "inProgress", startedAt: nowSeconds - 10 }],
+                },
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        return new Response(JSON.stringify({ ok: false, error: "unexpected_rpc" }), {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: false, error: "unexpected" }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const adapter = new CodexRuntimeAdapter("", "http://state");
+
+    await expect(adapter.getAgentsLiveStatus(["codex-thread:thread-running"])).resolves.toEqual({
+      "codex-thread:thread-running": expect.objectContaining({
+        agentId: "codex-thread:thread-running",
+        state: "running",
+        statusText: "Codex turn running.",
+      }),
+    });
+    const rpcMethods = fetchMock.mock.calls
+      .filter(([input]) => String(input).endsWith("/codex/app-server/rpc"))
+      .map(([, init]) => JSON.parse(String(init?.body ?? "{}")).method);
+    expect(rpcMethods).toEqual(["thread/list", "thread/read"]);
+  });
+
   it("maps Codex cwd groups into projects and recent threads into project agents", () => {
     const nowMs = 1770000000 * 1000;
     const company = toCodexCompanyModel(
@@ -265,9 +524,9 @@ describe("runtime adapters", () => {
           updatedAt: 1769980000,
         },
         {
-          id: "recent-aikage",
-          preview: "Recent Aikage work",
-          cwd: "/workspace/sigmax/aikage",
+          id: "recent-console",
+          preview: "Recent Console work",
+          cwd: "/workspace/farplane-console",
           updatedAt: 1769999000,
         },
         {
@@ -293,18 +552,18 @@ describe("runtime adapters", () => {
         "/Users/example",
         "/Users/example/Documents/Codex/2026-06-11/am-i-being-scammed-over-here",
         "/workspace/farplane-ui",
-        "/workspace/sigmax",
-        "/workspace/sigmax/aikage",
+        "/workspace/farplane-console-archive",
+        "/workspace/farplane-console",
         "/workspace/no-threads",
       ],
     );
 
     expect(company.projects.map((project) => project.name)).toEqual([
-      "aikage",
       "example",
+      "farplane-console",
+      "farplane-console-archive",
       "farplane-ui",
       "no-threads",
-      "sigmax",
       "Misc",
     ]);
     expect(company.agents).toEqual(
@@ -315,8 +574,8 @@ describe("runtime adapters", () => {
           projectId: "codex-proj-workspace-farplane-ui",
         }),
         expect.objectContaining({
-          agentId: "codex-thread:recent-aikage",
-          projectId: "codex-proj-workspace-sigmax-aikage",
+          agentId: "codex-thread:recent-console",
+          projectId: "codex-proj-workspace-farplane-console",
         }),
         expect.objectContaining({
           agentId: "codex-thread:nested-under-home",
@@ -492,6 +751,90 @@ describe("runtime adapters", () => {
         }),
       ]),
     );
+  });
+
+  it("assigns pinned Codex manager threads to the pinned project even after cwd drift", () => {
+    const nowMs = 1770000000 * 1000;
+    const company = toCodexCompanyModel(
+      [
+        {
+          id: "wandering-manager",
+          preview: "Cross-project planning thread",
+          cwd: "/workspace/life",
+          updatedAt: 1769980000,
+        },
+      ],
+      nowMs,
+      ["/workspace/farplane-ui", "/workspace/life"],
+      {
+        projectManagers: [
+          {
+            projectId: "codex-proj-workspace-farplane-ui",
+            threadId: "wandering-manager",
+          },
+        ],
+      },
+    );
+
+    expect(company.agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-thread:wandering-manager",
+          projectId: "codex-proj-workspace-farplane-ui",
+          role: "pm",
+        }),
+      ]),
+    );
+  });
+
+  it("lets an inactive pinned Codex CEO thread replace the synthetic Codex main CEO", () => {
+    const nowMs = 1770000000 * 1000;
+    const company = toCodexCompanyModel(
+      [
+        {
+          id: "strategy-thread",
+          preview: "Long-running strategy thread",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769900000,
+        },
+      ],
+      nowMs,
+      ["/workspace/farplane-ui"],
+      {
+        officeVisibility: {
+          recentThreadWindowMinutes: 5,
+          ceoThreadId: "strategy-thread",
+        },
+      },
+    );
+
+    expect(company.agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-thread:strategy-thread",
+          projectId: "codex-proj-workspace-farplane-ui",
+          role: "ceo",
+          isCeo: true,
+        }),
+      ]),
+    );
+    expect(company.agents.some((agent) => agent.agentId === CODEX_MAIN_AGENT_ID)).toBe(false);
+  });
+
+  it("keeps the synthetic Codex main CEO when the pinned CEO thread is missing", () => {
+    const company = toCodexCompanyModel([], 1770000000 * 1000, ["/workspace/farplane-ui"], {
+      officeVisibility: {
+        ceoThreadId: "missing-strategy-thread",
+      },
+    });
+
+    expect(company.agents).toEqual([
+      expect.objectContaining({
+        agentId: CODEX_MAIN_AGENT_ID,
+        role: "ceo",
+        isCeo: true,
+      }),
+    ]);
   });
 
   it("prefers Codex UI project roots over stale trusted config projects", async () => {

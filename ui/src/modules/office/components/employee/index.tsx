@@ -34,19 +34,20 @@ import {
   SKIN_COLORS,
   TOTAL_HEIGHT,
 } from "@/constants";
+import type { Id } from "@/lib/entity-types";
+import { getRandomItem } from "@/lib/utils";
 import PathVisualizer from "@/modules/navigation/components/path-visualizer";
 import type { StatusType } from "@/modules/navigation/components/status-indicator";
-import { useAppStore } from "@/store";
-import type { Id } from "@/lib/entity-types";
-import type { AgentState } from "@/modules/runtime";
 import type { EmployeeActivityState } from "@/modules/office/lib/types";
-import { getRandomItem } from "@/lib/utils";
+import type { AgentState } from "@/modules/runtime";
+import { useAppStore } from "@/store";
 import { ContextMenu } from "../context-menu";
 import {
+  CeoCrown,
   LobsterAntennae,
   LobsterClaws,
   LobsterEyes,
-  SupervisorHat,
+  PmGoggleHat,
   TeamPlumbob,
 } from "./Decorations";
 import { getEmployeeAnimationPose } from "./employee-motion";
@@ -76,6 +77,7 @@ export interface EmployeeProps {
   gender?: string;
   onClick: (employeeId: Id<"employees">) => void;
   debugMode?: boolean;
+  debugPathOverlay?: boolean;
   status?: StatusType;
   statusMessage?: string;
   wantsToWander?: boolean;
@@ -99,11 +101,46 @@ export interface EmployeeProps {
   };
 }
 
+const SEEN_ACTIVITY_STORAGE_KEY = "farplane.office.seen-activity.v1";
+
+function readSeenActivityTimestamp(employeeId: string): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(SEEN_ACTIVITY_STORAGE_KEY) ?? "{}",
+    ) as Record<string, unknown>;
+    const value = parsed[employeeId];
+    return typeof value === "number" && Number.isFinite(value) ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function markActivitySeen(employeeId: string, updatedAt?: number): void {
+  if (typeof window === "undefined" || typeof updatedAt !== "number") return;
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(SEEN_ACTIVITY_STORAGE_KEY) ?? "{}",
+    ) as Record<string, unknown>;
+    window.localStorage.setItem(
+      SEEN_ACTIVITY_STORAGE_KEY,
+      JSON.stringify({ ...parsed, [employeeId]: updatedAt }),
+    );
+  } catch {
+    window.localStorage.setItem(
+      SEEN_ACTIVITY_STORAGE_KEY,
+      JSON.stringify({ [employeeId]: updatedAt }),
+    );
+  }
+}
+
 function AvatarShell({
   colors,
   profileImageUrl,
+  isCEO,
   isSupervisor,
   teamId,
+  activityState,
   useCompactOverlayMode,
   projection = false,
   petType,
@@ -111,8 +148,10 @@ function AvatarShell({
 }: {
   colors: AvatarPalette;
   profileImageUrl?: string;
+  isCEO?: boolean;
   isSupervisor?: boolean;
   teamId?: string;
+  activityState?: EmployeeActivityState;
   useCompactOverlayMode?: boolean;
   projection?: boolean;
   petType?: "none" | "dog" | "cat" | "goldfish" | "rabbit" | "lobster";
@@ -174,16 +213,14 @@ function AvatarShell({
         <Box args={[HAIR_WIDTH, HAIR_HEIGHT, HAIR_WIDTH]} castShadow={!projection}>
           <meshStandardMaterial color={projectionHairColor} {...materialProps} />
         </Box>
-        {isSupervisor ? <SupervisorHat /> : null}
+        {isCEO ? <CeoCrown /> : isSupervisor ? <PmGoggleHat /> : null}
       </group>
 
       <LobsterClaws color={projectionShirtColor} />
       <LobsterAntennae />
       <LobsterEyes />
-      {!projection ? <TeamPlumbob teamId={teamId} /> : null}
-      {petType && !projection && petType !== "none" ? (
-        <OfficePetMesh petType={petType} />
-      ) : null}
+      {!projection ? <TeamPlumbob teamId={teamId} activityState={activityState} /> : null}
+      {petType && !projection && petType !== "none" ? <OfficePetMesh petType={petType} /> : null}
     </group>
   );
 }
@@ -283,20 +320,17 @@ const Employee = memo(function Employee({
   onClick,
   profileImageUrl,
   debugMode = false,
-  status = "none" as StatusType,
+  debugPathOverlay = debugMode,
   statusMessage,
   wantsToWander = true,
   jobTitle,
   team,
   teamId,
-  notificationCount = 0,
-  notificationPriority = 0,
   activityState,
   activityLabel,
   activityDetail,
   activityUpdatedAt,
   heartbeatState,
-  heartbeatBubbles = [],
   useCompactOverlayMode = false,
   appearance,
 }: EmployeeProps) {
@@ -314,6 +348,9 @@ const Employee = memo(function Employee({
   const officeOnboardingStep = useAppStore((state) => state.officeOnboardingStep);
 
   const [isHovered, setIsHovered] = useState(false);
+  const [seenActivityUpdatedAt, setSeenActivityUpdatedAt] = useState(() =>
+    readSeenActivityTimestamp(String(id)),
+  );
   const isHighlighted = highlightedEmployeeIds.has(id);
   const avatarRef = useRef<THREE.Group>(null);
   const projectionRef = useRef<THREE.Group>(null);
@@ -322,10 +359,13 @@ const Employee = memo(function Employee({
   const projectionRingRef = useRef<THREE.Mesh>(null);
   const sourcePulseRef = useRef<THREE.Mesh>(null);
   const blinkRingRef = useRef<THREE.Mesh>(null);
-  const visibleActivityState = activityState;
-  const visibleActivityLabel = activityLabel;
-  const visibleActivityDetail = activityDetail;
-  void activityUpdatedAt;
+  const hasSeenDoneActivity =
+    activityState === "done" &&
+    typeof activityUpdatedAt === "number" &&
+    seenActivityUpdatedAt >= activityUpdatedAt;
+  const visibleActivityState = hasSeenDoneActivity ? "idle" : activityState;
+  const visibleActivityLabel = hasSeenDoneActivity ? undefined : activityLabel;
+  const visibleActivityDetail = hasSeenDoneActivity ? undefined : activityDetail;
   const activityEffectStartedAtRef = useRef<number>(0);
   const lastActivityEffectKeyRef = useRef("");
 
@@ -381,7 +421,6 @@ const Employee = memo(function Employee({
         shirt = "#37474F";
         pants = "#111111";
         break;
-      case "default":
       default:
         shirt = "#90A4AE";
         pants = "#1565C0";
@@ -395,31 +434,6 @@ const Employee = memo(function Employee({
       pants,
     };
   }, [appearance, colors, isCEO]);
-
-  const { currentStatus, effectiveNotificationCount } = useMemo(() => {
-    if (notificationCount > 0 && notificationPriority > 0) {
-      let indicatorStatus: StatusType = "info";
-      if (notificationPriority === 3) {
-        indicatorStatus = "warning";
-      } else if (notificationPriority === 2) {
-        indicatorStatus = "question";
-      }
-      return {
-        currentStatus: indicatorStatus,
-        effectiveNotificationCount: notificationCount,
-      };
-    }
-
-    if (status && status !== "none") {
-      return { currentStatus: status, effectiveNotificationCount: 0 };
-    }
-
-    if (isBusy) {
-      return { currentStatus: "info" as StatusType, effectiveNotificationCount: 0 };
-    }
-
-    return { currentStatus: "none" as StatusType, effectiveNotificationCount: 0 };
-  }, [status, isBusy, notificationCount, notificationPriority]);
 
   const employeeActions = useMemo(
     () => [
@@ -508,8 +522,12 @@ const Employee = memo(function Employee({
     (event: ThreeEvent<MouseEvent>) => {
       event.stopPropagation();
       setSelectedObjectId(isSelected ? null : employeeIdString);
+      if (activityState === "done" && typeof activityUpdatedAt === "number") {
+        markActivitySeen(String(id), activityUpdatedAt);
+        setSeenActivityUpdatedAt(activityUpdatedAt);
+      }
     },
-    [employeeIdString, isSelected, setSelectedObjectId],
+    [activityState, activityUpdatedAt, employeeIdString, id, isSelected, setSelectedObjectId],
   );
 
   const hoverScale = isHovered && !isSelected ? 1.05 : 1;
@@ -627,7 +645,6 @@ const Employee = memo(function Employee({
       ]);
     }
   });
-  const projectionStatus = isGhostProjectionActive ? currentStatus : ("none" as StatusType);
   const onboardingPrompt =
     isOfficeOnboardingVisible && isCEO
       ? officeOnboardingStep === "click-ceo"
@@ -662,8 +679,10 @@ const Employee = memo(function Employee({
           <AvatarShell
             colors={finalColors}
             profileImageUrl={profileImageUrl}
+            isCEO={isCEO}
             isSupervisor={isSupervisor}
             teamId={teamId}
+            activityState={visibleActivityState}
             useCompactOverlayMode={useCompactOverlayMode}
             petType={appearance?.petType}
             clothesStyle={appearance?.clothesStyle}
@@ -697,11 +716,7 @@ const Employee = memo(function Employee({
         ) : null}
 
         <EmployeeStatusBubbles
-          currentStatus={isGhostProjectionActive ? ("none" as StatusType) : currentStatus}
           statusMessage={isGhostProjectionActive ? undefined : statusMessage}
-          effectiveNotificationCount={isGhostProjectionActive ? 0 : effectiveNotificationCount}
-          heartbeatState={heartbeatState}
-          heartbeatBubbles={isGhostProjectionActive ? [] : heartbeatBubbles}
           activityState={isGhostProjectionActive ? undefined : visibleActivityState}
           activityLabel={isGhostProjectionActive ? undefined : visibleActivityLabel}
           activityDetail={isGhostProjectionActive ? undefined : visibleActivityDetail}
@@ -746,16 +761,13 @@ const Employee = memo(function Employee({
           </mesh>
           <AvatarShell
             colors={finalColors}
+            isCEO={isCEO}
             isSupervisor={isSupervisor}
             projection
             clothesStyle={appearance?.clothesStyle}
           />
           <EmployeeStatusBubbles
-            currentStatus={projectionStatus}
             statusMessage={statusMessage}
-            effectiveNotificationCount={0}
-            heartbeatState={heartbeatState}
-            heartbeatBubbles={heartbeatBubbles}
             activityState={visibleActivityState}
             activityLabel={visibleActivityLabel}
             activityDetail={visibleActivityDetail}
@@ -788,7 +800,7 @@ const Employee = memo(function Employee({
         </mesh>
       ) : null}
 
-      {debugMode && (debugPathData.originalPath || debugPathData.remainingPath) ? (
+      {debugPathOverlay && (debugPathData.originalPath || debugPathData.remainingPath) ? (
         <PathVisualizer
           originalPath={debugPathData.originalPath}
           remainingPath={debugPathData.remainingPath}

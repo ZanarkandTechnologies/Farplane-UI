@@ -1200,6 +1200,18 @@ function normalizeProjectManagers(
   return rows;
 }
 
+function mergeProjectManagers(
+  rows: Array<{ projectId?: string; projectPath?: string; threadId: string; label?: string }>,
+): Array<{ projectId?: string; projectPath?: string; threadId: string; label?: string }> {
+  const merged = new Map<string, { projectId?: string; projectPath?: string; threadId: string; label?: string }>();
+  for (const row of rows) {
+    const key = row.projectId || row.projectPath;
+    if (!key) continue;
+    merged.set(key, row);
+  }
+  return Array.from(merged.values());
+}
+
 function normalizePositiveNumber(value: unknown, fallback: number): number {
   const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -1212,14 +1224,29 @@ function normalizeStringList(value: unknown): string[] {
 
 function normalizeCodexOfficeConfig(raw: unknown): JsonObject {
   const config = raw && typeof raw === "object" ? (raw as JsonObject) : {};
+  const leadershipPins =
+    config.leadershipPins && typeof config.leadershipPins === "object"
+      ? (config.leadershipPins as JsonObject)
+      : {};
+  const ceoThreadId = String(config.ceoThreadId ?? leadershipPins.ceoThreadId ?? "").trim();
+  const projectManagers = normalizeProjectManagers(
+    Array.isArray(config.projectManagers) ? config.projectManagers : leadershipPins.projectManagers,
+  );
   const recentThreadWindowMinutes = normalizePositiveNumber(config.recentThreadWindowMinutes, 180);
   const heartbeatThreadIds = normalizeStringList(config.heartbeatThreadIds);
   const projectlessThreadIds = normalizeStringList(config.projectlessThreadIds);
   const miscPathIncludes = normalizeStringList(config.miscPathIncludes);
+  const leadershipPinsOut: JsonObject = {
+    ...(ceoThreadId ? { ceoThreadId } : {}),
+    ...(projectManagers.length > 0 ? { projectManagers } : {}),
+  };
   return {
     recentThreadWindowMinutes,
     alwaysShowHeartbeatThreads: config.alwaysShowHeartbeatThreads !== false,
     showAutomationThreadsAsHeartbeat: config.showAutomationThreadsAsHeartbeat !== false,
+    ...(ceoThreadId ? { ceoThreadId } : {}),
+    ...(projectManagers.length > 0 ? { projectManagers } : {}),
+    ...(Object.keys(leadershipPinsOut).length > 0 ? { leadershipPins: leadershipPinsOut } : {}),
     heartbeatThreadIds,
     projectlessThreadIds,
     miscProjectName: typeof config.miscProjectName === "string" && config.miscProjectName.trim()
@@ -1266,11 +1293,19 @@ async function buildProjectReadModel(input: unknown): Promise<JsonObject> {
   const ticketTaskLists = await Promise.all(normalizedProjects.map((project) => readProjectTicketTasks(project)));
   const managersRaw = await readJsonFile<unknown>(PROJECT_MANAGERS_PATH, {});
   const officeConfigRaw = await readJsonFile<unknown>(CODEX_OFFICE_CONFIG_PATH, {});
+  const officeVisibility = normalizeCodexOfficeConfig(officeConfigRaw);
+  const officeManagers = normalizeProjectManagers(
+    Array.isArray(officeVisibility.projectManagers)
+      ? officeVisibility.projectManagers
+      : typeof officeVisibility.leadershipPins === "object" && officeVisibility.leadershipPins
+        ? (officeVisibility.leadershipPins as JsonObject).projectManagers
+        : [],
+  );
   return {
     generatedAt: Date.now(),
     ticketTasks: ticketTaskLists.flat(),
-    projectManagers: normalizeProjectManagers(managersRaw),
-    officeVisibility: normalizeCodexOfficeConfig(officeConfigRaw),
+    projectManagers: mergeProjectManagers([...normalizeProjectManagers(managersRaw), ...officeManagers]),
+    officeVisibility,
   };
 }
 

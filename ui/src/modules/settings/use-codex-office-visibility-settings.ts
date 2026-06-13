@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { CodexAppServerClient, type CodexOfficeVisibilityConfig } from "@/modules/runtime";
+import {
+  CodexAppServerClient,
+  type CodexOfficeVisibilityConfig,
+  type CodexProjectManagerPin,
+} from "@/modules/runtime";
 import { getGatewayUiConfig } from "@/modules/runtime";
 
 const DEFAULT_RECENT_THREAD_WINDOW_MINUTES = 180;
@@ -11,11 +15,20 @@ function joinLines(values: string[] | undefined): string {
 }
 
 function splitLines(value: string): string[] {
-  return [...new Set(value.split(/\r?\n|,/).map((entry) => entry.trim()).filter(Boolean))];
+  return [
+    ...new Set(
+      value
+        .split(/\r?\n|,/)
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 export type CodexOfficeVisibilityForm = {
   recentMinutes: string;
+  ceoThreadId: string;
+  projectManagers: CodexProjectManagerPin[];
   alwaysShowHeartbeat: boolean;
   showAutomationThreads: boolean;
   heartbeatThreadIds: string;
@@ -25,9 +38,9 @@ export type CodexOfficeVisibilityForm = {
 
 function formFromConfig(config: CodexOfficeVisibilityConfig): CodexOfficeVisibilityForm {
   return {
-    recentMinutes: String(
-      config.recentThreadWindowMinutes ?? DEFAULT_RECENT_THREAD_WINDOW_MINUTES,
-    ),
+    recentMinutes: String(config.recentThreadWindowMinutes ?? DEFAULT_RECENT_THREAD_WINDOW_MINUTES),
+    ceoThreadId: config.ceoThreadId ?? config.leadershipPins?.ceoThreadId ?? "",
+    projectManagers: config.projectManagers ?? config.leadershipPins?.projectManagers ?? [],
     alwaysShowHeartbeat: config.alwaysShowHeartbeatThreads !== false,
     showAutomationThreads: config.showAutomationThreadsAsHeartbeat !== false,
     heartbeatThreadIds: joinLines(config.heartbeatThreadIds),
@@ -43,6 +56,12 @@ function configFromForm(form: CodexOfficeVisibilityForm): CodexOfficeVisibilityC
       Number.isFinite(recentThreadWindowMinutes) && recentThreadWindowMinutes > 0
         ? recentThreadWindowMinutes
         : DEFAULT_RECENT_THREAD_WINDOW_MINUTES,
+    ceoThreadId: form.ceoThreadId.trim() || undefined,
+    projectManagers: form.projectManagers,
+    leadershipPins: {
+      ceoThreadId: form.ceoThreadId.trim() || undefined,
+      projectManagers: form.projectManagers,
+    },
     alwaysShowHeartbeatThreads: form.alwaysShowHeartbeat,
     showAutomationThreadsAsHeartbeat: form.showAutomationThreads,
     heartbeatThreadIds: splitLines(form.heartbeatThreadIds),
@@ -82,12 +101,12 @@ export function useCodexOfficeVisibilitySettings(input: {
     };
   }, [dialogOpen]);
 
-  async function save(): Promise<void> {
+  async function save(nextForm: CodexOfficeVisibilityForm = form): Promise<void> {
     setIsSaving(true);
     setStatusText("");
     try {
       const client = new CodexAppServerClient({ stateUrl: stateBaseInput });
-      const saved = await client.saveOfficeVisibilityConfig(configFromForm(form));
+      const saved = await client.saveOfficeVisibilityConfig(configFromForm(nextForm));
       setForm(formFromConfig(saved));
       await refreshOfficeData();
       setStatusText("Codex office settings saved.");

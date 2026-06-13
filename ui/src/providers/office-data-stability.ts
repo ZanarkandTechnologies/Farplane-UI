@@ -1,11 +1,13 @@
 import type { OfficeSettingsModel } from "@/modules/runtime";
 import type { EmployeeData, OfficeObject } from "@/modules/office/lib/types";
+import type { OfficeAreaNode } from "@/modules/office/lib/office-area-layout";
 
 type OfficeDataStabilityShape = {
   company: { _id: string; name: string } | null;
-  teams: Array<Record<string, unknown>>;
+  teams: unknown[];
   employees: EmployeeData[];
   officeObjects: OfficeObject[];
+  officeAreas: OfficeAreaNode[];
   desks: Array<{ id: string; deskIndex: number; team: string }>;
   officeSettings: OfficeSettingsModel;
   companyModel: unknown;
@@ -36,6 +38,10 @@ function buildHeartbeatBubbleSignature(
   bubbles: Array<{ label: string; weight?: number }> | undefined,
 ): string {
   return (bubbles ?? []).map((bubble) => `${bubble.label}:${bubble.weight ?? ""}`).join(",");
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
 export function buildEmployeeSignature(employees: EmployeeData[]): string {
@@ -78,8 +84,10 @@ export function buildEmployeeSignature(employees: EmployeeData[]): string {
 
 export function buildOfficeObjectSignature(officeObjects: OfficeObject[]): string {
   return officeObjects
-    .map((officeObject) =>
-      [
+    .map((officeObject) => {
+      const uiBinding = asRecord(officeObject.metadata?.uiBinding);
+      const skillBinding = asRecord(officeObject.metadata?.skillBinding);
+      return [
         officeObject._id,
         officeObject.meshType,
         buildPositionSignature(officeObject.position),
@@ -92,27 +100,34 @@ export function buildOfficeObjectSignature(officeObjects: OfficeObject[]): strin
         typeof officeObject.metadata?.meshPublicPath === "string"
           ? officeObject.metadata.meshPublicPath
           : "",
-        typeof officeObject.metadata?.uiBinding?.kind === "string"
-          ? officeObject.metadata.uiBinding.kind
-          : "",
-        typeof officeObject.metadata?.uiBinding?.title === "string"
-          ? officeObject.metadata.uiBinding.title
-          : "",
-        typeof officeObject.metadata?.uiBinding?.url === "string"
-          ? officeObject.metadata.uiBinding.url
-          : "",
-        typeof officeObject.metadata?.uiBinding?.aspectRatio === "string"
-          ? officeObject.metadata.uiBinding.aspectRatio
-          : "",
-        typeof officeObject.metadata?.uiBinding?.openMode === "string"
-          ? officeObject.metadata.uiBinding.openMode
-          : "",
-        typeof officeObject.metadata?.skillBinding?.skillId === "string"
-          ? officeObject.metadata.skillBinding.skillId
-          : "",
-        typeof officeObject.metadata?.skillBinding?.label === "string"
-          ? officeObject.metadata.skillBinding.label
-          : "",
+        typeof uiBinding.kind === "string" ? uiBinding.kind : "",
+        typeof uiBinding.title === "string" ? uiBinding.title : "",
+        typeof uiBinding.url === "string" ? uiBinding.url : "",
+        typeof uiBinding.aspectRatio === "string" ? uiBinding.aspectRatio : "",
+        typeof uiBinding.openMode === "string" ? uiBinding.openMode : "",
+        typeof skillBinding.skillId === "string" ? skillBinding.skillId : "",
+        typeof skillBinding.label === "string" ? skillBinding.label : "",
+      ].join("|");
+    })
+    .join("||");
+}
+
+function buildOfficeAreaSignature(officeAreas: OfficeAreaNode[]): string {
+  return officeAreas
+    .map((area) =>
+      [
+        area.id,
+        area.label,
+        area.depth,
+        area.parentId ?? "",
+        area.projectId ?? "",
+        area.departmentId ?? "",
+        area.weight,
+        area.color,
+        area.rect.minX.toFixed(2),
+        area.rect.maxX.toFixed(2),
+        area.rect.minZ.toFixed(2),
+        area.rect.maxZ.toFixed(2),
       ].join("|"),
     )
     .join("||");
@@ -135,6 +150,14 @@ function buildOfficeSettingsSignature(settings: OfficeSettingsModel): string {
   ].join("|");
 }
 
+function buildUnknownSignature(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "";
+  }
+}
+
 export function stabilizeOfficeData<T extends OfficeDataStabilityShape>(current: T, next: T): T {
   const stabilizedCompany =
     buildCompanySignature(current.company) === buildCompanySignature(next.company)
@@ -153,6 +176,10 @@ export function stabilizeOfficeData<T extends OfficeDataStabilityShape>(current:
     buildOfficeObjectSignature(next.officeObjects)
       ? current.officeObjects
       : next.officeObjects;
+  const stabilizedOfficeAreas =
+    buildOfficeAreaSignature(current.officeAreas) === buildOfficeAreaSignature(next.officeAreas)
+      ? current.officeAreas
+      : next.officeAreas;
   const stabilizedDesks =
     buildDeskSignature(current.desks) === buildDeskSignature(next.desks)
       ? current.desks
@@ -162,6 +189,18 @@ export function stabilizeOfficeData<T extends OfficeDataStabilityShape>(current:
     buildOfficeSettingsSignature(next.officeSettings)
       ? current.officeSettings
       : next.officeSettings;
+  const stabilizedCompanyModel =
+    buildUnknownSignature(current.companyModel) === buildUnknownSignature(next.companyModel)
+      ? current.companyModel
+      : next.companyModel;
+  const stabilizedWorkload =
+    buildUnknownSignature(current.workload) === buildUnknownSignature(next.workload)
+      ? current.workload
+      : next.workload;
+  const stabilizedWarnings =
+    buildUnknownSignature(current.warnings) === buildUnknownSignature(next.warnings)
+      ? current.warnings
+      : next.warnings;
 
   if (
     current.isLoading === next.isLoading &&
@@ -169,11 +208,12 @@ export function stabilizeOfficeData<T extends OfficeDataStabilityShape>(current:
     current.teams === stabilizedTeams &&
     current.employees === stabilizedEmployees &&
     current.officeObjects === stabilizedOfficeObjects &&
+    current.officeAreas === stabilizedOfficeAreas &&
     current.desks === stabilizedDesks &&
     current.officeSettings === stabilizedOfficeSettings &&
-    current.companyModel === next.companyModel &&
-    current.workload === next.workload &&
-    current.warnings === next.warnings
+    current.companyModel === stabilizedCompanyModel &&
+    current.workload === stabilizedWorkload &&
+    current.warnings === stabilizedWarnings
   ) {
     return current;
   }
@@ -184,7 +224,11 @@ export function stabilizeOfficeData<T extends OfficeDataStabilityShape>(current:
     teams: stabilizedTeams,
     employees: stabilizedEmployees,
     officeObjects: stabilizedOfficeObjects,
+    officeAreas: stabilizedOfficeAreas,
     desks: stabilizedDesks,
     officeSettings: stabilizedOfficeSettings,
+    companyModel: stabilizedCompanyModel,
+    workload: stabilizedWorkload,
+    warnings: stabilizedWarnings,
   };
 }

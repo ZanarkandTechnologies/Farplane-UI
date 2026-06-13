@@ -3,9 +3,7 @@
 import { memo } from "react";
 import { Html } from "@react-three/drei";
 
-import type { AgentState } from "@/modules/runtime";
 import type { EmployeeActivityState } from "@/modules/office/lib/types";
-import StatusIndicator, { type StatusType } from "@/modules/navigation/components/status-indicator";
 
 /**
  * EMPLOYEE STATUS BUBBLES
@@ -14,13 +12,11 @@ import StatusIndicator, { type StatusType } from "@/modules/navigation/component
  *
  * KEY CONCEPTS:
  * - Keep R3F HTML overlays isolated from the avatar mesh tree
- * - Reuse the existing heartbeat bubble renderer from StatusIndicator
+ * - Keep activity text hidden until hover so the diamond remains the scan cue
  *
  * MEMORY REFERENCES:
  * - MEM-0144
  */
-
-type StatusBubble = { label: string; weight?: number };
 
 type ActivityBadgeStyle = {
   label: string;
@@ -28,11 +24,7 @@ type ActivityBadgeStyle = {
 };
 
 type EmployeeStatusBubblesProps = {
-  currentStatus: StatusType;
   statusMessage?: string;
-  effectiveNotificationCount: number;
-  heartbeatState?: AgentState;
-  heartbeatBubbles: StatusBubble[];
   activityState?: EmployeeActivityState;
   activityLabel?: string;
   activityDetail?: string;
@@ -47,7 +39,6 @@ type EmployeeStatusBubblesProps = {
   onboardingPrompt?: string | null;
   useCompactOverlayMode?: boolean;
 };
-
 
 function getActivityBadgeStyle(state: EmployeeActivityState): ActivityBadgeStyle {
   switch (state) {
@@ -135,11 +126,7 @@ function EmployeeActivityBadge({
 }
 
 export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
-  currentStatus,
   statusMessage,
-  effectiveNotificationCount,
-  heartbeatState,
-  heartbeatBubbles,
   activityState,
   activityLabel,
   activityDetail,
@@ -166,7 +153,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
     <>
       {showActivityBadge ? (
         <EmployeeActivityBadge
-          state={activityState ?? "idle"}
+          state={activityState}
           label={activityLabel}
           detail={activityDetail ?? statusMessage}
           title={name}
@@ -175,20 +162,6 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
           compact={useCompactOverlayMode}
         />
       ) : null}
-
-      <StatusIndicator
-        status={currentStatus}
-        message={statusMessage}
-        visible={currentStatus !== "none"}
-        notificationCount={effectiveNotificationCount}
-        mode={
-          heartbeatState && heartbeatState !== "idle" && effectiveNotificationCount === 0
-            ? "heartbeatBubbles"
-            : "single"
-        }
-        bubbles={heartbeatBubbles}
-        compactOnly={useCompactOverlayMode}
-      />
 
       {showRichEmployeeLabels && !showActivityBadge && (isHovered || isHighlighted) && (
         <Html

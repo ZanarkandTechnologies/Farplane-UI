@@ -351,8 +351,22 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
     try {
       const threads = await this.listCodexThreads();
       const byThreadId = new Map(threads.map((thread) => [thread.id, thread]));
+      const uniqueAgentIds = [...new Set(agentIds.map((entry) => entry.trim()).filter(Boolean))];
+      const hydratedThreads = await Promise.all(
+        uniqueAgentIds.map(async (agentId) => {
+          if (agentId === CODEX_MAIN_AGENT_ID) return null;
+          const threadId = parseCodexThreadId(agentId);
+          const thread = byThreadId.get(threadId);
+          if (!thread || thread.status?.type !== "notLoaded") return null;
+          const response = await this.codexClient.readThread(threadId).catch(() => null);
+          return response?.thread ? ([threadId, response.thread] as const) : null;
+        }),
+      );
+      for (const hydrated of hydratedThreads) {
+        if (hydrated) byThreadId.set(hydrated[0], hydrated[1]);
+      }
       return Object.fromEntries(
-        [...new Set(agentIds.map((entry) => entry.trim()).filter(Boolean))].map((agentId) => {
+        uniqueAgentIds.map((agentId) => {
           if (agentId === CODEX_MAIN_AGENT_ID) return [agentId, toCodexMainLiveStatus()] as const;
           const thread = byThreadId.get(parseCodexThreadId(agentId));
           return [agentId, thread ? toCodexLiveStatus(thread) : toCodexMainLiveStatus()] as const;

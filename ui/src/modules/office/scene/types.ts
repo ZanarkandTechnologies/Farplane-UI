@@ -16,6 +16,7 @@
 
 import type { DeskLayoutData, EmployeeData, OfficeId, OfficeObject, TeamData } from "@/modules/office/lib/types";
 import type { OfficeLayoutModel } from "@/modules/office/lib/office-layout";
+import type { OfficeAreaNode } from "@/modules/office/lib/office-area-layout";
 import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
 import type { OfficeSettingsModel } from "@/modules/runtime";
 
@@ -24,6 +25,7 @@ export interface OfficeSceneProps {
   employees: EmployeeData[];
   desks: DeskLayoutData[];
   officeObjects: OfficeObject[];
+  officeAreas: OfficeAreaNode[];
   officeFootprint: OfficeFootprint;
   officeLayout: OfficeLayoutModel;
   officeDecorSettings: OfficeSettingsModel["decor"];

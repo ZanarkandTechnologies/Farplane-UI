@@ -375,6 +375,13 @@ function CodexRuntimeSettings(props: {
         onChange={(value) => patchForm({ recentMinutes: value })}
       />
 
+      <InputField
+        label="CEO Thread ID"
+        value={form.ceoThreadId}
+        onChange={(value) => patchForm({ ceoThreadId: value })}
+        placeholder="thread id to wear the crown"
+      />
+
       <ToggleRow
         label="Heartbeat Threads"
         description="Keep active or listed heartbeat threads visible even when old."

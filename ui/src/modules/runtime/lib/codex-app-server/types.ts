@@ -1,4 +1,10 @@
-export type CodexJson = null | boolean | number | string | CodexJson[] | { [key: string]: CodexJson };
+export type CodexJson =
+  | null
+  | boolean
+  | number
+  | string
+  | CodexJson[]
+  | { [key: string]: CodexJson };
 
 export type CodexThreadStatus =
   | { type: "notLoaded" }
@@ -125,6 +131,12 @@ export type CodexOfficeVisibilityConfig = {
   recentThreadWindowMinutes?: number;
   alwaysShowHeartbeatThreads?: boolean;
   showAutomationThreadsAsHeartbeat?: boolean;
+  ceoThreadId?: string;
+  leadershipPins?: {
+    ceoThreadId?: string;
+    projectManagers?: CodexProjectManagerPin[];
+  };
+  projectManagers?: CodexProjectManagerPin[];
   heartbeatThreadIds?: string[];
   projectlessThreadIds?: string[];
   miscProjectName?: string;
@@ -138,9 +150,7 @@ export type CodexProjectReadModelResponse = {
   officeVisibility?: CodexOfficeVisibilityConfig;
 };
 
-export type CodexRpcBridgeResponse<T> =
-  | { ok: true; result: T }
-  | { ok: false; error?: string };
+export type CodexRpcBridgeResponse<T> = { ok: true; result: T } | { ok: false; error?: string };
 
 export type CodexAppServerHealthResponse = {
   ok: boolean;

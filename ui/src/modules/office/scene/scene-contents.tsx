@@ -156,7 +156,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
       const teamId = typeof object.metadata?.teamId === "string" ? object.metadata.teamId : "";
       return teamById.has(teamId);
     }).length;
-  }, [enableOfficeObjects, officeObjects, teamById]);
+  }, [officeObjects, teamById]);
   const consultCameraTarget = useMemo<[number, number, number] | null>(() => {
     if (!isChatOpen || presentationMode !== "story") return null;
     const fallbackEmployeeId = (() => {

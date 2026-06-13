@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { EmployeeData, OfficeObject } from "@/modules/office/lib/types";
 import type {
   AgentCardModel,
   AgentLiveStatus,
@@ -7,13 +8,13 @@ import type {
   OfficeSettingsModel,
   UnifiedOfficeModel,
 } from "@/modules/runtime";
-import type { EmployeeData, OfficeObject } from "@/modules/office/lib/types";
 import {
   buildEmployeeSignature,
   buildOfficeObjectSignature,
   stabilizeOfficeData,
 } from "./office-data-stability";
 import { toOfficeData } from "./office-data-mapper";
+import { mergeAgentLiveStatuses } from "./office-data-provider";
 
 function createOfficeSettings(): OfficeSettingsModel {
   return {
@@ -60,10 +61,11 @@ function createOfficeObject(overrides: Partial<OfficeObject> = {}): OfficeObject
 
 function createValue(params?: { employees?: EmployeeData[]; officeObjects?: OfficeObject[] }) {
   return {
-    company: { _id: "company-demo", name: "Farplane AI" },
+    company: { _id: "company-demo", name: "Farplane UI" },
     teams: [],
     employees: params?.employees ?? [createEmployee()],
     officeObjects: params?.officeObjects ?? [createOfficeObject()],
+    officeAreas: [],
     desks: [],
     officeSettings: createOfficeSettings(),
     companyModel: null,
@@ -161,6 +163,36 @@ function createUnifiedOfficeModel(overrides: Partial<UnifiedOfficeModel> = {}): 
 }
 
 describe("office-data-provider stabilization", () => {
+  it("lets Codex adapter status override stale Convex rows for Codex thread agents", () => {
+    const merged = mergeAgentLiveStatuses({
+      runtimeKind: "codex",
+      agentIds: ["codex-thread:thread-running", "codex-main"],
+      convexStatuses: {
+        "codex-thread:thread-running": {
+          agentId: "codex-thread:thread-running",
+          state: "idle",
+          statusText: "Stale Convex idle.",
+          bubbles: [],
+        },
+      },
+      adapterStatuses: {
+        "codex-thread:thread-running": {
+          agentId: "codex-thread:thread-running",
+          state: "running",
+          statusText: "Codex turn running.",
+          bubbles: [{ id: "codex-thread-running", label: "Running", weight: 100 }],
+        },
+      },
+    });
+
+    expect(merged["codex-thread:thread-running"]).toEqual(
+      expect.objectContaining({
+        state: "running",
+        statusText: "Codex turn running.",
+      }),
+    );
+  });
+
   it("treats activity target changes as employee changes", () => {
     const base = [createEmployee()];
     const next = [
@@ -208,6 +240,28 @@ describe("office-data-provider stabilization", () => {
 
     const stabilized = stabilizeOfficeData(currentValue, nextValue);
     expect(stabilized.officeObjects).toBe(nextValue.officeObjects);
+  });
+
+  it("keeps semantically unchanged model payloads stable across polling snapshots", () => {
+    const currentValue = {
+      ...createValue(),
+      companyModel: createCompanyModel(),
+      workload: [{ projectId: "proj-main", openTickets: 1, closedTickets: 2, queuePressure: "low" }],
+      warnings: [{ code: "runtime_empty", message: "Runtime has no visible agents." }],
+    };
+    const nextValue = {
+      ...createValue(),
+      companyModel: createCompanyModel(),
+      workload: [{ projectId: "proj-main", openTickets: 1, closedTickets: 2, queuePressure: "low" }],
+      warnings: [{ code: "runtime_empty", message: "Runtime has no visible agents." }],
+    };
+
+    const stabilized = stabilizeOfficeData(currentValue, nextValue);
+
+    expect(stabilized).toBe(currentValue);
+    expect(stabilized.companyModel).toBe(currentValue.companyModel);
+    expect(stabilized.workload).toBe(currentValue.workload);
+    expect(stabilized.warnings).toBe(currentValue.warnings);
   });
 });
 
@@ -290,6 +344,80 @@ describe("office-data-provider team synthesis", () => {
     ).toBe(true);
   });
 
+  it("maps live status onto employee head fields", () => {
+    const liveStatus: Record<string, AgentLiveStatus> = {
+      "codex-worker": {
+        agentId: "codex-worker",
+        sessionKey: "codex-thread:thread-running",
+        state: "running",
+        statusText: "Codex turn running.",
+        bubbles: [
+          { id: "codex-thread-running", label: "Running", weight: 100 },
+          { id: "codex-active-flag-0-planning", label: "Planning", weight: 90 },
+        ],
+        currentSkillId: "world-monitor",
+        updatedAt: 1770000000000,
+      },
+    };
+    const company = createCompanyModel({
+      agents: [
+        {
+          agentId: "main",
+          role: "ceo",
+          heartbeatProfileId: "hb-ceo",
+          isCeo: true,
+          lifecycleState: "active",
+        },
+        {
+          agentId: "codex-worker",
+          role: "builder",
+          projectId: "codex-proj-active",
+          heartbeatProfileId: "hb-ceo",
+          lifecycleState: "active",
+        },
+      ],
+    });
+    const unified = createUnifiedOfficeModel({
+      company,
+      runtimeAgents: [
+        createRuntimeAgent(),
+        createRuntimeAgent({
+          agentId: "codex-worker",
+          displayName: "Codex Worker",
+          workspacePath: "/tmp/codex-worker",
+          agentDir: "/tmp/codex-worker/agent",
+        }),
+      ],
+      configuredAgents: [
+        createRuntimeAgent(),
+        createRuntimeAgent({
+          agentId: "codex-worker",
+          displayName: "Codex Worker",
+          workspacePath: "/tmp/codex-worker",
+          agentDir: "/tmp/codex-worker/agent",
+        }),
+      ],
+    });
+
+    const result = toOfficeData(unified, createOfficeSettings(), [], liveStatus);
+    const employee = result.employees.find((entry) => entry._id === "employee-codex-worker");
+
+    expect(employee).toEqual(
+      expect.objectContaining({
+        status: "info",
+        statusMessage: "Codex turn running.",
+        activityState: "running",
+        activityLabel: "Running",
+        activityDetail: "Codex turn running.",
+        heartbeatState: "running",
+        heartbeatBubbles: [
+          { label: "Running", weight: 100 },
+          { label: "Planning", weight: 90 },
+        ],
+      }),
+    );
+  });
+
   it("keeps idle thread detail available for employee hover badges", () => {
     const liveStatus: Record<string, AgentLiveStatus> = {
       "codex-worker": {
@@ -353,6 +481,338 @@ describe("office-data-provider team synthesis", () => {
         heartbeatState: "idle",
       }),
     );
+  });
+
+  it("removes the management table when a Codex thread is the CEO", () => {
+    const company = createCompanyModel({
+      projects: [
+        {
+          id: "codex-proj-workspace-farplane-ui",
+          departmentId: "dept-codex-projects",
+          name: "Farplane UI",
+          githubUrl: "",
+          status: "active",
+          goal: "Build Farplane UI",
+          kpis: [],
+          accountEvents: [],
+          ledger: [],
+          experiments: [],
+          metricEvents: [],
+          resources: [],
+          resourceEvents: [],
+        },
+      ],
+      agents: [
+        {
+          agentId: "codex-thread:strategy-thread",
+          role: "ceo",
+          projectId: "codex-proj-workspace-farplane-ui",
+          heartbeatProfileId: "hb-codex-thread-ceo",
+          isCeo: true,
+          lifecycleState: "active",
+        },
+      ],
+      heartbeatProfiles: [
+        {
+          id: "hb-codex-thread-ceo",
+          role: "ceo",
+          cadenceMinutes: 0,
+          teamDescription: "Pinned Codex CEO thread",
+          productDetails: "Long-running strategy thread",
+          goal: "Keep office direction visible.",
+        },
+      ],
+    });
+    const unified = createUnifiedOfficeModel({
+      company,
+      runtimeAgents: [
+        createRuntimeAgent({
+          agentId: "codex-thread:strategy-thread",
+          displayName: "Strategy Thread",
+          workspacePath: "/workspace/farplane-ui",
+          agentDir: "/workspace/farplane-ui",
+        }),
+      ],
+      configuredAgents: [
+        createRuntimeAgent({
+          agentId: "codex-thread:strategy-thread",
+          displayName: "Strategy Thread",
+          workspacePath: "/workspace/farplane-ui",
+          agentDir: "/workspace/farplane-ui",
+        }),
+      ],
+    });
+
+    const result = toOfficeData(unified, createOfficeSettings());
+
+    expect(result.teams.some((team) => team._id === "team-management")).toBe(false);
+    expect(result.officeObjects.some((object) => object.metadata?.teamId === "team-management")).toBe(false);
+    expect(result.employees).toEqual([
+      expect.objectContaining({
+        _id: "employee-codex-thread:strategy-thread",
+        teamId: "team-codex-proj-workspace-farplane-ui",
+        isCEO: true,
+        isSupervisor: true,
+      }),
+    ]);
+  });
+
+  it("derives office areas and uses project area centers as generated cluster anchors", () => {
+    const company = createCompanyModel({
+      departments: [
+        {
+          id: "dept-codex-projects",
+          name: "Codex Projects",
+          description: "",
+          goal: "",
+        },
+      ],
+      projects: [
+        {
+          id: "proj-zanarkand",
+          departmentId: "dept-codex-projects",
+          name: "Zanarkand Technologies",
+          githubUrl: "",
+          status: "active",
+          goal: "",
+          kpis: [],
+          trackingContext: "/Users/kenjipcx/Zanarkand Technologies",
+          accountEvents: [],
+          ledger: [],
+          experiments: [],
+          metricEvents: [],
+          resources: [],
+          resourceEvents: [],
+        },
+        {
+          id: "proj-farplane",
+          departmentId: "dept-codex-projects",
+          name: "Farplane",
+          githubUrl: "",
+          status: "active",
+          goal: "",
+          kpis: [],
+          trackingContext: "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane",
+          accountEvents: [],
+          ledger: [],
+          experiments: [],
+          metricEvents: [],
+          resources: [],
+          resourceEvents: [],
+        },
+        {
+          id: "proj-farplane-ui",
+          departmentId: "dept-codex-projects",
+          name: "Farplane UI",
+          githubUrl: "",
+          status: "active",
+          goal: "",
+          kpis: [],
+          trackingContext: "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
+          accountEvents: [],
+          ledger: [],
+          experiments: [],
+          metricEvents: [],
+          resources: [],
+          resourceEvents: [],
+        },
+      ],
+    });
+    const settings = {
+      ...createOfficeSettings(),
+      officeLayout: {
+        version: 1 as const,
+        tileSize: 1 as const,
+        tiles: Array.from({ length: 31 }, (_, xIndex) =>
+          Array.from({ length: 25 }, (_z, zIndex) => `${xIndex - 15}:${zIndex - 12}`),
+        ).flat(),
+      },
+    };
+
+    const result = toOfficeData(createUnifiedOfficeModel({ company }), settings);
+    expect(result.officeAreas.map((area) => area.label)).toEqual(
+      expect.arrayContaining(["Zanarkand Technologies", "Farplane", "Farplane UI"]),
+    );
+    expect(result.officeAreas.find((area) => area.projectId === "proj-farplane-ui")?.parentId).toContain(
+      "farplane",
+    );
+  });
+
+  it("uses project area centers as generated cluster anchors when unobstructed", () => {
+    const company = createCompanyModel({
+      departments: [
+        {
+          id: "dept-codex-projects",
+          name: "Codex Projects",
+          description: "",
+          goal: "",
+        },
+      ],
+      projects: [
+        {
+          id: "proj-farplane-ui",
+          departmentId: "dept-codex-projects",
+          name: "Farplane UI",
+          githubUrl: "",
+          status: "active",
+          goal: "",
+          kpis: [],
+          trackingContext: "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
+          accountEvents: [],
+          ledger: [],
+          experiments: [],
+          metricEvents: [],
+          resources: [],
+          resourceEvents: [],
+        },
+      ],
+    });
+    const settings = {
+      ...createOfficeSettings(),
+      officeLayout: {
+        version: 1 as const,
+        tileSize: 1 as const,
+        tiles: Array.from({ length: 31 }, (_, xIndex) =>
+          Array.from({ length: 25 }, (_z, zIndex) => `${xIndex - 15}:${zIndex - 12}`),
+        ).flat(),
+      },
+    };
+    const result = toOfficeData(createUnifiedOfficeModel({ company }), settings);
+    const uiArea = result.officeAreas.find((area) => area.projectId === "proj-farplane-ui");
+    const uiCluster = result.officeObjects.find(
+      (object) => object.metadata?.teamId === "team-proj-farplane-ui",
+    );
+    if (!uiArea) throw new Error("missing_farplane_ui_area");
+
+    expect(uiCluster?.position).toEqual([
+      Math.round(uiArea.rect.centerX),
+      0,
+      Math.round(uiArea.rect.centerZ),
+    ]);
+  });
+
+  it("preserves persisted team cluster positions over area-derived anchors", () => {
+    const company = createCompanyModel({
+      departments: [
+        {
+          id: "dept-codex-projects",
+          name: "Codex Projects",
+          description: "",
+          goal: "",
+        },
+      ],
+      projects: [
+        {
+          id: "proj-farplane-ui",
+          departmentId: "dept-codex-projects",
+          name: "Farplane UI",
+          githubUrl: "",
+          status: "active",
+          goal: "",
+          kpis: [],
+          trackingContext: "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
+          accountEvents: [],
+          ledger: [],
+          experiments: [],
+          metricEvents: [],
+          resources: [],
+          resourceEvents: [],
+        },
+      ],
+    });
+    const persistedPosition: [number, number, number] = [8, 0, 6];
+    const result = toOfficeData(
+      createUnifiedOfficeModel({
+        company,
+        officeObjects: [
+          {
+            id: "team-cluster-team-proj-farplane-ui",
+            identifier: "team-cluster-team-proj-farplane-ui",
+            meshType: "team-cluster",
+            position: persistedPosition,
+            metadata: { teamId: "team-proj-farplane-ui" },
+          },
+        ],
+      }),
+      {
+        ...createOfficeSettings(),
+        officeLayout: {
+          version: 1,
+          tileSize: 1,
+          tiles: Array.from({ length: 31 }, (_, xIndex) =>
+            Array.from({ length: 25 }, (_z, zIndex) => `${xIndex - 15}:${zIndex - 12}`),
+          ).flat(),
+        },
+      },
+    );
+
+    const uiCluster = result.officeObjects.find(
+      (object) => object.metadata?.teamId === "team-proj-farplane-ui",
+    );
+    expect(uiCluster?.position).toEqual(persistedPosition);
+  });
+
+  it("falls back from area anchors when nested project clusters would collide", () => {
+    const projectBase = {
+      departmentId: "dept-codex-projects",
+      githubUrl: "",
+      status: "active" as const,
+      goal: "",
+      kpis: [],
+      accountEvents: [],
+      ledger: [],
+      experiments: [],
+      metricEvents: [],
+      resources: [],
+      resourceEvents: [],
+    };
+    const company = createCompanyModel({
+      departments: [
+        {
+          id: "dept-codex-projects",
+          name: "Codex Projects",
+          description: "",
+          goal: "",
+        },
+      ],
+      projects: [
+        {
+          ...projectBase,
+          id: "proj-farplane",
+          name: "Farplane",
+          trackingContext: "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane",
+        },
+        {
+          ...projectBase,
+          id: "proj-farplane-ui",
+          name: "Farplane UI",
+          trackingContext: "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
+        },
+      ],
+    });
+    const result = toOfficeData(
+      createUnifiedOfficeModel({ company }),
+      {
+        ...createOfficeSettings(),
+        officeLayout: {
+          version: 1,
+          tileSize: 1,
+          tiles: Array.from({ length: 31 }, (_, xIndex) =>
+            Array.from({ length: 25 }, (_z, zIndex) => `${xIndex - 15}:${zIndex - 12}`),
+          ).flat(),
+        },
+      },
+    );
+    const farplaneCluster = result.officeObjects.find(
+      (object) => object.metadata?.teamId === "team-proj-farplane",
+    );
+    const uiCluster = result.officeObjects.find(
+      (object) => object.metadata?.teamId === "team-proj-farplane-ui",
+    );
+
+    expect(farplaneCluster?.position).toBeDefined();
+    expect(uiCluster?.position).toBeDefined();
+    expect(uiCluster?.position).not.toEqual(farplaneCluster?.position);
   });
 
   it("does not synthesize a Farplane fallback cluster when all projects are archived", () => {

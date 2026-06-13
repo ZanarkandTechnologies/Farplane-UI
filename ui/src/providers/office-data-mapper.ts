@@ -50,6 +50,11 @@ import {
   type OfficeLayoutModel,
 } from "@/modules/office/lib/office-layout";
 import {
+  buildOfficeAreaLayout,
+  getOfficeAreaAnchor,
+  type OfficeAreaNode,
+} from "@/modules/office/lib/office-area-layout";
+import {
   createOfficePlacementReservation,
   reserveOfficeObjectPlacement,
   type OfficePlacementObject,
@@ -84,6 +89,7 @@ type EmployeeActivitySummary = {
   label?: string;
   detail?: string;
 };
+
 const DEFAULT_PROJECT_CLUSTER_POSITIONS: Array<[number, number, number]> = [
   [0, 0, 13],
   [-12, 0, 4.25],
@@ -104,6 +110,7 @@ export interface OfficeDataContextValue {
   teams: TeamData[];
   employees: EmployeeData[];
   officeObjects: OfficeObject[];
+  officeAreas: OfficeAreaNode[];
   desks: DeskLayoutData[];
   officeSettings: OfficeSettingsModel;
   companyModel: CompanyModel | null;
@@ -126,7 +133,7 @@ export interface OfficeDataContextValue {
 
 type EmployeeAppearance = NonNullable<EmployeeData["appearance"]>;
 
-const demoCompany: Company = { _id: "company-demo", name: "Farplane AI" };
+const demoCompany: Company = { _id: "company-demo", name: "Farplane UI" };
 
 function isAppearanceClothesStyle(
   value: unknown,
@@ -420,6 +427,7 @@ export function fallbackData(): OfficeDataContextValue {
     teams,
     employees,
     officeObjects,
+    officeAreas: [],
     desks,
     officeSettings: {
       meshAssetDir: "",
@@ -448,12 +456,15 @@ export function fallbackData(): OfficeDataContextValue {
 
 function resolveRuntimeTeamId(
   agentId: string,
+  companyAgentRole: string | undefined,
   companyAgentProjectId: string | undefined,
   projectToTeamId: Map<string, string>,
+  hasPinnedCeoThread: boolean,
 ): string {
   if (agentId === "main") return "team-management";
-  if (!companyAgentProjectId) return "team-management";
-  return projectToTeamId.get(companyAgentProjectId) ?? "team-management";
+  if (companyAgentProjectId) return projectToTeamId.get(companyAgentProjectId) ?? "team-management";
+  if (companyAgentRole === "ceo" && hasPinnedCeoThread) return "team-ceo-thread";
+  return "team-management";
 }
 
 export function areStringArraysEqual(current: string[], next: string[]): boolean {
@@ -487,6 +498,14 @@ export function toOfficeData(
     (project) => project.status !== "archived",
   );
   const companyAgents = companyModel.agents ?? [];
+  const hasPinnedCeoThread = companyAgents.some(
+    (agent) => agent.role === "ceo" && agent.agentId.startsWith("codex-thread:"),
+  );
+  const officeAreaLayout = buildOfficeAreaLayout({
+    company: companyModel,
+    officeLayout,
+    workload,
+  });
 
   const appearanceByAgentId = new Map<
     string,
@@ -525,24 +544,26 @@ export function toOfficeData(
   );
   let sidecarFurniture: OfficeObject[] = [];
 
-  const managementClusterPosition = resolveTeamClusterScenePosition({
-    position: teamClusterAnchorsByTeamId.get("team-management") ?? ceoAnchor,
-    deskCount: 1,
-    officeLayout,
-    reservation: scenePlacementReservation,
-    metadata: { teamId: "team-management" },
-    rotation: persistedTeamClusterByTeamId.get("team-management")?.rotation,
-  });
+  if (!hasPinnedCeoThread) {
+    const managementClusterPosition = resolveTeamClusterScenePosition({
+      position: teamClusterAnchorsByTeamId.get("team-management") ?? ceoAnchor,
+      deskCount: 1,
+      officeLayout,
+      reservation: scenePlacementReservation,
+      metadata: { teamId: "team-management" },
+      rotation: persistedTeamClusterByTeamId.get("team-management")?.rotation,
+    });
 
-  teams.push({
-    _id: "team-management",
-    companyId,
-    name: "Management",
-    description: "Executive control desk inside the dedicated management zone.",
-    deskCount: 1,
-    clusterPosition: managementClusterPosition,
-    employees: [],
-  });
+    teams.push({
+      _id: "team-management",
+      companyId,
+      name: "Management",
+      description: "Executive control desk inside the dedicated management zone.",
+      deskCount: 1,
+      clusterPosition: managementClusterPosition,
+      employees: [],
+    });
+  }
 
   if (projectList.length > 0) {
     for (const [projectIndex, project] of projectList.entries()) {
@@ -559,8 +580,14 @@ export function toOfficeData(
         .reduce((total, entry) => total + Math.max(0, Math.round(entry.amount)), 0);
       const persistedClusterPosition = teamClusterAnchorsByTeamId.get(teamId);
       const persistedCluster = persistedTeamClusterByTeamId.get(teamId);
+      const preferredAreaAnchor = officeAreaLayout.projectAreaByProjectId[project.id]
+        ? getOfficeAreaAnchor(officeAreaLayout.projectAreaByProjectId[project.id])
+        : undefined;
       const clusterPosition = resolveTeamClusterScenePosition({
-        position: persistedClusterPosition ?? getDefaultProjectClusterPosition(projectIndex),
+        position:
+          persistedClusterPosition ??
+          preferredAreaAnchor ??
+          getDefaultProjectClusterPosition(projectIndex),
         deskCount,
         officeLayout,
         reservation: scenePlacementReservation,
@@ -743,7 +770,13 @@ export function toOfficeData(
     const runtimeAgent = runtimeById.get(agent.agentId);
     const isRuntimeRunning = Boolean(runtimeAgent);
     const isMainAgent = agent.agentId === "main";
-    const teamId = resolveRuntimeTeamId(agent.agentId, companyAgent?.projectId, projectToTeamId);
+    const teamId = resolveRuntimeTeamId(
+      agent.agentId,
+      companyAgent?.role,
+      companyAgent?.projectId,
+      projectToTeamId,
+      hasPinnedCeoThread,
+    );
     const team = teams.find((item) => item._id === teamId);
     const heartbeat = companyModel.heartbeatProfiles.find(
       (item) => item.id === companyAgent?.heartbeatProfileId,
@@ -872,6 +905,7 @@ export function toOfficeData(
     teams,
     employees,
     officeObjects,
+    officeAreas: officeAreaLayout.areas,
     desks,
     officeSettings,
     companyModel: unified.company,
