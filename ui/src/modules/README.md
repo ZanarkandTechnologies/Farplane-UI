@@ -12,6 +12,11 @@ explained as one product capability. Keep shadcn-style UI primitives in
 `ui/src/components/ui`, global app state in `ui/src/store`, and tiny
 cross-module primitives in `ui/src/lib`.
 
+Renderers live outside modules. The `standard` renderer is the
+navigation-first app shell; the `office3d` renderer is the spatial office shell.
+Both renderers should open the same modules through different entry surfaces.
+Do not create a `console` module for the standard renderer.
+
 ## Current Shape
 
 Farplane UI product/domain code lives under `modules/`. Shared visual
@@ -44,6 +49,10 @@ qa-tools/        target owner for operator/dev probes such as clickability and
 
 Add a module folder when a new durable product/domain surface needs a real
 boundary.
+
+Register first-party modules through static imports in the shell registry.
+Derive module id types from that registry instead of maintaining a separate
+global module union.
 
 ## Module Contract
 

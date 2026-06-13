@@ -1,10 +1,10 @@
 import React from "react";
 import { Link } from "react-router-dom";
 
-import OfficeSimulation from "@/components/office-simulation";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { OfficeDataProvider } from "@/providers/office-data-provider";
+import { FarplaneShell } from "@/shell";
 
 export function OfficePage(): React.JSX.Element {
   return (
@@ -12,7 +12,7 @@ export function OfficePage(): React.JSX.Element {
       <OfficeDataProvider>
         <SidebarProvider defaultOpen={false}>
           <SidebarInset className="h-[100dvh]">
-            <OfficeSimulation />
+            <FarplaneShell config={{ renderer: "office3d" }} />
           </SidebarInset>
         </SidebarProvider>
       </OfficeDataProvider>

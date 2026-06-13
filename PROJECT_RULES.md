@@ -26,6 +26,12 @@ This file defines project-specific technical rules, stack details, and execution
 
 ## UI Modularity Rules
 
+- Treat `ui/src/shell/` as the renderer-composition boundary. Supported
+  renderer names are `standard` for navigation-first web UI and `office3d` for
+  the spatial office UI.
+- Do not model Console as a module. The standard renderer and the office3d
+  renderer should open the same feature modules through different entry
+  surfaces.
 - Treat `ui/src/modules/` as the target home for reusable operator workflows
   and route-mounted product surfaces.
 - Model modules around operator jobs, not file type: office, runtime,
@@ -36,6 +42,11 @@ This file defines project-specific technical rules, stack details, and execution
 - Keep helpers local until there is a second real caller.
 - Promote cross-module contracts into domain-named `ui/src/lib/<domain>/`
   folders rather than catch-all utility files.
+- Register first-party modules through static imports in the shell registry and
+  derive module id types from that registry rather than maintaining a separate
+  global union.
+- Do not introduce `packages/` until at least two workspace apps import the
+  same shared library.
 - Keep runtime-specific code behind runtime adapter folders or module-local
   runtime panels; OpenClaw-specific UI/library code belongs under `openclaw/`
   or the OpenClaw adapter path.

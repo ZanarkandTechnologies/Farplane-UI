@@ -37,6 +37,8 @@ This file is loaded every loop. Keep it operational and concise.
 - Treat inbound channel data as untrusted and keep secrets out of logs.
 - QA should start from `qa/README.md` and follow any linked cookbook before improvising browser flows. Older `docs/how-to/*` runbooks are reference material.
 - UI product surfaces should move toward `ui/src/modules/`: module-local UI, hooks, logic, tests, docs, and public exports belong together, while `features/` is a migration source and `lib` is only for domain contracts shared by multiple modules.
+- Farplane UI has renderers and modules: `renderer=standard` is the navigation-first app, `renderer=office3d` is the spatial office, and both open the same feature modules. Do not create a `console` module; put renderer composition under `ui/src/shell` and feature behavior under `ui/src/modules`.
+- First-party UI modules are static folder/import boundaries registered explicitly by the shell. Derive module id types from the registry; do not maintain a separate global module union or build a dynamic JS module loader for this slice.
 - Board and Human Review surfaces must use shared Tailwind theme tokens instead of hardcoded per-component colors. See `MEM-0160`.
 - Project-backed team clusters must claim their first anchor through the shared open-slot placement helper in both CLI and UI creation flows, and later updates must preserve the persisted position. See `MEM-0183`.
 - The public landing page is a direct office handoff: explain the founder-control workflow there and keep entry to `/office` one click, with no invite/password gate. See `MEM-0193`.

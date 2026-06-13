@@ -15,6 +15,11 @@ surfaces, not generic file buckets.
 
 - Add one folder per reusable operator workflow or route-mounted product
   surface.
+- Keep renderer composition in `ui/src/shell`; modules own feature behavior,
+  not renderer layout. Do not create a `console` module for the standard
+  renderer.
+- Register renderable first-party modules through static shell imports and
+  derive module id types from the registry.
 - Keep module UI, hooks, local logic, types, fixtures, tests, and docs inside
   the owning module.
 - Keep internal helpers private unless exported through the module `index.ts`.

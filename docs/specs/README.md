@@ -7,6 +7,7 @@ contracts, runtime adapters, sidecars, workflow state, or UI behavior.
 
 ## Current Specs
 
+- `module-shell-architecture.md`
 - `SC01-spec-openclaw-state-mapping.md`
 - `SC02-spec-notion-plugin-inrepo.md`
 - `SC03-spec-ui-memory-skills.md`
