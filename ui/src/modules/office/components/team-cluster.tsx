@@ -10,41 +10,38 @@
  * 3. Default mode → Click to open team chat
  *
  * VISUAL BEHAVIOR:
- * - Shows flag/banner when team has 0 desks
+ * - Shows a floating label above team tables
  * - Shows floor circle in builder/placement modes only
  * - Desks auto-arrange using layout utility functions
  */
-import { useState, useMemo } from "react";
-import type { Id } from "@/lib/entity-types";
-import type { TeamData, DeskLayoutData } from "@/modules/office/lib/types";
+
+import { Html, Text } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
-import Desk from "./desk";
-import { InteractiveObject } from "./interactive-object";
-import { useAppStore } from "@/store";
-import { Text, Html } from "@react-three/drei";
+import { useMemo, useState } from "react";
+import { COMPUTER_HEIGHT, DESK_HEIGHT } from "@/constants";
+import type { Id } from "@/lib/entity-types";
+import type { DeskLayoutData, TeamData } from "@/modules/office/lib/types";
 import {
-  getClusterAnchor,
   getClusterOccupancyFootprint,
   getDeskPosition,
   getDeskRotation,
 } from "@/modules/office/utils/layout";
+import { useAppStore } from "@/store";
+import Desk from "./desk";
+import { InteractiveObject } from "./interactive-object";
 
 // Constants
 const MAX_DESKS_PER_TEAM = 6;
 const DEFAULT_OCCUPANCY_WIDTH = 9.2;
 const DEFAULT_OCCUPANCY_DEPTH = 7.4;
-const SIGN_LABEL_MAX_WIDTH = 1.05;
+const FLOATING_LABEL_HEIGHT = DESK_HEIGHT + COMPUTER_HEIGHT + 0.58;
 
-function getPositiveMetadataNumber(metadata: Record<string, unknown> | undefined, key: string): number | null {
+function getPositiveMetadataNumber(
+  metadata: Record<string, unknown> | undefined,
+  key: string,
+): number | null {
   const value = metadata?.[key];
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
-}
-
-function getSignFontSize(label: string): number {
-  if (label.length > 22) return 0.105;
-  if (label.length > 16) return 0.125;
-  if (label.length > 11) return 0.15;
-  return 0.18;
 }
 
 // ============================================================================
@@ -198,10 +195,6 @@ export default function TeamCluster({
     }));
   }, [desks]);
 
-  const signboardPosition = useMemo<[number, number, number]>(() => {
-    const [anchorX, , anchorZ] = getClusterAnchor(desksWithPositions.length);
-    return [anchorX, 0.8, anchorZ];
-  }, [desksWithPositions.length]);
   const tableHitTarget = useMemo(() => {
     const footprint = getClusterOccupancyFootprint(Math.max(desksWithPositions.length, 1));
     const width = getPositiveMetadataNumber(metadata, "footprintWidth") ?? footprint.width;
@@ -211,27 +204,26 @@ export default function TeamCluster({
       size: [width, 0.8, depth] as [number, number, number],
     };
   }, [desksWithPositions.length, metadata]);
-  const occupancyMat = useMemo(
-    () => {
-      const solvedFootprint = getClusterOccupancyFootprint(Math.max(desks.length, 1));
-      return {
-        width:
-          getPositiveMetadataNumber(metadata, "footprintWidth") ??
-          solvedFootprint.width ??
-          DEFAULT_OCCUPANCY_WIDTH,
-        depth:
-          getPositiveMetadataNumber(metadata, "footprintDepth") ??
-          solvedFootprint.depth ??
-          DEFAULT_OCCUPANCY_DEPTH,
-      };
-    },
-    [desks.length, metadata],
-  );
+  const occupancyMat = useMemo(() => {
+    const solvedFootprint = getClusterOccupancyFootprint(Math.max(desks.length, 1));
+    return {
+      width:
+        getPositiveMetadataNumber(metadata, "footprintWidth") ??
+        solvedFootprint.width ??
+        DEFAULT_OCCUPANCY_WIDTH,
+      depth:
+        getPositiveMetadataNumber(metadata, "footprintDepth") ??
+        solvedFootprint.depth ??
+        DEFAULT_OCCUPANCY_DEPTH,
+    };
+  }, [desks.length, metadata]);
 
   // Render conditions
   const isManagementCluster = team.name === "Management";
-  const showFlag = desks.length === 0 && !isManagementCluster;
   const showCircle = isBuilderMode || placementMode.active;
+  const showFloatingLabel = !isManagementCluster && team.name !== "CEO";
+  const showDeskPlacementDetail =
+    placementMode.active && placementMode.type === "desk" && (isHovered || isAtCapacity);
   return (
     <InteractiveObject
       objectType="team-cluster"
@@ -243,6 +235,7 @@ export default function TeamCluster({
       metadata={metadata}
       supportsScaling={false}
     >
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: React Three Fiber group handles scene pointer events, not DOM interaction semantics. */}
       <group
         onPointerEnter={shouldEnableLocalHover ? () => setIsHovered(true) : undefined}
         onPointerLeave={shouldEnableLocalHover ? () => setIsHovered(false) : undefined}
@@ -269,85 +262,6 @@ export default function TeamCluster({
         </group>
 
         <group>
-          {/* Flag/Sign - Only visible if NO desks */}
-          {showFlag && (
-            <>
-              {/* Center Pole/Banner */}
-              <mesh position={[0, 1, 0]} castShadow>
-                <cylinderGeometry args={[0.05, 0.05, 2, 8]} />
-                <meshStandardMaterial color="#6b7280" />
-              </mesh>
-
-              {/* Banner Flag */}
-              <mesh position={[0, 1.5, 0.4]} rotation={[0, 0, 0]} castShadow>
-                <boxGeometry args={[0.05, 0.8, 0.8]} />
-                <meshStandardMaterial color={team.name === "Management" ? "#ef4444" : "#3b82f6"} />
-              </mesh>
-
-              {/* Team Name Sign */}
-              <group position={[0, 2.0, 0]}>
-                <Text
-                  position={[0, 0, 0]}
-                  fontSize={0.3}
-                  color="black"
-                  anchorX="center"
-                  anchorY="middle"
-                  outlineWidth={0.02}
-                  outlineColor="white"
-                >
-                  {team.name}
-                </Text>
-              </group>
-            </>
-          )}
-
-          {/* Mini Signboard Banner - Always visible (except for CEO/Management team) */}
-          {!isManagementCluster && team.name !== "CEO" && (
-            <group name="team-signboard" position={signboardPosition}>
-              {/* Signboard Post */}
-              <mesh position={[0, 0, 0]} castShadow>
-                <cylinderGeometry args={[0.03, 0.03, 0.8, 8]} />
-                <meshStandardMaterial color="#4b5563" />
-              </mesh>
-
-              {/* Signboard Panel */}
-              <group position={[0, 0.4, 0]}>
-                {/* Back panel for depth */}
-                <mesh position={[0, 0, -0.01]} castShadow>
-                  <boxGeometry args={[1.2, 0.4, 0.02]} />
-                  <meshStandardMaterial color="#1f2937" />
-                </mesh>
-
-                {/* Front panel */}
-                <mesh position={[0, 0, 0]} castShadow>
-                  <boxGeometry args={[1.2, 0.4, 0.02]} />
-                  <meshStandardMaterial color="#2563eb" metalness={0.3} roughness={0.7} />
-                </mesh>
-
-                {/* Team Name Text */}
-                <Text
-                  position={[0, 0, 0.015]}
-                  fontSize={getSignFontSize(team.name)}
-                  maxWidth={SIGN_LABEL_MAX_WIDTH}
-                  color="white"
-                  anchorX="center"
-                  anchorY="middle"
-                  textAlign="center"
-                  outlineWidth={0.01}
-                  outlineColor="#000000"
-                >
-                  {team.name}
-                </Text>
-              </group>
-
-              {/* Small decorative top cap */}
-              <mesh position={[0, 0.8, 0]} castShadow>
-                <sphereGeometry args={[0.04, 8, 8]} />
-                <meshStandardMaterial color="#6b7280" />
-              </mesh>
-            </group>
-          )}
-
           {/* Desks with auto-calculated positions */}
           {desksWithPositions.map((desk) => (
             <Desk
@@ -383,33 +297,40 @@ export default function TeamCluster({
           )}
         </group>
 
-        {/* Team Label - Always visible in builder mode, otherwise on hover */}
-        {(isBuilderMode || (isHovered && shouldEnableLocalHover)) && (
+        {showFloatingLabel && (
           <Html
-            position={[0, 2.8, 0]}
+            position={[0, FLOATING_LABEL_HEIGHT, 0]}
             center
-            zIndexRange={[100, 0]}
+            transform
+            sprite
+            distanceFactor={4.8}
+            occlude
+            zIndexRange={[112, 0]}
             style={{
+              backfaceVisibility: "hidden",
+              WebkitBackfaceVisibility: "hidden",
               pointerEvents: "none",
               userSelect: "none",
             }}
           >
-            <div className="animate-in fade-in zoom-in-95 duration-200">
+            <div className="farplane-team-label-bobble animate-in fade-in zoom-in-95 duration-200">
               <div
-                className={`px-3 py-1.5 rounded-md text-xs font-medium shadow-lg whitespace-nowrap ${
+                className={`flex min-h-[42px] min-w-[176px] max-w-[260px] items-center justify-center rounded-sm border px-4 py-2 text-center text-[13px] font-semibold leading-none shadow-md backdrop-blur-sm ${
                   isAtCapacity && placementMode.active && placementMode.type === "desk"
-                    ? "bg-destructive text-destructive-foreground"
-                    : "bg-foreground text-background"
+                    ? "border-rose-200/45 bg-rose-400/28 text-rose-50/90 shadow-rose-400/15"
+                    : "border-emerald-100/55 bg-emerald-300/22 text-cyan-50/95 shadow-cyan-200/25"
                 }`}
               >
-                <div>{team.name}</div>
-                {placementMode.active && placementMode.type === "desk" && (
-                  <div className="text-[10px] opacity-80 mt-0.5">
+                <div className="line-clamp-2 whitespace-normal break-keep leading-snug [hyphens:none] [overflow-wrap:normal] [word-break:keep-all]">
+                  {team.name}
+                </div>
+                {showDeskPlacementDetail ? (
+                  <div className="mt-0.5 text-[8px] opacity-65">
                     {isAtCapacity
-                      ? `⚠️ At Capacity (${MAX_DESKS_PER_TEAM}/${MAX_DESKS_PER_TEAM})`
+                      ? `At Capacity (${MAX_DESKS_PER_TEAM}/${MAX_DESKS_PER_TEAM})`
                       : `${currentDeskCount}/${MAX_DESKS_PER_TEAM} desks`}
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
           </Html>

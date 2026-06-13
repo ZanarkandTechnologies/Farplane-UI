@@ -22,26 +22,13 @@
  * - MEM-0194
  */
 
+import { computeBusinessReadinessIssues, projectToBusinessBuilderDraft } from "@/modules/business";
 import { normalizeOfficeObjectId } from "@/modules/office/components/office-object-id";
-import { parseOfficeObjectInteractionConfig } from "@/modules/office/office-object-ui";
 import {
-  buildSkillEffectSeed,
-  resolveSkillEffectVariant,
-} from "@/modules/office/skill-effects";
-import {
-  buildSkillTargetObjectMap,
-  getOfficeSkillAnchorPositionForOccupant,
-} from "@/modules/office/skill-targeting";
-import {
-  getAbsoluteDeskPosition,
-  getClusterOccupancyFootprint,
-  getDeskRotation,
-  getEmployeePositionAtDesk,
-} from "@/modules/office/utils/layout";
-import {
-  computeBusinessReadinessIssues,
-  projectToBusinessBuilderDraft,
-} from "@/modules/business";
+  buildOfficeAreaLayout,
+  getOfficeAreaAnchor,
+  type OfficeAreaNode,
+} from "@/modules/office/lib/office-area-layout";
 import { DEFAULT_OFFICE_FOOTPRINT } from "@/modules/office/lib/office-footprint";
 import {
   clampPositionToOfficeLayout,
@@ -49,17 +36,32 @@ import {
   getManagementAnchorFromOfficeLayout,
   type OfficeLayoutModel,
 } from "@/modules/office/lib/office-layout";
+import type {
+  Company,
+  DeskLayoutData,
+  EmployeeActivityState,
+  EmployeeData,
+  OfficeObject,
+  TeamData,
+} from "@/modules/office/lib/types";
+import { parseOfficeObjectInteractionConfig } from "@/modules/office/office-object-ui";
+import { buildSkillEffectSeed, resolveSkillEffectVariant } from "@/modules/office/skill-effects";
 import {
-  buildOfficeAreaLayout,
-  getOfficeAreaAnchor,
-  type OfficeAreaNode,
-} from "@/modules/office/lib/office-area-layout";
+  buildSkillTargetObjectMap,
+  getOfficeSkillAnchorPositionForOccupant,
+} from "@/modules/office/skill-targeting";
 import {
   createOfficePlacementReservation,
-  reserveOfficeObjectPlacement,
   type OfficePlacementObject,
   type OfficePlacementReservation,
+  reserveOfficeObjectPlacement,
 } from "@/modules/office/systems/placement-engine";
+import {
+  getAbsoluteDeskPosition,
+  getClusterOccupancyFootprint,
+  getDeskRotation,
+  getEmployeePositionAtDesk,
+} from "@/modules/office/utils/layout";
 import type {
   AgentCardModel,
   AgentLiveStatus,
@@ -74,14 +76,6 @@ import type {
   ReconciliationWarning,
   UnifiedOfficeModel,
 } from "@/modules/runtime";
-import type {
-  Company,
-  DeskLayoutData,
-  EmployeeActivityState,
-  EmployeeData,
-  OfficeObject,
-  TeamData,
-} from "@/modules/office/lib/types";
 
 type ScenePlacementObject = OfficePlacementObject;
 type EmployeeActivitySummary = {
@@ -138,17 +132,10 @@ const demoCompany: Company = { _id: "company-demo", name: "Farplane UI" };
 function isAppearanceClothesStyle(
   value: unknown,
 ): value is NonNullable<EmployeeAppearance["clothesStyle"]> {
-  return (
-    value === "default" ||
-    value === "dj" ||
-    value === "professional" ||
-    value === "techBro"
-  );
+  return value === "default" || value === "dj" || value === "professional" || value === "techBro";
 }
 
-function isAppearancePetType(
-  value: unknown,
-): value is NonNullable<EmployeeAppearance["petType"]> {
+function isAppearancePetType(value: unknown): value is NonNullable<EmployeeAppearance["petType"]> {
   return (
     value === "none" ||
     value === "dog" ||
@@ -161,11 +148,11 @@ function isAppearancePetType(
 
 function getDefaultProjectClusterPosition(projectIndex: number): [number, number, number] {
   const safeIndex = Number.isFinite(projectIndex) ? Math.max(0, Math.floor(projectIndex)) : 0;
-  return DEFAULT_PROJECT_CLUSTER_POSITIONS[safeIndex % DEFAULT_PROJECT_CLUSTER_POSITIONS.length] ?? [
-    0,
-    0,
-    8,
-  ];
+  return (
+    DEFAULT_PROJECT_CLUSTER_POSITIONS[safeIndex % DEFAULT_PROJECT_CLUSTER_POSITIONS.length] ?? [
+      0, 0, 8,
+    ]
+  );
 }
 
 function getTeamClusterPlacementMetadata(
@@ -188,12 +175,14 @@ function resolveSceneObjectPosition(input: {
   reservation: OfficePlacementReservation;
   allowCollisionFallback?: boolean;
 }): [number, number, number] | null {
-  return reserveOfficeObjectPlacement({
-    object: input.object,
-    layout: input.officeLayout,
-    reservation: input.reservation,
-    allowCollisionFallback: input.allowCollisionFallback,
-  })?.position ?? null;
+  return (
+    reserveOfficeObjectPlacement({
+      object: input.object,
+      layout: input.officeLayout,
+      reservation: input.reservation,
+      allowCollisionFallback: input.allowCollisionFallback,
+    })?.position ?? null
+  );
 }
 
 function resolveTeamClusterScenePosition(input: {
@@ -204,17 +193,19 @@ function resolveTeamClusterScenePosition(input: {
   metadata?: Record<string, unknown>;
   rotation?: [number, number, number];
 }): [number, number, number] {
-  return resolveSceneObjectPosition({
-    object: {
-      meshType: "team-cluster",
-      position: input.position,
-      metadata: getTeamClusterPlacementMetadata(input.metadata, input.deskCount),
-      rotation: input.rotation,
-    },
-    officeLayout: input.officeLayout,
-    reservation: input.reservation,
-    allowCollisionFallback: true,
-  }) ?? clampPositionToOfficeLayout(input.position, input.officeLayout, 0);
+  return (
+    resolveSceneObjectPosition({
+      object: {
+        meshType: "team-cluster",
+        position: input.position,
+        metadata: getTeamClusterPlacementMetadata(input.metadata, input.deskCount),
+        rotation: input.rotation,
+      },
+      officeLayout: input.officeLayout,
+      reservation: input.reservation,
+      allowCollisionFallback: true,
+    }) ?? clampPositionToOfficeLayout(input.position, input.officeLayout, 0)
+  );
 }
 
 function shouldReplaceCanonicalSidecarObject(
@@ -765,7 +756,7 @@ export function toOfficeData(
     skillOccupants.set(activeSkillId, occupants);
   }
 
-  const employees: EmployeeData[] = agents.map((agent, index) => {
+  const employees: EmployeeData[] = agents.map((agent) => {
     const companyAgent = companyAgentsById.get(agent.agentId);
     const runtimeAgent = runtimeById.get(agent.agentId);
     const isRuntimeRunning = Boolean(runtimeAgent);
@@ -782,6 +773,9 @@ export function toOfficeData(
       (item) => item.id === companyAgent?.heartbeatProfileId,
     );
     const liveStatus = liveStatusByAgent[agent.agentId];
+    const isOfficeCeo = companyAgent?.role === "ceo" || (isMainAgent && !hasPinnedCeoThread);
+    const isOfficeSupervisor =
+      isOfficeCeo || companyAgent?.role === "pm" || companyAgent?.role === "biz_pm";
     const activeSkillId = liveStatus?.currentSkillId?.trim();
     const skillOccupantIds = activeSkillId ? (skillOccupants.get(activeSkillId) ?? []) : [];
     const skillOccupantIndex =
@@ -866,13 +860,8 @@ export function toOfficeData(
       activityEffectVariant,
       isBusy: (runtimeAgent?.sessionCount ?? 0) > 0,
       deskId: initialDeskLayout?.deskId as EmployeeData["deskId"],
-      isCEO: companyAgent?.role === "ceo" || isMainAgent || index === 0,
-      isSupervisor:
-        companyAgent?.role === "pm" ||
-        companyAgent?.role === "biz_pm" ||
-        companyAgent?.role === "ceo" ||
-        isMainAgent ||
-        index === 0,
+      isCEO: isOfficeCeo,
+      isSupervisor: isOfficeSupervisor,
       jobTitle: companyAgent?.role
         ? `${companyAgent.role} (${agent.agentId})`
         : `Configured Agent (${agent.agentId})`,

@@ -19,31 +19,28 @@
 
 import { OrbitControls } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useMemo, useState, useRef, useEffect } from "react";
 import type React from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type * as THREE from "three";
 import { PlacementHandler } from "@/components/placement-handler";
+import { extractAgentId } from "@/lib/entity-utils";
+import { useChatStore } from "@/modules/chat/chat-store";
 import type { StatusType } from "@/modules/navigation/components/status-indicator";
 import { Employee } from "@/modules/office/components/employee";
+import { getOfficeLayoutBounds } from "@/modules/office/lib/office-layout";
 import { useAppStore } from "@/store";
-import { useChatStore } from "@/modules/chat/chat-store";
-import { extractAgentId } from "@/lib/entity-utils";
-import { OfficeLayoutEditor } from "./office-layout-editor";
 import { OfficeClickProbe } from "./office-click-probe";
-import {
-  getOfficeDebugOverlayPlan,
-  OfficeDebugOverlaySystem,
-} from "./office-debug-overlay-system";
+import { getOfficeDebugOverlayPlan, OfficeDebugOverlaySystem } from "./office-debug-overlay-system";
+import { OfficeLayoutEditor } from "./office-layout-editor";
 import { OfficeLighting } from "./office-lighting";
 import { OfficeObjectRenderer } from "./office-object-renderer";
-import { OfficeRoomShell } from "./office-room-shell";
+import { getOrbitWallFadeMask, OfficeRoomShell, type WallFadeMask } from "./office-room-shell";
 import type { OfficeSceneProps } from "./types";
 import { useOfficeSceneBootstrap } from "./use-office-scene-bootstrap";
 import { useOfficeSceneCameraTransition, useOfficeSceneTheme } from "./use-office-scene-camera";
 import { useOfficeSceneDerivedData } from "./use-office-scene-derived-data";
 import { useOfficeSceneInteractions } from "./use-office-scene-interactions";
 import { getOfficeSceneViewState, isFixedOfficeSceneView } from "./view-profile";
-import { getOfficeLayoutBounds } from "@/modules/office/lib/office-layout";
 
 /** Clamps orthographic camera zoom to [minZoom, maxZoom] each frame when in fixed 2.5D. */
 function ZoomClamp({ minZoom, maxZoom }: { minZoom: number; maxZoom: number }) {
@@ -76,6 +73,42 @@ function useCameraZoomWhenFixed(minZoom: number, maxZoom: number, enabled: boole
     if (!enabled) last.current = zoom;
   }, [enabled, zoom]);
   return zoom;
+}
+
+function wallFadeMaskKey(mask: WallFadeMask): string {
+  return [
+    mask.frontNorth ? "n" : "-",
+    mask.frontSouth ? "s" : "-",
+    mask.frontWest ? "w" : "-",
+    mask.frontEast ? "e" : "-",
+    Math.round(mask.fadeStrength * 100),
+  ].join("");
+}
+
+/** Returns the near-camera wall fade mask for free-orbit perspective mode. */
+function useOrbitWallFadeMask(officeLayout: OfficeSceneProps["officeLayout"], enabled: boolean) {
+  const bounds = useMemo(() => getOfficeLayoutBounds(officeLayout), [officeLayout]);
+  const [mask, setMask] = useState<WallFadeMask | undefined>(undefined);
+  const lastKey = useRef("off");
+
+  useFrame((state) => {
+    if (!enabled) return;
+    const next = getOrbitWallFadeMask(bounds, state.camera.position);
+    const nextKey = wallFadeMaskKey(next);
+    if (nextKey !== lastKey.current) {
+      lastKey.current = nextKey;
+      setMask(next.fadeStrength > 0 ? next : undefined);
+    }
+  });
+
+  useEffect(() => {
+    if (!enabled) {
+      lastKey.current = "off";
+      setMask(undefined);
+    }
+  }, [enabled]);
+
+  return enabled ? mask : undefined;
 }
 
 export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
@@ -141,6 +174,10 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
   const minZoom = viewState.minZoom ?? 12;
   const maxZoom = viewState.maxZoom ?? 55;
   const cameraZoom = useCameraZoomWhenFixed(minZoom, maxZoom, isFixed25);
+  const orbitWallFadeMask = useOrbitWallFadeMask(
+    officeLayout,
+    !sceneBuilderMode && !isFixed25 && officeViewSettings.viewProfile === "free_orbit_3d",
+  );
 
   const { employeesForScene, teamById, desksByTeamId } = useOfficeSceneDerivedData({
     teams,
@@ -252,6 +289,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
         onBackgroundClick={handleBackgroundClick}
         cameraZoom={isFixed25 ? cameraZoom : undefined}
         zoomRange={isFixed25 ? { minZoom, maxZoom } : undefined}
+        orbitWallFadeMask={orbitWallFadeMask}
       />
       <OfficeLayoutEditor showDebugLabels={overlayPlan.showLayoutDebugLabels} />
       {import.meta.env.DEV ? (

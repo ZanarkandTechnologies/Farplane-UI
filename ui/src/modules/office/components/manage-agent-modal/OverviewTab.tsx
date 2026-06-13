@@ -18,11 +18,21 @@
  * - MEM-0160
  */
 
+import { Crown, UserCog } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import type { AgentIdentityResult, AgentsListResult } from "@/modules/runtime";
+import { UI_Z } from "@/lib/z-index";
 import type { EmployeeData } from "@/modules/office/lib/types";
+import type { AgentIdentityResult, AgentsListResult } from "@/modules/runtime";
 import type { AgentConfigDraft, AgentUsageOverview } from "./_types";
 import { EmployeePreviewCard } from "./EmployeePreviewCard";
 import { buildAgentOverviewDisplay } from "./overview-display";
@@ -31,12 +41,19 @@ type OverviewPanelProps = {
   employee: EmployeeData | null;
   agentsList: AgentsListResult | null;
   selectedAgentId: string | null;
-  setSelectedAgentId: (agentId: string) => void;
   identity: AgentIdentityResult | null;
   draft: AgentConfigDraft;
   setDraft: (next: AgentConfigDraft) => void;
   isLoading: boolean;
   usageOverview: AgentUsageOverview | null;
+  leadershipControls?: {
+    isCeo: boolean;
+    isPm: boolean;
+    canAssignPm: boolean;
+    isSaving: boolean;
+    onSetCeo: (enabled: boolean) => void;
+    onSetPm: (enabled: boolean) => void;
+  };
 };
 
 export function OverviewPanel(props: OverviewPanelProps): JSX.Element {
@@ -61,6 +78,21 @@ export function OverviewPanel(props: OverviewPanelProps): JSX.Element {
   const heartbeatOverride = props.draft.heartbeatEveryOverride.trim();
   const heartbeatDefault = props.draft.heartbeatDefaultEvery.trim();
   const effectiveHeartbeatCadence = heartbeatOverride || heartbeatDefault || "Not configured";
+  const roleLabel = props.leadershipControls?.isCeo
+    ? "CEO"
+    : props.leadershipControls?.isPm
+      ? "PM"
+      : (props.employee?.builtInRole ?? display.roleLabel ?? "worker");
+  const roleBadge = (
+    <Badge
+      variant={
+        props.leadershipControls?.isCeo || props.leadershipControls?.isPm ? "default" : "secondary"
+      }
+      className={props.leadershipControls ? "cursor-pointer" : undefined}
+    >
+      {roleLabel}
+    </Badge>
+  );
 
   return (
     <div className="space-y-4 rounded-md border p-4">
@@ -68,32 +100,57 @@ export function OverviewPanel(props: OverviewPanelProps): JSX.Element {
         <aside className="space-y-4">
           <div className="rounded-md border bg-muted/20 p-4">
             <div className="flex items-start justify-between gap-3">
-              <label className="flex-1 space-y-1 text-sm">
+              <div className="min-w-0 flex-1 space-y-1 text-sm">
                 <span className="text-muted-foreground">Agent</span>
-                <select
-                  className="w-full rounded-md border bg-background px-2 py-2 text-sm"
-                  value={props.selectedAgentId ?? ""}
-                  onChange={(event) => props.setSelectedAgentId(event.target.value)}
-                  disabled={props.isLoading}
-                >
-                  {(props.agentsList?.agents ?? []).map((agent) => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.name ?? agent.id}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="text-sm space-y-1">
-                <p className="text-muted-foreground">Default</p>
-                <Badge
-                  variant={
-                    props.selectedAgentId === props.agentsList?.defaultId ? "default" : "secondary"
-                  }
-                >
-                  {props.selectedAgentId === props.agentsList?.defaultId
-                    ? "default"
-                    : "non-default"}
-                </Badge>
+                <div className="w-full truncate rounded-md border bg-background px-2 py-2 text-sm">
+                  {display.displayName}
+                </div>
+              </div>
+              <div className="space-y-1 text-sm">
+                <p className="text-muted-foreground">Role</p>
+                {props.leadershipControls ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="block text-left"
+                        disabled={props.leadershipControls.isSaving}
+                      >
+                        {roleBadge}
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="min-w-44"
+                      style={{ zIndex: UI_Z.panelModal }}
+                    >
+                      <DropdownMenuLabel>Codex office role</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        disabled={props.leadershipControls.isSaving}
+                        onClick={() =>
+                          props.leadershipControls?.onSetCeo(!props.leadershipControls.isCeo)
+                        }
+                      >
+                        <Crown className="h-4 w-4" />
+                        {props.leadershipControls.isCeo ? "Remove CEO" : "Make CEO"}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={
+                          props.leadershipControls.isSaving || !props.leadershipControls.canAssignPm
+                        }
+                        onClick={() =>
+                          props.leadershipControls?.onSetPm(!props.leadershipControls.isPm)
+                        }
+                      >
+                        <UserCog className="h-4 w-4" />
+                        {props.leadershipControls.isPm ? "Remove PM" : "Make PM"}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  roleBadge
+                )}
               </div>
             </div>
           </div>

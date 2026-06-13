@@ -16,7 +16,9 @@
  * - MEM-0188
  */
 
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { User } from "lucide-react";
+import { type ReactElement, useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -24,11 +26,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
-import { User } from "lucide-react";
-import { useAppStore } from "@/store";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { extractAgentId } from "@/lib/entity-utils";
+import { UI_Z } from "@/lib/z-index";
 import type {
   AgentFileEntry,
   AgentIdentityResult,
@@ -39,24 +40,26 @@ import type {
   CronStatus,
   ToolsCatalogResult,
 } from "@/modules/runtime";
-import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useOfficeRuntimeAdapter } from "@/modules/runtime";
+import {
+  buildTeamAiUsageSummary,
+  CodexAppServerClient,
+  useOfficeRuntimeAdapter,
+} from "@/modules/runtime";
 import { useGateway } from "@/providers/gateway-provider";
-import { UI_Z } from "@/lib/z-index";
-import { extractAgentId } from "@/lib/entity-utils";
-import { buildTeamAiUsageSummary } from "@/modules/runtime";
+import { useOfficeDataContext } from "@/providers/office-data-provider";
+import { useAppStore } from "@/store";
 import type { AgentConfigDraft, AgentUsageOverview, TabId } from "./_types";
+import { ChannelsPanel } from "./ChannelsTab";
+import { CronPanel } from "./CronTab";
 import {
   buildNextAgentConfig,
   cloneAgentConfigDraft,
   EMPTY_AGENT_CONFIG_DRAFT,
   resolveAgentConfigDraft,
 } from "./config-draft";
-import { OverviewPanel } from "./OverviewTab";
 import { FilesPanel } from "./FilesTab";
+import { OverviewPanel } from "./OverviewTab";
 import { ToolsPanel } from "./ToolsTab";
-import { ChannelsPanel } from "./ChannelsTab";
-import { CronPanel } from "./CronTab";
 
 type FilesState = {
   list: AgentsFilesListResult | null;
@@ -84,10 +87,10 @@ export function ManageAgentModal(): ReactElement {
   const setIsSkillsPanelOpen = useAppStore((state) => state.setIsSkillsPanelOpen);
   const setSelectedSkillStudioSkillId = useAppStore((state) => state.setSelectedSkillStudioSkillId);
   const setSkillStudioFocusAgentId = useAppStore((state) => state.setSkillStudioFocusAgentId);
-  const { employees, refresh: refreshOffice } = useOfficeDataContext();
+  const { employees, companyModel, refresh: refreshOffice } = useOfficeDataContext();
   const employee = employees.find((row) => row._id === manageAgentEmployeeId) ?? null;
   const isOpen = !!manageAgentEmployeeId;
-  const { connected: gatewayConnected } = useGateway();
+  const { connected: gatewayConnected, config: gatewayConfig } = useGateway();
   const adapter = useOfficeRuntimeAdapter();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [agentsList, setAgentsList] = useState<AgentsListResult | null>(null);
@@ -104,6 +107,7 @@ export function ManageAgentModal(): ReactElement {
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [isSavingLeadershipRole, setIsSavingLeadershipRole] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
   const [filesState, setFilesState] = useState<FilesState>(EMPTY_FILES_STATE);
 
@@ -126,6 +130,16 @@ export function ManageAgentModal(): ReactElement {
   const canUseChannels = adapter.capabilities.channels;
   const canUseScheduler = adapter.capabilities.scheduler;
   const canUseSkillRuntimeControls = adapter.capabilities.agentSkillRuntimeControls;
+  const selectedCompanyAgent = useMemo(
+    () => companyModel?.agents.find((agent) => agent.agentId === selectedAgentId) ?? null,
+    [companyModel?.agents, selectedAgentId],
+  );
+  const selectedThreadId = selectedAgentId?.startsWith("codex-thread:")
+    ? selectedAgentId.slice("codex-thread:".length)
+    : "";
+  const canManageCodexLeadership = adapter.runtimeKind === "codex" && selectedThreadId.length > 0;
+  const isSelectedCeo = selectedCompanyAgent?.role === "ceo";
+  const isSelectedPm = selectedCompanyAgent?.role === "pm";
 
   useEffect(() => {
     if (!isOpen) return;
@@ -149,28 +163,18 @@ export function ManageAgentModal(): ReactElement {
       setIsLoading(true);
       setLoadError("");
       try {
-        const [
-          nextAgentsList,
-          configSnapshot,
-          nextChannels,
-          nextCronStatus,
-          nextCronJobs,
-        ] = await Promise.all([
-          adapter.getAgentsList(),
-          adapter.getConfigSnapshot(),
-          adapter.getChannelsStatus(),
-          adapter.getCronStatus(),
-          adapter.listCronJobs(),
-        ]);
+        const [nextAgentsList, configSnapshot, nextChannels, nextCronStatus, nextCronJobs] =
+          await Promise.all([
+            adapter.getAgentsList(),
+            adapter.getConfigSnapshot(),
+            adapter.getChannelsStatus(),
+            adapter.getCronStatus(),
+            adapter.listCronJobs(),
+          ]);
         if (cancelled) return;
         setAgentsList(nextAgentsList);
         const pickedAgentId =
-          (preferredAgentId &&
-            nextAgentsList.agents.some((agent) => agent.id === preferredAgentId) &&
-            preferredAgentId) ||
-          nextAgentsList.defaultId ||
-          nextAgentsList.agents[0]?.id ||
-          null;
+          preferredAgentId || nextAgentsList.defaultId || nextAgentsList.agents[0]?.id || null;
         setSelectedAgentId(pickedAgentId);
         setConfig(configSnapshot.config);
         setChannelsSnapshot(nextChannels);
@@ -474,6 +478,71 @@ export function ManageAgentModal(): ReactElement {
     setIsSkillsPanelOpen(true);
   }
 
+  async function updateCodexLeadershipRole(role: "ceo" | "pm", enabled: boolean): Promise<void> {
+    if (!selectedThreadId || !canManageCodexLeadership) return;
+    if (role === "pm" && !selectedCompanyAgent?.projectId) return;
+    setIsSavingLeadershipRole(true);
+    setSaveStatus("");
+    try {
+      const client = new CodexAppServerClient({ stateUrl: gatewayConfig.stateBase });
+      const current = await client.readOfficeVisibilityConfig();
+      const currentManagers =
+        current.projectManagers ?? current.leadershipPins?.projectManagers ?? [];
+      const nextManagers =
+        role === "pm"
+          ? [
+              ...currentManagers.filter((pin) => pin.projectId !== selectedCompanyAgent?.projectId),
+              ...(enabled && selectedCompanyAgent?.projectId
+                ? [
+                    {
+                      projectId: selectedCompanyAgent.projectId,
+                      threadId: selectedThreadId,
+                      label: employee?.name ?? selectedAgentId ?? selectedThreadId,
+                    },
+                  ]
+                : []),
+            ]
+          : enabled
+            ? currentManagers.filter((pin) => pin.threadId !== selectedThreadId)
+            : currentManagers;
+      const currentCeoThreadId = current.ceoThreadId ?? current.leadershipPins?.ceoThreadId;
+      const nextCeoThreadId =
+        role === "ceo"
+          ? enabled
+            ? selectedThreadId
+            : currentCeoThreadId === selectedThreadId
+              ? undefined
+              : currentCeoThreadId
+          : role === "pm" && enabled && currentCeoThreadId === selectedThreadId
+            ? undefined
+            : currentCeoThreadId;
+      await client.saveOfficeVisibilityConfig({
+        ...current,
+        ceoThreadId: nextCeoThreadId,
+        projectManagers: nextManagers,
+        leadershipPins: {
+          ...(current.leadershipPins ?? {}),
+          ceoThreadId: nextCeoThreadId,
+          projectManagers: nextManagers,
+        },
+      });
+      await refreshOffice();
+      setSaveStatus(
+        role === "ceo"
+          ? enabled
+            ? "CEO role assigned."
+            : "CEO role cleared."
+          : enabled
+            ? "Project manager role assigned."
+            : "Project manager role cleared.",
+      );
+    } catch (error) {
+      setSaveStatus(error instanceof Error ? error.message : "Failed to update Codex role.");
+    } finally {
+      setIsSavingLeadershipRole(false);
+    }
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && setManageAgentEmployeeId(null)}>
       <DialogContent className="sm:max-w-4xl min-h-[90vh]" style={{ zIndex: UI_Z.panelElevated }}>
@@ -496,10 +565,18 @@ export function ManageAgentModal(): ReactElement {
         >
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="files" disabled={!canUseWorkspaceFiles}>Files</TabsTrigger>
-            <TabsTrigger value="tools" disabled={!canUseToolPolicy}>Tools</TabsTrigger>
-            <TabsTrigger value="channels" disabled={!canUseChannels}>Channels</TabsTrigger>
-            <TabsTrigger value="cron" disabled={!canUseScheduler}>Cron Jobs</TabsTrigger>
+            <TabsTrigger value="files" disabled={!canUseWorkspaceFiles}>
+              Files
+            </TabsTrigger>
+            <TabsTrigger value="tools" disabled={!canUseToolPolicy}>
+              Tools
+            </TabsTrigger>
+            <TabsTrigger value="channels" disabled={!canUseChannels}>
+              Channels
+            </TabsTrigger>
+            <TabsTrigger value="cron" disabled={!canUseScheduler}>
+              Cron Jobs
+            </TabsTrigger>
           </TabsList>
           <ScrollArea className="h-full min-h-[65vh] max-h-[65vh] mt-4 pr-3">
             <TabsContent value="overview" className="space-y-4">
@@ -507,12 +584,23 @@ export function ManageAgentModal(): ReactElement {
                 employee={employee}
                 agentsList={agentsList}
                 selectedAgentId={selectedAgentId}
-                setSelectedAgentId={setSelectedAgentId}
                 identity={identity}
                 draft={draft}
                 setDraft={setDraft}
                 isLoading={isLoading}
                 usageOverview={usageOverview}
+                leadershipControls={
+                  canManageCodexLeadership
+                    ? {
+                        isCeo: isSelectedCeo,
+                        isPm: isSelectedPm,
+                        canAssignPm: Boolean(selectedCompanyAgent?.projectId),
+                        isSaving: isSavingLeadershipRole,
+                        onSetCeo: (enabled) => void updateCodexLeadershipRole("ceo", enabled),
+                        onSetPm: (enabled) => void updateCodexLeadershipRole("pm", enabled),
+                      }
+                    : undefined
+                }
               />
             </TabsContent>
             <TabsContent value="files" className="space-y-4">
@@ -544,7 +632,11 @@ export function ManageAgentModal(): ReactElement {
         </Tabs>
 
         <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
-          <Button variant="outline" onClick={openSkillStudio} disabled={!selectedAgentId || !canUseSkillRuntimeControls}>
+          <Button
+            variant="outline"
+            onClick={openSkillStudio}
+            disabled={!selectedAgentId || !canUseSkillRuntimeControls}
+          >
             Open Skill Studio
           </Button>
           <Button variant="outline" onClick={() => setManageAgentEmployeeId(null)}>
