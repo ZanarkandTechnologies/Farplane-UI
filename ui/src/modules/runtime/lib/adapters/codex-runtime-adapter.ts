@@ -73,6 +73,21 @@ const CODEX_CAPABILITIES: RuntimeAdapterCapabilities = {
   liveEvents: false,
 };
 
+const CODEX_BOOTSTRAP_RPC_TIMEOUT_MS = 1500;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, code: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(code)), timeoutMs);
+  });
+  void promise.catch(() => {
+    // The raced request may fail after the UI has already fallen back.
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 function codexProjectPathsFromConfig(value: unknown): string[] {
   if (!value || typeof value !== "object") return [];
   const config = (value as { config?: { projects?: unknown } }).config;
@@ -165,6 +180,10 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
   private projectPathsCache: { loadedAt: number; projectPaths: string[] } | null = null;
   private uiStateCache: { loadedAt: number; uiState: CodexUiStateResponse } | null = null;
   private healthCache: { loadedAt: number; available: boolean } | null = null;
+  private healthInFlight: Promise<boolean> | null = null;
+  private threadsInFlight: Promise<CodexThread[]> | null = null;
+  private projectPathsInFlight: Promise<string[]> | null = null;
+  private uiStateInFlight: Promise<CodexUiStateResponse> | null = null;
 
   constructor(gatewayUrl: string, stateUrl: string = gatewayUrl, _wsClient?: GatewayWsClient) {
     super(gatewayUrl, stateUrl);
@@ -176,10 +195,19 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
     if (!options.force && this.healthCache && now - this.healthCache.loadedAt < 5000) {
       return this.healthCache.available;
     }
-    const health = await this.codexClient.readHealth();
-    const available = health.ok === true && health.configured !== false;
-    this.healthCache = { loadedAt: now, available };
-    return available;
+    if (!options.force && this.healthInFlight) return this.healthInFlight;
+    const run = (async (): Promise<boolean> => {
+      const health = await this.codexClient.readHealth();
+      const available = health.ok === true && health.configured !== false;
+      this.healthCache = { loadedAt: Date.now(), available };
+      return available;
+    })();
+    this.healthInFlight = run;
+    try {
+      return await run;
+    } finally {
+      if (this.healthInFlight === run) this.healthInFlight = null;
+    }
   }
 
   private async listCodexThreads(options: { force?: boolean } = {}): Promise<CodexThread[]> {
@@ -187,14 +215,27 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
     if (!options.force && this.threadsCache && now - this.threadsCache.loadedAt < 5000) {
       return this.threadsCache.threads;
     }
-    if (!(await this.isCodexAppServerAvailable(options))) {
-      this.threadsCache = { loadedAt: now, threads: [] };
-      return [];
+    if (!options.force && this.threadsInFlight) return this.threadsInFlight;
+    const run = (async (): Promise<CodexThread[]> => {
+      if (!(await this.isCodexAppServerAvailable(options))) {
+        this.threadsCache = { loadedAt: Date.now(), threads: [] };
+        return [];
+      }
+      const response = await withTimeout(
+        this.codexClient.listThreads(80),
+        CODEX_BOOTSTRAP_RPC_TIMEOUT_MS,
+        "codex_thread_list_bootstrap_timeout",
+      );
+      const threads = Array.isArray(response.data) ? response.data.filter((thread) => thread.id) : [];
+      this.threadsCache = { loadedAt: Date.now(), threads };
+      return threads;
+    })();
+    this.threadsInFlight = run;
+    try {
+      return await run;
+    } finally {
+      if (this.threadsInFlight === run) this.threadsInFlight = null;
     }
-    const response = await this.codexClient.listThreads(80);
-    const threads = Array.isArray(response.data) ? response.data.filter((thread) => thread.id) : [];
-    this.threadsCache = { loadedAt: now, threads };
-    return threads;
   }
 
   private async listCodexProjectPaths(options: { force?: boolean } = {}): Promise<string[]> {
@@ -206,14 +247,29 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
     ) {
       return this.projectPathsCache.projectPaths;
     }
-    const uiState = await this.readCodexUiState(options).catch(() => null);
-    const projectPathsFromUiState = uiState ? codexProjectPathsFromUiState(uiState) : [];
-    const projectPaths =
-      projectPathsFromUiState.length > 0 || !(await this.isCodexAppServerAvailable(options))
-        ? projectPathsFromUiState
-        : codexProjectPathsFromConfig(await this.codexClient.readConfig());
-    this.projectPathsCache = { loadedAt: now, projectPaths };
-    return projectPaths;
+    if (!options.force && this.projectPathsInFlight) return this.projectPathsInFlight;
+    const run = (async (): Promise<string[]> => {
+      const uiState = await this.readCodexUiState(options).catch(() => null);
+      const projectPathsFromUiState = uiState ? codexProjectPathsFromUiState(uiState) : [];
+      const projectPaths =
+        projectPathsFromUiState.length > 0 || !(await this.isCodexAppServerAvailable(options))
+          ? projectPathsFromUiState
+          : codexProjectPathsFromConfig(
+              await withTimeout(
+                this.codexClient.readConfig(),
+                CODEX_BOOTSTRAP_RPC_TIMEOUT_MS,
+                "codex_config_read_bootstrap_timeout",
+              ),
+            );
+      this.projectPathsCache = { loadedAt: Date.now(), projectPaths };
+      return projectPaths;
+    })();
+    this.projectPathsInFlight = run;
+    try {
+      return await run;
+    } finally {
+      if (this.projectPathsInFlight === run) this.projectPathsInFlight = null;
+    }
   }
 
   private async readCodexUiState(options: { force?: boolean } = {}): Promise<CodexUiStateResponse> {
@@ -221,9 +277,18 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
     if (!options.force && this.uiStateCache && now - this.uiStateCache.loadedAt < 30000) {
       return this.uiStateCache.uiState;
     }
-    const uiState = await this.codexClient.readUiState();
-    this.uiStateCache = { loadedAt: now, uiState };
-    return uiState;
+    if (!options.force && this.uiStateInFlight) return this.uiStateInFlight;
+    const run = (async (): Promise<CodexUiStateResponse> => {
+      const uiState = await this.codexClient.readUiState();
+      this.uiStateCache = { loadedAt: Date.now(), uiState };
+      return uiState;
+    })();
+    this.uiStateInFlight = run;
+    try {
+      return await run;
+    } finally {
+      if (this.uiStateInFlight === run) this.uiStateInFlight = null;
+    }
   }
 
   async listAgents(): Promise<AgentCardModel[]> {
@@ -358,7 +423,11 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
           const threadId = parseCodexThreadId(agentId);
           const thread = byThreadId.get(threadId);
           if (!thread || thread.status?.type !== "notLoaded") return null;
-          const response = await this.codexClient.readThread(threadId).catch(() => null);
+          const response = await withTimeout(
+            this.codexClient.readThread(threadId),
+            CODEX_BOOTSTRAP_RPC_TIMEOUT_MS,
+            "codex_thread_read_status_timeout",
+          ).catch(() => null);
           return response?.thread ? ([threadId, response.thread] as const) : null;
         }),
       );

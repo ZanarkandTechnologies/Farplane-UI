@@ -196,6 +196,80 @@ describe("runtime adapters", () => {
     ).toBe(false);
   });
 
+  it("dedupes concurrent Codex bootstrap reads across office model and config snapshot", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/codex/app-server/health")) {
+        return new Response(JSON.stringify({ ok: true, configured: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.endsWith("/codex/app-server/rpc")) {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { method?: string };
+        if (body.method === "thread/list") {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              result: {
+                data: [
+                  {
+                    id: "thread-farplane",
+                    preview: "Farplane work",
+                    cwd: "/workspace/farplane",
+                    updatedAt: 1770000000,
+                    status: { type: "active" },
+                  },
+                ],
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        return new Response(JSON.stringify({ ok: false, error: "unexpected_rpc" }), {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.endsWith("/farplane/codex-ui-state")) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return new Response(
+          JSON.stringify({
+            savedWorkspaceRoots: ["/workspace/farplane"],
+            pinnedProjectIds: ["/workspace/farplane"],
+            projectOrder: ["/workspace/farplane"],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      if (url.endsWith("/farplane/projects/read-model")) {
+        return new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({}), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const adapter = new CodexRuntimeAdapter("", "http://state");
+    await Promise.all([adapter.getUnifiedOfficeModel(), adapter.getConfigSnapshot()]);
+
+    const rpcMethods = fetchMock.mock.calls
+      .filter(([input]) => String(input).endsWith("/codex/app-server/rpc"))
+      .map(([, init]) => JSON.parse(String(init?.body ?? "{}")).method);
+    const uiStateReads = fetchMock.mock.calls.filter(([input]) =>
+      String(input).endsWith("/farplane/codex-ui-state"),
+    );
+
+    expect(rpcMethods).toEqual(["thread/list"]);
+    expect(uiStateReads).toHaveLength(1);
+  });
+
   it("maps Codex threads into workers, sessions, and timelines", () => {
     const thread = {
       id: "thread-1",
