@@ -43,6 +43,7 @@ import type {
 import {
   areStringArraysEqual,
   fallbackData,
+  repairTeamClusterPlacements,
   toOfficeData,
   type OfficeDataContextValue,
 } from "@/providers/office-data-mapper";
@@ -107,10 +108,7 @@ function shouldLogOfficeRefresh(): boolean {
   return window.localStorage.getItem("farplane.debug.officeRefresh") === "1";
 }
 
-function logOfficeRefresh(
-  event: string,
-  details: Record<string, unknown> = {},
-): void {
+function logOfficeRefresh(event: string, details: Record<string, unknown> = {}): void {
   if (!shouldLogOfficeRefresh()) return;
   console.debug("[farplane:office-refresh]", event, details);
 }
@@ -166,6 +164,7 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
   const latestApprovalsRef = useRef<PendingApprovalModel[]>([]);
   const latestLiveStatusSignatureRef = useRef("");
   const latestAdapterLiveStatusRef = useRef<Record<string, AgentLiveStatus>>({});
+  const inFlightAdapterStatusRef = useRef<Promise<void> | null>(null);
   const agentIdsRef = useRef<string[]>([]);
   const runtimeKindRef = useRef(sharedAdapter.runtimeKind);
   const liveStatusByConvex = useAgentLiveStatuses(agentIds);
@@ -215,7 +214,9 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
     async (reason: OfficeDataRefreshReason = "manual"): Promise<void> => {
       if (inFlightLoadRef.current) {
         logOfficeRefresh("skip-in-flight", { reason });
-        return inFlightLoadRef.current;
+        await inFlightLoadRef.current;
+        if (cancelledRef.current) return;
+        return load(reason);
       }
 
       const run = (async (): Promise<void> => {
@@ -242,25 +243,49 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
             areStringArraysEqual(current, nextAgentIds) ? current : nextAgentIds,
           );
 
-          const adapterStatusByAgent = await adapter.getAgentsLiveStatus(nextAgentIds);
-          latestAdapterLiveStatusRef.current = adapterStatusByAgent;
           const statusByAgent = mergeAgentLiveStatuses({
             agentIds: nextAgentIds,
-            adapterStatuses: adapterStatusByAgent,
+            adapterStatuses: latestAdapterLiveStatusRef.current,
             convexStatuses: liveStatusByConvexRef.current,
             runtimeKind: adapter.runtimeKind,
           });
           latestLiveStatusSignatureRef.current = JSON.stringify(statusByAgent);
 
-          latestUnifiedRef.current = unified;
+          const placementRepair = repairTeamClusterPlacements({
+            unified,
+            officeSettings,
+          });
+          const repairedUnified = placementRepair.unified;
+          const repairedOfficeSettings = placementRepair.officeSettings;
+          if (placementRepair.changed) {
+            logOfficeRefresh("placement-repair", {
+              reason,
+              expandedLayout: placementRepair.expandedLayout,
+              repairedTeamIds: placementRepair.repairedTeamIds,
+            });
+            const [objectsResult, settingsResult] = await Promise.all([
+              adapter.saveOfficeObjects(repairedUnified.officeObjects),
+              !placementRepair.expandedLayout
+                ? Promise.resolve({ ok: true, settings: repairedOfficeSettings })
+                : adapter.saveOfficeSettings(repairedOfficeSettings),
+            ]);
+            if (!objectsResult.ok || !settingsResult.ok) {
+              logOfficeRefresh("placement-repair-persist-error", {
+                objectsError: objectsResult.ok ? undefined : objectsResult.error,
+                settingsError: settingsResult.ok ? undefined : settingsResult.error,
+              });
+            }
+          }
+
+          latestUnifiedRef.current = repairedUnified;
           latestApprovalsRef.current = pendingApprovals;
           if (cancelledRef.current || generation !== loadGenerationRef.current) {
             logOfficeRefresh("drop-stale", { reason, generation });
             return;
           }
           const officeData = toOfficeData(
-            unified,
-            officeSettings,
+            repairedUnified,
+            repairedOfficeSettings,
             pendingApprovals,
             statusByAgent,
             configSnapshot,
@@ -286,6 +311,56 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
               objects: officeData.officeObjects.length,
               employees: officeData.employees.length,
               changedKeys,
+            });
+          }
+          if (!inFlightAdapterStatusRef.current && nextAgentIds.length > 0) {
+            const statusRun = (async (): Promise<void> => {
+              const statusGeneration = generation;
+              const statusStartedAt = performance.now();
+              try {
+                const adapterStatusByAgent = await adapter.getAgentsLiveStatus(nextAgentIds);
+                if (cancelledRef.current || statusGeneration !== loadGenerationRef.current) return;
+                latestAdapterLiveStatusRef.current = adapterStatusByAgent;
+                const mergedStatus = mergeAgentLiveStatuses({
+                  agentIds: nextAgentIds,
+                  adapterStatuses: adapterStatusByAgent,
+                  convexStatuses: liveStatusByConvexRef.current,
+                  runtimeKind: adapter.runtimeKind,
+                });
+                const nextStatusSignature = JSON.stringify(mergedStatus);
+                if (latestLiveStatusSignatureRef.current === nextStatusSignature) return;
+                latestLiveStatusSignatureRef.current = nextStatusSignature;
+                const current = useOfficeWorldStore.getState();
+                const liveChangedKeys = applyOfficeWorldSnapshot(
+                  toOfficeWorldSnapshot(
+                    toOfficeData(
+                      repairedUnified,
+                      current.officeSettings,
+                      pendingApprovals,
+                      mergedStatus,
+                    ),
+                    mergedStatus,
+                  ),
+                  "live-status",
+                );
+                logOfficeRefresh(liveChangedKeys.length === 0 ? "unchanged" : "changed", {
+                  reason: "adapter-live-status",
+                  elapsedMs: Math.round(performance.now() - statusStartedAt),
+                  agents: nextAgentIds.length,
+                  changedKeys: liveChangedKeys,
+                });
+              } catch (error) {
+                logOfficeRefresh("adapter-live-status-error", {
+                  elapsedMs: Math.round(performance.now() - statusStartedAt),
+                  message: error instanceof Error ? error.message : String(error),
+                });
+              }
+            })();
+            inFlightAdapterStatusRef.current = statusRun;
+            void statusRun.finally(() => {
+              if (inFlightAdapterStatusRef.current === statusRun) {
+                inFlightAdapterStatusRef.current = null;
+              }
             });
           }
         } catch (error) {
@@ -335,12 +410,7 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
     const current = useOfficeWorldStore.getState();
     const changedKeys = applyOfficeWorldSnapshot(
       toOfficeWorldSnapshot(
-        toOfficeData(
-          unified,
-          current.officeSettings,
-          pendingApprovals,
-          mergedStatus,
-        ),
+        toOfficeData(unified, current.officeSettings, pendingApprovals, mergedStatus),
         mergedStatus,
       ),
       "live-status",

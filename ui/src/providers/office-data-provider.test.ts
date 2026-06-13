@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { EmployeeData, OfficeObject } from "@/modules/office/lib/types";
+import {
+  isObjectFootprintInsideLayout,
+  objectFootprintsCollide,
+} from "@/modules/office/systems/occupancy-system";
 import type {
   AgentCardModel,
   AgentLiveStatus,
@@ -8,7 +12,7 @@ import type {
   OfficeSettingsModel,
   UnifiedOfficeModel,
 } from "@/modules/runtime";
-import { toOfficeData } from "./office-data-mapper";
+import { repairTeamClusterPlacements, toOfficeData } from "./office-data-mapper";
 import { mergeAgentLiveStatuses } from "./office-data-provider";
 import {
   buildEmployeeSignature,
@@ -974,5 +978,132 @@ describe("office-data-provider team synthesis", () => {
     expect(result.officeObjects.some((object) => object.metadata?.teamId === "team-farplane")).toBe(
       true,
     );
+  });
+
+  it("repairs grown team clusters into non-overlapping persisted placements with an annex fallback", () => {
+    const projectBase = {
+      departmentId: "dept-codex-projects",
+      githubUrl: "",
+      status: "active" as const,
+      goal: "Build the product",
+      kpis: [],
+      accountEvents: [],
+      ledger: [],
+      experiments: [],
+      metricEvents: [],
+      resources: [],
+      resourceEvents: [],
+    };
+    const agentRoles = ["pm", "builder", "builder", "builder", "qa", "reviewer"] as const;
+    const company = createCompanyModel({
+      projects: [
+        {
+          ...projectBase,
+          id: "proj-farplane",
+          name: "Farplane",
+        },
+        {
+          ...projectBase,
+          id: "proj-farplane-ui",
+          name: "Farplane UI",
+        },
+      ],
+      agents: [
+        {
+          agentId: "main",
+          role: "ceo",
+          heartbeatProfileId: "hb-ceo",
+          isCeo: true,
+          lifecycleState: "active",
+        },
+        ...agentRoles.map((role, index) => ({
+          agentId: `farplane-agent-${index}`,
+          role,
+          projectId: "proj-farplane",
+          heartbeatProfileId: "hb-ceo",
+          lifecycleState: "active" as const,
+        })),
+        ...agentRoles.map((role, index) => ({
+          agentId: `farplane-ui-agent-${index}`,
+          role,
+          projectId: "proj-farplane-ui",
+          heartbeatProfileId: "hb-ceo",
+          lifecycleState: "active" as const,
+        })),
+      ],
+    });
+    const settings = {
+      ...createOfficeSettings(),
+      officeLayout: {
+        version: 1 as const,
+        tileSize: 1 as const,
+        tiles: Array.from({ length: 11 }, (_, xIndex) =>
+          Array.from({ length: 9 }, (_z, zIndex) => `${xIndex - 5}:${zIndex - 4}`),
+        ).flat(),
+      },
+    };
+    const unified = createUnifiedOfficeModel({
+      company,
+      officeObjects: [
+        {
+          id: "team-cluster-team-proj-farplane",
+          identifier: "team-cluster-team-proj-farplane",
+          meshType: "team-cluster",
+          position: [0, 0, 0],
+          metadata: { teamId: "team-proj-farplane", deskCount: 1 },
+        },
+        {
+          id: "team-cluster-team-proj-farplane-ui",
+          identifier: "team-cluster-team-proj-farplane-ui",
+          meshType: "team-cluster",
+          position: [0, 0, 0],
+          metadata: { teamId: "team-proj-farplane-ui", deskCount: 1 },
+        },
+      ],
+    });
+
+    const repaired = repairTeamClusterPlacements({ unified, officeSettings: settings });
+    const repairedClusters = repaired.unified.officeObjects.filter(
+      (object) =>
+        object.meshType === "team-cluster" &&
+        (object.metadata?.teamId === "team-proj-farplane" ||
+          object.metadata?.teamId === "team-proj-farplane-ui"),
+    );
+
+    expect(repaired.changed).toBe(true);
+    expect(repaired.expandedLayout).toBe(true);
+    expect(repairedClusters).toHaveLength(2);
+    expect(repaired.repairedTeamIds).toEqual(
+      expect.arrayContaining(["team-proj-farplane", "team-proj-farplane-ui"]),
+    );
+    expect(
+      objectFootprintsCollide(
+        {
+          meshType: repairedClusters[0].meshType,
+          position: repairedClusters[0].position,
+          metadata: repairedClusters[0].metadata,
+          rotation: repairedClusters[0].rotation,
+        },
+        {
+          meshType: repairedClusters[1].meshType,
+          position: repairedClusters[1].position,
+          metadata: repairedClusters[1].metadata,
+          rotation: repairedClusters[1].rotation,
+        },
+      ),
+    ).toBe(false);
+    expect(
+      repairedClusters.every((cluster) =>
+        isObjectFootprintInsideLayout(
+          {
+            meshType: cluster.meshType,
+            position: cluster.position,
+            metadata: cluster.metadata,
+            rotation: cluster.rotation,
+          },
+          repaired.officeSettings.officeLayout,
+        ),
+      ),
+    ).toBe(true);
   });
 });

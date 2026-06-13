@@ -33,7 +33,10 @@ import { DEFAULT_OFFICE_FOOTPRINT } from "@/modules/office/lib/office-footprint"
 import {
   clampPositionToOfficeLayout,
   createRectangularOfficeLayout,
+  getOfficeFootprintFromLayout,
+  getOfficeLayoutBounds,
   getManagementAnchorFromOfficeLayout,
+  officeLayoutTileKey,
   type OfficeLayoutModel,
 } from "@/modules/office/lib/office-layout";
 import type {
@@ -78,6 +81,7 @@ import type {
 } from "@/modules/runtime";
 
 type ScenePlacementObject = OfficePlacementObject;
+type SidecarOfficeObject = UnifiedOfficeModel["officeObjects"][number];
 type EmployeeActivitySummary = {
   state: EmployeeActivityState;
   label?: string;
@@ -166,6 +170,312 @@ function getTeamClusterPlacementMetadata(
     footprintWidth: footprint.width,
     footprintDepth: footprint.depth,
     footprintClearance: footprint.clearance,
+  };
+}
+
+function hasPinnedCeoThread(companyAgents: CompanyModel["agents"]): boolean {
+  return companyAgents.some(
+    (agent) => agent.role === "ceo" && agent.agentId.startsWith("codex-thread:"),
+  );
+}
+
+function arePositionsEqual(
+  left: [number, number, number] | undefined,
+  right: [number, number, number],
+): boolean {
+  return Boolean(left && left[0] === right[0] && left[1] === right[1] && left[2] === right[2]);
+}
+
+function areOfficeLayoutTilesEqual(left: OfficeLayoutModel, right: OfficeLayoutModel): boolean {
+  if (left.tiles.length !== right.tiles.length) return false;
+  return left.tiles.every((tile, index) => tile === right.tiles[index]);
+}
+
+function sortLayoutTiles(tiles: Iterable<string>): string[] {
+  return [...tiles].sort((left, right) => {
+    const [leftX, leftZ] = left.split(":").map(Number);
+    const [rightX, rightZ] = right.split(":").map(Number);
+    if (!Number.isFinite(leftX) || !Number.isFinite(leftZ)) return left.localeCompare(right);
+    if (!Number.isFinite(rightX) || !Number.isFinite(rightZ)) return left.localeCompare(right);
+    return leftZ === rightZ ? leftX - rightX : leftZ - rightZ;
+  });
+}
+
+function expandOfficeLayoutWithAnnex(input: {
+  layout: OfficeLayoutModel;
+  minimumWidth: number;
+  minimumDepth: number;
+  pass: number;
+}): OfficeLayoutModel {
+  const bounds = getOfficeLayoutBounds(input.layout);
+  const tileSet = new Set(input.layout.tiles);
+  const width = Math.max(8, Math.ceil(input.minimumWidth) + 4 + input.pass * 2);
+  const depth = Math.max(8, Math.ceil(input.minimumDepth) + 4 + input.pass * 2);
+  const startX = bounds.maxTileX + 1;
+  const centerZ = Math.round(bounds.centerZ);
+  const minZ = centerZ - Math.floor(depth / 2);
+  const maxZ = minZ + depth - 1;
+
+  for (let x = startX; x < startX + width; x += 1) {
+    for (let z = minZ; z <= maxZ; z += 1) {
+      tileSet.add(officeLayoutTileKey(x, z));
+    }
+  }
+
+  return {
+    version: 1,
+    tileSize: 1,
+    tiles: sortLayoutTiles(tileSet),
+  };
+}
+
+interface TeamClusterRepairSpec {
+  teamId: string;
+  name: string;
+  description: string;
+  deskCount: number;
+  preferredPosition: [number, number, number];
+  existing?: SidecarOfficeObject;
+}
+
+function getTeamClusterRepairSpecs(input: {
+  unified: UnifiedOfficeModel;
+  officeLayout: OfficeLayoutModel;
+}): TeamClusterRepairSpec[] {
+  const sidecarObjects = dedupeCanonicalSidecarObjects(input.unified.officeObjects ?? []);
+  const persistedTeamClusterByTeamId = buildPersistedTeamClusterByTeamId(sidecarObjects);
+  const companyAgents = input.unified.company.agents ?? [];
+  const officeAreaLayout = buildOfficeAreaLayout({
+    company: input.unified.company,
+    officeLayout: input.officeLayout,
+    workload: input.unified.workload,
+  });
+  const specs: TeamClusterRepairSpec[] = [];
+
+  if (!hasPinnedCeoThread(companyAgents)) {
+    const teamId = "team-management";
+    const existing = persistedTeamClusterByTeamId.get(teamId);
+    specs.push({
+      teamId,
+      name: "Management",
+      description: "Executive control desk inside the dedicated management zone.",
+      deskCount: 1,
+      preferredPosition:
+        existing?.position ?? getManagementAnchorFromOfficeLayout(input.officeLayout),
+      existing,
+    });
+  }
+
+  input.unified.company.projects
+    .filter((project) => project.status !== "archived")
+    .forEach((project, projectIndex) => {
+      const teamId = `team-${project.id}`;
+      const projectAgents = companyAgents.filter((agent) => agent.projectId === project.id);
+      const existing = persistedTeamClusterByTeamId.get(teamId);
+      const preferredAreaAnchor = officeAreaLayout.projectAreaByProjectId[project.id]
+        ? getOfficeAreaAnchor(officeAreaLayout.projectAreaByProjectId[project.id])
+        : undefined;
+      specs.push({
+        teamId,
+        name: project.name,
+        description: project.goal,
+        deskCount: Math.max(projectAgents.length, 1),
+        preferredPosition:
+          existing?.position ??
+          preferredAreaAnchor ??
+          getDefaultProjectClusterPosition(projectIndex),
+        existing,
+      });
+    });
+
+  return specs;
+}
+
+function buildRepairedTeamClusterObject(
+  spec: TeamClusterRepairSpec,
+  position: [number, number, number],
+): SidecarOfficeObject {
+  const id = spec.existing?.id ?? `team-cluster-${spec.teamId}`;
+  return {
+    ...spec.existing,
+    id,
+    identifier: spec.existing?.identifier ?? id,
+    meshType: "team-cluster",
+    position,
+    rotation: spec.existing?.rotation ?? [0, 0, 0],
+    scale: spec.existing?.scale,
+    metadata: {
+      ...getTeamClusterPlacementMetadata(spec.existing?.metadata, spec.deskCount),
+      teamId: spec.teamId,
+      name: spec.name,
+      description: spec.description,
+      temporaryAnnex:
+        spec.existing?.metadata && "temporaryAnnex" in spec.existing.metadata
+          ? spec.existing.metadata.temporaryAnnex
+          : undefined,
+    },
+  };
+}
+
+function resolveTeamClusterRepairPass(input: {
+  specs: TeamClusterRepairSpec[];
+  officeLayout: OfficeLayoutModel;
+  sidecarObjects: SidecarOfficeObject[];
+}): { objects: SidecarOfficeObject[]; unresolved: TeamClusterRepairSpec[] } {
+  const teamIds = new Set(input.specs.map((spec) => spec.teamId));
+  const reservation = createOfficePlacementReservation(
+    input.sidecarObjects
+      .filter((object) => {
+        if (object.meshType === "wall-art") return false;
+        if (object.meshType !== "team-cluster") return true;
+        const teamId = resolveTeamClusterTeamId(object);
+        return !teamId || !teamIds.has(teamId);
+      })
+      .map((object) => ({
+        meshType: object.meshType,
+        position: object.position,
+        metadata: object.metadata,
+        rotation: object.rotation,
+      })),
+  );
+  const objects: SidecarOfficeObject[] = [];
+  const unresolved: TeamClusterRepairSpec[] = [];
+
+  for (const spec of input.specs) {
+    const object = {
+      meshType: "team-cluster",
+      position: spec.preferredPosition,
+      metadata: getTeamClusterPlacementMetadata(spec.existing?.metadata, spec.deskCount),
+      rotation: spec.existing?.rotation,
+    };
+    const result = reserveOfficeObjectPlacement({
+      object,
+      layout: input.officeLayout,
+      reservation,
+      allowCollisionFallback: false,
+    });
+    if (!result) {
+      unresolved.push(spec);
+      continue;
+    }
+    const repaired = buildRepairedTeamClusterObject(spec, result.position);
+    objects.push(repaired);
+  }
+
+  return { objects, unresolved };
+}
+
+export interface TeamClusterPlacementRepairResult {
+  unified: UnifiedOfficeModel;
+  officeSettings: OfficeSettingsModel;
+  changed: boolean;
+  expandedLayout: boolean;
+  repairedTeamIds: string[];
+}
+
+export function repairTeamClusterPlacements(input: {
+  unified: UnifiedOfficeModel;
+  officeSettings: OfficeSettingsModel;
+}): TeamClusterPlacementRepairResult {
+  const originalObjects = dedupeCanonicalSidecarObjects(input.unified.officeObjects ?? []);
+  const specs = getTeamClusterRepairSpecs({
+    unified: input.unified,
+    officeLayout: input.officeSettings.officeLayout,
+  });
+  if (specs.length === 0) {
+    return {
+      unified: input.unified,
+      officeSettings: input.officeSettings,
+      changed: false,
+      expandedLayout: false,
+      repairedTeamIds: [],
+    };
+  }
+
+  let officeLayout = input.officeSettings.officeLayout;
+  let pass = resolveTeamClusterRepairPass({
+    specs,
+    officeLayout,
+    sidecarObjects: originalObjects,
+  });
+  let expandedLayout = false;
+  let annexPass = 0;
+  const largestFootprint = specs.reduce(
+    (largest, spec) => {
+      const footprint = getClusterOccupancyFootprint(spec.deskCount);
+      return {
+        width: Math.max(largest.width, footprint.width + footprint.clearance * 2),
+        depth: Math.max(largest.depth, footprint.depth + footprint.clearance * 2),
+      };
+    },
+    { width: 0, depth: 0 },
+  );
+
+  while (pass.unresolved.length > 0 && annexPass < 4) {
+    expandedLayout = true;
+    officeLayout = expandOfficeLayoutWithAnnex({
+      layout: officeLayout,
+      minimumWidth: largestFootprint.width,
+      minimumDepth: largestFootprint.depth,
+      pass: annexPass,
+    });
+    pass = resolveTeamClusterRepairPass({
+      specs,
+      officeLayout,
+      sidecarObjects: originalObjects,
+    });
+    annexPass += 1;
+  }
+
+  const repairedByTeamId = new Map<string, SidecarOfficeObject>();
+  for (const object of pass.objects) {
+    const teamId = resolveTeamClusterTeamId(object);
+    if (teamId) repairedByTeamId.set(teamId, object);
+  }
+  const expectedTeamIds = new Set(specs.map((spec) => spec.teamId));
+  const nextObjects = [
+    ...originalObjects.filter((object) => {
+      if (object.meshType !== "team-cluster") return true;
+      const teamId = resolveTeamClusterTeamId(object);
+      return !teamId || !expectedTeamIds.has(teamId);
+    }),
+    ...specs.map(
+      (spec) =>
+        repairedByTeamId.get(spec.teamId) ??
+        buildRepairedTeamClusterObject(spec, spec.preferredPosition),
+    ),
+  ];
+
+  const repairedTeamIds = specs
+    .filter((spec) => {
+      const repaired = repairedByTeamId.get(spec.teamId);
+      return Boolean(
+        repaired &&
+          (!spec.existing ||
+            !arePositionsEqual(spec.existing.position, repaired.position) ||
+            spec.existing.metadata?.deskCount !== spec.deskCount ||
+            spec.existing.metadata?.footprintWidth !== repaired.metadata?.footprintWidth ||
+            spec.existing.metadata?.footprintDepth !== repaired.metadata?.footprintDepth),
+      );
+    })
+    .map((spec) => spec.teamId);
+
+  const officeSettings = {
+    ...input.officeSettings,
+    officeLayout,
+    officeFootprint: getOfficeFootprintFromLayout(officeLayout),
+  };
+  const changed =
+    repairedTeamIds.length > 0 ||
+    originalObjects.length !== nextObjects.length ||
+    !areOfficeLayoutTilesEqual(input.officeSettings.officeLayout, officeLayout);
+
+  return {
+    unified: changed ? { ...input.unified, officeObjects: nextObjects } : input.unified,
+    officeSettings: changed ? officeSettings : input.officeSettings,
+    changed,
+    expandedLayout,
+    repairedTeamIds,
   };
 }
 
