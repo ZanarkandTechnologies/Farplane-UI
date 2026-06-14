@@ -273,12 +273,12 @@ export function createOfficePanelActions(
     },
     {
       id: "harness",
-      label: "Harness",
+      label: "Harness OS",
       description:
-        "Open the global harness map across skills, docs, agents, templates, and validators.",
+        "Open the repo-wide Harness OS map across skills, docs, features, agents, templates, and validators.",
       group: "panel",
       icon: Network,
-      keywords: ["harness", "map", "graph", "docs", "agents", "templates", "panel"],
+      keywords: ["harness", "harness os", "map", "graph", "docs", "features", "agents", "templates", "panel"],
       shortcut: { key: "h", label: "Alt+Shift+H", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openHarness,

@@ -42,3 +42,4 @@
 - `TKT-001` - bootstrap scaffold migration (`tickets/done/TKT-001-bootstrap-scaffold-migration.md`)
 - `TKT-004` - office engine occupancy system and quality gates (`tickets/done/TKT-004-office-engine-occupancy-and-quality-gates.md`)
 - `TKT-008` - Office world store and reconciliation boundary (`tickets/done/TKT-008-office-world-store-reconciliation/ticket.md`)
+- `TKT-033` - Harness OS repo-wide graph entrypoint (`tickets/done/TKT-033-harness-os-entrypoint/ticket.md`)
