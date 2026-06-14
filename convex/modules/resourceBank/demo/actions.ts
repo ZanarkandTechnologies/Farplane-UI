@@ -1,8 +1,8 @@
-// Resource Bank demo seed used by local QA to render a populated panel state.
+// Resource Bank demo actions seed local QA records behind an explicit confirmation token.
 import { v } from "convex/values";
-import { mutation } from "../../_generated/server";
-import { nowMs } from "./records";
-import { seedDemoArgsValidator } from "./validators";
+import { mutation } from "../../../_generated/server";
+import { nowMs } from "../shared/records";
+import { seedDemoArgsValidator } from "../validators";
 
 export const seedDemoResourceBank = mutation({
   args: seedDemoArgsValidator,

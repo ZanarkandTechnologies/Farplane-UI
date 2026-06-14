@@ -19,10 +19,12 @@ v1. That keeps retrieval close to the record it explains. Move to
 `@convex-dev/rag` only when the vault needs chunking, namespaces, importance
 weighting, or surrounding-chunk context.
 
-Function files are split by role:
+Function files are split by resource domain:
 
-- `mutations.ts`: ingestion job, asset, analysis, and skill-finding writes.
-- `queries.ts`: gallery search, dashboard, asset detail, and retrieval packet.
-- `actions.ts`: vector search, because Convex vector search runs from actions.
-- `demo.ts`: local QA seed data.
-- `records.ts`: shared row shaping and parent lookups.
+- `jobs/actions.ts`: ingestion job lifecycle and task links.
+- `assets/actions.ts`: asset writes, asset detail, gallery search, and asset similarity.
+- `analyses/actions.ts`: reusable analysis writes.
+- `skillFindings/actions.ts`: extracted skill knowledge writes and search.
+- `retrieval/actions.ts`: dashboard and agent-facing retrieval packets.
+- `demo/actions.ts`: local QA seed data.
+- `shared/records.ts`: shared row shaping and parent lookups.

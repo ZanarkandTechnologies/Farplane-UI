@@ -1,7 +1,7 @@
-// Shared Resource Bank record helpers for Convex mutations, queries, and actions.
-import type { Doc, Id } from "../../_generated/dataModel";
-import type { MutationCtx, QueryCtx } from "../../_generated/server";
-import { cleanText, includesAllTags, normalizeTags } from "./resourceBank";
+// Shared Resource Bank record helpers for domain action files.
+import type { Doc, Id } from "../../../_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "../../../_generated/server";
+import { cleanText, includesAllTags, normalizeTags } from "../resourceBank";
 
 export type ResourceBankDbCtx = Pick<MutationCtx | QueryCtx, "db">;
 export type ResourceBankJob = Doc<"resourceBankIngestionJobs">;
