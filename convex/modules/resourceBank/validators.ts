@@ -220,6 +220,7 @@ export const retrieveForCreationArgsValidator = {
 
 export const seedDemoArgsValidator = {
   resetDemo: v.optional(v.boolean()),
+  confirm: v.string(),
 };
 
 export const createIngestionJobValidator = v.object(createIngestionJobArgsValidator);

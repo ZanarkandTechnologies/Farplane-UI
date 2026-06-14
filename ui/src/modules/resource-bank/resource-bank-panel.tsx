@@ -133,12 +133,13 @@ function assetIcon(kind: string): ReactElement {
 
 export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps): ReactElement {
   const convexEnabled = isConvexEnabled();
+  const canSeedDemo = import.meta.env.DEV;
   const [query, setQuery] = useState("");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
-  const seedDemo = useMutation(api.modules.resourceBank.assets.seedDemoResourceBank);
+  const seedDemo = useMutation(api.modules.resourceBank.demo.seedDemoResourceBank);
   const data = useQuery(
-    api.modules.resourceBank.assets.getResourceBankDashboard,
+    api.modules.resourceBank.queries.getResourceBankDashboard,
     convexEnabled && open ? { query: query.trim() || undefined, limit: 28 } : "skip",
   ) as ResourceBankDashboard | undefined;
 
@@ -180,9 +181,14 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
           title="No saved references yet"
           detail="Ingest a link, video, image, screenshot, or note with $ingest-content. The bank will store the asset, analysis, and extracted skill findings."
           action={
-            <Button size="sm" onClick={() => void seedDemo({})}>
-              Seed demo reference
-            </Button>
+            canSeedDemo ? (
+              <Button
+                size="sm"
+                onClick={() => void seedDemo({ confirm: "seed-resource-bank-demo" })}
+              >
+                Seed demo reference
+              </Button>
+            ) : undefined
           }
         />
       );

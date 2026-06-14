@@ -18,3 +18,11 @@ Embeddings live on `resourceBankAnalyses` and `resourceBankSkillFindings` for
 v1. That keeps retrieval close to the record it explains. Move to
 `@convex-dev/rag` only when the vault needs chunking, namespaces, importance
 weighting, or surrounding-chunk context.
+
+Function files are split by role:
+
+- `mutations.ts`: ingestion job, asset, analysis, and skill-finding writes.
+- `queries.ts`: gallery search, dashboard, asset detail, and retrieval packet.
+- `actions.ts`: vector search, because Convex vector search runs from actions.
+- `demo.ts`: local QA seed data.
+- `records.ts`: shared row shaping and parent lookups.

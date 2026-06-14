@@ -102,10 +102,11 @@ convex/modules/resourceBank/
   README.md
   schema.ts
   validators.ts
-  ingestionJobs.ts
-  assets.ts
-  search.ts
-  skillFindings.ts
+  records.ts
+  mutations.ts
+  queries.ts
+  actions.ts
+  demo.ts
 ```
 
 Compose tables from root `convex/schema.ts`. Before implementation, install or

@@ -20,7 +20,11 @@ import type * as modules_agentActivity_events from "../modules/agentActivity/eve
 import type * as modules_agentActivity_httpContracts from "../modules/agentActivity/httpContracts.js";
 import type * as modules_agentActivity_status from "../modules/agentActivity/status.js";
 import type * as modules_projectArtefacts_artefacts from "../modules/projectArtefacts/artefacts.js";
-import type * as modules_resourceBank_assets from "../modules/resourceBank/assets.js";
+import type * as modules_resourceBank_actions from "../modules/resourceBank/actions.js";
+import type * as modules_resourceBank_demo from "../modules/resourceBank/demo.js";
+import type * as modules_resourceBank_mutations from "../modules/resourceBank/mutations.js";
+import type * as modules_resourceBank_queries from "../modules/resourceBank/queries.js";
+import type * as modules_resourceBank_records from "../modules/resourceBank/records.js";
 import type * as modules_resourceBank_resourceBank from "../modules/resourceBank/resourceBank.js";
 import type * as modules_resourceBank_validators from "../modules/resourceBank/validators.js";
 import type * as modules_runtimeTelemetry_runtimeTelemetry from "../modules/runtimeTelemetry/runtimeTelemetry.js";
@@ -58,7 +62,11 @@ declare const fullApi: ApiFromModules<{
   "modules/agentActivity/httpContracts": typeof modules_agentActivity_httpContracts;
   "modules/agentActivity/status": typeof modules_agentActivity_status;
   "modules/projectArtefacts/artefacts": typeof modules_projectArtefacts_artefacts;
-  "modules/resourceBank/assets": typeof modules_resourceBank_assets;
+  "modules/resourceBank/actions": typeof modules_resourceBank_actions;
+  "modules/resourceBank/demo": typeof modules_resourceBank_demo;
+  "modules/resourceBank/mutations": typeof modules_resourceBank_mutations;
+  "modules/resourceBank/queries": typeof modules_resourceBank_queries;
+  "modules/resourceBank/records": typeof modules_resourceBank_records;
   "modules/resourceBank/resourceBank": typeof modules_resourceBank_resourceBank;
   "modules/resourceBank/validators": typeof modules_resourceBank_validators;
   "modules/runtimeTelemetry/runtimeTelemetry": typeof modules_runtimeTelemetry_runtimeTelemetry;
