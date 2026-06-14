@@ -23,6 +23,11 @@ import type * as modules_projectArtefacts_artefacts from "../modules/projectArte
 import type * as modules_runtimeTelemetry_runtimeTelemetry from "../modules/runtimeTelemetry/runtimeTelemetry.js";
 import type * as modules_runtimeTelemetry_telemetry from "../modules/runtimeTelemetry/telemetry.js";
 import type * as modules_runtimeTelemetry_validators from "../modules/runtimeTelemetry/validators.js";
+import type * as modules_skillInvocations_contracts from "../modules/skillInvocations/contracts.js";
+import type * as modules_skillInvocations_events from "../modules/skillInvocations/events.js";
+import type * as modules_skillInvocations_httpContracts from "../modules/skillInvocations/httpContracts.js";
+import type * as modules_skillInvocations_queries from "../modules/skillInvocations/queries.js";
+import type * as modules_skillInvocations_validators from "../modules/skillInvocations/validators.js";
 import type * as modules_teamBoard_board from "../modules/teamBoard/board.js";
 import type * as modules_teamBoard_contracts from "../modules/teamBoard/contracts.js";
 import type * as modules_teamBoard_httpContracts from "../modules/teamBoard/httpContracts.js";
@@ -53,6 +58,11 @@ declare const fullApi: ApiFromModules<{
   "modules/runtimeTelemetry/runtimeTelemetry": typeof modules_runtimeTelemetry_runtimeTelemetry;
   "modules/runtimeTelemetry/telemetry": typeof modules_runtimeTelemetry_telemetry;
   "modules/runtimeTelemetry/validators": typeof modules_runtimeTelemetry_validators;
+  "modules/skillInvocations/contracts": typeof modules_skillInvocations_contracts;
+  "modules/skillInvocations/events": typeof modules_skillInvocations_events;
+  "modules/skillInvocations/httpContracts": typeof modules_skillInvocations_httpContracts;
+  "modules/skillInvocations/queries": typeof modules_skillInvocations_queries;
+  "modules/skillInvocations/validators": typeof modules_skillInvocations_validators;
   "modules/teamBoard/board": typeof modules_teamBoard_board;
   "modules/teamBoard/contracts": typeof modules_teamBoard_contracts;
   "modules/teamBoard/httpContracts": typeof modules_teamBoard_httpContracts;

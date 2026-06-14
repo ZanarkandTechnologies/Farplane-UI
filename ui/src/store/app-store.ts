@@ -107,6 +107,8 @@ interface AppState {
   setSkillStudioSurface: (surface: "skill-os" | "evals" | "harness") => void;
   isTelemetryPanelOpen: boolean;
   setIsTelemetryPanelOpen: (isOpen: boolean) => void;
+  isSkillInvocationsPanelOpen: boolean;
+  setIsSkillInvocationsPanelOpen: (isOpen: boolean) => void;
   selectedSkillStudioSkillId: string | null;
   setSelectedSkillStudioSkillId: (skillId: string | null) => void;
   skillStudioFocusAgentId: string | null;
@@ -225,6 +227,8 @@ export const useAppStore = create<AppState>()(
     setSkillStudioSurface: (surface) => set({ skillStudioSurface: surface }),
     isTelemetryPanelOpen: false,
     setIsTelemetryPanelOpen: (isOpen) => set({ isTelemetryPanelOpen: isOpen }),
+    isSkillInvocationsPanelOpen: false,
+    setIsSkillInvocationsPanelOpen: (isOpen) => set({ isSkillInvocationsPanelOpen: isOpen }),
     selectedSkillStudioSkillId: null,
     setSelectedSkillStudioSkillId: (skillId) => set({ selectedSkillStudioSkillId: skillId }),
     skillStudioFocusAgentId: null,

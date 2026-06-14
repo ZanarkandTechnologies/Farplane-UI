@@ -29,6 +29,7 @@
 - `TKT-022` - Operator intelligence UI batch goal (`tickets/building/TKT-022-operator-intelligence-ui-batch-goal/ticket.md`)
 - `TKT-023` - Skill OS, Evals, and Harness entrypoint redesign (`tickets/building/TKT-023-skill-os-evals-harness-redesign/ticket.md`)
 - `TKT-024` - Public read-only office view for livestreaming (`tickets/building/TKT-024-public-office-view-goal/ticket.md`)
+- `TKT-025` - Skill invocation listener hook and dashboard (`tickets/building/TKT-025-skill-invocation-listener-hook/ticket.md`)
 
 ## Done
 

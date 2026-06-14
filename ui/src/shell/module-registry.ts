@@ -19,6 +19,12 @@ export const moduleRegistry = {
     description: "Skill catalog, skill metadata, demos, diagrams, and assignment surfaces.",
     surfaces: ["nav", "panel", "office-object"],
   },
+  "skill-invocations": {
+    id: "skill-invocations",
+    label: "Skill Invocations",
+    description: "Codex skill-read telemetry, counts, and recent invocation diagnostics.",
+    surfaces: ["nav", "panel", "hud"],
+  },
   "review-board": {
     id: "review-board",
     label: "Review Board",

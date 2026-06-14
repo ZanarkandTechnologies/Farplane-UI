@@ -53,6 +53,7 @@ describe("office panel registry", () => {
     const openEvals = vi.fn();
     const openHarness = vi.fn();
     const openGlobalTeamWorkspace = vi.fn();
+    const openSkillInvocations = vi.fn();
     const openSkillOs = vi.fn();
     const toggleBuilderMode = vi.fn();
 
@@ -68,6 +69,7 @@ describe("office panel registry", () => {
       openGlobalTeamWorkspace,
       openOrganization: vi.fn(),
       openSettings: vi.fn(),
+      openSkillInvocations,
       openSkillOs,
       openTelemetry: vi.fn(),
       toggleBuilderMode,
@@ -75,6 +77,7 @@ describe("office panel registry", () => {
     });
 
     actions.find((action) => action.id === "team-workspace")?.perform();
+    actions.find((action) => action.id === "skill-invocations")?.perform();
     actions.find((action) => action.id === "skill-os")?.perform();
     actions.find((action) => action.id === "evals")?.perform();
     actions.find((action) => action.id === "harness")?.perform();
@@ -82,6 +85,7 @@ describe("office panel registry", () => {
     actions.find((action) => action.id === "builder-mode")?.perform();
 
     expect(openGlobalTeamWorkspace).toHaveBeenCalledTimes(1);
+    expect(openSkillInvocations).toHaveBeenCalledTimes(1);
     expect(openSkillOs).toHaveBeenCalledTimes(1);
     expect(openEvals).toHaveBeenCalledTimes(1);
     expect(openHarness).toHaveBeenCalledTimes(1);
@@ -108,13 +112,20 @@ describe("office panel registry", () => {
       openGlobalTeamWorkspace,
       openOrganization: vi.fn(),
       openSettings,
+      openSkillInvocations: vi.fn(),
       openSkillOs: vi.fn(),
       openTelemetry: vi.fn(),
       toggleBuilderMode,
       userTaskCount: 3,
     });
 
-    for (const id of ["team-workspace", "human-review", "builder-mode", "office-shop", "settings"]) {
+    for (const id of [
+      "team-workspace",
+      "human-review",
+      "builder-mode",
+      "office-shop",
+      "settings",
+    ]) {
       const action = actions.find((candidate) => candidate.id === id);
       expect(action?.disabled).toBe(true);
       expect(action?.showInMenu).toBe(false);

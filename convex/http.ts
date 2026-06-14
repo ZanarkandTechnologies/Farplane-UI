@@ -21,6 +21,7 @@ import { httpRouter } from "convex/server";
 import { api, internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { parseBoardCommandPayload, parseBoardQueryPayload } from "./board_http_contract";
+import { parseSkillInvocationPayload } from "./modules/skillInvocations/httpContracts";
 import { parseIngestPayload, parseStatusReportPayload } from "./status_http_contract";
 
 const http = httpRouter();
@@ -186,6 +187,37 @@ http.route({
       },
     );
     return new Response(JSON.stringify({ ok: true, count: ids.length, ids }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }),
+});
+
+http.route({
+  path: "/skill-invocations/ingest",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    if (!hasTelemetryToken(request)) {
+      return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 });
+    }
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(JSON.stringify({ ok: false, error: "invalid_json" }), { status: 400 });
+    }
+
+    const parsed = parseSkillInvocationPayload(body);
+    if (!parsed) {
+      return new Response(JSON.stringify({ ok: false, error: "invalid_payload" }), { status: 400 });
+    }
+
+    const id = await ctx.runMutation(
+      internal.modules.skillInvocations.events.ingestSkillInvocation,
+      parsed,
+    );
+    return new Response(JSON.stringify({ ok: true, id }), {
       status: 200,
       headers: { "content-type": "application/json" },
     });

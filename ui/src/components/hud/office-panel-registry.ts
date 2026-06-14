@@ -20,6 +20,7 @@
 import {
   BarChart3,
   BookOpen,
+  BrainCircuit,
   BriefcaseBusiness,
   Building2,
   Hammer,
@@ -58,6 +59,7 @@ export type OfficePanelActionId =
   | "organization"
   | "team-workspace"
   | "telemetry"
+  | "skill-invocations"
   | "skill-os"
   | "evals"
   | "harness"
@@ -98,6 +100,7 @@ export type OfficePanelRegistryDependencies = {
   openGlobalTeamWorkspace: () => void;
   openOrganization: () => void;
   openSettings: () => void;
+  openSkillInvocations: () => void;
   openTelemetry: () => void;
   toggleBuilderMode: () => void;
   userTaskCount: number;
@@ -220,6 +223,17 @@ export function createOfficePanelActions(
       shortcut: { key: "m", label: "Alt+Shift+M", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openTelemetry,
+    },
+    {
+      id: "skill-invocations",
+      label: "Skill Invocations",
+      description: "Open Codex skill-read counts and recent Read skill MD events.",
+      group: "panel",
+      icon: BrainCircuit,
+      keywords: ["skills", "invocations", "hook", "codex", "read skill md", "panel"],
+      shortcut: { key: "i", label: "Alt+Shift+I", altKey: true, shiftKey: true },
+      color: SECONDARY_BUTTON_COLOR,
+      perform: deps.openSkillInvocations,
     },
     {
       id: "skill-os",

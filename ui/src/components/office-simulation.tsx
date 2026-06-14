@@ -1,27 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { TeamOptionsDialog } from "./dialogs/team-options-dialog";
 import { Badge } from "@/components/ui/badge";
-import { SettingsDialog } from "@/modules/settings";
-import { TelemetryPanel } from "@/modules/telemetry";
-import { LogsDrawer } from "./hud/logs-drawer";
-import { LogsToggleButton } from "./hud/logs-toggle-button";
-import { GatewayStatusPill } from "./hud/gateway-status-pill";
-import { OfficeMenu } from "./hud/office-menu";
-import { OfficeOnboardingPanel } from "./hud/office-onboarding-panel";
-import { BuilderToolbar } from "./hud/builder-toolbar";
-import { CeoWorkbenchPanel } from "./hud/ceo-workbench-panel";
-import {
-  OfficeDataProvider,
-  useOptionalOfficeDataContext,
-} from "@/providers/office-data-provider";
-import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
-import { useAppStore } from "@/store";
-import { gatewayBase } from "@/modules/runtime";
-import {
-  selectOfficeWorldContextData,
-  useOfficeWorldStore,
-} from "@/modules/office/store";
 import ChatDialog from "@/modules/chat/components/chat-dialog";
 import {
   AgentMemoryPanel,
@@ -35,7 +14,23 @@ import {
   preloadMeshes,
   SkillsPanel,
 } from "@/modules/office";
+import { selectOfficeWorldContextData, useOfficeWorldStore } from "@/modules/office/store";
+import { gatewayBase } from "@/modules/runtime";
+import { SettingsDialog } from "@/modules/settings";
+import { SkillInvocationsPanel } from "@/modules/skill-invocations";
 import { TeamPanel } from "@/modules/team-workspace";
+import { TelemetryPanel } from "@/modules/telemetry";
+import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
+import { OfficeDataProvider, useOptionalOfficeDataContext } from "@/providers/office-data-provider";
+import { useAppStore } from "@/store";
+import { TeamOptionsDialog } from "./dialogs/team-options-dialog";
+import { BuilderToolbar } from "./hud/builder-toolbar";
+import { CeoWorkbenchPanel } from "./hud/ceo-workbench-panel";
+import { GatewayStatusPill } from "./hud/gateway-status-pill";
+import { LogsDrawer } from "./hud/logs-drawer";
+import { LogsToggleButton } from "./hud/logs-toggle-button";
+import { OfficeMenu } from "./hud/office-menu";
+import { OfficeOnboardingPanel } from "./hud/office-onboarding-panel";
 import { buildOfficeBootstrapStages, getOfficeBootstrapState } from "./office-bootstrap";
 import { OfficeLoader } from "./office-loader";
 
@@ -54,8 +49,16 @@ export default function OfficeSimulation() {
 // Main Office Simulation Component
 function OfficeSimulationContent() {
   const { isPublic, isReadOnly } = useOfficeAccessMode();
-  const { company, teams, employees, desks, officeObjects, officeAreas, officeSettings, isLoading } =
-    useOfficeWorldStore(useShallow(selectOfficeWorldContextData));
+  const {
+    company,
+    teams,
+    employees,
+    desks,
+    officeObjects,
+    officeAreas,
+    officeSettings,
+    isLoading,
+  } = useOfficeWorldStore(useShallow(selectOfficeWorldContextData));
 
   // Get team options dialog state from app store with selectors
   const isTeamOptionsDialogOpen = useAppStore((state) => state.isTeamOptionsDialogOpen);
@@ -72,6 +75,10 @@ function OfficeSimulationContent() {
   const setIsSettingsModalOpen = useAppStore((state) => state.setIsSettingsModalOpen);
   const isTelemetryPanelOpen = useAppStore((state) => state.isTelemetryPanelOpen);
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
+  const isSkillInvocationsPanelOpen = useAppStore((state) => state.isSkillInvocationsPanelOpen);
+  const setIsSkillInvocationsPanelOpen = useAppStore(
+    (state) => state.setIsSkillInvocationsPanelOpen,
+  );
   const [isLogsDrawerOpen, setIsLogsDrawerOpen] = useState(false);
   const [navigationReady, setNavigationReady] = useState(false);
 
@@ -144,110 +151,114 @@ function OfficeSimulationContent() {
       <div style={{ position: "relative", width: "100%", height: "100%" }}>
         {sceneShellReady ? (
           <OfficeScene
-          teams={teams}
-          employees={employees}
-          desks={desks}
-          officeObjects={officeObjects}
-          officeAreas={officeAreas}
-          officeFootprint={officeSettings.officeFootprint}
-          officeLayout={officeSettings.officeLayout}
-          officeDecorSettings={officeSettings.decor}
-          officeViewSettings={officeSettings}
-          companyId={companyId}
-          onNavigationReady={handleNavigationReady}
-        />
-      ) : null}
-
-      {sceneShellReady ? (
-        <>
-          {!isReadOnly ? <ChatDialog /> : null}
-          {!isPublic ? <AgentMemoryPanel /> : null}
-          {!isReadOnly ? <ManageAgentModal /> : null}
-          {/* Keep mounted so close/reopen preserves in-panel draft state; TeamPanel gates its expensive queries when closed. */}
-          {!isReadOnly ? (
-            <TeamPanel
-              teamId={activeTeamId}
-              isOpen={isTeamPanelOpen}
-              onOpenChange={(open) => setIsTeamPanelOpen(open)}
-              initialTab={kanbanFocusAgentId ? "kanban" : "overview"}
-              focusAgentId={kanbanFocusAgentId}
-            />
-          ) : null}
-          {!isReadOnly ? (
-            <TeamPanel
-              teamId={null}
-              isOpen={isGlobalTeamPanelOpen}
-              onOpenChange={(open) => {
-                setIsGlobalTeamPanelOpen(open);
-                if (!open) setKanbanFocusAgentId(null);
-              }}
-              globalMode
-            />
-          ) : null}
-          {!isReadOnly ? <AgentSessionPanel /> : null}
-          <SkillsPanel />
-          {!isReadOnly ? <ObjectConfigPanel /> : null}
-          {!isReadOnly ? (
-            <div className="pointer-events-none absolute inset-0 z-[69]">
-              <ObjectTransformPanel />
-            </div>
-          ) : null}
-          <ObjectInteractionPanel />
-          {!isReadOnly ? <CeoWorkbenchPanel /> : null}
-          {!isReadOnly ? (
-            <SettingsDialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen} />
-          ) : null}
-          <TelemetryPanel open={isTelemetryPanelOpen} onOpenChange={setIsTelemetryPanelOpen} />
-
-          <div className="pointer-events-none absolute top-4 left-4 z-[70]">
-            <div className="pointer-events-auto">
-              <OfficeMenu />
-            </div>
-          </div>
-          {isReadOnly ? (
-            <div className="pointer-events-none absolute top-4 right-4 z-[70]">
-              <Badge
-                variant="secondary"
-                className="border border-emerald-400/40 bg-emerald-500/15 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-100 shadow-lg backdrop-blur"
-              >
-                {isPublic ? "Public View" : "Read-only"}
-              </Badge>
-            </div>
-          ) : (
-            <>
-              <OfficeOnboardingPanel />
-              <div className="pointer-events-none absolute top-24 right-4 z-[69]">
-                <BuilderToolbar />
-              </div>
-            </>
-          )}
-
-          <div className="pointer-events-none absolute bottom-4 right-4 z-[65]">
-            <LogsToggleButton
-              isOpen={isLogsDrawerOpen}
-              onToggle={() => setIsLogsDrawerOpen((prev) => !prev)}
-            />
-          </div>
-          <div className="pointer-events-none absolute bottom-4 left-4 z-[65]">
-            <GatewayStatusPill />
-          </div>
-
-          <LogsDrawer
-            open={isLogsDrawerOpen}
-            onOpenChange={setIsLogsDrawerOpen}
-            gatewayBase={gatewayBase}
+            teams={teams}
+            employees={employees}
+            desks={desks}
+            officeObjects={officeObjects}
+            officeAreas={officeAreas}
+            officeFootprint={officeSettings.officeFootprint}
+            officeLayout={officeSettings.officeLayout}
+            officeDecorSettings={officeSettings.decor}
+            officeViewSettings={officeSettings}
+            companyId={companyId}
+            onNavigationReady={handleNavigationReady}
           />
+        ) : null}
 
-          {/* Team options dialog rendered outside Canvas for stable layering */}
-          {!isReadOnly && activeTeamForOptions && (
-            <TeamOptionsDialog
-              team={activeTeamForOptions}
-              isOpen={isTeamOptionsDialogOpen}
-              onOpenChange={setIsTeamOptionsDialogOpen}
+        {sceneShellReady ? (
+          <>
+            {!isReadOnly ? <ChatDialog /> : null}
+            {!isPublic ? <AgentMemoryPanel /> : null}
+            {!isReadOnly ? <ManageAgentModal /> : null}
+            {/* Keep mounted so close/reopen preserves in-panel draft state; TeamPanel gates its expensive queries when closed. */}
+            {!isReadOnly ? (
+              <TeamPanel
+                teamId={activeTeamId}
+                isOpen={isTeamPanelOpen}
+                onOpenChange={(open) => setIsTeamPanelOpen(open)}
+                initialTab={kanbanFocusAgentId ? "kanban" : "overview"}
+                focusAgentId={kanbanFocusAgentId}
+              />
+            ) : null}
+            {!isReadOnly ? (
+              <TeamPanel
+                teamId={null}
+                isOpen={isGlobalTeamPanelOpen}
+                onOpenChange={(open) => {
+                  setIsGlobalTeamPanelOpen(open);
+                  if (!open) setKanbanFocusAgentId(null);
+                }}
+                globalMode
+              />
+            ) : null}
+            {!isReadOnly ? <AgentSessionPanel /> : null}
+            <SkillsPanel />
+            {!isReadOnly ? <ObjectConfigPanel /> : null}
+            {!isReadOnly ? (
+              <div className="pointer-events-none absolute inset-0 z-[69]">
+                <ObjectTransformPanel />
+              </div>
+            ) : null}
+            <ObjectInteractionPanel />
+            {!isReadOnly ? <CeoWorkbenchPanel /> : null}
+            {!isReadOnly ? (
+              <SettingsDialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen} />
+            ) : null}
+            <TelemetryPanel open={isTelemetryPanelOpen} onOpenChange={setIsTelemetryPanelOpen} />
+            <SkillInvocationsPanel
+              open={isSkillInvocationsPanelOpen}
+              onOpenChange={setIsSkillInvocationsPanelOpen}
             />
-          )}
-        </>
-      ) : null}
+
+            <div className="pointer-events-none absolute top-4 left-4 z-[70]">
+              <div className="pointer-events-auto">
+                <OfficeMenu />
+              </div>
+            </div>
+            {isReadOnly ? (
+              <div className="pointer-events-none absolute top-4 right-4 z-[70]">
+                <Badge
+                  variant="secondary"
+                  className="border border-emerald-400/40 bg-emerald-500/15 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-100 shadow-lg backdrop-blur"
+                >
+                  {isPublic ? "Public View" : "Read-only"}
+                </Badge>
+              </div>
+            ) : (
+              <>
+                <OfficeOnboardingPanel />
+                <div className="pointer-events-none absolute top-24 right-4 z-[69]">
+                  <BuilderToolbar />
+                </div>
+              </>
+            )}
+
+            <div className="pointer-events-none absolute bottom-4 right-4 z-[65]">
+              <LogsToggleButton
+                isOpen={isLogsDrawerOpen}
+                onToggle={() => setIsLogsDrawerOpen((prev) => !prev)}
+              />
+            </div>
+            <div className="pointer-events-none absolute bottom-4 left-4 z-[65]">
+              <GatewayStatusPill />
+            </div>
+
+            <LogsDrawer
+              open={isLogsDrawerOpen}
+              onOpenChange={setIsLogsDrawerOpen}
+              gatewayBase={gatewayBase}
+            />
+
+            {/* Team options dialog rendered outside Canvas for stable layering */}
+            {!isReadOnly && activeTeamForOptions && (
+              <TeamOptionsDialog
+                team={activeTeamForOptions}
+                isOpen={isTeamOptionsDialogOpen}
+                onOpenChange={setIsTeamOptionsDialogOpen}
+              />
+            )}
+          </>
+        ) : null}
 
         {!bootstrapState.isReady ? (
           <OfficeLoader completionRatio={bootstrapState.completionRatio} stages={bootstrapStages} />
