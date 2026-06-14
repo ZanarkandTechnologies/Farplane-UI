@@ -109,6 +109,8 @@ interface AppState {
   setIsTelemetryPanelOpen: (isOpen: boolean) => void;
   isSkillInvocationsPanelOpen: boolean;
   setIsSkillInvocationsPanelOpen: (isOpen: boolean) => void;
+  isResourceBankPanelOpen: boolean;
+  setIsResourceBankPanelOpen: (isOpen: boolean) => void;
   selectedSkillStudioSkillId: string | null;
   setSelectedSkillStudioSkillId: (skillId: string | null) => void;
   skillStudioFocusAgentId: string | null;
@@ -229,6 +231,8 @@ export const useAppStore = create<AppState>()(
     setIsTelemetryPanelOpen: (isOpen) => set({ isTelemetryPanelOpen: isOpen }),
     isSkillInvocationsPanelOpen: false,
     setIsSkillInvocationsPanelOpen: (isOpen) => set({ isSkillInvocationsPanelOpen: isOpen }),
+    isResourceBankPanelOpen: false,
+    setIsResourceBankPanelOpen: (isOpen) => set({ isResourceBankPanelOpen: isOpen }),
     selectedSkillStudioSkillId: null,
     setSelectedSkillStudioSkillId: (skillId) => set({ selectedSkillStudioSkillId: skillId }),
     skillStudioFocusAgentId: null,

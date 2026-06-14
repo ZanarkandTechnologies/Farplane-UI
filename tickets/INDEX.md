@@ -16,6 +16,7 @@
 - `TKT-005` - Codex thread live status for employee loaders (`tickets/review/TKT-005-codex-thread-live-status-goal/ticket.md`)
 - `TKT-006` - Hierarchical office area placement (`tickets/review/TKT-006-hierarchical-office-area-placement-goal/ticket.md`)
 - `TKT-009` - Standard renderer module entrypoint integration (`tickets/review/TKT-009-standard-renderer-module-entrypoints/ticket.md`)
+- `TKT-028` - Resource Bank ingestion module and office renderer (`tickets/review/TKT-028-resource-bank-ingestion-module/ticket.md`)
 
 ## Building
 

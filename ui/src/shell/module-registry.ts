@@ -25,6 +25,12 @@ export const moduleRegistry = {
     description: "Codex skill-read telemetry, counts, and recent invocation diagnostics.",
     surfaces: ["nav", "panel", "hud"],
   },
+  "resource-bank": {
+    id: "resource-bank",
+    label: "Resource Bank",
+    description: "Saved media references, analysis, extracted skill findings, and retrieval handles.",
+    surfaces: ["nav", "panel", "hud", "office-object"],
+  },
   "review-board": {
     id: "review-board",
     label: "Review Board",

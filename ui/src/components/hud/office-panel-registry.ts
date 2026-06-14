@@ -27,6 +27,7 @@ import {
   Home,
   type LucideIcon,
   Network,
+  Archive,
   Settings,
   ShoppingBag,
   TestTube2,
@@ -60,6 +61,7 @@ export type OfficePanelActionId =
   | "team-workspace"
   | "telemetry"
   | "skill-invocations"
+  | "resource-bank"
   | "skill-os"
   | "evals"
   | "harness"
@@ -101,6 +103,7 @@ export type OfficePanelRegistryDependencies = {
   openOrganization: () => void;
   openSettings: () => void;
   openSkillInvocations: () => void;
+  openResourceBank: () => void;
   openTelemetry: () => void;
   toggleBuilderMode: () => void;
   userTaskCount: number;
@@ -234,6 +237,17 @@ export function createOfficePanelActions(
       shortcut: { key: "i", label: "Alt+Shift+I", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openSkillInvocations,
+    },
+    {
+      id: "resource-bank",
+      label: "Resource Bank",
+      description: "Open saved media references, analysis, and extracted skill findings.",
+      group: "panel",
+      icon: Archive,
+      keywords: ["resource", "bank", "assets", "references", "ingestion", "pinterest", "media"],
+      shortcut: { key: "r", label: "Alt+Shift+R", altKey: true, shiftKey: true },
+      color: SECONDARY_BUTTON_COLOR,
+      perform: deps.openResourceBank,
     },
     {
       id: "skill-os",

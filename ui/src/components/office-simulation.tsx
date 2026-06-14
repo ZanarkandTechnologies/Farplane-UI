@@ -18,6 +18,7 @@ import { selectOfficeWorldContextData, useOfficeWorldStore } from "@/modules/off
 import { gatewayBase } from "@/modules/runtime";
 import { SettingsDialog } from "@/modules/settings";
 import { SkillInvocationsPanel } from "@/modules/skill-invocations";
+import { ResourceBankPanel } from "@/modules/resource-bank";
 import { TeamPanel } from "@/modules/team-workspace";
 import { TelemetryPanel } from "@/modules/telemetry";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
@@ -79,6 +80,8 @@ function OfficeSimulationContent() {
   const setIsSkillInvocationsPanelOpen = useAppStore(
     (state) => state.setIsSkillInvocationsPanelOpen,
   );
+  const isResourceBankPanelOpen = useAppStore((state) => state.isResourceBankPanelOpen);
+  const setIsResourceBankPanelOpen = useAppStore((state) => state.setIsResourceBankPanelOpen);
   const [isLogsDrawerOpen, setIsLogsDrawerOpen] = useState(false);
   const [navigationReady, setNavigationReady] = useState(false);
 
@@ -208,6 +211,10 @@ function OfficeSimulationContent() {
             <SkillInvocationsPanel
               open={isSkillInvocationsPanelOpen}
               onOpenChange={setIsSkillInvocationsPanelOpen}
+            />
+            <ResourceBankPanel
+              open={isResourceBankPanelOpen}
+              onOpenChange={setIsResourceBankPanelOpen}
             />
 
             <div className="pointer-events-none absolute top-4 left-4 z-[70]">

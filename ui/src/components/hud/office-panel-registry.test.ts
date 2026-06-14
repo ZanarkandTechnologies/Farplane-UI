@@ -53,6 +53,7 @@ describe("office panel registry", () => {
     const openEvals = vi.fn();
     const openHarness = vi.fn();
     const openGlobalTeamWorkspace = vi.fn();
+    const openResourceBank = vi.fn();
     const openSkillInvocations = vi.fn();
     const openSkillOs = vi.fn();
     const toggleBuilderMode = vi.fn();
@@ -68,6 +69,7 @@ describe("office panel registry", () => {
       openHarness,
       openGlobalTeamWorkspace,
       openOrganization: vi.fn(),
+      openResourceBank,
       openSettings: vi.fn(),
       openSkillInvocations,
       openSkillOs,
@@ -77,6 +79,7 @@ describe("office panel registry", () => {
     });
 
     actions.find((action) => action.id === "team-workspace")?.perform();
+    actions.find((action) => action.id === "resource-bank")?.perform();
     actions.find((action) => action.id === "skill-invocations")?.perform();
     actions.find((action) => action.id === "skill-os")?.perform();
     actions.find((action) => action.id === "evals")?.perform();
@@ -85,6 +88,7 @@ describe("office panel registry", () => {
     actions.find((action) => action.id === "builder-mode")?.perform();
 
     expect(openGlobalTeamWorkspace).toHaveBeenCalledTimes(1);
+    expect(openResourceBank).toHaveBeenCalledTimes(1);
     expect(openSkillInvocations).toHaveBeenCalledTimes(1);
     expect(openSkillOs).toHaveBeenCalledTimes(1);
     expect(openEvals).toHaveBeenCalledTimes(1);
@@ -111,6 +115,7 @@ describe("office panel registry", () => {
       openHarness: vi.fn(),
       openGlobalTeamWorkspace,
       openOrganization: vi.fn(),
+      openResourceBank: vi.fn(),
       openSettings,
       openSkillInvocations: vi.fn(),
       openSkillOs: vi.fn(),
