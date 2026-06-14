@@ -100,6 +100,14 @@ export type TelemetryHourBucket = {
   topMachineDisplayName: string | null;
 };
 
+export type TelemetryAvailabilityHour = {
+  hourKey: string;
+  label: string;
+  rangeLabel: string;
+  status: "covered" | "missing" | "pending";
+  pingCount: number;
+};
+
 export type ParallelCapacityProject = {
   displayName: string;
   sessionCount: number;
@@ -150,6 +158,7 @@ export type TelemetrySummary = {
   teamBreakdownByDay: Record<string, TelemetryBreakdown[]>;
   dailyBuckets: TelemetryDayBucket[];
   hourlyBuckets: TelemetryHourBucket[];
+  availabilityHours: TelemetryAvailabilityHour[];
   parallelCapacity: ParallelCapacityBoard;
   recentTurns: RuntimeTurn[];
   turnsPage: {
@@ -304,6 +313,7 @@ export function buildTelemetrySummary(
   const projectBreakdownByDay = new Map<string, Map<string, BreakdownAccumulator>>();
   const teamBreakdownByDay = new Map<string, Map<string, BreakdownAccumulator>>();
   const dailyBuckets = initializeDayBuckets(now, days, timezone);
+  const availabilityHourCounts = new Map<number, number>();
   const projectKeys = new Set<string>();
   const teamKeys = new Set<string>();
   let agentHours = 0;
@@ -318,7 +328,9 @@ export function buildTelemetrySummary(
     const dayBucket = dailyBuckets.get(buildDayKey(row.receivedAt, timezone));
     if (dayBucket) {
       dayBucket.totalPings += 1;
-      dayBucket.coveredHourBuckets.add(Math.floor(row.receivedAt / MS_PER_HOUR));
+      const hourBucketStart = Math.floor(row.receivedAt / MS_PER_HOUR) * MS_PER_HOUR;
+      dayBucket.coveredHourBuckets.add(hourBucketStart);
+      availabilityHourCounts.set(hourBucketStart, (availabilityHourCounts.get(hourBucketStart) ?? 0) + 1);
     }
     if (lastSeenAt === null || row.receivedAt > lastSeenAt) {
       lastSeenAt = row.receivedAt;
@@ -464,6 +476,7 @@ export function buildTelemetrySummary(
     teamBreakdownByDay: buildBreakdownByDay(teamBreakdownByDay, dailyBucketValues),
     dailyBuckets: finalDailyBuckets,
     hourlyBuckets: buildHourlyBuckets(turns, now, timezone),
+    availabilityHours: buildAvailabilityHours(now, timezone, availabilityHourCounts),
     parallelCapacity,
     recentTurns: turns.slice(0, recentLimit),
     turnsPage: {
@@ -743,6 +756,39 @@ function addHourlyTotal(
 function getTopHourlyLabel(map: Map<string, { displayName: string; agentHours: number }>): string | null {
   const top = Array.from(map.values()).sort((left, right) => right.agentHours - left.agentHours)[0];
   return top?.displayName ?? null;
+}
+
+function buildAvailabilityHours(
+  now: number,
+  timezone: string,
+  availabilityHourCounts: Map<number, number>,
+): TelemetryAvailabilityHour[] {
+  const todayKey = buildDayKey(now, timezone);
+  const currentHourStart = Math.floor(now / MS_PER_HOUR) * MS_PER_HOUR;
+  const candidates: number[] = [];
+
+  for (let offset = -24; offset <= 24; offset += 1) {
+    const bucketStartMs = currentHourStart + offset * MS_PER_HOUR;
+    if (buildDayKey(bucketStartMs, timezone) === todayKey) {
+      candidates.push(bucketStartMs);
+    }
+  }
+
+  return candidates
+    .sort((left, right) => left - right)
+    .slice(0, 24)
+    .map((bucketStartMs) => {
+      const pingCount = availabilityHourCounts.get(bucketStartMs) ?? 0;
+      const status: TelemetryAvailabilityHour["status"] =
+        pingCount > 0 ? "covered" : bucketStartMs + MS_PER_HOUR <= now ? "missing" : "pending";
+      return {
+        hourKey: String(bucketStartMs),
+        label: buildHourLabel(bucketStartMs, timezone),
+        rangeLabel: buildHourRangeLabel(bucketStartMs, timezone),
+        status,
+        pingCount,
+      };
+    });
 }
 
 function buildDailyParallelCapacity(

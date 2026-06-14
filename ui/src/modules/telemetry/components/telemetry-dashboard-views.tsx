@@ -10,22 +10,11 @@
  * Invariants: views render derived metadata only; no raw transcripts are shown.
  */
 
-import {
-  Activity as ActivityIcon,
-  AlertTriangle as AlertTriangleIcon,
-  BarChart3,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  Database,
-  GitBranch,
-  Network,
-  Timer,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ReactElement } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -44,22 +33,16 @@ import {
 } from "@/components/ui/table";
 import {
   formatCompletionSource,
-  formatDeltaHours,
   formatDuration,
   formatHours,
   formatRelativeTime,
-} from "./telemetry-dashboard-format";
+} from "../telemetry-dashboard-format";
 import type {
   RawSourceFilter,
   RawStatusFilter,
   RuntimeTurn,
   TelemetryBreakdown,
-  TelemetrySummary,
-} from "./telemetry-dashboard-types";
-
-type TelemetryMetricGridProps = {
-  data: TelemetrySummary;
-};
+} from "../telemetry-dashboard-types";
 
 type BreakdownTableProps = {
   rows: TelemetryBreakdown[];
@@ -95,87 +78,6 @@ const SOURCE_FILTERS: Array<{ label: string; value: RawSourceFilter }> = [
   { label: "Over cap", value: "duration_cap" },
   { label: "Diagnostic", value: "diagnostic" },
 ];
-
-export function TelemetryMetricGrid({ data }: TelemetryMetricGridProps): ReactElement {
-  const latest = data.dailyBuckets[data.dailyBuckets.length - 1];
-  const dailyCapacityHours = (latest?.projectCount ?? 0) * 24;
-  const dailyCapacityPercent = dailyCapacityHours > 0 ? Math.round((data.agentHourSummary.todayHours / dailyCapacityHours) * 100) : 0;
-  const metrics = [
-    {
-      icon: Clock,
-      label: "Today",
-      value: formatHours(data.agentHourSummary.todayHours),
-      detail: `${formatDeltaHours(data.agentHourSummary.deltaHours)} vs yesterday`,
-    },
-    {
-      icon: ActivityIcon,
-      label: "30d total",
-      value: formatHours(data.agentHourSummary.trailingAgentHours),
-      detail: `${formatHours(data.agentHourSummary.averageDailyHours)} avg/day`,
-    },
-    {
-      icon: BarChart3,
-      label: "Capacity",
-      value: `${dailyCapacityPercent}%`,
-      detail: `${latest?.projectCount ?? 0} projects x 24h`,
-    },
-    {
-      icon: Network,
-      label: "Peak parallel",
-      value: `${data.parallelCapacity.today.peakConcurrentSessions}S / ${data.parallelCapacity.today.peakConcurrentProjects}P`,
-      detail: "sessions / projects today",
-    },
-    {
-      icon: GitBranch,
-      label: "Today breadth",
-      value: `${latest?.projectCount ?? 0}P`,
-      detail: `${data.stats.projectCount} tracked total`,
-    },
-    {
-      icon: ActivityIcon,
-      label: "Availability",
-      value: `${latest?.availabilityPercent ?? 0}%`,
-      detail: latest ? `${latest.coveredHours}/24 ping hours` : "no hook coverage",
-    },
-    {
-      icon: Timer,
-      label: "Longest",
-      value: latest?.longestTurnDurationMs === null || latest === undefined ? "Waiting" : formatDuration(latest.longestTurnDurationMs),
-      detail: latest?.longestTurnProjectDisplayName ?? "daily max",
-    },
-    {
-      icon: AlertTriangleIcon,
-      label: "Filtered",
-      value: String(data.stats.filteredTurnCount),
-      detail: `${formatHours(data.stats.filteredAgentHours)} excluded`,
-    },
-    {
-      icon: Database,
-      label: "Pings",
-      value: String(data.stats.totalPings),
-      detail: data.stats.lastSeenAt ? `last ${formatRelativeTime(data.stats.lastSeenAt)}` : "no rows",
-    },
-  ];
-
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
-      {metrics.map((metric) => (
-        <Card key={metric.label} className="gap-2 rounded-md py-3">
-          <CardHeader className="px-3 pb-0">
-            <CardTitle className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-normal text-muted-foreground">
-              <metric.icon className="size-3.5" />
-              {metric.label}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-3">
-            <div className="truncate text-xl font-semibold tabular-nums">{metric.value}</div>
-            <div className="mt-1 truncate text-[11px] text-muted-foreground">{metric.detail}</div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-}
 
 export function BreakdownTable({ rows, emptyLabel }: BreakdownTableProps): ReactElement {
   if (rows.length === 0) {

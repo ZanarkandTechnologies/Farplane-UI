@@ -12,7 +12,8 @@ updated_at: 2026-06-14
 Pass with documented residual workspace issues. TKT-013 now has a Recharts-backed
 Telemetry `Dashboard` tab, a separate `Raw Telemetry` tab, scoped Team
 Telemetry parity, duration-cap confidence controls, Aikage/Console-derived
-runtime metrics, and browser evidence for the required global and team states.
+runtime metrics, a compact ticker-style metric rail, and browser evidence for
+the required global/team/dashboard/raw/dropdown states.
 
 ## Browser Evidence
 
@@ -28,6 +29,20 @@ runtime metrics, and browser evidence for the required global and team states.
   `tickets/building/TKT-013-telemetry-dashboard/artifacts/qa/screenshots/telemetry-global-dashboard.png`,
   `telemetry-global-raw.png`, `telemetry-team-dashboard.png`,
   `telemetry-team-raw.png`
+- Ticker/overlay revision captures:
+  `tickets/building/TKT-013-telemetry-dashboard/artifacts/qa/screenshots/telemetry-ticker-dashboard.png`,
+  `telemetry-ticker-raw.png`, `telemetry-range-dropdown-open.png`,
+  `telemetry-cap-dropdown-open.png`,
+  `telemetry-contribution-dropdown-open.png`,
+  `telemetry-raw-status-dropdown-open.png`
+- No-scroll follow-up captures:
+  `tickets/building/TKT-013-telemetry-dashboard/artifacts/qa/screenshots/telemetry-no-scroll-dashboard.png`,
+  `telemetry-view-dropdown-raw.png`
+- Heatmap restoration captures:
+  `tickets/building/TKT-013-telemetry-dashboard/artifacts/qa/screenshots/telemetry-source-heatmap-final.png`,
+  `telemetry-availability-heatmap-final.png`
+- Final ticker loop capture:
+  `tickets/building/TKT-013-telemetry-dashboard/artifacts/qa/screenshots/telemetry-ticker-loop-final.png`
 - Agent-browser companion captures:
   `global-dashboard.png`, `global-raw-telemetry.png`, `team-dashboard.png`,
   `team-raw-telemetry.png`
@@ -52,10 +67,28 @@ runtime metrics, and browser evidence for the required global and team states.
 - Browser assertion after the Recharts revision found one visible
   `.recharts-wrapper`, one `Contribution scope` selector, `All days` scope text,
   and no `Database is not defined` reference error.
+- Browser assertion after the ticker/overlay revision found a compact
+  telemetry ticker, a larger first-viewport chart area, paged raw telemetry text,
+  and no telemetry `ReferenceError`s.
+- Opened range, duration cap, contribution scope, and raw status dropdowns in
+  the telemetry modal. Each select content node rendered at `zIndex: 9999`,
+  `opacity: 1`, and `visibility: visible`.
+- No-scroll follow-up measured the Dashboard view at `scrollAreas: 0`,
+  `bodyOverflow: false`, `tickerHeight: 44`, and `chartHeight: 402.5` in a
+  1600x900 browser viewport. The telemetry tabs were no longer present, and the
+  `Telemetry view` dropdown switched to Raw Telemetry with paged rows visible.
+- Heatmap restoration verified the Source map mode renders 24 activity heat
+  cells and the Availability mode renders 24 covered/missing/pending status
+  cells. Browser QA also verified correct active chart mode state, zero nested
+  dashboard scroll areas, no body overflow, and no telemetry ReferenceErrors.
+- Final ticker QA verified the ticker uses 3 repeated metric groups, a 3564px
+  animated track against a 1262px visible viewport, active
+  `telemetry-ticker-scroll`, changing transform over time, and no telemetry
+  ReferenceErrors.
 
 ## Command Evidence
 
-- `npx biome lint ui/src/components/ui/chart.tsx ui/src/modules/telemetry/telemetry-dashboard-content.tsx ui/src/modules/telemetry/telemetry-dashboard-views.tsx ui/src/modules/telemetry/telemetry-dashboard-recharts.tsx ui/src/modules/telemetry/telemetry-dashboard-types.ts convex/modules/runtimeTelemetry/runtimeTelemetry.ts convex/modules/runtimeTelemetry/telemetry.ts convex/modules/runtimeTelemetry/validators.ts convex/modules/runtimeTelemetry/runtimeTelemetry.test.ts`
+- `npx biome lint ui/src/components/ui/chart.tsx ui/src/modules/telemetry/telemetry-dashboard-content.tsx ui/src/modules/telemetry/components/telemetry-dashboard-views.tsx ui/src/modules/telemetry/components/telemetry-dashboard-recharts.tsx ui/src/modules/telemetry/telemetry-dashboard-types.ts convex/modules/runtimeTelemetry/runtimeTelemetry.ts convex/modules/runtimeTelemetry/telemetry.ts convex/modules/runtimeTelemetry/validators.ts convex/modules/runtimeTelemetry/runtimeTelemetry.test.ts`
   passed.
 - `npm run test:once -- convex/modules/runtimeTelemetry` passed with 9 tests.
 - `npm run typecheck:root` passed.
@@ -66,6 +99,33 @@ runtime metrics, and browser evidence for the required global and team states.
 - `npm run ui:build` passed.
 - `git diff --check -- ui/src/modules/telemetry convex/modules/runtimeTelemetry tickets/building/TKT-013-telemetry-dashboard`
   passed before this QA note; rerun after ticket writeback before final closeout.
+- Ticker/overlay revision focused lint:
+  `npx biome lint ui/src/components/ui/select.tsx ui/src/components/ui/popover.tsx ui/src/modules/telemetry/telemetry-dashboard-content.tsx ui/src/modules/telemetry/components/telemetry-dashboard-views.tsx ui/src/modules/telemetry/components/telemetry-dashboard-recharts.tsx`
+  passed.
+- Ticker/overlay revision `npm run typecheck:root` passed.
+- Ticker/overlay revision `npm run ui:build` passed.
+- Ticker/overlay revision `git diff --check -- ui/src/components/ui/select.tsx ui/src/components/ui/popover.tsx ui/src/styles.css ui/src/modules/telemetry/telemetry-dashboard-content.tsx ui/src/modules/telemetry/components/telemetry-dashboard-views.tsx ui/src/modules/telemetry/components/telemetry-dashboard-recharts.tsx tickets/building/TKT-013-telemetry-dashboard`
+  passed before QA note writeback.
+- Accessibility-label probe verified the top telemetry range and duration-cap
+  triggers expose `Telemetry range` and `Duration cap filter` names; the
+  contribution scope trigger exposes `Contribution scope`.
+- Heatmap restoration `npm run test:once -- convex/modules/runtimeTelemetry`
+  passed with 9 tests.
+- Heatmap restoration focused Biome lint passed for
+  `convex/modules/runtimeTelemetry/runtimeTelemetry.ts`,
+  `convex/modules/runtimeTelemetry/runtimeTelemetry.test.ts`,
+  `ui/src/modules/telemetry/telemetry-dashboard-types.ts`, and
+  `ui/src/modules/telemetry/components/telemetry-dashboard-recharts.tsx`.
+- Heatmap restoration `npm run typecheck:root` passed.
+- Heatmap restoration `npm run ui:build` passed.
+- Final modularity pass focused Biome lint passed for telemetry dashboard
+  content/views/Recharts, the extracted ticker, and module CSS.
+- Final modularity pass `npm run quality:smells` passed with existing large-file
+  warnings.
+- Final modularity pass `bash scripts/pre_push_check.sh` completed: required
+  code smell, root build/typecheck, and UI production build passed; advisory
+  lint/tests and codex agent review passed; advisory full typecheck still fails
+  from pre-existing workspace-wide UI issues outside telemetry.
 
 ## Residuals
 

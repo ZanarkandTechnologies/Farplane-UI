@@ -59,9 +59,9 @@ parity pass.
   - Use Recharts/shadcn chart primitives for standard dashboard charts instead
     of custom one-off SVG chart components.
   - Restore Aikage/Console-derived runtime insights: today/yesterday/30d agent
-    hours, hourly source map, 7d/30d heatmap range, project breadth, parallel
+    hours, hourly source map, 7d/30d chart range, project breadth, parallel
     sessions/projects, daily capacity, longest-turn trend, availability, and
-    scoped contribution/activity filtering.
+    scoped contribution filtering.
 - Out of scope:
   - Importing old Aikage/Farplane-Console UI components wholesale.
   - Building alerting, nudges, Telegram notifications, or retention policy.
@@ -138,16 +138,30 @@ Raw Telemetry:
 
 ## Revision Done / Proof
 
-- [ ] Add `recharts` to the Farplane UI workspace and introduce/port a shadcn-style `ChartContainer` / `ChartTooltip` wrapper.
-- [ ] Replace custom telemetry SVG charts with Recharts components for line, bar, and reference-line charts.
-- [ ] Extend `TelemetrySummary` with Aikage/Console parity fields: `agentHourSummary`, `hourlyBuckets`, `parallelCapacity`, availability/covered-hours, longest-turn metadata, and day-scoped project/team breakdowns.
-- [ ] Restore metric strip fields: Today, Delta vs yesterday, 30d total, Capacity, Availability, Peak parallel, Projects, Longest turn.
-- [ ] Restore chart modes or equivalent dense dashboard sections: Agent-hours, Capacity, Source map, Parallel, Projects, Longest, Availability.
-- [ ] Restore 7d/30d chart range controls independent of the raw query range where useful.
-- [ ] Restore project breadth and parallel capacity calculations from completed turn intervals, respecting duration-cap filtering.
-- [ ] Restore hourly source-map buckets for the last 24h.
-- [ ] Preserve raw telemetry pagination, status/source filters, and privacy boundary.
-- [ ] Capture browser proof showing the Recharts dashboard and the Aikage-parity metrics in global and team scopes.
+- [x] Add `recharts` to the Farplane UI workspace and introduce/port a shadcn-style `ChartContainer` / `ChartTooltip` wrapper.
+- [x] Replace custom telemetry SVG charts with Recharts components for line, bar, and reference-line charts.
+- [x] Extend `TelemetrySummary` with Aikage/Console parity fields: `agentHourSummary`, `hourlyBuckets`, `parallelCapacity`, availability/covered-hours, longest-turn metadata, and day-scoped project/team breakdowns.
+- [x] Restore metric strip fields: Today, Delta vs yesterday, 30d total, Capacity, Availability, Peak parallel, Projects, Longest turn.
+- [x] Restore chart modes or equivalent dense dashboard sections: Agent-hours, Capacity, Source map, Parallel, Projects, Longest, Availability.
+- [x] Restore 7d/30d chart range controls independent of the raw query range where useful.
+- [x] Restore project breadth and parallel capacity calculations from completed turn intervals, respecting duration-cap filtering.
+- [x] Restore hourly source-map buckets for the last 24h.
+- [x] Restore day-scoped contribution filtering for dashboard project contribution.
+- [x] Preserve raw telemetry pagination, status/source filters, and privacy boundary.
+- [x] Capture browser proof showing the Recharts dashboard and the Aikage-parity metrics in global and team scopes.
+
+## Ticker Layout / Overlay Done / Proof
+
+- [x] Replace the metric card grid with a compact ticker rail.
+- [x] Keep all current metric values visible in the ticker.
+- [x] Make charts the primary first-viewport object on the Dashboard tab.
+- [x] Preserve Dashboard, Projects, Teams, and Raw Telemetry tab behavior.
+- [x] Make range, cap, raw filters, and contribution-scope dropdowns render above modal content.
+- [x] Ticker motion pauses on hover/focus and disables under reduced-motion.
+- [x] Focused lint passes on telemetry and changed UI primitives.
+- [x] `npm run typecheck:root` passes.
+- [x] `npm run ui:build` passes.
+- [x] Browser QA captures dashboard layout and dropdown-open evidence.
 
 ## Agent Contract
 
@@ -180,9 +194,26 @@ Raw Telemetry:
 - The current screenshot is evidence of the gap, not completion evidence.
 - The existing source ticket remains in `tickets/todo/` as historical source;
   this Goal Packet is the active build contract for completing the dashboard.
-- Source-size note: `ui/src/modules/telemetry/telemetry-dashboard-views.tsx`
-  is 544 raw lines after extracting the visual dashboard and raw-table views.
-  Split plan if it grows further: move chart primitives to
-  `telemetry-dashboard-charts.tsx` and raw inspection controls to
-  `telemetry-raw-table.tsx`.
+- Source-size note: Recharts charting lives in
+  `ui/src/modules/telemetry/components/telemetry-dashboard-recharts.tsx` at 429 raw
+  lines, while cards/tables/raw rows live in
+  `ui/src/modules/telemetry/components/telemetry-dashboard-views.tsx` at 329 raw lines.
+  The shared reducer is 998 lines after derived telemetry additions; split plan
+  if it grows further: move Aikage-derived summary helpers into a module-local
+  reducer companion.
 - Completion QA is recorded in `artifacts/qa/telemetry-dashboard-qa.md`.
+- Recharts revision QA is recorded in the same QA note with fresh screenshots
+  under `artifacts/qa/screenshots/`.
+- Ticker layout / modal overlay revision plan is appended to `plan.md`.
+- Ticker layout / modal overlay QA is recorded in the same QA note with
+  `telemetry-ticker-dashboard.png`, `telemetry-ticker-raw.png`, and dropdown
+  open-state captures under `artifacts/qa/screenshots/`.
+- Follow-up density pass removed the dashboard's nested scroll area, replaced
+  telemetry tabs with a compact view dropdown, and captured
+  `telemetry-no-scroll-dashboard.png` plus `telemetry-view-dropdown-raw.png`.
+- Heatmap pass added a telemetry-backed `availabilityHours` summary, converted
+  Source map into a 24-hour activity heatmap, and converted Availability into a
+  24-hour covered/missing/pending status heatmap.
+- Final modularity pass moved ticker CSS/component code under
+  `ui/src/modules/telemetry/components`, changed the ticker to three repeated
+  groups for seamless wide-modal looping, and ran the repo pre-push check.

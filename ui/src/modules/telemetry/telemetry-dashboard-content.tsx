@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isConvexEnabled } from "@/providers/convex-provider";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import type {
@@ -31,16 +30,18 @@ import type {
   RawStatusFilter,
   TelemetrySummary,
 } from "./telemetry-dashboard-types";
+import { TelemetryDashboardView } from "./components/telemetry-dashboard-recharts";
 import {
   BreakdownTable,
   RawTelemetryTable,
-  TelemetryDashboardView,
-  TelemetryMetricGrid,
   TelemetryStateCard,
-} from "./telemetry-dashboard-views";
+} from "./components/telemetry-dashboard-views";
+import { TelemetryMetricGrid } from "./components/telemetry-metric-ticker";
 
 const MS_PER_HOUR = 60 * 60 * 1000;
 const TURN_PAGE_SIZE = 25;
+
+type TelemetryView = "dashboard" | "projects" | "teams" | "raw";
 
 type TelemetryDashboardContentProps = {
   mode: "global" | "team";
@@ -62,6 +63,15 @@ const DURATION_CAP_OPTIONS: Array<{ label: string; value: DurationCapValue; maxT
   { label: "No cap", value: "none", maxTurnDurationMs: null },
 ];
 
+const PRIVATE_VIEW_OPTIONS: Array<{ label: string; value: TelemetryView }> = [
+  { label: "Dashboard", value: "dashboard" },
+  { label: "Projects", value: "projects" },
+  { label: "Teams", value: "teams" },
+  { label: "Raw Telemetry", value: "raw" },
+];
+
+const PUBLIC_VIEW_OPTIONS = PRIVATE_VIEW_OPTIONS.filter((option) => option.value !== "raw");
+
 export function TelemetryDashboardContent({
   mode,
   projectId,
@@ -72,6 +82,7 @@ export function TelemetryDashboardContent({
   const convexEnabled = isConvexEnabled();
   const [rangeDays, setRangeDays] = useState<RangeDays>(30);
   const [durationCap, setDurationCap] = useState<DurationCapValue>("4h");
+  const [activeView, setActiveView] = useState<TelemetryView>("dashboard");
   const [turnPage, setTurnPage] = useState(1);
   const [rawStatusFilter, setRawStatusFilter] = useState<RawStatusFilter>("all");
   const [rawSourceFilter, setRawSourceFilter] = useState<RawSourceFilter>("all");
@@ -121,24 +132,38 @@ export function TelemetryDashboardContent({
   }
 
   const diagnosticsCount = data.stats.inProgressTurnCount + data.stats.unmatchedTurnCount;
+  const viewOptions = isPublic ? PUBLIC_VIEW_OPTIONS : PRIVATE_VIEW_OPTIONS;
+  const visibleView = isPublic && activeView === "raw" ? "dashboard" : activeView;
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 pt-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex h-full min-h-0 flex-col gap-2 pt-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="truncate text-lg font-semibold">
+            <h2 className="truncate text-base font-semibold">
               {mode === "global" ? "Runtime Telemetry" : title || "Team Telemetry"}
             </h2>
             <Badge variant={diagnosticsCount > 0 ? "secondary" : "outline"}>
               {diagnosticsCount} diagnostic{diagnosticsCount === 1 ? "" : "s"}
             </Badge>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">Completed hours exclude over-cap turns.</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">Completed hours exclude over-cap turns.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Select value={visibleView} onValueChange={(value) => setActiveView(value as TelemetryView)}>
+            <SelectTrigger aria-label="Telemetry view" size="sm" className="w-[136px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {viewOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={String(rangeDays)} onValueChange={handleRangeDaysChange}>
-            <SelectTrigger size="sm" className="w-[120px]">
+            <SelectTrigger aria-label="Telemetry range" size="sm" className="w-[120px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -150,7 +175,7 @@ export function TelemetryDashboardContent({
             </SelectContent>
           </Select>
           <Select value={durationCap} onValueChange={handleDurationCapChange}>
-            <SelectTrigger size="sm" className="w-[120px]">
+            <SelectTrigger aria-label="Duration cap filter" size="sm" className="w-[120px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -166,38 +191,30 @@ export function TelemetryDashboardContent({
 
       <TelemetryMetricGrid data={data} />
 
-      <Tabs defaultValue="dashboard" className="flex min-h-0 flex-1 flex-col">
-        <TabsList className="w-fit">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="projects">Projects</TabsTrigger>
-          <TabsTrigger value="teams">Teams</TabsTrigger>
-          {!isPublic ? <TabsTrigger value="raw">Raw Telemetry</TabsTrigger> : null}
-        </TabsList>
-        <TabsContent value="dashboard" className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1">
+        {visibleView === "dashboard" ? (
           <TelemetryDashboardView data={data} mode={mode} />
-        </TabsContent>
-        <TabsContent value="projects" className="min-h-0 flex-1">
-          <BreakdownTable rows={data.projectBreakdown} emptyLabel="No project telemetry yet." />
-        </TabsContent>
-        <TabsContent value="teams" className="min-h-0 flex-1">
-          <BreakdownTable rows={data.teamBreakdown} emptyLabel="No team telemetry yet." />
-        </TabsContent>
-        {!isPublic ? (
-          <TabsContent value="raw" className="min-h-0 flex-1">
-            <RawTelemetryTable
-              onPageChange={setTurnPage}
-              onSourceFilterChange={setRawSourceFilter}
-              onStatusFilterChange={setRawStatusFilter}
-              page={data.turnsPage.page}
-              pageCount={data.turnsPage.pageCount}
-              rows={data.turnsPage.rows}
-              sourceFilter={rawSourceFilter}
-              statusFilter={rawStatusFilter}
-              total={data.turnsPage.total}
-            />
-          </TabsContent>
         ) : null}
-      </Tabs>
+        {visibleView === "projects" ? (
+          <BreakdownTable rows={data.projectBreakdown} emptyLabel="No project telemetry yet." />
+        ) : null}
+        {visibleView === "teams" ? (
+          <BreakdownTable rows={data.teamBreakdown} emptyLabel="No team telemetry yet." />
+        ) : null}
+        {!isPublic && visibleView === "raw" ? (
+          <RawTelemetryTable
+            onPageChange={setTurnPage}
+            onSourceFilterChange={setRawSourceFilter}
+            onStatusFilterChange={setRawStatusFilter}
+            page={data.turnsPage.page}
+            pageCount={data.turnsPage.pageCount}
+            rows={data.turnsPage.rows}
+            sourceFilter={rawSourceFilter}
+            statusFilter={rawStatusFilter}
+            total={data.turnsPage.total}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

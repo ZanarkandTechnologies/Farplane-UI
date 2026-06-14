@@ -52,6 +52,14 @@ export type TelemetryHourBucket = {
   topMachineDisplayName: string | null;
 };
 
+export type TelemetryAvailabilityHour = {
+  hourKey: string;
+  label: string;
+  rangeLabel: string;
+  status: "covered" | "missing" | "pending";
+  pingCount: number;
+};
+
 export type RuntimeTurn = {
   id: string;
   projectName: string | null;
@@ -113,6 +121,7 @@ export type TelemetrySummary = {
     peakProjects: ParallelCapacityProject[];
   }>;
   hourlyBuckets: TelemetryHourBucket[];
+  availabilityHours: TelemetryAvailabilityHour[];
   parallelCapacity: {
     today: ParallelCapacityDayBucket;
     dailyBuckets: ParallelCapacityDayBucket[];

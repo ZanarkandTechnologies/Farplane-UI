@@ -21,7 +21,6 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -29,8 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { TelemetrySummary } from "./telemetry-dashboard-types";
-import { formatDuration, formatHours } from "./telemetry-dashboard-format";
+import { formatDuration, formatHours } from "../telemetry-dashboard-format";
+import type { TelemetrySummary } from "../telemetry-dashboard-types";
 
 type ChartMode = "agent-hours" | "capacity" | "source-map" | "parallel" | "projects" | "longest" | "availability";
 type ChartRange = 7 | 30;
@@ -41,12 +40,9 @@ type DailyDatum = TelemetrySummary["dailyBuckets"][number] & {
   longestHours: number;
 };
 
-type HourDatum = TelemetrySummary["hourlyBuckets"][number] & {
-  fill: string;
-};
-
 const MS_PER_HOUR = 60 * 60 * 1000;
 const THREE_HOURS = 3;
+const CHART_CLASS_NAME = "aspect-auto h-full min-h-[260px] w-full";
 const mutedCursorFill = "color-mix(in oklab, var(--muted) 35%, transparent)";
 const mutedFill = "var(--muted)";
 
@@ -83,14 +79,6 @@ const longestConfig = {
   longestHours: { color: "var(--chart-1)", label: "Longest turn" },
 } satisfies ChartConfig;
 
-const availabilityConfig = {
-  availabilityPercent: { color: "var(--chart-1)", label: "Availability" },
-} satisfies ChartConfig;
-
-const hourlyConfig = {
-  agentHours: { color: "var(--chart-1)", label: "Agent-hours" },
-} satisfies ChartConfig;
-
 export function TelemetryDashboardView({
   data,
   mode,
@@ -104,41 +92,39 @@ export function TelemetryDashboardView({
   const focus = getFocus(activeMode, dailyData, data);
 
   return (
-    <ScrollArea className="h-full pr-3">
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
-        <Card className="rounded-md">
-          <CardHeader className="gap-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <CardTitle className="text-sm uppercase tracking-normal">{focus.title}</CardTitle>
-                <p className="mt-2 text-3xl font-semibold tabular-nums">{focus.value}</p>
-                <p className="mt-1 max-w-2xl text-xs text-muted-foreground">{focus.detail}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button aria-pressed={range === 7} onClick={() => setRange(7)} size="sm" variant={range === 7 ? "default" : "outline"}>
-                  7d
-                </Button>
-                <Button aria-pressed={range === 30} onClick={() => setRange(30)} size="sm" variant={range === 30 ? "default" : "outline"}>
-                  30d
-                </Button>
-              </div>
+    <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <Card className="flex min-h-0 flex-col rounded-md">
+        <CardHeader className="shrink-0 gap-2 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+              <CardTitle className="text-sm uppercase tracking-normal">{focus.title}</CardTitle>
+              <p className="text-2xl font-semibold tabular-nums">{focus.value}</p>
+              <p className="max-w-2xl truncate text-xs text-muted-foreground">{focus.detail}</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {CHART_MODES.map((item) => (
-                <Button aria-pressed={activeMode === item.value} key={item.value} onClick={() => setActiveMode(item.value)} size="sm" variant={activeMode === item.value ? "default" : "outline"}>
-                  {item.label}
-                </Button>
-              ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button aria-pressed={range === 7} onClick={() => setRange(7)} size="sm" variant={range === 7 ? "default" : "outline"}>
+                7d
+              </Button>
+              <Button aria-pressed={range === 30} onClick={() => setRange(30)} size="sm" variant={range === 30 ? "default" : "outline"}>
+                30d
+              </Button>
             </div>
-          </CardHeader>
-          <CardContent>{renderChart(activeMode, dailyData, data)}</CardContent>
-        </Card>
-        <div className="grid content-start gap-3">
-          <LifecycleHealth data={data} />
-          <ContributionPanel data={data} mode={mode} />
-        </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {CHART_MODES.map((item) => (
+              <Button aria-pressed={activeMode === item.value} key={item.value} onClick={() => setActiveMode(item.value)} size="sm" variant={activeMode === item.value ? "default" : "outline"}>
+                {item.label}
+              </Button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent className="min-h-0 flex-1 px-4 pb-4">{renderChart(activeMode, dailyData, data)}</CardContent>
+      </Card>
+      <div className="grid min-h-0 content-start gap-3 overflow-hidden">
+        <LifecycleHealth data={data} />
+        <ContributionPanel data={data} mode={mode} />
       </div>
-    </ScrollArea>
+    </div>
   );
 }
 
@@ -148,13 +134,13 @@ function renderChart(activeMode: ChartMode, dailyData: DailyDatum[], data: Telem
   if (activeMode === "parallel") return <ParallelChart data={dailyData} />;
   if (activeMode === "projects") return <ProjectBreadthChart data={dailyData} />;
   if (activeMode === "longest") return <LongestTurnChart data={dailyData} />;
-  if (activeMode === "availability") return <AvailabilityChart data={dailyData} />;
+  if (activeMode === "availability") return <AvailabilityChart data={data} />;
   return <AgentHoursChart data={dailyData} />;
 }
 
 function AgentHoursChart({ data }: { data: DailyDatum[] }): ReactElement {
   return (
-    <ChartContainer className="aspect-auto h-72 w-full" config={hoursConfig}>
+    <ChartContainer className={CHART_CLASS_NAME} config={hoursConfig}>
       <RechartsLineChart data={data} margin={{ bottom: 8, left: 8, right: 16, top: 16 }}>
         <CartesianGrid strokeDasharray="4 6" vertical={false} />
         <XAxis axisLine={false} dataKey="label" interval="preserveStartEnd" tickLine={false} tickMargin={8} />
@@ -169,7 +155,7 @@ function AgentHoursChart({ data }: { data: DailyDatum[] }): ReactElement {
 
 function CapacityChart({ data }: { data: DailyDatum[] }): ReactElement {
   return (
-    <ChartContainer className="aspect-auto h-72 w-full" config={capacityConfig}>
+    <ChartContainer className={CHART_CLASS_NAME} config={capacityConfig}>
       <RechartsBarChart data={data} margin={{ bottom: 8, left: 8, right: 16, top: 16 }}>
         <CartesianGrid strokeDasharray="4 6" vertical={false} />
         <XAxis axisLine={false} dataKey="label" interval="preserveStartEnd" tickLine={false} tickMargin={8} />
@@ -187,31 +173,39 @@ function CapacityChart({ data }: { data: DailyDatum[] }): ReactElement {
 
 function SourceMapChart({ data }: { data: TelemetrySummary }): ReactElement {
   const maxHours = Math.max(1, ...data.hourlyBuckets.map((bucket) => bucket.agentHours));
-  const chartData: HourDatum[] = data.hourlyBuckets.map((bucket) => ({
-    ...bucket,
-    fill: getIntensityColor(bucket.agentHours / maxHours),
-  }));
 
   return (
-    <ChartContainer className="aspect-auto h-72 w-full" config={hourlyConfig}>
-      <RechartsBarChart data={chartData} margin={{ bottom: 8, left: 8, right: 16, top: 16 }}>
-        <CartesianGrid strokeDasharray="4 6" vertical={false} />
-        <XAxis axisLine={false} dataKey="label" interval="preserveStartEnd" tickLine={false} tickMargin={8} />
-        <YAxis hide />
-        <ChartTooltip content={<ChartTooltipContent />} cursor={{ fill: mutedCursorFill }} />
-        <RechartsBar dataKey="agentHours" isAnimationActive={false} radius={2}>
-          {chartData.map((bucket) => (
-            <Cell fill={bucket.fill} key={bucket.hourKey} />
-          ))}
-        </RechartsBar>
-      </RechartsBarChart>
-    </ChartContainer>
+    <div className="flex h-full min-h-[260px] flex-col justify-between gap-4" data-telemetry-source-heatmap>
+      <div className="grid flex-1 grid-cols-12 gap-2">
+        {data.hourlyBuckets.map((bucket) => {
+          const ratio = bucket.agentHours / maxHours;
+          return (
+            <div
+              aria-label={`${bucket.rangeLabel}: ${formatHours(bucket.agentHours)} from ${bucket.completedTurnCount} turns`}
+              className="flex min-h-[72px] flex-col justify-between border p-2"
+              key={bucket.hourKey}
+              role="img"
+              style={{ backgroundColor: getIntensityColor(ratio) }}
+              title={`${bucket.rangeLabel}\n${formatHours(bucket.agentHours)} from ${bucket.completedTurnCount} turns\nTop project: ${bucket.topProjectDisplayName ?? "none"}`}
+            >
+              <span className="text-[10px] text-muted-foreground">{bucket.label}</span>
+              <span className="text-sm font-semibold tabular-nums">{bucket.agentHours > 0 ? formatHours(bucket.agentHours) : "-"}</span>
+              <span className="truncate text-[10px] text-muted-foreground">{bucket.topProjectDisplayName ?? "quiet"}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+        <span>Last 24 stop hours</span>
+        <HeatLegend items={["quiet", "low", "medium", "high"]} />
+      </div>
+    </div>
   );
 }
 
 function ParallelChart({ data }: { data: DailyDatum[] }): ReactElement {
   return (
-    <ChartContainer className="aspect-auto h-72 w-full" config={parallelConfig}>
+    <ChartContainer className={CHART_CLASS_NAME} config={parallelConfig}>
       <RechartsLineChart data={data} margin={{ bottom: 8, left: 8, right: 16, top: 16 }}>
         <CartesianGrid strokeDasharray="4 6" vertical={false} />
         <XAxis axisLine={false} dataKey="label" interval="preserveStartEnd" tickLine={false} tickMargin={8} />
@@ -226,7 +220,7 @@ function ParallelChart({ data }: { data: DailyDatum[] }): ReactElement {
 
 function ProjectBreadthChart({ data }: { data: DailyDatum[] }): ReactElement {
   return (
-    <ChartContainer className="aspect-auto h-72 w-full" config={projectsConfig}>
+    <ChartContainer className={CHART_CLASS_NAME} config={projectsConfig}>
       <RechartsBarChart data={data} margin={{ bottom: 8, left: 8, right: 16, top: 16 }}>
         <CartesianGrid strokeDasharray="4 6" vertical={false} />
         <XAxis axisLine={false} dataKey="label" interval="preserveStartEnd" tickLine={false} tickMargin={8} />
@@ -240,7 +234,7 @@ function ProjectBreadthChart({ data }: { data: DailyDatum[] }): ReactElement {
 
 function LongestTurnChart({ data }: { data: DailyDatum[] }): ReactElement {
   return (
-    <ChartContainer className="aspect-auto h-72 w-full" config={longestConfig}>
+    <ChartContainer className={CHART_CLASS_NAME} config={longestConfig}>
       <RechartsLineChart data={data} margin={{ bottom: 8, left: 8, right: 16, top: 16 }}>
         <CartesianGrid strokeDasharray="4 6" vertical={false} />
         <XAxis axisLine={false} dataKey="label" interval="preserveStartEnd" tickLine={false} tickMargin={8} />
@@ -253,17 +247,45 @@ function LongestTurnChart({ data }: { data: DailyDatum[] }): ReactElement {
   );
 }
 
-function AvailabilityChart({ data }: { data: DailyDatum[] }): ReactElement {
+function AvailabilityChart({ data }: { data: TelemetrySummary }): ReactElement {
+  const counts = data.availabilityHours.reduce(
+    (accumulator, bucket) => ({
+      covered: accumulator.covered + (bucket.status === "covered" ? 1 : 0),
+      missing: accumulator.missing + (bucket.status === "missing" ? 1 : 0),
+      pending: accumulator.pending + (bucket.status === "pending" ? 1 : 0),
+    }),
+    { covered: 0, missing: 0, pending: 0 },
+  );
+
   return (
-    <ChartContainer className="aspect-auto h-72 w-full" config={availabilityConfig}>
-      <RechartsBarChart data={data} margin={{ bottom: 8, left: 8, right: 16, top: 16 }}>
-        <CartesianGrid strokeDasharray="4 6" vertical={false} />
-        <XAxis axisLine={false} dataKey="label" interval="preserveStartEnd" tickLine={false} tickMargin={8} />
-        <YAxis domain={[0, 100]} hide />
-        <ChartTooltip content={<ChartTooltipContent />} cursor={{ fill: mutedCursorFill }} />
-        <RechartsBar dataKey="availabilityPercent" fill="var(--color-availabilityPercent)" isAnimationActive={false} radius={2} />
-      </RechartsBarChart>
-    </ChartContainer>
+    <div className="flex h-full min-h-[260px] flex-col gap-4" data-telemetry-availability-heatmap>
+      <div className="grid grid-cols-3 gap-2">
+        <StatusStat label="Covered" value={`${counts.covered}h`} variant="covered" />
+        <StatusStat label="Missing" value={`${counts.missing}h`} variant="missing" />
+        <StatusStat label="Pending" value={`${counts.pending}h`} variant="pending" />
+      </div>
+      <div className="grid flex-1 grid-cols-12 gap-2">
+        {data.availabilityHours.map((bucket) => (
+          <div
+            aria-label={`${bucket.rangeLabel}: ${bucket.status}, ${bucket.pingCount} telemetry pings`}
+            className={`flex min-h-[74px] flex-col justify-between border p-2 ${getAvailabilityClassName(bucket.status)}`}
+            key={bucket.hourKey}
+            role="img"
+            title={`${bucket.rangeLabel}\n${bucket.status}\n${bucket.pingCount} telemetry pings`}
+          >
+            <span className="text-[10px] uppercase text-current/70">{bucket.label}</span>
+            <span className="text-xs font-semibold capitalize">{bucket.status}</span>
+            <span className="text-[10px] tabular-nums text-current/75">{bucket.pingCount} ping{bucket.pingCount === 1 ? "" : "s"}</span>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+        <span>Today by local hour</span>
+        <span className="inline-flex items-center gap-1"><span className="size-2 bg-emerald-500/80" />covered</span>
+        <span className="inline-flex items-center gap-1"><span className="size-2 bg-destructive/80" />missing</span>
+        <span className="inline-flex items-center gap-1"><span className="size-2 bg-amber-400/75" />pending</span>
+      </div>
+    </div>
   );
 }
 
@@ -278,10 +300,10 @@ function LifecycleHealth({ data }: { data: TelemetrySummary }): ReactElement {
 
   return (
     <Card className="rounded-md">
-      <CardHeader>
+      <CardHeader className="px-4 py-3">
         <CardTitle className="text-sm uppercase tracking-normal">Lifecycle Health</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-3">
+      <CardContent className="grid gap-3 px-4 pb-4">
         {rows.map((row) => (
           <div key={row.label}>
             <div className="flex items-center justify-between gap-3 text-xs">
@@ -302,12 +324,12 @@ function ContributionPanel({ data, mode }: { data: TelemetrySummary; mode: "glob
     scope === "all"
       ? data.projectBreakdown
       : data.projectBreakdownByDay[scope] ?? [];
-  const rows = mode === "team" ? scopedRows : scopedRows.slice(0, 6);
+  const rows = (mode === "team" ? scopedRows : scopedRows.slice(0, 4)).slice(0, 5);
   const maxHours = Math.max(1, ...rows.map((row) => row.agentHours));
 
   return (
     <Card className="rounded-md">
-      <CardHeader className="gap-3">
+      <CardHeader className="gap-3 px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="text-sm uppercase tracking-normal">{mode === "team" ? "Project Contribution" : "Top Projects"}</CardTitle>
           <Select value={scope} onValueChange={setScope}>
@@ -325,7 +347,7 @@ function ContributionPanel({ data, mode }: { data: TelemetrySummary; mode: "glob
           </Select>
         </div>
       </CardHeader>
-      <CardContent className="grid gap-3">
+      <CardContent className="grid gap-2 px-4 pb-4">
         {rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">No completed project telemetry yet.</p>
         ) : (
@@ -341,6 +363,39 @@ function ContributionPanel({ data, mode }: { data: TelemetrySummary; mode: "glob
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function StatusStat({
+  label,
+  value,
+  variant,
+}: {
+  label: string;
+  value: string;
+  variant: "covered" | "missing" | "pending";
+}): ReactElement {
+  return (
+    <div className={`border px-3 py-2 ${getAvailabilityClassName(variant)}`}>
+      <div className="text-[10px] uppercase text-current/70">{label}</div>
+      <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+function HeatLegend({ items }: { items: string[] }): ReactElement {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {items.map((item, index) => (
+        <span className="inline-flex items-center gap-1" key={item}>
+          <span
+            className="size-2 border"
+            style={{ backgroundColor: getIntensityColor(index / Math.max(1, items.length - 1)) }}
+          />
+          {item}
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -369,8 +424,8 @@ function getFocus(activeMode: ChartMode, dailyData: DailyDatum[], data: Telemetr
     const total = data.hourlyBuckets.reduce((sum, bucket) => sum + bucket.agentHours, 0);
     const peak = [...data.hourlyBuckets].sort((left, right) => right.agentHours - left.agentHours)[0];
     return {
-      detail: peak && peak.agentHours > 0 ? `Peak stop hour ${peak.rangeLabel}; ${peak.topProjectDisplayName ?? "no project"} led the bucket.` : "Waiting for completed stop hooks.",
-      title: "Last 24h Source Map",
+      detail: peak && peak.agentHours > 0 ? `Peak activity ${peak.rangeLabel}; ${peak.topProjectDisplayName ?? "no project"} led the bucket.` : "Waiting for completed stop hooks.",
+      title: "Activity Heatmap",
       value: formatHours(total),
     };
   }
@@ -399,11 +454,12 @@ function getFocus(activeMode: ChartMode, dailyData: DailyDatum[], data: Telemetr
     };
   }
   if (activeMode === "availability") {
-    const avg = Math.round(dailyData.reduce((sum, bucket) => sum + bucket.availabilityPercent, 0) / Math.max(1, dailyData.length));
+    const covered = data.availabilityHours.filter((bucket) => bucket.status === "covered").length;
+    const missing = data.availabilityHours.filter((bucket) => bucket.status === "missing").length;
     return {
-      detail: latest ? `Today has ${latest.coveredHours}/24 covered hours.` : "Waiting for hook coverage.",
-      title: "Availability",
-      value: `${avg}% avg`,
+      detail: `${missing} elapsed local hour${missing === 1 ? "" : "s"} without telemetry coverage.`,
+      title: "Availability Heatmap",
+      value: `${covered}/24h`,
     };
   }
   return {
@@ -426,4 +482,10 @@ function getIntensityColor(ratio: number): string {
   if (ratio >= 0.25) return "var(--chart-3)";
   if (ratio > 0) return "var(--chart-4)";
   return mutedFill;
+}
+
+function getAvailabilityClassName(status: TelemetrySummary["availabilityHours"][number]["status"]): string {
+  if (status === "covered") return "border-emerald-500/30 bg-emerald-500/20 text-emerald-100";
+  if (status === "missing") return "border-destructive/35 bg-destructive/20 text-red-100";
+  return "border-amber-400/30 bg-amber-400/15 text-amber-100";
 }

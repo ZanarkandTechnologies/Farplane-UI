@@ -101,6 +101,10 @@ This file defines project-specific technical rules, stack details, and execution
   empty states, or progressive disclosure unless it is primary user content.
 - UI-bearing tickets should capture browser evidence and check against
   `docs/TASTE.md` when visual layout, density, or interaction quality changes.
+- Avoid nested scrolling in modal dashboards and dense app panels where the
+  primary surface can instead fill the available height. Prefer compact controls,
+  constrained side rails, and flex/grid `min-h-0` layouts before adding an
+  inner scroll container.
 - For standard app surfaces, prefer existing shadcn-style primitives and shared
   Tailwind theme tokens. For office surfaces, preserve the 3D office visual
   language and run browser QA for scene/HUD regressions.

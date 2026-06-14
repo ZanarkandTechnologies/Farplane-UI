@@ -100,7 +100,7 @@ which projects consumed it, and where telemetry confidence is weak.
    fields, using the Console algorithms as references while preserving the
    Farplane duration-cap filtering.
 3. Replace custom chart primitives in
-   `ui/src/modules/telemetry/telemetry-dashboard-views.tsx` with Recharts
+   `ui/src/modules/telemetry/components/telemetry-dashboard-views.tsx` with Recharts
    components.
 4. Add metric strip and chart mode sections for Aikage parity.
 5. Preserve the current Raw Telemetry tab and tests.

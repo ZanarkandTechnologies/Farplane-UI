@@ -145,7 +145,7 @@ Touch:
 - `ui/src/components/ui/chart.tsx`
 - `ui/src/modules/telemetry/telemetry-dashboard-types.ts`
 - `ui/src/modules/telemetry/telemetry-dashboard-content.tsx`
-- `ui/src/modules/telemetry/telemetry-dashboard-views.tsx`
+- `ui/src/modules/telemetry/components/telemetry-dashboard-views.tsx`
 - `convex/modules/runtimeTelemetry/runtimeTelemetry.ts`
 - `convex/modules/runtimeTelemetry/runtimeTelemetry.test.ts`
 - ticket/progress/QA artifacts
@@ -210,3 +210,119 @@ Inspect:
   keeping backend derived fields if the chart pass misbehaves.
 - Plan review: passed impl-plan checks for reference coverage, coherent scope,
   map usefulness, typed flow, proof specificity, and risk clarity.
+
+---
+
+# 2026-06-14 Ticker Layout / Modal Overlay Revision
+
+## Summary
+
+Convert the telemetry dashboard from a card-heavy top section into a chart-first
+operator console: compact title/controls, a one-line market-tape metric ticker,
+then large Recharts content with a right health/contribution rail. Fix modal
+dropdown layering through shared primitive z-index defaults so every select and
+popover renders above dialog content.
+
+## Scope
+
+- In scope:
+  - Replace the telemetry metric card grid with a compact horizontally scrolling
+    ticker rail.
+  - Preserve all current metric values and duration-confidence labels.
+  - Reduce telemetry header/tabs vertical footprint so charts become the main
+    viewport object.
+  - Increase Recharts chart height and tighten chart chrome.
+  - Keep raw telemetry usable with the same compact ticker/header.
+  - Raise shared `SelectContent` / `PopoverContent` portal z-index above dialogs.
+  - Document the overlay z-index rule in TKT-013 proof notes.
+- Out of scope:
+  - New telemetry data fields.
+  - Replacing Radix primitives.
+  - New animation libraries.
+  - Reworking the office modal shell outside dropdown layering.
+
+## Delta
+
+### Before
+
+- Nine metric cards consume two dashboard rows before the chart.
+- Charts start below the fold on shorter modal viewports.
+- Dropdown content uses `z-50`, the same layer as dialog content/overlay, so
+  select menus can appear clipped or hidden in modal contexts.
+
+### After
+
+- Metrics render as a single compact ticker rail:
+  `TODAY 0h -10h • 30D 294h • CAP 0% • PEAK 0S/0P • ...`
+- The chart area starts immediately after tabs and owns the primary viewport.
+- Chart mode buttons stay compact; 7d/30d controls remain near chart focus.
+- Select and popover portal content use a shared high z-index above modal
+  content.
+
+### First-Principles Basis
+
+- Objective: make telemetry readable as a dashboard, not a summary-card wall.
+- Need: the operator wants charts to be the main surface while metrics remain
+  glanceable.
+- Root cause: the current metric grid reserves too much vertical space and
+  modal overlay primitives share the dialog layer.
+- Constraint: keep dense operational style and existing telemetry semantics.
+- First viable slice: ticker rail + chart height + shared z-index primitive
+  change.
+- Proof: browser screenshot shows chart-first dashboard and opened selects above
+  modal content.
+- Tradeoff: marquee-style motion is implemented with CSS only and disabled for
+  reduced-motion users.
+- Non-goals: new chart types, new telemetry math, new modal system.
+
+## Program
+
+```text
+vars:
+  ui = ui/src/modules/telemetry
+  primitives = ui/src/components/ui/select.tsx + popover.tsx
+
+program:
+  plan(ticker_layout, overlay_rule) -> ticket revision
+  change(TelemetryMetricGrid) -> compact ticker rail
+  change(TelemetryDashboardContent) -> reduced chrome and tighter tabs
+  change(TelemetryDashboardView) -> taller chart, compact header, stable side rail
+  change(SelectContent, PopoverContent) -> z-[9999] opacity-100 portal content
+  verify(lint, root typecheck, ui build, browser modal dropdown proof) -> QA note
+```
+
+## Map
+
+```mermaid
+flowchart TD
+  A["TelemetryDashboardContent"] --> B["compact header + controls"]
+  A --> C["TelemetryMetricGrid(data): ticker rail"]
+  A --> D["Tabs"]
+  D --> E["TelemetryDashboardView(data): chart-first layout"]
+  E --> F["Large Recharts panel"]
+  E --> G["Lifecycle + contribution rail"]
+  H["SelectContent / PopoverContent"] --> I["Portal z-[9999] above Dialog z-50"]
+```
+
+## Done / Proof
+
+- [x] Metric grid is replaced by a compact ticker rail.
+- [x] Dashboard chart appears in the first viewport with substantially more
+      vertical room than the metric strip.
+- [x] Ticker animation pauses on hover/focus and respects reduced motion.
+- [x] Range, duration-cap, and contribution-scope dropdowns open above modal
+      content.
+- [x] Raw Telemetry remains paged and readable.
+- [x] Focused telemetry/UI primitive lint passes.
+- [x] `npm run typecheck:root` passes.
+- [x] `npm run ui:build` passes.
+- [x] Browser QA captures dashboard and dropdown-open evidence.
+
+## Notes
+
+- Shared overlay rule accepted for this pass:
+  `dialog/overlay = z-50`, `select/popover portal content = z-[9999]`.
+  A later design-system ticket can replace these literals with named Tailwind
+  tokens if the project introduces a theme z-index scale.
+- The Radix animation utility classes were removed from select/popover content
+  because the modal path could leave open content at computed `opacity: 0`.

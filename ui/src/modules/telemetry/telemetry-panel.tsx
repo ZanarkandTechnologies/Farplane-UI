@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { UI_Z } from "@/lib/z-index";
 import { TelemetryDashboardContent } from "./telemetry-dashboard-content";
+import "./components/telemetry-dashboard.css";
 
 type TelemetryPanelProps = {
   open: boolean;

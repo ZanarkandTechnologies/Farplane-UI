@@ -1,0 +1,24 @@
+@keyframes telemetry-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-33.3333%);
+  }
+}
+
+.telemetry-ticker-track {
+  animation: telemetry-ticker-scroll 44s linear infinite;
+}
+
+.telemetry-ticker:hover .telemetry-ticker-track,
+.telemetry-ticker:focus-within .telemetry-ticker-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .telemetry-ticker-track {
+    animation: none;
+    transform: none;
+  }
+}

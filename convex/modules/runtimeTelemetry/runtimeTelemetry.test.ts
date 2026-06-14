@@ -176,6 +176,24 @@ describe("runtime telemetry reducers", () => {
         topProjectDisplayName: "Farplane",
       }),
     );
+    expect(summary.availabilityHours).toHaveLength(24);
+    expect(summary.availabilityHours.find((bucket) => bucket.label === "09")).toEqual(
+      expect.objectContaining({
+        pingCount: 1,
+        status: "covered",
+      }),
+    );
+    expect(summary.availabilityHours.find((bucket) => bucket.label === "11")).toEqual(
+      expect.objectContaining({
+        pingCount: 0,
+        status: "missing",
+      }),
+    );
+    expect(summary.availabilityHours.find((bucket) => bucket.label === "12")).toEqual(
+      expect.objectContaining({
+        status: "pending",
+      }),
+    );
   });
 
   it("derives parallel capacity from capped completed intervals only", () => {

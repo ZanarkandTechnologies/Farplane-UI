@@ -22,7 +22,7 @@ Files:
 - ui/src/modules/telemetry/AGENTS.md
 - ui/src/modules/telemetry/telemetry-dashboard-content.tsx
 - ui/src/modules/telemetry/telemetry-dashboard-types.ts
-- ui/src/modules/telemetry/telemetry-dashboard-views.tsx
+- ui/src/modules/telemetry/components/telemetry-dashboard-views.tsx
 - ui/src/modules/team-workspace/components/telemetry-tab.tsx
 - convex/modules/runtimeTelemetry/AGENTS.md
 - convex/modules/runtimeTelemetry/runtimeTelemetry.ts
