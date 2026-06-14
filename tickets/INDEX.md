@@ -31,6 +31,7 @@
 - `TKT-023` - Skill OS, Evals, and Harness entrypoint redesign (`tickets/building/TKT-023-skill-os-evals-harness-redesign/ticket.md`)
 - `TKT-024` - Public read-only office view for livestreaming (`tickets/building/TKT-024-public-office-view-goal/ticket.md`)
 - `TKT-025` - Skill invocation listener hook and dashboard (`tickets/building/TKT-025-skill-invocation-listener-hook/ticket.md`)
+- `TKT-027` - Eval OS mini app and run artifact viewer (`tickets/building/TKT-027-eval-os-mini-app/ticket.md`)
 
 ## Done
 

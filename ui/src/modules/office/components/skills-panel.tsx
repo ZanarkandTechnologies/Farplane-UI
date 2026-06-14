@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UI_Z } from "@/lib/z-index";
+import { EvalOsPanel } from "@/modules/evals";
 import { SkillsPanelControlsTab } from "@/modules/office/components/skills-panel-controls-tab";
 import { SkillsPanelDemosTab } from "@/modules/office/components/skills-panel-demos-tab";
 import { SkillsPanelDiagramTab } from "@/modules/office/components/skills-panel-diagram-tab";
@@ -85,7 +86,7 @@ function panelDescription(
     return "Codex adapter mode hides per-agent skill equip controls; this panel stays available as a read-first adapter surface.";
   }
   if (surface === "evals") {
-    return "Global eval runs and skill-local eval files, separated from the Skill OS rollout control plane.";
+    return "Eval OS mini app for latest runs, health, history, task drilldown, and report artifacts.";
   }
   if (surface === "harness") {
     return "Harness map entrypoint for skills, docs, agents, templates, validators, and policies.";
@@ -465,8 +466,14 @@ export function SkillsPanel(): ReactElement {
         </DialogHeader>
         <div
           className="grid min-h-0 flex-1 overflow-hidden"
-          style={{ gridTemplateColumns: `${SKILL_STUDIO_SIDEBAR_WIDTH}px minmax(0, 1fr)` }}
+          style={{
+            gridTemplateColumns:
+              surface === "evals"
+                ? "minmax(0, 1fr)"
+                : `${SKILL_STUDIO_SIDEBAR_WIDTH}px minmax(0, 1fr)`,
+          }}
         >
+          {surface !== "evals" ? (
           <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-r p-4">
             <div className="flex items-center gap-2">
               <Input
@@ -511,6 +518,7 @@ export function SkillsPanel(): ReactElement {
               }
             />
           </div>
+          ) : null}
 
           <div className="flex min-h-0 min-w-0 flex-col overflow-hidden p-4">
             <Tabs
@@ -525,7 +533,7 @@ export function SkillsPanel(): ReactElement {
               </TabsList>
             </Tabs>
             {surface === "evals" ? (
-              <EvalsSurface skills={skills} selectedSkillId={selectedSkillId} />
+              <EvalOsPanel />
             ) : surface === "harness" ? (
               <HarnessSurface />
             ) : !selection.selectedDetail || !manifestState.manifestEditor ? (
