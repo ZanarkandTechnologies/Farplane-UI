@@ -39,7 +39,7 @@ import { getRandomItem } from "@/lib/utils";
 import PathVisualizer from "@/modules/navigation/components/path-visualizer";
 import type { StatusType } from "@/modules/navigation/components/status-indicator";
 import type { EmployeeActivityState } from "@/modules/office/lib/types";
-import type { AgentState } from "@/modules/runtime";
+import { type AgentState, useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useAppStore } from "@/store";
 import { ContextMenu } from "../context-menu";
 import {
@@ -346,6 +346,7 @@ const Employee = memo(function Employee({
   const highlightedEmployeeIds = useAppStore((state) => state.highlightedEmployeeIds);
   const isOfficeOnboardingVisible = useAppStore((state) => state.isOfficeOnboardingVisible);
   const officeOnboardingStep = useAppStore((state) => state.officeOnboardingStep);
+  const runtimeAdapter = useOfficeRuntimeAdapter();
 
   const [isHovered, setIsHovered] = useState(false);
   const [seenActivityUpdatedAt, setSeenActivityUpdatedAt] = useState(() =>
@@ -436,72 +437,75 @@ const Employee = memo(function Employee({
   }, [appearance, colors, isCEO]);
 
   const employeeActions = useMemo(
-    () => [
-      {
-        id: "chat",
-        label: "Chat",
-        icon: MessageSquare,
-        color: "blue",
-        position: "top" as const,
-        isHighlighted:
-          isOfficeOnboardingVisible && officeOnboardingStep === "open-chat" && Boolean(isCEO),
-        onClick: () => {
-          setSelectedObjectId(null);
-          onClick(id);
+    () =>
+      [
+        {
+          id: "chat",
+          label: "Chat",
+          icon: MessageSquare,
+          color: "blue",
+          position: "top" as const,
+          isHighlighted:
+            isOfficeOnboardingVisible && officeOnboardingStep === "open-chat" && Boolean(isCEO),
+          onClick: () => {
+            setSelectedObjectId(null);
+            onClick(id);
+          },
         },
-      },
-      {
-        id: "computer",
-        label: "Computer",
-        icon: Monitor,
-        color: "green",
-        position: "right" as const,
-        onClick: () => {
-          toast.info("Computer view is hidden for this demo.");
+        {
+          id: "computer",
+          label: "Computer",
+          icon: Monitor,
+          color: "green",
+          position: "right" as const,
+          onClick: () => {
+            toast.info("Computer view is hidden for this demo.");
+          },
         },
-      },
-      {
-        id: "manage",
-        label: "Manage",
-        icon: UserCog,
-        color: "amber",
-        position: "bottom" as const,
-        onClick: () => {
-          setManageAgentEmployeeId(id);
+        {
+          id: "manage",
+          label: "Manage",
+          icon: UserCog,
+          color: "amber",
+          position: "bottom" as const,
+          onClick: () => {
+            setManageAgentEmployeeId(id);
+          },
         },
-      },
-      {
-        id: "training",
-        label: "Skills",
-        icon: Book,
-        color: "indigo",
-        onClick: () => {
-          const employeeId = String(id);
-          const focusedAgentId = employeeId.startsWith("employee-")
-            ? employeeId.replace(/^employee-/, "")
-            : employeeId;
-          setSelectedSkillStudioSkillId(null);
-          setSkillStudioFocusAgentId(focusedAgentId);
-          setIsSkillsPanelOpen(true);
+        {
+          id: "training",
+          label: "Skills",
+          icon: Book,
+          color: "indigo",
+          onClick: () => {
+            const employeeId = String(id);
+            const focusedAgentId = employeeId.startsWith("employee-")
+              ? employeeId.replace(/^employee-/, "")
+              : employeeId;
+            setSelectedSkillStudioSkillId(null);
+            setSkillStudioFocusAgentId(focusedAgentId);
+            setIsSkillsPanelOpen(true);
+          },
         },
-      },
-      {
-        id: "memory",
-        label: "Context",
-        icon: Brain,
-        color: "purple",
-        position: "left" as const,
-        onClick: () => {
-          const employeeId = String(id);
-          const focusedAgentId = employeeId.startsWith("employee-")
-            ? employeeId.replace(/^employee-/, "")
-            : employeeId;
-          setSelectedObjectId(null);
-          setKanbanFocusAgentId(focusedAgentId);
-          setMemoryPanelEmployeeId(id);
+        {
+          id: "memory",
+          label: "Context",
+          icon: Brain,
+          color: "purple",
+          position: "left" as const,
+          onClick: () => {
+            const employeeId = String(id);
+            const focusedAgentId = employeeId.startsWith("employee-")
+              ? employeeId.replace(/^employee-/, "")
+              : employeeId;
+            setSelectedObjectId(null);
+            setKanbanFocusAgentId(focusedAgentId);
+            setMemoryPanelEmployeeId(id);
+          },
         },
-      },
-    ],
+      ].filter(
+        (action) => action.id !== "training" || runtimeAdapter.capabilities.employeeSkillEquip,
+      ),
     [
       id,
       onClick,
@@ -513,6 +517,7 @@ const Employee = memo(function Employee({
       setSelectedSkillStudioSkillId,
       setSkillStudioFocusAgentId,
       officeOnboardingStep,
+      runtimeAdapter.capabilities.employeeSkillEquip,
       setSelectedObjectId,
       isCEO,
     ],
@@ -656,6 +661,7 @@ const Employee = memo(function Employee({
 
   return (
     <>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: React Three Fiber groups receive pointer events through the 3D canvas hit target. */}
       <group
         ref={groupRef}
         name={`employee-${id}`}

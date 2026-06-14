@@ -29,6 +29,19 @@ private relative import.
   Codex runtime adapter.
 - Do not add product panels here unless they configure or display runtime state.
 
+## Codex Thread Status
+
+- Office-wide employee loader state should come from cheap `thread/list`
+  polling through `CodexRuntimeAdapter.getAgentsLiveStatus()`.
+- `thread/read({ includeTurns: true })` is for an opened session timeline or
+  reconciliation, not for roster polling.
+- Focused live chat should rejoin only the selected thread with
+  `thread/resume({ threadId })`, reduce app-server notifications into the same
+  `AgentLiveStatus` shape, and fall back to `thread/list` / `thread/read` on
+  reconnect.
+- Browser UI should consume this through the Farplane runtime/gateway boundary;
+  Three.js office components should only receive normalized employee fields.
+
 ## Test
 
 ```bash

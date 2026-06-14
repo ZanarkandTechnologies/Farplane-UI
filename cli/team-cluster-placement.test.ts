@@ -21,9 +21,9 @@ describe("team cluster placement", () => {
 
   it("moves later project clusters to the next deterministic open slot", () => {
     expect(resolveNewTeamClusterPosition([makeObject("cluster-alpha", "team-cluster", [0, 0, 0])])).toEqual([
-      -5,
+      -9,
       0,
-      -5,
+      -9,
     ]);
   });
 
@@ -39,7 +39,7 @@ describe("team cluster placement", () => {
       id: "team-cluster-team-proj-beta",
       identifier: "team-cluster-team-proj-beta",
       meshType: "team-cluster",
-      position: [-5, 0, -5],
+      position: [-9, 0, -9],
       rotation: [0, 0, 0],
       metadata: {
         teamId: "team-proj-beta",

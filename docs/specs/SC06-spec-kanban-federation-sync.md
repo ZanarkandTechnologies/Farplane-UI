@@ -2,7 +2,7 @@
 
 ## Scope
 
-Define the first production-safe federation layer for internal Farplane AI tasks and external provider boards (Notion and Vibe Kanban) without introducing multi-master ambiguity.
+Define the first production-safe federation layer for internal Farplane UI tasks and external provider boards (Notion and Vibe Kanban) without introducing multi-master ambiguity.
 
 ## Canonical References
 
@@ -16,14 +16,14 @@ For SC06, source-of-truth is **canonical-provider-per-project**:
 
 - Each project selects one canonical board provider (`internal`, `notion`, or `vibe`).
 - Canonical provider owns mutable task truth for that project.
-- Farplane AI maintains a unified read model across all projects/providers.
+- Farplane UI maintains a unified read model across all projects/providers.
 - Cross-provider duplication is optional and policy-driven, not implicit.
 
 ## Why This Model
 
 - Preserves existing operator workflows in specialized tools.
 - Avoids first-slice multi-master conflict complexity.
-- Keeps Farplane AI focused on observability and orchestration.
+- Keeps Farplane UI focused on observability and orchestration.
 
 ## Data Contracts
 

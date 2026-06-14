@@ -1,5 +1,5 @@
 import path from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { cp, mkdir, readdir, readFile, rm, writeFile, stat } from "node:fs/promises";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
@@ -40,6 +40,13 @@ const OPENCLAW_HOME = process.env.OPENCLAW_STATE_DIR || path.join(process.env.HO
 const OPENCLAW_CONFIG_PATH = process.env.OPENCLAW_CONFIG_PATH || path.join(OPENCLAW_HOME, "openclaw.json");
 const REPO_ROOT = path.resolve(__dirname, "..");
 const SKILLS_ROOT = path.join(REPO_ROOT, "skills");
+const PROJECT_CODEX_SKILLS_ROOT = path.join(REPO_ROOT, ".codex", "skills");
+const CODEX_SKILLS_ROOT = path.join(CODEX_HOME, "skills");
+const CODEX_SKILL_MAINTENANCE_GRAPH_ROOT = path.join(
+  CODEX_SKILLS_ROOT,
+  "skill-maintenance",
+  "graph",
+);
 const COMPANY_MODEL_PATH = path.join(FARPLANE_HOME, "company.json");
 const COMPANY_TEMPLATE_PATH = path.resolve(__dirname, "../templates/sidecar/company.template.json");
 const OFFICE_OBJECTS_PATH = path.join(FARPLANE_HOME, "office-objects.json");
@@ -70,6 +77,28 @@ const MESH_EXTENSIONS = new Set([".glb", ".gltf"]);
 const MESH_PREVIEW_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
 const SKILL_PACKAGE_FILE_NAMES = ["SKILL.md", "skill.md"] as const;
 const MESHY_API_BASE = "https://api.meshy.ai/openapi/v2";
+
+function readRootEnvValue(name: string): string {
+  for (const fileName of [".env.local", ".env"]) {
+    const filePath = path.join(REPO_ROOT, fileName);
+    if (!existsSync(filePath)) continue;
+    const lines = readFileSync(filePath, "utf-8").split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+      if (!match || match[1] !== name) continue;
+      return match[2].replace(/\s+#.*$/, "").trim().replace(/^['"]|['"]$/g, "");
+    }
+  }
+  return "";
+}
+
+const VITE_CONVEX_URL =
+  process.env.VITE_CONVEX_URL?.trim() ||
+  readRootEnvValue("VITE_CONVEX_URL") ||
+  process.env.CONVEX_URL?.trim() ||
+  readRootEnvValue("CONVEX_URL");
 
 interface SessionUsageTotals {
   inputTokens: number;
@@ -149,6 +178,42 @@ async function resolveRepoSkillDirectory(skillId: string): Promise<string | null
   return null;
 }
 
+function getSkillStudioRoots(): string[] {
+  return [PROJECT_CODEX_SKILLS_ROOT, SKILLS_ROOT, CODEX_SKILLS_ROOT].filter((root, index, roots) => {
+    return existsSync(root) && roots.indexOf(root) === index;
+  });
+}
+
+async function listCombinedSkillStudioCatalog(): Promise<Awaited<ReturnType<typeof listSkillStudioCatalog>>> {
+  const seen = new Set<string>();
+  const merged: Awaited<ReturnType<typeof listSkillStudioCatalog>> = [];
+  for (const root of getSkillStudioRoots()) {
+    const rows = await listSkillStudioCatalog(root, REPO_ROOT).catch(() => []);
+    for (const row of rows) {
+      if (seen.has(row.skillId)) continue;
+      seen.add(row.skillId);
+      merged.push(row);
+    }
+  }
+  return merged.sort((a, b) => a.skillId.localeCompare(b.skillId));
+}
+
+async function resolveSkillStudioRoot(skillId: string): Promise<string | null> {
+  for (const root of getSkillStudioRoots()) {
+    const detail = await getSkillStudioDetail(root, REPO_ROOT, skillId).catch(() => null);
+    if (detail) return root;
+  }
+  return null;
+}
+
+async function getCombinedSkillStudioDetail(
+  skillId: string,
+  agentId?: string,
+): Promise<Awaited<ReturnType<typeof getSkillStudioDetail>>> {
+  const root = await resolveSkillStudioRoot(skillId);
+  return root ? getSkillStudioDetail(root, REPO_ROOT, skillId, [], agentId) : null;
+}
+
 async function resolveAgentWorkspacePath(agentId: string): Promise<string> {
   const config = await readJsonFile<JsonObject>(OPENCLAW_CONFIG_PATH, {});
   const agentsNode =
@@ -164,6 +229,39 @@ function writeJson(res: { setHeader: (k: string, v: string) => void; end: (body:
   res.setHeader("x-farplane-state-bridge", "vite");
   (res as { statusCode?: number }).statusCode = status;
   res.end(JSON.stringify(payload));
+}
+
+function mimeForFile(filePath: string): string {
+  switch (path.extname(filePath).toLowerCase()) {
+    case ".html":
+      return "text/html; charset=utf-8";
+    case ".js":
+      return "text/javascript; charset=utf-8";
+    case ".json":
+      return "application/json; charset=utf-8";
+    case ".css":
+      return "text/css; charset=utf-8";
+    default:
+      return "application/octet-stream";
+  }
+}
+
+async function writeStaticFile(
+  res: { setHeader: (k: string, v: string) => void; end: (body: Buffer) => void },
+  rootDir: string,
+  requestedPath: string,
+): Promise<boolean> {
+  const safePath = requestedPath.replace(/\\/g, "/").replace(/^\/+/, "") || "index.html";
+  const resolved = path.resolve(rootDir, safePath);
+  const relative = path.relative(rootDir, resolved);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) return false;
+  if (!(await pathExists(resolved))) return false;
+  const bytes = await readFile(resolved);
+  res.setHeader("content-type", mimeForFile(resolved));
+  res.setHeader("cache-control", "no-store");
+  (res as { statusCode?: number }).statusCode = 200;
+  res.end(bytes);
+  return true;
 }
 
 function requestHeader(req: unknown, name: string): string {
@@ -1699,6 +1797,24 @@ function farplaneStateBridge() {
         const url = new URL(req.url || "/", "http://127.0.0.1:5173");
         const pathname = url.pathname;
 
+        const skillMaintenanceGraphMatch = pathname.match(
+          /^\/codex\/skill-maintenance-graph\/?(.*)$/,
+        );
+        if (method === "GET" && skillMaintenanceGraphMatch) {
+          const served = await writeStaticFile(
+            res as unknown as {
+              setHeader: (k: string, v: string) => void;
+              end: (body: Buffer) => void;
+            },
+            CODEX_SKILL_MAINTENANCE_GRAPH_ROOT,
+            skillMaintenanceGraphMatch[1] || "index.html",
+          );
+          if (!served) {
+            writeJson(res, 404, { ok: false, error: "skill_maintenance_graph_asset_not_found" });
+          }
+          return;
+        }
+
         if (pathname === "/codex/app-server/health") {
           const appServerUrl = readCodexAppServerUrl();
           writeJson(res, 200, {
@@ -2106,7 +2222,7 @@ function farplaneStateBridge() {
         }
 
         if (method === "GET" && pathname === "/openclaw/skills") {
-          const catalog = await listSkillStudioCatalog(SKILLS_ROOT, REPO_ROOT);
+          const catalog = await listCombinedSkillStudioCatalog();
           writeJson(res, 200, {
             skills: catalog.map((entry) => ({
               name: entry.skillId,
@@ -2120,7 +2236,7 @@ function farplaneStateBridge() {
         }
 
         if (method === "GET" && pathname === "/openclaw/skills/catalog") {
-          const skills = await listSkillStudioCatalog(SKILLS_ROOT, REPO_ROOT);
+          const skills = await listCombinedSkillStudioCatalog();
           writeJson(res, 200, { skills });
           return;
         }
@@ -2133,7 +2249,7 @@ function farplaneStateBridge() {
         const skillDetailMatch = pathname.match(/^\/openclaw\/skills\/([^/]+)$/);
         if (method === "GET" && skillDetailMatch) {
           const skillId = decodeURIComponent(skillDetailMatch[1]);
-          const skill = await getSkillStudioDetail(SKILLS_ROOT, REPO_ROOT, skillId, [], url.searchParams.get("agentId") ?? undefined);
+          const skill = await getCombinedSkillStudioDetail(skillId, url.searchParams.get("agentId") ?? undefined);
           if (!skill) {
             writeJson(res, 404, { error: "skill_not_found" });
             return;
@@ -2150,7 +2266,8 @@ function farplaneStateBridge() {
             writeJson(res, 400, { error: "skill_file_path_required" });
             return;
           }
-          const file = await readSkillStudioFile(SKILLS_ROOT, REPO_ROOT, skillId, filePath);
+          const skillRoot = await resolveSkillStudioRoot(skillId);
+          const file = skillRoot ? await readSkillStudioFile(skillRoot, REPO_ROOT, skillId, filePath) : null;
           if (!file) {
             writeJson(res, 404, { error: "skill_file_not_found" });
             return;
@@ -2174,13 +2291,10 @@ function farplaneStateBridge() {
             writeJson(res, 400, { error: "skill_file_content_required" });
             return;
           }
-          const file = await saveSkillStudioFile(
-            SKILLS_ROOT,
-            REPO_ROOT,
-            skillId,
-            filePath,
-            body.content,
-          );
+          const skillRoot = await resolveSkillStudioRoot(skillId);
+          const file = skillRoot
+            ? await saveSkillStudioFile(skillRoot, REPO_ROOT, skillId, filePath, body.content)
+            : null;
           if (!file) {
             writeJson(res, 404, { error: "skill_file_not_writable" });
             return;
@@ -2198,7 +2312,8 @@ function farplaneStateBridge() {
             writeJson(res, 400, { error: "skill_demo_case_required" });
             return;
           }
-          const run = await runSkillStudioDemo(SKILLS_ROOT, REPO_ROOT, skillId, caseId);
+          const skillRoot = await resolveSkillStudioRoot(skillId);
+          const run = skillRoot ? await runSkillStudioDemo(skillRoot, REPO_ROOT, skillId, caseId) : null;
           if (!run) {
             writeJson(res, 404, { error: "skill_demo_not_found" });
             return;
@@ -2215,13 +2330,16 @@ function farplaneStateBridge() {
           }
           const skillId = decodeURIComponent(skillConfigMatch[1]);
           const body = (await readBody(req)) as JsonObject;
-          const skill = await saveSkillStudioManifest(SKILLS_ROOT, REPO_ROOT, skillId, {
-            manifest:
-              body.manifest && typeof body.manifest === "object"
-                ? (body.manifest as Record<string, unknown> as never)
-                : undefined,
-            rawYaml: typeof body.rawYaml === "string" ? body.rawYaml : undefined,
-          });
+          const skillRoot = await resolveSkillStudioRoot(skillId);
+          const skill = skillRoot
+            ? await saveSkillStudioManifest(skillRoot, REPO_ROOT, skillId, {
+                manifest:
+                  body.manifest && typeof body.manifest === "object"
+                    ? (body.manifest as Record<string, unknown> as never)
+                    : undefined,
+                rawYaml: typeof body.rawYaml === "string" ? body.rawYaml : undefined,
+              })
+            : null;
           if (!skill) {
             writeJson(res, 404, { error: "skill_not_found" });
             return;
@@ -2976,6 +3094,9 @@ function farplaneStateBridge() {
 
 export default defineConfig({
   root: __dirname,
+  define: {
+    "import.meta.env.VITE_CONVEX_URL": JSON.stringify(VITE_CONVEX_URL),
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),

@@ -4,10 +4,9 @@
  * TEAM PANEL BUSINESS STATE
  * =========================
  * Purpose
- * - Keep Team Panel business builder and ledger orchestration out of the panel shell.
+ * - Keep Team Panel ledger orchestration out of the panel shell.
  *
  * KEY CONCEPTS:
- * - Business builder state is project-scoped and resets when the selected project changes.
  * - Ledger writes flow through the adapter and remain project-local.
  *
  * USAGE:
@@ -18,29 +17,13 @@
  * - MEM-0206
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  computeBusinessReadinessIssues,
-  createBusinessBuilderDraft,
-  projectToBusinessBuilderDraft,
-  type BusinessBuilderDraft,
-} from "@/modules/business";
+import { useMemo, useState } from "react";
 import type {
   ProjectAccountEventModel,
   ProjectAccountModel,
   ProjectModel,
-  ProjectResourceModel,
 } from "@/modules/runtime";
 import type { OpenClawAdapter } from "@/modules/runtime";
-import type { BusinessSlotKey } from "./business-flow/business-skill-library";
-
-type TeamLike = {
-  _id: string;
-  businessReadiness?: {
-    ready?: boolean;
-    issues?: string[];
-  };
-} | null;
 
 type LedgerEntryLike = {
   id: string;
@@ -52,24 +35,16 @@ type LedgerEntryLike = {
   description: string;
 };
 
-type ExperimentLike = {
-  status: string;
-};
-
 type ProjectLike = (ProjectModel & {
-  experiments?: ExperimentLike[];
   ledger?: LedgerEntryLike[];
   account?: ProjectAccountModel;
   accountEvents?: ProjectAccountEventModel[];
-  resources?: ProjectResourceModel[];
 }) | null;
 
 interface UseTeamPanelBusinessStateInput {
   adapter: OpenClawAdapter;
   refresh: () => Promise<void>;
   project: ProjectLike;
-  team: TeamLike;
-  globalMode: boolean;
 }
 
 interface ActionState {
@@ -82,23 +57,11 @@ export function useTeamPanelBusinessState({
   adapter,
   refresh,
   project,
-  team,
-  globalMode,
 }: UseTeamPanelBusinessStateInput): {
-  builderDraft: BusinessBuilderDraft;
-  selectedBusinessSlot: BusinessSlotKey;
-  setSelectedBusinessSlot: (slot: BusinessSlotKey) => void;
-  trackingContext: string;
-  setTrackingContext: (value: string) => void;
-  builderSaveState: ActionState;
   ledgerActionState: ActionState;
-  readinessIssues: Array<{ code: string; message: string }>;
-  activeExperimentCount: number;
   hasBusinessConfig: boolean;
   accountEvents: ProjectAccountEventModel[];
   teamAccount: ProjectAccountModel;
-  toggleCapabilitySkill: (slot: BusinessSlotKey, skillId: string) => void;
-  handleSaveBusinessBuilder: () => Promise<void>;
   handleRecordAccountEvent: (input: {
     type: "credit" | "debit";
     amountCents: number;
@@ -106,30 +69,9 @@ export function useTeamPanelBusinessState({
     note?: string;
   }) => Promise<void>;
 } {
-  const [builderDraft, setBuilderDraft] = useState(() => createBusinessBuilderDraft("none"));
-  const [builderSaveState, setBuilderSaveState] = useState<ActionState>({ pending: false });
-  const [selectedBusinessSlot, setSelectedBusinessSlot] = useState<BusinessSlotKey>("measure");
   const [ledgerActionState, setLedgerActionState] = useState<ActionState>({ pending: false });
-  const [trackingContext, setTrackingContext] = useState("");
-  const lastBuilderProjectIdRef = useRef<string | null>(null);
 
   const hasBusinessConfig = Boolean(project?.businessConfig);
-
-  const activeExperimentCount = useMemo(
-    () => (project?.experiments ?? []).filter((entry) => entry.status === "running").length,
-    [project?.experiments],
-  );
-
-  const readinessIssues = useMemo(
-    () =>
-      team?.businessReadiness?.issues && team.businessReadiness.issues.length > 0
-        ? team.businessReadiness.issues.map((issue, idx) => ({
-            code: `team-${idx}`,
-            message: issue,
-          }))
-        : computeBusinessReadinessIssues(builderDraft),
-    [builderDraft, team?.businessReadiness?.issues],
-  );
 
   const accountEvents = useMemo<ProjectAccountEventModel[]>(() => {
     if (project?.accountEvents?.length) return project.accountEvents;
@@ -165,73 +107,6 @@ export function useTeamPanelBusinessState({
     };
   }, [accountEvents, project?.account, project?.id]);
 
-  useEffect(() => {
-    const nextProjectId = project?.id ?? null;
-    if (lastBuilderProjectIdRef.current === nextProjectId) return;
-    lastBuilderProjectIdRef.current = nextProjectId;
-    setBuilderDraft(projectToBusinessBuilderDraft(project));
-    setBuilderSaveState({ pending: false });
-    setTrackingContext(project?.trackingContext ?? "");
-    setSelectedBusinessSlot("measure");
-    setLedgerActionState({ pending: false });
-  }, [project]);
-
-  function toggleCapabilitySkill(slot: BusinessSlotKey, skillId: string): void {
-    setBuilderDraft((current) => {
-      const existing = current.capabilitySkills[slot]
-        .split(",")
-        .map((entry) => entry.trim())
-        .filter(Boolean);
-      const nextSet = new Set(existing);
-      if (nextSet.has(skillId)) nextSet.delete(skillId);
-      else nextSet.add(skillId);
-      return {
-        ...current,
-        capabilitySkills: { ...current.capabilitySkills, [slot]: [...nextSet].join(", ") },
-      };
-    });
-  }
-
-  async function handleSaveBusinessBuilder(): Promise<void> {
-    if (!project?.id) return;
-    setBuilderSaveState({ pending: true });
-    const saved = await adapter.saveBusinessBuilderConfig({
-      projectId: project.id,
-      businessType: builderDraft.businessType === "none" ? "custom" : builderDraft.businessType,
-      capabilitySkills: builderDraft.capabilitySkills,
-      resources: builderDraft.resources,
-      trackingContext,
-      source: "ui.team_panel.builder",
-    });
-    if (!saved.ok) {
-      setBuilderSaveState({ pending: false, error: saved.error ?? "business_builder_save_failed" });
-      return;
-    }
-    const targetTeamId = globalMode ? `team-${project.id}` : String(team?._id ?? "");
-    if (targetTeamId) {
-      const sync = await adapter.syncTeamBusinessSkillsToAgents({
-        teamId: targetTeamId,
-        mode: "replace_minimum",
-      });
-      if (!sync.ok) {
-        await refresh();
-        setBuilderSaveState({
-          pending: false,
-          error: `business_saved_but_skill_sync_failed:${sync.error ?? "unknown_error"}`,
-        });
-        return;
-      }
-      await refresh();
-      setBuilderSaveState({
-        pending: false,
-        ok: `Saved. Equipped skills synced for ${sync.touchedAgents.length} agent(s).`,
-      });
-      return;
-    }
-    await refresh();
-    setBuilderSaveState({ pending: false, ok: "Saved." });
-  }
-
   async function handleRecordAccountEvent(input: {
     type: "credit" | "debit";
     amountCents: number;
@@ -260,20 +135,10 @@ export function useTeamPanelBusinessState({
   }
 
   return {
-    builderDraft,
-    selectedBusinessSlot,
-    setSelectedBusinessSlot,
-    trackingContext,
-    setTrackingContext,
-    builderSaveState,
     ledgerActionState,
-    readinessIssues,
-    activeExperimentCount,
     hasBusinessConfig,
     accountEvents,
     teamAccount,
-    toggleCapabilitySkill,
-    handleSaveBusinessBuilder,
     handleRecordAccountEvent,
   };
 }

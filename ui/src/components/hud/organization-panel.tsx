@@ -31,6 +31,7 @@ import { UI_Z } from "@/lib/z-index";
 import type { EmployeeData } from "@/modules/office/lib/types";
 import { CodexAppServerClient, getGatewayUiConfig, type ProjectModel } from "@/modules/runtime";
 import { useCodexOfficeVisibilitySettings } from "@/modules/settings/use-codex-office-visibility-settings";
+import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
 
@@ -228,6 +229,7 @@ interface OrgTreeCardProps {
   isRoot: boolean;
   isCeoRoot: boolean;
   isProject: boolean;
+  isPublic: boolean;
   pmThreadId: string;
   ceoThreadName?: string;
   pmThreadName?: string;
@@ -262,7 +264,7 @@ function OrgTreeCard(props: OrgTreeCardProps): React.JSX.Element {
             )}
             <p className="truncate text-sm font-semibold">{props.orgNode.label}</p>
           </div>
-          {props.orgNode.projectPath ? (
+          {props.orgNode.projectPath && !props.isPublic ? (
             <p className="mt-1 truncate text-[11px] text-muted-foreground">
               {props.orgNode.projectPath}
             </p>
@@ -323,6 +325,7 @@ function OrgTreeNodeView({
   selectedCeoRootId,
   selectedNodeId,
   isSaving,
+  isPublic,
   onSelectNode,
 }: {
   node: OrgPathNode;
@@ -335,6 +338,7 @@ function OrgTreeNodeView({
   selectedCeoRootId: string;
   selectedNodeId: string;
   isSaving: boolean;
+  isPublic: boolean;
   onSelectNode: (nodeId: string) => void;
 }): React.JSX.Element {
   const children = childrenByParentId.get(node.id) ?? [];
@@ -350,6 +354,7 @@ function OrgTreeNodeView({
         isRoot={!node.parentId}
         isCeoRoot={node.id === selectedCeoRootId}
         isProject={Boolean(projectId)}
+        isPublic={isPublic}
         pmThreadId={pmThreadId}
         ceoThreadName={
           node.id === selectedCeoRootId && selectedCeoThreadId
@@ -387,6 +392,7 @@ function OrgTreeNodeView({
                   selectedCeoRootId={selectedCeoRootId}
                   selectedNodeId={selectedNodeId}
                   isSaving={isSaving}
+                  isPublic={isPublic}
                   onSelectNode={onSelectNode}
                 />
               </div>
@@ -437,6 +443,7 @@ function OrgChartInspector({
   pmThreadId,
   isCreatingProjectManager,
   isSaving,
+  isPublic,
   statusText,
   onAssignCeo,
   onAssignProjectManager,
@@ -452,6 +459,7 @@ function OrgChartInspector({
   pmThreadId: string;
   isCreatingProjectManager: boolean;
   isSaving: boolean;
+  isPublic: boolean;
   statusText: string;
   onAssignCeo: (threadId: string) => Promise<void>;
   onAssignProjectManager: (projectId: string, threadId: string) => Promise<void>;
@@ -469,7 +477,7 @@ function OrgChartInspector({
           <h3 className="truncate text-base font-semibold">
             {selectedNode?.label ?? "No node selected"}
           </h3>
-          {selectedNode?.projectPath ? (
+          {selectedNode?.projectPath && !isPublic ? (
             <p className="truncate text-xs text-muted-foreground">{selectedNode.projectPath}</p>
           ) : null}
         </div>
@@ -486,7 +494,7 @@ function OrgChartInspector({
           </p>
         </div>
 
-        {isRoot ? (
+        {isRoot && !isPublic ? (
           <label className="block space-y-2">
             <span className="flex items-center gap-1 text-xs font-medium text-amber-300">
               <Crown className="h-3.5 w-3.5" />
@@ -508,7 +516,7 @@ function OrgChartInspector({
           </label>
         ) : null}
 
-        {isProject && selectedNode?.projectId ? (
+        {isProject && selectedNode?.projectId && !isPublic ? (
           <div className="space-y-2">
             <label className="block space-y-2">
               <span className="flex items-center gap-1 text-xs font-medium text-primary">
@@ -547,7 +555,11 @@ function OrgChartInspector({
           </div>
         ) : null}
 
-        {!isRoot && !isProject ? (
+        {isPublic ? (
+          <p className="text-sm text-muted-foreground">
+            Public view shows organization status without assignment controls.
+          </p>
+        ) : !isRoot && !isProject ? (
           <p className="text-sm text-muted-foreground">
             Folder nodes show structure. Select a root for CEO or a project for PM.
           </p>
@@ -561,6 +573,7 @@ function OrgChartInspector({
 
 function OrgChartTabContent({ isOpen }: { isOpen: boolean }): React.JSX.Element {
   const { employees, companyModel, refresh } = useOfficeDataContext();
+  const { isPublic, isReadOnly } = useOfficeAccessMode();
   const gatewayConfig = useMemo(() => getGatewayUiConfig(), []);
   const codexSettings = useCodexOfficeVisibilitySettings({
     dialogOpen: isOpen,
@@ -660,17 +673,25 @@ function OrgChartTabContent({ isOpen }: { isOpen: boolean }): React.JSX.Element 
 
   const handleAssignCeo = useCallback(
     async (threadId: string): Promise<void> => {
+      if (isReadOnly) {
+        setLocalStatusText("Read-only mode blocks CEO assignment changes.");
+        return;
+      }
       setLocalStatusText("");
       const nextForm = { ...codexSettings.form, ceoThreadId: threadId };
       codexSettings.setForm(nextForm);
       await codexSettings.save(nextForm);
       setLocalStatusText(threadId ? "CEO thread saved." : "CEO thread cleared.");
     },
-    [codexSettings],
+    [codexSettings, isReadOnly],
   );
 
   const handleAssignProjectManager = useCallback(
     async (projectId: string, threadId: string): Promise<void> => {
+      if (isReadOnly) {
+        setLocalStatusText("Read-only mode blocks project manager changes.");
+        return;
+      }
       if (!projectId) return;
       setLocalStatusText("");
       const nextForm = {
@@ -685,11 +706,15 @@ function OrgChartTabContent({ isOpen }: { isOpen: boolean }): React.JSX.Element 
       await codexSettings.save(nextForm);
       setLocalStatusText(threadId ? "Project manager saved." : "Project manager cleared.");
     },
-    [codexSettings],
+    [codexSettings, isReadOnly],
   );
 
   const handleCreateProjectManager = useCallback(
     async (node: OrgPathNode): Promise<void> => {
+      if (isReadOnly) {
+        setLocalStatusText("Read-only mode blocks project manager creation.");
+        return;
+      }
       const projectId = node.projectId ?? "";
       if (!projectId) return;
       setCreatingProjectManagerProjectId(projectId);
@@ -730,7 +755,7 @@ function OrgChartTabContent({ isOpen }: { isOpen: boolean }): React.JSX.Element 
         setCreatingProjectManagerProjectId("");
       }
     },
-    [codexSettings, gatewayConfig.stateBase],
+    [codexSettings, gatewayConfig.stateBase, isReadOnly],
   );
 
   const selectedCeo = codexThreadEmployees.find((entry) => entry.threadId === selectedCeoThreadId);
@@ -792,6 +817,7 @@ function OrgChartTabContent({ isOpen }: { isOpen: boolean }): React.JSX.Element 
                     selectedCeoRootId={selectedCeoRootId}
                     selectedNodeId={effectiveSelectedNodeId}
                     isSaving={codexSettings.isSaving}
+                    isPublic={isPublic}
                     onSelectNode={setSelectedNodeId}
                   />
                 ))}
@@ -818,6 +844,7 @@ function OrgChartTabContent({ isOpen }: { isOpen: boolean }): React.JSX.Element 
             }
             isCreatingProjectManager={creatingProjectManagerProjectId === selectedNodeProjectId}
             isSaving={codexSettings.isSaving}
+            isPublic={isPublic}
             statusText={statusText}
             onAssignCeo={handleAssignCeo}
             onAssignProjectManager={handleAssignProjectManager}
@@ -962,6 +989,9 @@ export function OrganizationPanel({
   canOpenTeamManager,
   canOpenAgentManager,
 }: OrganizationPanelProps): React.JSX.Element {
+  const { isReadOnly } = useOfficeAccessMode();
+  const gridCols = isReadOnly ? "grid-cols-2" : "grid-cols-5";
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent
@@ -977,11 +1007,11 @@ export function OrganizationPanel({
         </DialogHeader>
 
         <Tabs defaultValue="org-chart" className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-          <TabsList className="grid w-full min-w-0 shrink-0 grid-cols-5 overflow-hidden">
+          <TabsList className={`grid w-full min-w-0 shrink-0 overflow-hidden ${gridCols}`}>
             <TabsTrigger value="org-chart">Org Chart</TabsTrigger>
-            <TabsTrigger value="create-team">Create Team</TabsTrigger>
-            <TabsTrigger value="manage-teams">Manage Teams</TabsTrigger>
-            <TabsTrigger value="recruit-agent">Recruit Agent</TabsTrigger>
+            {!isReadOnly ? <TabsTrigger value="create-team">Create Team</TabsTrigger> : null}
+            {!isReadOnly ? <TabsTrigger value="manage-teams">Manage Teams</TabsTrigger> : null}
+            {!isReadOnly ? <TabsTrigger value="recruit-agent">Recruit Agent</TabsTrigger> : null}
             <TabsTrigger value="directory">Directory</TabsTrigger>
           </TabsList>
 
@@ -989,17 +1019,23 @@ export function OrganizationPanel({
             <OrgChartTabContent isOpen={isOpen} />
           </TabsContent>
 
-          <TabsContent value="create-team" className="mt-4 min-h-0 flex-1 overflow-auto">
-            <CreateTeamTabContent />
-          </TabsContent>
+          {!isReadOnly ? (
+            <TabsContent value="create-team" className="mt-4 min-h-0 flex-1 overflow-auto">
+              <CreateTeamTabContent />
+            </TabsContent>
+          ) : null}
 
-          <TabsContent value="manage-teams" className="mt-4 min-h-0 flex-1 overflow-auto">
-            <ManageTeamsTabContent canOpen={canOpenTeamManager} />
-          </TabsContent>
+          {!isReadOnly ? (
+            <TabsContent value="manage-teams" className="mt-4 min-h-0 flex-1 overflow-auto">
+              <ManageTeamsTabContent canOpen={canOpenTeamManager} />
+            </TabsContent>
+          ) : null}
 
-          <TabsContent value="recruit-agent" className="mt-4 min-h-0 flex-1 overflow-auto">
-            <RecruitAgentTabContent canOpen={canOpenAgentManager} />
-          </TabsContent>
+          {!isReadOnly ? (
+            <TabsContent value="recruit-agent" className="mt-4 min-h-0 flex-1 overflow-auto">
+              <RecruitAgentTabContent canOpen={canOpenAgentManager} />
+            </TabsContent>
+          ) : null}
 
           <TabsContent value="directory" className="mt-4 min-h-0 flex-1 overflow-auto">
             <DirectoryTabContent />

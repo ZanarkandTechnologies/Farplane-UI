@@ -4,6 +4,8 @@ export type FarplaneUiRenderer = "standard" | "office3d";
 
 export type FarplaneUiPersistence = "local" | "cloud";
 
+export type FarplaneUiAccessMode = "operator" | "viewer" | "public";
+
 export type ShellModuleSurface = "nav" | "route" | "panel" | "office-object" | "hud";
 
 export type ShellModuleDefinition = {
@@ -14,6 +16,7 @@ export type ShellModuleDefinition = {
 };
 
 export type FarplaneUiConfig<ModuleId extends string = string> = {
+  accessMode: FarplaneUiAccessMode;
   renderer: FarplaneUiRenderer;
   persistence: FarplaneUiPersistence;
   modules: readonly ModuleId[];

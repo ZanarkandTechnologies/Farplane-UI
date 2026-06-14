@@ -6,8 +6,10 @@ export {
 export {
   CodexRuntimeAdapter,
   createOfficeRuntimeAdapter,
+  createReadOnlyOfficeRuntimeAdapter,
   getRuntimeAdapterKind,
   OpenClawRuntimeAdapter,
+  READONLY_MODE_ERROR,
   resolveRuntimeAdapterKind,
   saveRuntimeAdapterKind,
   type OfficeRuntimeAdapter,

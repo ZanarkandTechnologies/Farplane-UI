@@ -1,7 +1,7 @@
 /**
  * OPENCLAW ADAPTER
  * ================
- * Maps OpenClaw-backed HTTP surfaces into Farplane AI UI contracts.
+ * Maps OpenClaw-backed HTTP surfaces into Farplane UI UI contracts.
  */
 import type {
   AgentLiveStatus,

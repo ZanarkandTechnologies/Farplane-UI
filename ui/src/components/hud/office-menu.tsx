@@ -18,27 +18,27 @@
  * - MEM-0220
  */
 
-import { useMemo, useCallback, useState, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { Menu } from "lucide-react";
-import { SpeedDial, type SpeedDialItem } from "@/components/ui/speed-dial";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAppStore } from "@/store";
-import { FurnitureShop } from "./furniture-shop";
-import { useChatActions } from "@/modules/chat/chat-store";
-import { OrganizationPanel } from "./organization-panel";
-import { api } from "../../../../convex/_generated/api";
-import { isConvexEnabled } from "@/providers/convex-provider";
+import { SpeedDial, type SpeedDialItem } from "@/components/ui/speed-dial";
 import { countReviewLaneTasks, resolveReviewBoardTasks } from "@/modules/review-board";
+import { isConvexEnabled } from "@/providers/convex-provider";
+import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
+import { useAppStore } from "@/store";
+import { api } from "../../../../convex/_generated/api";
+import { FurnitureShop } from "./furniture-shop";
 import { OfficeCommandPalette } from "./office-command-palette";
 import {
-  OFFICE_COMMAND_PALETTE_SHORTCUT,
   createOfficePanelActions,
   eventMatchesShortcut,
   isEditableEventTarget,
+  OFFICE_COMMAND_PALETTE_SHORTCUT,
   type OfficePanelAction,
   type OfficePanelActionId,
 } from "./office-panel-registry";
+import { OrganizationPanel } from "./organization-panel";
 
 interface SpeedDialProps {
   className?: string;
@@ -47,13 +47,14 @@ interface SpeedDialProps {
 export function OfficeMenu({ className }: SpeedDialProps) {
   const convexEnabled = isConvexEnabled();
   const navigate = useNavigate();
+  const { isReadOnly } = useOfficeAccessMode();
   // Use selectors to prevent unnecessary re-renders
   const isBuilderMode = useAppStore((state) => state.isBuilderMode);
   const setBuilderMode = useAppStore((state) => state.setBuilderMode);
   const isAnimatingCamera = useAppStore((state) => state.isAnimatingCamera);
   const setIsGlobalTeamPanelOpen = useAppStore((state) => state.setIsGlobalTeamPanelOpen);
-  const setIsAgentSessionPanelOpen = useAppStore((state) => state.setIsAgentSessionPanelOpen);
   const setIsSkillsPanelOpen = useAppStore((state) => state.setIsSkillsPanelOpen);
+  const setSkillStudioSurface = useAppStore((state) => state.setSkillStudioSurface);
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
   const setSelectedSkillStudioSkillId = useAppStore((state) => state.setSelectedSkillStudioSkillId);
   const setSkillStudioFocusAgentId = useAppStore((state) => state.setSkillStudioFocusAgentId);
@@ -71,10 +72,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
 
   const [isOrganizationOpen, setIsOrganizationOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const companyBoard = useQuery(
-    api.board.getCompanyBoardTasks,
-    convexEnabled ? {} : "skip",
-  );
+  const companyBoard = useQuery(api.board.getCompanyBoardTasks, convexEnabled ? {} : "skip");
   const userTaskCount = useMemo(() => {
     const { tasks } = resolveReviewBoardTasks({
       convexEnabled,
@@ -86,13 +84,11 @@ export function OfficeMenu({ className }: SpeedDialProps) {
   // Legacy team/agent manager dialogs were intentionally stripped from this UI flow.
   const canOpenAgentManager = false;
   const canOpenTeamManager = false;
-  const { openEmployeeChat } = useChatActions();
-
   useEffect(() => {
     if (!placementMode.active) return;
     setIsFurnitureShopOpen(false);
     setIsOrganizationOpen(false);
-  }, [placementMode.active]);
+  }, [placementMode.active, setIsFurnitureShopOpen]);
 
   // Handle builder mode toggle - let the scene handle animation
   const handleBuilderModeToggle = useCallback(() => {
@@ -121,22 +117,32 @@ export function OfficeMenu({ className }: SpeedDialProps) {
   const officeActions = useMemo(
     () =>
       createOfficePanelActions({
+        accessPolicy: isReadOnly ? "read-only" : "operator",
         highlightedMenuActionId,
         isAnimatingCamera,
         isBuilderMode,
         navigateToLanding: () => navigate("/"),
-        openAgentSession: () => setIsAgentSessionPanelOpen(true),
-        openCeoChat: () => {
-          void openEmployeeChat("employee-main", true);
-        },
         openCeoWorkbench: (view) => {
           setCeoWorkbenchView(view);
           setIsCeoWorkbenchOpen(true);
         },
         openDecoration: () => setIsFurnitureShopOpen(true),
-        openGlobalSkills: () => {
+        openSkillOs: () => {
           setSelectedSkillStudioSkillId(null);
           setSkillStudioFocusAgentId(null);
+          setSkillStudioSurface("skill-os");
+          setIsSkillsPanelOpen(true);
+        },
+        openEvals: () => {
+          setSelectedSkillStudioSkillId(null);
+          setSkillStudioFocusAgentId(null);
+          setSkillStudioSurface("evals");
+          setIsSkillsPanelOpen(true);
+        },
+        openHarness: () => {
+          setSelectedSkillStudioSkillId(null);
+          setSkillStudioFocusAgentId(null);
+          setSkillStudioSurface("harness");
           setIsSkillsPanelOpen(true);
         },
         openGlobalTeamWorkspace,
@@ -151,19 +157,19 @@ export function OfficeMenu({ className }: SpeedDialProps) {
       isAnimatingCamera,
       isBuilderMode,
       navigate,
-      setIsAgentSessionPanelOpen,
-      openEmployeeChat,
       setCeoWorkbenchView,
       setIsCeoWorkbenchOpen,
       setIsFurnitureShopOpen,
       setSelectedSkillStudioSkillId,
       setSkillStudioFocusAgentId,
+      setSkillStudioSurface,
       setIsSkillsPanelOpen,
       openGlobalTeamWorkspace,
       setIsSettingsModalOpen,
       setIsTelemetryPanelOpen,
       handleBuilderModeToggle,
       userTaskCount,
+      isReadOnly,
     ],
   );
 
@@ -245,7 +251,10 @@ export function OfficeMenu({ className }: SpeedDialProps) {
     qaWindow.__FARPLANE_QA__ = {
       listPanels: () =>
         officeActions
-          .filter((action) => action.group === "panel")
+          .filter(
+            (action) =>
+              action.group === "panel" && !action.disabled && action.showInPalette !== false,
+          )
           .map((action) => ({
             id: action.id,
             label: action.label,
@@ -289,7 +298,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         canOpenTeamManager={canOpenTeamManager}
         canOpenAgentManager={canOpenAgentManager}
       />
-      {isFurnitureShopOpen ? (
+      {isFurnitureShopOpen && !isReadOnly ? (
         <FurnitureShop isOpen={isFurnitureShopOpen} onOpenChange={setIsFurnitureShopOpen} />
       ) : null}
     </>

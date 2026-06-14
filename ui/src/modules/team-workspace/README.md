@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Team-level operator surfaces for overview, kanban, artefacts, timeline, memory,
-and business workflows.
+Team-level operator surfaces for overview, kanban, timeline, memory,
+operator intelligence, and ledger workflows.
 
 ## Public API / Entrypoints
 

@@ -1,4 +1,4 @@
-# Farplane AI Architecture
+# Farplane UI Architecture
 
 ## Canonical Indexes
 
@@ -7,10 +7,10 @@
 
 ## Direction
 
-Farplane AI is a UI-first control center over OpenClaw.
+Farplane UI is a UI-first control center over OpenClaw.
 
 - OpenClaw owns runtime, bindings, sessions, and plugin lifecycle.
-- Farplane AI owns gamified visualization, operator workflows, and state mapping UX.
+- Farplane UI owns gamified visualization, operator workflows, and state mapping UX.
 - Notion integration is delivered as an OpenClaw plugin inside this repository.
 
 ## System Overview
@@ -133,7 +133,7 @@ If future requirements change, the first candidate for hosted/shared storage is 
 - Tool and sandbox policy enforcement
 - Plugin discovery/loading
 
-### Farplane AI responsibilities
+### Farplane UI responsibilities
 
 - Agent/session visualization and gamified office interactions
 - Operator memory and skills dashboards

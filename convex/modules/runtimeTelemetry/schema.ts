@@ -23,8 +23,10 @@ export const runtimeTelemetryTables = {
     sessionId: optionalTelemetryTextValidator,
     turnId: optionalTelemetryTextValidator,
     receivedAt: receivedAtValidator,
+    importKey: optionalTelemetryTextValidator,
   })
     .index("by_receivedAt", ["receivedAt"])
     .index("by_projectId_and_receivedAt", ["projectId", "receivedAt"])
-    .index("by_teamId_and_receivedAt", ["teamId", "receivedAt"]),
+    .index("by_teamId_and_receivedAt", ["teamId", "receivedAt"])
+    .index("by_importKey", ["importKey"]),
 };

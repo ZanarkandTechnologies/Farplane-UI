@@ -17,11 +17,16 @@
 export type TabKey =
   | "overview"
   | "kanban"
-  | "projects"
   | "memory"
   | "timeline"
   | "telemetry"
-  | "business"
+  | "goals"
+  | "docs"
+  | "skills"
+  | "evals"
+  | "automations"
+  | "guard"
+  | "hardcases"
   | "ledger";
 
 export type TaskStatus = "todo" | "in_progress" | "review" | "blocked" | "done";

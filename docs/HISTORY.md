@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-06-13 | bugfix | MEM-0235 | convex,telemetry,lifecycle | Runtime telemetry now infers a missing turn end from the next `turn_start` in the same session, so missed stop hooks no longer leave prior turns running indefinitely while cross-session starts remain isolated.
+
 2026-06-11 | refactor | MEM-0234 | ui,office,modules | Moved the office system and office scene internals into `ui/src/modules/office/`, added a public office module barrel for scene/panel/layout exports, and kept office-specific docs with the owning module.
 
 2026-06-11 | refactor | MEM-0233 | ui,team-workspace,modules | Moved the Team System UI surface into `ui/src/modules/team-workspace/`, added a module barrel for Team Panel/Kanban/Task Memory exports, and kept team workspace docs with the owning module.
@@ -201,3 +203,4 @@
 2026-03-19 14:11 +0000 | docs | MEM-0194 | docs,deploy,vps,tailscale,state-bridge | Added a VPS deployment runbook for serving Farplane behind Tailscale under `/farplane`, documented the required split between OpenClaw gateway URL and Farplane state bridge URL, and captured the extra `/farplane/openclaw` proxy rule needed so the Vite bridge returns JSON instead of the SPA HTML.
 2026-06-10 | feature | MEM-0228 | ui,codex,app-server,runtime-adapters | Added the local Codex app-server bridge and wired Codex runtime mode to map app-server threads into temporary workers, sessions, timelines, and prompt sends while keeping OpenClaw as an optional adapter.
 2026-06-13 | refactor | MEM-0209 | convex,ui,memory,telemetry | Modularized Convex office runtime domains, added runtime telemetry dashboards, removed Convex team memory persistence, and switched the Team Panel Memory tab to render each active project's deep-init Markdown memory files through the local state bridge.
+2026-06-13 | refactor | MEM-0220 | ui,office,team-workspace | Removed dead office launchers for Agent Session and CEO Chat, removed the Team Workbench Artefacts and Business tabs, and deleted the now-orphaned tab components while keeping Overview, Kanban, operator intelligence, Memory, Timeline, Telemetry, and Ledger active.

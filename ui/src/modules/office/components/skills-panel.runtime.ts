@@ -14,12 +14,17 @@
  * - MEM-0203
  */
 
-import type { GlobalSkillsInventory, SkillStatusReport } from "@/modules/runtime";
+import type {
+  GlobalSkillsInventory,
+  SkillStatusReport,
+  SkillStudioCatalogEntry,
+} from "@/modules/runtime";
 
 export type GlobalSkillRow = {
   skillKey: string;
   enabled: boolean | null;
   hasSharedInstall: boolean;
+  catalogSourcePath?: string;
   envCount: number;
   configCount: number;
 };
@@ -90,15 +95,18 @@ export function buildInheritedRuntimeSkillKeys(
 export function buildGlobalSkillRows(
   configSnapshot: Record<string, unknown> | null,
   globalInventory: GlobalSkillsInventory | null,
+  catalog: SkillStudioCatalogEntry[] = [],
 ): GlobalSkillRow[] {
   const entries = resolveSkillsEntries(configSnapshot);
   const keys = new Set([
     ...Object.keys(entries),
     ...(globalInventory?.sharedSkills ?? []).map((entry) => entry.skillId),
+    ...catalog.map((entry) => entry.skillId),
   ]);
   return [...keys]
     .map((skillKey) => {
       const configEntry = entries[skillKey] ?? {};
+      const catalogEntry = catalog.find((entry) => entry.skillId === skillKey);
       const envNode =
         configEntry.env && typeof configEntry.env === "object"
           ? (configEntry.env as Record<string, unknown>)
@@ -113,6 +121,7 @@ export function buildGlobalSkillRows(
         hasSharedInstall: (globalInventory?.sharedSkills ?? []).some(
           (entry) => entry.skillId === skillKey,
         ),
+        catalogSourcePath: catalogEntry?.sourcePath,
         envCount: Object.keys(envNode).length,
         configCount: Object.keys(configNode).length,
       } satisfies GlobalSkillRow;

@@ -24,7 +24,6 @@ import {
   BriefcaseBusiness,
   CheckCircle2,
   Clock3,
-  MessageSquare,
   Sparkles,
   XCircle,
 } from "lucide-react";
@@ -32,11 +31,9 @@ import {
 import { api } from "../../../../convex/_generated/api";
 import { CeoTaskDetailModal } from "./ceo-task-detail-modal";
 import { useAppStore } from "@/store";
-import { useChatActions } from "@/modules/chat/chat-store";
 import { TaskMemoryView } from "@/modules/team-workspace";
 import { isConvexEnabled } from "@/providers/convex-provider";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -119,7 +116,6 @@ function laneStatusIcon(key: TaskLaneKey): JSX.Element {
 }
 
 export function CeoWorkbenchPanel(): JSX.Element {
-  const { openEmployeeChat } = useChatActions();
   const isOpen = useAppStore((state) => state.isCeoWorkbenchOpen);
   const setIsOpen = useAppStore((state) => state.setIsCeoWorkbenchOpen);
   const view = useAppStore((state) => state.ceoWorkbenchView);
@@ -191,17 +187,6 @@ export function CeoWorkbenchPanel(): JSX.Element {
                 {isMock ? " Using demo tasks until live board data lands." : ""}
               </DialogDescription>
             </div>
-            <Button
-              variant="outline"
-              className="h-10 rounded-none border-border bg-background px-4 text-sm shadow-none"
-              onClick={() => {
-                setIsOpen(false);
-                void openEmployeeChat("employee-main", true);
-              }}
-            >
-              <MessageSquare className="mr-2 h-4 w-4" />
-              Open CEO Chat
-            </Button>
           </div>
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-5">

@@ -25,7 +25,7 @@ import type {
 } from "@/modules/runtime";
 import type { GlobalSkillRow } from "./skills-panel.runtime";
 
-export type DetailTab = "overview" | "files" | "diagram" | "demos" | "controls";
+export type DetailTab = "overview" | "graph" | "files" | "diagram" | "demos" | "controls";
 
 export type InheritedRuntimeSkillEntry = NonNullable<SkillStatusReport["skills"][number]>;
 

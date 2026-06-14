@@ -31,10 +31,17 @@ import { UI_Z } from "@/lib/z-index";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { LedgerTabPanel } from "./business-flow/ledger-tab-panel";
-import { BusinessTab } from "./business-tab";
 import { KanbanTab } from "./kanban-tab";
+import {
+  AutomationsTab,
+  DocsTab,
+  EvalsQaTab,
+  GoalsTab,
+  GuardTab,
+  HardcasesTab,
+  SkillsReadinessTab,
+} from "./operator-intelligence-tabs";
 import { OverviewTab } from "./overview-tab";
-import { ProjectsTab } from "./projects-tab";
 import { TeamMemoryTab } from "./team-memory-tab";
 import { TelemetryTab } from "./telemetry-tab";
 import { deriveProjectId, type TabKey } from "./team-panel-types";
@@ -134,7 +141,6 @@ export function TeamPanel({
   const {
     ownerLabelById,
     activityFeedCandidates,
-    businessSkillRows,
     presenceRows,
     teamAiUsageSummary,
     teamUsageError,
@@ -151,41 +157,16 @@ export function TeamPanel({
   });
 
   const {
-    builderDraft,
-    selectedBusinessSlot,
-    setSelectedBusinessSlot,
-    trackingContext,
-    setTrackingContext,
-    builderSaveState,
     ledgerActionState,
-    readinessIssues,
-    activeExperimentCount,
     hasBusinessConfig,
     accountEvents,
     teamAccount,
-    toggleCapabilitySkill,
-    handleSaveBusinessBuilder,
     handleRecordAccountEvent,
   } = useTeamPanelBusinessState({
     adapter,
     refresh,
     project,
-    team,
-    globalMode,
   });
-
-  const projectTaskCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const task of companyModel?.tasks ?? []) {
-      const current = counts.get(task.projectId) ?? 0;
-      if (task.status !== "done") counts.set(task.projectId, current + 1);
-    }
-    if (project?.id) {
-      const convexOpen = projectTasks.filter((t) => t.status !== "done").length;
-      counts.set(project.id, Math.max(counts.get(project.id) ?? 0, convexOpen));
-    }
-    return counts;
-  }, [companyModel?.tasks, project?.id, projectTasks]);
 
   const currencyFormatter = useMemo(
     () =>
@@ -197,8 +178,6 @@ export function TeamPanel({
       }),
     [],
   );
-
-  const allProjects = globalMode ? (companyModel?.projects ?? []) : project ? [project] : [];
 
   const panelTitle = globalMode ? "All Teams" : (team?.name ?? "Team");
 
@@ -244,16 +223,49 @@ export function TeamPanel({
           onValueChange={(v) => setActiveTab(v as TabKey)}
           className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6"
         >
-          <TabsList className="mt-4 w-fit">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="kanban">Kanban</TabsTrigger>
-            <TabsTrigger value="projects">Artefacts</TabsTrigger>
-            <TabsTrigger value="memory">Memory</TabsTrigger>
-            <TabsTrigger value="timeline">Timeline</TabsTrigger>
-            <TabsTrigger value="telemetry">Telemetry</TabsTrigger>
-            <TabsTrigger value="business">Business</TabsTrigger>
-            <TabsTrigger value="ledger">Ledger</TabsTrigger>
-          </TabsList>
+          <div className="mt-4 max-w-full overflow-x-auto pb-1">
+            <TabsList className="h-9 w-max justify-start">
+              <TabsTrigger className="flex-none" value="overview">
+                Overview
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="kanban">
+                Kanban
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="memory">
+                Memory
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="timeline">
+                Timeline
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="telemetry">
+                Telemetry
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="goals">
+                Goals
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="docs">
+                Files/Docs
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="skills">
+                Skills
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="evals">
+                Evals/QA
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="automations">
+                Automations
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="guard">
+                Guard
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="hardcases">
+                Hardcases
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="ledger">
+                Ledger
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="overview" className="mt-4 min-h-0 flex-1 overflow-hidden">
             <OverviewTab
@@ -290,19 +302,6 @@ export function TeamPanel({
             />
           </TabsContent>
 
-          <TabsContent value="projects" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ProjectsTab
-              allProjects={allProjects}
-              teamId={teamScopeId}
-              activeProjectId={project?.id}
-              projectTaskCounts={projectTaskCounts}
-              companyModel={companyModel}
-              globalMode={globalMode}
-              setSelectedProjectId={setSelectedProjectId}
-              currencyFormatter={currencyFormatter}
-            />
-          </TabsContent>
-
           <TabsContent value="memory" className="mt-4 min-h-0 flex-1 overflow-hidden">
             <TeamMemoryTab
               projectId={project?.id ?? null}
@@ -335,23 +334,67 @@ export function TeamPanel({
             />
           </TabsContent>
 
-          <TabsContent value="business" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <BusinessTab
-              builderDraft={builderDraft}
-              selectedBusinessSlot={selectedBusinessSlot}
-              setSelectedBusinessSlot={setSelectedBusinessSlot}
-              onToggleCapabilitySkill={toggleCapabilitySkill}
-              trackingContext={trackingContext}
-              setTrackingContext={setTrackingContext}
-              onSave={handleSaveBusinessBuilder}
-              saveState={builderSaveState}
-              readinessIssues={readinessIssues}
-              fallbackReady={team?.businessReadiness?.ready ?? false}
-              activeExperimentCount={activeExperimentCount}
-              onViewProjects={() => setActiveTab("projects")}
-              resources={project?.resources ?? []}
-              hasBusinessConfig={hasBusinessConfig}
-              teamSkillRows={businessSkillRows}
+          <TabsContent value="goals" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <GoalsTab
+              project={project}
+              companyModel={companyModel}
+              projectTasks={projectTasks}
+              memoryRows={memoryRows}
+              globalMode={globalMode}
+            />
+          </TabsContent>
+
+          <TabsContent value="docs" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <DocsTab
+              project={project}
+              companyModel={companyModel}
+              projectTasks={projectTasks}
+              memoryRows={memoryRows}
+              globalMode={globalMode}
+            />
+          </TabsContent>
+
+          <TabsContent value="skills" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <SkillsReadinessTab
+              project={project}
+              companyModel={companyModel}
+              projectTasks={projectTasks}
+              memoryRows={memoryRows}
+              globalMode={globalMode}
+            />
+          </TabsContent>
+
+          <TabsContent value="evals" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <EvalsQaTab
+              project={project}
+              companyModel={companyModel}
+              projectTasks={projectTasks}
+              memoryRows={memoryRows}
+              globalMode={globalMode}
+            />
+          </TabsContent>
+
+          <TabsContent value="automations" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <AutomationsTab />
+          </TabsContent>
+
+          <TabsContent value="guard" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <GuardTab
+              project={project}
+              companyModel={companyModel}
+              projectTasks={projectTasks}
+              memoryRows={memoryRows}
+              globalMode={globalMode}
+            />
+          </TabsContent>
+
+          <TabsContent value="hardcases" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <HardcasesTab
+              project={project}
+              companyModel={companyModel}
+              projectTasks={projectTasks}
+              memoryRows={memoryRows}
+              globalMode={globalMode}
             />
           </TabsContent>
 

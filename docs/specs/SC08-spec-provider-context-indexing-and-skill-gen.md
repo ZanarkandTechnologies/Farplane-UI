@@ -2,7 +2,7 @@
 
 ## Scope
 
-Define how Farplane AI indexes provider data structures (Notion databases, Vibe boards, internal task schemas) and generates deterministic context tools/skills that agents can invoke during OpenClaw sessions.
+Define how Farplane UI indexes provider data structures (Notion databases, Vibe boards, internal task schemas) and generates deterministic context tools/skills that agents can invoke during OpenClaw sessions.
 
 ## Canonical References
 

@@ -1,7 +1,13 @@
 import { v } from "convex/values";
-import { internalMutation, query } from "../../_generated/server";
-import { buildTelemetrySummary, type ActivityPingRow } from "./runtimeTelemetry";
-import { ingestActivityPingArgsValidator, teamTelemetryArgsValidator, telemetryDashboardArgsValidator } from "./validators";
+import { internalMutation, type MutationCtx, query } from "../../_generated/server";
+import { type ActivityPingRow, buildTelemetrySummary } from "./runtimeTelemetry";
+import {
+  type IngestActivityPingArgs,
+  ingestActivityPingArgsValidator,
+  ingestActivityPingsArgsValidator,
+  teamTelemetryArgsValidator,
+  telemetryDashboardArgsValidator,
+} from "./validators";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MAX_DAYS = 90;
@@ -34,29 +40,56 @@ function toActivityPingRow(row: ActivityPingRow): ActivityPingRow {
     sessionId: row.sessionId,
     turnId: row.turnId,
     receivedAt: row.receivedAt,
+    importKey: row.importKey,
   };
+}
+
+async function upsertActivityPing(ctx: MutationCtx, args: IngestActivityPingArgs) {
+  const importKey = cleanText(args.importKey, 240);
+  if (importKey) {
+    const existing = await ctx.db
+      .query("runtimeTelemetryActivityPings")
+      .withIndex("by_importKey", (q) => q.eq("importKey", importKey))
+      .first();
+    if (existing) return existing._id;
+  }
+
+  return await ctx.db.insert("runtimeTelemetryActivityPings", {
+    eventType: args.eventType,
+    source: cleanText(args.source, 120) ?? "unknown",
+    activeAgentCount: Math.max(1, Math.floor(args.activeAgentCount || 1)),
+    prompt: cleanText(args.prompt, 100),
+    agentName: cleanText(args.agentName, 80),
+    workflowName: cleanText(args.workflowName, 120),
+    machineName: cleanText(args.machineName, 120),
+    projectName: cleanText(args.projectName, 120),
+    projectDirectory: cleanText(args.projectDirectory, 240),
+    projectId: cleanText(args.projectId, 120),
+    teamId: cleanText(args.teamId, 120)?.toLowerCase(),
+    sessionId: cleanText(args.sessionId, 120),
+    turnId: cleanText(args.turnId, 120),
+    receivedAt: args.receivedAt ?? Date.now(),
+    importKey,
+  });
 }
 
 export const ingestActivityPing = internalMutation({
   args: ingestActivityPingArgsValidator,
   returns: v.id("runtimeTelemetryActivityPings"),
   handler: async (ctx, args) => {
-    return await ctx.db.insert("runtimeTelemetryActivityPings", {
-      eventType: args.eventType,
-      source: cleanText(args.source, 120) ?? "unknown",
-      activeAgentCount: Math.max(1, Math.floor(args.activeAgentCount || 1)),
-      prompt: cleanText(args.prompt, 100),
-      agentName: cleanText(args.agentName, 80),
-      workflowName: cleanText(args.workflowName, 120),
-      machineName: cleanText(args.machineName, 120),
-      projectName: cleanText(args.projectName, 120),
-      projectDirectory: cleanText(args.projectDirectory, 240),
-      projectId: cleanText(args.projectId, 120),
-      teamId: cleanText(args.teamId, 120)?.toLowerCase(),
-      sessionId: cleanText(args.sessionId, 120),
-      turnId: cleanText(args.turnId, 120),
-      receivedAt: args.receivedAt ?? Date.now(),
-    });
+    return await upsertActivityPing(ctx, args);
+  },
+});
+
+export const ingestActivityPings = internalMutation({
+  args: ingestActivityPingsArgsValidator,
+  returns: v.array(v.id("runtimeTelemetryActivityPings")),
+  handler: async (ctx, args) => {
+    const ids = [];
+    for (const ping of args.pings.slice(0, 500)) {
+      ids.push(await upsertActivityPing(ctx, ping));
+    }
+    return ids;
   },
 });
 
@@ -73,8 +106,11 @@ export const getTelemetryDashboard = query({
       .take(MAX_ROWS);
     return buildTelemetrySummary(rows.map(toActivityPingRow), {
       days,
+      maxTurnDurationMs: args.maxTurnDurationMs,
       now,
       timezone: args.timezone,
+      turnPage: args.turnPage,
+      turnPageSize: args.turnPageSize,
     });
   },
 });
@@ -90,14 +126,18 @@ export const getTeamTelemetry = query({
     const teamRows = teamId
       ? await ctx.db
           .query("runtimeTelemetryActivityPings")
-          .withIndex("by_teamId_and_receivedAt", (q) => q.eq("teamId", teamId).gte("receivedAt", cutoff))
+          .withIndex("by_teamId_and_receivedAt", (q) =>
+            q.eq("teamId", teamId).gte("receivedAt", cutoff),
+          )
           .order("desc")
           .take(MAX_ROWS)
       : [];
     const projectRows = projectId
       ? await ctx.db
           .query("runtimeTelemetryActivityPings")
-          .withIndex("by_projectId_and_receivedAt", (q) => q.eq("projectId", projectId).gte("receivedAt", cutoff))
+          .withIndex("by_projectId_and_receivedAt", (q) =>
+            q.eq("projectId", projectId).gte("receivedAt", cutoff),
+          )
           .order("desc")
           .take(MAX_ROWS)
       : [];
@@ -105,12 +145,17 @@ export const getTeamTelemetry = query({
     for (const row of [...teamRows, ...projectRows]) {
       rowsById.set(row._id, row);
     }
-    const rows = Array.from(rowsById.values()).sort((left, right) => right.receivedAt - left.receivedAt);
+    const rows = Array.from(rowsById.values()).sort(
+      (left, right) => right.receivedAt - left.receivedAt,
+    );
 
     return buildTelemetrySummary(rows.map(toActivityPingRow), {
       days,
+      maxTurnDurationMs: args.maxTurnDurationMs,
       now,
       timezone: args.timezone,
+      turnPage: args.turnPage,
+      turnPageSize: args.turnPageSize,
     });
   },
 });

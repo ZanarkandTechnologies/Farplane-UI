@@ -8,10 +8,11 @@
  * thread-map adapter exists.
  */
 
-import { OpenClawAdapter } from "../openclaw";
 import {
   CODEX_MAIN_AGENT_ID,
   CodexAppServerClient,
+  type CodexThread,
+  type CodexUiStateResponse,
   codexProjectId,
   findActiveTurnId,
   parseCodexThreadId,
@@ -21,16 +22,15 @@ import {
   toCodexMainLiveStatus,
   toCodexSessionRows,
   toCodexTimeline,
-  type CodexThread,
-  type CodexUiStateResponse,
 } from "../codex-app-server";
+import type { GatewayWsClient } from "../gateway/ws-client";
 import type {
   AgentCardModel,
-  AgentLiveStatus,
   AgentIdentityResult,
+  AgentLiveStatus,
   AgentsListResult,
-  ChatSendRequest,
   ChannelsStatusSnapshot,
+  ChatSendRequest,
   CronJob,
   CronStatus,
   OpenClawConfigSnapshot,
@@ -39,10 +39,12 @@ import type {
   ToolsCatalogResult,
   UnifiedOfficeModel,
 } from "../openclaw";
-import type { GatewayWsClient } from "../gateway/ws-client";
+import { OpenClawAdapter } from "../openclaw";
 import type { RuntimeAdapterCapabilities } from "./contract";
 
-function buildCodexWorkload(company: UnifiedOfficeModel["company"]): UnifiedOfficeModel["workload"] {
+function buildCodexWorkload(
+  company: UnifiedOfficeModel["company"],
+): UnifiedOfficeModel["workload"] {
   return company.projects.map((project) => {
     const tasks = company.tasks.filter((task) => task.projectId === project.id);
     const openTickets = tasks.filter((task) => task.status !== "done").length;
@@ -52,7 +54,8 @@ function buildCodexWorkload(company: UnifiedOfficeModel["company"]): UnifiedOffi
       projectId: project.id,
       openTickets,
       closedTickets,
-      queuePressure: ratio > 2 ? ("high" as const) : ratio > 1 ? ("medium" as const) : ("low" as const),
+      queuePressure:
+        ratio > 2 ? ("high" as const) : ratio > 1 ? ("medium" as const) : ("low" as const),
     };
   });
 }
@@ -61,6 +64,10 @@ const CODEX_CAPABILITIES: RuntimeAdapterCapabilities = {
   persistentAgents: false,
   agentConfigWrite: false,
   agentWorkspaceFiles: false,
+  employeeSkillEquip: false,
+  globalSkillBrowser: true,
+  skillEvalRuns: true,
+  harnessGraph: true,
   agentSkillRuntimeControls: false,
   toolPolicy: false,
   channels: false,
@@ -98,7 +105,11 @@ function codexProjectPathsFromConfig(value: unknown): string[] {
 
 function normalizeStringList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return [...new Set(value.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean))];
+  return [
+    ...new Set(
+      value.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean),
+    ),
+  ];
 }
 
 function codexProjectPathsFromUiState(value: CodexUiStateResponse): string[] {
@@ -226,7 +237,9 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
         CODEX_BOOTSTRAP_RPC_TIMEOUT_MS,
         "codex_thread_list_bootstrap_timeout",
       );
-      const threads = Array.isArray(response.data) ? response.data.filter((thread) => thread.id) : [];
+      const threads = Array.isArray(response.data)
+        ? response.data.filter((thread) => thread.id)
+        : [];
       this.threadsCache = { loadedAt: Date.now(), threads };
       return threads;
     })();
@@ -240,11 +253,7 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
 
   private async listCodexProjectPaths(options: { force?: boolean } = {}): Promise<string[]> {
     const now = Date.now();
-    if (
-      !options.force &&
-      this.projectPathsCache &&
-      now - this.projectPathsCache.loadedAt < 30000
-    ) {
+    if (!options.force && this.projectPathsCache && now - this.projectPathsCache.loadedAt < 30000) {
       return this.projectPathsCache.projectPaths;
     }
     if (!options.force && this.projectPathsInFlight) return this.projectPathsInFlight;

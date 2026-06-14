@@ -1162,7 +1162,7 @@ describe("team CLI", () => {
     );
     expect(teamClusters).toHaveLength(2);
     expect(teamClusters[0]?.position).toEqual([0, 0, 0]);
-    expect(teamClusters[1]?.position).toEqual([-5, 0, -5]);
+    expect(teamClusters[1]?.position).toEqual([-9, 0, -9]);
   });
 
   it("stores task memory directly on board tasks and supports the review lane", async () => {

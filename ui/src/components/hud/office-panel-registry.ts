@@ -18,24 +18,25 @@
  */
 
 import {
-  Activity,
   BarChart3,
   BookOpen,
   BriefcaseBusiness,
   Building2,
   Hammer,
   Home,
-  MessageSquare,
+  type LucideIcon,
+  Network,
   Settings,
   ShoppingBag,
+  TestTube2,
   Users,
-  type LucideIcon,
 } from "lucide-react";
 
 import type { CeoWorkbenchView } from "@/store";
 
 const SECONDARY_BUTTON_COLOR = "bg-secondary hover:bg-secondary/80 text-secondary-foreground";
-const EMPHASIZED_BUTTON_COLOR = "bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30";
+const EMPHASIZED_BUTTON_COLOR =
+  "bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30";
 const GUIDED_BUTTON_CLASS =
   "ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse";
 
@@ -50,15 +51,16 @@ export type OfficeShortcut = {
 };
 
 export type OfficeActionGroup = "navigation" | "panel" | "action";
+export type OfficeAccessPolicy = "operator" | "read-only";
 
 export type OfficePanelActionId =
   | "back-landing"
   | "organization"
   | "team-workspace"
-  | "agent-session"
   | "telemetry"
-  | "global-skills"
-  | "ceo-chat"
+  | "skill-os"
+  | "evals"
+  | "harness"
   | "ceo-workbench"
   | "human-review"
   | "builder-mode"
@@ -83,15 +85,16 @@ export type OfficePanelAction = {
 };
 
 export type OfficePanelRegistryDependencies = {
+  accessPolicy?: OfficeAccessPolicy;
   highlightedMenuActionId: string | null;
   isAnimatingCamera: boolean;
   isBuilderMode: boolean;
   navigateToLanding: () => void;
-  openAgentSession: () => void;
-  openCeoChat: () => void;
   openCeoWorkbench: (view: CeoWorkbenchView) => void;
   openDecoration: () => void;
-  openGlobalSkills: () => void;
+  openEvals: () => void;
+  openHarness: () => void;
+  openSkillOs: () => void;
   openGlobalTeamWorkspace: () => void;
   openOrganization: () => void;
   openSettings: () => void;
@@ -132,10 +135,7 @@ export function isEditableEventTarget(target: EventTarget | null): boolean {
 }
 
 export function eventMatchesShortcut(
-  event: Pick<
-    KeyboardEvent,
-    "altKey" | "ctrlKey" | "key" | "metaKey" | "shiftKey"
-  >,
+  event: Pick<KeyboardEvent, "altKey" | "ctrlKey" | "key" | "metaKey" | "shiftKey">,
   shortcut: OfficeShortcut,
 ): boolean {
   const eventKey = event.key.toLowerCase();
@@ -171,6 +171,7 @@ export function eventMatchesShortcut(
 export function createOfficePanelActions(
   deps: OfficePanelRegistryDependencies,
 ): OfficePanelAction[] {
+  const readOnly = deps.accessPolicy === "read-only";
   return [
     {
       id: "back-landing",
@@ -204,18 +205,10 @@ export function createOfficePanelActions(
       color: SECONDARY_BUTTON_COLOR,
       buttonClassName:
         deps.highlightedMenuActionId === "team-workspace" ? GUIDED_BUTTON_CLASS : undefined,
-      perform: deps.openGlobalTeamWorkspace,
-    },
-    {
-      id: "agent-session",
-      label: "Agent Session",
-      description: "Open live agent session timelines and session controls.",
-      group: "panel",
-      icon: Activity,
-      keywords: ["agent", "session", "timeline", "runtime", "panel"],
-      shortcut: { key: "a", label: "Alt+Shift+A", altKey: true, shiftKey: true },
-      color: SECONDARY_BUTTON_COLOR,
-      perform: deps.openAgentSession,
+      disabled: readOnly,
+      showInMenu: !readOnly,
+      showInPalette: !readOnly,
+      perform: readOnly ? noop : deps.openGlobalTeamWorkspace,
     },
     {
       id: "telemetry",
@@ -229,26 +222,38 @@ export function createOfficePanelActions(
       perform: deps.openTelemetry,
     },
     {
-      id: "global-skills",
-      label: "Global Skills",
-      description: "Open the skill studio for global skill browsing and management.",
+      id: "skill-os",
+      label: "Skill OS",
+      description: "Open the global skill registry, graph, rollout, and template control plane.",
       group: "panel",
       icon: BookOpen,
-      keywords: ["skills", "studio", "library", "global", "panel"],
+      keywords: ["skills", "skill os", "registry", "templates", "rollout", "panel"],
       shortcut: { key: "s", label: "Alt+Shift+S", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      perform: deps.openGlobalSkills,
+      perform: deps.openSkillOs,
     },
     {
-      id: "ceo-chat",
-      label: "CEO Chat",
-      description: "Open the main employee chat surface for the CEO agent.",
+      id: "evals",
+      label: "Evals",
+      description: "Open global eval runs, skill eval files, hardcases, and suite status.",
       group: "panel",
-      icon: MessageSquare,
-      keywords: ["chat", "ceo", "messages", "conversation", "panel"],
-      shortcut: { key: "c", label: "Alt+Shift+C", altKey: true, shiftKey: true },
+      icon: TestTube2,
+      keywords: ["eval", "evals", "tests", "hardcases", "suite", "panel"],
+      shortcut: { key: "e", label: "Alt+Shift+E", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      perform: deps.openCeoChat,
+      perform: deps.openEvals,
+    },
+    {
+      id: "harness",
+      label: "Harness",
+      description:
+        "Open the global harness map across skills, docs, agents, templates, and validators.",
+      group: "panel",
+      icon: Network,
+      keywords: ["harness", "map", "graph", "docs", "agents", "templates", "panel"],
+      shortcut: { key: "h", label: "Alt+Shift+H", altKey: true, shiftKey: true },
+      color: SECONDARY_BUTTON_COLOR,
+      perform: deps.openHarness,
     },
     {
       id: "ceo-workbench",
@@ -259,7 +264,10 @@ export function createOfficePanelActions(
       keywords: ["ceo", "workbench", "board", "tasks", "panel"],
       shortcut: { key: "w", label: "Alt+Shift+W", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      perform: () => deps.openCeoWorkbench("board"),
+      perform: readOnly ? noop : () => deps.openCeoWorkbench("board"),
+      disabled: readOnly,
+      showInMenu: !readOnly,
+      showInPalette: !readOnly,
     },
     {
       id: "human-review",
@@ -271,7 +279,10 @@ export function createOfficePanelActions(
       shortcut: { key: "r", label: "Alt+Shift+R", altKey: true, shiftKey: true },
       badge: deps.userTaskCount > 0 ? deps.userTaskCount : undefined,
       color: deps.userTaskCount > 0 ? EMPHASIZED_BUTTON_COLOR : SECONDARY_BUTTON_COLOR,
-      perform: () => deps.openCeoWorkbench("review"),
+      perform: readOnly ? noop : () => deps.openCeoWorkbench("review"),
+      disabled: readOnly,
+      showInMenu: !readOnly,
+      showInPalette: !readOnly,
     },
     {
       id: "builder-mode",
@@ -282,8 +293,10 @@ export function createOfficePanelActions(
       keywords: ["builder", "layout", "decor", "placement", "mode"],
       shortcut: { key: "b", label: "Alt+Shift+B", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      disabled: deps.isAnimatingCamera,
-      perform: deps.toggleBuilderMode,
+      disabled: deps.isAnimatingCamera || readOnly,
+      showInMenu: !readOnly,
+      showInPalette: !readOnly,
+      perform: readOnly ? noop : deps.toggleBuilderMode,
     },
     {
       id: "office-shop",
@@ -296,7 +309,10 @@ export function createOfficePanelActions(
       color: SECONDARY_BUTTON_COLOR,
       buttonClassName:
         deps.highlightedMenuActionId === "office-shop" ? GUIDED_BUTTON_CLASS : undefined,
-      perform: deps.openDecoration,
+      disabled: readOnly,
+      showInMenu: !readOnly,
+      showInPalette: !readOnly,
+      perform: readOnly ? noop : deps.openDecoration,
     },
     {
       id: "settings",
@@ -307,7 +323,12 @@ export function createOfficePanelActions(
       keywords: ["settings", "preferences", "config", "panel"],
       shortcut: { key: "p", label: "Alt+Shift+P", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      perform: deps.openSettings,
+      disabled: readOnly,
+      showInMenu: !readOnly,
+      showInPalette: !readOnly,
+      perform: readOnly ? noop : deps.openSettings,
     },
   ];
 }
+
+function noop(): void {}

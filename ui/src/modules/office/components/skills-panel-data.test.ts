@@ -59,7 +59,7 @@ describe("skills panel data helpers", () => {
     });
   });
 
-  it("keeps shared installs visible while hiding empty config-only rows", () => {
+  it("keeps shared installs and catalog-only rows visible in Codex browser mode", () => {
     const visible = buildVisibleGlobalSkillRows(
       [
         {
@@ -86,6 +86,13 @@ describe("skills panel data helpers", () => {
         skillKey: "peekaboo",
         enabled: null,
         hasSharedInstall: true,
+        envCount: 0,
+        configCount: 0,
+      },
+      {
+        skillKey: "ghost-row",
+        enabled: null,
+        hasSharedInstall: false,
         envCount: 0,
         configCount: 0,
       },

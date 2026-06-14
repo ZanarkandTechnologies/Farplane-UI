@@ -2,10 +2,8 @@
 
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-
-import type { OfficeId } from "@/modules/office/lib/types";
-import type { TeamData } from "@/modules/office/lib/types";
 import type { OfficeOnboardingStep } from "@/modules/office/lib/office-onboarding";
+import type { OfficeId, TeamData } from "@/modules/office/lib/types";
 
 type PlacementMode = {
   active: boolean;
@@ -14,13 +12,7 @@ type PlacementMode = {
 };
 
 export type BuilderTool = "paint-floor" | "remove-floor" | null;
-export type OfficeOverlayKey =
-  | "grid"
-  | "occupancy"
-  | "paths"
-  | "destinations"
-  | "areas"
-  | "layout";
+export type OfficeOverlayKey = "grid" | "occupancy" | "paths" | "destinations" | "areas" | "layout";
 export type OfficeOverlaySettings = Record<OfficeOverlayKey, boolean>;
 
 type ObjectPanelAspectRatio = "wide" | "square" | "tall";
@@ -111,6 +103,8 @@ interface AppState {
   setIsAgentSessionPanelOpen: (isOpen: boolean) => void;
   isSkillsPanelOpen: boolean;
   setIsSkillsPanelOpen: (isOpen: boolean) => void;
+  skillStudioSurface: "skill-os" | "evals" | "harness";
+  setSkillStudioSurface: (surface: "skill-os" | "evals" | "harness") => void;
   isTelemetryPanelOpen: boolean;
   setIsTelemetryPanelOpen: (isOpen: boolean) => void;
   selectedSkillStudioSkillId: string | null;
@@ -190,7 +184,9 @@ export const useAppStore = create<AppState>()(
       set((state) => (state.activeObjectConfigId === id ? state : { activeObjectConfigId: id })),
     activeObjectTransformId: null,
     setActiveObjectTransformId: (id) =>
-      set((state) => (state.activeObjectTransformId === id ? state : { activeObjectTransformId: id })),
+      set((state) =>
+        state.activeObjectTransformId === id ? state : { activeObjectTransformId: id },
+      ),
     activeObjectPanel: null,
     // Modal payload is compared structurally so repeated opens of the same state do not trigger extra work.
     setActiveObjectPanel: (panel) =>
@@ -225,6 +221,8 @@ export const useAppStore = create<AppState>()(
     setIsAgentSessionPanelOpen: (isOpen) => set({ isAgentSessionPanelOpen: isOpen }),
     isSkillsPanelOpen: false,
     setIsSkillsPanelOpen: (isOpen) => set({ isSkillsPanelOpen: isOpen }),
+    skillStudioSurface: "skill-os",
+    setSkillStudioSurface: (surface) => set({ skillStudioSurface: surface }),
     isTelemetryPanelOpen: false,
     setIsTelemetryPanelOpen: (isOpen) => set({ isTelemetryPanelOpen: isOpen }),
     selectedSkillStudioSkillId: null,

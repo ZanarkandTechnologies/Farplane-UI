@@ -1,6 +1,6 @@
 # AI Office UI QA Runbook
 
-QA-facing runbook for browser-agent testing of the Farplane AI Office. Documents the Sims-like interaction model, click entrypoints, panel access paths, and builder mode.
+QA-facing runbook for browser-agent testing of the Farplane UI Office. Documents the Sims-like interaction model, click entrypoints, panel access paths, and builder mode.
 
 ## Product Overview
 

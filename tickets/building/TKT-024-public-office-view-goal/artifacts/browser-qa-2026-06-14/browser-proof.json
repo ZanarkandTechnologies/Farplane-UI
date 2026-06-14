@@ -1,0 +1,103 @@
+{
+  "url": "http://127.0.0.1:5173/office/public",
+  "routeState": {
+    "publicBadge": true,
+    "readOnlyBadge": false,
+    "hasCanvas": true,
+    "panels": [
+      {
+        "id": "evals",
+        "label": "Evals",
+        "description": "Open global eval runs, skill eval files, hardcases, and suite status.",
+        "shortcut": "Alt+Shift+E"
+      },
+      {
+        "id": "harness",
+        "label": "Harness",
+        "description": "Open the global harness map across skills, docs, agents, templates, and validators.",
+        "shortcut": "Alt+Shift+H"
+      },
+      {
+        "id": "organization",
+        "label": "Organization",
+        "description": "Open the organization overview and people operations panel.",
+        "shortcut": "Alt+Shift+O"
+      },
+      {
+        "id": "skill-os",
+        "label": "Skill OS",
+        "description": "Open the global skill registry, graph, rollout, and template control plane.",
+        "shortcut": "Alt+Shift+S"
+      },
+      {
+        "id": "telemetry",
+        "label": "Telemetry",
+        "description": "Open overall project and team runtime telemetry.",
+        "shortcut": "Alt+Shift+M"
+      }
+    ],
+    "blockedResults": {
+      "builder-mode": false,
+      "settings": false,
+      "team-workspace": false,
+      "ceo-workbench": false,
+      "human-review": false,
+      "office-shop": false
+    }
+  },
+  "organizationState": {
+    "hasOrganization": true,
+    "hasCreateTeam": false,
+    "hasManageTeams": false,
+    "hasRecruitAgent": false,
+    "hasCeoThreadControl": false,
+    "hasProjectPathMarker": false,
+    "hasReadOnlyCopy": true
+  },
+  "skillState": {
+    "hasSkillOs": true,
+    "hasFilesTab": true,
+    "hasControlsTab": true,
+    "hasDemosTab": true,
+    "hasSaveMetadata": false,
+    "hasRawYaml": false,
+    "hasDisableButton": true,
+    "hasEnableButton": false
+  },
+  "telemetryState": {
+    "hasTelemetry": true,
+    "hasRawTelemetry": false,
+    "hasTurnHeader": true,
+    "textSample": "ai-brain\nFarplane\nFarplane-UI\nlife\nReels\nskills\nValefor\nZanarkand Technologies\nPUBLIC VIEW\nShow Live Logs\nCodex Mode\nTelemetry\nRuntime Telemetry\n239 diagnostics\n\nCompleted hours exclude over-cap turns.\n\n30 days\nCap 4h\nAGENT HOURS\n294h\n1245 completed turns\nFILTERED\n74\n1976h excluded\nOPEN TURNS\n235\nnot counted as complete\nPROJECTS\n20\n2 team scopes\nPINGS\n1666\nlast 6h ago\nDashboard\nProjects\nTeams\nAgent-Hours Trend\n\nCompleted runtime by day; over-cap turns are excluded.\n\nMay 16\nJun 14: 0m\nLifecycle Health\n\nConfidence split for counted and diagnostic turns.\n\nCompleted\n1245\n294h\nFiltered\n74\n1976h excluded\nOpen\n235\ndiagnostic\nUnmatched\n4\ndiagnostic\nCompleted Turns\n\nTurn throughput by day against total pings.\n\nTop Projects\n\nRuntime contribution by scoped project.\n\nFarplane\n136h\n671 turns / 160 open\nai-brain\n61h\n216 turns / 1 open\nValefor\n39h\n115 turns / 11 open\nlife\n28h\n64 turns / 36 open\nZanarkand Technologies\n16h\n112 turns / 12 open\nReels\n5.0h\n17 turns / 2 open\nClose"
+  },
+  "console": [
+    {
+      "type": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "type": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x1340019cc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x1340019cc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x1340019cc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x1340019cc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+    }
+  ]
+}

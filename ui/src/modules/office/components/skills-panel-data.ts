@@ -93,9 +93,8 @@ export function buildVisibleGlobalSkillRows(
   sharedSkills: NonNullable<GlobalSkillsInventory["sharedSkills"]>,
   runtimeSearch: string,
 ): GlobalSkillRow[] {
-  const sharedIds = new Set(sharedSkills.map((entry) => entry.skillId));
+  void sharedSkills;
   return rows.filter((row) => {
-    if (!sharedIds.has(row.skillKey) && row.envCount === 0 && row.configCount === 0) return false;
     if (!runtimeSearch) return true;
     return row.skillKey.toLowerCase().includes(runtimeSearch);
   });

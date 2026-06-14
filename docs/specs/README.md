@@ -7,6 +7,12 @@ contracts, runtime adapters, sidecars, workflow state, or UI behavior.
 
 ## Current Specs
 
+### Farplane Testament
+
+- `FP01-operator-intelligence-modules-roadmap.md`
+
+### Legacy SC Specs
+
 - `module-shell-architecture.md`
 - `SC01-spec-openclaw-state-mapping.md`
 - `SC02-spec-notion-plugin-inrepo.md`
@@ -27,3 +33,6 @@ contracts, runtime adapters, sidecars, workflow state, or UI behavior.
 For new behavior, update or add a spec before implementation when the change
 affects runtime contracts, sidecar shape, workflow state, permissions, or UI
 surfaces used by multiple features.
+
+New product doctrine should use the `FP##-*` convention. Existing `SC*` files
+are legacy source material unless a ticket explicitly says otherwise.

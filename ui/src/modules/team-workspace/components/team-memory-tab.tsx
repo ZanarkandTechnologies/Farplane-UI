@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Response } from "@/components/ai-elements/response";
 import { describeTeamMemoryAuthor, formatTeamMemoryKindLabel } from "./team-memory-tab.helpers";
 import type { TeamMemoryRow } from "./team-panel-types";
 
@@ -144,9 +145,9 @@ export function TeamMemoryTab({
                       </Badge>
                     ) : null}
                   </div>
-                  <pre className="mt-3 whitespace-pre-wrap font-sans text-sm leading-6">
+                  <Response className="prose prose-sm max-w-none dark:prose-invert mt-3 text-sm leading-6">
                     {activeEntry.body.trim() || "This memory file is empty."}
-                  </pre>
+                  </Response>
                 </div>
               ) : null}
               {!activeEntry ? (

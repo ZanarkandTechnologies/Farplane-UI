@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AgentConfigDraft } from "@/modules/office/components/manage-agent-modal/_types";
+import { EMPTY_AGENT_CONFIG_DRAFT } from "@/modules/office/components/manage-agent-modal/config-draft";
 
 import {
   getCustomSelectionDraft,
@@ -9,6 +10,7 @@ import {
 } from "./skills-panel.helpers";
 
 const BASE_DRAFT: AgentConfigDraft = {
+  ...EMPTY_AGENT_CONFIG_DRAFT,
   primaryModel: "",
   fallbackModels: "",
   toolsProfile: "",

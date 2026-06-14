@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { TeamOptionsDialog } from "./dialogs/team-options-dialog";
+import { Badge } from "@/components/ui/badge";
 import { SettingsDialog } from "@/modules/settings";
 import { TelemetryPanel } from "@/modules/telemetry";
 import { LogsDrawer } from "./hud/logs-drawer";
@@ -14,6 +15,7 @@ import {
   OfficeDataProvider,
   useOptionalOfficeDataContext,
 } from "@/providers/office-data-provider";
+import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import { useAppStore } from "@/store";
 import { gatewayBase } from "@/modules/runtime";
 import {
@@ -51,6 +53,7 @@ export default function OfficeSimulation() {
 
 // Main Office Simulation Component
 function OfficeSimulationContent() {
+  const { isPublic, isReadOnly } = useOfficeAccessMode();
   const { company, teams, employees, desks, officeObjects, officeAreas, officeSettings, isLoading } =
     useOfficeWorldStore(useShallow(selectOfficeWorldContextData));
 
@@ -157,35 +160,43 @@ function OfficeSimulationContent() {
 
       {sceneShellReady ? (
         <>
-          <ChatDialog />
-          <AgentMemoryPanel />
-          <ManageAgentModal />
+          {!isReadOnly ? <ChatDialog /> : null}
+          {!isPublic ? <AgentMemoryPanel /> : null}
+          {!isReadOnly ? <ManageAgentModal /> : null}
           {/* Keep mounted so close/reopen preserves in-panel draft state; TeamPanel gates its expensive queries when closed. */}
-          <TeamPanel
-            teamId={activeTeamId}
-            isOpen={isTeamPanelOpen}
-            onOpenChange={(open) => setIsTeamPanelOpen(open)}
-            initialTab={kanbanFocusAgentId ? "kanban" : "overview"}
-            focusAgentId={kanbanFocusAgentId}
-          />
-          <TeamPanel
-            teamId={null}
-            isOpen={isGlobalTeamPanelOpen}
-            onOpenChange={(open) => {
-              setIsGlobalTeamPanelOpen(open);
-              if (!open) setKanbanFocusAgentId(null);
-            }}
-            globalMode
-          />
-          <AgentSessionPanel />
+          {!isReadOnly ? (
+            <TeamPanel
+              teamId={activeTeamId}
+              isOpen={isTeamPanelOpen}
+              onOpenChange={(open) => setIsTeamPanelOpen(open)}
+              initialTab={kanbanFocusAgentId ? "kanban" : "overview"}
+              focusAgentId={kanbanFocusAgentId}
+            />
+          ) : null}
+          {!isReadOnly ? (
+            <TeamPanel
+              teamId={null}
+              isOpen={isGlobalTeamPanelOpen}
+              onOpenChange={(open) => {
+                setIsGlobalTeamPanelOpen(open);
+                if (!open) setKanbanFocusAgentId(null);
+              }}
+              globalMode
+            />
+          ) : null}
+          {!isReadOnly ? <AgentSessionPanel /> : null}
           <SkillsPanel />
-          <ObjectConfigPanel />
-          <div className="pointer-events-none absolute inset-0 z-[69]">
-            <ObjectTransformPanel />
-          </div>
+          {!isReadOnly ? <ObjectConfigPanel /> : null}
+          {!isReadOnly ? (
+            <div className="pointer-events-none absolute inset-0 z-[69]">
+              <ObjectTransformPanel />
+            </div>
+          ) : null}
           <ObjectInteractionPanel />
-          <CeoWorkbenchPanel />
-          <SettingsDialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen} />
+          {!isReadOnly ? <CeoWorkbenchPanel /> : null}
+          {!isReadOnly ? (
+            <SettingsDialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen} />
+          ) : null}
           <TelemetryPanel open={isTelemetryPanelOpen} onOpenChange={setIsTelemetryPanelOpen} />
 
           <div className="pointer-events-none absolute top-4 left-4 z-[70]">
@@ -193,10 +204,23 @@ function OfficeSimulationContent() {
               <OfficeMenu />
             </div>
           </div>
-          <OfficeOnboardingPanel />
-          <div className="pointer-events-none absolute top-24 right-4 z-[69]">
-            <BuilderToolbar />
-          </div>
+          {isReadOnly ? (
+            <div className="pointer-events-none absolute top-4 right-4 z-[70]">
+              <Badge
+                variant="secondary"
+                className="border border-emerald-400/40 bg-emerald-500/15 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-100 shadow-lg backdrop-blur"
+              >
+                {isPublic ? "Public View" : "Read-only"}
+              </Badge>
+            </div>
+          ) : (
+            <>
+              <OfficeOnboardingPanel />
+              <div className="pointer-events-none absolute top-24 right-4 z-[69]">
+                <BuilderToolbar />
+              </div>
+            </>
+          )}
 
           <div className="pointer-events-none absolute bottom-4 right-4 z-[65]">
             <LogsToggleButton
@@ -215,7 +239,7 @@ function OfficeSimulationContent() {
           />
 
           {/* Team options dialog rendered outside Canvas for stable layering */}
-          {activeTeamForOptions && (
+          {!isReadOnly && activeTeamForOptions && (
             <TeamOptionsDialog
               team={activeTeamForOptions}
               isOpen={isTeamOptionsDialogOpen}

@@ -124,7 +124,11 @@ async function hasSkillPackageFile(skillDir: string): Promise<boolean> {
 
 async function findSkillPackages(skillsRoot: string): Promise<string[]> {
   const files = await walkFiles(skillsRoot);
-  const skillFiles = files.filter((filePath) => PACKAGE_FILE_NAMES.includes(path.basename(filePath) as (typeof PACKAGE_FILE_NAMES)[number]));
+  const skillFiles = files.filter((filePath) => {
+    const normalizedPath = toPosixPath(filePath);
+    if (normalizedPath.includes("/tests/fixtures/")) return false;
+    return PACKAGE_FILE_NAMES.includes(path.basename(filePath) as (typeof PACKAGE_FILE_NAMES)[number]);
+  });
   return skillFiles.map((filePath) => path.dirname(filePath)).sort();
 }
 
@@ -208,7 +212,7 @@ function buildDemoCaseId(relativePath: string, specName: string): string {
 }
 
 async function buildDemoCases(skillDir: string): Promise<SkillDemoCase[]> {
-  const testCases = await collectSkillContractTests(skillDir);
+  const testCases = await collectSkillContractTests(skillDir).catch(() => []);
   return testCases.map(({ filePath, spec }) => ({
     id: buildDemoCaseId(toPosixPath(path.relative(skillDir, filePath)), spec.name),
     title: spec.name,

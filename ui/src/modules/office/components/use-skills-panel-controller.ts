@@ -19,6 +19,8 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { usePollWithInterval } from "@/hooks/use-poll-with-interval";
+import { UI_Z } from "@/lib/z-index";
 import {
   buildNextAgentConfig,
   resolveAgentConfigDraft,
@@ -52,8 +54,6 @@ import type {
   SkillsPanelManifestState,
   SkillsPanelSelectionState,
 } from "@/modules/office/components/skills-panel-types";
-import { usePollWithInterval } from "@/hooks/use-poll-with-interval";
-import { useAppStore } from "@/store";
 import type {
   AgentSkillsInventory,
   GlobalSkillsInventory,
@@ -64,13 +64,15 @@ import type {
   SkillStudioDetail,
   SkillStudioFileContent,
 } from "@/modules/runtime";
-import { stringifySkillManifest } from "@/modules/skills-studio";
-import { UI_Z } from "@/lib/z-index";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
+import { stringifySkillManifest } from "@/modules/skills-studio";
+import { useAppStore } from "@/store";
 
 type ControllerResult = {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
+  surface: "skill-os" | "evals" | "harness";
+  setSurface: (surface: "skill-os" | "evals" | "harness") => void;
   focusAgentId: string | null;
   selectedSkillId: string | null;
   setSelectedSkillId: (skillId: string | null) => void;
@@ -83,6 +85,7 @@ type ControllerResult = {
   setActiveTab: (tab: DetailTab) => void;
   selectOverlayStyle: { zIndex: number };
   runtimeStatusText: string;
+  skills: SkillStudioCatalogEntry[];
   filteredWorkspaceSkills: AgentSkillsInventory["workspaceSkills"];
   groupedInheritedRuntimeSkills: ReturnType<typeof groupInheritedRuntimeSkills>;
   filteredGlobalSkillRows: ReturnType<typeof buildVisibleGlobalSkillRows>;
@@ -113,9 +116,37 @@ type ControllerResult = {
   handleRunDemo: () => Promise<void>;
 };
 
+const FALLBACK_SKILL_CATALOG: SkillStudioCatalogEntry[] = [
+  "skill-maintenance",
+  "skill-registry-ui",
+  "eval",
+  "goal-advisor",
+  "impl",
+  "qa",
+  "review",
+  "agent-browser",
+  "frontend-craft",
+  "convex",
+].map((skillId) => ({
+  skillId,
+  packageKey: skillId,
+  displayName: skillId,
+  description:
+    "Local Farplane skill catalog fallback. Live skill files load when the skill endpoint is available.",
+  category: "workflow",
+  scope: "shared",
+  sourcePath: `skills/${skillId}/SKILL.md`,
+  hasManifest: false,
+  hasTests: skillId === "eval" || skillId === "skill-maintenance",
+  hasDiagram: skillId === "skill-maintenance" || skillId === "skill-registry-ui",
+  hasSkillMemory: false,
+}));
+
 export function useSkillsPanelController(): ControllerResult {
   const isOpen = useAppStore((state) => state.isSkillsPanelOpen);
   const setIsOpen = useAppStore((state) => state.setIsSkillsPanelOpen);
+  const surface = useAppStore((state) => state.skillStudioSurface);
+  const setSurface = useAppStore((state) => state.setSkillStudioSurface);
   const selectedSkillId = useAppStore((state) => state.selectedSkillStudioSkillId);
   const setSelectedSkillId = useAppStore((state) => state.setSelectedSkillStudioSkillId);
   const focusAgentId = useAppStore((state) => state.skillStudioFocusAgentId);
@@ -163,18 +194,25 @@ export function useSkillsPanelController(): ControllerResult {
             adapter.getConfigSnapshot().catch(() => null),
           ]);
         if (signal.cancelled) return;
-        setSkills(mergeRuntimeStatus(catalog, report));
+        const nextCatalog = catalog.length > 0 ? catalog : FALLBACK_SKILL_CATALOG;
+        setSkills(mergeRuntimeStatus(nextCatalog, report));
         setSkillsReport(report);
         setAgentInventory(nextAgentInventory);
         setGlobalInventory(nextGlobalInventory);
         setConfigSnapshot(snapshot?.config ?? null);
-        const nextSelectedId = selectedSkillId ?? catalog[0]?.skillId ?? null;
+        const nextSelectedId = selectedSkillId ?? nextCatalog[0]?.skillId ?? null;
         if (nextSelectedId && nextSelectedId !== selectedSkillId) {
           setSelectedSkillId(nextSelectedId);
         }
       } catch (error) {
         if (!signal.cancelled) {
-          setErrorText(error instanceof Error ? error.message : "skills_load_failed");
+          setSkills((current) => (current.length > 0 ? current : FALLBACK_SKILL_CATALOG));
+          if (!selectedSkillId) {
+            setSelectedSkillId(FALLBACK_SKILL_CATALOG[0]?.skillId ?? null);
+          }
+          setErrorText(
+            `${error instanceof Error ? error.message : "skills_load_failed"}; showing local fallback catalog.`,
+          );
         }
       }
     },
@@ -266,15 +304,16 @@ export function useSkillsPanelController(): ControllerResult {
       return;
     }
     let cancelled = false;
+    const skillId = selectedDetail.skillId;
     async function loadRawManifest(): Promise<void> {
       const configFile = await adapter
-        .getSkillStudioFile(selectedDetail.skillId, "skill.config.yaml")
+        .getSkillStudioFile(skillId, "skill.config.yaml")
         .catch(() => null);
       if (cancelled) return;
       if (configFile?.content) {
         setRawManifest(configFile.content);
       }
-      setRawManifestLoadedSkillId(selectedDetail.skillId);
+      setRawManifestLoadedSkillId(skillId);
     }
     void loadRawManifest();
     return () => {
@@ -338,8 +377,8 @@ export function useSkillsPanelController(): ControllerResult {
       .filter((entry): entry is NonNullable<typeof entry> => entry !== undefined);
   }, [skillsReport, workspaceSkillIds]);
   const globalSkillRows = useMemo(
-    () => buildGlobalSkillRows(configSnapshot, globalInventory),
-    [configSnapshot, globalInventory],
+    () => buildGlobalSkillRows(configSnapshot, globalInventory, skills),
+    [configSnapshot, globalInventory, skills],
   );
   const filteredWorkspaceSkills = useMemo(
     () =>
@@ -608,6 +647,8 @@ export function useSkillsPanelController(): ControllerResult {
   return {
     isOpen,
     setIsOpen,
+    surface,
+    setSurface,
     focusAgentId,
     selectedSkillId,
     setSelectedSkillId,
@@ -620,6 +661,7 @@ export function useSkillsPanelController(): ControllerResult {
     setActiveTab,
     selectOverlayStyle,
     runtimeStatusText,
+    skills,
     filteredWorkspaceSkills,
     groupedInheritedRuntimeSkills,
     filteredGlobalSkillRows,

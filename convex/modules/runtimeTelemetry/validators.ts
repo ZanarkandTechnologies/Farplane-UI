@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { type Infer, v } from "convex/values";
 
 export const activityEventTypeValidator = v.union(
   v.literal("heartbeat"),
@@ -25,11 +25,22 @@ export const ingestActivityPingArgsValidator = {
   sessionId: optionalTelemetryTextValidator,
   turnId: optionalTelemetryTextValidator,
   receivedAt: v.optional(v.number()),
+  importKey: optionalTelemetryTextValidator,
+};
+
+export const ingestActivityPingValidator = v.object(ingestActivityPingArgsValidator);
+export type IngestActivityPingArgs = Infer<typeof ingestActivityPingValidator>;
+
+export const ingestActivityPingsArgsValidator = {
+  pings: v.array(ingestActivityPingValidator),
 };
 
 export const telemetryDashboardArgsValidator = {
   timezone: v.optional(v.string()),
   rangeDays: v.optional(v.number()),
+  maxTurnDurationMs: v.optional(v.union(v.number(), v.null())),
+  turnPage: v.optional(v.number()),
+  turnPageSize: v.optional(v.number()),
 };
 
 export const teamTelemetryArgsValidator = {
@@ -37,4 +48,7 @@ export const teamTelemetryArgsValidator = {
   projectId: v.optional(v.string()),
   timezone: v.optional(v.string()),
   rangeDays: v.optional(v.number()),
+  maxTurnDurationMs: v.optional(v.union(v.number(), v.null())),
+  turnPage: v.optional(v.number()),
+  turnPageSize: v.optional(v.number()),
 };

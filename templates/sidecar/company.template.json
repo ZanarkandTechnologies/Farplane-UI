@@ -21,7 +21,7 @@
       "name": "Farplane",
       "githubUrl": "",
       "status": "active",
-      "goal": "Run the Farplane AI shell on Codex and project-local Farplane state before adding optional gateway adapters.",
+      "goal": "Run the Farplane UI shell on Codex and project-local Farplane state before adding optional gateway adapters.",
       "kpis": [
         "active_threads_visible",
         "project_state_visible",

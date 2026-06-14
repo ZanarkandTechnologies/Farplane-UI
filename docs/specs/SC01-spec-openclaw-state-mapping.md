@@ -2,7 +2,7 @@
 
 ## Scope
 
-Define how Farplane AI maps OpenClaw runtime state into gamified UI models without reimplementing gateway, routing, or config internals.
+Define how Farplane UI maps OpenClaw runtime state into gamified UI models without reimplementing gateway, routing, or config internals.
 
 ## Canonical References
 

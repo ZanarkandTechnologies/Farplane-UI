@@ -1,8 +1,8 @@
 {
   "id": "notion-shell",
-  "name": "Farplane AI Notion",
+  "name": "Farplane UI Notion",
   "version": "0.1.0",
-  "description": "Notion channel and helper methods for Farplane AI MVP.",
+  "description": "Notion channel and helper methods for Farplane UI MVP.",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

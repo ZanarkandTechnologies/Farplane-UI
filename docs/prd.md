@@ -1,4 +1,4 @@
-# Product Requirements Document: Farplane AI
+# Product Requirements Document: Farplane UI
 
 **Status**: Draft  
 **Created**: 2026-02-21  
@@ -26,7 +26,7 @@ OpenClaw already solves agent runtime, routing, and plugin loading. The missing 
 
 ## Solution
 
-Build Farplane AI as a UI-first control center on top of OpenClaw:
+Build Farplane UI as a UI-first control center on top of OpenClaw:
 
 1. **State mapping layer**: map OpenClaw state directories and gateway APIs into UI view models.
 2. **Minimal office UX**: keep the office metaphor, but optimize it for a small number of meaningful surfaces instead of a crowded default company.
@@ -75,9 +75,9 @@ Single VPS, one shared OpenClaw instance, a small number of active teams:
 
 ## Phase 2 Expansion Focus
 
-After MVP baseline stabilizes, Farplane AI extends from "minimal founder-control office" to a broader autonomous company cockpit:
+After MVP baseline stabilizes, Farplane UI extends from "minimal founder-control office" to a broader autonomous company cockpit:
 
-- Keep operators in their preferred external tools (Notion/Vibe) while showing one unified mission view in Farplane AI.
+- Keep operators in their preferred external tools (Notion/Vibe) while showing one unified mission view in Farplane UI.
 - Treat ticket lifecycle and agent-session lifecycle as linked operational primitives.
 - Convert provider data structures into reusable context tools/skills for agent execution.
 - Expose heartbeat/cron autonomy loops with explicit operator intervention controls.
@@ -107,7 +107,7 @@ After MVP baseline stabilizes, Farplane AI extends from "minimal founder-control
 - Large connector marketplace beyond Notion in first slice
 - Replacing OpenClaw core session/routing internals
 - Building proposal-specific command flows or data models when shared board metadata plus markdown task memory is sufficient
-- Rebuilding full Notion/Vibe UX inside Farplane AI
+- Rebuilding full Notion/Vibe UX inside Farplane UI
 - Shipping a large default office full of prebuilt teams just to make the UI feel busy
 - Attempting fully automatic multi-master conflict resolution in first federation slice
 

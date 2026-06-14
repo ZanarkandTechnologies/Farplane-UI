@@ -9,6 +9,10 @@ export {
 export { createOfficeRuntimeAdapter } from "./factory";
 export { OpenClawRuntimeAdapter } from "./openclaw-runtime-adapter";
 export {
+  createReadOnlyOfficeRuntimeAdapter,
+  READONLY_MODE_ERROR,
+} from "./read-only-adapter";
+export {
   getRuntimeAdapterKind,
   resolveRuntimeAdapterKind,
   saveRuntimeAdapterKind,

@@ -9,6 +9,7 @@ import {
 describe("Farplane shell config", () => {
   it("uses office3d local defaults with registered modules", () => {
     expect(DEFAULT_FARPLANE_UI_CONFIG).toEqual({
+      accessMode: "operator",
       renderer: "office3d",
       persistence: "local",
       modules: getRegisteredModuleIds(),
@@ -18,11 +19,13 @@ describe("Farplane shell config", () => {
   it("keeps valid renderer, persistence, and registered module ids", () => {
     expect(
       normalizeFarplaneUiConfig({
+        accessMode: "public",
         renderer: "standard",
         persistence: "cloud",
         modules: ["runtime", "chat"],
       }),
     ).toEqual({
+      accessMode: "public",
       renderer: "standard",
       persistence: "cloud",
       modules: ["runtime", "chat"],
@@ -32,6 +35,7 @@ describe("Farplane shell config", () => {
   it("falls back when config contains unknown renderer, persistence, or modules", () => {
     expect(
       normalizeFarplaneUiConfig({
+        accessMode: "guest",
         renderer: "console",
         persistence: "jsonl",
         modules: ["console", "shop"],

@@ -55,6 +55,7 @@ import {
   type OfficeWorldSnapshot,
 } from "@/modules/office/store";
 import { useOfficeRuntimeAdapter, type OfficeRuntimeAdapter } from "@/modules/runtime";
+import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 
 const OfficeDataContext = createContext<OfficeDataContextValue | undefined>(undefined);
 
@@ -70,8 +71,51 @@ type OfficeDataActions = Pick<
   | "upsertProviderIndexProfile"
 >;
 
+type PlacementRepairPersistenceInput = {
+  adapter: Pick<OfficeRuntimeAdapter, "saveOfficeObjects" | "saveOfficeSettings">;
+  changed: boolean;
+  expandedLayout: boolean;
+  officeObjects: UnifiedOfficeModel["officeObjects"];
+  officeSettings: OfficeSettingsModel;
+  readOnly: boolean;
+};
+
+type PlacementRepairPersistenceResult =
+  | {
+      skipped: true;
+    }
+  | {
+      skipped: false;
+      objectsResult: Awaited<ReturnType<OfficeRuntimeAdapter["saveOfficeObjects"]>>;
+      settingsResult: Awaited<ReturnType<OfficeRuntimeAdapter["saveOfficeSettings"]>>;
+    };
+
 function isCodexAgentId(agentId: string): boolean {
   return agentId === "codex-main" || agentId.startsWith("codex-thread:");
+}
+
+export async function persistPlacementRepairIfAllowed(
+  input: PlacementRepairPersistenceInput,
+): Promise<PlacementRepairPersistenceResult> {
+  if (!input.changed || input.readOnly) {
+    return { skipped: true };
+  }
+
+  const [objectsResult, settingsResult] = await Promise.all([
+    input.adapter.saveOfficeObjects(input.officeObjects),
+    !input.expandedLayout
+      ? Promise.resolve<Awaited<ReturnType<OfficeRuntimeAdapter["saveOfficeSettings"]>>>({
+          ok: true,
+          settings: input.officeSettings,
+        })
+      : input.adapter.saveOfficeSettings(input.officeSettings),
+  ]);
+
+  return {
+    skipped: false,
+    objectsResult,
+    settingsResult,
+  };
 }
 
 export function mergeAgentLiveStatuses(input: {
@@ -144,6 +188,7 @@ function applyOfficeWorldSnapshot(
 
 export function OfficeDataProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const sharedAdapter = useOfficeRuntimeAdapter();
+  const { isReadOnly } = useOfficeAccessMode();
   const worldContextData = useOfficeWorldStore(useShallow(selectOfficeWorldContextData));
   const [actions, setActions] = useState<OfficeDataActions>(() => {
     const fallback = fallbackData();
@@ -257,24 +302,33 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
           });
           const repairedUnified = placementRepair.unified;
           const repairedOfficeSettings = placementRepair.officeSettings;
-          if (placementRepair.changed) {
+          const placementRepairPersistence = await persistPlacementRepairIfAllowed({
+            adapter,
+            changed: placementRepair.changed,
+            expandedLayout: placementRepair.expandedLayout,
+            officeObjects: repairedUnified.officeObjects,
+            officeSettings: repairedOfficeSettings,
+            readOnly: isReadOnly,
+          });
+          if (!placementRepairPersistence.skipped) {
             logOfficeRefresh("placement-repair", {
               reason,
               expandedLayout: placementRepair.expandedLayout,
               repairedTeamIds: placementRepair.repairedTeamIds,
             });
-            const [objectsResult, settingsResult] = await Promise.all([
-              adapter.saveOfficeObjects(repairedUnified.officeObjects),
-              !placementRepair.expandedLayout
-                ? Promise.resolve({ ok: true, settings: repairedOfficeSettings })
-                : adapter.saveOfficeSettings(repairedOfficeSettings),
-            ]);
+            const { objectsResult, settingsResult } = placementRepairPersistence;
             if (!objectsResult.ok || !settingsResult.ok) {
               logOfficeRefresh("placement-repair-persist-error", {
                 objectsError: objectsResult.ok ? undefined : objectsResult.error,
                 settingsError: settingsResult.ok ? undefined : settingsResult.error,
               });
             }
+          } else if (placementRepair.changed) {
+            logOfficeRefresh("placement-repair-skip-readonly", {
+              reason,
+              expandedLayout: placementRepair.expandedLayout,
+              repairedTeamIds: placementRepair.repairedTeamIds,
+            });
           }
 
           latestUnifiedRef.current = repairedUnified;
@@ -390,7 +444,7 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
         }
       }
     },
-    [],
+    [isReadOnly],
   );
 
   useEffect(() => {

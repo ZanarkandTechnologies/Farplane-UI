@@ -67,6 +67,55 @@ This file defines project-specific technical rules, stack details, and execution
 - Shared utilities: prefer module-local helpers, domain-scoped `ui/src/lib`,
   or existing shared helpers before adding new helpers inside large components
 
+## Source File Standards
+
+- Add a concise top-of-file orientation comment to new non-obvious logic files:
+  module entrypoints, runtime adapters, providers, systems, stores, Convex
+  functions, scripts, and files whose responsibility is not obvious from the
+  filename alone.
+- Header comments should state ownership, inputs/outputs, side effects, and
+  important invariants. Avoid boilerplate comments on tiny presentational
+  components or files whose purpose is obvious.
+- Complex logic inside functions should get short orienting comments before
+  the branch/block. Do not narrate line-by-line mechanics.
+- New source files over 500 raw lines need an explicit ticket note or a split
+  plan. Existing large files may be touched narrowly, but do not add unrelated
+  responsibility to them.
+- When a file grows custom behavior, state, or variants, extract the owning
+  feature/module instead of growing an oversized file.
+
+## Shared Utilities
+
+- Preferred shared utility location: domain-scoped `ui/src/lib/<domain>/` for
+  UI cross-module contracts; module-local `lib/` for one-module helpers; CLI
+  and extension helpers stay in their owning workspace unless reused.
+- Extract when logic is reused across modules, would otherwise be copied, or is
+  making feature files too large.
+- Keep local when a helper is private to one module, coupled to one feature, or
+  has only one caller.
+- Do not add catch-all `utils.ts` files for domain behavior.
+
+## Frontend UI Standards
+
+- Persistent explanatory text in app chrome should become labels, tooltips,
+  empty states, or progressive disclosure unless it is primary user content.
+- UI-bearing tickets should capture browser evidence and check against
+  `docs/TASTE.md` when visual layout, density, or interaction quality changes.
+- For standard app surfaces, prefer existing shadcn-style primitives and shared
+  Tailwind theme tokens. For office surfaces, preserve the 3D office visual
+  language and run browser QA for scene/HUD regressions.
+
+## Review Policy
+
+- Canonical material review uses the Farplane reviewer lane plus the TAS
+  `review` skill for ticket completion, evidence bundles, prompts, skills,
+  evals, or risky architecture changes.
+- Local pre-push review uses `npm run review:prepush` through
+  `scripts/pre_push_check.sh` as an advisory second pair of eyes by default.
+- Use `FARPLANE_SKIP_AGENT_REVIEW=1` to skip local diff review and
+  `STRICT_AGENT_REVIEW=1` to make it blocking.
+- Review artifacts live under `.farplane/reviews/` and must not be committed.
+
 ## Runtime / QA Commands
 
 - Authoritative app-only run path: `npm run ui`

@@ -6,6 +6,10 @@ export type RuntimeAdapterCapabilities = {
   persistentAgents: boolean;
   agentConfigWrite: boolean;
   agentWorkspaceFiles: boolean;
+  employeeSkillEquip: boolean;
+  globalSkillBrowser: boolean;
+  skillEvalRuns: boolean;
+  harnessGraph: boolean;
   agentSkillRuntimeControls: boolean;
   toolPolicy: boolean;
   channels: boolean;

@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  OFFICE_COMMAND_PALETTE_SHORTCUT,
   createOfficePanelActions,
   eventMatchesShortcut,
   isEditableEventTarget,
+  OFFICE_COMMAND_PALETTE_SHORTCUT,
 } from "./office-panel-registry";
 
 describe("office panel registry", () => {
@@ -50,7 +50,10 @@ describe("office panel registry", () => {
 
   it("routes review and workspace actions through the provided handlers", () => {
     const openCeoWorkbench = vi.fn();
+    const openEvals = vi.fn();
+    const openHarness = vi.fn();
     const openGlobalTeamWorkspace = vi.fn();
+    const openSkillOs = vi.fn();
     const toggleBuilderMode = vi.fn();
 
     const actions = createOfficePanelActions({
@@ -58,25 +61,70 @@ describe("office panel registry", () => {
       isAnimatingCamera: false,
       isBuilderMode: false,
       navigateToLanding: vi.fn(),
-      openAgentSession: vi.fn(),
-      openCeoChat: vi.fn(),
       openCeoWorkbench,
       openDecoration: vi.fn(),
-      openGlobalSkills: vi.fn(),
+      openEvals,
+      openHarness,
       openGlobalTeamWorkspace,
       openOrganization: vi.fn(),
       openSettings: vi.fn(),
+      openSkillOs,
       openTelemetry: vi.fn(),
       toggleBuilderMode,
       userTaskCount: 3,
     });
 
     actions.find((action) => action.id === "team-workspace")?.perform();
+    actions.find((action) => action.id === "skill-os")?.perform();
+    actions.find((action) => action.id === "evals")?.perform();
+    actions.find((action) => action.id === "harness")?.perform();
     actions.find((action) => action.id === "human-review")?.perform();
     actions.find((action) => action.id === "builder-mode")?.perform();
 
     expect(openGlobalTeamWorkspace).toHaveBeenCalledTimes(1);
+    expect(openSkillOs).toHaveBeenCalledTimes(1);
+    expect(openEvals).toHaveBeenCalledTimes(1);
+    expect(openHarness).toHaveBeenCalledTimes(1);
     expect(openCeoWorkbench).toHaveBeenCalledWith("review");
     expect(toggleBuilderMode).toHaveBeenCalledTimes(1);
+  });
+
+  it("suppresses mutating office actions in read-only mode", () => {
+    const openGlobalTeamWorkspace = vi.fn();
+    const openSettings = vi.fn();
+    const openDecoration = vi.fn();
+    const toggleBuilderMode = vi.fn();
+
+    const actions = createOfficePanelActions({
+      accessPolicy: "read-only",
+      highlightedMenuActionId: null,
+      isAnimatingCamera: false,
+      isBuilderMode: false,
+      navigateToLanding: vi.fn(),
+      openCeoWorkbench: vi.fn(),
+      openDecoration,
+      openEvals: vi.fn(),
+      openHarness: vi.fn(),
+      openGlobalTeamWorkspace,
+      openOrganization: vi.fn(),
+      openSettings,
+      openSkillOs: vi.fn(),
+      openTelemetry: vi.fn(),
+      toggleBuilderMode,
+      userTaskCount: 3,
+    });
+
+    for (const id of ["team-workspace", "human-review", "builder-mode", "office-shop", "settings"]) {
+      const action = actions.find((candidate) => candidate.id === id);
+      expect(action?.disabled).toBe(true);
+      expect(action?.showInMenu).toBe(false);
+      expect(action?.showInPalette).toBe(false);
+      action?.perform();
+    }
+
+    expect(openGlobalTeamWorkspace).not.toHaveBeenCalled();
+    expect(openSettings).not.toHaveBeenCalled();
+    expect(openDecoration).not.toHaveBeenCalled();
+    expect(toggleBuilderMode).not.toHaveBeenCalled();
   });
 });

@@ -36,6 +36,7 @@ type Props = {
   filteredGlobalSkillRows: GlobalSkillRow[];
   isSavingGlobalConfig: boolean;
   isMutatingWorkspace: boolean;
+  readOnly: boolean;
   isAgentSkillEquipped: (skillId: string) => boolean;
   onRefresh: () => void;
   onSelectSkill: (skillId: string) => void;
@@ -65,6 +66,12 @@ function SectionHeader({
 }
 
 function describeGlobalSkillRow(row: GlobalSkillRow): string {
+  if (row.catalogSourcePath?.includes(".codex/skills")) {
+    return "Codex skill package available from the project or global Codex skill path.";
+  }
+  if (row.catalogSourcePath?.startsWith("skills/") || row.catalogSourcePath?.includes("/skills/")) {
+    return "Repo-local Farplane skill package available for inspection.";
+  }
   if (row.hasSharedInstall) {
     if (row.envCount > 0 || row.configCount > 0) {
       return `Shared runtime skill with ${row.envCount} env value${row.envCount === 1 ? "" : "s"} and ${row.configCount} config field${row.configCount === 1 ? "" : "s"}.`;
@@ -75,6 +82,14 @@ function describeGlobalSkillRow(row: GlobalSkillRow): string {
     return `Config-only global entry with ${row.envCount} env value${row.envCount === 1 ? "" : "s"} and ${row.configCount} config field${row.configCount === 1 ? "" : "s"}.`;
   }
   return "Global skill entry available for instance-level enable and disable.";
+}
+
+function getGlobalSkillSourceLabel(row: GlobalSkillRow): string {
+  if (row.catalogSourcePath?.includes(".codex/skills")) return "codex";
+  if (row.catalogSourcePath?.startsWith("skills/")) return "repo";
+  if (row.hasSharedInstall) return "shared";
+  if (row.envCount > 0 || row.configCount > 0) return "config";
+  return "catalog";
 }
 
 function describeWorkspaceSkill(sourcePath: string): string {
@@ -93,6 +108,7 @@ export function SkillsPanelSidebar({
   filteredGlobalSkillRows,
   isSavingGlobalConfig,
   isMutatingWorkspace,
+  readOnly,
   isAgentSkillEquipped,
   onRefresh,
   onSelectSkill,
@@ -103,6 +119,7 @@ export function SkillsPanelSidebar({
   const [openAgentOwned, setOpenAgentOwned] = useState(true);
   const [openGlobal, setOpenGlobal] = useState(true);
   const [openBundled, setOpenBundled] = useState(false);
+  const [openCodexCatalog, setOpenCodexCatalog] = useState(true);
   const globalInheritedSkills = useMemo(
     () =>
       groupedInheritedRuntimeSkills
@@ -135,8 +152,7 @@ export function SkillsPanelSidebar({
       </div>
 
       <ScrollArea className="mt-4 min-h-0 min-w-0 flex-1 overflow-x-hidden [&>[data-slot=scroll-area-viewport]]:pr-3">
-        <>
-          {focusAgentId ? (
+        {focusAgentId ? (
             <>
               <Collapsible
                 open={openAgentOwned}
@@ -171,15 +187,17 @@ export function SkillsPanelSidebar({
                         </button>
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
                           <Badge variant="secondary">workspace</Badge>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="max-w-full"
-                            disabled={isMutatingWorkspace}
-                            onClick={() => onToggleWorkspaceSkill(entry.skillId, false)}
-                          >
-                            Disable
-                          </Button>
+                          {!readOnly ? (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="max-w-full"
+                              disabled={isMutatingWorkspace}
+                              onClick={() => onToggleWorkspaceSkill(entry.skillId, false)}
+                            >
+                              Disable
+                            </Button>
+                          ) : null}
                         </div>
                       </div>
                       <p className="mt-2 min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-muted-foreground">
@@ -229,15 +247,17 @@ export function SkillsPanelSidebar({
                               ? "Enabled for this agent"
                               : "Disabled for this agent"}
                           </span>
-                          <Button
-                            size="sm"
-                            variant={equippedForAgent ? "destructive" : "default"}
-                            className="max-w-full"
-                            disabled={isSavingGlobalConfig}
-                            onClick={() => onToggleAgentSkill(skillId)}
-                          >
-                            {equippedForAgent ? "Disable" : "Enable"}
-                          </Button>
+                          {!readOnly ? (
+                            <Button
+                              size="sm"
+                              variant={equippedForAgent ? "destructive" : "default"}
+                              className="max-w-full"
+                              disabled={isSavingGlobalConfig}
+                              onClick={() => onToggleAgentSkill(skillId)}
+                            >
+                              {equippedForAgent ? "Disable" : "Enable"}
+                            </Button>
+                          ) : null}
                         </div>
                       </div>
                     );
@@ -292,15 +312,17 @@ export function SkillsPanelSidebar({
                               ? "Enabled for this agent"
                               : "Disabled for this agent"}
                           </span>
-                          <Button
-                            size="sm"
-                            variant={equippedForAgent ? "destructive" : "default"}
-                            className="max-w-full"
-                            disabled={isSavingGlobalConfig}
-                            onClick={() => onToggleAgentSkill(skillId)}
-                          >
-                            {equippedForAgent ? "Disable" : "Enable"}
-                          </Button>
+                          {!readOnly ? (
+                            <Button
+                              size="sm"
+                              variant={equippedForAgent ? "destructive" : "default"}
+                              className="max-w-full"
+                              disabled={isSavingGlobalConfig}
+                              onClick={() => onToggleAgentSkill(skillId)}
+                            >
+                              {equippedForAgent ? "Disable" : "Enable"}
+                            </Button>
+                          ) : null}
                         </div>
                       </div>
                     );
@@ -312,9 +334,54 @@ export function SkillsPanelSidebar({
                   ) : null}
                 </CollapsibleContent>
               </Collapsible>
+
+              <Collapsible
+                open={openCodexCatalog}
+                onOpenChange={setOpenCodexCatalog}
+                className="w-full py-2"
+              >
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="block w-full rounded-md border px-2 py-2 text-left hover:bg-muted/30"
+                  >
+                    <SectionHeader
+                      title="Codex Catalog"
+                      count={filteredGlobalSkillRows.length}
+                      open={openCodexCatalog}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="min-w-0 w-full space-y-2 pt-2">
+                  {filteredGlobalSkillRows.map((row) => (
+                    <div
+                      key={`codex-catalog-sidebar-${row.skillKey}`}
+                      className={`min-w-0 w-full max-w-full overflow-hidden rounded-md border px-3 py-3 text-left transition ${selectedSkillId === row.skillKey ? "border-primary bg-primary/5" : "hover:bg-muted/40"}`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => onSelectSkill(row.skillKey)}
+                        className="min-w-0 w-full text-left"
+                      >
+                        <div className="flex min-w-0 items-center justify-between gap-2">
+                          <p className="min-w-0 truncate text-sm font-medium">{row.skillKey}</p>
+                          <Badge variant="outline">{getGlobalSkillSourceLabel(row)}</Badge>
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                          {describeGlobalSkillRow(row)}
+                        </p>
+                      </button>
+                    </div>
+                  ))}
+                  {filteredGlobalSkillRows.length === 0 ? (
+                    <p className="px-1 text-xs text-muted-foreground">
+                      No Codex skills match the current search.
+                    </p>
+                  ) : null}
+                </CollapsibleContent>
+              </Collapsible>
             </>
           ) : (
-            <>
               <div className="w-full space-y-2 py-2">
               {filteredGlobalSkillRows.map((row) => {
                 return (
@@ -327,21 +394,27 @@ export function SkillsPanelSidebar({
                       onClick={() => onSelectSkill(row.skillKey)}
                       className="block min-w-0 w-full text-left"
                     >
-                      <p className="min-w-0 truncate text-sm font-medium">{row.skillKey}</p>
+                      <div className="flex min-w-0 items-center justify-between gap-2">
+                        <p className="min-w-0 truncate text-sm font-medium">{row.skillKey}</p>
+                        <Badge variant="outline">{getGlobalSkillSourceLabel(row)}</Badge>
+                      </div>
                       <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                         {describeGlobalSkillRow(row)}
                       </p>
                     </button>
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        size="sm"
-                        variant={row.enabled === false ? "default" : "destructive"}
-                        disabled={isSavingGlobalConfig}
-                        onClick={() => onToggleGlobalSkill(row.skillKey, row.enabled === false)}
-                      >
-                        {row.enabled === false ? "Enable" : "Disable"}
-                      </Button>
-                    </div>
+                    {!readOnly &&
+                    (row.envCount > 0 || row.configCount > 0 || row.hasSharedInstall) ? (
+                      <div className="mt-3 flex justify-end">
+                        <Button
+                          size="sm"
+                          variant={row.enabled === false ? "default" : "destructive"}
+                          disabled={isSavingGlobalConfig}
+                          onClick={() => onToggleGlobalSkill(row.skillKey, row.enabled === false)}
+                        >
+                          {row.enabled === false ? "Enable" : "Disable"}
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
@@ -351,9 +424,7 @@ export function SkillsPanelSidebar({
                 </p>
               ) : null}
               </div>
-            </>
           )}
-        </>
       </ScrollArea>
     </>
   );

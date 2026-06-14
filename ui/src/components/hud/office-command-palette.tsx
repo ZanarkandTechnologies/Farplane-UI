@@ -83,6 +83,7 @@ export function OfficeCommandPalette({
                       key={action.id}
                       disabled={action.disabled}
                       onSelect={() => {
+                        if (action.disabled) return;
                         action.perform();
                         onOpenChange(false);
                       }}

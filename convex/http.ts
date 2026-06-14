@@ -18,10 +18,10 @@
  * - MEM-0216
  */
 import { httpRouter } from "convex/server";
-import { httpAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
-import { parseIngestPayload, parseStatusReportPayload } from "./status_http_contract";
+import { httpAction } from "./_generated/server";
 import { parseBoardCommandPayload, parseBoardQueryPayload } from "./board_http_contract";
+import { parseIngestPayload, parseStatusReportPayload } from "./status_http_contract";
 
 const http = httpRouter();
 
@@ -45,7 +45,9 @@ function hasTelemetryToken(request: Request): boolean {
   if (!expected) return true;
   const headerToken = request.headers.get("x-farplane-telemetry-token")?.trim();
   const auth = request.headers.get("authorization")?.trim();
-  const bearer = auth?.toLowerCase().startsWith("bearer ") ? auth.slice("bearer ".length).trim() : "";
+  const bearer = auth?.toLowerCase().startsWith("bearer ")
+    ? auth.slice("bearer ".length).trim()
+    : "";
   return Boolean((headerToken && headerToken === expected) || (bearer && bearer === expected));
 }
 
@@ -53,28 +55,28 @@ function cleanString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function parseActivityPingPayload(body: unknown):
-  | {
-      eventType: "heartbeat" | "turn_start" | "turn_end";
-      source: string;
-      activeAgentCount: number;
-      prompt?: string;
-      agentName?: string;
-      workflowName?: string;
-      machineName?: string;
-      projectName?: string;
-      projectDirectory?: string;
-      projectId?: string;
-      teamId?: string;
-      sessionId?: string;
-      turnId?: string;
-      receivedAt?: number;
-    }
-  | null {
+function parseActivityPingPayload(body: unknown): {
+  eventType: "heartbeat" | "turn_start" | "turn_end";
+  source: string;
+  activeAgentCount: number;
+  prompt?: string;
+  agentName?: string;
+  workflowName?: string;
+  machineName?: string;
+  projectName?: string;
+  projectDirectory?: string;
+  projectId?: string;
+  teamId?: string;
+  sessionId?: string;
+  turnId?: string;
+  receivedAt?: number;
+  importKey?: string;
+} | null {
   if (!body || typeof body !== "object") return null;
   const row = body as Record<string, unknown>;
   const eventType = cleanString(row.eventType);
-  if (eventType !== "heartbeat" && eventType !== "turn_start" && eventType !== "turn_end") return null;
+  if (eventType !== "heartbeat" && eventType !== "turn_start" && eventType !== "turn_end")
+    return null;
   const activeAgentCount = typeof row.activeAgentCount === "number" ? row.activeAgentCount : 1;
   return {
     eventType,
@@ -91,6 +93,7 @@ function parseActivityPingPayload(body: unknown):
     sessionId: cleanString(row.sessionId),
     turnId: cleanString(row.turnId),
     receivedAt: typeof row.receivedAt === "number" ? row.receivedAt : undefined,
+    importKey: cleanString(row.importKey),
   };
 }
 
@@ -141,8 +144,48 @@ http.route({
       return new Response(JSON.stringify({ ok: false, error: "invalid_payload" }), { status: 400 });
     }
 
-    const id = await ctx.runMutation(internal.modules.runtimeTelemetry.telemetry.ingestActivityPing, parsed);
+    const id = await ctx.runMutation(
+      internal.modules.runtimeTelemetry.telemetry.ingestActivityPing,
+      parsed,
+    );
     return new Response(JSON.stringify({ ok: true, id }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }),
+});
+
+http.route({
+  path: "/telemetry/activity/batch",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    if (!hasTelemetryToken(request)) {
+      return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 });
+    }
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(JSON.stringify({ ok: false, error: "invalid_json" }), { status: 400 });
+    }
+
+    if (!body || typeof body !== "object" || !Array.isArray((body as { pings?: unknown }).pings)) {
+      return new Response(JSON.stringify({ ok: false, error: "invalid_payload" }), { status: 400 });
+    }
+
+    const pings = (body as { pings: unknown[] }).pings.slice(0, 500).map(parseActivityPingPayload);
+    if (pings.some((ping) => ping === null)) {
+      return new Response(JSON.stringify({ ok: false, error: "invalid_payload" }), { status: 400 });
+    }
+
+    const ids = await ctx.runMutation(
+      internal.modules.runtimeTelemetry.telemetry.ingestActivityPings,
+      {
+        pings: pings.filter((ping): ping is NonNullable<typeof ping> => ping !== null),
+      },
+    );
+    return new Response(JSON.stringify({ ok: true, count: ids.length, ids }), {
       status: 200,
       headers: { "content-type": "application/json" },
     });

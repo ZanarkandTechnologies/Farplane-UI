@@ -2,7 +2,14 @@
 
 ## Todo
 
-None.
+- `TKT-014` - Skill standards registry and rollouts (`tickets/todo/TKT-014-skill-standards-registry-rollouts.md`)
+- `TKT-015` - Eval Lab and QA checklist surfaces (`tickets/todo/TKT-015-eval-lab-qa-checklists.md`)
+- `TKT-016` - Learning inbox and memory renderer (`tickets/todo/TKT-016-learning-inbox-memory-renderer.md`)
+- `TKT-017` - Automations dashboard (`tickets/todo/TKT-017-automations-dashboard.md`)
+- `TKT-018` - Mighty Guard harness map (`tickets/todo/TKT-018-mighty-guard-harness-map.md`)
+- `TKT-019` - Hardcase data inventory (`tickets/todo/TKT-019-hardcase-data-inventory.md`)
+- `TKT-020` - Team goal portfolio and org rollup (`tickets/todo/TKT-020-goals-portfolio-org-sync.md`)
+- `TKT-021` - Docs and Farplane testament renderer (`tickets/todo/TKT-021-docs-bookshelf-testament-renderer.md`)
 
 ## Review
 
@@ -17,6 +24,11 @@ None.
 - `TKT-007` - Renderer shell and module architecture (`tickets/building/TKT-007-renderer-shell-module-architecture/ticket.md`)
 - `TKT-010` - Runtime telemetry dashboard and team-scoped agent hours (`tickets/building/TKT-010-runtime-telemetry-dashboard/ticket.md`)
 - `TKT-011` - Modularize Convex office runtime domains (`tickets/building/TKT-011-modularize-convex-office-runtime/ticket.md`)
+- `TKT-012` - Telemetry auth stance and Aikage import (`tickets/building/TKT-012-telemetry-auth-and-aikage-import/ticket.md`)
+- `TKT-013` - Telemetry dashboard and raw event views (`tickets/building/TKT-013-telemetry-dashboard/ticket.md`)
+- `TKT-022` - Operator intelligence UI batch goal (`tickets/building/TKT-022-operator-intelligence-ui-batch-goal/ticket.md`)
+- `TKT-023` - Skill OS, Evals, and Harness entrypoint redesign (`tickets/building/TKT-023-skill-os-evals-harness-redesign/ticket.md`)
+- `TKT-024` - Public read-only office view for livestreaming (`tickets/building/TKT-024-public-office-view-goal/ticket.md`)
 
 ## Done
 

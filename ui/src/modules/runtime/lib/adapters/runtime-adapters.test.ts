@@ -5,7 +5,9 @@ import {
   CodexAppServerClient,
   CodexRuntimeAdapter,
   createOfficeRuntimeAdapter,
+  createReadOnlyOfficeRuntimeAdapter,
   OpenClawRuntimeAdapter,
+  READONLY_MODE_ERROR,
   resolveRuntimeAdapterKind,
   toCodexAgentCards,
   toCodexCompanyModel,
@@ -66,6 +68,61 @@ describe("runtime adapters", () => {
     expect(openclaw.runtimeKind).toBe("openclaw");
     expect(openclaw.capabilities.persistentAgents).toBe(true);
     expect(openclaw.capabilities.agentConfigWrite).toBe(true);
+  });
+
+  it("blocks write methods in a read-only adapter without calling through", async () => {
+    const adapter = createOfficeRuntimeAdapter({ kind: "codex", stateUrl: "http://state" });
+    const saveOfficeObjects = vi.spyOn(adapter, "saveOfficeObjects");
+    const saveOfficeSettings = vi.spyOn(adapter, "saveOfficeSettings");
+    const sendMessage = vi.spyOn(adapter, "sendMessage");
+    const upsertOfficeObject = vi.spyOn(adapter, "upsertOfficeObject");
+    const readOnly = createReadOnlyOfficeRuntimeAdapter(adapter, true);
+
+    await expect(
+      readOnly.saveOfficeObjects([
+        {
+          id: "plant-1",
+          identifier: "plant-1",
+          meshType: "plant",
+          position: [0, 0, 0],
+        },
+      ]),
+    ).resolves.toEqual({
+      ok: false,
+      error: READONLY_MODE_ERROR,
+      objects: [
+        {
+          id: "plant-1",
+          identifier: "plant-1",
+          meshType: "plant",
+          position: [0, 0, 0],
+        },
+      ],
+    });
+    await expect(readOnly.saveOfficeSettings(await adapter.getOfficeSettings())).resolves.toEqual(
+      expect.objectContaining({ ok: false, error: READONLY_MODE_ERROR }),
+    );
+    await expect(
+      readOnly.sendMessage({ agentId: "main", sessionKey: "session", message: "hello" }),
+    ).resolves.toEqual({ ok: false, error: READONLY_MODE_ERROR });
+    await expect(
+      readOnly.upsertOfficeObject(
+        {
+          id: "plant-2",
+          identifier: "plant-2",
+          meshType: "plant",
+          position: [1, 0, 1],
+        },
+        { currentObjects: [] },
+      ),
+    ).resolves.toEqual({ ok: false, error: READONLY_MODE_ERROR, objects: [] });
+
+    expect(readOnly.capabilities.promptSend).toBe(false);
+    expect(readOnly.capabilities.teamAgentProvisioning).toBe(false);
+    expect(saveOfficeObjects).not.toHaveBeenCalled();
+    expect(saveOfficeSettings).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(upsertOfficeObject).not.toHaveBeenCalled();
   });
 
   it("shuffles office objects through the state bridge", async () => {

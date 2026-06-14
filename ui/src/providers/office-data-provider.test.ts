@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { EmployeeData, OfficeObject } from "@/modules/office/lib/types";
 import {
-  isObjectFootprintInsideLayout,
-  objectFootprintsCollide,
-} from "@/modules/office/systems/occupancy-system";
+  canReserveOfficeObject,
+  createOfficePlacementReservation,
+} from "@/modules/office/systems/placement-engine";
 import type {
   AgentCardModel,
   AgentLiveStatus,
@@ -994,7 +994,7 @@ describe("office-data-provider team synthesis", () => {
       resources: [],
       resourceEvents: [],
     };
-    const agentRoles = ["pm", "builder", "builder", "builder", "qa", "reviewer"] as const;
+    const agentRoles = ["pm", "builder", "builder", "builder", "biz_pm", "biz_executor"] as const;
     const company = createCompanyModel({
       projects: [
         {
@@ -1076,33 +1076,31 @@ describe("office-data-provider team synthesis", () => {
     expect(repaired.repairedTeamIds).toEqual(
       expect.arrayContaining(["team-proj-farplane", "team-proj-farplane-ui"]),
     );
+    const [leftCluster, rightCluster] = repairedClusters.map((cluster) => ({
+      meshType: cluster.meshType,
+      position: cluster.position,
+      metadata: cluster.metadata,
+      rotation: cluster.rotation,
+    }));
     expect(
-      objectFootprintsCollide(
-        {
-          meshType: repairedClusters[0].meshType,
-          position: repairedClusters[0].position,
-          metadata: repairedClusters[0].metadata,
-          rotation: repairedClusters[0].rotation,
-        },
-        {
-          meshType: repairedClusters[1].meshType,
-          position: repairedClusters[1].position,
-          metadata: repairedClusters[1].metadata,
-          rotation: repairedClusters[1].rotation,
-        },
-      ),
-    ).toBe(false);
+      canReserveOfficeObject({
+        object: leftCluster,
+        layout: repaired.officeSettings.officeLayout,
+        reservation: createOfficePlacementReservation([rightCluster]),
+      }),
+    ).toBe(true);
     expect(
       repairedClusters.every((cluster) =>
-        isObjectFootprintInsideLayout(
-          {
+        canReserveOfficeObject({
+          object: {
             meshType: cluster.meshType,
             position: cluster.position,
             metadata: cluster.metadata,
             rotation: cluster.rotation,
           },
-          repaired.officeSettings.officeLayout,
-        ),
+          layout: repaired.officeSettings.officeLayout,
+          reservation: createOfficePlacementReservation(),
+        }),
       ),
     ).toBe(true);
   });

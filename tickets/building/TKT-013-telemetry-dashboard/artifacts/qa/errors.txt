@@ -1,0 +1,11 @@
+Error: Error creating WebGL context.
+    at new WebGLRenderer (http://127.0.0.1:5173/node_modules/.vite/deps/chunk-CGFQWFPX.js?v=7cf089ab:41561:19)
+    at Object.configure (http://127.0.0.1:5173/node_modules/.vite/deps/chunk-Q64Y5QML.js?v=7cf089ab:9508:16)
+    at run2 (http://127.0.0.1:5173/node_modules/.vite/deps/chunk-Q64Y5QML.js?v=7cf089ab:10104:28)
+    at http://127.0.0.1:5173/node_modules/.vite/deps/chunk-Q64Y5QML.js?v=7cf089ab:10148:7
+    at Object.react_stack_bottom_frame (http://127.0.0.1:5173/node_modules/.vite/deps/chunk-MVKZO6EV.js?v=7cf089ab:18299:20)
+    at runWithFiberInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/chunk-MVKZO6EV.js?v=7cf089ab:729:72)
+    at commitHookEffectListMount (http://127.0.0.1:5173/node_modules/.vite/deps/chunk-MVKZO6EV.js?v=7cf089ab:9143:163)
+    at commitHookLayoutEffects (http://127.0.0.1:5173/node_modules/.vite/deps/chunk-MVKZO6EV.js?v=7cf089ab:9123:60)
+    at commitLayoutEffectOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/chunk-MVKZO6EV.js?v=7cf089ab:9636:26)
+    at recursivelyTraverseLayoutEffects (http://127.0.0.1:5173/node_modules/.vite/deps/chunk-MVKZO6EV.js?v=7cf089ab:10524:13)

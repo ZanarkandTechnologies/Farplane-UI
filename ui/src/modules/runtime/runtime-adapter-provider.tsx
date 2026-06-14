@@ -3,10 +3,12 @@
 import { createContext, type ReactElement, type ReactNode, useContext, useMemo } from "react";
 import {
   createOfficeRuntimeAdapter,
+  createReadOnlyOfficeRuntimeAdapter,
   getRuntimeAdapterKind,
   type OfficeRuntimeAdapter,
 } from "./lib/adapters";
 import { useGateway } from "@/providers/gateway-provider";
+import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 
 type RuntimeAdapterContextValue = {
   adapter: OfficeRuntimeAdapter;
@@ -32,8 +34,13 @@ export function RuntimeAdapterProvider({ children }: { children: ReactNode }): R
 
 export function useOfficeRuntimeAdapter(): OfficeRuntimeAdapter {
   const context = useContext(RuntimeAdapterContext);
-  if (!context) {
+  const { isReadOnly } = useOfficeAccessMode();
+  const adapter = useMemo(
+    () => (context ? createReadOnlyOfficeRuntimeAdapter(context.adapter, isReadOnly) : null),
+    [context, isReadOnly],
+  );
+  if (!adapter) {
     throw new Error("useOfficeRuntimeAdapter must be used within RuntimeAdapterProvider");
   }
-  return context.adapter;
+  return adapter;
 }

@@ -2,7 +2,7 @@
 
 ## Scope
 
-Define ticket lifecycle semantics in Farplane AI where one active ticket maps to one active agent session until explicit closure.
+Define ticket lifecycle semantics in Farplane UI where one active ticket maps to one active agent session until explicit closure.
 
 ## Canonical References
 

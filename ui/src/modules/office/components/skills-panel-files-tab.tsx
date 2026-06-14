@@ -9,10 +9,12 @@
  */
 
 import type { ReactElement } from "react";
+import { Response } from "@/components/ai-elements/response";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import type { SkillStudioFileContent } from "@/modules/runtime";
 import type { SkillsPanelFileState, SkillsPanelSelectionState } from "./skills-panel-types";
 
 type Props = {
@@ -22,6 +24,53 @@ type Props = {
   onChangeFileDraft: (value: string) => void;
   onSaveFile: () => void;
 };
+
+function filePreviewKind(file: SkillStudioFileContent): "markdown" | "json" | "text" {
+  const path = file.path.toLowerCase();
+  if (path.endsWith(".md") || path.endsWith(".mdx")) return "markdown";
+  if (path.endsWith(".json") || path.endsWith(".jsonl")) return "json";
+  return "text";
+}
+
+function formatJsonPreview(content: string): string {
+  try {
+    return JSON.stringify(JSON.parse(content), null, 2);
+  } catch {
+    return content;
+  }
+}
+
+function SkillFilePreview({
+  file,
+  content,
+}: {
+  file: SkillStudioFileContent;
+  content: string;
+}): ReactElement {
+  const kind = filePreviewKind(file);
+  return (
+    <div className="rounded-md border bg-muted/10">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{file.path}</p>
+          <p className="text-xs text-muted-foreground">Skill special-file preview</p>
+        </div>
+        <Badge variant="secondary">{kind}</Badge>
+      </div>
+      <ScrollArea className="max-h-[30rem]">
+        <div className="p-4">
+          {kind === "markdown" ? (
+            <Response className="prose prose-invert max-w-none text-sm">{content}</Response>
+          ) : (
+            <pre className="whitespace-pre-wrap break-words text-xs leading-6">
+              {kind === "json" ? formatJsonPreview(content) : content}
+            </pre>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
 
 export function SkillsPanelFilesTab({
   selection,
@@ -73,9 +122,7 @@ export function SkillsPanelFilesTab({
               <p className="text-xs text-muted-foreground">
                 This file is read-only from the viewer.
               </p>
-              <pre className="whitespace-pre-wrap break-words text-xs leading-6">
-                {selectedFile.content}
-              </pre>
+              <SkillFilePreview file={selectedFile} content={selectedFile.content ?? ""} />
             </div>
           ) : (
             <div className="space-y-3">
@@ -87,6 +134,7 @@ export function SkillsPanelFilesTab({
                   <span className="text-xs text-muted-foreground">{fileSaveStatus}</span>
                 ) : null}
               </div>
+              <SkillFilePreview file={selectedFile} content={fileDraft} />
               <Textarea
                 className="min-h-[32rem] font-mono text-xs"
                 value={fileDraft}
