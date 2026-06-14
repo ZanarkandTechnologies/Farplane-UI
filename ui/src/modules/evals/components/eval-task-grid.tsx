@@ -88,53 +88,62 @@ export function EvalTaskGrid({
         </div>
       </div>
       <ScrollArea className="min-h-0 flex-1">
-        <div className="divide-y">
+        <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
           {filteredTasks.map((task) => {
             const detail = detailsByTaskId[task.task_id];
             const pass = getTaskPass(task, detail);
             const selected = selectedTaskId === task.task_id;
             const verdict = getTaskVerdict(task, detail);
             const scope = getTaskScope(task, detail);
+            const tags = getTaskTags(task, detail);
             return (
               <button
                 key={task.task_id}
                 type="button"
-                className={`grid w-full grid-cols-[42px_132px_minmax(180px,0.9fr)_minmax(240px,1.5fr)_auto] items-center gap-3 px-3 py-3 text-left text-sm transition hover:bg-muted/50 ${
-                  selected ? "bg-primary/5" : "bg-card"
+                className={`flex min-h-[190px] min-w-0 flex-col rounded-md border p-3 text-left text-sm transition hover:border-primary/50 hover:bg-muted/40 ${
+                  selected ? "border-primary bg-primary/5" : "bg-card"
                 }`}
                 onClick={() => onSelectTask(task.task_id)}
               >
-                <Badge
-                  variant={pass === false ? "destructive" : pass === true ? "secondary" : "outline"}
-                  className="justify-self-start"
-                >
-                  {verdict}
-                </Badge>
-                <div className="min-w-0">
-                  <p className="truncate text-xs uppercase text-muted-foreground">{scope}</p>
-                  <p className="truncate text-xs text-muted-foreground">{task.task_id}</p>
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{task.title || task.task_id}</p>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {getTaskTags(task, detail)
-                      .slice(0, 3)
-                      .map((tag) => (
-                        <Badge key={tag} variant="outline">
-                          {tag}
-                        </Badge>
-                      ))}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-[11px] uppercase text-muted-foreground">{scope}</p>
+                    <p className="mt-1 line-clamp-2 font-semibold">{task.title || task.task_id}</p>
                   </div>
+                  <Badge
+                    variant={pass === false ? "destructive" : pass === true ? "secondary" : "outline"}
+                    className="shrink-0"
+                  >
+                    {verdict}
+                  </Badge>
                 </div>
-                <p className="line-clamp-2 min-w-0 text-xs text-muted-foreground">
+
+                <p className="mt-2 truncate text-xs text-muted-foreground">{task.task_id}</p>
+
+                <p className="mt-3 line-clamp-3 min-h-[48px] text-xs leading-5 text-muted-foreground">
                   {task.reason || detail?.judge?.reason || "No judge reason loaded yet."}
                 </p>
-                <span className="text-xs text-muted-foreground">Open</span>
+
+                <div className="mt-3 flex flex-wrap gap-1">
+                  {tags.slice(0, 4).map((tag) => (
+                    <Badge key={tag} variant="outline">
+                      {tag}
+                    </Badge>
+                  ))}
+                  {tags.length > 4 ? <Badge variant="outline">+{tags.length - 4}</Badge> : null}
+                </div>
+
+                <div className="mt-auto flex items-center justify-between pt-3">
+                  <span className="text-xs text-muted-foreground">
+                    {detail ? "details loaded" : "summary only"}
+                  </span>
+                  <span className="text-xs font-medium text-primary">Open</span>
+                </div>
               </button>
             );
           })}
           {!filteredTasks.length ? (
-            <div className="m-3 rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+            <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground sm:col-span-2 xl:col-span-3">
               No eval tasks match the current filters.
             </div>
           ) : null}
