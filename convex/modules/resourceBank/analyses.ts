@@ -1,9 +1,9 @@
-// Resource Bank analysis actions own source breakdown records for retained assets.
+// Resource Bank analysis functions own source breakdown records for retained assets.
 import { v } from "convex/values";
-import { mutation } from "../../../_generated/server";
-import { buildAnalysisEmbeddingText, cleanText, mergeTags } from "../resourceBank";
-import { getAssetOrThrow, getJobOrThrow, nowMs, rowProjectId, rowTaskId } from "../shared/records";
-import { addResourceAnalysisArgsValidator } from "../validators";
+import { mutation } from "../../_generated/server";
+import { buildAnalysisEmbeddingText, cleanText, mergeTags } from "./resourceBank";
+import { getAssetOrThrow, getJobOrThrow, nowMs, rowProjectId, rowTaskId } from "./records";
+import { addResourceAnalysisArgsValidator } from "./validators";
 
 export const addResourceAnalysis = mutation({
   args: addResourceAnalysisArgsValidator,

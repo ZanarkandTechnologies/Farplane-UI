@@ -1,14 +1,14 @@
-// Resource Bank retrieval actions compose asset, analysis, and skill-finding rows for UI and agents.
-import { query } from "../../../_generated/server";
+// Resource Bank retrieval functions compose asset, analysis, and skill-finding rows for UI and agents.
+import { query } from "../../_generated/server";
 import {
   buildResourceBankDashboard,
   clampLimit,
   cleanText,
   mergeTags,
   RESOURCE_BANK_QUERY_LIMIT,
-} from "../resourceBank";
-import { matchesFilters, toAnalysisRow, toAssetRow, toSkillFindingRow } from "../shared/records";
-import { dashboardArgsValidator, retrieveForCreationArgsValidator } from "../validators";
+} from "./resourceBank";
+import { matchesFilters, toAnalysisRow, toAssetRow, toSkillFindingRow } from "./records";
+import { dashboardArgsValidator, retrieveForCreationArgsValidator } from "./validators";
 
 export const getResourceBankDashboard = query({
   args: dashboardArgsValidator,

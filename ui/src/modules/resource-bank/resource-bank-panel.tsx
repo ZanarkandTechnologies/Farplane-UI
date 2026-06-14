@@ -137,9 +137,9 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
   const [query, setQuery] = useState("");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
-  const seedDemo = useMutation(api.modules.resourceBank.demo.actions.seedDemoResourceBank);
+  const seedDemo = useMutation(api.modules.resourceBank.demo.seedDemoResourceBank);
   const data = useQuery(
-    api.modules.resourceBank.retrieval.actions.getResourceBankDashboard,
+    api.modules.resourceBank.retrieval.getResourceBankDashboard,
     convexEnabled && open ? { query: query.trim() || undefined, limit: 28 } : "skip",
   ) as ResourceBankDashboard | undefined;
 

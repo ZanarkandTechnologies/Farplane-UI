@@ -1,7 +1,7 @@
-// Resource Bank skill-finding actions own extracted reusable capabilities and skill candidates.
+// Resource Bank skill-finding functions own extracted reusable capabilities and skill candidates.
 import { v } from "convex/values";
-import { mutation, query } from "../../../_generated/server";
-import { buildSkillFindingEmbeddingText, clampLimit, cleanText, mergeTags } from "../resourceBank";
+import { mutation, query } from "../../_generated/server";
+import { buildSkillFindingEmbeddingText, clampLimit, cleanText, mergeTags } from "./resourceBank";
 import {
   getAnalysisOrThrow,
   getAssetOrThrow,
@@ -11,8 +11,8 @@ import {
   rowProjectId,
   rowTaskId,
   toSkillFindingRow,
-} from "../shared/records";
-import { addSkillFindingArgsValidator, searchSkillFindingsArgsValidator } from "../validators";
+} from "./records";
+import { addSkillFindingArgsValidator, searchSkillFindingsArgsValidator } from "./validators";
 
 export const addSkillFinding = mutation({
   args: addSkillFindingArgsValidator,

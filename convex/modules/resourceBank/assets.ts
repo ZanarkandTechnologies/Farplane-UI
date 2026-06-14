@@ -1,5 +1,5 @@
 /**
- * RESOURCE BANK ASSET ACTIONS
+ * RESOURCE BANK ASSET FUNCTIONS
  * ============================
  * Ownership: Resource Bank Convex module.
  * Inputs: retained source media references, gallery filters, and optional query embeddings.
@@ -8,8 +8,8 @@
  */
 
 import { v } from "convex/values";
-import { action, mutation, query } from "../../../_generated/server";
-import { buildAssetSearchableText, clampLimit, cleanText, mergeTags } from "../resourceBank";
+import { action, mutation, query } from "../../_generated/server";
+import { buildAssetSearchableText, clampLimit, cleanText, mergeTags } from "./resourceBank";
 import {
   getAssetOrThrow,
   getJobOrThrow,
@@ -18,13 +18,13 @@ import {
   rowProjectId,
   rowTaskId,
   toAssetRow,
-} from "../shared/records";
+} from "./records";
 import {
   addResourceAssetArgsValidator,
   findSimilarAssetsArgsValidator,
   getResourceAssetArgsValidator,
   searchGalleryArgsValidator,
-} from "../validators";
+} from "./validators";
 
 export const addResourceAsset = mutation({
   args: addResourceAssetArgsValidator,

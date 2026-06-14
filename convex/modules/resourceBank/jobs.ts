@@ -1,5 +1,5 @@
 /**
- * RESOURCE BANK JOB ACTIONS
+ * RESOURCE BANK JOB FUNCTIONS
  * ==========================
  * Ownership: Resource Bank Convex module.
  * Inputs: ingestion requests and task/project links.
@@ -8,14 +8,14 @@
  */
 
 import { v } from "convex/values";
-import { mutation } from "../../../_generated/server";
-import { cleanText, normalizeTags } from "../resourceBank";
-import { getJobOrThrow, nowMs } from "../shared/records";
+import { mutation } from "../../_generated/server";
+import { cleanText, normalizeTags } from "./resourceBank";
+import { getJobOrThrow, nowMs } from "./records";
 import {
   completeIngestionJobArgsValidator,
   createIngestionJobArgsValidator,
   linkJobToTaskArgsValidator,
-} from "../validators";
+} from "./validators";
 
 export const createIngestionJob = mutation({
   args: createIngestionJobArgsValidator,

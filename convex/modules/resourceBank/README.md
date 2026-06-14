@@ -19,12 +19,16 @@ v1. That keeps retrieval close to the record it explains. Move to
 `@convex-dev/rag` only when the vault needs chunking, namespaces, importance
 weighting, or surrounding-chunk context.
 
-Function files are split by resource domain:
+Function files are split by resource domain first:
 
-- `jobs/actions.ts`: ingestion job lifecycle and task links.
-- `assets/actions.ts`: asset writes, asset detail, gallery search, and asset similarity.
-- `analyses/actions.ts`: reusable analysis writes.
-- `skillFindings/actions.ts`: extracted skill knowledge writes and search.
-- `retrieval/actions.ts`: dashboard and agent-facing retrieval packets.
-- `demo/actions.ts`: local QA seed data.
-- `shared/records.ts`: shared row shaping and parent lookups.
+- `jobs.ts`: ingestion job lifecycle and task links.
+- `assets.ts`: asset writes, asset detail, gallery search, and asset similarity.
+- `analyses.ts`: reusable analysis writes.
+- `skillFindings.ts`: extracted skill knowledge writes and search.
+- `retrieval.ts`: dashboard and agent-facing retrieval packets.
+- `demo.ts`: local QA seed data.
+- `records.ts`: shared row shaping and parent lookups.
+
+Only split a domain file further by Convex function type when it becomes large
+enough that `queries.ts`, `mutations.ts`, or `actions.ts` would improve local
+navigation.
