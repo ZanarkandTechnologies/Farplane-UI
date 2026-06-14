@@ -18,3 +18,6 @@ skills/external/
 !.githooks/*
 
 /docs/research/*/*
+
+# Local ticket proof artifacts can contain screenshots, traces, and bulky JSON.
+tickets/**/artifacts/

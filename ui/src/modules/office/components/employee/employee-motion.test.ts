@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getEmployeeAnimationPose } from "./employee-motion";
+import { getEmployeeAnimationPose, getEmployeeMovementDirection } from "./employee-motion";
 
 describe("employee motion pose", () => {
   it("gives walking a stronger bob and sway than stationary modes", () => {
@@ -29,5 +29,13 @@ describe("employee motion pose", () => {
     expect(shiftedPose.bobY).not.toBe(basePose.bobY);
     expect(shiftedPose.rollZ).not.toBe(basePose.rollZ);
     expect(shiftedPose.yawY).not.toBe(basePose.yawY);
+  });
+
+  it("derives cardinal movement direction from a movement vector", () => {
+    expect(getEmployeeMovementDirection(1, 0.2)).toBe("right");
+    expect(getEmployeeMovementDirection(-1, 0.2)).toBe("left");
+    expect(getEmployeeMovementDirection(0.2, -1)).toBe("up");
+    expect(getEmployeeMovementDirection(0.2, 1)).toBe("down");
+    expect(getEmployeeMovementDirection(0, 0)).toBe("none");
   });
 });

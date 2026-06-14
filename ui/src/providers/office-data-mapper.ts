@@ -43,6 +43,7 @@ import type {
   Company,
   DeskLayoutData,
   EmployeeActivityState,
+  EmployeeCharacterRendererSource,
   EmployeeData,
   OfficeObject,
   TeamData,
@@ -148,6 +149,31 @@ function isAppearancePetType(value: unknown): value is NonNullable<EmployeeAppea
     value === "rabbit" ||
     value === "lobster"
   );
+}
+
+function parseAppearanceCharacterRenderer(
+  value: unknown,
+): EmployeeAppearance["characterRenderer"] | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const row = value as Record<string, unknown>;
+  const id =
+    row.id === "three-human" || row.id === "sprite-sheet-2d"
+      ? row.id
+      : undefined;
+  let source: EmployeeCharacterRendererSource | undefined;
+  if (row.source && typeof row.source === "object") {
+    const sourceRow = row.source as Record<string, unknown>;
+    if (sourceRow.type === "codex-pet" && typeof sourceRow.petId === "string") {
+      source = { type: "codex-pet", petId: sourceRow.petId.trim() };
+    } else if (sourceRow.type === "url" && typeof sourceRow.atlasUrl === "string") {
+      source = {
+        type: "url",
+        atlasUrl: sourceRow.atlasUrl,
+        manifestUrl: typeof sourceRow.manifestUrl === "string" ? sourceRow.manifestUrl : undefined,
+      };
+    }
+  }
+  return id || source ? { id, source } : undefined;
 }
 
 function getDefaultProjectClusterPosition(projectIndex: number): [number, number, number] {
@@ -814,6 +840,7 @@ export function toOfficeData(
       clothesStyle?: EmployeeAppearance["clothesStyle"];
       hairColor?: string;
       petType?: EmployeeAppearance["petType"];
+      characterRenderer?: EmployeeAppearance["characterRenderer"];
     }
   >();
 
@@ -828,7 +855,8 @@ export function toOfficeData(
         : undefined;
       const hairColor = typeof row.hairColor === "string" ? row.hairColor : undefined;
       const petType = isAppearancePetType(row.petType) ? row.petType : undefined;
-      appearanceByAgentId.set(agentId, { clothesStyle, hairColor, petType });
+      const characterRenderer = parseAppearanceCharacterRenderer(row.characterRenderer);
+      appearanceByAgentId.set(agentId, { clothesStyle, hairColor, petType, characterRenderer });
     }
   }
   const teamClusterAnchorsByTeamId = new Map<string, [number, number, number]>();

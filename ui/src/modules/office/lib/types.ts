@@ -3,6 +3,15 @@ import type { AgentState } from "@/modules/runtime";
 
 export type OfficeId<T extends string = string> = string & { __type?: T };
 export type EmployeeActivityState = "idle" | "running" | "waiting" | "failed" | "review" | "done";
+export type EmployeeCharacterRendererId = "three-human" | "sprite-sheet-2d";
+export type EmployeeCharacterRendererSource =
+  | { type: "codex-pet"; petId: string }
+  | { type: "url"; atlasUrl: string; manifestUrl?: string };
+
+export interface EmployeeCharacterRendererConfig {
+  id?: EmployeeCharacterRendererId;
+  source?: EmployeeCharacterRendererSource;
+}
 
 export interface Company {
   _id: OfficeId<"companies">;
@@ -63,6 +72,7 @@ export interface Employee {
     clothesStyle?: "default" | "dj" | "professional" | "techBro";
     hairColor?: string;
     petType?: "none" | "dog" | "cat" | "goldfish" | "rabbit" | "lobster";
+    characterRenderer?: EmployeeCharacterRendererConfig;
   };
 }
 

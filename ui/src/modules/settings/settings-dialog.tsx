@@ -20,6 +20,11 @@ import {
   RuntimeSettingsPanel,
 } from "./settings-dialog-panels";
 import { useCodexOfficeVisibilitySettings } from "./use-codex-office-visibility-settings";
+import {
+  readOfficeCharacterRendererSettings,
+  saveOfficeCharacterRendererSettings,
+} from "@/modules/office/components/employee/renderers/registry";
+import type { CharacterRendererId } from "@/modules/office/components/employee/renderers/types";
 
 type SettingsDialogProps = {
   trigger?: React.ReactNode;
@@ -69,6 +74,11 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   const [isSavingViewSettings, setIsSavingViewSettings] = useState(false);
   const [shuffleStatusText, setShuffleStatusText] = useState("");
   const [isShufflingOffice, setIsShufflingOffice] = useState(false);
+  const [characterRendererIdInput, setCharacterRendererIdInput] =
+    useState<CharacterRendererId>("three-human");
+  const [characterSpritePetIdInput, setCharacterSpritePetIdInput] = useState("");
+  const [characterSpriteEmployeeIdInput, setCharacterSpriteEmployeeIdInput] = useState("");
+  const [characterGraphicsStatusText, setCharacterGraphicsStatusText] = useState("");
   const codexOfficeVisibility = useCodexOfficeVisibilitySettings({
     dialogOpen,
     stateBaseInput,
@@ -91,6 +101,11 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     setOrbitControlsEnabled(officeSettings.orbitControlsEnabled);
     setViewStatusText("");
     setShuffleStatusText("");
+    const characterSettings = readOfficeCharacterRendererSettings();
+    setCharacterRendererIdInput(characterSettings.petId ? "sprite-sheet-2d" : "three-human");
+    setCharacterSpritePetIdInput(characterSettings.petId);
+    setCharacterSpriteEmployeeIdInput(characterSettings.employeeId);
+    setCharacterGraphicsStatusText("");
   }, [
     dialogOpen,
     officeSettings.cameraOrientation,
@@ -163,6 +178,27 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     );
   }
 
+  function handleApplyCharacterGraphics(): void {
+    if (characterRendererIdInput === "sprite-sheet-2d") {
+      const saved = saveOfficeCharacterRendererSettings({
+        petId: characterSpritePetIdInput || "mini-kenji",
+        employeeId: characterSpriteEmployeeIdInput,
+      });
+      setCharacterSpritePetIdInput(saved.petId);
+      setCharacterSpriteEmployeeIdInput(saved.employeeId);
+      setCharacterGraphicsStatusText(
+        saved.employeeId
+          ? `Sprite renderer applied to ${saved.employeeId}.`
+          : "Sprite renderer applied to all employees.",
+      );
+      return;
+    }
+    saveOfficeCharacterRendererSettings({ petId: "", employeeId: "" });
+    setCharacterSpritePetIdInput("");
+    setCharacterSpriteEmployeeIdInput("");
+    setCharacterGraphicsStatusText("Three.js humans restored.");
+  }
+
   function handleReplayOnboarding(): void {
     setOfficeOnboardingCompleted(false);
     setIsOfficeOnboardingVisible(true);
@@ -207,11 +243,19 @@ export default function SettingsDialog(props: SettingsDialogProps) {
               shuffleStatusText={shuffleStatusText}
               isSaving={isSavingViewSettings}
               isShuffling={isShufflingOffice}
+              characterRendererId={characterRendererIdInput}
+              characterSpritePetId={characterSpritePetIdInput}
+              characterSpriteEmployeeId={characterSpriteEmployeeIdInput}
+              characterGraphicsStatusText={characterGraphicsStatusText}
               onViewProfileChange={setViewProfileInput}
               onCameraOrientationChange={setCameraOrientationInput}
               onOrbitControlsEnabledChange={setOrbitControlsEnabled}
               onSave={() => void handleSaveViewSettings()}
               onShuffle={() => void handleShuffleOffice()}
+              onCharacterRendererIdChange={setCharacterRendererIdInput}
+              onCharacterSpritePetIdChange={setCharacterSpritePetIdInput}
+              onCharacterSpriteEmployeeIdChange={setCharacterSpriteEmployeeIdInput}
+              onApplyCharacterGraphics={handleApplyCharacterGraphics}
             />
           </TabsContent>
 

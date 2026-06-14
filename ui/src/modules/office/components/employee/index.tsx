@@ -14,54 +14,26 @@
  * - MEM-0163
  * - MEM-0188
  */
-import { Box, Edges } from "@react-three/drei";
-import { type ThreeEvent, useFrame } from "@react-three/fiber";
-import { Book, Brain, MessageSquare, Monitor, UserCog } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
-import * as THREE from "three";
-import {
-  BODY_HEIGHT,
-  BODY_WIDTH,
-  HAIR_COLORS,
-  HAIR_HEIGHT,
-  HAIR_WIDTH,
-  HEAD_HEIGHT,
-  HEAD_WIDTH,
-  LEG_HEIGHT,
-  PANTS_COLORS,
-  SHIRT_COLORS,
-  SKIN_COLORS,
-  TOTAL_HEIGHT,
-} from "@/constants";
+import { Edges } from "@react-three/drei";
+import { type ThreeEvent } from "@react-three/fiber";
+import { memo, useCallback, useState } from "react";
+import { TOTAL_HEIGHT } from "@/constants";
 import type { Id } from "@/lib/entity-types";
-import { getRandomItem } from "@/lib/utils";
 import PathVisualizer from "@/modules/navigation/components/path-visualizer";
 import type { StatusType } from "@/modules/navigation/components/status-indicator";
 import type { EmployeeActivityState } from "@/modules/office/lib/types";
-import { type AgentState, useOfficeRuntimeAdapter } from "@/modules/runtime";
+import { type AgentState } from "@/modules/runtime";
 import { useAppStore } from "@/store";
 import { ContextMenu } from "../context-menu";
-import {
-  CeoCrown,
-  LobsterAntennae,
-  LobsterClaws,
-  LobsterEyes,
-  PmGoggleHat,
-  TeamPlumbob,
-} from "./Decorations";
-import { getEmployeeAnimationPose } from "./employee-motion";
-import { ProfileHead } from "./ProfileHead";
+import { ThreeHumanCharacterRenderer } from "./renderers/three-human";
+import type { CharacterRendererConfig } from "./renderers/types";
 import { EmployeeStatusBubbles } from "./StatusBubbles";
-import { recordDevEmployeePosition } from "./use-dev-employee-position-probe";
+import { useEmployeeActions } from "./use-employee-actions";
+import { useEmployeeActivityVisibility } from "./use-employee-activity-visibility";
+import { useEmployeeAvatarPalette } from "./use-employee-avatar-palette";
+import { useEmployeeCharacterRenderer } from "./use-employee-character-renderer";
 import { useEmployeeLocomotion } from "./use-employee-locomotion";
-
-type AvatarPalette = {
-  hair: string;
-  skin: string;
-  shirt: string;
-  pants: string;
-};
+import { useEmployeeVisualEffects } from "./use-employee-visual-effects";
 
 export interface EmployeeProps {
   _id: Id<"employees">;
@@ -98,212 +70,8 @@ export interface EmployeeProps {
     clothesStyle?: "default" | "dj" | "professional" | "techBro";
     hairColor?: string;
     petType?: "none" | "dog" | "cat" | "goldfish" | "rabbit" | "lobster";
+    characterRenderer?: CharacterRendererConfig;
   };
-}
-
-const SEEN_ACTIVITY_STORAGE_KEY = "farplane.office.seen-activity.v1";
-
-function readSeenActivityTimestamp(employeeId: string): number {
-  if (typeof window === "undefined") return 0;
-  try {
-    const parsed = JSON.parse(
-      window.localStorage.getItem(SEEN_ACTIVITY_STORAGE_KEY) ?? "{}",
-    ) as Record<string, unknown>;
-    const value = parsed[employeeId];
-    return typeof value === "number" && Number.isFinite(value) ? value : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function markActivitySeen(employeeId: string, updatedAt?: number): void {
-  if (typeof window === "undefined" || typeof updatedAt !== "number") return;
-  try {
-    const parsed = JSON.parse(
-      window.localStorage.getItem(SEEN_ACTIVITY_STORAGE_KEY) ?? "{}",
-    ) as Record<string, unknown>;
-    window.localStorage.setItem(
-      SEEN_ACTIVITY_STORAGE_KEY,
-      JSON.stringify({ ...parsed, [employeeId]: updatedAt }),
-    );
-  } catch {
-    window.localStorage.setItem(
-      SEEN_ACTIVITY_STORAGE_KEY,
-      JSON.stringify({ [employeeId]: updatedAt }),
-    );
-  }
-}
-
-function AvatarShell({
-  colors,
-  profileImageUrl,
-  isCEO,
-  isSupervisor,
-  teamId,
-  activityState,
-  useCompactOverlayMode,
-  projection = false,
-  petType,
-  clothesStyle,
-}: {
-  colors: AvatarPalette;
-  profileImageUrl?: string;
-  isCEO?: boolean;
-  isSupervisor?: boolean;
-  teamId?: string;
-  activityState?: EmployeeActivityState;
-  useCompactOverlayMode?: boolean;
-  projection?: boolean;
-  petType?: "none" | "dog" | "cat" | "goldfish" | "rabbit" | "lobster";
-  clothesStyle?: "default" | "dj" | "professional" | "techBro";
-}) {
-  const baseY = -TOTAL_HEIGHT / 2;
-  const materialProps = projection ? { transparent: true, opacity: 0.48 } : {};
-  const projectionHeadColor = projection ? "#67e8f9" : colors.skin;
-  const projectionHairColor = projection ? "#a5f3fc" : colors.hair;
-  const projectionShirtColor = projection ? "#22d3ee" : colors.shirt;
-  const projectionPantsColor = projection ? "#0f766e" : colors.pants;
-
-  return (
-    <group>
-      <Box
-        args={[BODY_WIDTH, LEG_HEIGHT, BODY_WIDTH * 0.6]}
-        position={[0, baseY + LEG_HEIGHT / 2, 0]}
-        castShadow={!projection}
-      >
-        <meshStandardMaterial color={projectionPantsColor} {...materialProps} />
-      </Box>
-      <Box
-        args={[BODY_WIDTH, BODY_HEIGHT, BODY_WIDTH * 0.6]}
-        position={[0, baseY + LEG_HEIGHT + BODY_HEIGHT / 2, 0]}
-        castShadow={!projection}
-      >
-        <meshStandardMaterial color={projectionShirtColor} {...materialProps} />
-      </Box>
-
-      {clothesStyle === "techBro" && !projection ? (
-        <Box
-          args={[BODY_WIDTH * 0.9, BODY_HEIGHT * 0.5, BODY_WIDTH * 0.35]}
-          position={[0, baseY + LEG_HEIGHT + BODY_HEIGHT * 0.85, -BODY_WIDTH * 0.42]}
-          castShadow
-        >
-          <meshStandardMaterial color={colors.shirt} />
-        </Box>
-      ) : null}
-
-      {profileImageUrl && profileImageUrl.trim().length > 0 && !projection ? (
-        <ProfileHead
-          imageUrl={profileImageUrl}
-          position={[0, baseY + LEG_HEIGHT + BODY_HEIGHT + HEAD_HEIGHT / 2, 0]}
-          skinColor={colors.skin}
-          hairColor={colors.hair}
-          useCompactOverlayMode={useCompactOverlayMode}
-        />
-      ) : (
-        <Box
-          args={[HEAD_WIDTH, HEAD_HEIGHT, HEAD_WIDTH]}
-          position={[0, baseY + LEG_HEIGHT + BODY_HEIGHT + HEAD_HEIGHT / 2, 0]}
-          castShadow={!projection}
-        >
-          <meshStandardMaterial color={projectionHeadColor} {...materialProps} />
-        </Box>
-      )}
-
-      <group position={[0, baseY + LEG_HEIGHT + BODY_HEIGHT + HEAD_HEIGHT + HAIR_HEIGHT / 2, 0]}>
-        <Box args={[HAIR_WIDTH, HAIR_HEIGHT, HAIR_WIDTH]} castShadow={!projection}>
-          <meshStandardMaterial color={projectionHairColor} {...materialProps} />
-        </Box>
-        {isCEO ? <CeoCrown /> : isSupervisor ? <PmGoggleHat /> : null}
-      </group>
-
-      <LobsterClaws color={projectionShirtColor} />
-      <LobsterAntennae />
-      <LobsterEyes />
-      {!projection ? <TeamPlumbob teamId={teamId} activityState={activityState} /> : null}
-      {petType && !projection && petType !== "none" ? <OfficePetMesh petType={petType} /> : null}
-    </group>
-  );
-}
-
-function OfficePetMesh({
-  petType,
-}: {
-  petType: "dog" | "cat" | "goldfish" | "rabbit" | "lobster";
-}) {
-  const baseY = -TOTAL_HEIGHT / 2 + LEG_HEIGHT;
-  if (petType === "dog") {
-    return (
-      <group position={[BODY_WIDTH * 0.9, baseY, BODY_WIDTH * 0.25]}>
-        <Box args={[0.22, 0.14, 0.36]} position={[0, 0.07, 0]} castShadow>
-          <meshStandardMaterial color="#8D6E63" />
-        </Box>
-        <Box args={[0.16, 0.12, 0.18]} position={[0, 0.18, 0.12]} castShadow>
-          <meshStandardMaterial color="#5D4037" />
-        </Box>
-      </group>
-    );
-  }
-  if (petType === "cat") {
-    return (
-      <group position={[BODY_WIDTH * 0.9, baseY, BODY_WIDTH * 0.25]}>
-        <Box args={[0.22, 0.14, 0.36]} position={[0, 0.07, 0]} castShadow>
-          <meshStandardMaterial color="#B0BEC5" />
-        </Box>
-        <Box args={[0.16, 0.12, 0.18]} position={[0, 0.18, 0.12]} castShadow>
-          <meshStandardMaterial color="#78909C" />
-        </Box>
-      </group>
-    );
-  }
-  if (petType === "goldfish") {
-    return (
-      <group position={[BODY_WIDTH * 0.1, baseY + 0.12, -BODY_WIDTH * 0.9]}>
-        <Box args={[0.3, 0.2, 0.3]} position={[0, 0.1, 0]} castShadow>
-          <meshStandardMaterial color="#B3E5FC" opacity={0.85} transparent />
-        </Box>
-        <Box args={[0.1, 0.06, 0.18]} position={[0, 0.13, 0]} castShadow>
-          <meshStandardMaterial color="#FF9800" />
-        </Box>
-      </group>
-    );
-  }
-  if (petType === "rabbit") {
-    return (
-      <group position={[BODY_WIDTH * 0.9, baseY, BODY_WIDTH * 0.2]}>
-        <Box args={[0.2, 0.14, 0.32]} position={[0, 0.07, 0]} castShadow>
-          <meshStandardMaterial color="#E0E0E0" />
-        </Box>
-        <Box args={[0.12, 0.2, 0.12]} position={[-0.06, 0.22, 0.08]} castShadow>
-          <meshStandardMaterial color="#E0E0E0" />
-        </Box>
-        <Box args={[0.12, 0.2, 0.12]} position={[0.06, 0.22, 0.08]} castShadow>
-          <meshStandardMaterial color="#E0E0E0" />
-        </Box>
-        <Box args={[0.06, 0.05, 0.08]} position={[0, 0.06, -0.18]} castShadow>
-          <meshStandardMaterial color="#BDBDBD" />
-        </Box>
-      </group>
-    );
-  }
-  if (petType === "lobster") {
-    return (
-      <group position={[BODY_WIDTH * 0.85, baseY, BODY_WIDTH * 0.25]}>
-        <Box args={[0.22, 0.1, 0.4]} position={[0, 0.05, 0]} castShadow>
-          <meshStandardMaterial color="#D84315" />
-        </Box>
-        <Box args={[0.08, 0.06, 0.14]} position={[-0.1, 0.06, 0.2]} castShadow>
-          <meshStandardMaterial color="#D84315" />
-        </Box>
-        <Box args={[0.08, 0.06, 0.14]} position={[0.1, 0.06, 0.2]} castShadow>
-          <meshStandardMaterial color="#D84315" />
-        </Box>
-        <Box args={[0.06, 0.05, 0.12]} position={[0, 0.05, -0.22]} castShadow>
-          <meshStandardMaterial color="#BF360C" />
-        </Box>
-      </group>
-    );
-  }
-  return null;
 }
 
 const Employee = memo(function Employee({
@@ -337,40 +105,26 @@ const Employee = memo(function Employee({
   const employeeIdString = `employee-${id}`;
   const isSelected = useAppStore((state) => state.selectedObjectId === employeeIdString);
   const setSelectedObjectId = useAppStore((state) => state.setSelectedObjectId);
-  const setManageAgentEmployeeId = useAppStore((state) => state.setManageAgentEmployeeId);
-  const setMemoryPanelEmployeeId = useAppStore((state) => state.setMemoryPanelEmployeeId);
-  const setKanbanFocusAgentId = useAppStore((state) => state.setKanbanFocusAgentId);
-  const setIsSkillsPanelOpen = useAppStore((state) => state.setIsSkillsPanelOpen);
-  const setSelectedSkillStudioSkillId = useAppStore((state) => state.setSelectedSkillStudioSkillId);
-  const setSkillStudioFocusAgentId = useAppStore((state) => state.setSkillStudioFocusAgentId);
   const highlightedEmployeeIds = useAppStore((state) => state.highlightedEmployeeIds);
   const isOfficeOnboardingVisible = useAppStore((state) => state.isOfficeOnboardingVisible);
   const officeOnboardingStep = useAppStore((state) => state.officeOnboardingStep);
-  const runtimeAdapter = useOfficeRuntimeAdapter();
 
   const [isHovered, setIsHovered] = useState(false);
-  const [seenActivityUpdatedAt, setSeenActivityUpdatedAt] = useState(() =>
-    readSeenActivityTimestamp(String(id)),
-  );
   const isHighlighted = highlightedEmployeeIds.has(id);
-  const avatarRef = useRef<THREE.Group>(null);
-  const projectionRef = useRef<THREE.Group>(null);
-  const activityLineGeometryRef = useRef<THREE.BufferGeometry>(null);
-  const projectionPulseRef = useRef<THREE.Mesh>(null);
-  const projectionRingRef = useRef<THREE.Mesh>(null);
-  const sourcePulseRef = useRef<THREE.Mesh>(null);
-  const blinkRingRef = useRef<THREE.Mesh>(null);
-  const hasSeenDoneActivity =
-    activityState === "done" &&
-    typeof activityUpdatedAt === "number" &&
-    seenActivityUpdatedAt >= activityUpdatedAt;
-  const visibleActivityState = hasSeenDoneActivity ? "idle" : activityState;
-  const visibleActivityLabel = hasSeenDoneActivity ? undefined : activityLabel;
-  const visibleActivityDetail = hasSeenDoneActivity ? undefined : activityDetail;
-  const activityEffectStartedAtRef = useRef<number>(0);
-  const lastActivityEffectKeyRef = useRef("");
+  const {
+    visibleActivityState,
+    visibleActivityLabel,
+    visibleActivityDetail,
+    markVisibleActivitySeen,
+  } = useEmployeeActivityVisibility({
+    employeeId: String(id),
+    activityState,
+    activityLabel,
+    activityDetail,
+    activityUpdatedAt,
+  });
 
-  const { groupRef, debugDeskDecision, debugPathData, isGoingToDesk, animationMode } =
+  const { groupRef, debugDeskDecision, debugPathData, isGoingToDesk, animationMode, movementDirection } =
     useEmployeeLocomotion({
       id,
       position,
@@ -383,272 +137,55 @@ const Employee = memo(function Employee({
       heartbeatState,
       debugMode,
     });
-
-  const colors = useMemo(
-    () => ({
-      hair: getRandomItem(HAIR_COLORS),
-      skin: getRandomItem(SKIN_COLORS),
-      shirt: getRandomItem(SHIRT_COLORS),
-      pants: getRandomItem(PANTS_COLORS),
-    }),
-    [],
-  );
-
-  const finalColors = useMemo<AvatarPalette>(() => {
-    const base: AvatarPalette = isCEO
-      ? {
-          hair: "#FFD700",
-          skin: "#FF5722",
-          shirt: "#CC2200",
-          pants: "#8B0000",
-        }
-      : colors;
-
-    if (!appearance) return base;
-
-    let shirt = base.shirt;
-    let pants = base.pants;
-
-    switch (appearance.clothesStyle) {
-      case "dj":
-        shirt = "#FF4081";
-        pants = "#111111";
-        break;
-      case "professional":
-        shirt = "#ECEFF1";
-        pants = "#263238";
-        break;
-      case "techBro":
-        shirt = "#37474F";
-        pants = "#111111";
-        break;
-      default:
-        shirt = "#90A4AE";
-        pants = "#1565C0";
-        break;
-    }
-
-    return {
-      hair: appearance.hairColor ?? base.hair,
-      skin: base.skin,
-      shirt,
-      pants,
-    };
-  }, [appearance, colors, isCEO]);
-
-  const employeeActions = useMemo(
-    () =>
-      [
-        {
-          id: "chat",
-          label: "Chat",
-          icon: MessageSquare,
-          color: "blue",
-          position: "top" as const,
-          isHighlighted:
-            isOfficeOnboardingVisible && officeOnboardingStep === "open-chat" && Boolean(isCEO),
-          onClick: () => {
-            setSelectedObjectId(null);
-            onClick(id);
-          },
-        },
-        {
-          id: "computer",
-          label: "Computer",
-          icon: Monitor,
-          color: "green",
-          position: "right" as const,
-          onClick: () => {
-            toast.info("Computer view is hidden for this demo.");
-          },
-        },
-        {
-          id: "manage",
-          label: "Manage",
-          icon: UserCog,
-          color: "amber",
-          position: "bottom" as const,
-          onClick: () => {
-            setManageAgentEmployeeId(id);
-          },
-        },
-        {
-          id: "training",
-          label: "Skills",
-          icon: Book,
-          color: "indigo",
-          onClick: () => {
-            const employeeId = String(id);
-            const focusedAgentId = employeeId.startsWith("employee-")
-              ? employeeId.replace(/^employee-/, "")
-              : employeeId;
-            setSelectedSkillStudioSkillId(null);
-            setSkillStudioFocusAgentId(focusedAgentId);
-            setIsSkillsPanelOpen(true);
-          },
-        },
-        {
-          id: "memory",
-          label: "Context",
-          icon: Brain,
-          color: "purple",
-          position: "left" as const,
-          onClick: () => {
-            const employeeId = String(id);
-            const focusedAgentId = employeeId.startsWith("employee-")
-              ? employeeId.replace(/^employee-/, "")
-              : employeeId;
-            setSelectedObjectId(null);
-            setKanbanFocusAgentId(focusedAgentId);
-            setMemoryPanelEmployeeId(id);
-          },
-        },
-      ].filter(
-        (action) => action.id !== "training" || runtimeAdapter.capabilities.employeeSkillEquip,
-      ),
-    [
-      id,
-      onClick,
-      setKanbanFocusAgentId,
-      isOfficeOnboardingVisible,
-      setIsSkillsPanelOpen,
-      setManageAgentEmployeeId,
-      setMemoryPanelEmployeeId,
-      setSelectedSkillStudioSkillId,
-      setSkillStudioFocusAgentId,
-      officeOnboardingStep,
-      runtimeAdapter.capabilities.employeeSkillEquip,
-      setSelectedObjectId,
-      isCEO,
-    ],
-  );
+  const finalColors = useEmployeeAvatarPalette({ isCEO, appearance });
+  const employeeActions = useEmployeeActions({ id, isCEO, onClick });
 
   const handleClick = useCallback(
     (event: ThreeEvent<MouseEvent>) => {
       event.stopPropagation();
       setSelectedObjectId(isSelected ? null : employeeIdString);
-      if (activityState === "done" && typeof activityUpdatedAt === "number") {
-        markActivitySeen(String(id), activityUpdatedAt);
-        setSeenActivityUpdatedAt(activityUpdatedAt);
-      }
+      markVisibleActivitySeen();
     },
-    [activityState, activityUpdatedAt, employeeIdString, id, isSelected, setSelectedObjectId],
+    [employeeIdString, isSelected, markVisibleActivitySeen, setSelectedObjectId],
   );
 
   const hoverScale = isHovered && !isSelected ? 1.05 : 1;
-  const animationPhase = useMemo(() => {
-    return Array.from(String(id)).reduce((phase, character, index) => {
-      return phase + character.charCodeAt(0) * (index + 1) * 0.01;
-    }, 0);
-  }, [id]);
   const isGhostProjectionActive =
     activityEffectVariant === "ghost" &&
     Array.isArray(activityTargetPosition) &&
     Array.isArray(activityTargetObjectPosition);
   const isBlinkEffectActive =
     activityEffectVariant === "blink" && Array.isArray(activityTargetPosition);
-  const activityEffectKey = useMemo(
-    () =>
-      [
-        activityEffectVariant ?? "",
-        activityTargetSkillId ?? "",
-        activityTargetPosition?.join(",") ?? "",
-      ].join("|"),
-    [activityEffectVariant, activityTargetPosition, activityTargetSkillId],
-  );
-
-  useEffect(() => {
-    if (!activityEffectKey.replace(/\|/g, "")) {
-      lastActivityEffectKeyRef.current = "";
-      return;
-    }
-    if (lastActivityEffectKeyRef.current === activityEffectKey) {
-      return;
-    }
-    lastActivityEffectKeyRef.current = activityEffectKey;
-    activityEffectStartedAtRef.current = performance.now();
-  }, [activityEffectKey]);
-
-  useFrame((state) => {
-    if (groupRef.current) {
-      recordDevEmployeePosition(id, groupRef);
-      const isAtRestScale =
-        hoverScale === 1 &&
-        Math.abs(groupRef.current.scale.x - 1) < 0.001 &&
-        Math.abs(groupRef.current.scale.y - 1) < 0.001 &&
-        Math.abs(groupRef.current.scale.z - 1) < 0.001;
-
-      if (!isAtRestScale) {
-        const targetScale = new THREE.Vector3(hoverScale, hoverScale, hoverScale);
-        groupRef.current.scale.lerp(targetScale, 0.1);
-      }
-    }
-
-    if (avatarRef.current) {
-      const pose = getEmployeeAnimationPose(state.clock.elapsedTime, animationPhase, animationMode);
-      avatarRef.current.position.y = pose.bobY;
-      avatarRef.current.rotation.z = pose.rollZ;
-      avatarRef.current.rotation.y = pose.yawY;
-    }
-
-    if (projectionRef.current && activityEffectVariant === "ghost" && activityTargetPosition) {
-      const effectElapsed = (performance.now() - activityEffectStartedAtRef.current) / 1000;
-      const shimmer = Math.sin(state.clock.elapsedTime * 3 + animationPhase) * 0.08;
-      projectionRef.current.position.y = activityTargetPosition[1] + shimmer;
-      const settleScale = THREE.MathUtils.lerp(0.4, 0.94, Math.min(effectElapsed / 0.28, 1));
-      projectionRef.current.scale.setScalar(settleScale);
-      projectionRef.current.rotation.y =
-        Math.sin(state.clock.elapsedTime * 1.7 + animationPhase) * 0.08;
-    }
-
-    if (projectionPulseRef.current && isGhostProjectionActive) {
-      const effectElapsed = (performance.now() - activityEffectStartedAtRef.current) / 1000;
-      const pulseScale = 0.85 + Math.min(effectElapsed * 2.1, 1.45);
-      projectionPulseRef.current.scale.setScalar(pulseScale);
-      const material = projectionPulseRef.current.material as THREE.MeshBasicMaterial;
-      material.opacity = Math.max(0, 0.24 - effectElapsed * 0.15);
-    }
-
-    if (projectionRingRef.current && isGhostProjectionActive) {
-      const effectElapsed = (performance.now() - activityEffectStartedAtRef.current) / 1000;
-      const ringScale = 0.75 + Math.min(effectElapsed * 3.2, 1.95);
-      projectionRingRef.current.scale.set(ringScale, ringScale, ringScale);
-      const material = projectionRingRef.current.material as THREE.MeshBasicMaterial;
-      material.opacity = Math.max(0, 0.92 - effectElapsed * 1.55);
-    }
-
-    if (sourcePulseRef.current && isGhostProjectionActive) {
-      const effectElapsed = (performance.now() - activityEffectStartedAtRef.current) / 1000;
-      const pulseScale = 0.7 + Math.min(effectElapsed * 1.9, 1.3);
-      sourcePulseRef.current.scale.set(pulseScale, 1, pulseScale);
-      const material = sourcePulseRef.current.material as THREE.MeshBasicMaterial;
-      material.opacity = Math.max(0, 0.58 - effectElapsed * 1.1);
-    }
-
-    if (blinkRingRef.current && isBlinkEffectActive) {
-      const effectElapsed = (performance.now() - activityEffectStartedAtRef.current) / 1000;
-      const ringScale = 0.7 + Math.min(effectElapsed * 4.6, 2.8);
-      blinkRingRef.current.scale.set(ringScale, ringScale, ringScale);
-      const material = blinkRingRef.current.material as THREE.MeshBasicMaterial;
-      material.opacity = Math.max(0, 0.96 - effectElapsed * 1.9);
-    }
-
-    if (
-      activityLineGeometryRef.current &&
-      isGhostProjectionActive &&
-      activityTargetObjectPosition &&
-      groupRef.current
-    ) {
-      const currentPosition = groupRef.current.position;
-      activityLineGeometryRef.current.setFromPoints([
-        new THREE.Vector3(0, TOTAL_HEIGHT * 0.62, 0),
-        new THREE.Vector3(
-          activityTargetObjectPosition[0] - currentPosition.x,
-          activityTargetObjectPosition[1] - currentPosition.y + TOTAL_HEIGHT * 0.2,
-          activityTargetObjectPosition[2] - currentPosition.z,
-        ),
-      ]);
-    }
+  const { CharacterRenderer, config: characterRendererConfig, runtime: characterRuntime } =
+    useEmployeeCharacterRenderer({
+      employeeId: String(id),
+      name,
+      characterRenderer: appearance?.characterRenderer,
+      animationMode,
+      movementDirection,
+      activityState: visibleActivityState,
+      isSelected,
+      isHovered,
+      isHighlighted,
+    });
+  const {
+    avatarRef,
+    projectionRef,
+    activityLineGeometryRef,
+    projectionPulseRef,
+    projectionRingRef,
+    sourcePulseRef,
+    blinkRingRef,
+  } = useEmployeeVisualEffects({
+    id,
+    groupRef,
+    hoverScale,
+    animationMode,
+    activityEffectVariant,
+    activityTargetPosition,
+    activityTargetObjectPosition,
+    isGhostProjectionActive,
+    isBlinkEffectActive,
   });
   const onboardingPrompt =
     isOfficeOnboardingVisible && isCEO
@@ -682,7 +219,8 @@ const Employee = memo(function Employee({
         </mesh>
 
         <group ref={avatarRef}>
-          <AvatarShell
+          <CharacterRenderer
+            runtime={characterRuntime}
             colors={finalColors}
             profileImageUrl={profileImageUrl}
             isCEO={isCEO}
@@ -692,6 +230,8 @@ const Employee = memo(function Employee({
             useCompactOverlayMode={useCompactOverlayMode}
             petType={appearance?.petType}
             clothesStyle={appearance?.clothesStyle}
+            config={characterRendererConfig}
+            fallback={ThreeHumanCharacterRenderer}
           />
         </group>
 
@@ -765,12 +305,15 @@ const Employee = memo(function Employee({
             <ringGeometry args={[0.44, 0.86, 36]} />
             <meshBasicMaterial color="#67e8f9" transparent opacity={0.9} />
           </mesh>
-          <AvatarShell
+          <CharacterRenderer
+            runtime={characterRuntime}
             colors={finalColors}
             isCEO={isCEO}
             isSupervisor={isSupervisor}
             projection
             clothesStyle={appearance?.clothesStyle}
+            config={characterRendererConfig}
+            fallback={ThreeHumanCharacterRenderer}
           />
           <EmployeeStatusBubbles
             statusMessage={statusMessage}

@@ -11,6 +11,7 @@ const CELL_SIZE = 0.5; // Size of each grid cell in world units
 // Add padding for obstacles (in grid cells)
 const OBSTACLE_PADDING = 1; // Default padding for obstacles (1 cell = 0.5 units)
 const DESK_PADDING = 4;     // Extra padding for desk clusters (4 cells = 2.0 units)
+const WALL_CLEARANCE_PADDING = 2; // Keep agent centers away from room-edge cells.
 let gridWidth = 0;
 let gridDepth = 0;
 let worldOffsetX = 0;
@@ -85,11 +86,11 @@ export function initializeGrid(
     currentObstaclePadding = obstaclePadding !== undefined ? obstaclePadding : OBSTACLE_PADDING;
     currentDeskPadding = deskPadding !== undefined ? deskPadding : DESK_PADDING;
 
-    const layoutBounds = typeof floorSize === 'object' && 'tiles' in floorSize
-        ? getOfficeLayoutBounds(floorSize)
-        : null;
-    const floorWidth = typeof floorSize === 'number' ? floorSize : layoutBounds ? layoutBounds.width : floorSize.width;
-    const floorDepth = typeof floorSize === 'number' ? floorSize : layoutBounds ? layoutBounds.depth : floorSize.depth;
+    const layout = typeof floorSize === 'object' && 'tiles' in floorSize ? floorSize : null;
+    const layoutBounds = layout ? getOfficeLayoutBounds(layout) : null;
+    const footprint = typeof floorSize === 'object' && !('tiles' in floorSize) ? floorSize : null;
+    const floorWidth = typeof floorSize === 'number' ? floorSize : layoutBounds ? layoutBounds.width : footprint?.width ?? 0;
+    const floorDepth = typeof floorSize === 'number' ? floorSize : layoutBounds ? layoutBounds.depth : footprint?.depth ?? 0;
     gridWidth = Math.ceil(floorWidth / CELL_SIZE);
     gridDepth = Math.ceil(floorDepth / CELL_SIZE);
     worldOffsetX = floorWidth / 2;
@@ -103,8 +104,8 @@ export function initializeGrid(
         console.log(`Using obstacle padding: ${currentObstaclePadding} cells, desk padding: ${currentDeskPadding} cells`);
     }
 
-    if (layoutBounds) {
-        const tileSet = getOfficeLayoutTileSet(floorSize);
+    if (layoutBounds && layout) {
+        const tileSet = getOfficeLayoutTileSet(layout);
         for (const tileKey of tileSet) {
             const [tileXRaw, tileZRaw] = tileKey.split(":");
             const tileX = Number(tileXRaw);
@@ -115,6 +116,25 @@ export function initializeGrid(
                 for (let z = min.z; z <= max.z; z++) {
                     if (x >= 0 && x < gridWidth && z >= 0 && z < gridDepth) {
                         walkableGrid[x][z] = true;
+                    }
+                }
+            }
+        }
+        const boundaryPadding =
+            currentObstaclePadding > OBSTACLE_PADDING
+                ? Math.max(currentObstaclePadding, WALL_CLEARANCE_PADDING)
+                : 0;
+        if (boundaryPadding > 0) {
+            const floorOnlyGrid = walkableGrid.map((column) => [...column]);
+            for (let x = 0; x < gridWidth; x++) {
+                for (let z = 0; z < gridDepth; z++) {
+                    if (!floorOnlyGrid[x][z]) continue;
+                    for (let dx = -boundaryPadding; dx <= boundaryPadding; dx++) {
+                        for (let dz = -boundaryPadding; dz <= boundaryPadding; dz++) {
+                            if (floorOnlyGrid[x + dx]?.[z + dz] !== true) {
+                                walkableGrid[x][z] = false;
+                            }
+                        }
                     }
                 }
             }
@@ -214,6 +234,13 @@ export function worldToGrid(worldX: number, worldZ: number): { x: number, z: num
     return {
         x: Math.max(0, Math.min(gridWidth - 1, gridX)),
         z: Math.max(0, Math.min(gridDepth - 1, gridZ))
+    };
+}
+
+function worldToGridUnclamped(worldX: number, worldZ: number): { x: number, z: number } {
+    return {
+        x: Math.floor((worldX - worldMinX) / CELL_SIZE),
+        z: Math.floor((worldZ - worldMinZ) / CELL_SIZE),
     };
 }
 
@@ -433,11 +460,15 @@ export function snapToGrid(worldPos: THREE.Vector3): THREE.Vector3 {
  * @returns True if the position is valid for placement
  */
 export function isValidPlacementPosition(worldPos: THREE.Vector3): boolean {
-    const gridPos = worldToGrid(worldPos.x, worldPos.z);
+    const gridPos = worldToGridUnclamped(worldPos.x, worldPos.z);
     if (gridPos.x >= 0 && gridPos.x < gridWidth && gridPos.z >= 0 && gridPos.z < gridDepth) {
         return walkableGrid[gridPos.x][gridPos.z];
     }
     return false;
+}
+
+export function isWorldPositionWalkable(worldPos: THREE.Vector3): boolean {
+    return isGridInitialized() && isValidPlacementPosition(worldPos);
 }
 
 /**

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { OfficeSettingsModel } from "@/modules/runtime";
 import type { RuntimeAdapterKind } from "@/modules/runtime";
+import type { CharacterRendererId } from "@/modules/office/components/employee/renderers/types";
 import type { OfficeOverlayKey, OfficeOverlaySettings } from "@/store";
 import type { CodexOfficeVisibilityForm } from "./use-codex-office-visibility-settings";
 
@@ -156,11 +157,19 @@ type OfficeViewSettingsPanelProps = {
   shuffleStatusText: string;
   isSaving: boolean;
   isShuffling: boolean;
+  characterRendererId: CharacterRendererId;
+  characterSpritePetId: string;
+  characterSpriteEmployeeId: string;
+  characterGraphicsStatusText: string;
   onViewProfileChange: (value: OfficeSettingsModel["viewProfile"]) => void;
   onCameraOrientationChange: (value: OfficeSettingsModel["cameraOrientation"]) => void;
   onOrbitControlsEnabledChange: (value: boolean) => void;
   onSave: () => void;
   onShuffle: () => void;
+  onCharacterRendererIdChange: (value: CharacterRendererId) => void;
+  onCharacterSpritePetIdChange: (value: string) => void;
+  onCharacterSpriteEmployeeIdChange: (value: string) => void;
+  onApplyCharacterGraphics: () => void;
 };
 
 export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
@@ -172,11 +181,19 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
     shuffleStatusText,
     isSaving,
     isShuffling,
+    characterRendererId,
+    characterSpritePetId,
+    characterSpriteEmployeeId,
+    characterGraphicsStatusText,
     onViewProfileChange,
     onCameraOrientationChange,
     onOrbitControlsEnabledChange,
     onSave,
     onShuffle,
+    onCharacterRendererIdChange,
+    onCharacterSpritePetIdChange,
+    onCharacterSpriteEmployeeIdChange,
+    onApplyCharacterGraphics,
   } = props;
 
   return (
@@ -238,6 +255,49 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
       {shuffleStatusText ? (
         <p className="text-xs text-muted-foreground">{shuffleStatusText}</p>
       ) : null}
+
+      <div className="space-y-3 border-t pt-3">
+        <div className="flex flex-col gap-1">
+          <Label>Employee Graphics</Label>
+          <span className="text-xs text-muted-foreground">
+            Choose the office-wide character renderer for employees.
+          </span>
+        </div>
+
+        <SelectField
+          label="Renderer"
+          value={characterRendererId}
+          onChange={(value) => onCharacterRendererIdChange(value as CharacterRendererId)}
+          options={[
+            ["three-human", "Three.js Humans"],
+            ["sprite-sheet-2d", "2D Sprite Sheet"],
+          ]}
+        />
+
+        {characterRendererId === "sprite-sheet-2d" ? (
+          <>
+            <InputField
+              label="Codex Pet ID"
+              value={characterSpritePetId}
+              onChange={onCharacterSpritePetIdChange}
+              placeholder="mini-kenji"
+            />
+            <InputField
+              label="Employee ID"
+              value={characterSpriteEmployeeId}
+              onChange={onCharacterSpriteEmployeeIdChange}
+              placeholder="blank means all employees"
+            />
+          </>
+        ) : null}
+
+        <Button size="sm" variant="outline" onClick={onApplyCharacterGraphics}>
+          Apply Graphics
+        </Button>
+        {characterGraphicsStatusText ? (
+          <p className="text-xs text-muted-foreground">{characterGraphicsStatusText}</p>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -24,6 +24,7 @@ import {
   findPathAStar,
   getNearestValidPlacement,
   isGridInitialized,
+  isWorldPositionWalkable,
 } from "@/modules/navigation/pathfinding/a-star-pathfinding";
 import {
   findAvailableDestination,
@@ -32,7 +33,11 @@ import {
 import type { Id } from "@/lib/entity-types";
 import type { AgentState } from "@/modules/runtime";
 import { getRandomItem } from "@/lib/utils";
-import type { EmployeeAnimationMode } from "./employee-motion";
+import {
+  getEmployeeMovementDirection,
+  type EmployeeAnimationMode,
+  type EmployeeMovementDirection,
+} from "./employee-motion";
 
 const IDLE_DESTINATION_ATTEMPTS = Math.max(8, IDLE_DESTINATIONS.length * 2);
 const PATH_RETRY_COOLDOWN_MS = 2500;
@@ -62,6 +67,7 @@ type UseEmployeeLocomotionResult = {
   debugDeskDecision: string;
   isGoingToDesk: boolean;
   animationMode: EmployeeAnimationMode;
+  movementDirection: EmployeeMovementDirection;
 };
 
 function getDestinationKey(destination: THREE.Vector3, mode: "desk" | "idle"): string {
@@ -100,6 +106,7 @@ export function useEmployeeLocomotion({
   });
   const [debugDeskDecision, setDebugDeskDecision] = useState("");
   const [animationMode, setAnimationMode] = useState<EmployeeAnimationMode>("idle");
+  const [movementDirection, setMovementDirection] = useState<EmployeeMovementDirection>("none");
 
   const idleTimerRef = useRef(0);
   const debugPathUpdateRef = useRef(0);
@@ -174,7 +181,7 @@ export function useEmployeeLocomotion({
       }
 
       if (newPath) {
-        if (goingToDesk && newPath.length > 0) {
+        if (goingToDesk && newPath.length > 0 && isWorldPositionWalkable(endPos)) {
           const lastPoint = newPath[newPath.length - 1];
           if (lastPoint.distanceTo(endPos) > 0.1) {
             newPath.push(endPos.clone());
@@ -222,6 +229,19 @@ export function useEmployeeLocomotion({
     const currentPos = groupRef.current.position;
     const desiredY = TOTAL_HEIGHT / 2;
     currentPos.y = desiredY;
+
+    if (isGridInitialized() && !isWorldPositionWalkable(currentPos)) {
+      const safePosition = getNearestValidPlacement(currentPos, 24);
+      if (safePosition) {
+        safePosition.y = desiredY;
+        groupRef.current.position.copy(safePosition);
+        setPath(null);
+        setPathIndex(0);
+        setCurrentDestination(null);
+        setIsGoingToDesk(false);
+        releaseEmployeeReservations(id);
+      }
+    }
 
     let targetPathNode: THREE.Vector3 | null = null;
     let isMoving = false;
@@ -352,10 +372,14 @@ export function useEmployeeLocomotion({
       if (distance < arrivalThreshold) {
         setPathIndex((prev) => prev + 1);
       } else {
+        const nextMovementDirection = getEmployeeMovementDirection(direction.x, direction.z);
+        setMovementDirection((prev) => (prev === nextMovementDirection ? prev : nextMovementDirection));
         direction.normalize();
         const moveDistance = movementSpeed * delta;
         groupRef.current.position.add(direction.multiplyScalar(Math.min(moveDistance, distance)));
       }
+    } else {
+      setMovementDirection((prev) => (prev === "none" ? prev : "none"));
     }
 
     const nextAnimationMode = isMoving ? "walking" : shouldBeAtDesk ? "working" : "idle";
@@ -388,5 +412,12 @@ export function useEmployeeLocomotion({
     }
   }, [debugMode]);
 
-  return { groupRef, debugPathData, debugDeskDecision, isGoingToDesk, animationMode };
+  return {
+    groupRef,
+    debugPathData,
+    debugDeskDecision,
+    isGoingToDesk,
+    animationMode,
+    movementDirection,
+  };
 }

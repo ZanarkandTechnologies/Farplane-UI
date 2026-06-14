@@ -16,6 +16,7 @@
  */
 
 export type EmployeeAnimationMode = "walking" | "working" | "idle";
+export type EmployeeMovementDirection = "left" | "right" | "up" | "down" | "none";
 
 type EmployeeAnimationPose = {
   bobY: number;
@@ -39,4 +40,13 @@ export function getEmployeeAnimationPose(
     rollZ: Math.sin(elapsed * bobSpeed) * swayAmplitude,
     yawY: Math.sin(elapsed * (bobSpeed * 0.5)) * yawAmplitude,
   };
+}
+
+export function getEmployeeMovementDirection(
+  x: number,
+  z: number,
+): EmployeeMovementDirection {
+  if (Math.abs(x) < 0.001 && Math.abs(z) < 0.001) return "none";
+  if (Math.abs(x) >= Math.abs(z)) return x < 0 ? "left" : "right";
+  return z < 0 ? "up" : "down";
 }

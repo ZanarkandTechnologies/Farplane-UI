@@ -59,6 +59,39 @@ Target stable regression coverage for:
 - Agent Session opens from keyboard/command entry
 - Builder Mode toggles without losing panel access
 
+### Office Readiness And Character Renderer Proof
+
+For canvas-heavy office proof, do not rely on a fixed timeout or on network
+requests alone. Wait for the loader to clear, then inspect the dev probe exposed
+by employee renderers.
+
+Use the character-renderer proof script when changing employee graphics:
+
+```bash
+FARPLANE_OFFICE_URL=http://127.0.0.1:5199/office \
+FARPLANE_CHARACTER_RENDERER=sprite-sheet-2d \
+FARPLANE_CHARACTER_PET_ID=mini-kenji \
+FARPLANE_CHARACTER_PROOF_DIR=tickets/<ticket>/artifacts/browser-qa \
+node scripts/prove-office-character-renderers.mjs
+```
+
+The script:
+
+- sets the same localStorage keys used by Settings → Office → Employee Graphics
+- waits until `Loading office` is gone and a canvas is present
+- reads `window.__farplaneOfficeCharacterRenderers`
+- fails if employees still resolve to `three-human`, or if sprite rows report
+  `fallback` / `error`
+- writes a screenshot, crop, and JSON proof
+
+Useful live probes:
+
+```js
+window.__farplaneOfficeCharacterRenderers
+window.__farplaneOfficeClickProbe?.targets
+window.__farplaneOfficeLiveEmployeePositions
+```
+
 ## Agent-Browser Path
 
 Use `agent-browser` for quick proof:

@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
+import { officeLayoutTileKey, type OfficeLayoutModel } from "@/modules/office/lib/office-layout";
+
+function createLayout(tiles: Array<[number, number]>): OfficeLayoutModel {
+  return {
+    version: 1,
+    tileSize: 1,
+    tiles: tiles.map(([x, z]) => officeLayoutTileKey(x, z)),
+  };
+}
 
 describe("a-star pathfinding initialization", () => {
   beforeEach(() => {
@@ -30,6 +39,58 @@ describe("a-star pathfinding initialization", () => {
     expect(grid.floorDepth).toBe(8);
     expect(grid.gridWidth).toBe(24);
     expect(grid.gridDepth).toBe(16);
+  });
+
+  it("treats positions outside the layout bounds as invalid instead of clamping to an edge", async () => {
+    const pathfinding = await import("./a-star-pathfinding");
+
+    pathfinding.initializeGrid(createLayout([[0, 0]]), []);
+
+    expect(pathfinding.isWorldPositionWalkable(new THREE.Vector3(0, 0, 0))).toBe(true);
+    expect(pathfinding.isWorldPositionWalkable(new THREE.Vector3(4, 0, 0))).toBe(false);
+  });
+
+  it("does not bridge separated layout islands", async () => {
+    const pathfinding = await import("./a-star-pathfinding");
+
+    pathfinding.initializeGrid(
+      createLayout([
+        [0, 0],
+        [4, 0],
+      ]),
+      [],
+    );
+
+    const path = pathfinding.findPathAStar(
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(4, 0, 0),
+      { silent: true },
+    );
+
+    expect(path).toBeNull();
+  });
+
+  it("keeps layout-backed paths away from outer wall edge cells when scene padding is requested", async () => {
+    const pathfinding = await import("./a-star-pathfinding");
+
+    pathfinding.initializeGrid(
+      createLayout([
+        [0, 0],
+        [1, 0],
+        [2, 0],
+        [0, 1],
+        [1, 1],
+        [2, 1],
+        [0, 2],
+        [1, 2],
+        [2, 2],
+      ]),
+      [],
+      2,
+    );
+
+    expect(pathfinding.isWorldPositionWalkable(new THREE.Vector3(1, 0, 1))).toBe(true);
+    expect(pathfinding.isWorldPositionWalkable(new THREE.Vector3(0, 0, 1))).toBe(false);
   });
 
   it("keeps pre-initialization path requests quiet by default", async () => {

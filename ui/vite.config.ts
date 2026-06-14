@@ -53,6 +53,7 @@ const OFFICE_OBJECTS_PATH = path.join(FARPLANE_HOME, "office-objects.json");
 const OFFICE_SETTINGS_PATH = path.join(FARPLANE_HOME, "office.json");
 const PROJECT_MANAGERS_PATH = path.join(FARPLANE_HOME, "project-managers.json");
 const CODEX_OFFICE_CONFIG_PATH = path.join(FARPLANE_HOME, "codex-office.json");
+const FARPLANE_EVALS_ROOT = path.join(REPO_ROOT, ".farplane", "evals");
 const OFFICE_OBJECTS_TEMPLATE_PATH = path.resolve(
   __dirname,
   "../templates/sidecar/office-objects.template.json",
@@ -75,6 +76,7 @@ const DEFAULT_MESH_ASSET_DIR = path.join(FARPLANE_HOME, "assets", "meshes");
 const CRON_JOBS_PATH = path.join(OPENCLAW_HOME, "cron", "jobs.json");
 const MESH_EXTENSIONS = new Set([".glb", ".gltf"]);
 const MESH_PREVIEW_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
+const CODEX_PET_ASSET_EXTENSIONS = new Set([".json", ".png", ".webp"]);
 const SKILL_PACKAGE_FILE_NAMES = ["SKILL.md", "skill.md"] as const;
 const MESHY_API_BASE = "https://api.meshy.ai/openapi/v2";
 
@@ -464,6 +466,10 @@ async function readCompanyModelWithSeed(): Promise<JsonObject> {
 
 function asMeshPublicPath(fileName: string): string {
   return `/openclaw/assets/meshes/${encodeURIComponent(fileName)}`;
+}
+
+function isSafeCodexPetSegment(value: string): boolean {
+  return Boolean(value.trim()) && !value.includes("/") && !value.includes("\\") && !value.includes("..");
 }
 
 function sanitizeLabelToFileBase(label: string): string {
@@ -1786,6 +1792,162 @@ function renderHeartbeatTemplate(rawTemplate: string, project: JsonObject): stri
   return rendered;
 }
 
+type EvalRunIndexEntry = {
+  job_id: string;
+  label?: string;
+  created_at?: string;
+  completed_at?: string;
+  summary_path?: string;
+  task_count?: number;
+  pass_rate?: number;
+};
+
+type EvalTaskSummary = {
+  task_id: string;
+  title?: string;
+  pass?: boolean;
+  verdict?: string;
+  reason?: string;
+  detail_path?: string;
+};
+
+type EvalSummary = {
+  job_id: string;
+  label?: string;
+  created_at?: string;
+  completed_at?: string;
+  harness?: string;
+  judge_harness?: string;
+  suite?: string;
+  task_count?: number;
+  pass_rate?: number;
+  verdict_counts?: Record<string, number>;
+  tasks: EvalTaskSummary[];
+};
+
+function isSafeEvalId(value: string): boolean {
+  return /^[A-Za-z0-9._-]+$/.test(value) && !value.includes("..");
+}
+
+function normalizeEvalRunIndexEntry(value: unknown): EvalRunIndexEntry | null {
+  if (!value || typeof value !== "object") return null;
+  const entry = value as JsonObject;
+  const jobId = String(entry.job_id ?? entry.jobId ?? "").trim();
+  if (!jobId) return null;
+  return {
+    job_id: jobId,
+    label: typeof entry.label === "string" ? entry.label : undefined,
+    created_at: typeof entry.created_at === "string" ? entry.created_at : undefined,
+    completed_at: typeof entry.completed_at === "string" ? entry.completed_at : undefined,
+    summary_path: typeof entry.summary_path === "string" ? entry.summary_path : undefined,
+    task_count: typeof entry.task_count === "number" ? entry.task_count : undefined,
+    pass_rate: typeof entry.pass_rate === "number" ? entry.pass_rate : undefined,
+  };
+}
+
+function normalizeEvalSummary(value: unknown): EvalSummary | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as JsonObject;
+  const jobId = String(row.job_id ?? row.jobId ?? "").trim();
+  const rawTasks = Array.isArray(row.tasks) ? row.tasks : [];
+  if (!jobId) return null;
+  const tasks = rawTasks
+    .map((task): EvalTaskSummary | null => {
+      if (!task || typeof task !== "object") return null;
+      const taskRow = task as JsonObject;
+      const taskId = String(taskRow.task_id ?? taskRow.taskId ?? "").trim();
+      if (!taskId) return null;
+      return {
+        task_id: taskId,
+        title: typeof taskRow.title === "string" ? taskRow.title : undefined,
+        pass: typeof taskRow.pass === "boolean" ? taskRow.pass : undefined,
+        verdict: typeof taskRow.verdict === "string" ? taskRow.verdict : undefined,
+        reason: typeof taskRow.reason === "string" ? taskRow.reason : undefined,
+        detail_path: typeof taskRow.detail_path === "string" ? taskRow.detail_path : undefined,
+      };
+    })
+    .filter((task): task is EvalTaskSummary => Boolean(task));
+  return {
+    job_id: jobId,
+    label: typeof row.label === "string" ? row.label : undefined,
+    created_at: typeof row.created_at === "string" ? row.created_at : undefined,
+    completed_at: typeof row.completed_at === "string" ? row.completed_at : undefined,
+    harness: typeof row.harness === "string" ? row.harness : undefined,
+    judge_harness: typeof row.judge_harness === "string" ? row.judge_harness : undefined,
+    suite: typeof row.suite === "string" ? row.suite : undefined,
+    task_count: typeof row.task_count === "number" ? row.task_count : tasks.length,
+    pass_rate: typeof row.pass_rate === "number" ? row.pass_rate : undefined,
+    verdict_counts:
+      row.verdict_counts && typeof row.verdict_counts === "object"
+        ? (row.verdict_counts as Record<string, number>)
+        : undefined,
+    tasks,
+  };
+}
+
+function sortEvalRuns(entries: EvalRunIndexEntry[]): EvalRunIndexEntry[] {
+  return [...entries].sort((left, right) => {
+    const leftTime = Date.parse(left.created_at ?? left.completed_at ?? "");
+    const rightTime = Date.parse(right.created_at ?? right.completed_at ?? "");
+    return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
+  });
+}
+
+async function readEvalRunIndex(): Promise<EvalRunIndexEntry[]> {
+  const indexPath = path.join(FARPLANE_EVALS_ROOT, "runs", "index.json");
+  const raw = await readJsonFile<unknown>(indexPath, []);
+  const rawEntries = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === "object" && Array.isArray((raw as JsonObject).runs)
+      ? ((raw as JsonObject).runs as unknown[])
+      : [];
+  return sortEvalRuns(
+    rawEntries
+      .map(normalizeEvalRunIndexEntry)
+      .filter((entry): entry is EvalRunIndexEntry => Boolean(entry)),
+  );
+}
+
+async function readEvalSummary(jobId: string): Promise<EvalSummary | null> {
+  if (!isSafeEvalId(jobId)) return null;
+  const summaryPath = path.join(FARPLANE_EVALS_ROOT, "runs", jobId, "summary.json");
+  return normalizeEvalSummary(await readJsonFile<unknown>(summaryPath, null));
+}
+
+async function readEvalTaskDetail(jobId: string, taskId: string): Promise<JsonObject | null> {
+  if (!isSafeEvalId(jobId) || !isSafeEvalId(taskId)) return null;
+  const taskPath = path.join(FARPLANE_EVALS_ROOT, "runs", jobId, "tasks", `${taskId}.json`);
+  const raw = await readJsonFile<unknown>(taskPath, null);
+  if (!raw || typeof raw !== "object") return null;
+  const detail = raw as JsonObject;
+  const answerPath = path.join(
+    FARPLANE_EVALS_ROOT,
+    "runs",
+    jobId,
+    "tasks",
+    taskId,
+    "agent_answer.txt",
+  );
+  if (await pathExists(answerPath)) {
+    const agent = detail.agent && typeof detail.agent === "object" ? (detail.agent as JsonObject) : {};
+    detail.agent = { ...agent, answer_text: await readFile(answerPath, "utf-8") };
+  }
+  return detail;
+}
+
+async function readEvalRun(
+  jobId: string,
+): Promise<{ summary: EvalSummary | null; detailsByTaskId: Record<string, JsonObject> }> {
+  const summary = await readEvalSummary(jobId);
+  const detailsByTaskId: Record<string, JsonObject> = {};
+  if (!summary) return { summary, detailsByTaskId };
+  for (const task of summary.tasks) {
+    const detail = await readEvalTaskDetail(jobId, task.task_id);
+    if (detail) detailsByTaskId[task.task_id] = detail;
+  }
+  return { summary, detailsByTaskId };
+}
+
 function farplaneStateBridge() {
   return {
     name: "farplane-openclaw-state-bridge",
@@ -1873,6 +2035,96 @@ function farplaneStateBridge() {
           return;
         }
 
+        if (method === "GET" && pathname === "/farplane/evals/runs") {
+          const exists = await isDirectory(FARPLANE_EVALS_ROOT);
+          const runs = exists ? await readEvalRunIndex() : [];
+          writeJson(res, 200, {
+            ok: true,
+            evalsRoot: FARPLANE_EVALS_ROOT,
+            exists,
+            runs,
+            latest: runs[0] ?? null,
+          });
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/evals/runs/latest") {
+          const exists = await isDirectory(FARPLANE_EVALS_ROOT);
+          const runs = exists ? await readEvalRunIndex() : [];
+          const latest = runs[0] ?? null;
+          if (!latest) {
+            writeJson(res, 200, {
+              ok: true,
+              evalsRoot: FARPLANE_EVALS_ROOT,
+              empty: true,
+              summary: null,
+              detailsByTaskId: {},
+            });
+            return;
+          }
+          const run = await readEvalRun(latest.job_id);
+          writeJson(res, run.summary ? 200 : 404, {
+            ok: Boolean(run.summary),
+            evalsRoot: FARPLANE_EVALS_ROOT,
+            summary: run.summary,
+            detailsByTaskId: run.detailsByTaskId,
+            error: run.summary ? undefined : "eval_run_not_found",
+          });
+          return;
+        }
+
+        const evalAnswerMatch = pathname.match(
+          /^\/farplane\/evals\/runs\/([^/]+)\/tasks\/([^/]+)\/agent_answer\.txt$/,
+        );
+        if (method === "GET" && evalAnswerMatch) {
+          const [, jobId, taskId] = evalAnswerMatch;
+          if (!isSafeEvalId(jobId) || !isSafeEvalId(taskId)) {
+            writeJson(res, 400, { ok: false, error: "unsafe_eval_id" });
+            return;
+          }
+          const answerPath = path.join(
+            FARPLANE_EVALS_ROOT,
+            "runs",
+            jobId,
+            "tasks",
+            taskId,
+            "agent_answer.txt",
+          );
+          if (!(await pathExists(answerPath))) {
+            writeJson(res, 404, { ok: false, error: "eval_agent_answer_not_found" });
+            return;
+          }
+          res.setHeader("content-type", "text/plain; charset=utf-8");
+          res.end(await readFile(answerPath, "utf-8"));
+          return;
+        }
+
+        const evalTaskMatch = pathname.match(/^\/farplane\/evals\/runs\/([^/]+)\/tasks\/([^/]+)$/);
+        if (method === "GET" && evalTaskMatch) {
+          const [, jobId, taskId] = evalTaskMatch;
+          const detail = await readEvalTaskDetail(jobId, taskId);
+          writeJson(res, detail ? 200 : 404, {
+            ok: Boolean(detail),
+            detail,
+            error: detail ? undefined : "eval_task_detail_not_found",
+          });
+          return;
+        }
+
+        const evalRunMatch = pathname.match(/^\/farplane\/evals\/runs\/([^/]+)$/);
+        if (method === "GET" && evalRunMatch) {
+          const [, jobId] = evalRunMatch;
+          const run = await readEvalRun(jobId);
+          writeJson(res, run.summary ? 200 : 404, {
+            ok: Boolean(run.summary),
+            evalsRoot: FARPLANE_EVALS_ROOT,
+            summary: run.summary,
+            detailsByTaskId: run.detailsByTaskId,
+            error: run.summary ? undefined : "eval_run_not_found",
+          });
+          return;
+        }
+
         if (method === "POST" && pathname === "/farplane/codex-office") {
           const body = await readBody(req);
           const config = await saveCodexOfficeConfig(
@@ -1886,7 +2138,8 @@ function farplaneStateBridge() {
 
         const isOpenClawRoute = pathname.startsWith("/openclaw/");
         const isFarplaneOfficeObjectRoute = pathname.startsWith("/farplane/office-objects/");
-        if (!isOpenClawRoute && !isFarplaneOfficeObjectRoute) {
+        const isCodexPetRoute = pathname.startsWith("/codex/pets/");
+        if (!isOpenClawRoute && !isFarplaneOfficeObjectRoute && !isCodexPetRoute) {
           next();
           return;
         }
@@ -2603,6 +2856,44 @@ function farplaneStateBridge() {
           return;
         }
 
+        const codexPetAssetMatch = pathname.match(/^\/codex\/pets\/([^/]+)\/([^/]+)$/);
+        if (method === "GET" && codexPetAssetMatch) {
+          const petId = decodeURIComponent(codexPetAssetMatch[1]);
+          const fileName = decodeURIComponent(codexPetAssetMatch[2]);
+          if (!isSafeCodexPetSegment(petId) || !isSafeCodexPetSegment(fileName)) {
+            writeJson(res, 400, { ok: false, error: "codex_pet_path_invalid" });
+            return;
+          }
+
+          const ext = path.extname(fileName).toLowerCase();
+          if (!CODEX_PET_ASSET_EXTENSIONS.has(ext)) {
+            writeJson(res, 400, { ok: false, error: "codex_pet_extension_invalid" });
+            return;
+          }
+          if (fileName !== "pet.json" && ext === ".json") {
+            writeJson(res, 400, { ok: false, error: "codex_pet_json_invalid" });
+            return;
+          }
+
+          const filePath = path.join(CODEX_HOME, "pets", petId, fileName);
+          try {
+            const bytes = await readFile(filePath);
+            if (ext === ".png") {
+              res.setHeader("content-type", "image/png");
+            } else if (ext === ".webp") {
+              res.setHeader("content-type", "image/webp");
+            } else {
+              res.setHeader("content-type", "application/json");
+            }
+            res.setHeader("cache-control", "no-store");
+            (res as { statusCode?: number }).statusCode = 200;
+            (res as { end: (body: Buffer) => void }).end(bytes);
+          } catch {
+            writeJson(res, 404, { ok: false, error: "codex_pet_asset_not_found" });
+          }
+          return;
+        }
+
         if (method === "POST" && pathname === "/openclaw/office-objects") {
           if (!hasBridgeWriteAccess(req)) {
             writeJson(res, 403, { ok: false, error: "forbidden" });
@@ -3105,11 +3396,19 @@ export default defineConfig({
       "react/jsx-runtime": path.resolve(REPO_ROOT, "node_modules/react/jsx-runtime.js"),
       "react-dom": path.resolve(REPO_ROOT, "node_modules/react-dom"),
       "react-dom/client": path.resolve(REPO_ROOT, "node_modules/react-dom/client.js"),
+      three: path.resolve(REPO_ROOT, "node_modules/three"),
     },
-    dedupe: ["react", "react-dom"],
+    dedupe: ["react", "react-dom", "three", "@react-three/fiber", "@react-three/drei"],
   },
   optimizeDeps: {
-    include: ["react", "react/jsx-runtime", "react/jsx-dev-runtime", "react-dom", "react-dom/client"],
+    include: [
+      "react",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+      "react-dom",
+      "react-dom/client",
+      "three",
+    ],
   },
   plugins: [farplaneStateBridge(), tailwindcss(), react()],
   server: {
