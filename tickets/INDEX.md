@@ -31,7 +31,11 @@
 - `TKT-023` - Skill OS, Evals, and Harness entrypoint redesign (`tickets/building/TKT-023-skill-os-evals-harness-redesign/ticket.md`)
 - `TKT-024` - Public read-only office view for livestreaming (`tickets/building/TKT-024-public-office-view-goal/ticket.md`)
 - `TKT-025` - Skill invocation listener hook and dashboard (`tickets/building/TKT-025-skill-invocation-listener-hook/ticket.md`)
+- `TKT-026` - Character Graphic System for employee renderers (`tickets/building/TKT-026-character-graphic-system/ticket.md`)
 - `TKT-027` - Eval OS mini app and run artifact viewer (`tickets/building/TKT-027-eval-os-mini-app/ticket.md`)
+- `TKT-029` - Skill OS revamp into graph-first mini app (`tickets/building/TKT-029-skill-os-revamp/ticket.md`)
+- `TKT-030` - Skill OS graph performance optimization (`tickets/building/TKT-030-skill-os-graph-performance/ticket.md`)
+- `TKT-031` - Skill OS workbench tabs and invocation counters (`tickets/building/TKT-031-skill-os-workbench-invocations/ticket.md`)
 
 ## Done
 

@@ -53,7 +53,7 @@
     "@mariozechner/pi-coding-agent": "latest",
     "@slack/bolt": "latest",
     "@whiskeysockets/baileys": "^6.17.16",
-    "commander": "latest",
+    "commander": "^14.0.3",
     "convex": "^1.32.0",
     "croner": "latest",
     "discord.js": "latest",
