@@ -1,17 +1,12 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { buildOfficeBootstrapStages } from "./office-bootstrap";
 import { OfficeLoader } from "./office-loader";
 
-vi.mock("@/components/ai-elements/loader", () => ({
-  Loader: ({ className }: { className?: string }) =>
-    createElement("div", { className, "data-testid": "loader" }, "spinner"),
-}));
-
 describe("office loader", () => {
-  it("renders wrapped stage cards and the active progress label", () => {
+  it("renders the office fill indicator and active bootstrap state", () => {
     const stages = buildOfficeBootstrapStages({
       dataReady: true,
       meshesReady: false,
@@ -23,12 +18,15 @@ describe("office loader", () => {
     );
 
     expect(markup).toContain("Loading office");
+    expect(markup).toContain("Farplane init");
     expect(markup).toContain("Preparing scene assets");
     expect(markup).toContain("Building navigation grid");
     expect(markup).toContain("Bootstrap progress");
     expect(markup).toContain("67%");
-    expect(markup).toContain("grid w-full max-w-4xl gap-3 md:grid-cols-3");
-    expect(markup).toContain("In progress");
+    expect(markup).toContain("Office bootstrap 67% complete");
+    expect(markup).toContain("grid grid-cols-3 gap-2 text-left");
+    expect(markup).toContain("transition-[height]");
+    expect(markup).not.toContain("spinner");
     expect(markup).not.toContain("truncate");
   });
 });

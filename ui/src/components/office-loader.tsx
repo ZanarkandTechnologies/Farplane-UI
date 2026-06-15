@@ -8,8 +8,8 @@
  *   `office-bootstrap.ts` and `office-simulation.tsx`.
  * - The loader stays centered, but it must still read like the rest of Farplane's
  *   square-edged material HUD instead of inventing a separate visual language.
- * - Bootstrap stages render as wrapped status cards so long detail copy stays readable
- *   without truncation.
+ * - Bootstrap stages render as a compact status rail so the init overlay stays
+ *   quiet and does not compete with the office scene it is preparing.
  *
  * USAGE:
  * - Render while `bootstrapState.isReady` is false in `office-simulation.tsx`
@@ -20,8 +20,6 @@
  * - MEM-0160
  */
 
-import { Loader } from "@/components/ai-elements/loader";
-
 import type { OfficeBootstrapStage } from "./office-bootstrap";
 
 type OfficeLoaderProps = {
@@ -29,75 +27,95 @@ type OfficeLoaderProps = {
   stages: OfficeBootstrapStage[];
 };
 
+const BUILDING_WINDOW_COUNT = 15;
+const BUILDING_WINDOWS = Array.from({ length: BUILDING_WINDOW_COUNT }, (_, index) => index);
+
 export function OfficeLoader({ completionRatio, stages }: OfficeLoaderProps): React.JSX.Element {
   const activeStage = stages.find((stage) => !stage.isReady) ?? stages[stages.length - 1];
-  const completionPercent = Math.round(completionRatio * 100);
+  const safeCompletionRatio = Math.min(1, Math.max(0, completionRatio));
+  const completionPercent = Math.round(safeCompletionRatio * 100);
+  const litWindowCount = Math.round(safeCompletionRatio * BUILDING_WINDOW_COUNT);
 
   return (
-    <div className="absolute inset-0 z-[120] flex items-center justify-center bg-background/92 backdrop-blur-md">
-      <div className="w-full max-w-5xl px-6 py-10">
-        <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-8 border border-border bg-background/95 px-6 py-8 text-center shadow-2xl md:px-10 md:py-10">
-          <div className="relative flex h-28 w-28 items-center justify-center border border-border bg-card">
-            <div className="absolute inset-3 border border-border" />
-            <div className="absolute inset-0 animate-spin border-t-2 border-primary" />
-            <div className="flex h-16 w-16 items-center justify-center border border-border bg-background text-lg font-semibold tracking-[0.24em] text-primary">
-              SC
-            </div>
-          </div>
+    <div className="absolute inset-0 z-[120] flex items-center justify-center bg-background/95 px-6 backdrop-blur-md">
+      <div className="flex w-full max-w-md flex-col items-center gap-7 border border-border bg-background/95 px-7 py-8 text-center shadow-2xl sm:px-9">
+        <div
+          className="relative h-32 w-24 border border-border bg-card shadow-sm"
+          aria-label={`Office bootstrap ${completionPercent}% complete`}
+          role="img"
+        >
+          <div
+            className="absolute inset-x-0 bottom-0 bg-primary/18 transition-[height] duration-500 ease-out"
+            style={{ height: `${completionPercent}%` }}
+          />
+          <div className="absolute -top-3 left-1/2 h-3 w-10 -translate-x-1/2 border border-border border-b-0 bg-card" />
+          <div className="absolute inset-3 grid grid-cols-3 gap-2">
+            {BUILDING_WINDOWS.map((windowIndex) => {
+              const bottomWindowIndex = BUILDING_WINDOW_COUNT - windowIndex;
+              const isLit = bottomWindowIndex <= litWindowCount;
 
-          <div className="relative flex max-w-2xl flex-col items-center gap-3">
-            <p className="text-xs font-medium uppercase tracking-[0.34em] text-muted-foreground">
-              Farplane
-            </p>
-            <h2 className="text-3xl font-semibold tracking-[0.08em] text-foreground sm:text-4xl">
-              Loading office
-            </h2>
-            <p className="max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">
-              {activeStage?.detail}
-            </p>
-          </div>
-
-          <div className="relative w-full max-w-2xl space-y-4">
-            <div className="overflow-hidden border border-border bg-card p-4">
-              <div className="mb-3 flex items-center justify-between gap-3 text-xs uppercase tracking-[0.24em] text-muted-foreground">
-                <span>Bootstrap progress</span>
-                <span>{completionPercent}%</span>
-              </div>
-              <div className="h-2 overflow-hidden border border-border bg-muted">
+              return (
                 <div
-                  className="h-full bg-primary transition-[width] duration-300 ease-out"
-                  style={{ width: `${completionPercent}%` }}
+                  key={windowIndex}
+                  className={
+                    isLit
+                      ? "border border-primary/45 bg-primary transition-colors duration-300"
+                      : "border border-border bg-background transition-colors duration-300"
+                  }
                 />
-              </div>
-              <div className="mt-3 text-sm text-muted-foreground">{activeStage?.label}</div>
-            </div>
+              );
+            })}
           </div>
+          <div className="absolute -bottom-3 left-1/2 h-3 w-8 -translate-x-1/2 border border-border border-t-0 bg-background" />
+        </div>
 
-          <div className="relative grid w-full max-w-4xl gap-3 md:grid-cols-3">
-            {stages.map((stage) => (
-              <div
-                key={stage.id}
-                className="flex min-h-36 flex-col items-center justify-start gap-3 border border-border bg-card px-4 py-5 text-center"
-              >
-                {/* Keep stage cards on shared HUD surfaces so centering does not drift from the material theme. */}
-                <div className="flex h-9 w-9 items-center justify-center border border-border bg-background">
-                  {stage.isReady ? (
-                    <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                  ) : (
-                    <Loader className="text-primary" size={14} />
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold tracking-[0.08em] text-foreground">
+        <div className="flex w-full flex-col items-center gap-2">
+          <p className="text-xs font-medium uppercase text-muted-foreground">Farplane init</p>
+          <h2 className="text-2xl font-semibold text-foreground sm:text-3xl">Loading office</h2>
+          <p className="min-h-6 max-w-sm text-sm leading-6 text-muted-foreground">
+            {activeStage?.detail}
+          </p>
+        </div>
+
+        <div className="w-full space-y-4" aria-label="Bootstrap progress">
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="font-medium text-foreground">{activeStage?.label}</span>
+            <span className="tabular-nums text-muted-foreground">{completionPercent}%</span>
+          </div>
+          <div className="h-px overflow-hidden bg-border">
+            <div
+              className="h-full bg-primary transition-[width] duration-500 ease-out"
+              style={{ width: `${completionPercent}%` }}
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-left">
+            {stages.map((stage) => {
+              const isActive = stage.id === activeStage?.id;
+              const isEmphasized = stage.isReady || isActive;
+
+              return (
+                <div key={stage.id} className="min-w-0 space-y-2">
+                  <div
+                    className={
+                      isActive
+                        ? "h-1 bg-primary"
+                        : stage.isReady
+                          ? "h-1 bg-primary/55"
+                          : "h-1 bg-border"
+                    }
+                  />
+                  <p
+                    className={
+                      isEmphasized
+                        ? "text-xs font-medium leading-5 text-foreground"
+                        : "text-xs leading-5 text-muted-foreground"
+                    }
+                  >
                     {stage.label}
                   </p>
-                  <p className="text-sm leading-6 text-muted-foreground">{stage.detail}</p>
                 </div>
-                <div className="mt-auto text-[11px] uppercase tracking-[0.22em] text-muted-foreground/90">
-                  {stage.isReady ? "Ready" : "In progress"}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
