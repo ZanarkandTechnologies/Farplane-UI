@@ -23,6 +23,14 @@ type ActivityBadgeStyle = {
   className: string;
 };
 
+const FIXED_READY_BANNER_CLASS =
+  "flex min-h-[42px] min-w-[176px] max-w-[260px] flex-col items-center justify-center rounded-sm border px-4 py-2 text-center text-[13px] font-semibold leading-none shadow-md backdrop-blur-sm";
+const FLOATING_STATUS_CARD_CLASS =
+  "w-[200px] max-w-[200px] rounded-md border px-3 py-2 text-[11px] font-semibold leading-none shadow-lg backdrop-blur";
+const TITLE_TEXT_CLASS =
+  "line-clamp-2 whitespace-normal break-keep leading-snug [hyphens:none] [overflow-wrap:normal] [word-break:keep-all]";
+const ACTIVITY_ROW_CLASS = "flex items-center justify-center gap-1.5";
+
 type EmployeeStatusBubblesProps = {
   statusMessage?: string;
   activityState?: EmployeeActivityState;
@@ -38,6 +46,7 @@ type EmployeeStatusBubblesProps = {
   debugDeskDecision: string;
   onboardingPrompt?: string | null;
   useCompactOverlayMode?: boolean;
+  pinReadyActivity?: boolean;
 };
 
 function getActivityBadgeStyle(state: EmployeeActivityState): ActivityBadgeStyle {
@@ -83,6 +92,7 @@ function EmployeeActivityBadge({
   focused,
   totalHeight,
   compact,
+  fixedBannerSize,
 }: {
   state: EmployeeActivityState;
   label?: string;
@@ -91,26 +101,38 @@ function EmployeeActivityBadge({
   focused: boolean;
   totalHeight: number;
   compact: boolean;
+  fixedBannerSize: boolean;
 }) {
   const style = getActivityBadgeStyle(state);
   const displayLabel = label?.trim() || style.label;
   const showDetail = focused && !compact && detail?.trim() && detail.trim() !== displayLabel;
   const displayTitle = title.trim();
+  const containerClassName = fixedBannerSize
+    ? `${FIXED_READY_BANNER_CLASS} ${style.className}`
+    : `${FLOATING_STATUS_CARD_CLASS} ${style.className}`;
 
   return (
     <Html
       position={[0, totalHeight + 0.46, 0]}
       center
+      transform={fixedBannerSize}
+      sprite={fixedBannerSize}
+      distanceFactor={fixedBannerSize ? 4.8 : undefined}
       zIndexRange={[110, 0]}
-      style={{ pointerEvents: "none", userSelect: "none" }}
+      style={{
+        backfaceVisibility: fixedBannerSize ? "hidden" : undefined,
+        WebkitBackfaceVisibility: fixedBannerSize ? "hidden" : undefined,
+        pointerEvents: "none",
+        userSelect: "none",
+      }}
     >
-      <div
-        className={`w-[200px] max-w-[200px] rounded-md border px-3 py-2 text-[11px] font-semibold leading-none shadow-lg backdrop-blur ${style.className}`}
-      >
+      <div className={containerClassName}>
         {displayTitle ? (
-          <div className="line-clamp-2 whitespace-normal leading-snug">{displayTitle}</div>
+          <div className={TITLE_TEXT_CLASS}>{displayTitle}</div>
         ) : null}
-        <div className={displayTitle ? "mt-1 flex items-center gap-1.5" : "flex items-center gap-1.5"}>
+        <div
+          className={displayTitle ? `mt-1 ${ACTIVITY_ROW_CLASS}` : ACTIVITY_ROW_CLASS}
+        >
           <span className="shrink-0 truncate uppercase tracking-[0.08em] text-[9px] opacity-80">
             {displayLabel}
           </span>
@@ -140,12 +162,15 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
   debugDeskDecision,
   onboardingPrompt,
   useCompactOverlayMode = false,
+  pinReadyActivity = false,
 }: EmployeeStatusBubblesProps) {
   const showRichEmployeeLabels = !useCompactOverlayMode;
   const hasActivityText = Boolean(activityLabel?.trim() || activityDetail?.trim());
   const hasActivityBadge =
     typeof activityState === "string" && (activityState !== "idle" || hasActivityText);
-  const showActivityBadge = hasActivityBadge && (isHovered || isHighlighted);
+  const showPinnedReadyBadge = pinReadyActivity && activityState === "done";
+  const showActivityBadge =
+    hasActivityBadge && (isHovered || isHighlighted || showPinnedReadyBadge);
   const richLabelOffset = showActivityBadge ? 0.86 : 0.5;
   const onboardingOffset = showActivityBadge ? 1.28 : 1.05;
 
@@ -160,6 +185,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
           focused={isHovered || isHighlighted}
           totalHeight={totalHeight}
           compact={useCompactOverlayMode}
+          fixedBannerSize={showPinnedReadyBadge}
         />
       ) : null}
 

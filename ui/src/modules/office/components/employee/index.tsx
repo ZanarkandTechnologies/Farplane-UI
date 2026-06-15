@@ -114,6 +114,7 @@ const Employee = memo(function Employee({
 
   const [isHovered, setIsHovered] = useState(false);
   const isHighlighted = highlightedEmployeeIds.has(id);
+  const isCodexThreadEmployee = String(id).startsWith("employee-codex-thread:");
   const {
     visibleActivityState,
     visibleActivityLabel,
@@ -283,6 +284,7 @@ const Employee = memo(function Employee({
           debugDeskDecision={debugDeskDecision}
           onboardingPrompt={onboardingPrompt}
           useCompactOverlayMode={useCompactOverlayMode}
+          pinReadyActivity={isCodexThreadEmployee}
         />
 
         <ContextMenu
@@ -338,6 +340,7 @@ const Employee = memo(function Employee({
             debugDeskDecision=""
             onboardingPrompt={null}
             useCompactOverlayMode={useCompactOverlayMode}
+            pinReadyActivity={false}
           />
         </group>
       ) : null}

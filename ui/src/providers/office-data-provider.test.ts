@@ -563,6 +563,75 @@ describe("office-data-provider team synthesis", () => {
     );
   });
 
+  it("labels completed Codex thread employees as ready with the thread title", () => {
+    const liveStatus: Record<string, AgentLiveStatus> = {
+      "codex-thread:ready-thread": {
+        agentId: "codex-thread:ready-thread",
+        sessionKey: "codex-thread:ready-thread",
+        state: "done",
+        statusText: "Codex response ready.",
+        bubbles: [{ id: "codex-thread-update-ready", label: "Update ready", weight: 100 }],
+        updatedAt: 1770000000000,
+      },
+    };
+    const company = createCompanyModel({
+      agents: [
+        {
+          agentId: "main",
+          role: "ceo",
+          heartbeatProfileId: "hb-ceo",
+          isCeo: true,
+          lifecycleState: "active",
+        },
+        {
+          agentId: "codex-thread:ready-thread",
+          role: "builder",
+          projectId: "codex-proj-ready",
+          heartbeatProfileId: "hb-ceo",
+          lifecycleState: "active",
+        },
+      ],
+    });
+    const unified = createUnifiedOfficeModel({
+      company,
+      runtimeAgents: [
+        createRuntimeAgent(),
+        createRuntimeAgent({
+          agentId: "codex-thread:ready-thread",
+          displayName: "Finish character graphics",
+          workspacePath: "/tmp/farplane-ui",
+          agentDir: "/tmp/farplane-ui/agent",
+        }),
+      ],
+      configuredAgents: [
+        createRuntimeAgent(),
+        createRuntimeAgent({
+          agentId: "codex-thread:ready-thread",
+          displayName: "Finish character graphics",
+          workspacePath: "/tmp/farplane-ui",
+          agentDir: "/tmp/farplane-ui/agent",
+        }),
+      ],
+    });
+
+    const result = toOfficeData(unified, createOfficeSettings(), [], liveStatus);
+    const employee = result.employees.find(
+      (entry) => entry._id === "employee-codex-thread:ready-thread",
+    );
+
+    expect(employee).toEqual(
+      expect.objectContaining({
+        name: "Finish character graphics",
+        statusMessage: "Codex response ready.",
+        activityState: "done",
+        activityLabel: "Ready",
+        activityDetail: "Codex response ready.",
+        heartbeatState: "done",
+        heartbeatBubbles: [{ label: "Update ready", weight: 100 }],
+      }),
+    );
+  });
+
   it("removes the management table when a Codex thread is the CEO", () => {
     const company = createCompanyModel({
       projects: [
