@@ -31,14 +31,14 @@ interface UserTasksPanelProps {
 export function UserTasksPanel({ isOpen, onOpenChange }: UserTasksPanelProps): ReactElement {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="z-[1000] flex h-[min(78vh,620px)] max-w-[94vw] flex-col overflow-hidden p-0 sm:max-w-[980px]">
+      <DialogContent className="z-[1000] flex h-[min(92vh,860px)] max-w-[98vw] flex-col overflow-hidden p-0 sm:max-w-[1240px]">
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle className="flex items-center gap-2">
             <Bell className="h-4 w-4 text-primary" />
             User Communications
           </DialogTitle>
           <DialogDescription>
-            Telegram gateway settings.
+            Telegram activity, reply routing, and gateway controls.
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-hidden p-4">

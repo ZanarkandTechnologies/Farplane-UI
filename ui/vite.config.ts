@@ -52,6 +52,7 @@ const COMPANY_TEMPLATE_PATH = path.resolve(__dirname, "../templates/sidecar/comp
 const OFFICE_OBJECTS_PATH = path.join(FARPLANE_HOME, "office-objects.json");
 const OFFICE_SETTINGS_PATH = path.join(FARPLANE_HOME, "office.json");
 const PROJECT_MANAGERS_PATH = path.join(FARPLANE_HOME, "project-managers.json");
+const TELEGRAM_GATEWAY_STATE_PATH = path.join(FARPLANE_HOME, "telegram-gateway", "state.json");
 const FARPLANE_EVALS_ROOT = path.join(REPO_ROOT, ".farplane", "evals");
 const OFFICE_OBJECTS_TEMPLATE_PATH = path.resolve(
   __dirname,
@@ -310,9 +311,19 @@ type JsonRpcMessage = {
 };
 
 function readCodexAppServerUrl(): string {
+  const configValue = (() => {
+    try {
+      const raw = JSON.parse(readFileSync(path.join(FARPLANE_HOME, "config.json"), "utf-8")) as JsonObject;
+      const runtime = raw.runtime && typeof raw.runtime === "object" ? (raw.runtime as JsonObject) : {};
+      return typeof runtime.codexAppServerUrl === "string" ? runtime.codexAppServerUrl : "";
+    } catch {
+      return "";
+    }
+  })();
   return (
     process.env.CODEX_APP_SERVER_URL ||
     process.env.FARPLANE_CODEX_APP_SERVER_URL ||
+    configValue ||
     ""
   ).trim();
 }
@@ -2028,6 +2039,16 @@ function farplaneStateBridge() {
 
         if (method === "GET" && pathname === "/farplane/codex-ui-state") {
           writeJson(res, 200, await readCodexUiState());
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/telegram-gateway/state") {
+          const state = await readJsonFile<JsonObject>(TELEGRAM_GATEWAY_STATE_PATH, {
+            updateOffset: 0,
+            mappings: [],
+            history: [],
+          });
+          writeJson(res, 200, { ok: true, state, statePath: TELEGRAM_GATEWAY_STATE_PATH });
           return;
         }
 
