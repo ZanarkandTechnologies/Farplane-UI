@@ -21,10 +21,10 @@
 import type { ReactElement } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { UI_Z } from "@/lib/z-index";
+import { EvalOsPanel } from "@/modules/evals";
 import { HarnessOsPanel } from "@/modules/harness-os";
 import { useSkillsPanelController } from "@/modules/office/components/use-skills-panel-controller";
 import { SkillOsMiniApp } from "@/modules/skills-studio/components/skill-os";
-
 
 function panelTitle(
   surface: "skill-os" | "evals" | "harness",
@@ -52,21 +52,6 @@ function panelDescription(
   return "Graph-first Skill OS: skill backlinks, Markdown-ref edges, common chains, and overlay skill docs.";
 }
 
-
-function EvalsSurfacePlaceholder(): ReactElement {
-  return (
-    <div className="grid h-full place-items-center rounded-md border border-dashed p-6 text-center">
-      <div>
-        <div className="text-sm font-semibold">Eval OS is prepared as a separate module.</div>
-        <div className="mt-1 max-w-md text-xs text-muted-foreground">
-          Skill OS now links skills to invocation and rollout state. The eval run workbench should
-          land with its own ticket and proof bundle.
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function SkillsPanel(): ReactElement {
   const { errorText, focusAgentId, isOpen, setIsOpen, surface } = useSkillsPanelController();
 
@@ -86,7 +71,7 @@ export function SkillsPanel(): ReactElement {
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-hidden p-4">
           {surface === "skill-os" ? <SkillOsMiniApp /> : null}
-          {surface === "evals" ? <EvalsSurfacePlaceholder /> : null}
+          {surface === "evals" ? <EvalOsPanel /> : null}
           {surface === "harness" ? <HarnessOsPanel /> : null}
         </div>
       </DialogContent>

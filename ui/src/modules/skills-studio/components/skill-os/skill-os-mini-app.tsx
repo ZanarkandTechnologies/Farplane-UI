@@ -24,7 +24,8 @@ import { useSkillGraphData } from "./use-skill-graph-data";
 import { useSkillInvocationCounts } from "./use-skill-invocation-counts";
 
 export function SkillOsMiniApp(): ReactElement {
-  const { docs, error, graph } = useSkillGraphData();
+  const { docs, error, graph, templateIntelligence, templateIntelligenceError } =
+    useSkillGraphData();
   const [activeOsTab, setActiveOsTab] = useState("skill-tree");
   const [query, setQuery] = useState("");
   const [selectedSkillId, setSelectedSkillId] = useState("");
@@ -205,7 +206,12 @@ export function SkillOsMiniApp(): ReactElement {
       </TabsContent>
 
       <TabsContent value="standards" className="m-0 min-h-0 flex-1">
-        <SkillOsStandardsTab docs={docs} nodes={graph.nodes} />
+        <SkillOsStandardsTab
+          docs={docs}
+          nodes={graph.nodes}
+          templateError={templateIntelligenceError}
+          templateIntelligence={templateIntelligence}
+        />
       </TabsContent>
     </Tabs>
   );

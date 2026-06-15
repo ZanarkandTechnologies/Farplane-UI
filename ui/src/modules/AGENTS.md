@@ -33,6 +33,12 @@ surfaces, not generic file buckets.
 - Register renderable modules explicitly at the app entrypoint, launcher
   registry, or route table that owns the launch surface.
 - Keep README and AGENTS short; put detailed behavior in module-local `docs/`.
+- Dense panels and mini apps should make the primary work surface dominant.
+  Put mode/view switches in compact top-right dropdowns when more than two
+  choices would consume a horizontal tab row. Keep status summaries as one-line
+  scan bars or small chips unless the summary is the user's main task. Prefer
+  tables/lists for registries and rollout matrices over repeated cards when the
+  operator needs comparison, triage, or bulk scanning.
 
 ## Migration Guidance
 
