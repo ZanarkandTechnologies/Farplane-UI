@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useChatStore } from "@/modules/chat/chat-store";
-import { useOfficeDataContext } from "@/providers/office-data-provider";
+import { useOptionalOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
 import {
   getDisplayInitials,
@@ -20,7 +20,9 @@ export function useChatContext(): {
   const currentEmployeeId = useChatStore((state) => state.currentEmployeeId);
   const currentTeamId = useChatStore((state) => state.currentTeamId);
   const selectedAgentId = useAppStore((state) => state.selectedAgentId);
-  const { employees, teams } = useOfficeDataContext();
+  const officeData = useOptionalOfficeDataContext();
+  const employees = officeData?.employees ?? [];
+  const teams = officeData?.teams ?? [];
   const fallbackEmployeeId = useMemo(() => {
     const agentId = extractAgentId(selectedAgentId);
     return agentId ? `employee-${agentId}` : null;
