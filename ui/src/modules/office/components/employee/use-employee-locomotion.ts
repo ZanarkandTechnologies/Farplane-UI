@@ -230,7 +230,24 @@ export function useEmployeeLocomotion({
     const desiredY = TOTAL_HEIGHT / 2;
     currentPos.y = desiredY;
 
-    if (isGridInitialized() && !isWorldPositionWalkable(currentPos)) {
+    const hasHeartbeatState = typeof heartbeatState === "string";
+    const hasActivityTarget = Boolean(activityTargetRef.current);
+    const heartbeatRequiresDesk =
+      heartbeatState === "running" ||
+      heartbeatState === "planning" ||
+      heartbeatState === "executing" ||
+      heartbeatState === "blocked" ||
+      heartbeatState === "error";
+    const shouldBeAtDesk =
+      hasActivityTarget ||
+      Boolean(isCEO) ||
+      !wantsToWander ||
+      (hasHeartbeatState ? heartbeatRequiresDesk : Boolean(isBusy));
+    const deskPosition = activityTargetRef.current ?? initialPositionRef.current;
+    const isAlreadyAtAssignedDesk =
+      shouldBeAtDesk && currentPos.distanceTo(deskPosition) <= arrivalThreshold;
+
+    if (isGridInitialized() && !isWorldPositionWalkable(currentPos) && !isAlreadyAtAssignedDesk) {
       const safePosition = getNearestValidPlacement(currentPos, 24);
       if (safePosition) {
         safePosition.y = desiredY;
@@ -245,20 +262,6 @@ export function useEmployeeLocomotion({
 
     let targetPathNode: THREE.Vector3 | null = null;
     let isMoving = false;
-
-    const hasHeartbeatState = typeof heartbeatState === "string";
-    const hasActivityTarget = Boolean(activityTargetRef.current);
-    const heartbeatRequiresDesk =
-      heartbeatState === "running" ||
-      heartbeatState === "planning" ||
-      heartbeatState === "executing" ||
-      heartbeatState === "blocked" ||
-      heartbeatState === "error";
-    const shouldBeAtDesk =
-      hasActivityTarget ||
-      Boolean(isCEO) ||
-      !wantsToWander ||
-      (hasHeartbeatState ? heartbeatRequiresDesk : Boolean(isBusy));
 
     if (debugMode) {
       const nextDecision = hasActivityTarget
@@ -284,7 +287,6 @@ export function useEmployeeLocomotion({
       }
       idleTimerRef.current = 0;
 
-      const deskPosition = activityTargetRef.current ?? initialPositionRef.current;
       const distanceToDesk = currentPos.distanceTo(deskPosition);
 
       if (distanceToDesk > arrivalThreshold) {
@@ -373,7 +375,9 @@ export function useEmployeeLocomotion({
         setPathIndex((prev) => prev + 1);
       } else {
         const nextMovementDirection = getEmployeeMovementDirection(direction.x, direction.z);
-        setMovementDirection((prev) => (prev === nextMovementDirection ? prev : nextMovementDirection));
+        setMovementDirection((prev) =>
+          prev === nextMovementDirection ? prev : nextMovementDirection,
+        );
         direction.normalize();
         const moveDistance = movementSpeed * delta;
         groupRef.current.position.add(direction.multiplyScalar(Math.min(moveDistance, distance)));

@@ -3,7 +3,7 @@
 import { Box, Cone, Cylinder, Sphere } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { memo, useMemo, useRef } from "react";
-import type * as THREE from "three";
+import * as THREE from "three";
 
 import {
   BODY_HEIGHT,
@@ -12,10 +12,10 @@ import {
   HEAD_HEIGHT,
   HEAD_WIDTH,
   LEG_HEIGHT,
-  TEAM_PLUMBOB_COLORS,
   TOTAL_HEIGHT,
 } from "@/constants";
 import type { EmployeeActivityState } from "@/modules/office/lib/types";
+import { getEmployeeIndicatorColor } from "./presence-visuals";
 
 /**
  * EMPLOYEE DECORATIONS
@@ -184,93 +184,118 @@ export const LobsterEyes = memo(function LobsterEyes() {
   );
 });
 
-function hashString(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i += 1) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
+function SolidHeartIndicator({
+  color,
+  opacity,
+}: {
+  color: string;
+  opacity: number;
+}) {
+  const heartShape = useMemo(() => {
+    const shape = new THREE.Shape();
+    shape.moveTo(0, -0.115);
+    shape.bezierCurveTo(-0.16, -0.02, -0.14, 0.11, -0.055, 0.115);
+    shape.bezierCurveTo(-0.02, 0.118, 0, 0.094, 0, 0.07);
+    shape.bezierCurveTo(0, 0.094, 0.02, 0.118, 0.055, 0.115);
+    shape.bezierCurveTo(0.14, 0.11, 0.16, -0.02, 0, -0.115);
+    return shape;
+  }, []);
 
-function getActivityPlumbobColor(activityState?: EmployeeActivityState): string | null {
-  switch (activityState) {
-    case "running":
-      return "#38BDF8";
-    case "waiting":
-      return "#FBBF24";
-    case "failed":
-      return "#FB7185";
-    case "review":
-      return "#A78BFA";
-    case "done":
-      return "#34D399";
-    default:
-      return null;
-  }
+  return (
+    <mesh position={[0, 0, -0.018]} rotation={[0, 0, 0]}>
+      <extrudeGeometry
+        args={[
+          heartShape,
+          {
+            depth: 0.036,
+            bevelEnabled: true,
+            bevelThickness: 0.004,
+            bevelSize: 0.004,
+            bevelSegments: 1,
+          },
+        ]}
+      />
+      <meshStandardMaterial
+        color={color}
+        transparent
+        opacity={opacity}
+        emissive={color}
+        emissiveIntensity={0.18}
+        roughness={0.55}
+        metalness={0.04}
+      />
+    </mesh>
+  );
 }
 
 export const TeamPlumbob = memo(function TeamPlumbob({
   teamId,
   activityState,
+  persistent,
+  indicatorOpacity = 1,
 }: {
   teamId?: string;
   activityState?: EmployeeActivityState;
+  persistent?: boolean;
+  indicatorOpacity?: number;
 }) {
   const diamondRef = useRef<THREE.Group>(null);
 
-  const color = useMemo(() => {
-    const activityColor = getActivityPlumbobColor(activityState);
-    if (activityColor) return activityColor;
-    if (!teamId) return "#00E676";
-    return TEAM_PLUMBOB_COLORS[hashString(teamId) % TEAM_PLUMBOB_COLORS.length];
-  }, [activityState, teamId]);
+  const color = useMemo(
+    () => getEmployeeIndicatorColor({ teamId, activityState }),
+    [activityState, teamId],
+  );
 
   useFrame((state) => {
     if (diamondRef.current) {
       const activeMultiplier =
         activityState && activityState !== "idle" && activityState !== "done" ? 1.8 : 1;
-      diamondRef.current.rotation.y += 0.015 * activeMultiplier;
       diamondRef.current.position.y =
         TOTAL_HEIGHT / 2 + 0.55 + Math.sin(state.clock.elapsedTime * 1.5 * activeMultiplier) * 0.04;
     }
   });
 
-  const coneRadius = 0.12;
-  const coneHeight = 0.18;
   const isActivityActive =
     typeof activityState === "string" && activityState !== "idle" && activityState !== "done";
-  const opacity = isActivityActive ? 0.95 : 0.85;
+  const opacity = (isActivityActive ? 0.95 : 0.85) * indicatorOpacity;
+  const coneRadius = 0.12;
+  const coneHeight = 0.18;
   const emissiveIntensity = isActivityActive ? 0.65 : 0.3;
 
   return (
     <group ref={diamondRef} position={[0, TOTAL_HEIGHT / 2 + 0.55, 0]}>
-      <Cone
-        args={[coneRadius, coneHeight, 4]}
-        position={[0, coneHeight / 2, 0]}
-        rotation={[0, Math.PI / 4, 0]}
-      >
-        <meshStandardMaterial
-          color={color}
-          transparent
-          opacity={opacity}
-          emissive={color}
-          emissiveIntensity={emissiveIntensity}
-        />
-      </Cone>
-      <Cone
-        args={[coneRadius, coneHeight, 4]}
-        position={[0, -coneHeight / 2, 0]}
-        rotation={[Math.PI, Math.PI / 4, 0]}
-      >
-        <meshStandardMaterial
-          color={color}
-          transparent
-          opacity={opacity}
-          emissive={color}
-          emissiveIntensity={emissiveIntensity}
-        />
-      </Cone>
+      {persistent ? (
+        <SolidHeartIndicator color={color} opacity={opacity} />
+      ) : (
+        <>
+          <Cone
+            args={[coneRadius, coneHeight, 4]}
+            position={[0, coneHeight / 2, 0]}
+            rotation={[0, Math.PI / 4, 0]}
+          >
+            <meshStandardMaterial
+              color={color}
+              transparent
+              opacity={opacity}
+              emissive={color}
+              emissiveIntensity={emissiveIntensity}
+            />
+          </Cone>
+          <Cone
+            args={[coneRadius, coneHeight, 4]}
+            position={[0, -coneHeight / 2, 0]}
+            rotation={[Math.PI, Math.PI / 4, 0]}
+          >
+            <meshStandardMaterial
+              color={color}
+              transparent
+              opacity={opacity}
+              emissive={color}
+              emissiveIntensity={emissiveIntensity}
+            />
+          </Cone>
+        </>
+      )}
     </group>
   );
 });

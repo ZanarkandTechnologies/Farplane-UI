@@ -40,11 +40,13 @@ export function ThreeHumanCharacterRenderer({
   activityState,
   useCompactOverlayMode,
   projection = false,
+  presenceVisual,
   petType,
   clothesStyle,
 }: CharacterRendererProps) {
   const baseY = -TOTAL_HEIGHT / 2;
-  const materialProps = projection ? { transparent: true, opacity: 0.48 } : {};
+  const bodyOpacity = projection ? 0.48 : (presenceVisual?.bodyOpacity ?? 1);
+  const materialProps = bodyOpacity < 1 ? { transparent: true, opacity: bodyOpacity } : {};
   const projectionHeadColor = projection ? "#67e8f9" : colors.skin;
   const projectionHairColor = projection ? "#a5f3fc" : colors.hair;
   const projectionShirtColor = projection ? "#22d3ee" : colors.shirt;
@@ -73,7 +75,7 @@ export function ThreeHumanCharacterRenderer({
           position={[0, baseY + LEG_HEIGHT + BODY_HEIGHT * 0.85, -BODY_WIDTH * 0.42]}
           castShadow
         >
-          <meshStandardMaterial color={colors.shirt} />
+          <meshStandardMaterial color={colors.shirt} {...materialProps} />
         </Box>
       ) : null}
 
@@ -105,7 +107,14 @@ export function ThreeHumanCharacterRenderer({
       <LobsterClaws color={projectionShirtColor} />
       <LobsterAntennae />
       <LobsterEyes />
-      {!projection ? <TeamPlumbob teamId={teamId} activityState={activityState} /> : null}
+      {!projection ? (
+        <TeamPlumbob
+          teamId={teamId}
+          activityState={activityState}
+          persistent={presenceVisual?.kind === "persistent"}
+          indicatorOpacity={presenceVisual?.bodyOpacity ?? 1}
+        />
+      ) : null}
       {petType && !projection && petType !== "none" ? <OfficePetMesh petType={petType} /> : null}
     </group>
   );

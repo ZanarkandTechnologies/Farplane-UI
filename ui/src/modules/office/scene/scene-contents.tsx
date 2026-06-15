@@ -327,6 +327,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
             activityUpdatedAt={employee.activityUpdatedAt}
             heartbeatState={employee.heartbeatState}
             heartbeatBubbles={employee.heartbeatBubbles}
+            presencePersistent={employee.presencePersistent}
             profileImageUrl={employee.profileImageUrl}
             useCompactOverlayMode={useCompactSceneOverlays}
             appearance={employee.appearance}

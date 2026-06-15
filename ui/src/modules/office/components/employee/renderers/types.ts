@@ -11,6 +11,7 @@
 
 import type { ComponentType } from "react";
 import type { EmployeeActivityState } from "@/modules/office/lib/types";
+import type { EmployeePresenceVisual } from "../presence-visuals";
 import type { EmployeeAnimationMode, EmployeeMovementDirection } from "../employee-motion";
 
 export type CharacterRendererId = "three-human" | "sprite-sheet-2d";
@@ -52,6 +53,7 @@ export type CharacterRendererProps = {
   activityState?: EmployeeActivityState;
   useCompactOverlayMode?: boolean;
   projection?: boolean;
+  presenceVisual?: EmployeePresenceVisual;
   petType?: "none" | "dog" | "cat" | "goldfish" | "rabbit" | "lobster";
   clothesStyle?: "default" | "dj" | "professional" | "techBro";
   config?: CharacterRendererConfig;

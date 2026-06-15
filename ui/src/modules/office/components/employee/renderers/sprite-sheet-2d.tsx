@@ -23,6 +23,8 @@ import {
 } from "./codex-pet-package";
 import { selectSpriteAnimationKey } from "./sprite-state";
 import type { CharacterRendererProps } from "./types";
+import { EmployeeIndicatorSprite } from "../indicator-sprite";
+import { getEmployeeIndicatorColor } from "../presence-visuals";
 import { recordDevCharacterRendererStatus } from "../use-dev-character-renderer-probe";
 
 const TRAVEL_BOB_AMPLITUDE = 0.08;
@@ -227,7 +229,7 @@ function SpriteBillboard(
     }
   });
 
-  const opacity = projection ? 0.52 : 1;
+  const opacity = projection ? 0.52 : (props.presenceVisual?.bodyOpacity ?? 1);
   material.opacity = opacity;
   material.color.set(projection ? "#67e8f9" : "#ffffff");
 
@@ -235,16 +237,50 @@ function SpriteBillboard(
     return Fallback ? <Fallback {...fallbackProps} runtime={runtime} projection={projection} /> : null;
   }
 
+  const indicatorColor = getEmployeeIndicatorColor({
+    teamId: props.teamId,
+    activityState: runtime.activityState,
+  });
+
   return (
-    <sprite
-      ref={spriteRef}
-      material={material}
-      scale={[
-        (manifest.cell.width / manifest.cell.height) * TOTAL_HEIGHT * manifest.scale,
-        TOTAL_HEIGHT * manifest.scale,
-        1,
-      ]}
-      position={[0, 0, 0]}
+    <group>
+      <sprite
+        ref={spriteRef}
+        material={material}
+        scale={[
+          (manifest.cell.width / manifest.cell.height) * TOTAL_HEIGHT * manifest.scale,
+          TOTAL_HEIGHT * manifest.scale,
+          1,
+        ]}
+        position={[0, 0, 0]}
+      />
+      {!projection ? (
+        <SpritePresenceIndicator
+          color={indicatorColor}
+          persistent={props.presenceVisual?.kind === "persistent"}
+          opacity={props.presenceVisual?.bodyOpacity ?? 1}
+        />
+      ) : null}
+    </group>
+  );
+}
+
+function SpritePresenceIndicator({
+  color,
+  persistent,
+  opacity,
+}: {
+  color: string;
+  persistent: boolean;
+  opacity: number;
+}) {
+  return (
+    <EmployeeIndicatorSprite
+      icon={persistent ? "heart" : "diamond"}
+      color={color}
+      opacity={opacity}
+      position={[0, TOTAL_HEIGHT * 0.82, 0.05]}
+      scale={0.34}
     />
   );
 }

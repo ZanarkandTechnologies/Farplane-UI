@@ -25,6 +25,7 @@ import type { EmployeeActivityState } from "@/modules/office/lib/types";
 import { type AgentState } from "@/modules/runtime";
 import { useAppStore } from "@/store";
 import { ContextMenu } from "../context-menu";
+import { EmployeePresenceAura, resolveEmployeePresenceVisual } from "./presence-visuals";
 import { ThreeHumanCharacterRenderer } from "./renderers/three-human";
 import type { CharacterRendererConfig } from "./renderers/types";
 import { EmployeeStatusBubbles } from "./StatusBubbles";
@@ -64,6 +65,7 @@ export interface EmployeeProps {
   activityUpdatedAt?: number;
   heartbeatState?: AgentState;
   heartbeatBubbles?: Array<{ label: string; weight?: number }>;
+  presencePersistent?: boolean;
   profileImageUrl?: string;
   useCompactOverlayMode?: boolean;
   appearance?: {
@@ -99,6 +101,7 @@ const Employee = memo(function Employee({
   activityDetail,
   activityUpdatedAt,
   heartbeatState,
+  presencePersistent,
   useCompactOverlayMode = false,
   appearance,
 }: EmployeeProps) {
@@ -139,6 +142,7 @@ const Employee = memo(function Employee({
     });
   const finalColors = useEmployeeAvatarPalette({ isCEO, appearance });
   const employeeActions = useEmployeeActions({ id, isCEO, onClick });
+  const presenceVisual = resolveEmployeePresenceVisual({ presencePersistent, heartbeatState });
 
   const handleClick = useCallback(
     (event: ThreeEvent<MouseEvent>) => {
@@ -218,6 +222,8 @@ const Employee = memo(function Employee({
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
 
+        <EmployeePresenceAura visual={presenceVisual} />
+
         <group ref={avatarRef}>
           <CharacterRenderer
             runtime={characterRuntime}
@@ -230,6 +236,7 @@ const Employee = memo(function Employee({
             useCompactOverlayMode={useCompactOverlayMode}
             petType={appearance?.petType}
             clothesStyle={appearance?.clothesStyle}
+            presenceVisual={presenceVisual}
             config={characterRendererConfig}
             fallback={ThreeHumanCharacterRenderer}
           />
@@ -312,6 +319,7 @@ const Employee = memo(function Employee({
             isSupervisor={isSupervisor}
             projection
             clothesStyle={appearance?.clothesStyle}
+            presenceVisual={presenceVisual}
             config={characterRendererConfig}
             fallback={ThreeHumanCharacterRenderer}
           />
