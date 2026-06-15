@@ -37,6 +37,12 @@ export const moduleRegistry = {
     description: "Human review and approval surfaces for board-native work.",
     surfaces: ["nav", "panel"],
   },
+  "user-communications": {
+    id: "user-communications",
+    label: "User Communications",
+    description: "Human request inbox, Telegram reply routing, and communication handoff rules.",
+    surfaces: ["panel", "hud"],
+  },
   chat: {
     id: "chat",
     label: "Chat",

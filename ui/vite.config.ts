@@ -52,7 +52,6 @@ const COMPANY_TEMPLATE_PATH = path.resolve(__dirname, "../templates/sidecar/comp
 const OFFICE_OBJECTS_PATH = path.join(FARPLANE_HOME, "office-objects.json");
 const OFFICE_SETTINGS_PATH = path.join(FARPLANE_HOME, "office.json");
 const PROJECT_MANAGERS_PATH = path.join(FARPLANE_HOME, "project-managers.json");
-const CODEX_OFFICE_CONFIG_PATH = path.join(FARPLANE_HOME, "codex-office.json");
 const FARPLANE_EVALS_ROOT = path.join(REPO_ROOT, ".farplane", "evals");
 const OFFICE_OBJECTS_TEMPLATE_PATH = path.resolve(
   __dirname,
@@ -1413,9 +1412,19 @@ async function readCodexUiState(): Promise<JsonObject> {
 
 async function saveCodexOfficeConfig(input: unknown): Promise<JsonObject> {
   const normalized = normalizeCodexOfficeConfig(input);
-  await mkdir(path.dirname(CODEX_OFFICE_CONFIG_PATH), { recursive: true });
-  await writeFile(CODEX_OFFICE_CONFIG_PATH, `${JSON.stringify(normalized, null, 2)}\n`, "utf-8");
+  const settings = await readOfficeSettings();
+  await mkdir(path.dirname(OFFICE_SETTINGS_PATH), { recursive: true });
+  await writeFile(
+    OFFICE_SETTINGS_PATH,
+    `${JSON.stringify({ ...settings, codex: normalized }, null, 2)}\n`,
+    "utf-8",
+  );
   return normalized;
+}
+
+async function readCodexOfficeConfig(): Promise<JsonObject> {
+  const settings = await readOfficeSettings();
+  return normalizeCodexOfficeConfig(settings.codex);
 }
 
 async function buildProjectReadModel(input: unknown): Promise<JsonObject> {
@@ -1430,8 +1439,7 @@ async function buildProjectReadModel(input: unknown): Promise<JsonObject> {
     .filter((entry) => entry.projectId && isSafeProjectPath(entry.projectPath));
   const ticketTaskLists = await Promise.all(normalizedProjects.map((project) => readProjectTicketTasks(project)));
   const managersRaw = await readJsonFile<unknown>(PROJECT_MANAGERS_PATH, {});
-  const officeConfigRaw = await readJsonFile<unknown>(CODEX_OFFICE_CONFIG_PATH, {});
-  const officeVisibility = normalizeCodexOfficeConfig(officeConfigRaw);
+  const officeVisibility = await readCodexOfficeConfig();
   const officeManagers = normalizeProjectManagers(
     Array.isArray(officeVisibility.projectManagers)
       ? officeVisibility.projectManagers
@@ -2014,8 +2022,7 @@ function farplaneStateBridge() {
         }
 
         if (method === "GET" && pathname === "/farplane/codex-office") {
-          const officeConfigRaw = await readJsonFile<unknown>(CODEX_OFFICE_CONFIG_PATH, {});
-          writeJson(res, 200, { config: normalizeCodexOfficeConfig(officeConfigRaw) });
+          writeJson(res, 200, { config: await readCodexOfficeConfig() });
           return;
         }
 

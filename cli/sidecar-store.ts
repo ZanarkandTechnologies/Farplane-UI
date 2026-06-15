@@ -233,6 +233,7 @@ export interface OfficeSettingsModel {
   viewProfile: "free_orbit_3d" | "fixed_2_5d";
   orbitControlsEnabled: boolean;
   cameraOrientation: "north_east" | "north_west" | "south_east" | "south_west";
+  codex?: JsonObject;
 }
 
 export interface ShellcorpConfigModel {
@@ -835,6 +836,7 @@ function normalizeOfficeSettings(input: unknown): OfficeSettingsModel {
       cameraOrientation === "south_west"
         ? cameraOrientation
         : "south_east",
+    ...(Object.keys(asObject(row.codex)).length > 0 ? { codex: asObject(row.codex) } : {}),
   };
 }
 

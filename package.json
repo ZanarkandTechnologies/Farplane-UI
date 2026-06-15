@@ -30,6 +30,7 @@
     "review:context": "bash scripts/collect_review_context.sh .farplane/reviews/latest/context.md",
     "review:agent": "tsx scripts/codex_review_agent.ts",
     "review:prepush": "bash scripts/run_pre_push_review.sh",
+    "cli": "npm run --workspace @farplane/cli shell --",
     "shell": "npm run --workspace @farplane/cli shell --",
     "cli:bundle": "npm run --workspace @farplane/cli bundle",
     "cli:reinstall": "tsx cli/cli-reinstall.ts",

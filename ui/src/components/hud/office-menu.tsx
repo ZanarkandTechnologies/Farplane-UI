@@ -18,16 +18,12 @@
  * - MEM-0220
  */
 
-import { useQuery } from "convex/react";
 import { Menu } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SpeedDial, type SpeedDialItem } from "@/components/ui/speed-dial";
-import { countReviewLaneTasks, resolveReviewBoardTasks } from "@/modules/review-board";
-import { isConvexEnabled } from "@/providers/convex-provider";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import { useAppStore } from "@/store";
-import { api } from "../../../../convex/_generated/api";
 import { FurnitureShop } from "./furniture-shop";
 import { OfficeCommandPalette } from "./office-command-palette";
 import {
@@ -45,7 +41,6 @@ interface SpeedDialProps {
 }
 
 export function OfficeMenu({ className }: SpeedDialProps) {
-  const convexEnabled = isConvexEnabled();
   const navigate = useNavigate();
   const { isReadOnly } = useOfficeAccessMode();
   // Use selectors to prevent unnecessary re-renders
@@ -69,6 +64,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
   const placementMode = useAppStore((state) => state.placementMode);
   const setIsCeoWorkbenchOpen = useAppStore((state) => state.setIsCeoWorkbenchOpen);
   const setCeoWorkbenchView = useAppStore((state) => state.setCeoWorkbenchView);
+  const setIsUserTasksModalOpen = useAppStore((state) => state.setIsUserTasksModalOpen);
   const isFurnitureShopOpen = useAppStore((state) => state.isFurnitureShopOpen);
   const setIsFurnitureShopOpen = useAppStore((state) => state.setIsFurnitureShopOpen);
   const isOfficeOnboardingVisible = useAppStore((state) => state.isOfficeOnboardingVisible);
@@ -76,15 +72,6 @@ export function OfficeMenu({ className }: SpeedDialProps) {
 
   const [isOrganizationOpen, setIsOrganizationOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const companyBoard = useQuery(api.board.getCompanyBoardTasks, convexEnabled ? {} : "skip");
-  const userTaskCount = useMemo(() => {
-    const { tasks } = resolveReviewBoardTasks({
-      convexEnabled,
-      hasLoaded: companyBoard !== undefined,
-      rows: companyBoard?.tasks,
-    });
-    return countReviewLaneTasks(tasks);
-  }, [companyBoard, convexEnabled]);
   // Legacy team/agent manager dialogs were intentionally stripped from this UI flow.
   const canOpenAgentManager = false;
   const canOpenTeamManager = false;
@@ -130,6 +117,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
           setCeoWorkbenchView(view);
           setIsCeoWorkbenchOpen(true);
         },
+        openUserCommunications: () => setIsUserTasksModalOpen(true),
         openDecoration: () => setIsFurnitureShopOpen(true),
         openSkillOs: () => {
           setSelectedSkillStudioSkillId(null);
@@ -156,15 +144,14 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         openResourceBank: () => setIsResourceBankPanelOpen(true),
         openTelemetry: () => setIsTelemetryPanelOpen(true),
         toggleBuilderMode: handleBuilderModeToggle,
-        userTaskCount,
       }),
     [
       highlightedMenuActionId,
       isAnimatingCamera,
       isBuilderMode,
       navigate,
-      setCeoWorkbenchView,
       setIsCeoWorkbenchOpen,
+      setIsUserTasksModalOpen,
       setIsFurnitureShopOpen,
       setSelectedSkillStudioSkillId,
       setSkillStudioFocusAgentId,
@@ -176,7 +163,6 @@ export function OfficeMenu({ className }: SpeedDialProps) {
       setIsResourceBankPanelOpen,
       setIsTelemetryPanelOpen,
       handleBuilderModeToggle,
-      userTaskCount,
       isReadOnly,
     ],
   );

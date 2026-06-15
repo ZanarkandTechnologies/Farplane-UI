@@ -8,7 +8,7 @@ Farplane Core owns the global `farplane` command. This repo keeps the UI/office/
 
 ## Public API / entrypoints
 
-- `npm run shell -- <command>`
+- `npm run cli -- <command>`
 - `farplane <command>` through the Core CLI after `farplane ui link /path/to/Farplane-UI`
 - `farplane-ui <command>` after `npm link` in this repo, for module-local development only
 - `npm run cli:reinstall`

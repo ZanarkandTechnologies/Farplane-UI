@@ -36,6 +36,7 @@ export interface BridgeOfficeSettings {
   viewProfile?: "free_orbit_3d" | "fixed_2_5d";
   orbitControlsEnabled?: boolean;
   cameraOrientation?: "north_east" | "north_west" | "south_east" | "south_west";
+  codex?: JsonObject;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -184,5 +185,6 @@ export function normalizeBridgeOfficeSettings(
       row.cameraOrientation === "south_west"
         ? row.cameraOrientation
         : "south_east",
+    codex: row.codex && typeof row.codex === "object" ? (row.codex as JsonObject) : {},
   };
 }

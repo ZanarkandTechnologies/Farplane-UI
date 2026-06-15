@@ -56,6 +56,7 @@ describe("office panel registry", () => {
     const openResourceBank = vi.fn();
     const openSkillInvocations = vi.fn();
     const openSkillOs = vi.fn();
+    const openUserCommunications = vi.fn();
     const toggleBuilderMode = vi.fn();
 
     const actions = createOfficePanelActions({
@@ -74,25 +75,27 @@ describe("office panel registry", () => {
       openSkillInvocations,
       openSkillOs,
       openTelemetry: vi.fn(),
+      openUserCommunications,
       toggleBuilderMode,
-      userTaskCount: 3,
     });
 
     actions.find((action) => action.id === "team-workspace")?.perform();
     actions.find((action) => action.id === "resource-bank")?.perform();
-    actions.find((action) => action.id === "skill-invocations")?.perform();
     actions.find((action) => action.id === "skill-os")?.perform();
     actions.find((action) => action.id === "evals")?.perform();
     actions.find((action) => action.id === "harness")?.perform();
+    actions.find((action) => action.id === "user-communications")?.perform();
     actions.find((action) => action.id === "human-review")?.perform();
     actions.find((action) => action.id === "builder-mode")?.perform();
 
     expect(openGlobalTeamWorkspace).toHaveBeenCalledTimes(1);
     expect(openResourceBank).toHaveBeenCalledTimes(1);
-    expect(openSkillInvocations).toHaveBeenCalledTimes(1);
+    expect(actions.some((action) => String(action.id) === "skill-invocations")).toBe(false);
+    expect(openSkillInvocations).not.toHaveBeenCalled();
     expect(openSkillOs).toHaveBeenCalledTimes(1);
     expect(openEvals).toHaveBeenCalledTimes(1);
     expect(openHarness).toHaveBeenCalledTimes(1);
+    expect(openUserCommunications).toHaveBeenCalledTimes(1);
     expect(openCeoWorkbench).toHaveBeenCalledWith("review");
     expect(toggleBuilderMode).toHaveBeenCalledTimes(1);
   });
@@ -120,12 +123,13 @@ describe("office panel registry", () => {
       openSkillInvocations: vi.fn(),
       openSkillOs: vi.fn(),
       openTelemetry: vi.fn(),
+      openUserCommunications: vi.fn(),
       toggleBuilderMode,
-      userTaskCount: 3,
     });
 
     for (const id of [
       "team-workspace",
+      "user-communications",
       "human-review",
       "builder-mode",
       "office-shop",

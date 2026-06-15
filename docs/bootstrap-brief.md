@@ -24,7 +24,7 @@ customization, channels, and isolated workspaces.
 - Farplane-owned sidecar state lives under `~/.farplane`.
 - OpenClaw-owned runtime state lives under `~/.openclaw` and is consumed only
   through the OpenClaw adapter.
-- Codex office visibility lives in `~/.farplane/codex-office.json`.
+- Codex office visibility lives under the `codex` key in `~/.farplane/office.json`.
 - Codex project threads map to project tables, with recent threads as temporary
   employees and pinned/heartbeat threads kept visible.
 
@@ -32,7 +32,7 @@ customization, channels, and isolated workspaces.
 
 - Install: `npm install`
 - App-only local run: `npm run ui`
-- CLI: `npm run shell -- <command>`
+- CLI: `npm run cli -- <command>`
 - Root build gate: `npm run build`
 - UI production build gate: `npm run ui:build`
 - Lint: `npm run lint`

@@ -20,12 +20,12 @@
 import {
   BarChart3,
   BookOpen,
-  BrainCircuit,
   BriefcaseBusiness,
   Building2,
   Hammer,
   Home,
   type LucideIcon,
+  MessageSquareText,
   Network,
   Archive,
   Settings,
@@ -37,8 +37,6 @@ import {
 import type { CeoWorkbenchView } from "@/store";
 
 const SECONDARY_BUTTON_COLOR = "bg-secondary hover:bg-secondary/80 text-secondary-foreground";
-const EMPHASIZED_BUTTON_COLOR =
-  "bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30";
 const GUIDED_BUTTON_CLASS =
   "ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse";
 
@@ -60,13 +58,13 @@ export type OfficePanelActionId =
   | "organization"
   | "team-workspace"
   | "telemetry"
-  | "skill-invocations"
   | "resource-bank"
   | "skill-os"
   | "evals"
   | "harness"
   | "ceo-workbench"
   | "human-review"
+  | "user-communications"
   | "builder-mode"
   | "office-shop"
   | "settings";
@@ -95,6 +93,7 @@ export type OfficePanelRegistryDependencies = {
   isBuilderMode: boolean;
   navigateToLanding: () => void;
   openCeoWorkbench: (view: CeoWorkbenchView) => void;
+  openUserCommunications: () => void;
   openDecoration: () => void;
   openEvals: () => void;
   openHarness: () => void;
@@ -106,7 +105,6 @@ export type OfficePanelRegistryDependencies = {
   openResourceBank: () => void;
   openTelemetry: () => void;
   toggleBuilderMode: () => void;
-  userTaskCount: number;
 };
 
 export const OFFICE_COMMAND_PALETTE_SHORTCUT: OfficeShortcut = {
@@ -228,17 +226,6 @@ export function createOfficePanelActions(
       perform: deps.openTelemetry,
     },
     {
-      id: "skill-invocations",
-      label: "Skill Invocations",
-      description: "Open Codex skill-read counts and recent Read skill MD events.",
-      group: "panel",
-      icon: BrainCircuit,
-      keywords: ["skills", "invocations", "hook", "codex", "read skill md", "panel"],
-      shortcut: { key: "i", label: "Alt+Shift+I", altKey: true, shiftKey: true },
-      color: SECONDARY_BUTTON_COLOR,
-      perform: deps.openSkillInvocations,
-    },
-    {
       id: "resource-bank",
       label: "Resource Bank",
       description: "Open saved media references, analysis, and extracted skill findings.",
@@ -305,9 +292,22 @@ export function createOfficePanelActions(
       icon: BriefcaseBusiness,
       keywords: ["review", "approval", "human", "ceo", "panel"],
       shortcut: { key: "r", label: "Alt+Shift+R", altKey: true, shiftKey: true },
-      badge: deps.userTaskCount > 0 ? deps.userTaskCount : undefined,
-      color: deps.userTaskCount > 0 ? EMPHASIZED_BUTTON_COLOR : SECONDARY_BUTTON_COLOR,
+      color: SECONDARY_BUTTON_COLOR,
       perform: readOnly ? noop : () => deps.openCeoWorkbench("review"),
+      disabled: readOnly,
+      showInMenu: !readOnly,
+      showInPalette: !readOnly,
+    },
+    {
+      id: "user-communications",
+      label: "User Comms",
+      description: "Configure Telegram reply routing and the main Codex thread.",
+      group: "panel",
+      icon: MessageSquareText,
+      keywords: ["user", "communications", "telegram", "human", "requests", "panel"],
+      shortcut: { key: "u", label: "Alt+Shift+U", altKey: true, shiftKey: true },
+      color: SECONDARY_BUTTON_COLOR,
+      perform: readOnly ? noop : deps.openUserCommunications,
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,

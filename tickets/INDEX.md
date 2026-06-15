@@ -10,6 +10,7 @@
 - `TKT-019` - Hardcase data inventory (`tickets/todo/TKT-019-hardcase-data-inventory.md`)
 - `TKT-020` - Team goal portfolio and org rollup (`tickets/todo/TKT-020-goals-portfolio-org-sync.md`)
 - `TKT-021` - Docs and Farplane testament renderer (`tickets/todo/TKT-021-docs-bookshelf-testament-renderer.md`)
+- `TKT-034` - Telegram reply gateway for Codex threads (`tickets/todo/TKT-034-telegram-reply-gateway.md`)
 
 ## Review
 

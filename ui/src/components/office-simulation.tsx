@@ -32,6 +32,7 @@ import { LogsDrawer } from "./hud/logs-drawer";
 import { LogsToggleButton } from "./hud/logs-toggle-button";
 import { OfficeMenu } from "./hud/office-menu";
 import { OfficeOnboardingPanel } from "./hud/office-onboarding-panel";
+import { UserTasksPanel } from "./hud/user-tasks-panel";
 import { buildOfficeBootstrapStages, getOfficeBootstrapState } from "./office-bootstrap";
 import { OfficeLoader } from "./office-loader";
 
@@ -71,6 +72,8 @@ function OfficeSimulationContent() {
   const kanbanFocusAgentId = useAppStore((state) => state.kanbanFocusAgentId);
   const isGlobalTeamPanelOpen = useAppStore((state) => state.isGlobalTeamPanelOpen);
   const setIsGlobalTeamPanelOpen = useAppStore((state) => state.setIsGlobalTeamPanelOpen);
+  const isUserTasksModalOpen = useAppStore((state) => state.isUserTasksModalOpen);
+  const setIsUserTasksModalOpen = useAppStore((state) => state.setIsUserTasksModalOpen);
   const setKanbanFocusAgentId = useAppStore((state) => state.setKanbanFocusAgentId);
   const isSettingsModalOpen = useAppStore((state) => state.isSettingsModalOpen);
   const setIsSettingsModalOpen = useAppStore((state) => state.setIsSettingsModalOpen);
@@ -204,6 +207,12 @@ function OfficeSimulationContent() {
             ) : null}
             <ObjectInteractionPanel />
             {!isReadOnly ? <CeoWorkbenchPanel /> : null}
+            {!isReadOnly ? (
+              <UserTasksPanel
+                isOpen={isUserTasksModalOpen}
+                onOpenChange={setIsUserTasksModalOpen}
+              />
+            ) : null}
             {!isReadOnly ? (
               <SettingsDialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen} />
             ) : null}

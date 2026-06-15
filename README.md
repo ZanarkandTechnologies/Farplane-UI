@@ -197,7 +197,6 @@ Skills are part of how Farplane makes agents easier to understand and operate. T
 Canonical Farplane UI-owned sidecar state lives under `~/.farplane`, especially:
 
 - `~/.farplane/company.json`
-- `~/.farplane/codex-office.json`
 - `~/.farplane/office.json`
 - `~/.farplane/office-objects.json`
 - `~/.farplane/pending-approvals.json`
@@ -208,7 +207,8 @@ Codex is the default office runtime adapter for Farplane UI v0. When
 the local state bridge proxies Codex app-server JSON-RPC and maps Codex threads
 into temporary office workers, sessions, and chat timelines. If the app-server
 is not configured, Codex mode degrades to a single `codex-main` placeholder.
-Codex office visibility is configured in `~/.farplane/codex-office.json`:
+Codex office visibility is configured under the `codex` key in
+`~/.farplane/office.json`:
 `recentThreadWindowMinutes` controls which recent chats render as temporary
 employees, `heartbeatThreadIds` keeps selected threads visible even when old,
 `alwaysShowHeartbeatThreads` keeps heartbeat/running threads on the floor,
@@ -248,23 +248,23 @@ cd ../Farplane && farplane install
 
 Useful commands:
 
-- `npm run shell -- onboarding --json`
-- `npm run shell -- onboarding --install-cli`
-- `npm run shell -- onboarding --skip-install-cli`
-- `npm run shell -- onboarding --launch-ui`
+- `npm run cli -- onboarding --json`
+- `npm run cli -- onboarding --install-cli`
+- `npm run cli -- onboarding --skip-install-cli`
+- `npm run cli -- onboarding --launch-ui`
 - `eval "$(farplane agent login --agent-id alpha-pm)"`
-- `npm run shell -- whoami --json`
-- `npm run shell -- agent list --json`
-- `npm run shell -- agent search --query builder --json`
-- `npm run shell -- agent send --from alpha-pm --to alpha-builder --message "Need blocker update" --task-id task-42 --json`
-- `npm run shell -- ui`
-- `npm run shell -- team run live --team-id team-proj-farplane-dev-team --cadence-minutes 1 --goal "Live demo loop" --json`
-- `npm run shell -- team monitor --team-id team-proj-farplane-dev-team --json`
-- `npm run shell -- team archive --team-id team-proj-example --deregister-openclaw`
-- `npm run shell -- office decor docs`
-- `npm run shell -- office decor list`
-- `npm run shell -- office decor pack list`
-- `npm run shell -- office decor floor list`
+- `npm run cli -- whoami --json`
+- `npm run cli -- agent list --json`
+- `npm run cli -- agent search --query builder --json`
+- `npm run cli -- agent send --from alpha-pm --to alpha-builder --message "Need blocker update" --task-id task-42 --json`
+- `npm run cli -- ui`
+- `npm run cli -- team run live --team-id team-proj-farplane-dev-team --cadence-minutes 1 --goal "Live demo loop" --json`
+- `npm run cli -- team monitor --team-id team-proj-farplane-dev-team --json`
+- `npm run cli -- team archive --team-id team-proj-example --deregister-openclaw`
+- `npm run cli -- office decor docs`
+- `npm run cli -- office decor list`
+- `npm run cli -- office decor pack list`
+- `npm run cli -- office decor floor list`
 
 For autonomous-team MVP work, the main runtime artifacts are:
 
@@ -275,19 +275,19 @@ For autonomous-team MVP work, the main runtime artifacts are:
 
 Realtime shared operational memory now lives in Convex-backed team/task surfaces, while OpenClaw workspace memory remains agent-owned/private and heavier artefacts stay filesystem-backed.
 - agent-attributed CLI writes should come from a shell session that has been initialized with `farplane agent login`; `FARPLANE_AGENT_ID` is the canonical caller identity and team/project scope are derived from the company model, with conflicting manual overrides failing fast.
-- `npm run shell -- office decor wall list`
-- `npm run shell -- office decor background list`
-- `npm run shell -- office decor pack apply clam-cabinet`
-- `npm run shell -- office decor background set midnight_tide`
+- `npm run cli -- office decor wall list`
+- `npm run cli -- office decor background list`
+- `npm run cli -- office decor pack apply clam-cabinet`
+- `npm run cli -- office decor background set midnight_tide`
 - `npm run cli:reinstall` for the module-local `farplane-ui` alias only
 - `farplane ui`
-- `npm run shell -- doctor team-data --json`
-- `npm run shell -- office doctor --json`
-- `npm run shell -- team list --json`
+- `npm run cli -- doctor team-data --json`
+- `npm run cli -- office doctor --json`
+- `npm run cli -- team list --json`
 
 When you archive a team with `--deregister-openclaw`, Farplane now removes that team's OpenClaw `agents.list` entries and deletes each managed agent workspace under `~/.openclaw` so retired businesses do not leave stale runtime folders behind.
-- `npm run shell -- team proposal list --json`
-- `npm run shell -- team proposal show --proposal-id <proposalId> --json`
+- `npm run cli -- team proposal list --json`
+- `npm run cli -- team proposal show --proposal-id <proposalId> --json`
 - `scripts/reset-demo-office.sh --profile minimal`
 - `scripts/reset-demo-office.sh --profile ladder`
 

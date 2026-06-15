@@ -11,8 +11,8 @@
  * - Teams map to projects in company.json.
  *
  * USAGE:
- * - npm run shell -- team list
- * - npm run shell -- team create --name "Alpha" --description "Core team" --goal "Ship"
+ * - npm run cli -- team list
+ * - npm run cli -- team create --name "Alpha" --description "Core team" --goal "Ship"
  *
  * MEMORY REFERENCES:
  * - MEM-0104
@@ -20,6 +20,7 @@
 import { Command } from "commander";
 import { registerOfficeCommands } from "./office-commands.js";
 import { registerAgentCommands } from "./agent-commands.js";
+import { registerGatewayCommands } from "./gateway-commands.js";
 import { registerOnboardingCommands } from "./onboarding-commands.js";
 import { registerDoctorCommands, registerTeamCommands } from "./team-commands/index.js";
 import { registerUiCommands } from "./ui-commands.js";
@@ -38,6 +39,7 @@ async function main(): Promise<void> {
 
   registerOnboardingCommands(program);
   registerUiCommands(program);
+  registerGatewayCommands(program);
   registerTeamCommands(program);
   registerAgentCommands(program);
   registerDoctorCommands(program);
