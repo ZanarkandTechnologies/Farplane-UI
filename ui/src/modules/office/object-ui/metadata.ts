@@ -15,6 +15,10 @@
  * - Build metadata payloads before adapter upsert flows
  */
 
+import {
+  getOfficeInternalPanelEntry,
+  isOfficeInternalPanelId,
+} from "../panels/internal-panel-catalog";
 import type {
   OfficeObjectInteractionConfig,
   OfficeObjectPanelAspectRatio,
@@ -97,11 +101,23 @@ export function parseOfficeObjectUiBinding(
   }
 
   if (raw.kind === "documentLibrary") {
+    const title = normalizeOptionalText(raw.title);
     return {
-      kind: "documentLibrary",
-      title: normalizeOptionalText(raw.title) ?? "Docs Library",
+      kind: "internalPanel",
+      panelId: "document-library",
+      title: title ?? getOfficeInternalPanelEntry("document-library").label,
       openMode: "panel",
-      aspectRatio: normalizeAspectRatio(raw.aspectRatio) ?? "wide",
+    };
+  }
+
+  if (raw.kind === "internalPanel") {
+    const panelId = isOfficeInternalPanelId(raw.panelId) ? raw.panelId : null;
+    if (!panelId) return DEFAULT_UI_BINDING;
+    return {
+      kind: "internalPanel",
+      panelId,
+      title: normalizeOptionalText(raw.title) ?? getOfficeInternalPanelEntry(panelId).label,
+      openMode: "panel",
     };
   }
 

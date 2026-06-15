@@ -14,6 +14,7 @@
  * - Use in builder panels to show whether an object is unbound, partial, or complete
  */
 
+import { getOfficeInternalPanelEntry } from "../panels/internal-panel-catalog";
 import type { OfficeObjectInteractionConfig, OfficeObjectUiBinding } from "./types";
 
 export type ObjectBindingHealth = "unbound" | "ui-bound" | "skill-bound" | "complete";
@@ -68,6 +69,13 @@ export function summarizeOfficeObjectUiBinding(binding: OfficeObjectUiBinding): 
     return {
       label: "Project Docs",
       detail: binding.title,
+    };
+  }
+  if (binding.kind === "internalPanel") {
+    const entry = getOfficeInternalPanelEntry(binding.panelId);
+    return {
+      label: "Internal Panel",
+      detail: entry.label,
     };
   }
   return {

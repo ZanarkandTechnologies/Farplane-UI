@@ -1,3 +1,4 @@
+import { Html } from "@react-three/drei";
 import { type ThreeEvent, useThree } from "@react-three/fiber";
 import { Move, Settings, SlidersVertical, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,9 +15,10 @@ import { useAppStore } from "@/store";
 import { DraggableController } from "../controllers/draggable-controller";
 import { useDeleteOfficeObject } from "../hooks/use-delete-office-object";
 import {
-  buildOfficeObjectPanelState,
+  buildOfficeObjectRuntimeLaunch,
   parseOfficeObjectInteractionConfig,
 } from "../office-object-ui";
+import { useOfficeInternalPanelLauncher } from "../panels/use-internal-panel-launcher";
 import { beginObjectInteractionTrace } from "../utils/object-interaction-perf";
 import { ContextMenu, type MenuAction } from "./context-menu";
 import { getBuilderClickAction } from "./interactive-object.builder";
@@ -54,6 +56,20 @@ interface InteractiveObjectProps {
     size: [number, number, number];
     highlightRadius: number;
   };
+}
+
+function getRuntimeHoverLabel(
+  config: ReturnType<typeof parseOfficeObjectInteractionConfig>,
+): string | null {
+  switch (config.uiBinding.kind) {
+    case "embed":
+    case "skillShelf":
+    case "documentLibrary":
+    case "internalPanel":
+      return config.uiBinding.title;
+    default:
+      return null;
+  }
 }
 
 /**
@@ -105,6 +121,7 @@ export function InteractiveObject({
   const [isHovered, setIsHovered] = useState(false);
   const [isLocallyDragging, setIsLocallyDragging] = useState(false);
   const [highlightRadius, setHighlightRadius] = useState(1.1);
+  const [hoverLabelYOffset, setHoverLabelYOffset] = useState(1.35);
   const lastConfirmedPositionRef = useRef<[number, number, number]>(initialPosition);
   const lastConfirmedRotationRef = useRef<[number, number, number]>(initialRotation);
   const lastConfirmedScaleRef = useRef<[number, number, number]>(initialScale);
@@ -117,6 +134,7 @@ export function InteractiveObject({
   const setActiveObjectTransformId = useAppStore((state) => state.setActiveObjectTransformId);
   const setActiveObjectPanel = useAppStore((state) => state.setActiveObjectPanel);
   const activeObjectConfigId = useAppStore((state) => state.activeObjectConfigId);
+  const launchInternalPanel = useOfficeInternalPanelLauncher();
 
   const interactionConfig = useMemo(() => parseOfficeObjectInteractionConfig(metadata), [metadata]);
   const formattedName = useMemo(
@@ -128,6 +146,10 @@ export function InteractiveObject({
     [objectType],
   );
   const objectTitle = interactionConfig.displayName ?? formattedName;
+  const runtimeHoverLabel = useMemo(
+    () => getRuntimeHoverLabel(interactionConfig),
+    [interactionConfig],
+  );
   const setGroupRef = useCallback(
     (element: THREE.Group | null) => {
       groupRef.current = element;
@@ -290,6 +312,7 @@ export function InteractiveObject({
   useEffect(() => {
     if (interactionBounds) {
       setHighlightRadius(interactionBounds.highlightRadius);
+      setHoverLabelYOffset(interactionBounds.center[1] + interactionBounds.size[1] / 2 + 0.35);
       return;
     }
     if (!contentRef.current) return;
@@ -297,6 +320,7 @@ export function InteractiveObject({
     if (bounds.isEmpty()) return;
     const size = bounds.getSize(new THREE.Vector3());
     setHighlightRadius(Math.max(0.85, Math.max(size.x, size.z) * 0.55));
+    setHoverLabelYOffset(Math.max(1.1, size.y + 0.35));
   }, [interactionBounds]);
 
   const handleClick = useCallback(
@@ -305,24 +329,40 @@ export function InteractiveObject({
       e.stopPropagation();
       if (!isBuilderMode) {
         const openedAtMs = typeof performance !== "undefined" ? performance.now() : Date.now();
-        const panelState = buildOfficeObjectPanelState({
+        const runtimeLaunch = buildOfficeObjectRuntimeLaunch({
           objectId,
           config: interactionConfig,
           openedAtMs,
         });
-        if (panelState) {
+        if (runtimeLaunch?.kind === "internalPanel") {
           beginObjectInteractionTrace("runtime-panel", String(objectId), {
-            title: panelState.title,
+            title: runtimeLaunch.title,
           });
           if (import.meta.env.DEV) {
             console.debug("[perf] office-object-modal-click", {
               objectId: String(objectId),
-              title: panelState.title,
-              kind: panelState.kind,
+              title: runtimeLaunch.title,
+              kind: runtimeLaunch.kind,
+              panelId: runtimeLaunch.panelId,
               openedAtMs,
             });
           }
-          setActiveObjectPanel(panelState);
+          launchInternalPanel(runtimeLaunch.panelId);
+          return;
+        }
+        if (runtimeLaunch?.kind === "objectPanel") {
+          beginObjectInteractionTrace("runtime-panel", String(objectId), {
+            title: runtimeLaunch.panel.title,
+          });
+          if (import.meta.env.DEV) {
+            console.debug("[perf] office-object-modal-click", {
+              objectId: String(objectId),
+              title: runtimeLaunch.panel.title,
+              kind: runtimeLaunch.panel.kind,
+              openedAtMs,
+            });
+          }
+          setActiveObjectPanel(runtimeLaunch.panel);
         }
         return;
       }
@@ -347,6 +387,7 @@ export function InteractiveObject({
     [
       allowSettings,
       interactionConfig,
+      launchInternalPanel,
       setActiveObjectConfigId,
       setActiveObjectTransformId,
       isBuilderMode,
@@ -510,6 +551,20 @@ export function InteractiveObject({
           />
         </mesh>
       )}
+
+      {showHoverEffect && isHovered && runtimeHoverLabel ? (
+        <Html
+          center
+          distanceFactor={9}
+          position={[0, hoverLabelYOffset, 0]}
+          transform
+          zIndexRange={[60, 0]}
+        >
+          <div className="pointer-events-none max-w-[220px] rounded-md border border-border/70 bg-background/95 px-2.5 py-1.5 text-center text-xs font-medium text-foreground shadow-lg backdrop-blur">
+            <span className="block truncate">{runtimeHoverLabel}</span>
+          </div>
+        </Html>
+      ) : null}
 
       {isLocallyDragging && (
         <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>

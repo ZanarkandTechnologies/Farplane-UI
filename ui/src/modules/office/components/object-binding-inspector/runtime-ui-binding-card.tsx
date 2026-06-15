@@ -14,6 +14,10 @@ import { CheckCircle2 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  OFFICE_INTERNAL_PANEL_CATALOG,
+  type OfficeInternalPanelId,
+} from "@/modules/office/panels/internal-panel-catalog";
 
 import type { UiBindingMode } from "./types";
 
@@ -43,10 +47,8 @@ type RuntimeUiBindingCardProps = {
   setSkillShelfCategory: (value: string) => void;
   skillShelfIdsText: string;
   setSkillShelfIdsText: (value: string) => void;
-  documentLibraryTitle: string;
-  setDocumentLibraryTitle: (value: string) => void;
-  documentLibraryAspectRatio: "wide" | "square" | "tall";
-  setDocumentLibraryAspectRatio: (value: "wide" | "square" | "tall") => void;
+  internalPanelId: OfficeInternalPanelId;
+  setInternalPanelId: (value: OfficeInternalPanelId) => void;
   skillOptions: SkillOption[];
   uiTaggedSkillOptions: SkillOption[];
 };
@@ -70,13 +72,15 @@ export function RuntimeUiBindingCard({
   setSkillShelfCategory,
   skillShelfIdsText,
   setSkillShelfIdsText,
-  documentLibraryTitle,
-  setDocumentLibraryTitle,
-  documentLibraryAspectRatio,
-  setDocumentLibraryAspectRatio,
+  internalPanelId,
+  setInternalPanelId,
   skillOptions,
   uiTaggedSkillOptions,
 }: RuntimeUiBindingCardProps) {
+  const selectedInternalPanel = OFFICE_INTERNAL_PANEL_CATALOG.find(
+    (panel) => panel.id === internalPanelId,
+  );
+
   return (
     <section className="space-y-3 rounded-lg border p-4">
       <div className="flex items-start justify-between gap-3">
@@ -100,7 +104,7 @@ export function RuntimeUiBindingCard({
           <option value="none">None</option>
           <option value="embed">Embed URL</option>
           <option value="skillShelf">Skill UI</option>
-          <option value="documentLibrary">Project Docs</option>
+          <option value="internalPanel">Internal Panel</option>
         </select>
       </div>
 
@@ -235,32 +239,24 @@ export function RuntimeUiBindingCard({
           </datalist>
         </div>
       ) : null}
-      {mode === "documentLibrary" ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="object-document-library-title">Title</Label>
-            <Input
-              id="object-document-library-title"
-              value={documentLibraryTitle}
-              onChange={(event) => setDocumentLibraryTitle(event.target.value)}
-              placeholder="Docs Library"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="object-document-library-aspect">Panel Size</Label>
-            <select
-              id="object-document-library-aspect"
-              className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-              value={documentLibraryAspectRatio}
-              onChange={(event) =>
-                setDocumentLibraryAspectRatio(event.target.value as "wide" | "square" | "tall")
-              }
-            >
-              <option value="wide">Wide</option>
-              <option value="square">Square</option>
-              <option value="tall">Tall</option>
-            </select>
-          </div>
+      {mode === "internalPanel" ? (
+        <div className="space-y-2">
+          <Label htmlFor="object-internal-panel-id">Panel</Label>
+          <select
+            id="object-internal-panel-id"
+            className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+            value={internalPanelId}
+            onChange={(event) => setInternalPanelId(event.target.value as OfficeInternalPanelId)}
+          >
+            {OFFICE_INTERNAL_PANEL_CATALOG.map((panel) => (
+              <option key={panel.id} value={panel.id}>
+                {panel.label}
+              </option>
+            ))}
+          </select>
+          {selectedInternalPanel ? (
+            <p className="text-xs text-muted-foreground">{selectedInternalPanel.description}</p>
+          ) : null}
         </div>
       ) : null}
     </section>

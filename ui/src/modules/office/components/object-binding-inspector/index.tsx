@@ -37,7 +37,7 @@ import { useAppStore } from "@/store";
 import type { OfficeObject } from "../../lib/types";
 import {
   buildOfficeObjectMetadata,
-  buildOfficeObjectPanelState,
+  buildOfficeObjectRuntimeLaunch,
   getObjectBindingHealth,
   getObjectBindingHealthLabel,
   normalizeHttpUrl,
@@ -49,6 +49,11 @@ import {
   parseOfficeObjectInteractionConfig,
   summarizeOfficeObjectUiBinding,
 } from "../../object-ui";
+import {
+  getOfficeInternalPanelEntry,
+  type OfficeInternalPanelId,
+} from "../../panels/internal-panel-catalog";
+import { useOfficeInternalPanelLauncher } from "../../panels/use-internal-panel-launcher";
 import { endObjectInteractionTrace } from "../../utils/object-interaction-perf";
 import { resolvePersistedOfficeObjectId } from "../office-object-id";
 import { RuntimeUiBindingCard, type SkillOption } from "./runtime-ui-binding-card";
@@ -123,6 +128,7 @@ export function ObjectBindingInspector() {
   const setActiveObjectPanel = useAppStore((state) => state.setActiveObjectPanel);
   const { officeObjects } = useOfficeDataContext();
   const adapter = useOfficeRuntimeAdapter();
+  const launchInternalPanel = useOfficeInternalPanelLauncher();
 
   const officeObject = useMemo(
     () => officeObjects.find((item) => item._id === activeObjectConfigId) ?? null,
@@ -144,10 +150,7 @@ export function ObjectBindingInspector() {
   );
   const [skillShelfCategory, setSkillShelfCategory] = useState("");
   const [skillShelfIdsText, setSkillShelfIdsText] = useState("");
-  const [documentLibraryTitle, setDocumentLibraryTitle] = useState("Docs Library");
-  const [documentLibraryAspectRatio, setDocumentLibraryAspectRatio] = useState<
-    "wide" | "square" | "tall"
-  >("wide");
+  const [internalPanelId, setInternalPanelId] = useState<OfficeInternalPanelId>("document-library");
   const [isSkillBindingEnabled, setIsSkillBindingEnabled] = useState(false);
   const [skillId, setSkillId] = useState("");
   const [skillLabel, setSkillLabel] = useState("");
@@ -203,15 +206,10 @@ export function ObjectBindingInspector() {
         ? (parsedConfig.uiBinding.skillIds ?? []).join(", ")
         : "",
     );
-    setDocumentLibraryTitle(
-      parsedConfig.uiBinding.kind === "documentLibrary"
-        ? parsedConfig.uiBinding.title
-        : "Docs Library",
-    );
-    setDocumentLibraryAspectRatio(
-      parsedConfig.uiBinding.kind === "documentLibrary" && parsedConfig.uiBinding.aspectRatio
-        ? parsedConfig.uiBinding.aspectRatio
-        : "wide",
+    setInternalPanelId(
+      parsedConfig.uiBinding.kind === "internalPanel"
+        ? parsedConfig.uiBinding.panelId
+        : "document-library",
     );
     setIsSkillBindingEnabled(Boolean(parsedConfig.skillBinding?.skillId));
     setSkillId(parsedConfig.skillBinding?.skillId ?? "");
@@ -260,12 +258,13 @@ export function ObjectBindingInspector() {
         skillIds: skillShelfIds.length > 0 ? skillShelfIds : undefined,
       };
     }
-    if (uiBindingMode === "documentLibrary") {
+    if (uiBindingMode === "internalPanel") {
+      const entry = getOfficeInternalPanelEntry(internalPanelId);
       uiBinding = {
-        kind: "documentLibrary",
-        title: documentLibraryTitle.trim() || "Docs Library",
+        kind: "internalPanel",
+        panelId: internalPanelId,
+        title: entry.label,
         openMode: "panel",
-        aspectRatio: documentLibraryAspectRatio,
       };
     }
     if (isSkillBindingEnabled && !skillId.trim()) {
@@ -321,9 +320,6 @@ export function ObjectBindingInspector() {
     if (mode === "skillShelf" && !skillShelfTitle.trim()) {
       setSkillShelfTitle(objectTitle);
     }
-    if (mode === "documentLibrary" && !documentLibraryTitle.trim()) {
-      setDocumentLibraryTitle("Docs Library");
-    }
   };
 
   const handleOpenChange = (open: boolean): void => {
@@ -332,12 +328,17 @@ export function ObjectBindingInspector() {
 
   const handleOpenUi = (): void => {
     if (!officeObject || !draftValidation.ok) return;
-    const panelState = buildOfficeObjectPanelState({
+    const launch = buildOfficeObjectRuntimeLaunch({
       objectId: officeObject._id,
       config: draftValidation.config,
       openedAtMs: typeof performance !== "undefined" ? performance.now() : Date.now(),
     });
-    if (panelState) setActiveObjectPanel(panelState);
+    if (!launch) return;
+    if (launch.kind === "internalPanel") {
+      launchInternalPanel(launch.panelId);
+      return;
+    }
+    setActiveObjectPanel(launch.panel);
   };
 
   const handleTestTarget = (): void => {
@@ -459,10 +460,8 @@ export function ObjectBindingInspector() {
               setSkillShelfCategory={setSkillShelfCategory}
               skillShelfIdsText={skillShelfIdsText}
               setSkillShelfIdsText={setSkillShelfIdsText}
-              documentLibraryTitle={documentLibraryTitle}
-              setDocumentLibraryTitle={setDocumentLibraryTitle}
-              documentLibraryAspectRatio={documentLibraryAspectRatio}
-              setDocumentLibraryAspectRatio={setDocumentLibraryAspectRatio}
+              internalPanelId={internalPanelId}
+              setInternalPanelId={setInternalPanelId}
               skillOptions={skillOptions}
               uiTaggedSkillOptions={uiTaggedSkillOptions}
             />

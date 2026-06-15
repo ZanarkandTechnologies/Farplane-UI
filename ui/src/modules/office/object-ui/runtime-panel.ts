@@ -16,7 +16,19 @@
 
 import type { ActiveObjectPanelState } from "@/store/app-store";
 import type { OfficeId } from "../lib/types";
+import type { OfficeInternalPanelId } from "../panels/internal-panel-catalog";
 import type { OfficeObjectInteractionConfig } from "./types";
+
+export type OfficeObjectRuntimeLaunch =
+  | { kind: "objectPanel"; panel: ActiveObjectPanelState }
+  | {
+      kind: "internalPanel";
+      panelId: OfficeInternalPanelId;
+      objectId: OfficeId<"officeObjects">;
+      title: string;
+      displayName?: string;
+      openedAtMs: number;
+    };
 
 export function buildOfficeObjectPanelState(input: {
   objectId: OfficeId<"officeObjects">;
@@ -26,6 +38,7 @@ export function buildOfficeObjectPanelState(input: {
   const { objectId, config, openedAtMs } = input;
   const { uiBinding } = config;
   if (uiBinding.kind === "none") return null;
+  if (uiBinding.kind === "internalPanel") return null;
   if (uiBinding.kind === "embed") {
     return {
       kind: "embed",
@@ -57,4 +70,26 @@ export function buildOfficeObjectPanelState(input: {
     skillIds: uiBinding.skillIds,
     openedAtMs,
   };
+}
+
+export function buildOfficeObjectRuntimeLaunch(input: {
+  objectId: OfficeId<"officeObjects">;
+  config: OfficeObjectInteractionConfig;
+  openedAtMs: number;
+}): OfficeObjectRuntimeLaunch | null {
+  const { objectId, config, openedAtMs } = input;
+  const { uiBinding } = config;
+  if (uiBinding.kind === "none") return null;
+  if (uiBinding.kind === "internalPanel") {
+    return {
+      kind: "internalPanel",
+      panelId: uiBinding.panelId,
+      objectId,
+      title: uiBinding.title,
+      displayName: config.displayName,
+      openedAtMs,
+    };
+  }
+  const panel = buildOfficeObjectPanelState(input);
+  return panel ? { kind: "objectPanel", panel } : null;
 }

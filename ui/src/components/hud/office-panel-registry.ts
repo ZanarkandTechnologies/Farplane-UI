@@ -18,24 +18,25 @@
  */
 
 import {
+  Archive,
   BarChart3,
   BookOpen,
   BriefcaseBusiness,
   Building2,
   Hammer,
   Home,
+  LibraryBig,
   type LucideIcon,
   MessageSquareText,
   Network,
   RadioTower,
-  Archive,
-  LibraryBig,
   Settings,
   ShoppingBag,
   TestTube2,
   Users,
 } from "lucide-react";
 
+import { getOfficeInternalPanelEntry } from "@/modules/office/panels/internal-panel-catalog";
 import type { CeoWorkbenchView } from "@/store";
 
 const SECONDARY_BUTTON_COLOR = "bg-secondary hover:bg-secondary/80 text-secondary-foreground";
@@ -182,6 +183,19 @@ export function createOfficePanelActions(
   deps: OfficePanelRegistryDependencies,
 ): OfficePanelAction[] {
   const readOnly = deps.accessPolicy === "read-only";
+  const teamWorkspacePanel = getOfficeInternalPanelEntry("team-workspace");
+  const telemetryPanel = getOfficeInternalPanelEntry("telemetry");
+  const resourceBankPanel = getOfficeInternalPanelEntry("resource-bank");
+  const documentLibraryPanel = getOfficeInternalPanelEntry("document-library");
+  const skillOsPanel = getOfficeInternalPanelEntry("skill-os");
+  const templateRolloutPanel = getOfficeInternalPanelEntry("template-rollout");
+  const evalsPanel = getOfficeInternalPanelEntry("evals");
+  const harnessPanel = getOfficeInternalPanelEntry("harness");
+  const ceoWorkbenchPanel = getOfficeInternalPanelEntry("ceo-workbench");
+  const humanReviewPanel = getOfficeInternalPanelEntry("human-review");
+  const userCommsPanel = getOfficeInternalPanelEntry("user-communications");
+  const officeShopPanel = getOfficeInternalPanelEntry("office-shop");
+  const settingsPanel = getOfficeInternalPanelEntry("settings");
   return [
     {
       id: "back-landing",
@@ -206,11 +220,11 @@ export function createOfficePanelActions(
     },
     {
       id: "team-workspace",
-      label: "Team Workspace",
-      description: "Open the global team workspace with overview and kanban access.",
+      label: teamWorkspacePanel.label,
+      description: teamWorkspacePanel.description,
       group: "panel",
       icon: Users,
-      keywords: ["team", "workspace", "kanban", "overview", "panel"],
+      keywords: [...teamWorkspacePanel.keywords, "panel"],
       shortcut: { key: "t", label: "Alt+Shift+T", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       buttonClassName:
@@ -222,98 +236,87 @@ export function createOfficePanelActions(
     },
     {
       id: "telemetry",
-      label: "Telemetry",
-      description: "Open overall project and team runtime telemetry.",
+      label: telemetryPanel.label,
+      description: telemetryPanel.description,
       group: "panel",
       icon: BarChart3,
-      keywords: ["telemetry", "agent hours", "runtime", "projects", "dashboard"],
+      keywords: [...telemetryPanel.keywords, "dashboard"],
       shortcut: { key: "m", label: "Alt+Shift+M", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openTelemetry,
     },
     {
       id: "resource-bank",
-      label: "Resource Bank",
-      description: "Open saved media references, analysis, and extracted skill findings.",
+      label: resourceBankPanel.label,
+      description: resourceBankPanel.description,
       group: "panel",
       icon: Archive,
-      keywords: ["resource", "bank", "assets", "references", "ingestion", "pinterest", "media"],
+      keywords: [...resourceBankPanel.keywords, "pinterest", "media"],
       shortcut: { key: "r", label: "Alt+Shift+R", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openResourceBank,
     },
     {
       id: "document-library",
-      label: "Docs Library",
-      description: "Open project documentation gathered from every office project folder.",
+      label: documentLibraryPanel.label,
+      description: documentLibraryPanel.description,
       group: "panel",
       icon: LibraryBig,
-      keywords: ["docs", "documents", "library", "bookshelf", "project docs", "files"],
+      keywords: documentLibraryPanel.keywords,
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openDocumentLibrary,
     },
     {
       id: "skill-os",
-      label: "Skill OS",
-      description: "Open the global skill registry, graph, rollout, and template control plane.",
+      label: skillOsPanel.label,
+      description: skillOsPanel.description,
       group: "panel",
       icon: BookOpen,
-      keywords: ["skills", "skill os", "registry", "templates", "rollout", "panel"],
+      keywords: [...skillOsPanel.keywords, "panel"],
       shortcut: { key: "s", label: "Alt+Shift+S", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openSkillOs,
     },
     {
       id: "template-rollout",
-      label: "Template Rollout",
-      description: "Open the rollout tracker for reusable Farplane template families.",
+      label: templateRolloutPanel.label,
+      description: templateRolloutPanel.description,
       group: "panel",
       icon: RadioTower,
-      keywords: ["template", "templates", "rollout", "tracking", "drift", "standards", "panel"],
+      keywords: [...templateRolloutPanel.keywords, "standards", "panel"],
       shortcut: { key: "l", label: "Alt+Shift+L", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openTemplateRollout,
     },
     {
       id: "evals",
-      label: "Evals",
-      description: "Open global eval runs, skill eval files, hardcases, and suite status.",
+      label: evalsPanel.label,
+      description: evalsPanel.description,
       group: "panel",
       icon: TestTube2,
-      keywords: ["eval", "evals", "tests", "hardcases", "suite", "panel"],
+      keywords: [...evalsPanel.keywords, "panel"],
       shortcut: { key: "e", label: "Alt+Shift+E", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openEvals,
     },
     {
       id: "harness",
-      label: "Harness OS",
-      description:
-        "Open the repo-wide Harness OS map across skills, docs, features, agents, templates, and validators.",
+      label: harnessPanel.label,
+      description: harnessPanel.description,
       group: "panel",
       icon: Network,
-      keywords: [
-        "harness",
-        "harness os",
-        "map",
-        "graph",
-        "docs",
-        "features",
-        "agents",
-        "templates",
-        "panel",
-      ],
+      keywords: [...harnessPanel.keywords, "agents", "templates", "panel"],
       shortcut: { key: "h", label: "Alt+Shift+H", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openHarness,
     },
     {
       id: "ceo-workbench",
-      label: "CEO Workbench",
-      description: "Open the CEO workbench board view.",
+      label: ceoWorkbenchPanel.label,
+      description: ceoWorkbenchPanel.description,
       group: "panel",
       icon: BriefcaseBusiness,
-      keywords: ["ceo", "workbench", "board", "tasks", "panel"],
+      keywords: [...ceoWorkbenchPanel.keywords, "panel"],
       shortcut: { key: "w", label: "Alt+Shift+W", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: readOnly ? noop : () => deps.openCeoWorkbench("board"),
@@ -323,11 +326,11 @@ export function createOfficePanelActions(
     },
     {
       id: "human-review",
-      label: "Human Review",
-      description: "Open the CEO workbench review lane for founder approval tasks.",
+      label: humanReviewPanel.label,
+      description: humanReviewPanel.description,
       group: "panel",
       icon: BriefcaseBusiness,
-      keywords: ["review", "approval", "human", "ceo", "panel"],
+      keywords: [...humanReviewPanel.keywords, "panel"],
       shortcut: { key: "r", label: "Alt+Shift+R", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: readOnly ? noop : () => deps.openCeoWorkbench("review"),
@@ -337,11 +340,11 @@ export function createOfficePanelActions(
     },
     {
       id: "user-communications",
-      label: "User Comms",
-      description: "Configure Telegram reply routing and the main Codex thread.",
+      label: userCommsPanel.label,
+      description: userCommsPanel.description,
       group: "panel",
       icon: MessageSquareText,
-      keywords: ["user", "communications", "telegram", "human", "requests", "panel"],
+      keywords: [...userCommsPanel.keywords, "panel"],
       shortcut: { key: "u", label: "Alt+Shift+U", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: readOnly ? noop : deps.openUserCommunications,
@@ -365,11 +368,11 @@ export function createOfficePanelActions(
     },
     {
       id: "office-shop",
-      label: "Decoration",
-      description: "Open the decoration shop for office objects and furniture.",
+      label: officeShopPanel.label,
+      description: officeShopPanel.description,
       group: "panel",
       icon: ShoppingBag,
-      keywords: ["shop", "decoration", "furniture", "office", "panel"],
+      keywords: [...officeShopPanel.keywords, "panel"],
       shortcut: { key: "d", label: "Alt+Shift+D", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       buttonClassName:
@@ -381,11 +384,11 @@ export function createOfficePanelActions(
     },
     {
       id: "settings",
-      label: "Settings",
-      description: "Open office settings and configuration preferences.",
+      label: settingsPanel.label,
+      description: settingsPanel.description,
       group: "panel",
       icon: Settings,
-      keywords: ["settings", "preferences", "config", "panel"],
+      keywords: [...settingsPanel.keywords, "panel"],
       shortcut: { key: "p", label: "Alt+Shift+P", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       disabled: readOnly,

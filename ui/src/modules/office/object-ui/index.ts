@@ -14,7 +14,11 @@ export {
   parseOfficeObjectSkillBinding,
   parseOfficeObjectUiBinding,
 } from "./metadata";
-export { buildOfficeObjectPanelState } from "./runtime-panel";
+export {
+  buildOfficeObjectPanelState,
+  buildOfficeObjectRuntimeLaunch,
+  type OfficeObjectRuntimeLaunch,
+} from "./runtime-panel";
 export type {
   OfficeObjectInteractionConfig,
   OfficeObjectPanelAspectRatio,

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildOfficeObjectMetadata,
   buildOfficeObjectPanelState,
+  buildOfficeObjectRuntimeLaunch,
   getObjectBindingHealth,
   getObjectBindingHealthLabel,
   hasOfficeObjectRuntimeUi,
@@ -131,7 +132,7 @@ describe("office object ui helpers", () => {
     });
   });
 
-  it("parses project document library bindings from metadata", () => {
+  it("normalizes legacy project document library bindings into internal panels", () => {
     expect(
       parseOfficeObjectUiBinding({
         uiBinding: {
@@ -141,10 +142,26 @@ describe("office object ui helpers", () => {
         },
       }),
     ).toEqual({
-      kind: "documentLibrary",
+      kind: "internalPanel",
+      panelId: "document-library",
       title: "Project Docs",
       openMode: "panel",
-      aspectRatio: "wide",
+    });
+  });
+
+  it("parses internal panel bindings from metadata", () => {
+    expect(
+      parseOfficeObjectUiBinding({
+        uiBinding: {
+          kind: "internalPanel",
+          panelId: "resource-bank",
+        },
+      }),
+    ).toEqual({
+      kind: "internalPanel",
+      panelId: "resource-bank",
+      title: "Resource Bank",
+      openMode: "panel",
     });
   });
 
@@ -236,28 +253,28 @@ describe("office object ui helpers", () => {
     });
   });
 
-  it("builds project document library runtime panel state", () => {
+  it("builds internal panel runtime launch targets", () => {
     expect(
-      buildOfficeObjectPanelState({
+      buildOfficeObjectRuntimeLaunch({
         objectId: "object-1" as never,
         openedAtMs: 123,
         config: {
           displayName: "Bookshelf",
           uiBinding: {
-            kind: "documentLibrary",
-            title: "Project Docs",
+            kind: "internalPanel",
+            panelId: "document-library",
+            title: "Docs Library",
             openMode: "panel",
-            aspectRatio: "wide",
           },
           skillBinding: null,
         },
       }),
     ).toEqual({
-      kind: "documentLibrary",
+      kind: "internalPanel",
+      panelId: "document-library",
       objectId: "object-1",
-      title: "Project Docs",
+      title: "Docs Library",
       displayName: "Bookshelf",
-      aspectRatio: "wide",
       openedAtMs: 123,
     });
   });
@@ -315,13 +332,14 @@ describe("office object ui helpers", () => {
     });
     expect(
       summarizeOfficeObjectUiBinding({
-        kind: "documentLibrary",
-        title: "Project Docs",
+        kind: "internalPanel",
+        panelId: "document-library",
+        title: "Docs Library",
         openMode: "panel",
       }),
     ).toEqual({
-      label: "Project Docs",
-      detail: "Project Docs",
+      label: "Internal Panel",
+      detail: "Docs Library",
     });
   });
 });

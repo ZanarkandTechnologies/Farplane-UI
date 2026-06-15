@@ -15,7 +15,9 @@
  * - Runtime object clicks convert these bindings into app-store panel state
  */
 
-export type OfficeObjectPanelKind = "embed" | "skillShelf" | "documentLibrary";
+import type { OfficeInternalPanelId } from "../panels/internal-panel-catalog";
+
+export type OfficeObjectPanelKind = "embed" | "skillShelf" | "documentLibrary" | "internalPanel";
 export type OfficeObjectPanelOpenMode = "panel";
 export type OfficeObjectPanelAspectRatio = "wide" | "square" | "tall";
 
@@ -41,6 +43,12 @@ export type OfficeObjectUiBinding =
       title: string;
       openMode: OfficeObjectPanelOpenMode;
       aspectRatio?: OfficeObjectPanelAspectRatio;
+    }
+  | {
+      kind: "internalPanel";
+      panelId: OfficeInternalPanelId;
+      title: string;
+      openMode: OfficeObjectPanelOpenMode;
     };
 
 export type OfficeObjectSkillEffectVariant = "ghost" | "blink";
