@@ -65,6 +65,9 @@ import {
   getClusterOccupancyFootprint,
   getDeskRotation,
   getEmployeePositionAtDesk,
+  getEmployeePositionAtRoundTableStation,
+  shouldUseRoundTeamTable,
+  solveRoundTeamTableLayout,
 } from "@/modules/office/utils/layout";
 import type {
   AgentCardModel,
@@ -1144,18 +1147,37 @@ export function toOfficeData(
     if (teamDeskLayouts.length > 0) {
       teamDeskCursor.set(teamId, currentDeskCursor + 1);
     }
-    const deskPosition = initialDeskLayout
-      ? getAbsoluteDeskPosition(teamCenter, initialDeskLayout.layoutIndex, initialDeskLayout.total)
+    const roundTableStation =
+      initialDeskLayout && shouldUseRoundTeamTable(initialDeskLayout.total)
+        ? solveRoundTeamTableLayout(initialDeskLayout.total).stations[initialDeskLayout.layoutIndex]
+        : null;
+    const roundTableEmployeePosition = roundTableStation
+      ? getEmployeePositionAtRoundTableStation(roundTableStation)
       : null;
-    const deskRotation = initialDeskLayout
-      ? getDeskRotation(initialDeskLayout.layoutIndex, initialDeskLayout.total)
-      : null;
+    const deskPosition =
+      initialDeskLayout && !roundTableStation
+        ? getAbsoluteDeskPosition(
+            teamCenter,
+            initialDeskLayout.layoutIndex,
+            initialDeskLayout.total,
+          )
+        : null;
+    const deskRotation =
+      initialDeskLayout && !roundTableStation
+        ? getDeskRotation(initialDeskLayout.layoutIndex, initialDeskLayout.total)
+        : null;
     const initialPosition: [number, number, number] =
       isMainAgent && initialDeskLayout == null
         ? ceoAnchor
-        : deskPosition && deskRotation != null
-          ? getEmployeePositionAtDesk(deskPosition, deskRotation)
-          : teamCenter;
+        : roundTableEmployeePosition
+          ? [
+              teamCenter[0] + roundTableEmployeePosition[0],
+              teamCenter[1] + roundTableEmployeePosition[1],
+              teamCenter[2] + roundTableEmployeePosition[2],
+            ]
+          : deskPosition && deskRotation != null
+            ? getEmployeePositionAtDesk(deskPosition, deskRotation)
+            : teamCenter;
     const agentApprovals = approvalsByAgent.get(agent.agentId);
     const heartbeatStatus =
       liveStatus?.state === "error"
@@ -1223,6 +1245,7 @@ export function toOfficeData(
       heartbeatBubbles:
         liveStatus?.bubbles?.map((bubble) => ({ label: bubble.label, weight: bubble.weight })) ??
         [],
+      wantsToWander: roundTableStation ? false : undefined,
       appearance,
     };
   });

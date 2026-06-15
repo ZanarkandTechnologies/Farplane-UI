@@ -70,7 +70,8 @@ export function assignRandomStatuses(
     const messageRandom = seededRandom(employee._id, 4);
     const messageIndexRandom = seededRandom(employee._id, 5);
 
-    const wantsToWander = isTeamLocked ? false : wanderRandom < 0.5;
+    const wantsToWander =
+      employee.wantsToWander === false ? false : isTeamLocked ? false : wanderRandom < 0.5;
 
     if (hasActiveHeartbeatState) {
       return {

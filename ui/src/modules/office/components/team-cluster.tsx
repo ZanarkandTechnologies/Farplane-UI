@@ -15,23 +15,26 @@
  * - Desks auto-arrange using layout utility functions
  */
 
-import { Html, Text } from "@react-three/drei";
+import { Html } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import { useMemo, useState } from "react";
 import { COMPUTER_HEIGHT, DESK_HEIGHT } from "@/constants";
 import type { Id } from "@/lib/entity-types";
 import type { DeskLayoutData, TeamData } from "@/modules/office/lib/types";
 import {
+  MAX_GRID_DESKS_PER_TEAM,
   getClusterOccupancyFootprint,
   getDeskPosition,
   getDeskRotation,
+  shouldUseRoundTeamTable,
+  solveRoundTeamTableLayout,
 } from "@/modules/office/utils/layout";
 import { useAppStore } from "@/store";
 import Desk from "./desk";
 import { InteractiveObject } from "./interactive-object";
+import RoundTeamTable from "./round-team-table";
 
 // Constants
-const MAX_DESKS_PER_TEAM = 6;
 const DEFAULT_OCCUPANCY_WIDTH = 9.2;
 const DEFAULT_OCCUPANCY_DEPTH = 7.4;
 const FLOATING_LABEL_HEIGHT = DESK_HEIGHT + COMPUTER_HEIGHT + 0.58;
@@ -104,9 +107,8 @@ export default function TeamCluster({
 
   // Capacity tracking
   const currentDeskCount = desks.length;
-  const isAtCapacity = currentDeskCount >= MAX_DESKS_PER_TEAM;
-  const remainingSlots = MAX_DESKS_PER_TEAM - currentDeskCount;
-  const overflowDeskCount = Math.max(0, currentDeskCount - MAX_DESKS_PER_TEAM);
+  const stationCount = Math.max(currentDeskCount, team.employees.length, 1);
+  const usesRoundTable = shouldUseRoundTeamTable(stationCount);
 
   // Handle cluster click
   const handleClusterClick = (event: ThreeEvent<MouseEvent>) => {
@@ -116,24 +118,6 @@ export default function TeamCluster({
     if (placementMode.active && placementMode.type === "desk") {
       event.stopPropagation();
 
-      // Check capacity before allowing placement
-      if (isAtCapacity) {
-        console.warn(`Team "${team.name}" is at maximum capacity (${MAX_DESKS_PER_TEAM} desks)`);
-        // Still set placement mode but with capacity error flag
-        setPlacementMode({
-          active: true,
-          type: placementMode.type,
-          data: {
-            ...placementMode.data,
-            pendingTeamId: team._id,
-            teamName: team.name,
-            capacityError: true,
-            maxCapacity: MAX_DESKS_PER_TEAM,
-          },
-        });
-        return;
-      }
-
       // Store the pending team ID in placement data so the confirmation panel can use it
       setPlacementMode({
         active: true,
@@ -142,7 +126,7 @@ export default function TeamCluster({
           ...placementMode.data,
           pendingTeamId: team._id,
           teamName: team.name,
-          remainingSlots,
+          nextStationCount: currentDeskCount + 1,
         },
       });
       return;
@@ -188,24 +172,35 @@ export default function TeamCluster({
           ? a.originalIndex - b.originalIndex
           : a.persistedIndex - b.persistedIndex,
       );
-    return orderedDesks.slice(0, MAX_DESKS_PER_TEAM).map(({ desk }, layoutIndex, visibleDesks) => ({
-      id: desk.id,
-      position: getDeskPosition(clusterPos, layoutIndex, visibleDesks.length),
-      rotationY: getDeskRotation(layoutIndex, visibleDesks.length),
-    }));
+    return orderedDesks
+      .slice(0, MAX_GRID_DESKS_PER_TEAM)
+      .map(({ desk }, layoutIndex, visibleDesks) => ({
+        id: desk.id,
+        position: getDeskPosition(clusterPos, layoutIndex, visibleDesks.length),
+        rotationY: getDeskRotation(layoutIndex, visibleDesks.length),
+      }));
   }, [desks]);
 
   const tableHitTarget = useMemo(() => {
-    const footprint = getClusterOccupancyFootprint(Math.max(desksWithPositions.length, 1));
-    const width = getPositiveMetadataNumber(metadata, "footprintWidth") ?? footprint.width;
-    const depth = getPositiveMetadataNumber(metadata, "footprintDepth") ?? footprint.depth;
+    const footprint = getClusterOccupancyFootprint(
+      usesRoundTable ? stationCount : Math.max(desksWithPositions.length, 1),
+    );
+    const roundTableLayout = usesRoundTable ? solveRoundTeamTableLayout(stationCount) : null;
+    const width = roundTableLayout
+      ? roundTableLayout.radius * 2 + 0.35
+      : (getPositiveMetadataNumber(metadata, "footprintWidth") ?? footprint.width);
+    const depth = roundTableLayout
+      ? roundTableLayout.radius * 2 + 0.35
+      : (getPositiveMetadataNumber(metadata, "footprintDepth") ?? footprint.depth);
     return {
       center: [0, 0.4, 0] as [number, number, number],
       size: [width, 0.8, depth] as [number, number, number],
     };
-  }, [desksWithPositions.length, metadata]);
+  }, [desksWithPositions.length, metadata, stationCount, usesRoundTable]);
   const occupancyMat = useMemo(() => {
-    const solvedFootprint = getClusterOccupancyFootprint(Math.max(desks.length, 1));
+    const solvedFootprint = getClusterOccupancyFootprint(
+      usesRoundTable ? stationCount : Math.max(desks.length, 1),
+    );
     return {
       width:
         getPositiveMetadataNumber(metadata, "footprintWidth") ??
@@ -216,14 +211,14 @@ export default function TeamCluster({
         solvedFootprint.depth ??
         DEFAULT_OCCUPANCY_DEPTH,
     };
-  }, [desks.length, metadata]);
+  }, [desks.length, metadata, stationCount, usesRoundTable]);
 
   // Render conditions
   const isManagementCluster = team.name === "Management";
   const showCircle = isBuilderMode || placementMode.active;
   const showFloatingLabel = !isManagementCluster && team.name !== "CEO";
   const showDeskPlacementDetail =
-    placementMode.active && placementMode.type === "desk" && (isHovered || isAtCapacity);
+    placementMode.active && placementMode.type === "desk" && (isHovered || usesRoundTable);
   return (
     <InteractiveObject
       objectType="team-cluster"
@@ -262,38 +257,21 @@ export default function TeamCluster({
         </group>
 
         <group>
-          {/* Desks with auto-calculated positions */}
-          {desksWithPositions.map((desk) => (
-            <Desk
-              key={desk.id}
-              deskId={desk.id}
-              position={desk.position}
-              rotationY={desk.rotationY}
+          {usesRoundTable ? (
+            <RoundTeamTable
+              stationCount={stationCount}
               isHovered={shouldEnableLocalHover && isHovered}
             />
-          ))}
-
-          {overflowDeskCount > 0 && (
-            <group name="team-round-table-overflow" position={[0, 0, 2.25]}>
-              <mesh position={[0, 0.38, 0]} castShadow receiveShadow>
-                <cylinderGeometry args={[0.75, 0.75, 0.12, 32]} />
-                <meshStandardMaterial color={isHovered ? "#dbeafe" : "#f8fafc"} roughness={0.75} />
-              </mesh>
-              <mesh position={[0, 0.18, 0]} castShadow>
-                <cylinderGeometry args={[0.08, 0.12, 0.36, 12]} />
-                <meshStandardMaterial color="#64748b" roughness={0.8} />
-              </mesh>
-              <Text
-                position={[0, 0.48, 0]}
-                rotation={[-Math.PI / 2, 0, 0]}
-                fontSize={0.24}
-                color="#0f172a"
-                anchorX="center"
-                anchorY="middle"
-              >
-                +{overflowDeskCount}
-              </Text>
-            </group>
+          ) : (
+            desksWithPositions.map((desk) => (
+              <Desk
+                key={desk.id}
+                deskId={desk.id}
+                position={desk.position}
+                rotationY={desk.rotationY}
+                isHovered={shouldEnableLocalHover && isHovered}
+              />
+            ))
           )}
         </group>
 
@@ -316,8 +294,8 @@ export default function TeamCluster({
             <div className="farplane-team-label-bobble animate-in fade-in zoom-in-95 duration-200">
               <div
                 className={`flex min-h-[42px] min-w-[176px] max-w-[260px] items-center justify-center rounded-sm border px-4 py-2 text-center text-[13px] font-semibold leading-none shadow-md backdrop-blur-sm ${
-                  isAtCapacity && placementMode.active && placementMode.type === "desk"
-                    ? "border-rose-200/45 bg-rose-400/28 text-rose-50/90 shadow-rose-400/15"
+                  usesRoundTable && placementMode.active && placementMode.type === "desk"
+                    ? "border-sky-200/50 bg-sky-400/24 text-cyan-50/95 shadow-sky-400/15"
                     : "border-emerald-100/55 bg-emerald-300/22 text-cyan-50/95 shadow-cyan-200/25"
                 }`}
               >
@@ -326,9 +304,9 @@ export default function TeamCluster({
                 </div>
                 {showDeskPlacementDetail ? (
                   <div className="mt-0.5 text-[8px] opacity-65">
-                    {isAtCapacity
-                      ? `At Capacity (${MAX_DESKS_PER_TEAM}/${MAX_DESKS_PER_TEAM})`
-                      : `${currentDeskCount}/${MAX_DESKS_PER_TEAM} desks`}
+                    {usesRoundTable
+                      ? `${stationCount} round-table stations`
+                      : `${currentDeskCount}/${MAX_GRID_DESKS_PER_TEAM} desks`}
                   </div>
                 ) : null}
               </div>

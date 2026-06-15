@@ -63,6 +63,25 @@ export interface ClusterOccupancyFootprint {
   clearance: number;
 }
 
+export interface RoundTableStationTransform {
+  stationId: string;
+  x: number;
+  z: number;
+  yaw: number;
+  angle: number;
+  tableRadius: number;
+}
+
+export interface RoundTeamTableLayout {
+  count: number;
+  radius: number;
+  stationRadius: number;
+  stations: RoundTableStationTransform[];
+}
+
+export const ROUND_TEAM_TABLE_MIN_STATIONS = 6;
+export const MAX_GRID_DESKS_PER_TEAM = ROUND_TEAM_TABLE_MIN_STATIONS - 1;
+
 const DESK_FOOTPRINT: MeshFootprint = {
   width: DESK_WIDTH,
   depth: DESK_DEPTH,
@@ -81,6 +100,41 @@ const DEFAULT_LAYOUT_POLICY: LayoutPolicy = {
 function clampCount(count: number): number {
   if (!Number.isFinite(count)) return 1;
   return Math.max(1, Math.floor(count));
+}
+
+function getRoundTeamTableRadius(count: number): number {
+  const safeCount = clampCount(count);
+  const arcLengthPerStation = 0.64;
+  const solvedRadius = (safeCount * arcLengthPerStation) / (Math.PI * 2);
+  return Math.min(3.2, Math.max(1.45, solvedRadius));
+}
+
+export function shouldUseRoundTeamTable(count: number): boolean {
+  return clampCount(count) >= ROUND_TEAM_TABLE_MIN_STATIONS;
+}
+
+export function solveRoundTeamTableLayout(count: number): RoundTeamTableLayout {
+  const safeCount = clampCount(count);
+  const radius = getRoundTeamTableRadius(safeCount);
+  const stationRadius = Math.max(0.6, radius - 0.38);
+  const stations = Array.from({ length: safeCount }, (_, index) => {
+    const angle = (index / safeCount) * Math.PI * 2;
+    return {
+      stationId: `station-${index}`,
+      x: Math.sin(angle) * stationRadius,
+      z: Math.cos(angle) * stationRadius,
+      yaw: angle,
+      angle,
+      tableRadius: radius,
+    };
+  });
+
+  return {
+    count: safeCount,
+    radius,
+    stationRadius,
+    stations,
+  };
 }
 
 function solveTopology(count: number, policy: LayoutPolicy): LayoutSlot[] {
@@ -198,6 +252,16 @@ export function solveClusterLayout(
 
 export function getClusterOccupancyFootprint(count: number): ClusterOccupancyFootprint {
   const safeCount = clampCount(count);
+  if (shouldUseRoundTeamTable(safeCount)) {
+    const layout = solveRoundTeamTableLayout(safeCount);
+    const occupiedRadius = layout.radius + EMPLOYEE_RADIUS + 0.9;
+    return {
+      width: occupiedRadius * 2,
+      depth: occupiedRadius * 2,
+      clearance: 0.15,
+    };
+  }
+
   const solved = solveClusterLayout(safeCount, DESK_FOOTPRINT, DEFAULT_LAYOUT_POLICY);
   const points: Array<{ x: number; z: number }> = [];
 
@@ -283,9 +347,12 @@ export function getEmployeePositionAtDesk(
   const offset = DESK_DEPTH / 2 + EMPLOYEE_RADIUS + 0.5;
   const forwardX = Math.sin(deskRotation);
   const forwardZ = Math.cos(deskRotation);
-  return [
-    deskPosition[0] + forwardX * offset,
-    0,
-    deskPosition[2] + forwardZ * offset,
-  ];
+  return [deskPosition[0] + forwardX * offset, 0, deskPosition[2] + forwardZ * offset];
+}
+
+export function getEmployeePositionAtRoundTableStation(
+  station: RoundTableStationTransform,
+): [number, number, number] {
+  const employeeRadius = station.tableRadius + EMPLOYEE_RADIUS + 0.55;
+  return [Math.sin(station.angle) * employeeRadius, 0, Math.cos(station.angle) * employeeRadius];
 }

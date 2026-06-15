@@ -27,6 +27,7 @@ import TeamCluster from "@/modules/office/components/team-cluster";
 import WallArt from "@/modules/office/components/wall-art";
 import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
 import type { DeskLayoutData, OfficeId, OfficeObject, TeamData } from "@/modules/office/lib/types";
+import { shouldUseRoundTeamTable } from "@/modules/office/utils/layout";
 
 export function OfficeObjectRenderer(props: {
   officeObjects: OfficeObject[];
@@ -122,12 +123,17 @@ export function OfficeObjectRenderer(props: {
         const metadataTeamId =
           typeof object.metadata?.teamId === "string" ? object.metadata.teamId : "";
         const team = teamById.get(metadataTeamId);
-        const teamDesks = team ? (desksByTeamId.get(team._id) ?? []) : [];
 
         if (!team) return null;
 
+        const teamDesks = desksByTeamId.get(team._id) ?? [];
+        const stationCount = Math.max(teamDesks.length, team.employees.length, 1);
+        const obstacleName = shouldUseRoundTeamTable(stationCount)
+          ? `obstacle-round-table-${team.name}`
+          : `obstacle-cluster-${team.name}`;
+
         return (
-          <group key={object._id} ref={setRef} name={`obstacle-cluster-${team.name}`}>
+          <group key={object._id} ref={setRef} name={obstacleName}>
             <TeamCluster
               team={team}
               desks={teamDesks}

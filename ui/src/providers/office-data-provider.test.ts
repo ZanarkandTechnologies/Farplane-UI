@@ -352,6 +352,78 @@ describe("office-data-provider team synthesis", () => {
     ).toBe(true);
   });
 
+  it("places seven-person project teams around one round table", () => {
+    const project = {
+      id: "proj-round-table",
+      departmentId: "dept-farplane",
+      name: "Round Table Project",
+      githubUrl: "",
+      status: "active" as const,
+      goal: "Coordinate a larger project team",
+      kpis: [],
+      accountEvents: [],
+      ledger: [],
+      experiments: [],
+      metricEvents: [],
+      resources: [],
+      resourceEvents: [],
+    };
+    const projectAgents = Array.from({ length: 7 }, (_, index) => ({
+      agentId: `round-worker-${index}`,
+      role: "builder" as const,
+      projectId: project.id,
+      heartbeatProfileId: "hb-ceo",
+      lifecycleState: "active" as const,
+    }));
+    const runtimeAgents = projectAgents.map((agent) =>
+      createRuntimeAgent({ agentId: agent.agentId, displayName: agent.agentId }),
+    );
+    const company = createCompanyModel({
+      projects: [project],
+      agents: [
+        {
+          agentId: "main",
+          role: "ceo",
+          heartbeatProfileId: "hb-ceo",
+          isCeo: true,
+          lifecycleState: "active",
+        },
+        ...projectAgents,
+      ],
+    });
+    const unified = createUnifiedOfficeModel({
+      company,
+      runtimeAgents: [createRuntimeAgent(), ...runtimeAgents],
+      configuredAgents: [createRuntimeAgent(), ...runtimeAgents],
+      officeObjects: [
+        {
+          id: "team-cluster-team-proj-round-table",
+          identifier: "team-cluster-team-proj-round-table",
+          meshType: "team-cluster",
+          position: [0, 0, 0],
+          metadata: { teamId: "team-proj-round-table" },
+        },
+      ],
+    });
+
+    const result = toOfficeData(unified, createOfficeSettings());
+    const team = result.teams.find((entry) => entry._id === "team-proj-round-table");
+    const workers = result.employees.filter((entry) => entry.teamId === "team-proj-round-table");
+    const workerDistances = workers.map((worker) =>
+      Number(Math.hypot(worker.initialPosition[0], worker.initialPosition[2]).toFixed(2)),
+    );
+
+    expect(team?.deskCount).toBe(7);
+    expect(workers).toHaveLength(7);
+    expect(workers.every((worker) => worker.wantsToWander === false)).toBe(true);
+    expect(new Set(workers.map((worker) => worker.initialPosition.join(":"))).size).toBe(7);
+    expect(new Set(workerDistances).size).toBe(1);
+    expect(
+      result.officeObjects.find((object) => object.metadata?.teamId === "team-proj-round-table")
+        ?.metadata?.footprintWidth,
+    ).toBeLessThan(6);
+  });
+
   it("maps live status onto employee head fields", () => {
     const liveStatus: Record<string, AgentLiveStatus> = {
       "codex-worker": {

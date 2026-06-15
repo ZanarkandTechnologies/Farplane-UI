@@ -1,21 +1,30 @@
 import { describe, expect, it } from "vitest";
 
+import type { DeskLayoutData, EmployeeData } from "../lib/types";
 import { assignRandomStatuses, buildDesksByTeamId } from "./derived-data-utils";
 import { buildCeoDeskData } from "./use-office-scene-derived-data";
 import { getOfficePresentationRotationY } from "./view-profile";
 
+function createEmployeeData(overrides: Partial<EmployeeData> = {}): EmployeeData {
+  return {
+    _id: "emp-1",
+    teamId: "team-a",
+    name: "Ada",
+    initialPosition: [1, 0, 2],
+    isBusy: false,
+    team: "Alpha",
+    ...overrides,
+  };
+}
+
 describe("office scene derived data", () => {
   it("keeps deterministic status assignment stable across calls", () => {
     const employees = [
-      {
-        _id: "emp-1",
-        teamId: "team-a",
-        name: "Ada",
-        initialPosition: [1, 0, 2],
+      createEmployeeData({
         heartbeatState: "idle",
         statusMessage: undefined,
-      },
-    ] as const;
+      }),
+    ];
 
     const locks = new Map<string, number | undefined>([["team-a", undefined]]);
     const first = assignRandomStatuses([...employees], locks);
@@ -26,14 +35,15 @@ describe("office scene derived data", () => {
 
   it("forces CEO employees to stay put with info status", () => {
     const employees = [
-      {
+      createEmployeeData({
         _id: "ceo-1",
         teamId: "team-management",
         name: "CEO",
         builtInRole: "ceo",
         initialPosition: [0, 0, 0],
-      },
-    ] as const;
+        team: "Management",
+      }),
+    ];
 
     const result = assignRandomStatuses([...employees], new Map());
 
@@ -42,13 +52,29 @@ describe("office scene derived data", () => {
     expect(result[0]?.statusMessage).toBe("Managing the team");
   });
 
+  it("preserves explicit desk-bound employees during status assignment", () => {
+    const employees = [
+      createEmployeeData({
+        _id: "emp-round-table",
+        teamId: "team-round",
+        name: "Round Table Agent",
+        team: "Round",
+        wantsToWander: false,
+      }),
+    ];
+
+    const result = assignRandomStatuses([...employees], new Map());
+
+    expect(result[0]?.wantsToWander).toBe(false);
+  });
+
   it("indexes desks by team id from persisted desk ids", () => {
-    const desks = [
-      { id: "desk-team-alpha-0", deskIndex: 0 },
-      { id: "desk-team-alpha-1", deskIndex: 1 },
-      { id: "desk-team-beta-0", deskIndex: 0 },
-      { id: "ceo-desk", deskIndex: 0 },
-    ] as const;
+    const desks: DeskLayoutData[] = [
+      { id: "desk-team-alpha-0", deskIndex: 0, team: "Alpha" },
+      { id: "desk-team-alpha-1", deskIndex: 1, team: "Alpha" },
+      { id: "desk-team-beta-0", deskIndex: 0, team: "Beta" },
+      { id: "ceo-desk", deskIndex: 0, team: "Management" },
+    ];
 
     const desksByTeamId = buildDesksByTeamId([...desks]);
 
