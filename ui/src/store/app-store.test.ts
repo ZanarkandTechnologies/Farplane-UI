@@ -6,6 +6,7 @@ const initialState = useAppStore.getInitialState();
 
 function buildPanel(openedAtMs: number): ActiveObjectPanelState {
   return {
+    kind: "embed",
     objectId: "object-world-monitor" as ActiveObjectPanelState["objectId"],
     title: "World Monitor",
     url: "https://www.worldmonitor.app/",
@@ -36,10 +37,10 @@ describe("app store perf guards", () => {
   it("stores Skill Studio selection context", () => {
     useAppStore.getState().setSelectedSkillStudioSkillId("create-team");
     useAppStore.getState().setSkillStudioFocusAgentId("main");
-    useAppStore.getState().setSkillStudioSurface("evals");
+    useAppStore.getState().setSkillStudioSurface("template-rollout");
     expect(useAppStore.getState().selectedSkillStudioSkillId).toBe("create-team");
     expect(useAppStore.getState().skillStudioFocusAgentId).toBe("main");
-    expect(useAppStore.getState().skillStudioSurface).toBe("evals");
+    expect(useAppStore.getState().skillStudioSurface).toBe("template-rollout");
   });
 
   it("stores Telemetry panel open state", () => {

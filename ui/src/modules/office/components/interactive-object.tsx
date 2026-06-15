@@ -7,14 +7,17 @@ import {
   canPlaceOfficeObjectAtPosition,
   constrainOfficeObjectPositionForLayout,
 } from "@/modules/office/components/office-object-placement";
-import { useAppStore } from "@/store";
 import type { OfficeId } from "@/modules/office/lib/types";
-import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
+import { useOfficeDataContext } from "@/providers/office-data-provider";
+import { useAppStore } from "@/store";
 import { DraggableController } from "../controllers/draggable-controller";
-import { parseOfficeObjectInteractionConfig } from "../office-object-ui";
-import { beginObjectInteractionTrace } from "../utils/object-interaction-perf";
 import { useDeleteOfficeObject } from "../hooks/use-delete-office-object";
+import {
+  buildOfficeObjectPanelState,
+  parseOfficeObjectInteractionConfig,
+} from "../office-object-ui";
+import { beginObjectInteractionTrace } from "../utils/object-interaction-perf";
 import { ContextMenu, type MenuAction } from "./context-menu";
 import { getBuilderClickAction } from "./interactive-object.builder";
 import {
@@ -301,26 +304,25 @@ export function InteractiveObject({
       if (isLocallyDragging) return;
       e.stopPropagation();
       if (!isBuilderMode) {
-        if (interactionConfig.uiBinding.kind === "embed") {
-          const openedAtMs = typeof performance !== "undefined" ? performance.now() : Date.now();
+        const openedAtMs = typeof performance !== "undefined" ? performance.now() : Date.now();
+        const panelState = buildOfficeObjectPanelState({
+          objectId,
+          config: interactionConfig,
+          openedAtMs,
+        });
+        if (panelState) {
           beginObjectInteractionTrace("runtime-panel", String(objectId), {
-            title: interactionConfig.uiBinding.title,
+            title: panelState.title,
           });
           if (import.meta.env.DEV) {
             console.debug("[perf] office-object-modal-click", {
               objectId: String(objectId),
-              title: interactionConfig.uiBinding.title,
+              title: panelState.title,
+              kind: panelState.kind,
               openedAtMs,
             });
           }
-          setActiveObjectPanel({
-            objectId,
-            title: interactionConfig.uiBinding.title,
-            url: interactionConfig.uiBinding.url,
-            displayName: interactionConfig.displayName,
-            aspectRatio: interactionConfig.uiBinding.aspectRatio,
-            openedAtMs,
-          });
+          setActiveObjectPanel(panelState);
         }
         return;
       }
@@ -344,8 +346,7 @@ export function InteractiveObject({
     },
     [
       allowSettings,
-      interactionConfig.displayName,
-      interactionConfig.uiBinding,
+      interactionConfig,
       setActiveObjectConfigId,
       setActiveObjectTransformId,
       isBuilderMode,

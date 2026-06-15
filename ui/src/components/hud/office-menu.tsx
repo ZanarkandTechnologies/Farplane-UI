@@ -55,6 +55,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
     (state) => state.setIsSkillInvocationsPanelOpen,
   );
   const setIsResourceBankPanelOpen = useAppStore((state) => state.setIsResourceBankPanelOpen);
+  const setIsDocumentLibraryPanelOpen = useAppStore((state) => state.setIsDocumentLibraryPanelOpen);
   const setSelectedSkillStudioSkillId = useAppStore((state) => state.setSelectedSkillStudioSkillId);
   const setSkillStudioFocusAgentId = useAppStore((state) => state.setSkillStudioFocusAgentId);
   const setActiveTeamId = useAppStore((state) => state.setActiveTeamId);
@@ -137,11 +138,18 @@ export function OfficeMenu({ className }: SpeedDialProps) {
           setSkillStudioSurface("harness");
           setIsSkillsPanelOpen(true);
         },
+        openTemplateRollout: () => {
+          setSelectedSkillStudioSkillId(null);
+          setSkillStudioFocusAgentId(null);
+          setSkillStudioSurface("template-rollout");
+          setIsSkillsPanelOpen(true);
+        },
         openGlobalTeamWorkspace,
         openOrganization: () => setIsOrganizationOpen(true),
         openSettings: () => setIsSettingsModalOpen(true),
         openSkillInvocations: () => setIsSkillInvocationsPanelOpen(true),
         openResourceBank: () => setIsResourceBankPanelOpen(true),
+        openDocumentLibrary: () => setIsDocumentLibraryPanelOpen(true),
         openTelemetry: () => setIsTelemetryPanelOpen(true),
         toggleBuilderMode: handleBuilderModeToggle,
       }),
@@ -161,9 +169,11 @@ export function OfficeMenu({ className }: SpeedDialProps) {
       setIsSettingsModalOpen,
       setIsSkillInvocationsPanelOpen,
       setIsResourceBankPanelOpen,
+      setIsDocumentLibraryPanelOpen,
       setIsTelemetryPanelOpen,
       handleBuilderModeToggle,
       isReadOnly,
+      setCeoWorkbenchView,
     ],
   );
 

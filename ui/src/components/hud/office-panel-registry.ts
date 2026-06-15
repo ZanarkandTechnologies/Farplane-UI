@@ -27,7 +27,9 @@ import {
   type LucideIcon,
   MessageSquareText,
   Network,
+  RadioTower,
   Archive,
+  LibraryBig,
   Settings,
   ShoppingBag,
   TestTube2,
@@ -59,7 +61,9 @@ export type OfficePanelActionId =
   | "team-workspace"
   | "telemetry"
   | "resource-bank"
+  | "document-library"
   | "skill-os"
+  | "template-rollout"
   | "evals"
   | "harness"
   | "ceo-workbench"
@@ -98,11 +102,13 @@ export type OfficePanelRegistryDependencies = {
   openEvals: () => void;
   openHarness: () => void;
   openSkillOs: () => void;
+  openTemplateRollout: () => void;
   openGlobalTeamWorkspace: () => void;
   openOrganization: () => void;
   openSettings: () => void;
   openSkillInvocations: () => void;
   openResourceBank: () => void;
+  openDocumentLibrary: () => void;
   openTelemetry: () => void;
   toggleBuilderMode: () => void;
 };
@@ -237,6 +243,16 @@ export function createOfficePanelActions(
       perform: deps.openResourceBank,
     },
     {
+      id: "document-library",
+      label: "Docs Library",
+      description: "Open project documentation gathered from every office project folder.",
+      group: "panel",
+      icon: LibraryBig,
+      keywords: ["docs", "documents", "library", "bookshelf", "project docs", "files"],
+      color: SECONDARY_BUTTON_COLOR,
+      perform: deps.openDocumentLibrary,
+    },
+    {
       id: "skill-os",
       label: "Skill OS",
       description: "Open the global skill registry, graph, rollout, and template control plane.",
@@ -246,6 +262,17 @@ export function createOfficePanelActions(
       shortcut: { key: "s", label: "Alt+Shift+S", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openSkillOs,
+    },
+    {
+      id: "template-rollout",
+      label: "Template Rollout",
+      description: "Open the rollout tracker for reusable Farplane template families.",
+      group: "panel",
+      icon: RadioTower,
+      keywords: ["template", "templates", "rollout", "tracking", "drift", "standards", "panel"],
+      shortcut: { key: "l", label: "Alt+Shift+L", altKey: true, shiftKey: true },
+      color: SECONDARY_BUTTON_COLOR,
+      perform: deps.openTemplateRollout,
     },
     {
       id: "evals",
@@ -265,7 +292,17 @@ export function createOfficePanelActions(
         "Open the repo-wide Harness OS map across skills, docs, features, agents, templates, and validators.",
       group: "panel",
       icon: Network,
-      keywords: ["harness", "harness os", "map", "graph", "docs", "features", "agents", "templates", "panel"],
+      keywords: [
+        "harness",
+        "harness os",
+        "map",
+        "graph",
+        "docs",
+        "features",
+        "agents",
+        "templates",
+        "panel",
+      ],
       shortcut: { key: "h", label: "Alt+Shift+H", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openHarness,

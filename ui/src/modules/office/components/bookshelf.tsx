@@ -1,15 +1,15 @@
 import { Box } from "@react-three/drei";
 import { useMemo } from "react";
-import { InteractiveObject } from './interactive-object';
 import type { Id } from "@/lib/entity-types";
+import { InteractiveObject } from "./interactive-object";
 
 interface BookshelfProps {
-    objectId: Id<"officeObjects">;
-    position?: [number, number, number];
-    rotation?: [number, number, number];
-    scale?: [number, number, number];
-    companyId?: Id<"companies">;
-    metadata?: Record<string, unknown>;
+  objectId: Id<"officeObjects">;
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  scale?: [number, number, number];
+  companyId?: Id<"companies">;
+  metadata?: Record<string, unknown>;
 }
 
 const PLANK_THICKNESS = 0.05;
@@ -32,60 +32,75 @@ function getBookshelfVariant(furnitureId: string | undefined) {
 }
 
 export default function Bookshelf({
-    objectId,
-    position,
-    rotation = [0, 0, 0],
-    scale,
-    companyId,
-    metadata,
+  objectId,
+  position,
+  rotation = [0, 0, 0],
+  scale,
+  companyId,
+  metadata,
 }: BookshelfProps) {
-    const furnitureId = typeof metadata?.furnitureId === "string" ? metadata.furnitureId : undefined;
-    const variant = useMemo(() => getBookshelfVariant(furnitureId), [furnitureId]);
-    const shelfSpacing = (variant.height - PLANK_THICKNESS) / variant.numShelves;
-
-    return (
-        <InteractiveObject
-            objectType="bookshelf"
-            objectId={objectId}
-            companyId={companyId}
-            initialPosition={position}
-            initialRotation={rotation}
-            initialScale={scale}
-            metadata={metadata}
+  const furnitureId = typeof metadata?.furnitureId === "string" ? metadata.furnitureId : undefined;
+  const variant = useMemo(() => getBookshelfVariant(furnitureId), [furnitureId]);
+  const shelfSpacing = (variant.height - PLANK_THICKNESS) / variant.numShelves;
+  const shelfLevels = useMemo(
+    () =>
+      Array.from({ length: variant.numShelves + 1 }, (_, shelfIndex) => ({
+        id: `shelf-${shelfIndex}`,
+        y: PLANK_THICKNESS / 2 + shelfIndex * shelfSpacing,
+      })),
+    [shelfSpacing, variant.numShelves],
+  );
+  return (
+    <InteractiveObject
+      objectType="bookshelf"
+      objectId={objectId}
+      companyId={companyId}
+      initialPosition={position}
+      initialRotation={rotation}
+      initialScale={scale}
+      metadata={metadata}
+    >
+      <group>
+        <Box
+          args={[SIDE_WIDTH, variant.height, variant.depth]}
+          position={[-variant.width / 2 + SIDE_WIDTH / 2, variant.height / 2, 0]}
+          castShadow
+          receiveShadow
         >
-            <group>
-                <Box
-                    args={[SIDE_WIDTH, variant.height, variant.depth]}
-                    position={[-variant.width / 2 + SIDE_WIDTH / 2, variant.height / 2, 0]}
-                    castShadow receiveShadow
-                >
-                    <meshStandardMaterial color={variant.color} />
-                </Box>
-                <Box
-                    args={[SIDE_WIDTH, variant.height, variant.depth]}
-                    position={[variant.width / 2 - SIDE_WIDTH / 2, variant.height / 2, 0]}
-                    castShadow receiveShadow
-                >
-                    <meshStandardMaterial color={variant.color} />
-                </Box>
-                <Box
-                    args={[variant.width - SIDE_WIDTH * 2, variant.height, PLANK_THICKNESS]}
-                    position={[0, variant.height / 2, -variant.depth / 2 + PLANK_THICKNESS / 2]}
-                    castShadow receiveShadow
-                >
-                    <meshStandardMaterial color={variant.color} opacity={0.8} />
-                </Box>
-                {Array.from({ length: variant.numShelves + 1 }).map((_, i) => (
-                    <Box
-                        key={`bookshelf-${objectId}-${i}`}
-                        args={[variant.width - SIDE_WIDTH * 2, PLANK_THICKNESS, variant.depth - PLANK_THICKNESS]}
-                        position={[0, PLANK_THICKNESS / 2 + i * shelfSpacing, 0]}
-                        castShadow receiveShadow
-                    >
-                        <meshStandardMaterial color={variant.color} />
-                    </Box>
-                ))}
-            </group>
-        </InteractiveObject>
-    );
+          <meshStandardMaterial color={variant.color} />
+        </Box>
+        <Box
+          args={[SIDE_WIDTH, variant.height, variant.depth]}
+          position={[variant.width / 2 - SIDE_WIDTH / 2, variant.height / 2, 0]}
+          castShadow
+          receiveShadow
+        >
+          <meshStandardMaterial color={variant.color} />
+        </Box>
+        <Box
+          args={[variant.width - SIDE_WIDTH * 2, variant.height, PLANK_THICKNESS]}
+          position={[0, variant.height / 2, -variant.depth / 2 + PLANK_THICKNESS / 2]}
+          castShadow
+          receiveShadow
+        >
+          <meshStandardMaterial color={variant.color} opacity={0.8} />
+        </Box>
+        {shelfLevels.map((shelf) => (
+          <Box
+            key={`bookshelf-${objectId}-${shelf.id}`}
+            args={[
+              variant.width - SIDE_WIDTH * 2,
+              PLANK_THICKNESS,
+              variant.depth - PLANK_THICKNESS,
+            ]}
+            position={[0, shelf.y, 0]}
+            castShadow
+            receiveShadow
+          >
+            <meshStandardMaterial color={variant.color} />
+          </Box>
+        ))}
+      </group>
+    </InteractiveObject>
+  );
 }

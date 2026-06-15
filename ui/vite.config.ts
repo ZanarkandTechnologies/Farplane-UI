@@ -72,6 +72,9 @@ const PROJECT_MEMORY_FILES = [
   { path: "docs/TROUBLES.md", title: "Troubles", kind: "troubles" },
   { path: "docs/HISTORY.md", title: "History", kind: "history" },
 ] as const;
+const PROJECT_DOCUMENT_LIBRARY_MAX_FILES = 80;
+const PROJECT_DOCUMENT_LIBRARY_MAX_BYTES = 240_000;
+const PROJECT_DOCUMENT_LIBRARY_EXTENSIONS = new Set([".md", ".mdx", ".txt"]);
 const DEFAULT_MESH_ASSET_DIR = path.join(FARPLANE_HOME, "assets", "meshes");
 const CRON_JOBS_PATH = path.join(OPENCLAW_HOME, "cron", "jobs.json");
 const MESH_EXTENSIONS = new Set([".glb", ".gltf"]);
@@ -1285,6 +1288,7 @@ async function readProjectTicketTasks(project: {
 async function readProjectMemoryFiles(projectPath: string): Promise<JsonObject[]> {
   const rootPath = path.resolve(projectPath);
   const rows: JsonObject[] = [];
+  const seenPaths = new Set<string>();
   for (const file of PROJECT_MEMORY_FILES) {
     const absolutePath = path.join(rootPath, file.path);
     let content = "";
@@ -1300,12 +1304,57 @@ async function readProjectMemoryFiles(projectPath: string): Promise<JsonObject[]
       id: file.path,
       title: file.title,
       kind: file.kind,
+      collection: "memory",
       path: file.path,
       projectPath: rootPath,
+      absolutePath,
       content,
       updatedAtMs,
       exists: content.trim().length > 0,
     });
+    seenPaths.add(file.path);
+  }
+
+  const docsRoot = path.join(rootPath, "docs");
+  if (!(await isDirectory(docsRoot))) return rows;
+
+  const pendingDirs = [docsRoot];
+  while (pendingDirs.length > 0 && rows.length < PROJECT_DOCUMENT_LIBRARY_MAX_FILES) {
+    const currentDir = pendingDirs.shift();
+    if (!currentDir) continue;
+    const entries = await readdir(currentDir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      const entryPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+        pendingDirs.push(entryPath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const extension = path.extname(entry.name).toLowerCase();
+      if (!PROJECT_DOCUMENT_LIBRARY_EXTENSIONS.has(extension)) continue;
+      const relativePath = path.relative(rootPath, entryPath).replace(/\\/g, "/");
+      if (seenPaths.has(relativePath)) continue;
+
+      const fileStat = await stat(entryPath).catch(() => null);
+      if (!fileStat || fileStat.size > PROJECT_DOCUMENT_LIBRARY_MAX_BYTES) continue;
+      const content = await readFile(entryPath, "utf-8").catch(() => "");
+      const heading = content.match(/^#\s+(.+)$/m)?.[1]?.trim();
+      rows.push({
+        id: relativePath,
+        title: heading || path.basename(entry.name, extension),
+        kind: "document",
+        collection: "docs",
+        path: relativePath,
+        projectPath: rootPath,
+        absolutePath: entryPath,
+        content,
+        updatedAtMs: fileStat.mtimeMs,
+        exists: true,
+      });
+      seenPaths.add(relativePath);
+      if (rows.length >= PROJECT_DOCUMENT_LIBRARY_MAX_FILES) break;
+    }
   }
   return rows;
 }

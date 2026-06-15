@@ -14,11 +14,12 @@ import {
   preloadMeshes,
   SkillsPanel,
 } from "@/modules/office";
+import { ProjectDocumentLibraryPanel } from "@/modules/office/components/project-document-library-panel";
 import { selectOfficeWorldContextData, useOfficeWorldStore } from "@/modules/office/store";
+import { ResourceBankPanel } from "@/modules/resource-bank";
 import { gatewayBase } from "@/modules/runtime";
 import { SettingsDialog } from "@/modules/settings";
 import { SkillInvocationsPanel } from "@/modules/skill-invocations";
-import { ResourceBankPanel } from "@/modules/resource-bank";
 import { TeamPanel } from "@/modules/team-workspace";
 import { TelemetryPanel } from "@/modules/telemetry";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
@@ -225,6 +226,7 @@ function OfficeSimulationContent() {
               open={isResourceBankPanelOpen}
               onOpenChange={setIsResourceBankPanelOpen}
             />
+            <ProjectDocumentLibraryPanel />
 
             <div className="pointer-events-none absolute top-4 left-4 z-[70]">
               <div className="pointer-events-auto">

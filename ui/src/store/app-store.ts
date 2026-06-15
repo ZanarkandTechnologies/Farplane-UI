@@ -14,18 +14,40 @@ type PlacementMode = {
 export type BuilderTool = "paint-floor" | "remove-floor" | null;
 export type OfficeOverlayKey = "grid" | "occupancy" | "paths" | "destinations" | "areas" | "layout";
 export type OfficeOverlaySettings = Record<OfficeOverlayKey, boolean>;
+export type SkillStudioSurface = "evals" | "harness" | "skill-os" | "template-rollout";
 
 type ObjectPanelAspectRatio = "wide" | "square" | "tall";
 export type CeoWorkbenchView = "board" | "review";
 
-export type ActiveObjectPanelState = {
+type ActiveObjectPanelBaseState = {
   objectId: OfficeId<"officeObjects">;
   title: string;
-  url: string;
   displayName?: string;
-  aspectRatio?: ObjectPanelAspectRatio;
   openedAtMs: number;
 };
+
+export type ActiveObjectPanelState =
+  | (ActiveObjectPanelBaseState & {
+      kind: "embed";
+      url: string;
+      aspectRatio?: ObjectPanelAspectRatio;
+    })
+  | (ActiveObjectPanelBaseState & {
+      kind: "skillShelf";
+      aspectRatio?: ObjectPanelAspectRatio;
+      category?: string;
+      skillIds?: string[];
+    })
+  | (ActiveObjectPanelBaseState & {
+      kind: "documentLibrary";
+      aspectRatio?: ObjectPanelAspectRatio;
+    });
+
+function areStringArraysEqual(current: string[] | undefined, next: string[] | undefined): boolean {
+  if (current === next) return true;
+  if (!current || !next || current.length !== next.length) return false;
+  return current.every((value, index) => value === next[index]);
+}
 
 function areActiveObjectPanelsEqual(
   current: ActiveObjectPanelState | null,
@@ -33,13 +55,28 @@ function areActiveObjectPanelsEqual(
 ): boolean {
   if (current === next) return true;
   if (!current || !next) return false;
+  if (current.kind !== next.kind) return false;
+  if (
+    current.objectId !== next.objectId ||
+    current.title !== next.title ||
+    current.displayName !== next.displayName ||
+    current.openedAtMs !== next.openedAtMs
+  ) {
+    return false;
+  }
+  if (current.kind === "embed") {
+    return (
+      next.kind === "embed" && current.url === next.url && current.aspectRatio === next.aspectRatio
+    );
+  }
+  if (current.kind === "documentLibrary") {
+    return next.kind === "documentLibrary" && current.aspectRatio === next.aspectRatio;
+  }
   return (
-    current.objectId === next.objectId &&
-    current.title === next.title &&
-    current.url === next.url &&
-    current.displayName === next.displayName &&
+    next.kind === "skillShelf" &&
     current.aspectRatio === next.aspectRatio &&
-    current.openedAtMs === next.openedAtMs
+    current.category === next.category &&
+    areStringArraysEqual(current.skillIds, next.skillIds)
   );
 }
 
@@ -103,14 +140,16 @@ interface AppState {
   setIsAgentSessionPanelOpen: (isOpen: boolean) => void;
   isSkillsPanelOpen: boolean;
   setIsSkillsPanelOpen: (isOpen: boolean) => void;
-  skillStudioSurface: "skill-os" | "evals" | "harness";
-  setSkillStudioSurface: (surface: "skill-os" | "evals" | "harness") => void;
+  skillStudioSurface: SkillStudioSurface;
+  setSkillStudioSurface: (surface: SkillStudioSurface) => void;
   isTelemetryPanelOpen: boolean;
   setIsTelemetryPanelOpen: (isOpen: boolean) => void;
   isSkillInvocationsPanelOpen: boolean;
   setIsSkillInvocationsPanelOpen: (isOpen: boolean) => void;
   isResourceBankPanelOpen: boolean;
   setIsResourceBankPanelOpen: (isOpen: boolean) => void;
+  isDocumentLibraryPanelOpen: boolean;
+  setIsDocumentLibraryPanelOpen: (isOpen: boolean) => void;
   selectedSkillStudioSkillId: string | null;
   setSelectedSkillStudioSkillId: (skillId: string | null) => void;
   skillStudioFocusAgentId: string | null;
@@ -233,6 +272,8 @@ export const useAppStore = create<AppState>()(
     setIsSkillInvocationsPanelOpen: (isOpen) => set({ isSkillInvocationsPanelOpen: isOpen }),
     isResourceBankPanelOpen: false,
     setIsResourceBankPanelOpen: (isOpen) => set({ isResourceBankPanelOpen: isOpen }),
+    isDocumentLibraryPanelOpen: false,
+    setIsDocumentLibraryPanelOpen: (isOpen) => set({ isDocumentLibraryPanelOpen: isOpen }),
     selectedSkillStudioSkillId: null,
     setSelectedSkillStudioSkillId: (skillId) => set({ selectedSkillStudioSkillId: skillId }),
     skillStudioFocusAgentId: null,

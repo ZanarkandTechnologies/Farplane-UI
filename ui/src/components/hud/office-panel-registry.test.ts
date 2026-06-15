@@ -53,9 +53,11 @@ describe("office panel registry", () => {
     const openEvals = vi.fn();
     const openHarness = vi.fn();
     const openGlobalTeamWorkspace = vi.fn();
+    const openDocumentLibrary = vi.fn();
     const openResourceBank = vi.fn();
     const openSkillInvocations = vi.fn();
     const openSkillOs = vi.fn();
+    const openTemplateRollout = vi.fn();
     const openUserCommunications = vi.fn();
     const toggleBuilderMode = vi.fn();
 
@@ -70,18 +72,22 @@ describe("office panel registry", () => {
       openHarness,
       openGlobalTeamWorkspace,
       openOrganization: vi.fn(),
+      openDocumentLibrary,
       openResourceBank,
       openSettings: vi.fn(),
       openSkillInvocations,
       openSkillOs,
+      openTemplateRollout,
       openTelemetry: vi.fn(),
       openUserCommunications,
       toggleBuilderMode,
     });
 
     actions.find((action) => action.id === "team-workspace")?.perform();
+    actions.find((action) => action.id === "document-library")?.perform();
     actions.find((action) => action.id === "resource-bank")?.perform();
     actions.find((action) => action.id === "skill-os")?.perform();
+    actions.find((action) => action.id === "template-rollout")?.perform();
     actions.find((action) => action.id === "evals")?.perform();
     actions.find((action) => action.id === "harness")?.perform();
     actions.find((action) => action.id === "user-communications")?.perform();
@@ -89,10 +95,12 @@ describe("office panel registry", () => {
     actions.find((action) => action.id === "builder-mode")?.perform();
 
     expect(openGlobalTeamWorkspace).toHaveBeenCalledTimes(1);
+    expect(openDocumentLibrary).toHaveBeenCalledTimes(1);
     expect(openResourceBank).toHaveBeenCalledTimes(1);
     expect(actions.some((action) => String(action.id) === "skill-invocations")).toBe(false);
     expect(openSkillInvocations).not.toHaveBeenCalled();
     expect(openSkillOs).toHaveBeenCalledTimes(1);
+    expect(openTemplateRollout).toHaveBeenCalledTimes(1);
     expect(openEvals).toHaveBeenCalledTimes(1);
     expect(openHarness).toHaveBeenCalledTimes(1);
     expect(openUserCommunications).toHaveBeenCalledTimes(1);
@@ -118,10 +126,12 @@ describe("office panel registry", () => {
       openHarness: vi.fn(),
       openGlobalTeamWorkspace,
       openOrganization: vi.fn(),
+      openDocumentLibrary: vi.fn(),
       openResourceBank: vi.fn(),
       openSettings,
       openSkillInvocations: vi.fn(),
       openSkillOs: vi.fn(),
+      openTemplateRollout: vi.fn(),
       openTelemetry: vi.fn(),
       openUserCommunications: vi.fn(),
       toggleBuilderMode,
