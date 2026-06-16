@@ -1,0 +1,141 @@
+{
+  "schema": "farplane_project",
+  "spec_version": "1.1.0",
+  "version_history": [
+    {
+      "version": "1.0.0",
+      "adds": [
+        "farplane/",
+        ".farplane/",
+        "tickets/"
+      ]
+    },
+    {
+      "version": "1.1.0",
+      "adds": [
+        "farplane/pm.json"
+      ]
+    }
+  ],
+  "surfaces": [
+    {
+      "path": "farplane/",
+      "kind": "tracked_config_dir",
+      "tracked": true,
+      "required": true,
+      "introduced_in": "1.0.0"
+    },
+    {
+      "path": "farplane/manifest.json",
+      "kind": "framework_manifest",
+      "tracked": true,
+      "required": true,
+      "introduced_in": "1.0.0"
+    },
+    {
+      "path": "farplane/README.md",
+      "kind": "framework_index",
+      "tracked": true,
+      "required": true,
+      "introduced_in": "1.0.0"
+    },
+    {
+      "path": "farplane/harness.md",
+      "kind": "project_harness",
+      "tracked": true,
+      "required": true,
+      "introduced_in": "1.0.0"
+    },
+    {
+      "path": "farplane/goals.md",
+      "kind": "goal_portfolio",
+      "tracked": true,
+      "required": true,
+      "introduced_in": "1.0.0"
+    },
+    {
+      "path": "farplane/automations.md",
+      "kind": "automation_manifest",
+      "tracked": true,
+      "required": true,
+      "introduced_in": "1.0.0"
+    },
+    {
+      "path": "farplane/bindings.md",
+      "kind": "project_bindings",
+      "tracked": true,
+      "required": true,
+      "introduced_in": "1.0.0"
+    },
+    {
+      "path": "farplane/evals.md",
+      "kind": "project_evals",
+      "tracked": true,
+      "required": true,
+      "introduced_in": "1.0.0"
+    },
+    {
+      "path": "farplane/pm.json",
+      "kind": "project_pm_threads",
+      "tracked": true,
+      "required": false,
+      "introduced_in": "1.1.0"
+    },
+    {
+      "path": ".farplane/",
+      "kind": "ignored_runtime_dir",
+      "tracked": false,
+      "required": true,
+      "introduced_in": "1.0.0"
+    },
+    {
+      "path": ".farplane/state/run-ledger.json",
+      "kind": "runtime_run_ledger",
+      "tracked": false,
+      "required": true,
+      "introduced_in": "1.0.0"
+    },
+    {
+      "path": ".farplane/reports/",
+      "kind": "runtime_reports_dir",
+      "tracked": false,
+      "required": true,
+      "introduced_in": "1.0.0"
+    },
+    {
+      "path": ".farplane/evals/runs/",
+      "kind": "runtime_eval_runs_dir",
+      "tracked": false,
+      "required": true,
+      "introduced_in": "1.0.0"
+    },
+    {
+      "path": ".farplane/logs/",
+      "kind": "runtime_logs_dir",
+      "tracked": false,
+      "required": true,
+      "introduced_in": "1.0.0"
+    },
+    {
+      "path": "tickets/",
+      "kind": "ticket_queue",
+      "tracked": true,
+      "required": true,
+      "introduced_in": "1.0.0"
+    },
+    {
+      "path": "tickets/templates/ticket.md",
+      "kind": "ticket_template",
+      "tracked": true,
+      "required": true,
+      "introduced_in": "1.0.0"
+    },
+    {
+      "path": "tickets/archive/",
+      "kind": "ticket_archive",
+      "tracked": true,
+      "required": true,
+      "introduced_in": "1.0.0"
+    }
+  ]
+}

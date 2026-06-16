@@ -22,7 +22,9 @@ This file defines project-specific technical rules, stack details, and execution
 - `ui/`: Vite/React office UI workspace
 - `docs/`: canonical project state (`bootstrap-brief.md`, `prd.md`, `specs/*`, `HISTORY.md`, `MEMORY.md`, `TROUBLES.md`, `LESSONS.md`, `TASTE.md`)
 - `qa/`: reusable browser QA runbooks, cookbook pages, shortcuts, probes, and evidence expectations
-- `tickets/`: filesystem board (`todo/`, `review/`, `building/`, `done/`, `templates/`)
+- `farplane/`: tracked Farplane project config (`manifest.json`, harness, goals, automations, bindings, evals, PM thread manifest)
+- `.farplane/`: ignored local runtime state, reports, eval runs, logs, review packets, and run ledgers
+- `tickets/`: tracked Farplane ticket queue (`TASK-*/ticket.md`, `archive/`, `templates/`); legacy `TKT-*` lanes are local-only
 
 ## UI Modularity Rules
 
@@ -61,7 +63,7 @@ This file defines project-specific technical rules, stack details, and execution
 - Types: no `any`; explicit return types on exported APIs
 - Testing: colocated Vitest tests for behavior changes; Playwright is the target for stable browser regression paths
 - Documentation: update `docs/HISTORY.md` for material changes; promote durable rules to `docs/MEMORY.md`
-- Workflow: `tickets/*` is the active board; `docs/progress.md` is legacy reference only
+- Workflow: `tickets/TASK-*/ticket.md` is the active Farplane board; legacy `tickets/{todo,building,review,done}/TKT-*` lanes and `docs/progress.md` are reference/local-only
 - QA: use `qa/README.md` and `qa/cookbook/*` as the canonical QA entrypoint; older `docs/how-to/*` QA guides remain reference runbooks
 - Security: treat inbound channel payloads as untrusted; keep secrets in env/secret resolvers and out of browser bundles/logs
 - Shared utilities: prefer module-local helpers, domain-scoped `ui/src/lib`,

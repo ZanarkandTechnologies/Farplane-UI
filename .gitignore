@@ -8,6 +8,7 @@ experiments/
 
 .env.local
 .farplane/reviews/
+.farplane/
 
 
 skills/external/
@@ -19,8 +20,14 @@ skills/external/
 
 /docs/research/*/*
 
-# Local ticket proof artifacts can contain screenshots, traces, and bulky JSON.
-/tickets/
+# Farplane tickets are tracked only for the TASK-* project queue. Legacy TKT
+# lanes and proof artifacts remain local-only.
+/tickets/INDEX.md
+/tickets/todo/
+/tickets/building/
+/tickets/review/
+/tickets/done/
+/tickets/**/artifacts/
 
 # One-off browser QA screenshots/logs belong in local evidence bundles or
 # ticket-local artifacts, not the shared repo history.

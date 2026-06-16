@@ -8,8 +8,9 @@ Existing-project migration brief for aligning Farplane UI with the current
 - Profile: coding app with a substantial browser UI, CLI, local state bridge,
   realtime backend, and runtime adapters.
 - Lifecycle route: existing-project migration.
-- First migration slice: add durable architecture, QA, hook, and pre-push
-  surfaces without rewriting the backlog.
+- First migration slice: add durable architecture, QA, hook, pre-push,
+  Farplane config, runtime-state, and starter PRD-ticket surfaces without
+  rewriting the legacy backlog.
 - Downstream handoff: `impl-plan -> impl` against one ticket at a time.
 
 ### Coding-App Components
@@ -69,6 +70,14 @@ customization, channels, and isolated workspaces.
 
 ## Runtime And State Decisions
 
+- Tracked Farplane project config lives under `farplane/`, with
+  `farplane/manifest.json` recording spec version `1.1.0`.
+- Ignored Farplane runtime state lives under `.farplane/`, including run
+  ledgers, reports, eval runs, logs, and review packets.
+- The active tracked Farplane ticket queue uses `tickets/TASK-*/ticket.md`.
+  Legacy `TKT-*` lane folders remain local-only reference state.
+- Starter PRD handoff: `tickets/TASK-0001/ticket.md`, which asks for a review
+  of the existing `docs/prd.md` before any fresh PRD pass.
 - Farplane-owned sidecar state lives under `~/.farplane`.
 - OpenClaw-owned runtime state lives under `~/.openclaw` and is consumed only
   through the OpenClaw adapter.
@@ -174,8 +183,10 @@ Ask before:
 
 ## Scaffold Decision Boundaries
 
-- Auto-decide: docs/QA scaffold completion, local ignore rules for ticket and
-  scratch evidence, repo-local validation scripts, and advisory review wiring.
+- Auto-decide: docs/QA scaffold completion, tracked `farplane/` config,
+  ignored `.farplane/` runtime state, tracked `TASK-*` ticket substrate,
+  local ignore rules for legacy tickets and scratch evidence, repo-local
+  validation scripts, and advisory review wiring.
 - Ask first: architecture/topology rewrites, public API/data-model changes,
   migrations, hook activation, CI/deploy setup, credentials, paid compute, and
   destructive cleanup.
