@@ -20,4 +20,4 @@ skills/external/
 /docs/research/*/*
 
 # Local ticket proof artifacts can contain screenshots, traces, and bulky JSON.
-tickets/**/artifacts/
+/tickets/

@@ -50,6 +50,7 @@ Work flows through:
 - Use `docs/bootstrap-brief.md` for project profile, lifecycle route, prototype gates, and pipeline handoff.
 - Use `docs/prd.md` for requirements, first SLC slice, constraints, and autonomy readiness.
 - Use active tickets as the work objects; keep status, blockers, evidence, and spawned follow-ups in the ticket.
+- Tickets are local-only task state. Never commit `tickets/` contents, including indexes, templates, progress logs, prompts, proof artifacts, screenshots, or generated ticket data.
 - Plan each material ticket before build; prove and review before closeout.
 - Technical commands, stack rules, runtime, and QA paths live in `PROJECT_RULES.md`.
 
