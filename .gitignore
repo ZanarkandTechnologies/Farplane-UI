@@ -21,3 +21,7 @@ skills/external/
 
 # Local ticket proof artifacts can contain screenshots, traces, and bulky JSON.
 /tickets/
+
+# One-off browser QA screenshots/logs belong in local evidence bundles or
+# ticket-local artifacts, not the shared repo history.
+/qa/artifacts/
