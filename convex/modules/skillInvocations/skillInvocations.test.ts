@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { buildSkillInvocationDashboard, type SkillInvocationRow } from "./contracts";
-import { parseSkillInvocationPayload } from "./httpContracts";
 
 function row(
   input: Partial<SkillInvocationRow> & Pick<SkillInvocationRow, "skillId" | "occurredAt">,
@@ -45,26 +44,4 @@ describe("skill invocation contracts", () => {
     ]);
   });
 
-  it("parses compact ingest payloads and rejects non-skill paths", () => {
-    expect(
-      parseSkillInvocationPayload({
-        skillId: "goal-advisor",
-        skillPath: "/Users/me/.codex/skills/goal-advisor/SKILL.md",
-        sourceTool: "Bash",
-        label: "Read skill MD",
-      }),
-    ).toEqual(
-      expect.objectContaining({
-        skillId: "goal-advisor",
-        sourceTool: "Bash",
-      }),
-    );
-    expect(
-      parseSkillInvocationPayload({
-        skillId: "goal-advisor",
-        skillPath: "/Users/me/.codex/skills/goal-advisor/README.md",
-        sourceTool: "Bash",
-      }),
-    ).toBeNull();
-  });
 });

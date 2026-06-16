@@ -21,7 +21,10 @@ import { httpRouter } from "convex/server";
 import { api, internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { parseBoardCommandPayload, parseBoardQueryPayload } from "./board_http_contract";
-import { parseSkillInvocationPayload } from "./modules/skillInvocations/httpContracts";
+import {
+  parseHookTelemetryBatchPayload,
+  parseHookTelemetryPayload,
+} from "./modules/hookTelemetry/httpContracts";
 import { parseIngestPayload, parseStatusReportPayload } from "./status_http_contract";
 
 const http = httpRouter();
@@ -56,47 +59,67 @@ function cleanString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function parseActivityPingPayload(body: unknown): {
-  eventType: "heartbeat" | "turn_start" | "turn_end";
-  source: string;
-  activeAgentCount: number;
-  prompt?: string;
-  agentName?: string;
-  workflowName?: string;
-  machineName?: string;
-  projectName?: string;
-  projectDirectory?: string;
-  projectId?: string;
-  teamId?: string;
-  sessionId?: string;
-  turnId?: string;
-  receivedAt?: number;
-  importKey?: string;
-} | null {
-  if (!body || typeof body !== "object") return null;
-  const row = body as Record<string, unknown>;
-  const eventType = cleanString(row.eventType);
-  if (eventType !== "heartbeat" && eventType !== "turn_start" && eventType !== "turn_end")
-    return null;
-  const activeAgentCount = typeof row.activeAgentCount === "number" ? row.activeAgentCount : 1;
-  return {
-    eventType,
-    source: cleanString(row.source) ?? "telemetry-http",
-    activeAgentCount,
-    prompt: cleanString(row.prompt),
-    agentName: cleanString(row.agentName),
-    workflowName: cleanString(row.workflowName),
-    machineName: cleanString(row.machineName),
-    projectName: cleanString(row.projectName),
-    projectDirectory: cleanString(row.projectDirectory),
-    projectId: cleanString(row.projectId),
-    teamId: cleanString(row.teamId),
-    sessionId: cleanString(row.sessionId),
-    turnId: cleanString(row.turnId),
-    receivedAt: typeof row.receivedAt === "number" ? row.receivedAt : undefined,
-    importKey: cleanString(row.importKey),
-  };
-}
+http.route({
+  path: "/telemetry/hooks",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    if (!hasTelemetryToken(request)) {
+      return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 });
+    }
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(JSON.stringify({ ok: false, error: "invalid_json" }), { status: 400 });
+    }
+
+    const parsed = parseHookTelemetryPayload(body);
+    if (!parsed) {
+      return new Response(JSON.stringify({ ok: false, error: "invalid_payload" }), { status: 400 });
+    }
+
+    const result = await ctx.runMutation(
+      internal.modules.hookTelemetry.events.ingestHookTelemetry,
+      parsed,
+    );
+    return new Response(JSON.stringify({ ok: true, ...result }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }),
+});
+
+http.route({
+  path: "/telemetry/hooks/batch",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    if (!hasTelemetryToken(request)) {
+      return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 });
+    }
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(JSON.stringify({ ok: false, error: "invalid_json" }), { status: 400 });
+    }
+
+    const parsed = parseHookTelemetryBatchPayload(body);
+    if (!parsed) {
+      return new Response(JSON.stringify({ ok: false, error: "invalid_payload" }), { status: 400 });
+    }
+
+    const result = await ctx.runMutation(
+      internal.modules.hookTelemetry.events.ingestHookTelemetryBatch,
+      { events: parsed },
+    );
+    return new Response(JSON.stringify({ ok: true, count: result.ids.length, ...result }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }),
+});
 
 http.route({
   path: "/ingest",
@@ -119,105 +142,6 @@ http.route({
     });
 
     return new Response(JSON.stringify({ ok: true }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
-  }),
-});
-
-http.route({
-  path: "/telemetry/activity",
-  method: "POST",
-  handler: httpAction(async (ctx, request) => {
-    if (!hasTelemetryToken(request)) {
-      return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 });
-    }
-
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return new Response(JSON.stringify({ ok: false, error: "invalid_json" }), { status: 400 });
-    }
-
-    const parsed = parseActivityPingPayload(body);
-    if (!parsed) {
-      return new Response(JSON.stringify({ ok: false, error: "invalid_payload" }), { status: 400 });
-    }
-
-    const id = await ctx.runMutation(
-      internal.modules.runtimeTelemetry.telemetry.ingestActivityPing,
-      parsed,
-    );
-    return new Response(JSON.stringify({ ok: true, id }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
-  }),
-});
-
-http.route({
-  path: "/telemetry/activity/batch",
-  method: "POST",
-  handler: httpAction(async (ctx, request) => {
-    if (!hasTelemetryToken(request)) {
-      return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 });
-    }
-
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return new Response(JSON.stringify({ ok: false, error: "invalid_json" }), { status: 400 });
-    }
-
-    if (!body || typeof body !== "object" || !Array.isArray((body as { pings?: unknown }).pings)) {
-      return new Response(JSON.stringify({ ok: false, error: "invalid_payload" }), { status: 400 });
-    }
-
-    const pings = (body as { pings: unknown[] }).pings.slice(0, 500).map(parseActivityPingPayload);
-    if (pings.some((ping) => ping === null)) {
-      return new Response(JSON.stringify({ ok: false, error: "invalid_payload" }), { status: 400 });
-    }
-
-    const ids = await ctx.runMutation(
-      internal.modules.runtimeTelemetry.telemetry.ingestActivityPings,
-      {
-        pings: pings.filter((ping): ping is NonNullable<typeof ping> => ping !== null),
-      },
-    );
-    return new Response(JSON.stringify({ ok: true, count: ids.length, ids }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
-  }),
-});
-
-http.route({
-  path: "/skill-invocations/ingest",
-  method: "POST",
-  handler: httpAction(async (ctx, request) => {
-    if (!hasTelemetryToken(request)) {
-      return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 });
-    }
-
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return new Response(JSON.stringify({ ok: false, error: "invalid_json" }), { status: 400 });
-    }
-
-    const parsed = parseSkillInvocationPayload(body);
-    if (!parsed) {
-      return new Response(JSON.stringify({ ok: false, error: "invalid_payload" }), { status: 400 });
-    }
-
-    const id = await ctx.runMutation(
-      internal.modules.skillInvocations.events.ingestSkillInvocation,
-      parsed,
-    );
-    return new Response(JSON.stringify({ ok: true, id }), {
       status: 200,
       headers: { "content-type": "application/json" },
     });

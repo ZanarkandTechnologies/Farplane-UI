@@ -19,6 +19,11 @@ import type * as modules_agentActivity_contracts from "../modules/agentActivity/
 import type * as modules_agentActivity_events from "../modules/agentActivity/events.js";
 import type * as modules_agentActivity_httpContracts from "../modules/agentActivity/httpContracts.js";
 import type * as modules_agentActivity_status from "../modules/agentActivity/status.js";
+import type * as modules_hookTelemetry_events from "../modules/hookTelemetry/events.js";
+import type * as modules_hookTelemetry_httpContracts from "../modules/hookTelemetry/httpContracts.js";
+import type * as modules_hookTelemetry_projections from "../modules/hookTelemetry/projections.js";
+import type * as modules_hookTelemetry_queries from "../modules/hookTelemetry/queries.js";
+import type * as modules_hookTelemetry_validators from "../modules/hookTelemetry/validators.js";
 import type * as modules_projectArtefacts_artefacts from "../modules/projectArtefacts/artefacts.js";
 import type * as modules_resourceBank_analyses from "../modules/resourceBank/analyses.js";
 import type * as modules_resourceBank_assets from "../modules/resourceBank/assets.js";
@@ -33,8 +38,6 @@ import type * as modules_runtimeTelemetry_runtimeTelemetry from "../modules/runt
 import type * as modules_runtimeTelemetry_telemetry from "../modules/runtimeTelemetry/telemetry.js";
 import type * as modules_runtimeTelemetry_validators from "../modules/runtimeTelemetry/validators.js";
 import type * as modules_skillInvocations_contracts from "../modules/skillInvocations/contracts.js";
-import type * as modules_skillInvocations_events from "../modules/skillInvocations/events.js";
-import type * as modules_skillInvocations_httpContracts from "../modules/skillInvocations/httpContracts.js";
 import type * as modules_skillInvocations_queries from "../modules/skillInvocations/queries.js";
 import type * as modules_skillInvocations_validators from "../modules/skillInvocations/validators.js";
 import type * as modules_teamBoard_board from "../modules/teamBoard/board.js";
@@ -63,6 +66,11 @@ declare const fullApi: ApiFromModules<{
   "modules/agentActivity/events": typeof modules_agentActivity_events;
   "modules/agentActivity/httpContracts": typeof modules_agentActivity_httpContracts;
   "modules/agentActivity/status": typeof modules_agentActivity_status;
+  "modules/hookTelemetry/events": typeof modules_hookTelemetry_events;
+  "modules/hookTelemetry/httpContracts": typeof modules_hookTelemetry_httpContracts;
+  "modules/hookTelemetry/projections": typeof modules_hookTelemetry_projections;
+  "modules/hookTelemetry/queries": typeof modules_hookTelemetry_queries;
+  "modules/hookTelemetry/validators": typeof modules_hookTelemetry_validators;
   "modules/projectArtefacts/artefacts": typeof modules_projectArtefacts_artefacts;
   "modules/resourceBank/analyses": typeof modules_resourceBank_analyses;
   "modules/resourceBank/assets": typeof modules_resourceBank_assets;
@@ -77,8 +85,6 @@ declare const fullApi: ApiFromModules<{
   "modules/runtimeTelemetry/telemetry": typeof modules_runtimeTelemetry_telemetry;
   "modules/runtimeTelemetry/validators": typeof modules_runtimeTelemetry_validators;
   "modules/skillInvocations/contracts": typeof modules_skillInvocations_contracts;
-  "modules/skillInvocations/events": typeof modules_skillInvocations_events;
-  "modules/skillInvocations/httpContracts": typeof modules_skillInvocations_httpContracts;
   "modules/skillInvocations/queries": typeof modules_skillInvocations_queries;
   "modules/skillInvocations/validators": typeof modules_skillInvocations_validators;
   "modules/teamBoard/board": typeof modules_teamBoard_board;

@@ -10,6 +10,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { buildSkillInvocationTelemetryEnvelope } from "./telemetry";
 
 export type SkillInvocationCandidate = {
   skillId: string;
@@ -260,13 +261,13 @@ export async function publishSkillInvocations(
   const fetchImpl = options.fetchImpl ?? fetch;
   let published = 0;
   for (const candidate of candidates) {
-    const response = await fetchImpl(`${endpointBaseUrl}/skill-invocations/ingest`, {
+    const response = await fetchImpl(`${endpointBaseUrl}/telemetry/hooks`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         ...(options.telemetryToken ? { "x-farplane-telemetry-token": options.telemetryToken } : {}),
       },
-      body: JSON.stringify(candidate),
+      body: JSON.stringify(buildSkillInvocationTelemetryEnvelope(candidate)),
     });
     if (!response.ok) {
       const detail = await response.text().catch(() => "");

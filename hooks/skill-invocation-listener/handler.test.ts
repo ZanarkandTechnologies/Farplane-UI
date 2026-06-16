@@ -98,10 +98,20 @@ describe("skill invocation listener hook", () => {
 
     expect(result).toEqual({ attempted: 1, published: 1, skipped: false });
     expect(fetchImpl).toHaveBeenCalledWith(
-      "http://127.0.0.1:3211/skill-invocations/ingest",
+      "http://127.0.0.1:3211/telemetry/hooks",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({ "x-farplane-telemetry-token": "token-1" }),
+      }),
+    );
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual(
+      expect.objectContaining({
+        hookName: "skill-invocation-listener",
+        hookType: "PostToolUse",
+        payload: expect.objectContaining({
+          skillId: "goal-advisor",
+          skillPath: "/skills/goal-advisor/SKILL.md",
+        }),
       }),
     );
   });

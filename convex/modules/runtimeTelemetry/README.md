@@ -1,15 +1,14 @@
 # Runtime Telemetry Module
 
-Convex-backed runtime telemetry for project and team agent-hours dashboards.
+Runtime telemetry projections for project and team agent-hours dashboards.
 
-This module is the cloud/shared telemetry lane. Local-only telemetry can be added
-later through the state bridge without requiring this Convex table.
+Raw hook storage now lives in `convex/modules/hookTelemetry`. This module owns
+the deterministic runtime reducers and dashboard projections.
 
 ## Files
 
-- `schema.ts`: module-owned table definitions.
 - `validators.ts`: lifecycle validators and shared arg shapes.
-- `telemetry.ts`: ingest mutation plus global/team dashboard queries.
+- `telemetry.ts`: global/team dashboard queries over hook telemetry.
 - `runtimeTelemetry.ts`: deterministic reducer used by queries and tests.
 
 ## Lifecycle Recovery
@@ -30,7 +29,8 @@ per-user authorization requirements.
 
 ## Migration
 
-Backfill real Aikage/Codex-era runtime rows with:
+Import real Aikage/Codex-era runtime rows through the unified hook telemetry
+endpoint with:
 
 ```bash
 npm run telemetry:import:aikage -- --dry-run --since 2026-06-01
@@ -38,6 +38,7 @@ npm run telemetry:import:aikage -- --since 2026-06-01
 ```
 
 The importer reads local Codex session JSONL and stop-hook logs, optionally plus
-an Aikage-compatible JSONL export through `--aikage-jsonl <path>`. Each imported
-row carries a deterministic `importKey`, and Convex dedupes by that key so reruns
-do not inflate project or team stats.
+an Aikage-compatible JSONL export through `--aikage-jsonl <path>`. It writes
+`hookTelemetryEvents` through `/telemetry/hooks/batch`; each imported row carries
+a deterministic `eventKey`, and Convex dedupes by that key so reruns do not
+inflate project or team stats.

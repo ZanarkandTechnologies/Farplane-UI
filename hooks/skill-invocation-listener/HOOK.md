@@ -6,12 +6,12 @@ metadata: { "codex": { "events": ["PostToolUse"], "statusMessage": "Read skill M
 
 # Skill Invocation Listener Hook
 
-Logs successful reads of `*/SKILL.md` as `skill_invoked` events in Farplane.
+Logs successful reads of `*/SKILL.md` as unified hook telemetry in Farplane.
 
 The hook is deterministic and diagnostics-only:
 
 - derives the skill name from the parent directory of the `SKILL.md` path
-- posts compact path metadata to `/skill-invocations/ingest`
+- posts compact path metadata to `/telemetry/hooks`
 - does not store raw hook payloads, command output, or transcript text
 - exits successfully when no skill file is found or when the endpoint is missing
 

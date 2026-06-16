@@ -418,7 +418,7 @@ function summarize(pings) {
 
 async function postBatches(siteUrl, token, pings, batchSize) {
   let imported = 0;
-  const endpoint = new URL("/telemetry/activity/batch", siteUrl).toString();
+  const endpoint = new URL("/telemetry/hooks/batch", siteUrl).toString();
   for (let index = 0; index < pings.length; index += batchSize) {
     const batch = pings.slice(index, index + batchSize);
     const response = await fetch(endpoint, {
@@ -427,7 +427,7 @@ async function postBatches(siteUrl, token, pings, batchSize) {
         "content-type": "application/json",
         ...(token ? { "x-farplane-telemetry-token": token } : {}),
       },
-      body: JSON.stringify({ pings: batch }),
+      body: JSON.stringify({ events: batch.map(pingToHookTelemetryEvent) }),
     });
     if (!response.ok) {
       const text = await response.text();
@@ -437,6 +437,34 @@ async function postBatches(siteUrl, token, pings, batchSize) {
     imported += body.count || batch.length;
   }
   return { imported };
+}
+
+function pingToHookTelemetryEvent(ping) {
+  const hookType =
+    ping.eventType === "turn_start"
+      ? "TurnStart"
+      : ping.eventType === "turn_end"
+        ? "TurnEnd"
+        : "Heartbeat";
+  return {
+    hookName: ping.source || "runtime-telemetry-import",
+    hookType,
+    projectId: ping.projectId,
+    sessionId: ping.sessionId,
+    payload: {
+      turnId: ping.turnId,
+      prompt: ping.prompt,
+      activeAgentCount: ping.activeAgentCount,
+      agentName: ping.agentName,
+      workflowName: ping.workflowName,
+      machineName: ping.machineName,
+      projectName: ping.projectName,
+      projectDirectory: ping.projectDirectory,
+      legacyTeamId: ping.teamId,
+    },
+    eventAt: ping.receivedAt,
+    eventKey: ping.importKey,
+  };
 }
 
 function timestampToMs(value) {

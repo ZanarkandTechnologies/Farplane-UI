@@ -1,4 +1,4 @@
-import { type Infer, v } from "convex/values";
+import { v } from "convex/values";
 
 export const activityEventTypeValidator = v.union(
   v.literal("heartbeat"),
@@ -9,31 +9,6 @@ export const activityEventTypeValidator = v.union(
 export const activeAgentCountValidator = v.number();
 export const receivedAtValidator = v.number();
 export const optionalTelemetryTextValidator = v.optional(v.string());
-
-export const ingestActivityPingArgsValidator = {
-  eventType: activityEventTypeValidator,
-  source: v.string(),
-  activeAgentCount: activeAgentCountValidator,
-  prompt: optionalTelemetryTextValidator,
-  agentName: optionalTelemetryTextValidator,
-  workflowName: optionalTelemetryTextValidator,
-  machineName: optionalTelemetryTextValidator,
-  projectName: optionalTelemetryTextValidator,
-  projectDirectory: optionalTelemetryTextValidator,
-  projectId: optionalTelemetryTextValidator,
-  teamId: optionalTelemetryTextValidator,
-  sessionId: optionalTelemetryTextValidator,
-  turnId: optionalTelemetryTextValidator,
-  receivedAt: v.optional(v.number()),
-  importKey: optionalTelemetryTextValidator,
-};
-
-export const ingestActivityPingValidator = v.object(ingestActivityPingArgsValidator);
-export type IngestActivityPingArgs = Infer<typeof ingestActivityPingValidator>;
-
-export const ingestActivityPingsArgsValidator = {
-  pings: v.array(ingestActivityPingValidator),
-};
 
 export const telemetryDashboardArgsValidator = {
   timezone: v.optional(v.string()),

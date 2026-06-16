@@ -1,5 +1,7 @@
 # MEMORY
 
+2026-06-17 | decision | MEM-0228 | convex,hooks,telemetry,invariant | Hook-originated signals use one raw Convex hook telemetry log (`hookTelemetryEvents`) keyed by `hookName`, `hookType`, optional `projectId`, optional `sessionId`, sanitized `payload`, `eventAt`, and optional `eventKey`; skill invocation, runtime turns, file-change summaries, and office bubbles are derived projections rather than separate raw tables.
+
 2026-06-09 | decision | MEM-0227 | ui,farplane,runtime-adapters,invariant | Farplane UI uses Codex as the default office runtime adapter, with OpenClaw available only as an optional adapter selected by `VITE_FARPLANE_RUNTIME_ADAPTER=openclaw`; UI-owned sidecars remain canonical under `~/.farplane`.
 
 2026-06-08 01:16 +0800 | decision | MEM-0226 | ui,farplane,sidecars,invariant | Farplane UI-owned sidecars are canonical under `~/.farplane` (`company.json`, `office.json`, `office-objects.json`, `pending-approvals.json`, and `assets/meshes`). OpenClaw runtime files remain OpenClaw-owned under `~/.openclaw` and must enter the UI through an explicit adapter rather than a legacy sidecar fallback.
