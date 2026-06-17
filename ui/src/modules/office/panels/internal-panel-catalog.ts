@@ -14,6 +14,7 @@
 export type OfficeInternalPanelId =
   | "team-workspace"
   | "telemetry"
+  | "raw-telemetry"
   | "resource-bank"
   | "document-library"
   | "skill-os"
@@ -42,9 +43,15 @@ export const OFFICE_INTERNAL_PANEL_CATALOG: OfficeInternalPanelCatalogEntry[] = 
   },
   {
     id: "telemetry",
-    label: "Telemetry",
-    description: "Open overall project and team runtime telemetry.",
-    keywords: ["telemetry", "agent hours", "runtime", "projects"],
+    label: "Harness Usage",
+    description: "Open project and team agent-hour usage dashboards.",
+    keywords: ["harness", "usage", "agent hours", "runtime", "projects"],
+  },
+  {
+    id: "raw-telemetry",
+    label: "Raw Telemetry",
+    description: "Inspect hook events, distributions, and hook setup.",
+    keywords: ["telemetry", "hooks", "events", "raw", "kibana"],
   },
   {
     id: "resource-bank",

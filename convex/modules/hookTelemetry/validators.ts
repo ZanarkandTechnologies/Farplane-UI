@@ -45,6 +45,7 @@ export const ingestHookTelemetryBatchArgsValidator = {
 export const hookTelemetryWindowArgsValidator = {
   hookName: v.optional(v.string()),
   hookType: v.optional(v.string()),
+  eventName: v.optional(v.string()),
   projectId: v.optional(v.string()),
   sessionId: v.optional(v.string()),
   rangeDays: v.optional(v.number()),

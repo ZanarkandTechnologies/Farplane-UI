@@ -238,7 +238,7 @@ export function TeamPanel({
                 Timeline
               </TabsTrigger>
               <TabsTrigger className="flex-none" value="telemetry">
-                Telemetry
+                Usage
               </TabsTrigger>
               <TabsTrigger className="flex-none" value="goals">
                 Goals

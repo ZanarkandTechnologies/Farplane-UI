@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Install or print the repo-local Codex hook config for skill invocation telemetry.
+ * Install or print the repo-local Codex hook config for unified Farplane telemetry.
  */
 
 import fs from "node:fs";
@@ -97,7 +97,7 @@ function main() {
   }
 
   if (options.write) {
-    console.log(`Installed skill invocation hook config at ${hooksPath}`);
+    console.log(`Installed Farplane hook telemetry config at ${hooksPath}`);
   } else {
     console.log(payload);
   }

@@ -19,7 +19,7 @@ export function TelemetryPanel({ open, onOpenChange }: TelemetryPanelProps): Rea
         style={{ zIndex: UI_Z.panelElevated }}
       >
         <DialogHeader className="border-b px-6 py-4">
-          <DialogTitle>Telemetry</DialogTitle>
+          <DialogTitle>Harness Usage</DialogTitle>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-hidden px-6 pb-6">
           <TelemetryDashboardContent mode="global" />

@@ -57,6 +57,7 @@ describe("office panel registry", () => {
     const openResourceBank = vi.fn();
     const openSkillInvocations = vi.fn();
     const openSkillOs = vi.fn();
+    const openRawTelemetry = vi.fn();
     const openTemplateRollout = vi.fn();
     const openUserCommunications = vi.fn();
     const toggleBuilderMode = vi.fn();
@@ -78,6 +79,7 @@ describe("office panel registry", () => {
       openSkillInvocations,
       openSkillOs,
       openTemplateRollout,
+      openRawTelemetry,
       openTelemetry: vi.fn(),
       openUserCommunications,
       toggleBuilderMode,
@@ -91,6 +93,7 @@ describe("office panel registry", () => {
     actions.find((action) => action.id === "evals")?.perform();
     actions.find((action) => action.id === "harness")?.perform();
     actions.find((action) => action.id === "user-communications")?.perform();
+    actions.find((action) => action.id === "raw-telemetry")?.perform();
     actions.find((action) => action.id === "human-review")?.perform();
     actions.find((action) => action.id === "builder-mode")?.perform();
 
@@ -104,6 +107,7 @@ describe("office panel registry", () => {
     expect(openEvals).toHaveBeenCalledTimes(1);
     expect(openHarness).toHaveBeenCalledTimes(1);
     expect(openUserCommunications).toHaveBeenCalledTimes(1);
+    expect(openRawTelemetry).toHaveBeenCalledTimes(1);
     expect(openCeoWorkbench).toHaveBeenCalledWith("review");
     expect(toggleBuilderMode).toHaveBeenCalledTimes(1);
   });
@@ -132,6 +136,7 @@ describe("office panel registry", () => {
       openSkillInvocations: vi.fn(),
       openSkillOs: vi.fn(),
       openTemplateRollout: vi.fn(),
+      openRawTelemetry: vi.fn(),
       openTelemetry: vi.fn(),
       openUserCommunications: vi.fn(),
       toggleBuilderMode,

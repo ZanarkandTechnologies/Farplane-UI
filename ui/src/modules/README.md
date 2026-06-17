@@ -34,6 +34,8 @@ agent-workspace/ target owner for employee context, agent sessions, manage-agent
                  workflows, and agent-local runtime configuration
 skills-studio/   target owner for skill catalog, skill files, demos, and
                  per-agent skill assignment UI
+hook-telemetry/  target owner for raw hook event inspection, distributions, and
+                 hook setup guidance
 chat/            target owner for chat sidebar, dialogs, messages, composer,
                  and transcript rendering
 navigation/      target owner for pathfinding,

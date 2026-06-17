@@ -1,11 +1,11 @@
-# Telemetry Module
+# Harness Usage Module
 
-Runtime telemetry surfaces for completed agent hours, project/team contribution, and lifecycle diagnostics.
+Runtime usage surfaces for completed agent hours, project/team contribution, and lifecycle diagnostics.
 
 ## Entrypoints
 
-- `TelemetryPanel` for the global office launcher surface.
-- `TelemetryDashboardContent` for global and team-scoped rendering.
+- `TelemetryPanel` for the global Harness Usage office launcher surface.
+- `TelemetryDashboardContent` for global and team-scoped usage rendering.
 
 ## Structure
 
@@ -15,4 +15,4 @@ Runtime telemetry surfaces for completed agent hours, project/team contribution,
 ## Test
 
 - `npm run test:once -- runtimeTelemetry telemetry team-panel`
-- Browser QA through the office launcher and Team Panel Telemetry tab.
+- Browser QA through the office launcher and Team Panel Usage tab.

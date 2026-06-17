@@ -26,14 +26,11 @@ import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import type {
   DurationCapValue,
   RangeDays,
-  RawSourceFilter,
-  RawStatusFilter,
   TelemetrySummary,
 } from "./telemetry-dashboard-types";
 import { TelemetryDashboardView } from "./components/telemetry-dashboard-recharts";
 import {
   BreakdownTable,
-  RawTelemetryTable,
   TelemetryStateCard,
 } from "./components/telemetry-dashboard-views";
 import { TelemetryMetricGrid } from "./components/telemetry-metric-ticker";
@@ -41,7 +38,7 @@ import { TelemetryMetricGrid } from "./components/telemetry-metric-ticker";
 const MS_PER_HOUR = 60 * 60 * 1000;
 const TURN_PAGE_SIZE = 25;
 
-type TelemetryView = "dashboard" | "projects" | "teams" | "raw";
+type TelemetryView = "dashboard" | "projects" | "teams";
 
 type TelemetryDashboardContentProps = {
   mode: "global" | "team";
@@ -67,10 +64,9 @@ const PRIVATE_VIEW_OPTIONS: Array<{ label: string; value: TelemetryView }> = [
   { label: "Dashboard", value: "dashboard" },
   { label: "Projects", value: "projects" },
   { label: "Teams", value: "teams" },
-  { label: "Raw Telemetry", value: "raw" },
 ];
 
-const PUBLIC_VIEW_OPTIONS = PRIVATE_VIEW_OPTIONS.filter((option) => option.value !== "raw");
+const PUBLIC_VIEW_OPTIONS = PRIVATE_VIEW_OPTIONS;
 
 export function TelemetryDashboardContent({
   mode,
@@ -84,8 +80,6 @@ export function TelemetryDashboardContent({
   const [durationCap, setDurationCap] = useState<DurationCapValue>("4h");
   const [activeView, setActiveView] = useState<TelemetryView>("dashboard");
   const [turnPage, setTurnPage] = useState(1);
-  const [rawStatusFilter, setRawStatusFilter] = useState<RawStatusFilter>("all");
-  const [rawSourceFilter, setRawSourceFilter] = useState<RawSourceFilter>("all");
   const timezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
   const maxTurnDurationMs = useMemo(
     () => DURATION_CAP_OPTIONS.find((option) => option.value === durationCap)?.maxTurnDurationMs ?? null,
@@ -133,7 +127,7 @@ export function TelemetryDashboardContent({
 
   const diagnosticsCount = data.stats.inProgressTurnCount + data.stats.unmatchedTurnCount;
   const viewOptions = isPublic ? PUBLIC_VIEW_OPTIONS : PRIVATE_VIEW_OPTIONS;
-  const visibleView = isPublic && activeView === "raw" ? "dashboard" : activeView;
+  const visibleView = activeView;
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 pt-2">
@@ -141,7 +135,7 @@ export function TelemetryDashboardContent({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="truncate text-base font-semibold">
-              {mode === "global" ? "Runtime Telemetry" : title || "Team Telemetry"}
+              {mode === "global" ? "Harness Usage" : title || "Team Harness Usage"}
             </h2>
             <Badge variant={diagnosticsCount > 0 ? "secondary" : "outline"}>
               {diagnosticsCount} diagnostic{diagnosticsCount === 1 ? "" : "s"}
@@ -200,19 +194,6 @@ export function TelemetryDashboardContent({
         ) : null}
         {visibleView === "teams" ? (
           <BreakdownTable rows={data.teamBreakdown} emptyLabel="No team telemetry yet." />
-        ) : null}
-        {!isPublic && visibleView === "raw" ? (
-          <RawTelemetryTable
-            onPageChange={setTurnPage}
-            onSourceFilterChange={setRawSourceFilter}
-            onStatusFilterChange={setRawStatusFilter}
-            page={data.turnsPage.page}
-            pageCount={data.turnsPage.pageCount}
-            rows={data.turnsPage.rows}
-            sourceFilter={rawSourceFilter}
-            statusFilter={rawStatusFilter}
-            total={data.turnsPage.total}
-          />
         ) : null}
       </div>
     </div>

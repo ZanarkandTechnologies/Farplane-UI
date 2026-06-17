@@ -19,6 +19,7 @@ import { selectOfficeWorldContextData, useOfficeWorldStore } from "@/modules/off
 import { ResourceBankPanel } from "@/modules/resource-bank";
 import { gatewayBase } from "@/modules/runtime";
 import { SettingsDialog } from "@/modules/settings";
+import { RawTelemetryPanel } from "@/modules/hook-telemetry";
 import { SkillInvocationsPanel } from "@/modules/skill-invocations";
 import { TeamPanel } from "@/modules/team-workspace";
 import { TelemetryPanel } from "@/modules/telemetry";
@@ -80,6 +81,8 @@ function OfficeSimulationContent() {
   const setIsSettingsModalOpen = useAppStore((state) => state.setIsSettingsModalOpen);
   const isTelemetryPanelOpen = useAppStore((state) => state.isTelemetryPanelOpen);
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
+  const isRawTelemetryPanelOpen = useAppStore((state) => state.isRawTelemetryPanelOpen);
+  const setIsRawTelemetryPanelOpen = useAppStore((state) => state.setIsRawTelemetryPanelOpen);
   const isSkillInvocationsPanelOpen = useAppStore((state) => state.isSkillInvocationsPanelOpen);
   const setIsSkillInvocationsPanelOpen = useAppStore(
     (state) => state.setIsSkillInvocationsPanelOpen,
@@ -218,6 +221,12 @@ function OfficeSimulationContent() {
               <SettingsDialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen} />
             ) : null}
             <TelemetryPanel open={isTelemetryPanelOpen} onOpenChange={setIsTelemetryPanelOpen} />
+            {!isReadOnly ? (
+              <RawTelemetryPanel
+                open={isRawTelemetryPanelOpen}
+                onOpenChange={setIsRawTelemetryPanelOpen}
+              />
+            ) : null}
             <SkillInvocationsPanel
               open={isSkillInvocationsPanelOpen}
               onOpenChange={setIsSkillInvocationsPanelOpen}

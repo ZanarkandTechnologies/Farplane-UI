@@ -61,6 +61,7 @@ export type OfficePanelActionId =
   | "organization"
   | "team-workspace"
   | "telemetry"
+  | "raw-telemetry"
   | "resource-bank"
   | "document-library"
   | "skill-os"
@@ -111,6 +112,7 @@ export type OfficePanelRegistryDependencies = {
   openResourceBank: () => void;
   openDocumentLibrary: () => void;
   openTelemetry: () => void;
+  openRawTelemetry: () => void;
   toggleBuilderMode: () => void;
 };
 
@@ -185,6 +187,7 @@ export function createOfficePanelActions(
   const readOnly = deps.accessPolicy === "read-only";
   const teamWorkspacePanel = getOfficeInternalPanelEntry("team-workspace");
   const telemetryPanel = getOfficeInternalPanelEntry("telemetry");
+  const rawTelemetryPanel = getOfficeInternalPanelEntry("raw-telemetry");
   const resourceBankPanel = getOfficeInternalPanelEntry("resource-bank");
   const documentLibraryPanel = getOfficeInternalPanelEntry("document-library");
   const skillOsPanel = getOfficeInternalPanelEntry("skill-os");
@@ -244,6 +247,19 @@ export function createOfficePanelActions(
       shortcut: { key: "m", label: "Alt+Shift+M", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openTelemetry,
+    },
+    {
+      id: "raw-telemetry",
+      label: rawTelemetryPanel.label,
+      description: rawTelemetryPanel.description,
+      group: "panel",
+      icon: RadioTower,
+      keywords: [...rawTelemetryPanel.keywords, "hooks"],
+      color: SECONDARY_BUTTON_COLOR,
+      perform: readOnly ? noop : deps.openRawTelemetry,
+      disabled: readOnly,
+      showInMenu: !readOnly,
+      showInPalette: !readOnly,
     },
     {
       id: "resource-bank",

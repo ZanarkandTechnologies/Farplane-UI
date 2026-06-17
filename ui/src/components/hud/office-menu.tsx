@@ -51,6 +51,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
   const setIsSkillsPanelOpen = useAppStore((state) => state.setIsSkillsPanelOpen);
   const setSkillStudioSurface = useAppStore((state) => state.setSkillStudioSurface);
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
+  const setIsRawTelemetryPanelOpen = useAppStore((state) => state.setIsRawTelemetryPanelOpen);
   const setIsSkillInvocationsPanelOpen = useAppStore(
     (state) => state.setIsSkillInvocationsPanelOpen,
   );
@@ -151,6 +152,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         openResourceBank: () => setIsResourceBankPanelOpen(true),
         openDocumentLibrary: () => setIsDocumentLibraryPanelOpen(true),
         openTelemetry: () => setIsTelemetryPanelOpen(true),
+        openRawTelemetry: () => setIsRawTelemetryPanelOpen(true),
         toggleBuilderMode: handleBuilderModeToggle,
       }),
     [
@@ -171,6 +173,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
       setIsResourceBankPanelOpen,
       setIsDocumentLibraryPanelOpen,
       setIsTelemetryPanelOpen,
+      setIsRawTelemetryPanelOpen,
       handleBuilderModeToggle,
       isReadOnly,
       setCeoWorkbenchView,

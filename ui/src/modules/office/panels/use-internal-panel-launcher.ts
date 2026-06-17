@@ -18,6 +18,7 @@ import type { OfficeInternalPanelId } from "./internal-panel-catalog";
 export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelId) => void {
   const setIsGlobalTeamPanelOpen = useAppStore((state) => state.setIsGlobalTeamPanelOpen);
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
+  const setIsRawTelemetryPanelOpen = useAppStore((state) => state.setIsRawTelemetryPanelOpen);
   const setIsResourceBankPanelOpen = useAppStore((state) => state.setIsResourceBankPanelOpen);
   const setIsDocumentLibraryPanelOpen = useAppStore((state) => state.setIsDocumentLibraryPanelOpen);
   const setIsSkillsPanelOpen = useAppStore((state) => state.setIsSkillsPanelOpen);
@@ -44,6 +45,9 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
           break;
         case "telemetry":
           setIsTelemetryPanelOpen(true);
+          break;
+        case "raw-telemetry":
+          setIsRawTelemetryPanelOpen(true);
           break;
         case "resource-bank":
           setIsResourceBankPanelOpen(true);
@@ -87,6 +91,7 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
       setIsFurnitureShopOpen,
       setIsGlobalTeamPanelOpen,
       setIsResourceBankPanelOpen,
+      setIsRawTelemetryPanelOpen,
       setIsSettingsModalOpen,
       setIsSkillsPanelOpen,
       setIsTelemetryPanelOpen,

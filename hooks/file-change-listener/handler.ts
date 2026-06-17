@@ -1,0 +1,385 @@
+/**
+ * FILE CHANGE LISTENER HOOK
+ * =========================
+ * Purpose
+ * - Detect tracked project file edits after write-capable tools.
+ * - Publish compact `file.changed` hook telemetry for office head bubbles.
+ */
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+
+type JsonRecord = Record<string, unknown>;
+
+export type FileChangeBubbleCandidate = {
+  threadId?: string;
+  sessionId?: string;
+  projectPath: string;
+  filePath: string;
+  message: string;
+  eventAt: number;
+  eventKey: string;
+};
+
+export type PublishFileChangeOptions = {
+  endpointBaseUrl?: string;
+  telemetryToken?: string;
+  fetchImpl?: typeof fetch;
+};
+
+export type FileChangeParseOptions = {
+  trackedPathPatterns?: readonly string[];
+};
+
+const WRITE_TOOL_PATTERN = /(?:bash|apply_patch|edit|write|create|delete|multi_tool_use)/i;
+const MAX_CHANGED_FILES = 12;
+const MAX_FILE_BYTES = 24_000;
+const DEFAULT_TRACKED_PATH_PATTERNS = [
+  "progress.md",
+  "goals.md",
+  "tickets/*/ticket.md",
+  "tickets/*/progress.md",
+  "tickets/*/program.md",
+  "docs/*.md",
+  "docs/**/*.md",
+  "evals/**",
+  "skills/*/memory.md",
+] as const;
+
+function isRecord(value: unknown): value is JsonRecord {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function cleanString(value: unknown, limit = 500): string | undefined {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  return trimmed ? trimmed.slice(0, limit) : undefined;
+}
+
+function resolveToolName(payload: JsonRecord): string {
+  return (
+    cleanString(payload.toolName, 120) ??
+    cleanString(payload.tool_name, 120) ??
+    cleanString(payload.tool, 120) ??
+    "unknown"
+  );
+}
+
+function resolveEventName(payload: JsonRecord): string {
+  return (
+    cleanString(payload.event, 120) ??
+    cleanString(payload.hook_event_name, 120) ??
+    cleanString(payload.hookEventName, 120) ??
+    cleanString(payload.type, 120) ??
+    "PostToolUse"
+  );
+}
+
+function resolveOccurredAt(payload: JsonRecord, now: number): number {
+  const direct = payload.timestamp ?? payload.occurredAt ?? payload.occurred_at;
+  if (typeof direct === "number" && Number.isFinite(direct)) return direct;
+  const parsed = Date.parse(cleanString(direct, 80) ?? "");
+  return Number.isFinite(parsed) ? parsed : now;
+}
+
+function resolveMetadata(payload: JsonRecord): {
+  sessionId?: string;
+  threadId?: string;
+  projectPath?: string;
+} {
+  const session = isRecord(payload.session) ? payload.session : {};
+  const thread = isRecord(payload.thread) ? payload.thread : {};
+  return {
+    sessionId:
+      cleanString(payload.sessionId, 200) ??
+      cleanString(payload.session_id, 200) ??
+      cleanString(session.id, 200) ??
+      cleanString(session.key, 200),
+    threadId:
+      cleanString(payload.threadId, 200) ??
+      cleanString(payload.thread_id, 200) ??
+      cleanString(thread.id, 200),
+    projectPath:
+      cleanString(payload.cwd, 1_000) ??
+      cleanString(payload.projectPath, 1_000) ??
+      cleanString(payload.project_path, 1_000),
+  };
+}
+
+function normalizeRelativePath(candidate: string, projectPath: string): string | null {
+  const trimmed = candidate.trim().replace(/^['"`]+|['"`:,]+$/g, "");
+  if (!trimmed || /^[a-z]+:\/\//i.test(trimmed)) return null;
+  const withoutLine = trimmed.replace(/:\d+(?::\d+)?$/, "");
+  const absolute = path.isAbsolute(withoutLine)
+    ? path.normalize(withoutLine)
+    : path.resolve(projectPath, withoutLine);
+  const relative = path.relative(projectPath, absolute).replace(/\\/g, "/");
+  if (!relative || relative.startsWith("../") || relative === ".." || path.isAbsolute(relative)) return null;
+  return relative;
+}
+
+function globToRegExp(pattern: string): RegExp {
+  const normalized = pattern.trim().replace(/\\/g, "/");
+  let source = "";
+  for (let index = 0; index < normalized.length; index += 1) {
+    const char = normalized[index];
+    const next = normalized[index + 1];
+    if (char === "*" && next === "*") {
+      source += ".*";
+      index += 1;
+      continue;
+    }
+    if (char === "*") {
+      source += "[^/]*";
+      continue;
+    }
+    source += char.replace(/[|\\{}()[\]^$+?.]/g, "\\$&");
+  }
+  return new RegExp(`^${source}$`, "i");
+}
+
+function trackedPathMatchers(patterns: readonly string[] = DEFAULT_TRACKED_PATH_PATTERNS): RegExp[] {
+  return patterns.map((pattern) => globToRegExp(pattern));
+}
+
+function isTrackedBubblePath(filePath: string, matchers = trackedPathMatchers()): boolean {
+  const normalized = filePath.replace(/\\/g, "/");
+  return matchers.some((matcher) => matcher.test(normalized));
+}
+
+function extractPatchPaths(text: string): string[] {
+  const paths: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const match = line.match(/^\*\*\* (?:Add|Update|Delete) File:\s+(.+)$/);
+    if (match?.[1]) paths.push(match[1].trim());
+  }
+  return paths;
+}
+
+function extractPathsFromCommand(command: string): string[] {
+  const paths = new Set<string>();
+  const tokens = shellTokens(command);
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index]?.toLowerCase();
+    if (token === ">" || token === ">>") {
+      const target = tokens[index + 1];
+      if (target) paths.add(target);
+      continue;
+    }
+    if (token === "tee" || token === "touch" || token === "rm" || token === "unlink") {
+      for (let next = index + 1; next < tokens.length; next += 1) {
+        const candidate = tokens[next];
+        if (!candidate || isShellBoundary(candidate)) break;
+        if (!candidate.startsWith("-")) paths.add(candidate);
+      }
+      continue;
+    }
+    if (token === "mv" || token === "cp") {
+      const commandPaths: string[] = [];
+      for (let next = index + 1; next < tokens.length; next += 1) {
+        const candidate = tokens[next];
+        if (!candidate || isShellBoundary(candidate)) break;
+        if (!candidate.startsWith("-")) commandPaths.push(candidate);
+      }
+      for (const candidate of commandPaths) paths.add(candidate);
+    }
+  }
+  return [...paths];
+}
+
+function shellTokens(command: string): string[] {
+  const tokens: string[] = [];
+  const tokenPattern = /"([^"]+)"|'([^']+)'|`([^`]+)`|(&&|\|\||>>|[;&|<>])|([^\s;&|<>]+)/g;
+  for (const match of command.matchAll(tokenPattern)) {
+    const token = (match[1] ?? match[2] ?? match[3] ?? match[4] ?? match[5] ?? "")
+      .trim()
+      .replace(/^[({[]+|[),;\]}]+$/g, "");
+    if (token) tokens.push(token);
+  }
+  return tokens;
+}
+
+function isShellBoundary(token: string): boolean {
+  return token === ";" || token === "&&" || token === "||" || token === "|" || token === "<" || token === ">" || token === ">>";
+}
+
+function extractLikelyPathStrings(value: unknown, depth = 0): string[] {
+  if (depth > 5) return [];
+  if (typeof value === "string") {
+    return [...extractPatchPaths(value), ...extractPathsFromCommand(value)];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => extractLikelyPathStrings(entry, depth + 1));
+  }
+  if (!isRecord(value)) return [];
+
+  const paths: string[] = [];
+  for (const [key, child] of Object.entries(value)) {
+    if (/^(path|file|filePath|file_path|filename|target|targetPath|target_path|paths|changedFiles|changed_files)$/i.test(key)) {
+      if (typeof child === "string") paths.push(child);
+      if (Array.isArray(child)) {
+        paths.push(...child.filter((entry): entry is string => typeof entry === "string"));
+      }
+      continue;
+    }
+    if (
+      /^(files|edits|toolInput|tool_input|input|parameters|args|cmd|command|toolResponse|tool_response|output)$/i.test(
+        key,
+      )
+    ) {
+      paths.push(...extractLikelyPathStrings(child, depth + 1));
+    }
+  }
+  return paths;
+}
+
+function changedTrackedFilesFromPayload(
+  payload: JsonRecord,
+  projectPath: string,
+  patterns?: readonly string[],
+): string[] {
+  const matchers = trackedPathMatchers(patterns);
+  const candidates = extractLikelyPathStrings(payload);
+  const normalized = new Set<string>();
+  for (const candidate of candidates) {
+    const relative = normalizeRelativePath(candidate, projectPath);
+    if (relative && isTrackedBubblePath(relative, matchers)) normalized.add(relative);
+    if (normalized.size >= MAX_CHANGED_FILES) break;
+  }
+  return [...normalized];
+}
+
+function usefulFileLines(projectPath: string, filePath: string): string[] {
+  const absolutePath = path.resolve(projectPath, filePath);
+  if (!existsSync(absolutePath)) return [];
+  try {
+    const content = readFileSync(absolutePath, { encoding: "utf8", flag: "r" }).slice(0, MAX_FILE_BYTES);
+    return content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .map((line) => line.replace(/^[-*]\s+/, "").trim())
+      .filter((line) => line && !/^[-#*\s]*$/.test(line))
+      .filter((line) => !/^[a-z_ -]+:\s*$/i.test(line))
+      .slice(-8)
+      .reverse();
+  } catch {
+    return [];
+  }
+}
+
+function summarizeFileChange(projectPath: string, filePath: string): string {
+  const base = path.basename(filePath);
+  const firstUseful = usefulFileLines(projectPath, filePath)[0];
+  const suffix = firstUseful ? `: ${firstUseful.slice(0, 90)}` : "";
+  if (base.toLowerCase() === "progress.md") return `Updated progress${suffix}`;
+  if (base.toLowerCase() === "goals.md") return `Updated goals${suffix}`;
+  if (base.toLowerCase() === "ticket.md") return `Updated ticket${suffix}`;
+  if (base.toLowerCase() === "memory.md") return `Updated memory${suffix}`;
+  return `Updated ${base}${suffix}`;
+}
+
+function stableEventKey(input: {
+  sessionId?: string;
+  threadId?: string;
+  projectPath: string;
+  filePath: string;
+  message: string;
+}): string {
+  const hash = createHash("sha1")
+    .update([input.projectPath, input.filePath, input.message].join("\n"))
+    .digest("hex")
+    .slice(0, 16);
+  return [
+    "file-change",
+    input.threadId ?? input.sessionId ?? "thread",
+    input.filePath.replace(/\s+/g, "-"),
+    hash,
+  ]
+    .join(":")
+    .slice(0, 500);
+}
+
+export function parseFileChangeBubbleCandidatesFromPayload(
+  payload: unknown,
+  now = Date.now(),
+  options: FileChangeParseOptions = {},
+): FileChangeBubbleCandidate[] {
+  if (!isRecord(payload)) return [];
+  if (!/post.*tool.*use/i.test(resolveEventName(payload))) return [];
+  if (!WRITE_TOOL_PATTERN.test(resolveToolName(payload))) return [];
+  const metadata = resolveMetadata(payload);
+  if (!metadata.projectPath) return [];
+  const projectPath = path.resolve(metadata.projectPath);
+  const eventAt = resolveOccurredAt(payload, now);
+  return changedTrackedFilesFromPayload(payload, projectPath, options.trackedPathPatterns).map((filePath) => {
+    const message = summarizeFileChange(projectPath, filePath);
+    return {
+      threadId: metadata.threadId ?? metadata.sessionId,
+      sessionId: metadata.sessionId,
+      projectPath,
+      filePath,
+      message,
+      eventAt,
+      eventKey: stableEventKey({
+        threadId: metadata.threadId,
+        sessionId: metadata.sessionId,
+        projectPath,
+        filePath,
+        message,
+      }),
+    };
+  });
+}
+
+export function parseFileChangeBubbleCandidatesFromStdin(
+  stdin: string,
+  now = Date.now(),
+  options: FileChangeParseOptions = {},
+): FileChangeBubbleCandidate[] {
+  try {
+    return parseFileChangeBubbleCandidatesFromPayload(JSON.parse(stdin), now, options);
+  } catch {
+    return [];
+  }
+}
+
+export async function publishFileChangeBubbleCandidates(
+  candidates: FileChangeBubbleCandidate[],
+  options: PublishFileChangeOptions = {},
+): Promise<{ attempted: number; published: number; skipped: boolean }> {
+  const endpointBaseUrl = options.endpointBaseUrl?.replace(/\/+$/, "");
+  if (!endpointBaseUrl || candidates.length === 0) {
+    return { attempted: candidates.length, published: 0, skipped: true };
+  }
+  const fetchImpl = options.fetchImpl ?? fetch;
+  let published = 0;
+  await Promise.all(
+    candidates.map(async (candidate) => {
+      const response = await fetchImpl(`${endpointBaseUrl}/telemetry/hooks`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(options.telemetryToken ? { "x-farplane-telemetry-token": options.telemetryToken } : {}),
+        },
+        body: JSON.stringify({
+          hookName: "file-change-listener",
+          hookType: "PostToolUse",
+          projectId: undefined,
+          sessionId: candidate.sessionId,
+          payload: {
+            eventName: "file.changed",
+            threadId: candidate.threadId,
+            cwd: candidate.projectPath,
+            paths: [candidate.filePath],
+            message: candidate.message,
+          },
+          eventAt: candidate.eventAt,
+          eventKey: candidate.eventKey,
+        }),
+      });
+      if (response.ok) {
+        published += 1;
+      }
+    }),
+  );
+  return { attempted: candidates.length, published, skipped: false };
+}
