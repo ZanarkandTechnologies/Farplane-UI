@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import { Html } from "@react-three/drei";
 
 import type { EmployeeActivityState } from "@/modules/office/lib/types";
@@ -31,11 +31,13 @@ const TITLE_TEXT_CLASS =
   "line-clamp-2 whitespace-normal break-keep leading-snug [hyphens:none] [overflow-wrap:normal] [word-break:keep-all]";
 const ACTIVITY_ROW_CLASS = "flex items-center justify-center gap-1.5";
 const THINKING_CLOUD_CLASS =
-  "relative flex min-h-[34px] w-[196px] max-w-[196px] items-center justify-center rounded-full border border-cyan-200/75 bg-slate-950/92 px-4 py-1.5 text-center text-[12px] font-semibold leading-snug text-cyan-50 shadow-lg shadow-cyan-950/30 backdrop-blur";
+  "relative isolate flex min-h-[38px] w-[188px] max-w-[188px] items-center justify-center rounded-[24px] border border-cyan-100/70 bg-slate-950/94 px-4 py-2 text-center text-[12px] font-semibold leading-snug text-cyan-50 shadow-lg shadow-cyan-950/30 backdrop-blur";
 const BUBBLE_MESSAGE_STACK_CLASS =
-  "relative flex w-[212px] max-w-[212px] flex-col gap-1 rounded-[18px] border border-cyan-200/70 bg-slate-950/92 px-3.5 py-2 text-[11px] font-semibold leading-snug text-cyan-50 shadow-lg shadow-cyan-950/30 backdrop-blur";
+  "relative isolate flex w-[204px] max-w-[204px] flex-col gap-1 rounded-[24px] border border-cyan-100/70 bg-slate-950/94 px-4 py-2.5 text-[11px] font-semibold leading-snug text-cyan-50 shadow-lg shadow-cyan-950/30 backdrop-blur";
 const BUBBLE_MESSAGE_ROW_CLASS = "line-clamp-2 whitespace-normal break-words leading-snug";
-const THINKING_DOT_CLASS = "absolute rounded-full border border-cyan-200/70 bg-slate-950/92";
+const THINKING_LOBE_CLASS =
+  "pointer-events-none absolute -z-10 rounded-full border border-cyan-100/70 bg-slate-950/94";
+const THINKING_DOT_CLASS = "pointer-events-none absolute rounded-full border border-cyan-100/70 bg-slate-950/94";
 
 type EmployeeStatusBubblesProps = {
   statusMessage?: string;
@@ -166,6 +168,27 @@ function EmployeeActivityBadge({
   );
 }
 
+function ThoughtCloud({
+  children,
+  stacked = false,
+}: {
+  children: ReactNode;
+  stacked?: boolean;
+}) {
+  return (
+    <div className={stacked ? BUBBLE_MESSAGE_STACK_CLASS : THINKING_CLOUD_CLASS}>
+      <span className={`${THINKING_LOBE_CLASS} -top-2 left-8 h-7 w-9`} />
+      <span className={`${THINKING_LOBE_CLASS} -top-3 left-[70px] h-8 w-12`} />
+      <span className={`${THINKING_LOBE_CLASS} -top-1 right-7 h-7 w-9`} />
+      <span className={`${THINKING_LOBE_CLASS} -bottom-1 left-5 h-6 w-8`} />
+      <span className={`${THINKING_LOBE_CLASS} -bottom-1 right-6 h-6 w-8`} />
+      <span className="relative z-10 contents">{children}</span>
+      <span className={`${THINKING_DOT_CLASS} -bottom-2.5 left-[48%] h-2.5 w-2.5`} />
+      <span className={`${THINKING_DOT_CLASS} -bottom-5 left-[42%] h-1.5 w-1.5 opacity-90`} />
+    </div>
+  );
+}
+
 export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
   statusMessage,
   activityState,
@@ -203,7 +226,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
     (isHovered || isHighlighted || showPinnedReadyBadge);
   const richLabelOffset = showActivityBadge ? 0.86 : 0.5;
   const onboardingOffset = showActivityBadge ? 1.28 : 1.05;
-  const bubbleOffset = 0.42;
+  const bubbleOffset = 0.22;
 
   return (
     <>
@@ -215,11 +238,9 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
           <div className="animate-in fade-in zoom-in-95 duration-150">
-            <div className={THINKING_CLOUD_CLASS}>
+            <ThoughtCloud>
               <span className="line-clamp-2 whitespace-normal break-words">{invocationLabel}</span>
-              <span className={`${THINKING_DOT_CLASS} -bottom-2 left-[46%] h-2.5 w-2.5`} />
-              <span className={`${THINKING_DOT_CLASS} -bottom-4 left-[39%] h-1.5 w-1.5 opacity-90`} />
-            </div>
+            </ThoughtCloud>
           </div>
         </Html>
       ) : null}
@@ -232,15 +253,13 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
           <div className="animate-in fade-in zoom-in-95 duration-150">
-            <div className={BUBBLE_MESSAGE_STACK_CLASS}>
+            <ThoughtCloud stacked>
               {visibleBubbleMessages.map((message) => (
                 <div key={`${message.threadId}:${message.eventAt}`} className={BUBBLE_MESSAGE_ROW_CLASS}>
                   {message.message}
                 </div>
               ))}
-              <span className={`${THINKING_DOT_CLASS} -bottom-2 left-[46%] h-2.5 w-2.5`} />
-              <span className={`${THINKING_DOT_CLASS} -bottom-4 left-[39%] h-1.5 w-1.5 opacity-90`} />
-            </div>
+            </ThoughtCloud>
           </div>
         </Html>
       ) : null}
@@ -258,7 +277,11 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
         />
       ) : null}
 
-      {showRichEmployeeLabels && !showActivityBadge && (isHovered || isHighlighted) && (
+      {showRichEmployeeLabels &&
+      !invocationLabel &&
+      !showBubbleMessageStack &&
+      !showActivityBadge &&
+      (isHovered || isHighlighted) ? (
         <Html
           position={[0, totalHeight + richLabelOffset, 0]}
           center
@@ -279,7 +302,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
             </div>
           </div>
         </Html>
-      )}
+      ) : null}
 
       {showRichEmployeeLabels && onboardingPrompt ? (
         <Html
