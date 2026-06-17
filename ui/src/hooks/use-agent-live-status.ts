@@ -1,5 +1,5 @@
 import { useQuery } from "convex/react";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { coerceLiveState } from "@/modules/runtime";
 import type { AgentBubbleMessage, AgentLiveStatus, OfficeTravelIntent } from "@/modules/runtime";
@@ -36,6 +36,7 @@ type HookBubbleQueryResult = {
 
 const EVENT_STICKY_MS = 10_000;
 const HOOK_BUBBLE_RANGE_MS = 30_000;
+const HOOK_BUBBLE_VISIBLE_MS = 5_000;
 
 function codexThreadIdFromAgentId(agentId: string): string | undefined {
   const prefix = "codex-thread:";
@@ -86,6 +87,7 @@ export function useAgentLiveStatuses(
   agentIds: string[],
 ): Record<string, AgentLiveStatus> | undefined {
   const convexEnabled = isConvexEnabled();
+  const [bubbleNow, setBubbleNow] = useState(() => Date.now());
   const stickyEventRef = useRef<
     Record<string, { statusText: string; label: string; expiresAt: number }>
   >({});
@@ -114,13 +116,21 @@ export function useAgentLiveStatuses(
         }
       : "skip",
   ) as HookBubbleQueryResult | undefined;
+
+  useEffect(() => {
+    if (!convexEnabled || threadIds.length === 0) return;
+    const timer = window.setInterval(() => setBubbleNow(Date.now()), 500);
+    return () => window.clearInterval(timer);
+  }, [convexEnabled, threadIds.length]);
+
   return useMemo(() => {
     if (!convexEnabled) return undefined;
     if (!rows && !hookBubbles) return undefined;
-    const now = Date.now();
+    const now = bubbleNow;
     const recordRows = (rows ?? {}) as Record<string, ConvexStatusRow>;
     const latestMessageByThreadId = new Map<string, AgentBubbleMessage>();
     for (const message of hookBubbles?.messages ?? []) {
+      if (now - message.eventAt > HOOK_BUBBLE_VISIBLE_MS) continue;
       const existing = latestMessageByThreadId.get(message.threadId);
       if (!existing || existing.eventAt < message.eventAt) {
         latestMessageByThreadId.set(message.threadId, message);
@@ -128,6 +138,7 @@ export function useAgentLiveStatuses(
     }
     const latestTravelByThreadId = new Map<string, OfficeTravelIntent>();
     for (const intent of hookBubbles?.travelIntents ?? []) {
+      if (now - intent.eventAt > HOOK_BUBBLE_VISIBLE_MS) continue;
       const existing = latestTravelByThreadId.get(intent.threadId);
       if (!existing || existing.eventAt < intent.eventAt) {
         latestTravelByThreadId.set(intent.threadId, intent);
@@ -191,5 +202,5 @@ export function useAgentLiveStatuses(
     }
 
     return result;
-  }, [agentIds, convexEnabled, hookBubbles, rows]);
+  }, [agentIds, bubbleNow, convexEnabled, hookBubbles, rows]);
 }

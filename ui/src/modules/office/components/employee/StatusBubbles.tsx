@@ -30,11 +30,12 @@ const FLOATING_STATUS_CARD_CLASS =
 const TITLE_TEXT_CLASS =
   "line-clamp-2 whitespace-normal break-keep leading-snug [hyphens:none] [overflow-wrap:normal] [word-break:keep-all]";
 const ACTIVITY_ROW_CLASS = "flex items-center justify-center gap-1.5";
-const SKILL_INVOCATION_CLASS =
-  "max-w-[168px] rounded-full border border-cyan-200/70 bg-slate-950/90 px-2.5 py-1 text-center text-[10px] font-semibold leading-none text-cyan-50 shadow-md shadow-cyan-950/30 backdrop-blur";
+const THINKING_CLOUD_CLASS =
+  "relative flex min-h-[34px] w-[196px] max-w-[196px] items-center justify-center rounded-full border border-cyan-200/75 bg-slate-950/92 px-4 py-1.5 text-center text-[12px] font-semibold leading-snug text-cyan-50 shadow-lg shadow-cyan-950/30 backdrop-blur";
 const BUBBLE_MESSAGE_STACK_CLASS =
-  "flex w-[220px] max-w-[220px] flex-col gap-1 rounded-md border border-slate-300/60 bg-slate-950/90 px-2.5 py-2 text-[11px] font-semibold leading-none text-slate-50 shadow-lg shadow-slate-950/30 backdrop-blur";
+  "relative flex w-[212px] max-w-[212px] flex-col gap-1 rounded-[18px] border border-cyan-200/70 bg-slate-950/92 px-3.5 py-2 text-[11px] font-semibold leading-snug text-cyan-50 shadow-lg shadow-cyan-950/30 backdrop-blur";
 const BUBBLE_MESSAGE_ROW_CLASS = "line-clamp-2 whitespace-normal break-words leading-snug";
+const THINKING_DOT_CLASS = "absolute rounded-full border border-cyan-200/70 bg-slate-950/92";
 
 type EmployeeStatusBubblesProps = {
   statusMessage?: string;
@@ -196,23 +197,28 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
   const invocationLabel =
     visibleBubbleMessages.length === 1 ? visibleBubbleMessages[0]?.message.trim() : skillInvocationLabel?.trim();
   const showActivityBadge =
-    !showBubbleMessageStack && hasActivityBadge && (isHovered || isHighlighted || showPinnedReadyBadge);
+    !invocationLabel &&
+    !showBubbleMessageStack &&
+    hasActivityBadge &&
+    (isHovered || isHighlighted || showPinnedReadyBadge);
   const richLabelOffset = showActivityBadge ? 0.86 : 0.5;
   const onboardingOffset = showActivityBadge ? 1.28 : 1.05;
-  const invocationOffset = showActivityBadge || showBubbleMessageStack ? 1.18 : 0.62;
+  const bubbleOffset = 0.42;
 
   return (
     <>
       {invocationLabel ? (
         <Html
-          position={[0, totalHeight + invocationOffset, 0]}
+          position={[0, totalHeight + bubbleOffset, 0]}
           center
           zIndexRange={[115, 0]}
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
           <div className="animate-in fade-in zoom-in-95 duration-150">
-            <div className={SKILL_INVOCATION_CLASS}>
-              <span className="block truncate">{invocationLabel}</span>
+            <div className={THINKING_CLOUD_CLASS}>
+              <span className="line-clamp-2 whitespace-normal break-words">{invocationLabel}</span>
+              <span className={`${THINKING_DOT_CLASS} -bottom-2 left-[46%] h-2.5 w-2.5`} />
+              <span className={`${THINKING_DOT_CLASS} -bottom-4 left-[39%] h-1.5 w-1.5 opacity-90`} />
             </div>
           </div>
         </Html>
@@ -220,7 +226,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
 
       {showBubbleMessageStack ? (
         <Html
-          position={[0, totalHeight + 0.84, 0]}
+          position={[0, totalHeight + bubbleOffset, 0]}
           center
           zIndexRange={[112, 0]}
           style={{ pointerEvents: "none", userSelect: "none" }}
@@ -232,6 +238,8 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
                   {message.message}
                 </div>
               ))}
+              <span className={`${THINKING_DOT_CLASS} -bottom-2 left-[46%] h-2.5 w-2.5`} />
+              <span className={`${THINKING_DOT_CLASS} -bottom-4 left-[39%] h-1.5 w-1.5 opacity-90`} />
             </div>
           </div>
         </Html>
