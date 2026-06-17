@@ -113,6 +113,7 @@ export interface EmployeeData extends Employee {
   activityLabel?: string;
   activityDetail?: string;
   activityUpdatedAt?: number;
+  bubbleMessages?: Array<{ threadId: string; message: string; eventAt: number }>;
   heartbeatState?: AgentState;
   heartbeatBubbles?: Array<{ label: string; weight: number }>;
 }

@@ -28,7 +28,7 @@ import { ContextMenu } from "../context-menu";
 import { EmployeePresenceAura, resolveEmployeePresenceVisual } from "./presence-visuals";
 import { ThreeHumanCharacterRenderer } from "./renderers/three-human";
 import type { CharacterRendererConfig } from "./renderers/types";
-import { EmployeeStatusBubbles } from "./StatusBubbles";
+import { EmployeeStatusBubbles, formatSkillInvocationLabel } from "./StatusBubbles";
 import { useEmployeeActions } from "./use-employee-actions";
 import { useEmployeeActivityVisibility } from "./use-employee-activity-visibility";
 import { useEmployeeAvatarPalette } from "./use-employee-avatar-palette";
@@ -63,6 +63,7 @@ export interface EmployeeProps {
   activityLabel?: string;
   activityDetail?: string;
   activityUpdatedAt?: number;
+  bubbleMessages?: Array<{ threadId: string; message: string; eventAt: number }>;
   heartbeatState?: AgentState;
   heartbeatBubbles?: Array<{ label: string; weight?: number }>;
   presencePersistent?: boolean;
@@ -100,6 +101,7 @@ const Employee = memo(function Employee({
   activityLabel,
   activityDetail,
   activityUpdatedAt,
+  bubbleMessages,
   heartbeatState,
   presencePersistent,
   useCompactOverlayMode = false,
@@ -200,6 +202,7 @@ const Employee = memo(function Employee({
           ? "Open Chat"
           : null
       : null;
+  const skillInvocationLabel = formatSkillInvocationLabel(activityTargetSkillId);
 
   return (
     <>
@@ -285,6 +288,8 @@ const Employee = memo(function Employee({
           onboardingPrompt={onboardingPrompt}
           useCompactOverlayMode={useCompactOverlayMode}
           pinReadyActivity={isCodexThreadEmployee}
+          skillInvocationLabel={isGhostProjectionActive ? undefined : skillInvocationLabel}
+          bubbleMessages={isGhostProjectionActive ? undefined : bubbleMessages}
         />
 
         <ContextMenu
@@ -341,6 +346,8 @@ const Employee = memo(function Employee({
             onboardingPrompt={null}
             useCompactOverlayMode={useCompactOverlayMode}
             pinReadyActivity={false}
+            skillInvocationLabel={skillInvocationLabel}
+            bubbleMessages={bubbleMessages}
           />
         </group>
       ) : null}

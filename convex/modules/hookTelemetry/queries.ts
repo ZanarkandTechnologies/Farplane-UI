@@ -3,15 +3,19 @@ import { buildTelemetrySummary } from "../runtimeTelemetry/runtimeTelemetry";
 import { telemetryDashboardArgsValidator } from "../runtimeTelemetry/validators";
 import { buildSkillInvocationDashboard } from "../skillInvocations/contracts";
 import {
+  hookTelemetryRowsToAgentBubbleMessages,
   hookTelemetryRowsToActivityPingRows,
+  hookTelemetryRowsToOfficeTravelIntents,
   hookTelemetryRowsToSkillInvocationRows,
   type HookTelemetryRow,
 } from "./projections";
-import { hookTelemetryWindowArgsValidator } from "./validators";
+import { hookTelemetryBubbleArgsValidator, hookTelemetryWindowArgsValidator } from "./validators";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MAX_DAYS = 90;
 const MAX_ROWS = 5000;
+const DEFAULT_BUBBLE_RANGE_MS = 30_000;
+const MAX_BUBBLE_RANGE_MS = 10 * 60 * 1000;
 
 type HookTelemetryExplorerEvent = HookTelemetryRow & {
   eventName?: string;
@@ -194,3 +198,48 @@ export const getRuntimeTelemetryDashboardFromHookTelemetry = query({
   },
 });
 
+export const getRecentBubbleMessages = query({
+  args: hookTelemetryBubbleArgsValidator,
+  handler: async (ctx, args) => {
+    const rangeMs = Math.max(
+      1_000,
+      Math.min(MAX_BUBBLE_RANGE_MS, Math.floor(args.rangeMs ?? DEFAULT_BUBBLE_RANGE_MS)),
+    );
+    const cutoff = Date.now() - rangeMs;
+    const limit = normalizeLimit(args.limit);
+    const sessionIds = [...new Set((args.sessionIds ?? []).map((entry) => entry.trim()).filter(Boolean))];
+    const projectId = args.projectId?.trim();
+
+    const rows =
+      sessionIds.length > 0
+        ? (
+            await Promise.all(
+              sessionIds.map((sessionId) =>
+                ctx.db
+                  .query("hookTelemetryEvents")
+                  .withIndex("by_session_eventAt", (q) => q.eq("sessionId", sessionId).gte("eventAt", cutoff))
+                  .order("desc")
+                  .take(limit),
+              ),
+            )
+          ).flat()
+        : projectId
+          ? await ctx.db
+              .query("hookTelemetryEvents")
+              .withIndex("by_project_eventAt", (q) => q.eq("projectId", projectId).gte("eventAt", cutoff))
+              .order("desc")
+              .take(limit)
+          : await ctx.db
+              .query("hookTelemetryEvents")
+              .withIndex("by_eventAt", (q) => q.gte("eventAt", cutoff))
+              .order("desc")
+              .take(limit);
+
+    const sortedRows = rows.map(toHookTelemetryRow).sort((left, right) => right.eventAt - left.eventAt);
+    const limitedRows = sortedRows.slice(0, limit);
+    return {
+      messages: hookTelemetryRowsToAgentBubbleMessages(limitedRows),
+      travelIntents: hookTelemetryRowsToOfficeTravelIntents(limitedRows),
+    };
+  },
+});

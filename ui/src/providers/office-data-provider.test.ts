@@ -197,6 +197,40 @@ describe("office-data-provider stabilization", () => {
     );
   });
 
+  it("keeps Convex bubble overlays when Codex adapter status owns the base thread state", () => {
+    const merged = mergeAgentLiveStatuses({
+      runtimeKind: "codex",
+      agentIds: ["codex-thread:thread-running"],
+      convexStatuses: {
+        "codex-thread:thread-running": {
+          agentId: "codex-thread:thread-running",
+          state: "running",
+          statusText: "Calling openai docs",
+          bubbles: [{ id: "hook-bubble", label: "Calling openai docs", weight: 100 }],
+          currentSkillId: "openai-docs",
+          bubbleMessages: [{ threadId: "thread-running", message: "Calling openai docs", eventAt: 3_000 }],
+        },
+      },
+      adapterStatuses: {
+        "codex-thread:thread-running": {
+          agentId: "codex-thread:thread-running",
+          state: "running",
+          statusText: "Codex turn running.",
+          bubbles: [{ id: "codex-thread-running", label: "Running", weight: 100 }],
+        },
+      },
+    });
+
+    expect(merged["codex-thread:thread-running"]).toEqual(
+      expect.objectContaining({
+        state: "running",
+        statusText: "Calling openai docs",
+        currentSkillId: "openai-docs",
+        bubbleMessages: [{ threadId: "thread-running", message: "Calling openai docs", eventAt: 3_000 }],
+      }),
+    );
+  });
+
   it("treats activity target changes as employee changes", () => {
     const base = [createEmployee()];
     const next = [
@@ -436,6 +470,7 @@ describe("office-data-provider team synthesis", () => {
           { id: "codex-active-flag-0-planning", label: "Planning", weight: 90 },
         ],
         currentSkillId: "world-monitor",
+        bubbleMessages: [{ threadId: "thread-running", message: "Calling world monitor", eventAt: 1770000000000 }],
         updatedAt: 1770000000000,
       },
     };
@@ -489,6 +524,7 @@ describe("office-data-provider team synthesis", () => {
         activityState: "running",
         activityLabel: "Running",
         activityDetail: "Codex turn running.",
+        bubbleMessages: [{ threadId: "thread-running", message: "Calling world monitor", eventAt: 1770000000000 }],
         heartbeatState: "running",
         heartbeatBubbles: [
           { label: "Running", weight: 100 },

@@ -94,6 +94,24 @@ function isCodexAgentId(agentId: string): boolean {
   return agentId === "codex-main" || agentId.startsWith("codex-thread:");
 }
 
+function overlayConvexLiveStatus(
+  adapterStatus: AgentLiveStatus,
+  convexStatus?: AgentLiveStatus,
+): AgentLiveStatus {
+  if (!convexStatus?.bubbleMessages?.length && !convexStatus?.officeTravelIntent) {
+    return adapterStatus;
+  }
+  return {
+    ...adapterStatus,
+    statusText: convexStatus.statusText || adapterStatus.statusText,
+    updatedAt: Math.max(adapterStatus.updatedAt ?? 0, convexStatus.updatedAt ?? 0) || adapterStatus.updatedAt,
+    bubbles: convexStatus.bubbles.length > 0 ? convexStatus.bubbles : adapterStatus.bubbles,
+    currentSkillId: convexStatus.currentSkillId ?? adapterStatus.currentSkillId,
+    bubbleMessages: convexStatus.bubbleMessages,
+    officeTravelIntent: convexStatus.officeTravelIntent,
+  };
+}
+
 export async function persistPlacementRepairIfAllowed(
   input: PlacementRepairPersistenceInput,
 ): Promise<PlacementRepairPersistenceResult> {
@@ -132,7 +150,7 @@ export function mergeAgentLiveStatuses(input: {
     for (const agentId of input.agentIds) {
       if (!isCodexAgentId(agentId)) continue;
       const adapterStatus = adapterStatuses[agentId];
-      if (adapterStatus) merged[agentId] = adapterStatus;
+      if (adapterStatus) merged[agentId] = overlayConvexLiveStatus(adapterStatus, convexStatuses[agentId]);
     }
     return merged;
   }

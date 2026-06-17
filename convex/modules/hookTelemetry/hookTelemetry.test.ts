@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  hookTelemetryRowsToAgentBubbleMessages,
   hookTelemetryRowsToActivityPingRows,
+  hookTelemetryRowsToOfficeTravelIntents,
   hookTelemetryRowsToSkillInvocationRows,
   type HookTelemetryRow,
 } from "./projections";
@@ -66,6 +68,28 @@ describe("hook telemetry projections", () => {
         eventType: "turn_end",
         turnId: "turn-1",
       }),
+    ]);
+  });
+
+  it("projects skill invocation rows into bubble messages and office travel intents", () => {
+    const rows: HookTelemetryRow[] = [
+      {
+        hookName: "skill-invocation-listener",
+        hookType: "PostToolUse",
+        sessionId: "thread-1",
+        eventAt: 3_000,
+        payload: {
+          skillId: "openai-docs",
+          skillPath: "/skills/openai-docs/SKILL.md",
+        },
+      },
+    ];
+
+    expect(hookTelemetryRowsToAgentBubbleMessages(rows)).toEqual([
+      { threadId: "thread-1", message: "Calling openai docs", eventAt: 3_000 },
+    ]);
+    expect(hookTelemetryRowsToOfficeTravelIntents(rows)).toEqual([
+      { threadId: "thread-1", target: { kind: "skill", id: "openai-docs" }, eventAt: 3_000 },
     ]);
   });
 });

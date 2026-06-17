@@ -93,6 +93,23 @@ export interface HeartbeatSkillBubble {
   weight: number;
 }
 
+export interface AgentBubbleMessage {
+  threadId: string;
+  message: string;
+  eventAt: number;
+}
+
+export type OfficeTarget =
+  | { kind: "skill"; id: string }
+  | { kind: "object"; id: string }
+  | { kind: "zone"; id: string };
+
+export interface OfficeTravelIntent {
+  threadId: string;
+  target: OfficeTarget;
+  eventAt: number;
+}
+
 export interface HeartbeatWindow {
   beatId: string;
   sessionKey: string;
@@ -113,6 +130,8 @@ export interface AgentLiveStatus {
   updatedAt?: number;
   bubbles: HeartbeatSkillBubble[];
   currentSkillId?: string;
+  bubbleMessages?: AgentBubbleMessage[];
+  officeTravelIntent?: OfficeTravelIntent;
   latestHeartbeat?: HeartbeatWindow;
 }
 

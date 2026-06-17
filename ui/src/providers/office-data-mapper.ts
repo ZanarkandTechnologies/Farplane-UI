@@ -1177,6 +1177,7 @@ export function toOfficeData(
       activityLabel: activity.label,
       activityDetail: activity.detail,
       activityUpdatedAt: liveStatus?.updatedAt,
+      bubbleMessages: liveStatus?.bubbleMessages,
       heartbeatState: liveStatus?.state,
       heartbeatBubbles:
         liveStatus?.bubbles?.map((bubble) => ({ label: bubble.label, weight: bubble.weight })) ??

@@ -30,6 +30,11 @@ const FLOATING_STATUS_CARD_CLASS =
 const TITLE_TEXT_CLASS =
   "line-clamp-2 whitespace-normal break-keep leading-snug [hyphens:none] [overflow-wrap:normal] [word-break:keep-all]";
 const ACTIVITY_ROW_CLASS = "flex items-center justify-center gap-1.5";
+const SKILL_INVOCATION_CLASS =
+  "max-w-[168px] rounded-full border border-cyan-200/70 bg-slate-950/90 px-2.5 py-1 text-center text-[10px] font-semibold leading-none text-cyan-50 shadow-md shadow-cyan-950/30 backdrop-blur";
+const BUBBLE_MESSAGE_STACK_CLASS =
+  "flex w-[220px] max-w-[220px] flex-col gap-1 rounded-md border border-slate-300/60 bg-slate-950/90 px-2.5 py-2 text-[11px] font-semibold leading-none text-slate-50 shadow-lg shadow-slate-950/30 backdrop-blur";
+const BUBBLE_MESSAGE_ROW_CLASS = "line-clamp-2 whitespace-normal break-words leading-snug";
 
 type EmployeeStatusBubblesProps = {
   statusMessage?: string;
@@ -47,7 +52,20 @@ type EmployeeStatusBubblesProps = {
   onboardingPrompt?: string | null;
   useCompactOverlayMode?: boolean;
   pinReadyActivity?: boolean;
+  skillInvocationLabel?: string;
+  bubbleMessages?: Array<{ threadId: string; message: string; eventAt: number }>;
 };
+
+export function formatSkillInvocationLabel(skillId: string | undefined): string | undefined {
+  const normalized = skillId
+    ?.trim()
+    .replace(/^[$@#]+/, "")
+    .replace(/[_/]+/g, "-")
+    .replace(/-+/g, " ")
+    .trim();
+  if (!normalized) return undefined;
+  return `Calling ${normalized}`;
+}
 
 function getActivityBadgeStyle(state: EmployeeActivityState): ActivityBadgeStyle {
   switch (state) {
@@ -163,19 +181,62 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
   onboardingPrompt,
   useCompactOverlayMode = false,
   pinReadyActivity = false,
+  skillInvocationLabel,
+  bubbleMessages,
 }: EmployeeStatusBubblesProps) {
   const showRichEmployeeLabels = !useCompactOverlayMode;
+  const visibleBubbleMessages = (bubbleMessages ?? [])
+    .filter((message) => message.message.trim().length > 0)
+    .slice(0, 2);
   const hasActivityText = Boolean(activityLabel?.trim() || activityDetail?.trim());
   const hasActivityBadge =
     typeof activityState === "string" && (activityState !== "idle" || hasActivityText);
   const showPinnedReadyBadge = pinReadyActivity && activityState === "done";
+  const showBubbleMessageStack = visibleBubbleMessages.length > 1;
+  const invocationLabel =
+    visibleBubbleMessages.length === 1 ? visibleBubbleMessages[0]?.message.trim() : skillInvocationLabel?.trim();
   const showActivityBadge =
-    hasActivityBadge && (isHovered || isHighlighted || showPinnedReadyBadge);
+    !showBubbleMessageStack && hasActivityBadge && (isHovered || isHighlighted || showPinnedReadyBadge);
   const richLabelOffset = showActivityBadge ? 0.86 : 0.5;
   const onboardingOffset = showActivityBadge ? 1.28 : 1.05;
+  const invocationOffset = showActivityBadge || showBubbleMessageStack ? 1.18 : 0.62;
 
   return (
     <>
+      {invocationLabel ? (
+        <Html
+          position={[0, totalHeight + invocationOffset, 0]}
+          center
+          zIndexRange={[115, 0]}
+          style={{ pointerEvents: "none", userSelect: "none" }}
+        >
+          <div className="animate-in fade-in zoom-in-95 duration-150">
+            <div className={SKILL_INVOCATION_CLASS}>
+              <span className="block truncate">{invocationLabel}</span>
+            </div>
+          </div>
+        </Html>
+      ) : null}
+
+      {showBubbleMessageStack ? (
+        <Html
+          position={[0, totalHeight + 0.84, 0]}
+          center
+          zIndexRange={[112, 0]}
+          style={{ pointerEvents: "none", userSelect: "none" }}
+        >
+          <div className="animate-in fade-in zoom-in-95 duration-150">
+            <div className={BUBBLE_MESSAGE_STACK_CLASS}>
+              {visibleBubbleMessages.map((message) => (
+                <div key={`${message.threadId}:${message.eventAt}`} className={BUBBLE_MESSAGE_ROW_CLASS}>
+                  {message.message}
+                </div>
+              ))}
+            </div>
+          </div>
+        </Html>
+      ) : null}
+
       {showActivityBadge ? (
         <EmployeeActivityBadge
           state={activityState}

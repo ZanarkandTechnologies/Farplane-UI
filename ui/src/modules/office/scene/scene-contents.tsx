@@ -325,6 +325,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
             activityLabel={employee.activityLabel}
             activityDetail={employee.activityDetail}
             activityUpdatedAt={employee.activityUpdatedAt}
+            bubbleMessages={employee.bubbleMessages}
             heartbeatState={employee.heartbeatState}
             heartbeatBubbles={employee.heartbeatBubbles}
             presencePersistent={employee.presencePersistent}

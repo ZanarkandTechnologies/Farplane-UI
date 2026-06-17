@@ -51,3 +51,10 @@ export const hookTelemetryWindowArgsValidator = {
   rangeDays: v.optional(v.number()),
   limit: v.optional(v.number()),
 };
+
+export const hookTelemetryBubbleArgsValidator = {
+  projectId: v.optional(v.string()),
+  sessionIds: v.optional(v.array(v.string())),
+  rangeMs: v.optional(v.number()),
+  limit: v.optional(v.number()),
+};
