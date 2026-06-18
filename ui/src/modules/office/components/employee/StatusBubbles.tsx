@@ -30,14 +30,13 @@ const FLOATING_STATUS_CARD_CLASS =
 const TITLE_TEXT_CLASS =
   "line-clamp-2 whitespace-normal break-keep leading-snug [hyphens:none] [overflow-wrap:normal] [word-break:keep-all]";
 const ACTIVITY_ROW_CLASS = "flex items-center justify-center gap-1.5";
-const THINKING_CLOUD_CLASS =
-  "relative isolate flex min-h-[38px] w-[188px] max-w-[188px] items-center justify-center rounded-[24px] border border-cyan-100/70 bg-slate-950/94 px-4 py-2 text-center text-[12px] font-semibold leading-snug text-cyan-50 shadow-lg shadow-cyan-950/30 backdrop-blur";
-const BUBBLE_MESSAGE_STACK_CLASS =
-  "relative isolate flex w-[204px] max-w-[204px] flex-col gap-1 rounded-[24px] border border-cyan-100/70 bg-slate-950/94 px-4 py-2.5 text-[11px] font-semibold leading-snug text-cyan-50 shadow-lg shadow-cyan-950/30 backdrop-blur";
+const THINKING_CLOUD_FRAME_CLASS =
+  "relative h-[72px] w-[220px] max-w-[220px] drop-shadow-[0_5px_8px_rgba(15,23,42,0.28)]";
+const THINKING_CLOUD_TEXT_CLASS =
+  "absolute left-[34px] top-[19px] z-10 flex h-[30px] w-[152px] items-center justify-center text-center text-[12px] font-semibold leading-tight text-slate-950";
+const THINKING_CLOUD_STACK_TEXT_CLASS =
+  "absolute left-[32px] top-[15px] z-10 flex h-[40px] w-[156px] flex-col items-center justify-center gap-0.5 text-center text-[11px] font-semibold leading-tight text-slate-950";
 const BUBBLE_MESSAGE_ROW_CLASS = "line-clamp-2 whitespace-normal break-words leading-snug";
-const THINKING_LOBE_CLASS =
-  "pointer-events-none absolute -z-10 rounded-full border border-cyan-100/70 bg-slate-950/94";
-const THINKING_DOT_CLASS = "pointer-events-none absolute rounded-full border border-cyan-100/70 bg-slate-950/94";
 
 type EmployeeStatusBubblesProps = {
   statusMessage?: string;
@@ -176,15 +175,26 @@ function ThoughtCloud({
   stacked?: boolean;
 }) {
   return (
-    <div className={stacked ? BUBBLE_MESSAGE_STACK_CLASS : THINKING_CLOUD_CLASS}>
-      <span className={`${THINKING_LOBE_CLASS} -top-2 left-8 h-7 w-9`} />
-      <span className={`${THINKING_LOBE_CLASS} -top-3 left-[70px] h-8 w-12`} />
-      <span className={`${THINKING_LOBE_CLASS} -top-1 right-7 h-7 w-9`} />
-      <span className={`${THINKING_LOBE_CLASS} -bottom-1 left-5 h-6 w-8`} />
-      <span className={`${THINKING_LOBE_CLASS} -bottom-1 right-6 h-6 w-8`} />
-      <span className="relative z-10 contents">{children}</span>
-      <span className={`${THINKING_DOT_CLASS} -bottom-2.5 left-[48%] h-2.5 w-2.5`} />
-      <span className={`${THINKING_DOT_CLASS} -bottom-5 left-[42%] h-1.5 w-1.5 opacity-90`} />
+    <div className={THINKING_CLOUD_FRAME_CLASS}>
+      <svg
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full overflow-visible"
+        viewBox="0 0 220 72"
+      >
+        <path
+          d="M48 52c-16 0-29-9-29-22 0-11 9-20 22-22 6-10 19-12 29-6 7-8 22-9 32-2 10-6 25-3 30 8 13 0 24 9 24 21 0 14-13 24-31 23H48Z"
+          fill="#fffdf7"
+          stroke="#101010"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="3"
+        />
+        <circle cx="90" cy="57" r="8" fill="#fffdf7" stroke="#101010" strokeWidth="3" />
+        <circle cx="75" cy="68" r="4.2" fill="#fffdf7" stroke="#101010" strokeWidth="2.6" />
+      </svg>
+      <div className={stacked ? THINKING_CLOUD_STACK_TEXT_CLASS : THINKING_CLOUD_TEXT_CLASS}>
+        {children}
+      </div>
     </div>
   );
 }
