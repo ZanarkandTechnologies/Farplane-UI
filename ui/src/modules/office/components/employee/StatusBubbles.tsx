@@ -186,8 +186,8 @@ function ThoughtCloud({
       <span className={`${THINKING_CLOUD_LOBE_CLASS} left-[53px] top-[1px] h-[28px] w-[38px]`} />
       <span className={`${THINKING_CLOUD_LOBE_CLASS} right-[16px] top-[8px] h-[23px] w-[32px]`} />
       <span className={`${THINKING_CLOUD_LOBE_CLASS} left-[40px] bottom-[6px] h-[16px] w-[29px]`} />
-      <span className={`${THINKING_CLOUD_DOT_CLASS} left-[61px] bottom-[2px] h-[6px] w-[6px]`} />
-      <span className={`${THINKING_CLOUD_DOT_CLASS} left-[53px] bottom-[-4px] h-[3px] w-[3px] opacity-90`} />
+      <span className={`${THINKING_CLOUD_DOT_CLASS} left-[70px] bottom-[2px] h-[6px] w-[6px]`} />
+      <span className={`${THINKING_CLOUD_DOT_CLASS} left-[66px] bottom-[-4px] h-[3px] w-[3px] opacity-90`} />
       <div className={stacked ? THINKING_CLOUD_STACK_TEXT_CLASS : THINKING_CLOUD_TEXT_CLASS}>
         {children}
       </div>
