@@ -31,7 +31,7 @@ const TITLE_TEXT_CLASS =
   "line-clamp-2 whitespace-normal break-keep leading-snug [hyphens:none] [overflow-wrap:normal] [word-break:keep-all]";
 const ACTIVITY_ROW_CLASS = "flex items-center justify-center gap-1.5";
 const THINKING_CLOUD_FRAME_CLASS =
-  "relative h-[39px] w-[132px] max-w-[132px] translate-x-[10px] -translate-y-[10px] drop-shadow-[0_2px_4px_rgba(15,23,42,0.18)]";
+  "relative h-[39px] w-[132px] max-w-[132px] translate-x-[15px] -translate-y-[15px] drop-shadow-[0_2px_4px_rgba(15,23,42,0.18)]";
 const THINKING_CLOUD_BODY_CLASS =
   "absolute left-[16px] top-[7px] z-0 h-[22px] w-[99px] rounded-full border border-white/90 bg-white/95 shadow-[inset_0_-1px_0_rgba(15,23,42,0.08)]";
 const THINKING_CLOUD_LOBE_CLASS = "absolute z-0 rounded-full border border-white/90 bg-white/95";
