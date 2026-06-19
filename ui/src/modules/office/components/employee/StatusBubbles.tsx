@@ -31,14 +31,14 @@ const TITLE_TEXT_CLASS =
   "line-clamp-2 whitespace-normal break-keep leading-snug [hyphens:none] [overflow-wrap:normal] [word-break:keep-all]";
 const ACTIVITY_ROW_CLASS = "flex items-center justify-center gap-1.5";
 const THINKING_CLOUD_FRAME_CLASS =
-  "relative h-[42px] w-[144px] max-w-[144px] drop-shadow-[0_2px_5px_rgba(15,23,42,0.2)]";
+  "relative h-[39px] w-[132px] max-w-[132px] translate-x-[10px] -translate-y-[10px] drop-shadow-[0_2px_4px_rgba(15,23,42,0.18)]";
 const THINKING_CLOUD_BODY_CLASS =
-  "absolute left-[17px] top-[8px] z-0 h-[24px] w-[108px] rounded-full border border-white/90 bg-white/95 shadow-[inset_0_-1px_0_rgba(15,23,42,0.08)]";
+  "absolute left-[16px] top-[7px] z-0 h-[22px] w-[99px] rounded-full border border-white/90 bg-white/95 shadow-[inset_0_-1px_0_rgba(15,23,42,0.08)]";
 const THINKING_CLOUD_LOBE_CLASS = "absolute z-0 rounded-full border border-white/90 bg-white/95";
 const THINKING_CLOUD_TEXT_CLASS =
-  "absolute left-[24px] top-[13px] z-10 flex h-[18px] w-[94px] items-center justify-center text-center text-[8px] font-semibold leading-tight text-slate-800";
+  "absolute left-[22px] top-[12px] z-10 flex h-[17px] w-[86px] items-center justify-center text-center text-[7.5px] font-semibold leading-tight text-slate-800";
 const THINKING_CLOUD_STACK_TEXT_CLASS =
-  "absolute left-[23px] top-[9px] z-10 flex h-[25px] w-[96px] flex-col items-center justify-center gap-0.5 text-center text-[7px] font-semibold leading-tight text-slate-800";
+  "absolute left-[21px] top-[8px] z-10 flex h-[24px] w-[88px] flex-col items-center justify-center gap-0.5 text-center text-[6.5px] font-semibold leading-tight text-slate-800";
 const BUBBLE_MESSAGE_ROW_CLASS = "line-clamp-2 whitespace-normal break-words leading-snug";
 const THINKING_CLOUD_DOT_CLASS = "absolute rounded-full border border-white/90 bg-white/95";
 
@@ -181,13 +181,13 @@ function ThoughtCloud({
   return (
     <div className={THINKING_CLOUD_FRAME_CLASS}>
       <span className={THINKING_CLOUD_BODY_CLASS} />
-      <span className={`${THINKING_CLOUD_LOBE_CLASS} left-[13px] top-[14px] h-[18px] w-[24px]`} />
-      <span className={`${THINKING_CLOUD_LOBE_CLASS} left-[29px] top-[4px] h-[24px] w-[31px]`} />
-      <span className={`${THINKING_CLOUD_LOBE_CLASS} left-[53px] top-[1px] h-[28px] w-[38px]`} />
-      <span className={`${THINKING_CLOUD_LOBE_CLASS} right-[16px] top-[8px] h-[23px] w-[32px]`} />
-      <span className={`${THINKING_CLOUD_LOBE_CLASS} left-[40px] bottom-[6px] h-[16px] w-[29px]`} />
-      <span className={`${THINKING_CLOUD_DOT_CLASS} left-[70px] bottom-[2px] h-[6px] w-[6px]`} />
-      <span className={`${THINKING_CLOUD_DOT_CLASS} left-[66px] bottom-[-4px] h-[3px] w-[3px] opacity-90`} />
+      <span className={`${THINKING_CLOUD_LOBE_CLASS} left-[12px] top-[13px] h-[17px] w-[22px]`} />
+      <span className={`${THINKING_CLOUD_LOBE_CLASS} left-[27px] top-[4px] h-[22px] w-[28px]`} />
+      <span className={`${THINKING_CLOUD_LOBE_CLASS} left-[49px] top-[1px] h-[26px] w-[35px]`} />
+      <span className={`${THINKING_CLOUD_LOBE_CLASS} right-[15px] top-[7px] h-[21px] w-[29px]`} />
+      <span className={`${THINKING_CLOUD_LOBE_CLASS} left-[37px] bottom-[6px] h-[15px] w-[26px]`} />
+      <span className={`${THINKING_CLOUD_DOT_CLASS} left-[64px] bottom-[2px] h-[5px] w-[5px]`} />
+      <span className={`${THINKING_CLOUD_DOT_CLASS} left-[60px] bottom-[-3px] h-[3px] w-[3px] opacity-90`} />
       <div className={stacked ? THINKING_CLOUD_STACK_TEXT_CLASS : THINKING_CLOUD_TEXT_CLASS}>
         {children}
       </div>
