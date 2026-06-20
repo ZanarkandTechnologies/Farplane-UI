@@ -22,6 +22,19 @@ interface ThreadItem {
     parentThreadId?: string;
 }
 
+interface PmPinControls {
+    selectedProjectName?: string;
+    statusText?: string;
+    isSaving?: boolean;
+    getLane: (threadId: string) => "chats" | "automations" | "";
+    onPinChat: (threadId: string) => void;
+    onPinAutomation: (threadId: string) => void;
+    onUnpin: (threadId: string) => void;
+    onSave: () => void;
+    onCreateChat?: () => void;
+    isCreatingChat?: boolean;
+}
+
 interface ChatSidebarProps {
     threads: Array<ThreadItem> | undefined;
     subthreadsMap: Record<string, Array<ThreadItem>>;
@@ -32,6 +45,7 @@ interface ChatSidebarProps {
     sidebarOpen: boolean;
     isCreatingThread?: boolean;
     disableNewThread?: boolean;
+    pmPinControls?: PmPinControls;
 }
 
 export function ChatSidebar({
@@ -43,6 +57,7 @@ export function ChatSidebar({
     sidebarOpen,
     isCreatingThread,
     disableNewThread,
+    pmPinControls,
 }: ChatSidebarProps) {
     const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
     const [deleteError, setDeleteError] = useState<string>("");
@@ -59,43 +74,123 @@ export function ChatSidebar({
             {sidebarOpen ? (
                 <>
                     <div className="p-4 border-b flex items-center justify-between">
-                        <h2 className="font-semibold text-sm">Conversations</h2>
-                        <Button size="sm" variant="ghost" onClick={onNewThread} disabled={isCreatingThread || disableNewThread} className="h-8 w-8 p-0">
-                            <Plus className="h-4 w-4" />
-                        </Button>
+                        <div className="min-w-0">
+                            <h2 className="font-semibold text-sm">Conversations</h2>
+                            {pmPinControls?.selectedProjectName ? (
+                                <p className="truncate text-xs text-muted-foreground">
+                                    PM pins: {pmPinControls.selectedProjectName}
+                                </p>
+                            ) : null}
+                        </div>
+                        <div className="flex items-center gap-1">
+                            {pmPinControls ? (
+                                <>
+                                    {pmPinControls.onCreateChat ? (
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={pmPinControls.onCreateChat}
+                                            disabled={pmPinControls.isCreatingChat}
+                                            className="h-8 px-2 text-xs"
+                                        >
+                                            {pmPinControls.isCreatingChat ? "Making" : "New"}
+                                        </Button>
+                                    ) : null}
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={pmPinControls.onSave}
+                                        disabled={pmPinControls.isSaving}
+                                        className="h-8 px-2 text-xs"
+                                    >
+                                        {pmPinControls.isSaving ? "Saving" : "Save"}
+                                    </Button>
+                                </>
+                            ) : null}
+                            <Button size="sm" variant="ghost" onClick={onNewThread} disabled={isCreatingThread || disableNewThread} className="h-8 w-8 p-0">
+                                <Plus className="h-4 w-4" />
+                            </Button>
+                        </div>
                     </div>
                     <ScrollArea className="min-h-0 flex-1">
                         <div className="w-full space-y-1 p-2">
                             {deleteError ? <p className="px-3 py-1 text-xs text-destructive">{deleteError}</p> : null}
-                            {threads?.map((thread) => (
-                                <div
-                                    key={thread._id}
-                                    className={cn(
-                                        "grid w-full grid-cols-[16px_minmax(0,1fr)_24px] items-center gap-2 overflow-hidden rounded-md px-3 py-2 transition-colors hover:bg-accent",
-                                        thread._id === threadId ? "bg-accent" : "",
-                                    )}
-                                    onClick={() => {
-                                        onThreadSelect(thread._id);
-                                    }}
-                                >
-                                    <MessageSquare className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                                    <div className="min-w-0 flex-1 overflow-hidden pr-1">
-                                        <span className="block truncate text-sm">{thread.title || "New Chat"}</span>
-                                    </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 w-6 shrink-0 p-0 text-muted-foreground/80 hover:bg-destructive/20 hover:text-destructive"
-                                        onClick={(event) => {
-                                            event.stopPropagation();
-                                            setDeleteError("");
-                                            setDeleteTargetId(thread._id);
+                            {threads?.map((thread) => {
+                                const pinLane = pmPinControls?.getLane(thread._id) ?? "";
+                                return (
+                                    <div
+                                        key={thread._id}
+                                        className={cn(
+                                            "grid w-full grid-cols-[16px_minmax(0,1fr)_24px] items-start gap-2 overflow-hidden rounded-md px-3 py-2 transition-colors hover:bg-accent",
+                                            thread._id === threadId ? "bg-accent" : "",
+                                        )}
+                                        onClick={() => {
+                                            onThreadSelect(thread._id);
                                         }}
                                     >
-                                        <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                </div>
-                            ))}
+                                        <MessageSquare className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                                        <div className="min-w-0 flex-1 overflow-hidden pr-1">
+                                            <span className="block truncate text-sm">{thread.title || "New Chat"}</span>
+                                            {pmPinControls ? (
+                                                <div className="mt-1 flex items-center gap-1">
+                                                    <Button
+                                                        variant={pinLane === "chats" ? "default" : "outline"}
+                                                        size="sm"
+                                                        className="h-5 px-1.5 text-[10px]"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            pmPinControls.onPinChat(thread._id);
+                                                        }}
+                                                    >
+                                                        Chat
+                                                    </Button>
+                                                    <Button
+                                                        variant={pinLane === "automations" ? "default" : "outline"}
+                                                        size="sm"
+                                                        className="h-5 px-1.5 text-[10px]"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            pmPinControls.onPinAutomation(thread._id);
+                                                        }}
+                                                    >
+                                                        Auto
+                                                    </Button>
+                                                    {pinLane ? (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-5 px-1.5 text-[10px] text-muted-foreground"
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                pmPinControls.onUnpin(thread._id);
+                                                            }}
+                                                        >
+                                                            Clear
+                                                        </Button>
+                                                    ) : null}
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-6 w-6 shrink-0 p-0 text-muted-foreground/80 hover:bg-destructive/20 hover:text-destructive"
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                setDeleteError("");
+                                                setDeleteTargetId(thread._id);
+                                            }}
+                                        >
+                                            <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                    </div>
+                                );
+                            })}
+                            {pmPinControls?.statusText ? (
+                                <p className="px-3 py-1 text-xs text-muted-foreground">
+                                    {pmPinControls.statusText}
+                                </p>
+                            ) : null}
                         </div>
                     </ScrollArea>
                 </>

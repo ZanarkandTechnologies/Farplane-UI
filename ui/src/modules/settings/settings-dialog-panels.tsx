@@ -428,39 +428,22 @@ function CodexRuntimeSettings(props: {
       />
 
       <InputField
-        label="Recent Chat Window Minutes"
+        label="Ephemeral Worker Lifetime"
         type="number"
         min={1}
         value={form.recentMinutes}
         onChange={(value) => patchForm({ recentMinutes: value })}
       />
-
-      <InputField
-        label="CEO Thread ID"
-        value={form.ceoThreadId}
-        onChange={(value) => patchForm({ ceoThreadId: value })}
-        placeholder="thread id to wear the crown"
-      />
+      <p className="-mt-2 text-xs text-muted-foreground">
+        Shows ordinary Codex thread workers, and their desks, while they were active within this
+        many minutes. Persistent PM, CEO, running, and automation heartbeat threads ignore this timer.
+      </p>
 
       <ToggleRow
-        label="Heartbeat Threads"
-        description="Keep active or listed heartbeat threads visible even when old."
-        enabled={form.alwaysShowHeartbeat}
-        onToggle={() => patchForm({ alwaysShowHeartbeat: !form.alwaysShowHeartbeat })}
-      />
-
-      <ToggleRow
-        label="Automation Heartbeats"
-        description="Keep Codex automation threads visible as heartbeat employees."
+        label="Persistent Automation Heartbeats"
+        description="Keep strategy or heartbeat automations visible; scheduled task-drainer runs still age out."
         enabled={form.showAutomationThreads}
         onToggle={() => patchForm({ showAutomationThreads: !form.showAutomationThreads })}
-      />
-
-      <TextareaField
-        label="Heartbeat Thread IDs"
-        value={form.heartbeatThreadIds}
-        onChange={(value) => patchForm({ heartbeatThreadIds: value })}
-        placeholder="one thread id per line"
       />
 
       <InputField
@@ -478,7 +461,7 @@ function CodexRuntimeSettings(props: {
       />
 
       <Button size="sm" onClick={onSave} disabled={isSaving}>
-        {isSaving ? "Saving..." : "Apply Codex Visibility"}
+        {isSaving ? "Saving..." : "Apply Worker Visibility"}
       </Button>
       {statusText ? <p className="text-xs text-muted-foreground">{statusText}</p> : null}
     </div>

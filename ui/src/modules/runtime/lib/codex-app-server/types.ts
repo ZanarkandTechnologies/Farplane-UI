@@ -127,6 +127,24 @@ export type CodexProjectManagerPin = {
   label?: string;
 };
 
+export type CodexProjectPmThreads = {
+  chats?: string[];
+  automations?: string[];
+};
+
+export type CodexProjectPmConfig = {
+  version?: 1;
+  name?: string;
+  role?: "founder_operator" | "pm" | "custom" | string;
+  threads?: CodexProjectPmThreads | string[];
+};
+
+export type CodexProjectPmBinding = {
+  projectId: string;
+  projectPath: string;
+  pm: CodexProjectPmConfig;
+};
+
 export type CodexOfficeVisibilityConfig = {
   recentThreadWindowMinutes?: number;
   alwaysShowHeartbeatThreads?: boolean;
@@ -147,6 +165,7 @@ export type CodexProjectReadModelResponse = {
   generatedAt?: number;
   ticketTasks?: CodexProjectReadModelTask[];
   projectManagers?: CodexProjectManagerPin[];
+  projectPms?: CodexProjectPmBinding[];
   officeVisibility?: CodexOfficeVisibilityConfig;
 };
 

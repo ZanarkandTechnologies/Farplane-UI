@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { EmployeeData, OfficeObject } from "@/modules/office/lib/types";
+import { getOfficeLayoutBounds } from "@/modules/office/lib/office-layout";
+import { deriveOfficeSpaceStats } from "@/modules/office/lib/office-space-stats";
 import {
   canReserveOfficeObject,
   createOfficePlacementReservation,
 } from "@/modules/office/systems/placement-engine";
+import { getObjectFootprintCells } from "@/modules/office/systems/occupancy-system";
 import type {
   AgentCardModel,
   AgentLiveStatus,
@@ -443,8 +446,14 @@ describe("office-data-provider team synthesis", () => {
     const result = toOfficeData(unified, createOfficeSettings());
     const team = result.teams.find((entry) => entry._id === "team-proj-round-table");
     const workers = result.employees.filter((entry) => entry.teamId === "team-proj-round-table");
+    const teamCenter = team?.clusterPosition ?? [0, 0, 0];
     const workerDistances = workers.map((worker) =>
-      Number(Math.hypot(worker.initialPosition[0], worker.initialPosition[2]).toFixed(2)),
+      Number(
+        Math.hypot(
+          worker.initialPosition[0] - teamCenter[0],
+          worker.initialPosition[2] - teamCenter[2],
+        ).toFixed(2),
+      ),
     );
 
     expect(team?.deskCount).toBe(7);
@@ -740,6 +749,7 @@ describe("office-data-provider team synthesis", () => {
         teamId: "team-codex-proj-workspace-farplane-ui",
         isCEO: true,
         isSupervisor: true,
+        presencePersistent: true,
       }),
     ]);
   });
@@ -770,6 +780,7 @@ describe("office-data-provider team synthesis", () => {
           projectId: "codex-proj-workspace-farplane-ui",
           heartbeatProfileId: "hb-codex-thread",
           lifecycleState: "active",
+          presenceExpiresAt: 1770010800000,
         },
         {
           agentId: "codex-thread:weekly-strategy",
@@ -812,10 +823,13 @@ describe("office-data-provider team synthesis", () => {
         expect.objectContaining({
           _id: "employee-codex-thread:resume-earlier-thread",
           isCEO: false,
+          presencePersistent: false,
+          presenceExpiresAt: 1770010800000,
         }),
         expect.objectContaining({
           _id: "employee-codex-thread:weekly-strategy",
           isCEO: true,
+          presencePersistent: true,
         }),
       ]),
     );
@@ -902,7 +916,7 @@ describe("office-data-provider team synthesis", () => {
     ).toContain("farplane");
   });
 
-  it("uses project area centers as generated cluster anchors when unobstructed", () => {
+  it("uses compact generated cluster anchors instead of spreading tables to area centers", () => {
     const company = createCompanyModel({
       departments: [
         {
@@ -942,20 +956,19 @@ describe("office-data-provider team synthesis", () => {
       },
     };
     const result = toOfficeData(createUnifiedOfficeModel({ company }), settings);
-    const uiArea = result.officeAreas.find((area) => area.projectId === "proj-farplane-ui");
     const uiCluster = result.officeObjects.find(
       (object) => object.metadata?.teamId === "team-proj-farplane-ui",
     );
-    if (!uiArea) throw new Error("missing_farplane_ui_area");
+    if (!uiCluster) throw new Error("missing_farplane_ui_cluster");
 
-    expect(uiCluster?.position).toEqual([
-      Math.round(uiArea.rect.centerX),
-      0,
-      Math.round(uiArea.rect.centerZ),
-    ]);
+    expect(result.officeSettings.officeLayout.tiles).toContain(
+      `${uiCluster.position[0]}:${uiCluster.position[2]}`,
+    );
+    expect(Math.abs(uiCluster.position[0])).toBeLessThanOrEqual(8);
+    expect(Math.abs(uiCluster.position[2])).toBeLessThanOrEqual(8);
   });
 
-  it("preserves persisted team cluster positions over area-derived anchors", () => {
+  it("preserves locked persisted team cluster positions over area-derived anchors", () => {
     const company = createCompanyModel({
       departments: [
         {
@@ -994,7 +1007,7 @@ describe("office-data-provider team synthesis", () => {
             identifier: "team-cluster-team-proj-farplane-ui",
             meshType: "team-cluster",
             position: persistedPosition,
-            metadata: { teamId: "team-proj-farplane-ui" },
+            metadata: { teamId: "team-proj-farplane-ui", layoutLocked: true },
           },
         ],
       }),
@@ -1074,6 +1087,94 @@ describe("office-data-provider team synthesis", () => {
     expect(farplaneCluster?.position).toBeDefined();
     expect(uiCluster?.position).toBeDefined();
     expect(uiCluster?.position).not.toEqual(farplaneCluster?.position);
+  });
+
+  it("auto-fits the rendered office layout around desks and placed furniture", () => {
+    const company = createCompanyModel({
+      projects: [
+        {
+          id: "proj-farplane-ui",
+          departmentId: "dept-codex-projects",
+          name: "Farplane UI",
+          githubUrl: "",
+          status: "active",
+          goal: "Build the product",
+          kpis: [],
+          trackingContext: "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
+          accountEvents: [],
+          ledger: [],
+          experiments: [],
+          metricEvents: [],
+          resources: [],
+          resourceEvents: [],
+        },
+      ],
+    });
+    const settings = {
+      ...createOfficeSettings(),
+      officeLayout: {
+        version: 1 as const,
+        tileSize: 1 as const,
+        tiles: Array.from({ length: 61 }, (_, xIndex) =>
+          Array.from({ length: 61 }, (_z, zIndex) => `${xIndex - 30}:${zIndex - 30}`),
+        ).flat(),
+      },
+    };
+
+    const result = toOfficeData(
+      createUnifiedOfficeModel({
+        company,
+        officeObjects: [
+          {
+            id: "plant-entry",
+            identifier: "plant-entry",
+            meshType: "plant",
+            position: [18, 0, -3],
+            rotation: [0, 0, 0],
+          },
+        ],
+      }),
+      settings,
+    );
+    const bounds = getOfficeLayoutBounds(result.officeSettings.officeLayout);
+    const objectCells = result.officeObjects
+      .filter((object) => object.meshType !== "wall-art")
+      .flatMap((object) =>
+        getObjectFootprintCells({
+          meshType: object.meshType,
+          position: object.position,
+          metadata: object.metadata,
+          rotation: object.rotation,
+        }),
+      );
+    const objectMinX = Math.min(...objectCells.map((cell) => cell.x));
+    const objectMaxX = Math.max(...objectCells.map((cell) => cell.x));
+    const objectMinZ = Math.min(...objectCells.map((cell) => cell.z));
+    const objectMaxZ = Math.max(...objectCells.map((cell) => cell.z));
+    const objectWidth = objectMaxX - objectMinX + 1;
+    const objectDepth = objectMaxZ - objectMinZ + 1;
+
+    expect(result.officeSettings.officeFootprint.width).toBeLessThan(61);
+    expect(result.officeSettings.officeFootprint.depth).toBeLessThan(61);
+    expect(result.officeSettings.officeLayout.tiles).toContain("18:-3");
+    expect(bounds.width).toBeLessThanOrEqual(24);
+    expect(bounds.maxTileX).toBeGreaterThanOrEqual(19);
+    expect(
+      result.officeSettings.officeLayout.tiles.length / (bounds.width * bounds.depth),
+    ).toBe(1);
+    expect(bounds.width).toBe(Math.max(8, objectWidth));
+    expect(bounds.depth).toBe(Math.max(7, objectDepth));
+    expect(bounds.minTileX).toBeLessThanOrEqual(objectMinX);
+    expect(bounds.maxTileX).toBeGreaterThanOrEqual(objectMaxX);
+    expect(bounds.minTileZ).toBeLessThanOrEqual(objectMinZ);
+    expect(bounds.maxTileZ).toBeGreaterThanOrEqual(objectMaxZ);
+    expect(
+      deriveOfficeSpaceStats({
+        employees: result.employees,
+        officeObjects: result.officeObjects,
+        officeLayout: result.officeSettings.officeLayout,
+      }).walkablePercent,
+    ).toBeGreaterThan(0.9);
   });
 
   it("does not synthesize a Farplane fallback cluster when all projects are archived", () => {

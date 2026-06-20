@@ -7,6 +7,7 @@ import type {
   CodexTurnStartResponse,
   CodexProjectReadModelResponse,
   CodexOfficeVisibilityConfig,
+  CodexProjectPmConfig,
   CodexUiStateResponse,
   CodexAppServerHealthResponse,
 } from "./types";
@@ -131,6 +132,39 @@ export class CodexAppServerClient {
       throw new Error(payload.error ?? "farplane_codex_office_config_save_failed");
     }
     return payload.config ?? config;
+  }
+
+  async readProjectPmConfig(projectPath: string): Promise<CodexProjectPmConfig | null> {
+    const params = new URLSearchParams({ projectPath });
+    const response = await this.fetchImpl(`${this.stateUrl}/farplane/project-pm?${params}`);
+    if (!response.ok) {
+      throw new Error(`farplane_project_pm_config_failed:${response.status}`);
+    }
+    const payload = (await response.json()) as { exists?: boolean; pm?: CodexProjectPmConfig };
+    return payload.exists === false ? null : (payload.pm ?? null);
+  }
+
+  async saveProjectPmConfig(
+    projectPath: string,
+    pm: CodexProjectPmConfig,
+  ): Promise<CodexProjectPmConfig> {
+    const response = await this.fetchImpl(`${this.stateUrl}/farplane/project-pm`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ projectPath, pm }),
+    });
+    if (!response.ok) {
+      throw new Error(`farplane_project_pm_config_save_failed:${response.status}`);
+    }
+    const payload = (await response.json()) as {
+      ok?: boolean;
+      pm?: CodexProjectPmConfig;
+      error?: string;
+    };
+    if (payload.ok === false) {
+      throw new Error(payload.error ?? "farplane_project_pm_config_save_failed");
+    }
+    return payload.pm ?? pm;
   }
 
   async readThread(threadId: string): Promise<CodexThreadReadResponse> {

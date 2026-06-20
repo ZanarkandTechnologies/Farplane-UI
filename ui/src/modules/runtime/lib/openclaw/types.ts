@@ -381,6 +381,7 @@ export interface CompanyAgentModel {
   heartbeatProfileId: string;
   isCeo?: boolean;
   lifecycleState: AgentLifecycleState;
+  presenceExpiresAt?: number;
 }
 
 export interface CompanyOfficeObjectModel {

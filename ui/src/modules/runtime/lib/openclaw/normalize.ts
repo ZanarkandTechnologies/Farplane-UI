@@ -1040,7 +1040,7 @@ export function toSkillStudioDetail(entry: unknown): SkillStudioDetail | null {
             const file = value as Json;
             const filePath = String(file.path ?? "").trim();
             if (!filePath) return null;
-            const kind =
+            const kind: SkillStudioFileEntry["kind"] =
               file.kind === "config" ||
               file.kind === "test" ||
               file.kind === "memory" ||
@@ -1058,7 +1058,7 @@ export function toSkillStudioDetail(entry: unknown): SkillStudioDetail | null {
           .filter((value): value is NonNullable<typeof value> => value !== null)
       : [],
     demoCases: normalizeArray(row.demoCases, toSkillDemoCase),
-    runtimeStatus: toSkillStatusEntry(row.runtimeStatus),
+    runtimeStatus: toSkillStatusEntry(row.runtimeStatus) ?? undefined,
     focusAgentId: typeof row.focusAgentId === "string" ? row.focusAgentId : undefined,
   };
 }
@@ -1606,6 +1606,10 @@ export function toCompanyAgent(entry: unknown): CompanyAgentModel | null {
       lifecycle === "idle" || lifecycle === "pending_spawn" || lifecycle === "retired"
         ? lifecycle
         : "active",
+    presenceExpiresAt:
+      typeof row.presenceExpiresAt === "number" && Number.isFinite(row.presenceExpiresAt)
+        ? row.presenceExpiresAt
+        : undefined,
   };
 }
 

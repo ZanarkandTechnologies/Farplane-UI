@@ -27,3 +27,27 @@
 - `npm run typecheck:root`
 - `npx convex dev --once`
 - `node scripts/import-aikage-telemetry.mjs --dry-run --limit 1`
+
+## 2026-06-17 Evidence / Review Pass
+
+- Work admission verdict: implementation was already present; this pass reconciled code and evidence instead of duplicating build work or rerunning `$impl-plan`.
+- Scoped fix: annotated `rows` as `HookTelemetryRow[]` in `convex/modules/hookTelemetry/queries.ts` after `npm run lint` found `lint/suspicious/noImplicitAnyLet`.
+- Reconciliation:
+  - `hookTelemetryEvents` is registered in `convex/schema.ts`.
+  - `/telemetry/hooks` and `/telemetry/hooks/batch` are registered in `convex/http.ts`.
+  - Skill invocation and runtime telemetry dashboard queries derive from `hookTelemetryEvents`.
+  - `rg "runtimeTelemetryActivityPings|skillInvocationEvents|/telemetry/activity|/skill-invocations/ingest" convex hooks scripts ui/src/modules/skill-invocations ui/src/modules/runtime -n` returned no matches.
+- Checks:
+  - PASS: `npm run test:once -- convex/modules/hookTelemetry convex/modules/skillInvocations hooks/skill-invocation-listener`
+  - PASS: `npm run test:once -- convex/modules/runtimeTelemetry`
+  - PASS: `npm run test:once -- convex/modules/hookTelemetry convex/modules/skillInvocations hooks/skill-invocation-listener convex/modules/runtimeTelemetry`
+  - PASS: `npm run typecheck:root`
+  - PASS: `npm run lint`
+  - PASS: `node scripts/import-aikage-telemetry.mjs --dry-run --limit 1`
+  - KNOWN FAIL: `npm run typecheck` fails in unrelated UI package files (`src/App.tsx`, AI Elements missing deps, `JSX` namespace errors, office/runtime type errors).
+- Skipped:
+  - `npx convex dev --once` because it can require live Convex credentials/deployment access.
+  - live backfills or production migrations by safety boundary.
+  - browser screenshot because unrelated UI typecheck failures make local UI proof noisy.
+- Artifact: `tickets/building/TKT-038-unified-hook-telemetry/artifacts/2026-06-17-evidence-review.md`
+- Review verdict: `TAS-A`, `pass-ready`, move local ticket state to `review` with residual screenshot caveat.

@@ -67,6 +67,7 @@ export interface EmployeeProps {
   heartbeatState?: AgentState;
   heartbeatBubbles?: Array<{ label: string; weight?: number }>;
   presencePersistent?: boolean;
+  presenceExpiresAt?: number;
   profileImageUrl?: string;
   useCompactOverlayMode?: boolean;
   appearance?: {
@@ -104,6 +105,7 @@ const Employee = memo(function Employee({
   bubbleMessages,
   heartbeatState,
   presencePersistent,
+  presenceExpiresAt,
   useCompactOverlayMode = false,
   appearance,
 }: EmployeeProps) {
@@ -290,6 +292,7 @@ const Employee = memo(function Employee({
           pinReadyActivity={isCodexThreadEmployee}
           skillInvocationLabel={isGhostProjectionActive ? undefined : skillInvocationLabel}
           bubbleMessages={isGhostProjectionActive ? undefined : bubbleMessages}
+          presenceExpiresAt={presenceExpiresAt}
         />
 
         <ContextMenu
@@ -348,6 +351,7 @@ const Employee = memo(function Employee({
             pinReadyActivity={false}
             skillInvocationLabel={skillInvocationLabel}
             bubbleMessages={bubbleMessages}
+            presenceExpiresAt={presenceExpiresAt}
           />
         </group>
       ) : null}

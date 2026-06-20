@@ -703,6 +703,7 @@ describe("runtime adapters", () => {
         expect.objectContaining({
           agentId: "codex-thread:recent-farplane",
           projectId: "codex-proj-workspace-farplane-ui",
+          presenceExpiresAt: 1770010800000,
         }),
         expect.objectContaining({
           agentId: "codex-thread:recent-console",
@@ -775,6 +776,7 @@ describe("runtime adapters", () => {
         expect.objectContaining({
           agentId: "codex-thread:old-heartbeat",
           projectId: "codex-proj-workspace-farplane-ui",
+          presenceExpiresAt: undefined,
         }),
         expect.objectContaining({
           agentId: "codex-thread:status-active",
@@ -785,7 +787,7 @@ describe("runtime adapters", () => {
     expect(company.agents.some((agent) => agent.agentId === "codex-thread:old-hidden")).toBe(false);
   });
 
-  it("keeps Codex automation heartbeat threads visible when they are older than recency", () => {
+  it("keeps persistent automation heartbeats visible while scheduled automations age out", () => {
     const nowMs = 1770000000 * 1000;
     const company = toCodexCompanyModel(
       [
@@ -794,6 +796,15 @@ describe("runtime adapters", () => {
           name: "Notion task field fill",
           preview:
             "Automation: Notion task field fill\nAutomation ID: notion-task-field-fill\nAutomation memory: $CODEX_HOME/automations/notion-task-field-fill/memory.md",
+          cwd: "/Users/example/life",
+          updatedAt: 1769900000,
+          status: { type: "notLoaded" as const },
+        },
+        {
+          id: "ticket-drainer",
+          name: "Farplane ticket drainer",
+          preview:
+            "Automation: Farplane ticket drainer\nAutomation ID: farplane-ticket-update\nAutomation memory: $CODEX_HOME/automations/farplane-ticket-update/memory.md",
           cwd: "/Users/example/life",
           updatedAt: 1769900000,
           status: { type: "notLoaded" as const },
@@ -836,14 +847,16 @@ describe("runtime adapters", () => {
     expect(company.agents).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          agentId: "codex-thread:notion-fields",
-          projectId: "codex-proj-users-example-life",
-        }),
-        expect.objectContaining({
           agentId: "codex-thread:weekly-strategy",
           projectId: "codex-proj-users-example-life",
         }),
       ]),
+    );
+    expect(company.agents.some((agent) => agent.agentId === "codex-thread:notion-fields")).toBe(
+      false,
+    );
+    expect(company.agents.some((agent) => agent.agentId === "codex-thread:ticket-drainer")).toBe(
+      false,
     );
     expect(company.agents.some((agent) => agent.agentId === "codex-thread:ordinary-old-life-chat")).toBe(
       false,
@@ -1001,6 +1014,13 @@ describe("runtime adapters", () => {
                       updatedAt: 1770000000,
                       status: { type: "active" },
                     },
+                    {
+                      id: "pinned-life-manager",
+                      preview: "Old pinned app thread",
+                      cwd: "/workspace/life",
+                      updatedAt: 1769900000,
+                      status: { type: "notLoaded" },
+                    },
                   ],
                 },
               }),
@@ -1078,6 +1098,9 @@ describe("runtime adapters", () => {
         }),
       ]),
     );
+    expect(
+      office.company.agents.some((agent) => agent.agentId === "codex-thread:pinned-life-manager"),
+    ).toBe(false);
   });
 
   it("maps ticket-folder read model tasks onto the Codex company board", () => {

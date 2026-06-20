@@ -34,6 +34,7 @@ import { LogsDrawer } from "./hud/logs-drawer";
 import { LogsToggleButton } from "./hud/logs-toggle-button";
 import { OfficeMenu } from "./hud/office-menu";
 import { OfficeOnboardingPanel } from "./hud/office-onboarding-panel";
+import { OfficeStatsHud } from "./hud/office-stats-hud";
 import { UserTasksPanel } from "./hud/user-tasks-panel";
 import { buildOfficeBootstrapStages, getOfficeBootstrapState } from "./office-bootstrap";
 import { OfficeLoader } from "./office-loader";
@@ -242,8 +243,15 @@ function OfficeSimulationContent() {
                 <OfficeMenu />
               </div>
             </div>
+            <div className="pointer-events-none absolute top-4 right-4 z-[64]">
+              <OfficeStatsHud
+                employees={employees}
+                officeObjects={officeObjects}
+                officeLayout={officeSettings.officeLayout}
+              />
+            </div>
             {isReadOnly ? (
-              <div className="pointer-events-none absolute top-4 right-4 z-[70]">
+              <div className="pointer-events-none absolute top-32 right-4 z-[70]">
                 <Badge
                   variant="secondary"
                   className="border border-emerald-400/40 bg-emerald-500/15 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-100 shadow-lg backdrop-blur"

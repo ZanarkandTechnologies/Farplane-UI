@@ -33,6 +33,8 @@ export {
   toCodexTimeline,
   type CodexOfficeVisibilityConfig,
   type CodexProjectManagerPin,
+  type CodexProjectPmConfig,
+  type CodexProjectPmThreads,
   type CodexProjectReadModelResponse,
   type CodexProjectReadModelTask,
   type CodexThread,

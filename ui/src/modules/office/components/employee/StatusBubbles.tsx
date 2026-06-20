@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, type ReactNode } from "react";
+import { memo, type ReactNode, useEffect, useState } from "react";
 import { Html } from "@react-three/drei";
 
 import type { EmployeeActivityState } from "@/modules/office/lib/types";
@@ -60,6 +60,7 @@ type EmployeeStatusBubblesProps = {
   pinReadyActivity?: boolean;
   skillInvocationLabel?: string;
   bubbleMessages?: Array<{ threadId: string; message: string; eventAt: number }>;
+  presenceExpiresAt?: number;
 };
 
 export function formatSkillInvocationLabel(skillId: string | undefined): string | undefined {
@@ -195,6 +196,29 @@ function ThoughtCloud({
   );
 }
 
+function formatPresenceTimeLeft(expiresAt: number | undefined, now: number): string | null {
+  if (!expiresAt || !Number.isFinite(expiresAt)) return null;
+  const remainingMs = Math.max(0, expiresAt - now);
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  if (totalSeconds <= 0) return "poofing now";
+  if (totalSeconds < 60) return `poofs in ${totalSeconds}s`;
+  const minutes = Math.ceil(totalSeconds / 60);
+  if (minutes < 60) return `poofs in ${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+  return restMinutes > 0 ? `poofs in ${hours}h ${restMinutes}m` : `poofs in ${hours}h`;
+}
+
+function usePresenceTimeLeft(expiresAt: number | undefined): string | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!expiresAt) return undefined;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [expiresAt]);
+  return formatPresenceTimeLeft(expiresAt, now);
+}
+
 export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
   statusMessage,
   activityState,
@@ -213,7 +237,9 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
   pinReadyActivity = false,
   skillInvocationLabel,
   bubbleMessages,
+  presenceExpiresAt,
 }: EmployeeStatusBubblesProps) {
+  const presenceTimeLeft = usePresenceTimeLeft(presenceExpiresAt);
   const showRichEmployeeLabels = !useCompactOverlayMode;
   const visibleBubbleMessages = (bubbleMessages ?? [])
     .filter((message) => message.message.trim().length > 0)
@@ -305,6 +331,11 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
               <div className="font-semibold">{name}</div>
               {jobTitle ? <div className="mt-0.5 text-[10px] opacity-80">{jobTitle}</div> : null}
               {team ? <div className="mt-0.5 text-[10px] opacity-60">{team}</div> : null}
+              {presenceTimeLeft ? (
+                <div className="mt-1 border-t border-current/20 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] opacity-80">
+                  {presenceTimeLeft}
+                </div>
+              ) : null}
             </div>
           </div>
         </Html>

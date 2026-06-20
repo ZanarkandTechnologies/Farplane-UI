@@ -116,6 +116,8 @@ export interface EmployeeData extends Employee {
   bubbleMessages?: Array<{ threadId: string; message: string; eventAt: number }>;
   heartbeatState?: AgentState;
   heartbeatBubbles?: Array<{ label: string; weight: number }>;
+  presencePersistent?: boolean;
+  presenceExpiresAt?: number;
 }
 
 export interface TeamData extends Team {

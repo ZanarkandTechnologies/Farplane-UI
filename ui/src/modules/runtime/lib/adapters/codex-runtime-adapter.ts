@@ -10,16 +10,22 @@
 
 import {
   CODEX_MAIN_AGENT_ID,
+  CODEX_PM_PREFIX,
   CodexAppServerClient,
+  type CodexProjectReadModelResponse,
   type CodexThread,
   type CodexUiStateResponse,
   codexProjectId,
   findActiveTurnId,
+  isCodexPmAgentId,
+  normalizeCodexProjectPmThreadIds,
+  parseCodexPmProjectId,
   parseCodexThreadId,
   toCodexAgentCards,
   toCodexCompanyModel,
   toCodexLiveStatus,
   toCodexMainLiveStatus,
+  toCodexProjectPmSessionRows,
   toCodexSessionRows,
   toCodexTimeline,
 } from "../codex-app-server";
@@ -127,10 +133,6 @@ function mergeCodexUiStateIntoReadModel(
   readModel: Awaited<ReturnType<CodexAppServerClient["readProjectModel"]>>,
   uiState: CodexUiStateResponse,
 ) {
-  const heartbeatThreadIds = [
-    ...normalizeStringList(readModel.officeVisibility?.heartbeatThreadIds),
-    ...normalizeStringList(uiState.pinnedThreadIds),
-  ];
   const projectlessThreadIds = [
     ...normalizeStringList(readModel.officeVisibility?.projectlessThreadIds),
     ...normalizeStringList(uiState.projectlessThreadIds),
@@ -139,7 +141,7 @@ function mergeCodexUiStateIntoReadModel(
     ...readModel,
     officeVisibility: {
       ...readModel.officeVisibility,
-      heartbeatThreadIds: [...new Set(heartbeatThreadIds)],
+      heartbeatThreadIds: normalizeStringList(readModel.officeVisibility?.heartbeatThreadIds),
       projectlessThreadIds: [...new Set(projectlessThreadIds)],
     },
   };
@@ -390,10 +392,27 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
     );
     const company = toCodexCompanyModel(threads, Date.now(), projectPaths, readModel);
     const officeAgentIds = new Set(company.agents.map((agent) => agent.agentId));
+    const threadAgentIds = new Set(threads.map((thread) => `codex-thread:${thread.id}`));
     const runtimeAgents = dedupeAgentsById(
-      [...toCodexAgentCards([]), ...toCodexAgentCards(threads)].filter((agent) =>
-        officeAgentIds.has(agent.agentId),
-      ),
+      [
+        ...toCodexAgentCards([]),
+        ...toCodexAgentCards(threads),
+        ...company.agents
+          .filter(
+            (agent) =>
+              agent.agentId.startsWith(CODEX_PM_PREFIX) ||
+              (agent.agentId.startsWith("codex-thread:") && !threadAgentIds.has(agent.agentId)),
+          )
+          .map((agent) => ({
+            agentId: agent.agentId,
+            displayName: agent.agentId.startsWith(CODEX_PM_PREFIX) ? "Project PM" : agent.agentId,
+            workspacePath: "~/.codex",
+            agentDir: "~/.codex",
+            sandboxMode: "codex",
+            toolPolicy: { allow: [], deny: [] },
+            sessionCount: 0,
+          })),
+      ].filter((agent) => officeAgentIds.has(agent.agentId)),
     );
     return {
       company,
@@ -446,6 +465,9 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
       return Object.fromEntries(
         uniqueAgentIds.map((agentId) => {
           if (agentId === CODEX_MAIN_AGENT_ID) return [agentId, toCodexMainLiveStatus()] as const;
+          if (isCodexPmAgentId(agentId)) {
+            return [agentId, { ...toCodexMainLiveStatus(), agentId }] as const;
+          }
           const thread = byThreadId.get(parseCodexThreadId(agentId));
           return [agentId, thread ? toCodexLiveStatus(thread) : toCodexMainLiveStatus()] as const;
         }),
@@ -462,7 +484,23 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
 
   async listSessions(agentId: string): Promise<SessionRowModel[]> {
     try {
-      return toCodexSessionRows(agentId, await this.listCodexThreads());
+      const threads = await this.listCodexThreads();
+      if (!isCodexPmAgentId(agentId)) return toCodexSessionRows(agentId, threads);
+      const projectId = parseCodexPmProjectId(agentId);
+      const projectPaths = await this.listCodexProjectPaths().catch(() => []);
+      const projectRefs = projectPaths.map((projectPath) => ({
+        projectId: codexProjectId(projectPath),
+        projectPath,
+      }));
+      const readModel: CodexProjectReadModelResponse = await this.codexClient
+        .readProjectModel(projectRefs)
+        .catch(() => ({}));
+      const pm = (readModel.projectPms ?? []).find((entry) => entry.projectId === projectId)?.pm;
+      return toCodexProjectPmSessionRows(
+        agentId,
+        threads,
+        normalizeCodexProjectPmThreadIds(pm),
+      );
     } catch {
       return [];
     }

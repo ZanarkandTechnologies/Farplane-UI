@@ -50,17 +50,14 @@ project {
 }
 
 settings {
-  weekly_pm {
-    automation_id: farplane-ui-weekly-pm-update
+  founder_heartbeat {
+    automation_id: farplane-ui-founder-heartbeat
     kind: heartbeat
-    schedule: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0"
-    target_thread_id: null
-  }
-  ticket_drainer {
-    automation_id: farplane-ui-ticket-update
-    kind: cron
-    schedule: "FREQ=DAILY;BYHOUR=5;BYMINUTE=33;BYSECOND=0"
-    execution_limit: 1
+    schedule: "FREQ=MINUTELY;INTERVAL=30"
+    runner: "Codex native heartbeat"
+    command: "npx tsx scripts/codex-automation-heartbeat.ts run --project-root . --automation-id farplane-ui-founder-heartbeat"
+    dry_run_command: "npx tsx scripts/codex-automation-heartbeat.ts run --project-root . --automation-id farplane-ui-founder-heartbeat --dry-run --json"
+    max_spawned_threads_per_beat: 1
   }
 }
 
@@ -81,6 +78,18 @@ reports {
   ticket_update.runs: ".farplane/reports/ticket-update/runs/"
   weekly_pm.latest: ".farplane/reports/weekly-pm/latest.md"
   weekly_pm.runs: ".farplane/reports/weekly-pm/runs/"
+}
+
+state automation_heartbeat {
+  policy: ".farplane/automation/heartbeat-policy.json"
+  action_arms: ".farplane/automation/action-arms.json"
+  bandit_state: ".farplane/automation/bandit-state.json"
+  decisions: ".farplane/automation/decisions.jsonl"
+  spawned_threads: ".farplane/automation/spawned-threads.jsonl"
+  action_outcomes: ".farplane/automation/action-outcomes.jsonl"
+  rewards: ".farplane/automation/rewards.jsonl"
+  metric_snapshots: ".farplane/automation/metric-snapshots.jsonl"
+  reflection_latest: ".farplane/automation/reflections/latest.md"
 }
 
 job update_external_context {
@@ -185,46 +194,29 @@ job ticket_update {
   ]
 }
 
-cadence daily_ticket_drainer {
-  automation_id: farplane-ui-ticket-update
-  config_ref: settings.ticket_drainer
+cadence founder_heartbeat {
+  automation_id: farplane-ui-founder-heartbeat
+  config_ref: settings.founder_heartbeat
   todo: [
-    "fetch local tickets from ticket_sources.local.path",
-    "if no proceedable local tickets and ticket_sources.notion.enabled, fetch Notion using farplane/bindings.md notion coordinates",
-    "filter ready, unblocked, direct, autonomous tickets",
-    "rank by priority, compounding ROI, project value, and low need for operator judgment",
-    "select one ticket",
-    "rename the current Codex automation thread to `[Project] <ticket-id> <ticket name>` using the thread title tool when available",
-    "run impl-plan if planning is missing or stale",
-    "call goal-advisor to create or activate the execution goal",
-    "execute as far as possible until done, blocked, or ready for review",
-    "write ticket_update report",
-    "update ledger"
+    "load heartbeat policy and local automation ledgers",
+    "reconcile prior spawned child threads using expected output paths",
+    "apply unrewarded metric snapshots to bandit rewards",
+    "write a compact reflection from recent outcomes and project pressure",
+    "choose one forced maintenance action or one bandit action",
+    "build a named child Codex prompt with context refs, gates, expected outputs, and stop condition",
+    "spawn one child Codex thread through the Codex app-server bridge unless dry-run",
+    "record decision, spawned thread, outcomes, rewards, and reflection under .farplane/automation"
   ]
 }
 
-cadence weekly_pm_update {
-  automation_id: farplane-ui-weekly-pm-update
-  config_ref: settings.weekly_pm
-  grouped_jobs: [
-    update_external_context,
-    update_memory,
-    skill_hardening,
-    skill_refinement,
-    registry_drift,
-    update_strategy
-  ]
-  todo: [
-    "ensure update_external_context max_age=24h reuse_report_if_fresh",
-    "ensure update_memory max_age=7d reuse_report_if_fresh",
-    "ensure skill_hardening max_age=7d reuse_report_if_fresh",
-    "ensure skill_refinement max_age=7d reuse_report_if_fresh",
-    "ensure registry_drift max_age=7d reuse_report_if_fresh",
-    "run update_strategy using all report refs",
-    "create_or_update_local_tickets",
-    "write weekly_pm report",
-    "update ledger"
-  ]
+legacy cadence daily_ticket_drainer {
+  replaced_by: founder_heartbeat
+  note: "Ticket draining is now one possible action selected by the 30-minute parent heartbeat. Child threads do not rename themselves."
+}
+
+legacy cadence weekly_pm_update {
+  replaced_by: founder_heartbeat
+  note: "Weekly strategy reflection is now a forced or bandit-selected action lane with weekly reward weighting."
 }
 ```
 

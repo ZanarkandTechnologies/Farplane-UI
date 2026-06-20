@@ -38,19 +38,11 @@ project "Farplane UI" {
     action: use_existing("local ticket workflow")
   }
 
-  heartbeat ticket_update {
-    trigger: "compiled from farplane/automations.md settings.ticket_drainer"
+  heartbeat founder_heartbeat {
+    trigger: "compiled from farplane/automations.md settings.founder_heartbeat"
     bindings: "farplane/bindings.md"
-    first: daily_ticket_drainer
-    output: ".farplane/reports/ticket-update/latest.md"
-  }
-
-  heartbeat weekly_pm_update {
-    trigger: "compiled from farplane/automations.md settings.weekly_pm"
-    bindings: "farplane/bindings.md"
-    first: grouped_jobs
-    jobs: [update_external_context, update_memory, skill_hardening, skill_refinement, registry_drift, update_strategy]
-    output: ".farplane/reports/weekly-pm/latest.md"
+    first: founder_heartbeat
+    output: ".farplane/automation/decisions.jsonl"
   }
 }
 ```

@@ -2,7 +2,7 @@
 
 ## Status
 
-- state: `building`
+- state: `review`
 - owner: Kenji
 - assignee:
 - dependencies: `TKT-010`, `TKT-012`, `TKT-025`, `TKT-035`
@@ -10,6 +10,11 @@
 - enter when: Hook-originated runtime telemetry, skill invocation telemetry, status-style updates, and future file-change summaries need one raw ingestion primitive before more UI features build on top of them.
 - leave when: Farplane has one canonical hook telemetry table, existing skill/runtime hook producers write through it, and old raw table patterns have a clear migration path toward removal rather than permanent compatibility.
 - blockers:
+- review verdict: `pass-ready`
+- evidence artifact: `artifacts/2026-06-17-evidence-review.md`
+- residual caveats:
+  - `convex/_generated/ai/guidelines.md` is missing in this checkout, so this pass followed present Convex/module contracts instead.
+  - Browser screenshot proof was not captured because the UI workspace-wide typecheck currently fails on unrelated dirty UI/package surfaces; backend/hook evidence is captured and passing.
 - spawned follow-ups:
   - File-change observer and progress summary hook
   - Agent bubble moments projection
@@ -380,14 +385,16 @@ Project files own durable history and memory.
 
 ## Evidence Checklist
 
-- [ ] Snapshot: Convex tests for `hookTelemetryEvents` ingest and projection.
-- [ ] Snapshot: Skill invocation listener tests proving unified telemetry payload.
+- [x] Snapshot: Convex tests for `hookTelemetryEvents` ingest and projection.
+- [x] Snapshot: Skill invocation listener tests proving unified telemetry payload.
 - [ ] Screenshot: Skill invocation dashboard still populated after query migration.
-- [ ] QA report linked:
+  - Not captured in this pass; see residual UI caveat and QA reconciliation.
+- [x] QA report linked: `artifacts/2026-06-17-evidence-review.md`
 
 ## Build Notes
 
 - 2026-06-17: Implemented unified raw hook telemetry, backfilled deployed legacy skill/runtime rows, moved current ingest/query/import paths onto hook telemetry, and removed old raw table schemas/endpoints.
+- 2026-06-17: Evidence/review pass fixed one ticket-owned lint issue in `convex/modules/hookTelemetry/queries.ts`, reran focused checks, wrote `artifacts/2026-06-17-evidence-review.md`, and moved the local ticket to `review`.
 - This ticket intentionally does not implement the file-change summary hook. It prepares the raw telemetry lane that hook should use.
 - Do not make `hookType` a restrictive Convex enum. Unknown hooks should be accepted and left to projections to interpret.
 - Do not add `teamId` unless a real product split between project and team identity appears.
@@ -396,26 +403,32 @@ Project files own durable history and memory.
 
 ## QA Reconciliation
 
-- AC-1: `PASS | FAIL | NOT PROVABLE`
-- AC-2: `PASS | FAIL | NOT PROVABLE`
-- AC-3: `PASS | FAIL | NOT PROVABLE`
-- AC-4: `PASS | FAIL | NOT PROVABLE`
-- AC-5: `PASS | FAIL | NOT PROVABLE`
-- AC-6: `PASS | FAIL | NOT PROVABLE`
-- Screen: `PASS | FAIL | NOT PROVABLE`
-- Evidence item: `CAPTURED | MISSING`
+- AC-1: `PASS` - `hookTelemetryEvents` schema and indexes exist.
+- AC-2: `PASS` - `/telemetry/hooks` and `/telemetry/hooks/batch` parse, sanitize, cap payloads, and call deduping ingest mutations.
+- AC-3: `PASS` - skill invocation listener posts unified hook telemetry and dashboard reads a derived query.
+- AC-4: `PASS` - runtime dashboard reads derived hook telemetry projections and reducer tests pass.
+- AC-5: `PASS` - no new feature-specific raw table was introduced for file-change summaries or agent bubbles.
+- AC-6: `PASS` - module docs and `MEM-0228` record local project history vs raw hook telemetry vs derived projections.
+- Screen: `NOT PROVABLE` - browser screenshot was not captured because unrelated UI typecheck failures make local UI proof noisy.
+- Evidence item: `CAPTURED` - tests, lint, root typecheck, dry-run importer, reconciliation search, and review artifact captured.
 
 ## Artifact Links
+
+- Evidence/review: `artifacts/2026-06-17-evidence-review.md`
 
 ## User Evidence
 
 - Hero screenshot:
-- Supporting evidence:
-- QA report:
-- Final verdict:
+- Supporting evidence: `artifacts/2026-06-17-evidence-review.md`
+- QA report: `artifacts/2026-06-17-evidence-review.md`
+- Final verdict: `pass-ready for Kenji Review`; residual caveat is the uncaptured UI screenshot.
 
 ## Required Evidence
 
-- [ ] Unit/integration/e2e tests pass (as applicable)
-- [ ] Typecheck passes
-- [ ] Lint passes
+- [x] Unit/integration/e2e tests pass (as applicable)
+  - `npm run test:once -- convex/modules/hookTelemetry convex/modules/skillInvocations hooks/skill-invocation-listener convex/modules/runtimeTelemetry`
+- [x] Typecheck passes
+  - `npm run typecheck:root`
+  - `npm run typecheck` fails in unrelated UI package files; see evidence artifact.
+- [x] Lint passes
+  - `npm run lint`

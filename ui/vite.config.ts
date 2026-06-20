@@ -1419,6 +1419,50 @@ function normalizeStringList(value: unknown): string[] {
   return [...new Set(value.map((entry) => String(entry ?? "").trim()).filter(Boolean))];
 }
 
+function normalizeProjectPmConfig(raw: unknown): JsonObject {
+  const config = raw && typeof raw === "object" ? (raw as JsonObject) : {};
+  const threads =
+    config.threads && typeof config.threads === "object" && !Array.isArray(config.threads)
+      ? (config.threads as JsonObject)
+      : {};
+  return {
+    version: 1,
+    name:
+      typeof config.name === "string" && config.name.trim()
+        ? config.name.trim()
+        : "Project PM",
+    role:
+      typeof config.role === "string" && config.role.trim()
+        ? config.role.trim()
+        : "founder_operator",
+    threads: {
+      chats: Array.isArray(config.threads)
+        ? normalizeStringList(config.threads)
+        : normalizeStringList(threads.chats),
+      automations: normalizeStringList(threads.automations),
+    },
+  };
+}
+
+function projectPmConfigPath(projectPath: string): string {
+  return path.join(path.resolve(projectPath), "farplane", "pm.json");
+}
+
+async function readProjectPmConfig(projectPath: string): Promise<JsonObject | null> {
+  const filePath = projectPmConfigPath(projectPath);
+  if (!(await pathExists(filePath))) return null;
+  const raw = await readJsonFile<unknown>(filePath, {});
+  return normalizeProjectPmConfig(raw);
+}
+
+async function saveProjectPmConfig(projectPath: string, input: unknown): Promise<JsonObject> {
+  const filePath = projectPmConfigPath(projectPath);
+  const normalized = normalizeProjectPmConfig(input);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, `${JSON.stringify(normalized, null, 2)}\n`, "utf-8");
+  return normalized;
+}
+
 function normalizeCodexOfficeConfig(raw: unknown): JsonObject {
   const config = raw && typeof raw === "object" ? (raw as JsonObject) : {};
   const leadershipPins =
@@ -1498,6 +1542,26 @@ async function buildProjectReadModel(input: unknown): Promise<JsonObject> {
     }))
     .filter((entry) => entry.projectId && isSafeProjectPath(entry.projectPath));
   const ticketTaskLists = await Promise.all(normalizedProjects.map((project) => readProjectTicketTasks(project)));
+  const projectPms = await Promise.all(
+    normalizedProjects.map(async (project) => {
+      const pm = await readProjectPmConfig(project.projectPath);
+      const threads =
+        pm?.threads && typeof pm.threads === "object" && !Array.isArray(pm.threads)
+          ? (pm.threads as JsonObject)
+          : {};
+      const threadIds = [
+        ...normalizeStringList(Array.isArray(pm?.threads) ? pm?.threads : threads.chats),
+        ...normalizeStringList(threads.automations),
+      ];
+      return pm && threadIds.length > 0
+        ? {
+            projectId: project.projectId,
+            projectPath: project.projectPath,
+            pm,
+          }
+        : null;
+    }),
+  );
   const managersRaw = await readJsonFile<unknown>(PROJECT_MANAGERS_PATH, {});
   const officeVisibility = await readCodexOfficeConfig();
   const officeManagers = normalizeProjectManagers(
@@ -1510,6 +1574,7 @@ async function buildProjectReadModel(input: unknown): Promise<JsonObject> {
   return {
     generatedAt: Date.now(),
     ticketTasks: ticketTaskLists.flat(),
+    projectPms: projectPms.filter(Boolean),
     projectManagers: mergeProjectManagers([...normalizeProjectManagers(managersRaw), ...officeManagers]),
     officeVisibility,
   };
@@ -2086,6 +2151,17 @@ function farplaneStateBridge() {
           return;
         }
 
+        if (method === "GET" && pathname === "/farplane/project-pm") {
+          const projectPath = url.searchParams.get("projectPath")?.trim() ?? "";
+          if (!isSafeProjectPath(projectPath)) {
+            writeJson(res, 400, { ok: false, error: "project_path_required" });
+            return;
+          }
+          const pm = await readProjectPmConfig(projectPath);
+          writeJson(res, 200, { ok: true, exists: Boolean(pm), pm });
+          return;
+        }
+
         if (method === "GET" && pathname === "/farplane/codex-ui-state") {
           writeJson(res, 200, await readCodexUiState());
           return;
@@ -2210,6 +2286,19 @@ function farplaneStateBridge() {
               : body,
           );
           writeJson(res, 200, { ok: true, config });
+          return;
+        }
+
+        if (method === "POST" && pathname === "/farplane/project-pm") {
+          const body = await readBody(req);
+          const projectPath =
+            body && typeof body === "object" ? String((body as JsonObject).projectPath ?? "") : "";
+          if (!isSafeProjectPath(projectPath)) {
+            writeJson(res, 400, { ok: false, error: "project_path_required" });
+            return;
+          }
+          const pm = await saveProjectPmConfig(projectPath, (body as JsonObject).pm);
+          writeJson(res, 200, { ok: true, pm });
           return;
         }
 

@@ -10,6 +10,8 @@ import type {
 import type {
   CodexOfficeVisibilityConfig,
   CodexProjectManagerPin,
+  CodexProjectPmBinding,
+  CodexProjectPmConfig,
   CodexProjectReadModelTask,
   CodexThread,
   CodexThreadItem,
@@ -19,6 +21,7 @@ import type {
 
 export const CODEX_MAIN_AGENT_ID = "codex-main";
 export const CODEX_THREAD_PREFIX = "codex-thread:";
+export const CODEX_PM_PREFIX = "codex-pm:";
 const DEFAULT_ACTIVE_THREAD_WINDOW_MINUTES = 180;
 const RECENT_IDLE_UPDATE_READY_MS = 60 * 60 * 1000;
 const CODEX_MISC_PROJECT_PATH = "farplane://codex/misc";
@@ -54,6 +57,18 @@ function threadTitle(thread: CodexThread): string {
 
 function toThreadAgentId(threadId: string): string {
   return `${CODEX_THREAD_PREFIX}${threadId}`;
+}
+
+export function toCodexPmAgentId(projectId: string): string {
+  return `${CODEX_PM_PREFIX}${projectId}`;
+}
+
+export function isCodexPmAgentId(agentId: string): boolean {
+  return agentId.startsWith(CODEX_PM_PREFIX);
+}
+
+export function parseCodexPmProjectId(agentId: string): string {
+  return isCodexPmAgentId(agentId) ? agentId.slice(CODEX_PM_PREFIX.length) : "";
 }
 
 function projectNameFromCwd(cwd: string): string {
@@ -165,9 +180,20 @@ function hasRecentOpenTurn(thread: CodexThread, nowMs = Date.now()): boolean {
   return nowMs - latest <= RECENT_IDLE_UPDATE_READY_MS;
 }
 
-function isAutomationHeartbeatThread(thread: CodexThread): boolean {
+function parseAutomationMetadata(thread: CodexThread): { title: string; id: string } | null {
   const haystack = `${safeText(thread.name)}\n${safeText(thread.preview)}`;
-  return /^Automation:/m.test(haystack) && /Automation ID:/m.test(haystack);
+  const title = haystack.match(/^Automation:\s*(.+)$/m)?.[1]?.trim() ?? "";
+  const id = haystack.match(/^Automation ID:\s*(.+)$/m)?.[1]?.trim() ?? "";
+  if (!title && !id) return null;
+  return { title, id };
+}
+
+function isPersistentAutomationHeartbeatThread(thread: CodexThread): boolean {
+  const automation = parseAutomationMetadata(thread);
+  if (!automation) return false;
+  const haystack = `${automation.id}\n${automation.title}`.toLowerCase();
+  if (/\b(ticket|drain|drainer|field-fill|field fill|update)\b/.test(haystack)) return false;
+  return /\b(heartbeat|weekly pm|weekly strategy|restrategy|strategy)\b/.test(haystack);
 }
 
 function isMiscProjectPath(value: string, miscPathIncludes: string[]): boolean {
@@ -180,6 +206,33 @@ function isMiscProjectPath(value: string, miscPathIncludes: string[]): boolean {
 
 export function parseCodexThreadId(value: string): string {
   return value.startsWith(CODEX_THREAD_PREFIX) ? value.slice(CODEX_THREAD_PREFIX.length) : value;
+}
+
+function normalizeProjectPmLane(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean);
+}
+
+export function normalizeCodexProjectPmThreadIds(pm?: CodexProjectPmConfig): string[] {
+  const threads = pm?.threads;
+  if (Array.isArray(threads)) return [...new Set(normalizeProjectPmLane(threads))];
+  return [
+    ...new Set([
+      ...normalizeProjectPmLane(threads?.chats),
+      ...normalizeProjectPmLane(threads?.automations),
+    ]),
+  ];
+}
+
+function normalizeProjectPms(projectPms?: CodexProjectPmBinding[]): CodexProjectPmBinding[] {
+  if (!Array.isArray(projectPms)) return [];
+  return projectPms.filter((entry) => {
+    return Boolean(
+      safeText(entry.projectId) &&
+        safeText(entry.projectPath) &&
+        normalizeCodexProjectPmThreadIds(entry.pm).length > 0,
+    );
+  });
 }
 
 export function toCodexAgentCards(threads: CodexThread[]): AgentCardModel[] {
@@ -203,6 +256,7 @@ export function toCodexCompanyModel(
   readModel: {
     ticketTasks?: CodexProjectReadModelTask[];
     projectManagers?: CodexProjectManagerPin[];
+    projectPms?: CodexProjectPmBinding[];
     officeVisibility?: CodexOfficeVisibilityConfig;
   } = {},
 ): CompanyModel {
@@ -220,6 +274,15 @@ export function toCodexCompanyModel(
   );
   const activeThreadWindowMs = visibility.recentThreadWindowMinutes * 60 * 1000;
   const managerPins = [...(readModel.projectManagers ?? []), ...visibility.projectManagers];
+  const projectPms = normalizeProjectPms(readModel.projectPms);
+  const projectPmByProjectId = new Map(projectPms.map((entry) => [entry.projectId, entry]));
+  const pmThreadIdsByProjectId = new Map<string, Set<string>>();
+  const projectIdByPmThreadId = new Map<string, string>();
+  for (const entry of projectPms) {
+    const threadIds = new Set(normalizeCodexProjectPmThreadIds(entry.pm));
+    pmThreadIdsByProjectId.set(entry.projectId, threadIds);
+    for (const threadId of threadIds) projectIdByPmThreadId.set(threadId, entry.projectId);
+  }
   const pinnedManagerThreadIds = new Set(
     managerPins.map((pin) => safeText(pin.threadId)).filter(Boolean),
   );
@@ -227,9 +290,12 @@ export function toCodexCompanyModel(
   for (const pin of managerPins) {
     const threadId = safeText(pin.threadId);
     if (!threadId) continue;
+    const pinnedProjectPath = safeText(pin.projectPath);
     const projectPath =
       projectPathByProjectId.get(safeText(pin.projectId)) ||
-      projectPaths.find((candidate) => normalizePath(candidate) === normalizePath(pin.projectPath));
+      projectPaths.find(
+        (candidate) => normalizePath(candidate) === normalizePath(pinnedProjectPath),
+      );
     if (projectPath) pinnedManagerProjectPathByThreadId.set(threadId, projectPath);
   }
   const ceoThreadId = visibility.ceoThreadId;
@@ -249,7 +315,7 @@ export function toCodexCompanyModel(
     const hasHeartbeat =
       heartbeatThreadIds.has(thread.id) ||
       isThreadStatusActive(thread) ||
-      (visibility.showAutomationThreadsAsHeartbeat && isAutomationHeartbeatThread(thread));
+      (visibility.showAutomationThreadsAsHeartbeat && isPersistentAutomationHeartbeatThread(thread));
     const isVisible =
       isCeoThread ||
       isPinned ||
@@ -259,8 +325,11 @@ export function toCodexCompanyModel(
       continue;
     }
     const pinnedManagerProjectPath = pinnedManagerProjectPathByThreadId.get(thread.id);
+    const pmProjectId = projectIdByPmThreadId.get(thread.id);
+    const pmProjectPath = pmProjectId ? projectPathByProjectId.get(pmProjectId) : null;
     const matchedProjectPath =
       pinnedManagerProjectPath ??
+      pmProjectPath ??
       (cwd &&
       !projectlessThreadIds.has(thread.id) &&
       !isMiscProjectPath(cwd, visibility.miscPathIncludes)
@@ -305,18 +374,20 @@ export function toCodexCompanyModel(
   }
   const visibleThreadAgents = new Map<
     string,
-    { projectPath: string; thread: CodexThread; isManager: boolean }
+    { projectPath: string; thread: CodexThread; isManager: boolean; presenceExpiresAt?: number }
   >();
   for (const [projectPath, rows] of projectGroups) {
     const projectId = codexProjectId(projectPath);
     const managerThreadIds = managerThreadIdsByProjectId.get(projectId) ?? new Set<string>();
+    const pmThreadIds = pmThreadIdsByProjectId.get(projectId) ?? new Set<string>();
     for (const thread of rows) {
+      if (pmThreadIds.has(thread.id)) continue;
       const isManager = managerThreadIds.has(thread.id);
       const isCeoThread = ceoThreadId === thread.id;
       const hasHeartbeat =
         heartbeatThreadIds.has(thread.id) ||
         isThreadStatusActive(thread) ||
-        (visibility.showAutomationThreadsAsHeartbeat && isAutomationHeartbeatThread(thread));
+        (visibility.showAutomationThreadsAsHeartbeat && isPersistentAutomationHeartbeatThread(thread));
       if (
         !isCeoThread &&
         !isManager &&
@@ -325,7 +396,12 @@ export function toCodexCompanyModel(
       ) {
         continue;
       }
-      visibleThreadAgents.set(thread.id, { projectPath, thread, isManager });
+      const activityUpdatedAt = threadActivityUpdatedAtMs(thread);
+      const presenceExpiresAt =
+        !isCeoThread && !isManager && !hasHeartbeat && activityUpdatedAt
+          ? activityUpdatedAt + activeThreadWindowMs
+          : undefined;
+      visibleThreadAgents.set(thread.id, { projectPath, thread, isManager, presenceExpiresAt });
     }
   }
   const hasVisibleCeoThread = Boolean(ceoThreadId && visibleThreadAgents.has(ceoThreadId));
@@ -386,7 +462,20 @@ export function toCodexCompanyModel(
               lifecycleState: "active" as const,
             },
           ]),
-      ...[...visibleThreadAgents.values()].map(({ projectPath, thread, isManager }) => ({
+      ...projectGroups
+        .map(([projectPath]) => {
+          const projectId = codexProjectId(projectPath);
+          if (!projectPmByProjectId.has(projectId)) return null;
+          return {
+            agentId: toCodexPmAgentId(projectId),
+            role: "pm" as const,
+            projectId,
+            heartbeatProfileId: "hb-codex-project-pm",
+            lifecycleState: "active" as const,
+          };
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
+      ...[...visibleThreadAgents.values()].map(({ projectPath, thread, isManager, presenceExpiresAt }) => ({
         agentId: toThreadAgentId(thread.id),
         role:
           hasVisibleCeoThread && thread.id === ceoThreadId
@@ -403,6 +492,7 @@ export function toCodexCompanyModel(
               : "hb-codex-thread",
         isCeo: hasVisibleCeoThread && thread.id === ceoThreadId,
         lifecycleState: "active" as const,
+        presenceExpiresAt,
       })),
     ],
     roleSlots: projectGroups.map(([projectPath]) => ({
@@ -441,6 +531,15 @@ export function toCodexCompanyModel(
         goal: "Keep the project table visible and provide long-lived planning continuity.",
       },
       {
+        id: "hb-codex-project-pm",
+        role: "pm",
+        cadenceMinutes: 0,
+        teamDescription: "Project PM thread group",
+        productDetails:
+          "Project-local farplane/pm.json folds isolated Codex chat and automation threads into one office employee.",
+        goal: "Keep project PM contexts grouped without merging transcripts.",
+      },
+      {
         id: "hb-codex-thread",
         role: "builder",
         cadenceMinutes: 0,
@@ -465,8 +564,24 @@ export function toCodexSessionRows(agentId: string, threads: CodexThread[]): Ses
   const threadId = parseCodexThreadId(agentId);
   const rows =
     agentId === CODEX_MAIN_AGENT_ID ? threads : threads.filter((thread) => thread.id === threadId);
-  return rows.map((thread) => ({
-    agentId: toThreadAgentId(thread.id),
+  return toCodexSessionRowsForThreads(agentId, rows);
+}
+
+export function toCodexProjectPmSessionRows(
+  agentId: string,
+  threads: CodexThread[],
+  threadIds: string[],
+): SessionRowModel[] {
+  const wanted = new Set(threadIds.map(safeText).filter(Boolean));
+  return toCodexSessionRowsForThreads(
+    agentId,
+    threads.filter((thread) => wanted.has(thread.id)),
+  );
+}
+
+function toCodexSessionRowsForThreads(agentId: string, threads: CodexThread[]): SessionRowModel[] {
+  return threads.map((thread) => ({
+    agentId,
     sessionKey: toThreadAgentId(thread.id),
     sessionId: thread.sessionId,
     updatedAt: secondsToMs(thread.updatedAt),
