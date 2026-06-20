@@ -109,6 +109,10 @@ const AUTO_FIT_OFFICE_MIN_DEPTH = 7;
 const AUTO_FIT_CORRIDOR_RADIUS_TILES = 1;
 const AUTO_FIT_LOOP_EDGE_RATIO = 0.2;
 const COMPACT_CLUSTER_GAP_TILES = 1.25;
+const TABLE_SECTION_WALL_THRESHOLD = 8;
+const TABLE_SECTION_WALL_MARGIN_TILES = 2;
+const TABLE_SECTION_WALL_SEGMENT_LENGTH = 4;
+const TABLE_SECTION_DOOR_WIDTH_TILES = 4;
 
 export interface OfficeDataContextValue {
   company: Company | null;
@@ -725,6 +729,129 @@ function getCompactTeamAnchor(input: {
     0,
     Math.round(input.origin[2] + (row - (rows - 1) / 2) * spacingZ),
   ];
+}
+
+function shouldSkipSectionDoor(input: {
+  start: number;
+  end: number;
+  doorCenter: number;
+  doorWidth: number;
+}): boolean {
+  const min = Math.min(input.start, input.end);
+  const max = Math.max(input.start, input.end);
+  const doorMin = input.doorCenter - input.doorWidth / 2;
+  const doorMax = input.doorCenter + input.doorWidth / 2;
+  return max > doorMin && min < doorMax;
+}
+
+function buildTableSectionWallObjects(input: {
+  companyId: string;
+  clusterObjects: OfficeObject[];
+}): OfficeObject[] {
+  if (input.clusterObjects.length <= TABLE_SECTION_WALL_THRESHOLD) return [];
+  const bounds = getObjectFootprintTileBounds(input.clusterObjects);
+  if (!bounds) return [];
+
+  const minX = bounds.minTileX - TABLE_SECTION_WALL_MARGIN_TILES;
+  const maxX = bounds.maxTileX + TABLE_SECTION_WALL_MARGIN_TILES;
+  const minZ = bounds.minTileZ - TABLE_SECTION_WALL_MARGIN_TILES;
+  const maxZ = bounds.maxTileZ + TABLE_SECTION_WALL_MARGIN_TILES;
+  const centerX = (minX + maxX) / 2;
+  const centerZ = (minZ + maxZ) / 2;
+  const walls: OfficeObject[] = [];
+  const addWall = (params: {
+    id: string;
+    position: [number, number, number];
+    rotation: [number, number, number];
+    length: number;
+  }) => {
+    walls.push({
+      _id: params.id,
+      companyId: input.companyId,
+      meshType: "glass-wall",
+      position: params.position,
+      rotation: params.rotation,
+      scale: [params.length / TABLE_SECTION_WALL_SEGMENT_LENGTH, 1, 1],
+      metadata: {
+        generated: true,
+        sectionType: "table-section",
+        footprintWidth: params.length,
+        footprintDepth: 0.35,
+        footprintClearance: 0.05,
+      },
+    });
+  };
+
+  let segmentIndex = 0;
+  for (let x = minX; x < maxX; x += TABLE_SECTION_WALL_SEGMENT_LENGTH) {
+    const nextX = Math.min(maxX, x + TABLE_SECTION_WALL_SEGMENT_LENGTH);
+    const length = Math.max(1, nextX - x);
+    const segmentCenterX = x + length / 2;
+    if (!shouldSkipSectionDoor({
+      start: x,
+      end: nextX,
+      doorCenter: centerX,
+      doorWidth: TABLE_SECTION_DOOR_WIDTH_TILES,
+    })) {
+      addWall({
+        id: `generated-table-section-wall-north-${segmentIndex}`,
+        position: [segmentCenterX, 0, minZ],
+        rotation: [0, 0, 0],
+        length,
+      });
+      segmentIndex += 1;
+    }
+    if (!shouldSkipSectionDoor({
+      start: x,
+      end: nextX,
+      doorCenter: centerX,
+      doorWidth: TABLE_SECTION_DOOR_WIDTH_TILES,
+    })) {
+      addWall({
+        id: `generated-table-section-wall-south-${segmentIndex}`,
+        position: [segmentCenterX, 0, maxZ],
+        rotation: [0, 0, 0],
+        length,
+      });
+      segmentIndex += 1;
+    }
+  }
+
+  for (let z = minZ; z < maxZ; z += TABLE_SECTION_WALL_SEGMENT_LENGTH) {
+    const nextZ = Math.min(maxZ, z + TABLE_SECTION_WALL_SEGMENT_LENGTH);
+    const length = Math.max(1, nextZ - z);
+    const segmentCenterZ = z + length / 2;
+    if (!shouldSkipSectionDoor({
+      start: z,
+      end: nextZ,
+      doorCenter: centerZ,
+      doorWidth: TABLE_SECTION_DOOR_WIDTH_TILES,
+    })) {
+      addWall({
+        id: `generated-table-section-wall-west-${segmentIndex}`,
+        position: [minX, 0, segmentCenterZ],
+        rotation: [0, Math.PI / 2, 0],
+        length,
+      });
+      segmentIndex += 1;
+    }
+    if (!shouldSkipSectionDoor({
+      start: z,
+      end: nextZ,
+      doorCenter: centerZ,
+      doorWidth: TABLE_SECTION_DOOR_WIDTH_TILES,
+    })) {
+      addWall({
+        id: `generated-table-section-wall-east-${segmentIndex}`,
+        position: [maxX, 0, segmentCenterZ],
+        rotation: [0, Math.PI / 2, 0],
+        length,
+      });
+      segmentIndex += 1;
+    }
+  }
+
+  return walls;
 }
 
 interface TeamClusterRepairSpec {
@@ -1542,12 +1669,15 @@ export function toOfficeData(
       },
     };
   });
+  const tableSectionWalls = buildTableSectionWallObjects({ companyId, clusterObjects });
   const officeObjects = [
     ...clusterObjects,
+    ...tableSectionWalls,
     ...(sidecarFurniture.length > 0 ? sidecarFurniture : buildDefaultFurnitureObjects(companyId)),
   ];
   const officeLayoutContentObjects = [
     ...clusterObjects,
+    ...tableSectionWalls,
     ...sidecarFurniture,
   ];
   const fittedOfficeLayout = deriveAutoFitOfficeLayout({

@@ -9,13 +9,23 @@ function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
 
-function StatCell(props: { label: string; value: string | number; tone?: string }) {
+function StatCell(props: {
+  label: string;
+  value: string | number;
+  tone?: string;
+  detail?: string;
+}) {
   return (
     <div className="min-w-0">
       <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">{props.label}</div>
       <div className={`mt-0.5 text-base font-semibold leading-none ${props.tone ?? "text-slate-100"}`}>
         {props.value}
       </div>
+      {props.detail ? (
+        <div className="mt-1 truncate text-[10px] uppercase tracking-[0.12em] text-slate-500">
+          {props.detail}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -48,29 +58,20 @@ export function OfficeStatsHud(props: {
         : "text-emerald-200";
 
   return (
-    <div className="pointer-events-auto w-[252px] border border-slate-500/30 bg-slate-950/72 px-3 py-2 shadow-2xl backdrop-blur-md">
+    <div className="pointer-events-auto w-[236px] border border-slate-500/30 bg-slate-950/72 px-3 py-2 shadow-2xl backdrop-blur-md">
       <div className="mb-2 flex items-center justify-between gap-3">
         <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-200">
-          Office Stats
-        </div>
-        <div className="text-[10px] uppercase tracking-[0.14em] text-slate-400">
-          Q {formatPercent(stats.layoutQualityScore)}
+          Office
         </div>
       </div>
       <div className="grid grid-cols-3 gap-3">
         <StatCell label="Empty" value={formatPercent(stats.emptyPercent)} tone={emptyTone} />
-        <StatCell label="Agents" value={stats.totalEmployees} />
+        <StatCell
+          label="Agents"
+          value={stats.totalEmployees}
+          detail={`${stats.persistentEmployees} persist / ${stats.ephemeralEmployees} eph`}
+        />
         <StatCell label="Walk" value={formatPercent(stats.walkablePercent)} tone={walkableTone} />
-      </div>
-      <div className="mt-2 grid grid-cols-3 gap-3 border-t border-slate-500/20 pt-2">
-        <StatCell label="Persist" value={stats.persistentEmployees} />
-        <StatCell label="Eph" value={stats.ephemeralEmployees} />
-        <StatCell label="Other" value={stats.otherEmployees} />
-      </div>
-      <div className="mt-2 grid grid-cols-3 gap-3 border-t border-slate-500/20 pt-2">
-        <StatCell label="Choke" value={stats.chokePointCount} />
-        <StatCell label="Dead" value={stats.deadEndCount} />
-        <StatCell label="Lost" value={stats.disconnectedTargetCount} />
       </div>
     </div>
   );

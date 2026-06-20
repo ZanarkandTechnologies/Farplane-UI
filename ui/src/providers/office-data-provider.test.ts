@@ -1177,6 +1177,58 @@ describe("office-data-provider team synthesis", () => {
     ).toBeGreaterThan(0.9);
   });
 
+  it("adds glass-wall table sections only after the office has more than eight tables", () => {
+    const createProject = (index: number) => ({
+      id: `proj-section-${index}`,
+      departmentId: "dept-codex-projects",
+      name: `Section ${index}`,
+      githubUrl: "",
+      status: "active" as const,
+      goal: "Build the product",
+      kpis: [],
+      accountEvents: [],
+      ledger: [],
+      experiments: [],
+      metricEvents: [],
+      resources: [],
+      resourceEvents: [],
+    });
+    const compactResult = toOfficeData(
+      createUnifiedOfficeModel({
+        company: createCompanyModel({
+          projects: Array.from({ length: 7 }, (_, index) => createProject(index)),
+        }),
+      }),
+      createOfficeSettings(),
+    );
+    const sectionedResult = toOfficeData(
+      createUnifiedOfficeModel({
+        company: createCompanyModel({
+          projects: Array.from({ length: 8 }, (_, index) => createProject(index)),
+        }),
+      }),
+      createOfficeSettings(),
+    );
+    const generatedSectionWalls = sectionedResult.officeObjects.filter(
+      (object) =>
+        object.meshType === "glass-wall" && object.metadata?.sectionType === "table-section",
+    );
+
+    expect(
+      compactResult.officeObjects.some(
+        (object) =>
+          object.meshType === "glass-wall" && object.metadata?.sectionType === "table-section",
+      ),
+    ).toBe(false);
+    expect(generatedSectionWalls.length).toBeGreaterThan(0);
+    expect(generatedSectionWalls.every((object) => object.metadata?.generated === true)).toBe(
+      true,
+    );
+    expect(
+      generatedSectionWalls.some((object) => object.rotation[1] === Math.PI / 2),
+    ).toBe(true);
+  });
+
   it("does not synthesize a Farplane fallback cluster when all projects are archived", () => {
     const company = createCompanyModel({
       projects: [
