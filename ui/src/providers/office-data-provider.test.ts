@@ -1241,10 +1241,29 @@ describe("office-data-provider team synthesis", () => {
       resources: [],
       resourceEvents: [],
     });
+    const neighborProject = {
+      id: "proj-section-neighbor",
+      departmentId: "dept-codex-projects",
+      name: "Section Neighbor",
+      githubUrl: "",
+      status: "active" as const,
+      goal: "Neighboring project region",
+      kpis: [],
+      trackingContext: "/workspace/section-neighbor",
+      accountEvents: [],
+      ledger: [],
+      experiments: [],
+      metricEvents: [],
+      resources: [],
+      resourceEvents: [],
+    };
     const compactResult = toOfficeData(
       createUnifiedOfficeModel({
         company: createCompanyModel({
-          projects: Array.from({ length: 4 }, (_, index) => createProject(index)),
+          projects: [
+            ...Array.from({ length: 4 }, (_, index) => createProject(index)),
+            neighborProject,
+          ],
         }),
       }),
       createOfficeSettings(),
@@ -1252,7 +1271,10 @@ describe("office-data-provider team synthesis", () => {
     const sectionedResult = toOfficeData(
       createUnifiedOfficeModel({
         company: createCompanyModel({
-          projects: Array.from({ length: 5 }, (_, index) => createProject(index)),
+          projects: [
+            ...Array.from({ length: 5 }, (_, index) => createProject(index)),
+            neighborProject,
+          ],
         }),
       }),
       createOfficeSettings(),
@@ -1275,7 +1297,7 @@ describe("office-data-provider team synthesis", () => {
       true,
     );
     expect(
-      generatedSectionWalls.every((object) => object.metadata?.sectionBasis === "cluster-footprint"),
+      generatedSectionWalls.every((object) => object.metadata?.sectionBasis === "area-treemap"),
     ).toBe(true);
     expect(
       generatedSectionWalls.every((object) => object.metadata?.wallColor === "#ede5d6"),
@@ -1284,9 +1306,7 @@ describe("office-data-provider team synthesis", () => {
       const width = object.metadata?.footprintWidth;
       return typeof width === "number" && width > 4;
     })).toBe(true);
-    expect(
-      generatedSectionWalls.some((object) => object.rotation[1] === Math.PI / 2),
-    ).toBe(true);
+    expect(generatedSectionWalls).toHaveLength(1);
   });
 
   it("adds a minimal office-divider separator for placed project teams with six or more workers", () => {
@@ -1305,6 +1325,22 @@ describe("office-data-provider team synthesis", () => {
       resources: [],
       resourceEvents: [],
     };
+    const neighborProject = {
+      id: "proj-large-team-neighbor",
+      departmentId: "dept-codex-projects",
+      name: "Large Team Neighbor",
+      githubUrl: "",
+      status: "active" as const,
+      goal: "Neighboring project region",
+      kpis: [],
+      trackingContext: "/workspace/large-team-neighbor",
+      accountEvents: [],
+      ledger: [],
+      experiments: [],
+      metricEvents: [],
+      resources: [],
+      resourceEvents: [],
+    };
     const projectAgents = Array.from({ length: 6 }, (_, index) => ({
       agentId: `large-section-worker-${index}`,
       role: "builder" as const,
@@ -1315,7 +1351,7 @@ describe("office-data-provider team synthesis", () => {
     const result = toOfficeData(
       createUnifiedOfficeModel({
         company: createCompanyModel({
-          projects: [project],
+          projects: [project, neighborProject],
           agents: [createCompanyModel().agents[0], ...projectAgents],
         }),
         runtimeAgents: [
@@ -1343,7 +1379,7 @@ describe("office-data-provider team synthesis", () => {
       generatedSectionWalls.every((object) => object.metadata?.sectionId === "team-team-proj-large-team-section"),
     ).toBe(true);
     expect(
-      generatedSectionWalls.every((object) => object.metadata?.sectionBasis === "cluster-footprint"),
+      generatedSectionWalls.every((object) => object.metadata?.sectionBasis === "area-treemap"),
     ).toBe(true);
     expect(generatedSectionWalls).toHaveLength(1);
   });

@@ -1573,6 +1573,7 @@ export function toOfficeData(
     companyId,
     projects: projectList,
     clusterObjects,
+    officeAreaLayout,
     wallColor: getWallColorPreset(officeSettings.decor.wallColorId).color,
   });
   const officeLayoutContentObjects = [
