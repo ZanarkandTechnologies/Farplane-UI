@@ -17,7 +17,6 @@ export const PROJECT_SECTION_MIN_SUBPROJECTS = 4;
 export const TEAM_SECTION_MIN_DESKS = 6;
 
 const SECTION_WALL_MARGIN_TILES = 2;
-const SECTION_DOOR_WIDTH_TILES = 4;
 const SECTION_MIN_WALL_SPAN = 0.75;
 
 interface TileBounds {
@@ -85,26 +84,6 @@ export function getOfficeObjectFootprintTileBounds(objects: OfficeObject[]): Til
   return hasCells ? { minTileX, maxTileX, minTileZ, maxTileZ } : null;
 }
 
-function splitSpanAroundDoor(input: {
-  start: number;
-  end: number;
-  doorCenter: number;
-  doorWidth: number;
-}): Array<{ start: number; end: number }> {
-  const start = Math.min(input.start, input.end);
-  const end = Math.max(input.start, input.end);
-  const length = end - start;
-  if (length <= SECTION_MIN_WALL_SPAN) return [];
-  if (length <= input.doorWidth + SECTION_MIN_WALL_SPAN * 2) return [{ start, end }];
-
-  const doorMin = Math.max(start, input.doorCenter - input.doorWidth / 2);
-  const doorMax = Math.min(end, input.doorCenter + input.doorWidth / 2);
-  return [
-    { start, end: doorMin },
-    { start: doorMax, end },
-  ].filter((span) => span.end - span.start >= SECTION_MIN_WALL_SPAN);
-}
-
 function createDividerObject(input: {
   companyId: string;
   group: SectionWallGroup;
@@ -119,7 +98,7 @@ function createDividerObject(input: {
     meshType: "office-divider",
     position: input.position,
     rotation: input.rotation,
-    scale: [Math.max(0.2, input.length / 4), 1, 1],
+    scale: [1, 1, 1],
     metadata: {
       generated: true,
       sectionBasis: "cluster-footprint",
@@ -144,8 +123,6 @@ function buildWallsForGroup(input: {
   const maxX = bounds.maxTileX + SECTION_WALL_MARGIN_TILES;
   const minZ = bounds.minTileZ - SECTION_WALL_MARGIN_TILES;
   const maxZ = bounds.maxTileZ + SECTION_WALL_MARGIN_TILES;
-  const centerX = (minX + maxX) / 2;
-  const centerZ = (minZ + maxZ) / 2;
   const walls: OfficeObject[] = [];
   let wallIndex = 0;
   const addWall = (params: {
@@ -168,47 +145,32 @@ function buildWallsForGroup(input: {
     wallIndex += 1;
   };
 
-  for (const span of splitSpanAroundDoor({
-    start: minX,
-    end: maxX,
-    doorCenter: centerX,
-    doorWidth: SECTION_DOOR_WIDTH_TILES,
-  })) {
-    const length = span.end - span.start;
-    addWall({
-      side: "north",
-      length,
-      position: [span.start + length / 2, 0, minZ],
-      rotation: [0, 0, 0],
-    });
-    addWall({
-      side: "south",
-      length,
-      position: [span.start + length / 2, 0, maxZ],
-      rotation: [0, 0, 0],
-    });
-  }
-
-  for (const span of splitSpanAroundDoor({
-    start: minZ,
-    end: maxZ,
-    doorCenter: centerZ,
-    doorWidth: SECTION_DOOR_WIDTH_TILES,
-  })) {
-    const length = span.end - span.start;
-    addWall({
-      side: "west",
-      length,
-      position: [minX, 0, span.start + length / 2],
-      rotation: [0, Math.PI / 2, 0],
-    });
-    addWall({
-      side: "east",
-      length,
-      position: [maxX, 0, span.start + length / 2],
-      rotation: [0, Math.PI / 2, 0],
-    });
-  }
+  const width = maxX - minX;
+  const depth = maxZ - minZ;
+  addWall({
+    side: "north",
+    length: width,
+    position: [minX + width / 2, 0, minZ],
+    rotation: [0, 0, 0],
+  });
+  addWall({
+    side: "south",
+    length: width,
+    position: [minX + width / 2, 0, maxZ],
+    rotation: [0, 0, 0],
+  });
+  addWall({
+    side: "west",
+    length: depth,
+    position: [minX, 0, minZ + depth / 2],
+    rotation: [0, Math.PI / 2, 0],
+  });
+  addWall({
+    side: "east",
+    length: depth,
+    position: [maxX, 0, minZ + depth / 2],
+    rotation: [0, Math.PI / 2, 0],
+  });
 
   return walls;
 }
