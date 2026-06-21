@@ -1177,7 +1177,7 @@ describe("office-data-provider team synthesis", () => {
     ).toBeGreaterThan(0.9);
   });
 
-  it("adds office-divider sections around projects with four or more child projects", () => {
+  it("adds office-divider sections on treemap boundaries for projects with four or more child projects", () => {
     const createProject = (index: number) => ({
       id: `proj-section-${index}`,
       departmentId: "dept-codex-projects",
@@ -1231,11 +1231,17 @@ describe("office-data-provider team synthesis", () => {
       true,
     );
     expect(
+      generatedSectionWalls.every((object) => object.metadata?.sectionBasis === "treemap"),
+    ).toBe(true);
+    expect(
+      generatedSectionWalls.every((object) => typeof object.metadata?.sectionAreaId === "string"),
+    ).toBe(true);
+    expect(
       generatedSectionWalls.some((object) => object.rotation[1] === Math.PI / 2),
     ).toBe(true);
   });
 
-  it("adds office-divider sections around project teams with six or more workers", () => {
+  it("adds office-divider sections on treemap boundaries for project teams with six or more workers", () => {
     const project = {
       id: "proj-large-team-section",
       departmentId: "dept-codex-projects",
@@ -1287,6 +1293,15 @@ describe("office-data-provider team synthesis", () => {
     expect(generatedSectionWalls.length).toBeGreaterThan(0);
     expect(
       generatedSectionWalls.every((object) => object.metadata?.sectionId === "team-team-proj-large-team-section"),
+    ).toBe(true);
+    expect(
+      generatedSectionWalls.every((object) => object.metadata?.sectionBasis === "treemap"),
+    ).toBe(true);
+    expect(
+      generatedSectionWalls.some((object) => {
+        const width = object.metadata?.footprintWidth;
+        return typeof width === "number" && width > 4;
+      }),
     ).toBe(true);
   });
 
