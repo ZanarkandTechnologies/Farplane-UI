@@ -1177,7 +1177,7 @@ describe("office-data-provider team synthesis", () => {
     ).toBeGreaterThan(0.9);
   });
 
-  it("adds office-divider sections on treemap boundaries for projects with four or more child projects", () => {
+  it("adds office-divider sections around placed project clusters with four or more child projects", () => {
     const createProject = (index: number) => ({
       id: `proj-section-${index}`,
       departmentId: "dept-codex-projects",
@@ -1231,17 +1231,18 @@ describe("office-data-provider team synthesis", () => {
       true,
     );
     expect(
-      generatedSectionWalls.every((object) => object.metadata?.sectionBasis === "treemap"),
+      generatedSectionWalls.every((object) => object.metadata?.sectionBasis === "cluster-footprint"),
     ).toBe(true);
-    expect(
-      generatedSectionWalls.every((object) => typeof object.metadata?.sectionAreaId === "string"),
-    ).toBe(true);
+    expect(generatedSectionWalls.some((object) => {
+      const width = object.metadata?.footprintWidth;
+      return typeof width === "number" && width > 4;
+    })).toBe(true);
     expect(
       generatedSectionWalls.some((object) => object.rotation[1] === Math.PI / 2),
     ).toBe(true);
   });
 
-  it("adds office-divider sections on treemap boundaries for project teams with six or more workers", () => {
+  it("adds office-divider sections around placed project teams with six or more workers", () => {
     const project = {
       id: "proj-large-team-section",
       departmentId: "dept-codex-projects",
@@ -1295,14 +1296,9 @@ describe("office-data-provider team synthesis", () => {
       generatedSectionWalls.every((object) => object.metadata?.sectionId === "team-team-proj-large-team-section"),
     ).toBe(true);
     expect(
-      generatedSectionWalls.every((object) => object.metadata?.sectionBasis === "treemap"),
+      generatedSectionWalls.every((object) => object.metadata?.sectionBasis === "cluster-footprint"),
     ).toBe(true);
-    expect(
-      generatedSectionWalls.some((object) => {
-        const width = object.metadata?.footprintWidth;
-        return typeof width === "number" && width > 4;
-      }),
-    ).toBe(true);
+    expect(generatedSectionWalls.length).toBeGreaterThanOrEqual(4);
   });
 
   it("does not synthesize a Farplane fallback cluster when all projects are archived", () => {

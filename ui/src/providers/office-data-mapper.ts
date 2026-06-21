@@ -1519,8 +1519,6 @@ export function toOfficeData(
     companyId,
     projects: projectList,
     clusterObjects,
-    officeAreas: officeAreaLayout.areas,
-    officeLayout,
   });
   const officeObjects = [
     ...clusterObjects,
