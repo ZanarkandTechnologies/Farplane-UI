@@ -135,6 +135,7 @@ export function objectFootprintsCollide(
   right: ObjectFootprintInput,
 ): boolean {
   if (left.meshType === "glass-wall" && right.meshType === "glass-wall") return false;
+  if (left.meshType === "office-divider" && right.meshType === "office-divider") return false;
   const leftCells = new Set(getObjectFootprintCells(left).map((cell) => cell.key));
   return getObjectFootprintCells(right).some((cell) => leftCells.has(cell.key));
 }

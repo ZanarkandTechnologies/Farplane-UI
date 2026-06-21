@@ -24,6 +24,7 @@ export const OBJECT_FOOTPRINT_BY_MESH_TYPE: Record<string, ObjectFootprint> = {
   bookshelf: { width: 3.1, depth: 1.4, clearance: 0.65 },
   pantry: { width: 7.2, depth: 2.4, clearance: 0.65 },
   "glass-wall": { width: 4, depth: 0.35, clearance: 0.05 },
+  "office-divider": { width: 4, depth: 0.32, clearance: 0.05 },
   "custom-mesh": DEFAULT_OBJECT_FOOTPRINT,
 };
 

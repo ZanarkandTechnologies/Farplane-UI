@@ -208,6 +208,7 @@ function getImportantTargetKeys(input: {
 }): string[] {
   const keys = input.objects
     .filter((object) => object.meshType !== "wall-art" && object.meshType !== "glass-wall")
+    .filter((object) => object.meshType !== "office-divider")
     .map((object) => nearestWalkableTile(object.position, input.layoutTiles, input.walkableTiles))
     .filter((key): key is string => Boolean(key));
   return [...new Set(keys)].slice(0, 16);

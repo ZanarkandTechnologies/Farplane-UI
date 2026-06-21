@@ -1177,7 +1177,7 @@ describe("office-data-provider team synthesis", () => {
     ).toBeGreaterThan(0.9);
   });
 
-  it("adds glass-wall sections around projects with four or more child projects", () => {
+  it("adds office-divider sections around projects with four or more child projects", () => {
     const createProject = (index: number) => ({
       id: `proj-section-${index}`,
       departmentId: "dept-codex-projects",
@@ -1215,13 +1215,14 @@ describe("office-data-provider team synthesis", () => {
     );
     const generatedSectionWalls = sectionedResult.officeObjects.filter(
       (object) =>
-        object.meshType === "glass-wall" && object.metadata?.sectionType === "project-subprojects",
+        object.meshType === "office-divider" &&
+        object.metadata?.sectionType === "project-subprojects",
     );
 
     expect(
       compactResult.officeObjects.some(
         (object) =>
-          object.meshType === "glass-wall" &&
+          object.meshType === "office-divider" &&
           object.metadata?.sectionType === "project-subprojects",
       ),
     ).toBe(false);
@@ -1234,7 +1235,7 @@ describe("office-data-provider team synthesis", () => {
     ).toBe(true);
   });
 
-  it("adds glass-wall sections around project teams with six or more workers", () => {
+  it("adds office-divider sections around project teams with six or more workers", () => {
     const project = {
       id: "proj-large-team-section",
       departmentId: "dept-codex-projects",
@@ -1279,7 +1280,8 @@ describe("office-data-provider team synthesis", () => {
       createOfficeSettings(),
     );
     const generatedSectionWalls = result.officeObjects.filter(
-      (object) => object.meshType === "glass-wall" && object.metadata?.sectionType === "large-team",
+      (object) =>
+        object.meshType === "office-divider" && object.metadata?.sectionType === "large-team",
     );
 
     expect(generatedSectionWalls.length).toBeGreaterThan(0);

@@ -1840,6 +1840,7 @@ export function toOfficeObject(entry: unknown): CompanyOfficeObjectModel | null 
     meshType !== "bookshelf" &&
     meshType !== "pantry" &&
     meshType !== "glass-wall" &&
+    meshType !== "office-divider" &&
     meshType !== "custom-mesh" &&
     meshType !== "wall-art"
   ) {
@@ -1891,6 +1892,7 @@ export function toOfficeObjectSidecar(entry: unknown): OfficeObjectSidecarModel 
     meshType !== "bookshelf" &&
     meshType !== "pantry" &&
     meshType !== "glass-wall" &&
+    meshType !== "office-divider" &&
     meshType !== "custom-mesh" &&
     meshType !== "wall-art"
   ) {

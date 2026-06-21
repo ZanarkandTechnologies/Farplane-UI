@@ -394,6 +394,7 @@ export interface CompanyOfficeObjectModel {
     | "bookshelf"
     | "pantry"
     | "glass-wall"
+    | "office-divider"
     | "custom-mesh"
     | "wall-art";
   position: [number, number, number];

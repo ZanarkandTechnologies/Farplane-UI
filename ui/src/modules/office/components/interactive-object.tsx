@@ -186,6 +186,7 @@ export function InteractiveObject({
           | "bookshelf"
           | "pantry"
           | "glass-wall"
+          | "office-divider"
           | "custom-mesh",
         position: input.position,
         rotation: input.rotation ?? existing?.rotation ?? initialRotation,

@@ -21,6 +21,7 @@ import Bookshelf from "@/modules/office/components/bookshelf";
 import Couch from "@/modules/office/components/couch";
 import CustomMeshObject from "@/modules/office/components/custom-mesh-object";
 import GlassWall from "@/modules/office/components/glass-wall";
+import OfficeDividerWall from "@/modules/office/components/office-divider-wall";
 import Pantry from "@/modules/office/components/pantry";
 import Plant from "@/modules/office/components/plant";
 import TeamCluster from "@/modules/office/components/team-cluster";
@@ -153,6 +154,20 @@ export function OfficeObjectRenderer(props: {
         return (
           <group key={object._id} ref={setRef} name={`obstacle-glass-wall-${object._id}`}>
             <GlassWall
+              objectId={object._id}
+              position={object.position as [number, number, number]}
+              rotation={object.rotation as [number, number, number]}
+              scale={object.scale as [number, number, number] | undefined}
+              companyId={companyId}
+              metadata={object.metadata}
+            />
+          </group>
+        );
+
+      case "office-divider":
+        return (
+          <group key={object._id} ref={setRef} name={`obstacle-office-divider-${object._id}`}>
+            <OfficeDividerWall
               objectId={object._id}
               position={object.position as [number, number, number]}
               rotation={object.rotation as [number, number, number]}

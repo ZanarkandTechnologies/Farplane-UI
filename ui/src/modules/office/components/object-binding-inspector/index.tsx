@@ -92,6 +92,7 @@ function toPersistedMeshType(meshType: string) {
     | "bookshelf"
     | "pantry"
     | "glass-wall"
+    | "office-divider"
     | "custom-mesh"
     | "wall-art";
 }

@@ -1,10 +1,10 @@
 /**
  * OFFICE SECTION WALLS
  * ====================
- * Derives generated glass-wall partitions around meaningful table groups.
+ * Derives generated divider-wall partitions around meaningful table groups.
  *
  * Inputs are already-placed team cluster objects and project metadata. Output is
- * ordinary `glass-wall` office objects so renderer, occupancy, and auto-fit
+ * ordinary `office-divider` office objects so renderer, occupancy, and auto-fit
  * logic can consume the same object contract as user-placed walls.
  */
 
@@ -121,7 +121,7 @@ function buildWallsForGroup(input: {
     walls.push({
       _id: `generated-section-wall-${input.group.id}-${params.side}-${params.segmentIndex}`,
       companyId: input.companyId,
-      meshType: "glass-wall",
+      meshType: "office-divider",
       position: params.position,
       rotation: params.rotation,
       scale: [params.length / SECTION_WALL_SEGMENT_LENGTH, 1, 1],
@@ -130,8 +130,9 @@ function buildWallsForGroup(input: {
         sectionId: input.group.id,
         sectionType: input.group.sectionType,
         footprintWidth: params.length,
-        footprintDepth: 0.35,
+        footprintDepth: 0.32,
         footprintClearance: 0.05,
+        dividerHeight: 2.4,
       },
     });
   };
