@@ -19,6 +19,15 @@ function getMetadataNumber(
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+function getMetadataString(
+  metadata: Record<string, unknown> | undefined,
+  key: string,
+  fallback: string,
+): string {
+  const value = metadata?.[key];
+  return typeof value === "string" && value.trim() ? value : fallback;
+}
+
 export default function OfficeDividerWall({
   objectId,
   position,
@@ -30,6 +39,8 @@ export default function OfficeDividerWall({
   const width = getMetadataNumber(metadata, "footprintWidth", 4);
   const height = getMetadataNumber(metadata, "dividerHeight", 2.4);
   const depth = getMetadataNumber(metadata, "footprintDepth", 0.32);
+  const wallColor = getMetadataString(metadata, "wallColor", "#ede5d6");
+  const capColor = getMetadataString(metadata, "capColor", wallColor);
 
   return (
     <InteractiveObject
@@ -44,11 +55,11 @@ export default function OfficeDividerWall({
     >
       <mesh position={[0, height / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[width, height, depth]} />
-        <meshStandardMaterial color="#c0b2a8" roughness={0.82} metalness={0.02} />
+        <meshStandardMaterial color={wallColor} roughness={0.82} metalness={0.02} />
       </mesh>
       <mesh position={[0, height + 0.035, 0]} receiveShadow>
         <boxGeometry args={[width + 0.08, 0.07, depth + 0.08]} />
-        <meshStandardMaterial color="#7d7068" roughness={0.88} />
+        <meshStandardMaterial color={capColor} roughness={0.88} />
       </mesh>
     </InteractiveObject>
   );

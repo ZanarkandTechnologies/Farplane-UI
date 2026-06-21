@@ -89,6 +89,7 @@ function createDividerObject(input: {
   group: SectionWallGroup;
   wallId: string;
   length: number;
+  wallColor: string;
   position: [number, number, number];
   rotation: [number, number, number];
 }): OfficeObject {
@@ -108,6 +109,8 @@ function createDividerObject(input: {
       footprintDepth: 0.32,
       footprintClearance: 0.05,
       dividerHeight: 2.4,
+      wallColor: input.wallColor,
+      capColor: input.wallColor,
     },
   };
 }
@@ -115,6 +118,7 @@ function createDividerObject(input: {
 function buildWallsForGroup(input: {
   companyId: string;
   group: SectionWallGroup;
+  wallColor: string;
 }): OfficeObject[] {
   const bounds = getOfficeObjectFootprintTileBounds(input.group.objects);
   if (!bounds) return [];
@@ -138,6 +142,7 @@ function buildWallsForGroup(input: {
         group: input.group,
         wallId: `${params.side}-${wallIndex}`,
         length: params.length,
+        wallColor: input.wallColor,
         position: params.position,
         rotation: params.rotation,
       }),
@@ -245,6 +250,7 @@ export function buildOfficeSectionWallObjects(input: {
   companyId: string;
   projects: ProjectModel[];
   clusterObjects: OfficeObject[];
+  wallColor: string;
 }): OfficeObject[] {
   const groups = [
     ...deriveProjectSubprojectGroups({
@@ -255,5 +261,11 @@ export function buildOfficeSectionWallObjects(input: {
       clusterObjects: input.clusterObjects,
     }),
   ];
-  return groups.flatMap((group) => buildWallsForGroup({ companyId: input.companyId, group }));
+  return groups.flatMap((group) =>
+    buildWallsForGroup({
+      companyId: input.companyId,
+      group,
+      wallColor: input.wallColor,
+    }),
+  );
 }

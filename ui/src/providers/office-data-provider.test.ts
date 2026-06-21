@@ -1233,6 +1233,9 @@ describe("office-data-provider team synthesis", () => {
     expect(
       generatedSectionWalls.every((object) => object.metadata?.sectionBasis === "cluster-footprint"),
     ).toBe(true);
+    expect(
+      generatedSectionWalls.every((object) => object.metadata?.wallColor === "#ede5d6"),
+    ).toBe(true);
     expect(generatedSectionWalls.some((object) => {
       const width = object.metadata?.footprintWidth;
       return typeof width === "number" && width > 4;

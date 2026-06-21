@@ -29,6 +29,7 @@ import {
   getOfficeAreaAnchor,
   type OfficeAreaNode,
 } from "@/modules/office/lib/office-area-layout";
+import { getWallColorPreset } from "@/modules/office/lib/office-decor";
 import { DEFAULT_OFFICE_FOOTPRINT } from "@/modules/office/lib/office-footprint";
 import {
   clampPositionToOfficeLayout,
@@ -1519,6 +1520,7 @@ export function toOfficeData(
     companyId,
     projects: projectList,
     clusterObjects,
+    wallColor: getWallColorPreset(officeSettings.decor.wallColorId).color,
   });
   const officeObjects = [
     ...clusterObjects,
