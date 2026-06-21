@@ -1177,7 +1177,51 @@ describe("office-data-provider team synthesis", () => {
     ).toBeGreaterThan(0.9);
   });
 
-  it("adds office-divider sections around placed project clusters with four or more child projects", () => {
+  it("includes default furniture when auto-fitting the rendered office layout", () => {
+    const company = createCompanyModel({
+      projects: [
+        {
+          id: "proj-default-furniture-fit",
+          departmentId: "dept-codex-projects",
+          name: "Default Furniture Fit",
+          githubUrl: "",
+          status: "active",
+          goal: "Keep default furniture inside the generated room",
+          kpis: [],
+          trackingContext: "/workspace/default-furniture-fit",
+          accountEvents: [],
+          ledger: [],
+          experiments: [],
+          metricEvents: [],
+          resources: [],
+          resourceEvents: [],
+        },
+      ],
+    });
+
+    const result = toOfficeData(createUnifiedOfficeModel({ company }), createOfficeSettings());
+    const bounds = getOfficeLayoutBounds(result.officeSettings.officeLayout);
+    const defaultFurniture = result.officeObjects.filter((object) =>
+      ["plant", "bookshelf", "couch", "pantry"].includes(object.meshType),
+    );
+
+    expect(defaultFurniture.length).toBeGreaterThan(0);
+    for (const object of defaultFurniture) {
+      for (const cell of getObjectFootprintCells({
+        meshType: object.meshType,
+        position: object.position,
+        metadata: object.metadata,
+        rotation: object.rotation,
+      })) {
+        expect(cell.x).toBeGreaterThanOrEqual(bounds.minTileX);
+        expect(cell.x).toBeLessThanOrEqual(bounds.maxTileX);
+        expect(cell.z).toBeGreaterThanOrEqual(bounds.minTileZ);
+        expect(cell.z).toBeLessThanOrEqual(bounds.maxTileZ);
+      }
+    }
+  });
+
+  it("adds a minimal office-divider separator for placed project clusters with four or more child projects", () => {
     const createProject = (index: number) => ({
       id: `proj-section-${index}`,
       departmentId: "dept-codex-projects",
@@ -1245,7 +1289,7 @@ describe("office-data-provider team synthesis", () => {
     ).toBe(true);
   });
 
-  it("adds office-divider sections around placed project teams with six or more workers", () => {
+  it("adds a minimal office-divider separator for placed project teams with six or more workers", () => {
     const project = {
       id: "proj-large-team-section",
       departmentId: "dept-codex-projects",
@@ -1301,7 +1345,7 @@ describe("office-data-provider team synthesis", () => {
     expect(
       generatedSectionWalls.every((object) => object.metadata?.sectionBasis === "cluster-footprint"),
     ).toBe(true);
-    expect(generatedSectionWalls.length).toBeGreaterThanOrEqual(4);
+    expect(generatedSectionWalls).toHaveLength(1);
   });
 
   it("does not synthesize a Farplane fallback cluster when all projects are archived", () => {

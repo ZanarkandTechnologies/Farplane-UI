@@ -1063,32 +1063,85 @@ function buildPersistedTeamClusterByTeamId(
   return clusterByTeamId;
 }
 
-function buildDefaultFurnitureObjects(companyId: string): OfficeObject[] {
+function buildDefaultFurnitureObjects(
+  companyId: string,
+  officeLayout: OfficeLayoutModel,
+): OfficeObject[] {
+  const bounds = getOfficeLayoutBounds(officeLayout);
+  const insetX = Math.max(3, Math.min(5, Math.floor(bounds.width / 4)));
+  const insetZ = Math.max(3, Math.min(5, Math.floor(bounds.depth / 4)));
+  const leftX = bounds.minWorldX + insetX;
+  const rightX = bounds.maxWorldX - insetX;
+  const backZ = bounds.minWorldZ + insetZ;
+  const frontZ = bounds.maxWorldZ - insetZ;
+  const centerX = bounds.centerX;
+  const keepFootprintInsideLayout = (object: OfficeObject): OfficeObject => {
+    let position = object.position;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const cells = getObjectFootprintCells({
+        meshType: object.meshType,
+        position,
+        metadata: object.metadata,
+        rotation: object.rotation,
+      });
+      const minX = Math.min(...cells.map((cell) => cell.x));
+      const maxX = Math.max(...cells.map((cell) => cell.x));
+      const minZ = Math.min(...cells.map((cell) => cell.z));
+      const maxZ = Math.max(...cells.map((cell) => cell.z));
+      const shiftX =
+        minX < bounds.minTileX
+          ? bounds.minTileX - minX
+          : maxX > bounds.maxTileX
+            ? bounds.maxTileX - maxX
+            : 0;
+      const shiftZ =
+        minZ < bounds.minTileZ
+          ? bounds.minTileZ - minZ
+          : maxZ > bounds.maxTileZ
+            ? bounds.maxTileZ - maxZ
+            : 0;
+      if (shiftX === 0 && shiftZ === 0) break;
+      position = [position[0] + shiftX, position[1], position[2] + shiftZ];
+    }
+    return { ...object, position };
+  };
   return [
-    { _id: "plant-1", companyId, meshType: "plant", position: [-14, 0, -14], rotation: [0, 0, 0] },
-    { _id: "plant-2", companyId, meshType: "plant", position: [14, 0, -14], rotation: [0, 0, 0] },
+    {
+      _id: "plant-1",
+      companyId,
+      meshType: "plant",
+      position: [leftX, 0, frontZ],
+      rotation: [0, 0, 0],
+    },
+    {
+      _id: "plant-2",
+      companyId,
+      meshType: "plant",
+      position: [rightX, 0, frontZ],
+      rotation: [0, 0, 0],
+    },
     {
       _id: "bookshelf-1",
       companyId,
       meshType: "bookshelf",
-      position: [0, 0, -15],
+      position: [centerX, 0, backZ],
       rotation: [0, 0, 0],
     },
     {
       _id: "couch-1",
       companyId,
       meshType: "couch",
-      position: [12, 0, -14],
+      position: [rightX, 0, backZ],
       rotation: [0, Math.PI, 0],
     },
     {
       _id: "pantry-1",
       companyId,
       meshType: "pantry",
-      position: [-12, 0, -14],
+      position: [leftX, 0, backZ],
       rotation: [0, 0, 0],
     },
-  ];
+  ].map(keepFootprintInsideLayout);
 }
 
 export function fallbackData(): OfficeDataContextValue {
@@ -1522,19 +1575,27 @@ export function toOfficeData(
     clusterObjects,
     wallColor: getWallColorPreset(officeSettings.decor.wallColorId).color,
   });
-  const officeObjects = [
-    ...clusterObjects,
-    ...sectionWalls,
-    ...(sidecarFurniture.length > 0 ? sidecarFurniture : buildDefaultFurnitureObjects(companyId)),
-  ];
   const officeLayoutContentObjects = [
     ...clusterObjects,
     ...sectionWalls,
     ...sidecarFurniture,
   ];
-  const fittedOfficeLayout = deriveAutoFitOfficeLayout({
+  const preliminaryOfficeLayout = deriveAutoFitOfficeLayout({
     fallbackLayout: officeLayout,
     objects: officeLayoutContentObjects,
+  });
+  const furnitureObjects =
+    sidecarFurniture.length > 0
+      ? sidecarFurniture
+      : buildDefaultFurnitureObjects(companyId, preliminaryOfficeLayout);
+  const officeObjects = [
+    ...clusterObjects,
+    ...sectionWalls,
+    ...furnitureObjects,
+  ];
+  const fittedOfficeLayout = deriveAutoFitOfficeLayout({
+    fallbackLayout: preliminaryOfficeLayout,
+    objects: officeObjects,
   });
   const fittedOfficeSettings =
     areOfficeLayoutTilesEqual(sourceOfficeLayout, fittedOfficeLayout)

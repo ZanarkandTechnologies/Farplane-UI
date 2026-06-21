@@ -1,12 +1,12 @@
 /**
  * OFFICE SECTION WALLS
  * ====================
- * Derives generated inner divider walls around meaningful placed team groups.
+ * Derives generated inner divider walls between meaningful placed team groups.
  *
  * Inputs are already-placed team cluster objects and project metadata. Output is
  * ordinary `office-divider` office objects so renderer, occupancy, and auto-fit
  * logic consume the same object contract as user-placed dividers. Generated
- * walls wrap existing clusters; they do not repartition or move the office.
+ * walls separate existing clusters; they do not repartition or move the office.
  */
 
 import type { OfficeObject } from "@/modules/office/lib/types";
@@ -30,6 +30,14 @@ interface SectionWallGroup {
   id: string;
   sectionType: "project-subprojects" | "large-team";
   objects: OfficeObject[];
+}
+
+interface SectionDividerCandidate {
+  side: "north" | "south" | "west" | "east";
+  gap: number;
+  length: number;
+  position: [number, number, number];
+  rotation: [number, number, number];
 }
 
 function normalizeProjectPath(path: string | undefined): string {
@@ -118,66 +126,114 @@ function createDividerObject(input: {
 function buildWallsForGroup(input: {
   companyId: string;
   group: SectionWallGroup;
+  clusterObjects: OfficeObject[];
   wallColor: string;
 }): OfficeObject[] {
   const bounds = getOfficeObjectFootprintTileBounds(input.group.objects);
   if (!bounds) return [];
+  const groupObjectIds = new Set(input.group.objects.map((object) => object._id));
+  const neighborBounds = input.clusterObjects
+    .filter((object) => !groupObjectIds.has(object._id))
+    .flatMap((object) => {
+      const objectBounds = getOfficeObjectFootprintTileBounds([object]);
+      return objectBounds ? [objectBounds] : [];
+    });
+  if (neighborBounds.length === 0) return [];
 
   const minX = bounds.minTileX - SECTION_WALL_MARGIN_TILES;
   const maxX = bounds.maxTileX + SECTION_WALL_MARGIN_TILES;
   const minZ = bounds.minTileZ - SECTION_WALL_MARGIN_TILES;
   const maxZ = bounds.maxTileZ + SECTION_WALL_MARGIN_TILES;
-  const walls: OfficeObject[] = [];
-  let wallIndex = 0;
-  const addWall = (params: {
-    side: "north" | "south" | "west" | "east";
-    length: number;
-    position: [number, number, number];
-    rotation: [number, number, number];
-  }) => {
-    if (params.length < SECTION_MIN_WALL_SPAN) return;
-    walls.push(
-      createDividerObject({
-        companyId: input.companyId,
-        group: input.group,
-        wallId: `${params.side}-${wallIndex}`,
-        length: params.length,
-        wallColor: input.wallColor,
-        position: params.position,
-        rotation: params.rotation,
-      }),
-    );
-    wallIndex += 1;
-  };
-
   const width = maxX - minX;
   const depth = maxZ - minZ;
-  addWall({
-    side: "north",
-    length: width,
-    position: [minX + width / 2, 0, minZ],
-    rotation: [0, 0, 0],
-  });
-  addWall({
-    side: "south",
-    length: width,
-    position: [minX + width / 2, 0, maxZ],
-    rotation: [0, 0, 0],
-  });
-  addWall({
-    side: "west",
-    length: depth,
-    position: [minX, 0, minZ + depth / 2],
-    rotation: [0, Math.PI / 2, 0],
-  });
-  addWall({
-    side: "east",
-    length: depth,
-    position: [maxX, 0, minZ + depth / 2],
-    rotation: [0, Math.PI / 2, 0],
-  });
+  const centerX = minX + width / 2;
+  const centerZ = minZ + depth / 2;
+  const candidates: SectionDividerCandidate[] = [];
+  const addCandidate = (candidate: SectionDividerCandidate) => {
+    if (candidate.length >= SECTION_MIN_WALL_SPAN) candidates.push(candidate);
+  };
 
-  return walls;
+  for (const neighbor of neighborBounds) {
+    const neighborCenterX = (neighbor.minTileX + neighbor.maxTileX) / 2;
+    const neighborCenterZ = (neighbor.minTileZ + neighbor.maxTileZ) / 2;
+    if (neighbor.maxTileX <= minX) {
+      addCandidate({
+        side: "west",
+        gap: minX - neighbor.maxTileX,
+        length: depth,
+        position: [minX, 0, centerZ],
+        rotation: [0, Math.PI / 2, 0],
+      });
+    } else if (neighbor.minTileX >= maxX) {
+      addCandidate({
+        side: "east",
+        gap: neighbor.minTileX - maxX,
+        length: depth,
+        position: [maxX, 0, centerZ],
+        rotation: [0, Math.PI / 2, 0],
+      });
+    }
+    if (neighbor.maxTileZ <= minZ) {
+      addCandidate({
+        side: "north",
+        gap: minZ - neighbor.maxTileZ,
+        length: width,
+        position: [centerX, 0, minZ],
+        rotation: [0, 0, 0],
+      });
+    } else if (neighbor.minTileZ >= maxZ) {
+      addCandidate({
+        side: "south",
+        gap: neighbor.minTileZ - maxZ,
+        length: width,
+        position: [centerX, 0, maxZ],
+        rotation: [0, 0, 0],
+      });
+    }
+
+    if (
+      neighbor.minTileX < maxX &&
+      neighbor.maxTileX > minX &&
+      neighbor.minTileZ < maxZ &&
+      neighbor.maxTileZ > minZ
+    ) {
+      const xDistance = Math.abs(neighborCenterX - centerX);
+      const zDistance = Math.abs(neighborCenterZ - centerZ);
+      if (xDistance >= zDistance) {
+        addCandidate({
+          side: neighborCenterX < centerX ? "west" : "east",
+          gap: 0,
+          length: depth,
+          position: [neighborCenterX < centerX ? minX : maxX, 0, centerZ],
+          rotation: [0, Math.PI / 2, 0],
+        });
+      } else {
+        addCandidate({
+          side: neighborCenterZ < centerZ ? "north" : "south",
+          gap: 0,
+          length: width,
+          position: [centerX, 0, neighborCenterZ < centerZ ? minZ : maxZ],
+          rotation: [0, 0, 0],
+        });
+      }
+    }
+  }
+
+  const best = candidates.sort((left, right) =>
+    left.gap === right.gap ? right.length - left.length : left.gap - right.gap,
+  )[0];
+  if (!best) return [];
+  return [
+    createDividerObject({
+      companyId: input.companyId,
+      group: input.group,
+      wallId: `${best.side}-separator`,
+      length: best.length,
+      wallColor: input.wallColor,
+      position: best.position,
+      rotation: best.rotation,
+    }),
+  ];
 }
 
 function dedupeOfficeObjectsById(objects: OfficeObject[]): OfficeObject[] {
@@ -265,6 +321,7 @@ export function buildOfficeSectionWallObjects(input: {
     buildWallsForGroup({
       companyId: input.companyId,
       group,
+      clusterObjects: input.clusterObjects,
       wallColor: input.wallColor,
     }),
   );
