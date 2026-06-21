@@ -1177,7 +1177,7 @@ describe("office-data-provider team synthesis", () => {
     ).toBeGreaterThan(0.9);
   });
 
-  it("adds glass-wall table sections only after the office has more than eight tables", () => {
+  it("adds glass-wall sections around projects with four or more child projects", () => {
     const createProject = (index: number) => ({
       id: `proj-section-${index}`,
       departmentId: "dept-codex-projects",
@@ -1186,6 +1186,10 @@ describe("office-data-provider team synthesis", () => {
       status: "active" as const,
       goal: "Build the product",
       kpis: [],
+      trackingContext:
+        index === 0
+          ? "/workspace/section-parent"
+          : `/workspace/section-parent/child-${index}`,
       accountEvents: [],
       ledger: [],
       experiments: [],
@@ -1196,7 +1200,7 @@ describe("office-data-provider team synthesis", () => {
     const compactResult = toOfficeData(
       createUnifiedOfficeModel({
         company: createCompanyModel({
-          projects: Array.from({ length: 7 }, (_, index) => createProject(index)),
+          projects: Array.from({ length: 4 }, (_, index) => createProject(index)),
         }),
       }),
       createOfficeSettings(),
@@ -1204,20 +1208,21 @@ describe("office-data-provider team synthesis", () => {
     const sectionedResult = toOfficeData(
       createUnifiedOfficeModel({
         company: createCompanyModel({
-          projects: Array.from({ length: 8 }, (_, index) => createProject(index)),
+          projects: Array.from({ length: 5 }, (_, index) => createProject(index)),
         }),
       }),
       createOfficeSettings(),
     );
     const generatedSectionWalls = sectionedResult.officeObjects.filter(
       (object) =>
-        object.meshType === "glass-wall" && object.metadata?.sectionType === "table-section",
+        object.meshType === "glass-wall" && object.metadata?.sectionType === "project-subprojects",
     );
 
     expect(
       compactResult.officeObjects.some(
         (object) =>
-          object.meshType === "glass-wall" && object.metadata?.sectionType === "table-section",
+          object.meshType === "glass-wall" &&
+          object.metadata?.sectionType === "project-subprojects",
       ),
     ).toBe(false);
     expect(generatedSectionWalls.length).toBeGreaterThan(0);
@@ -1226,6 +1231,60 @@ describe("office-data-provider team synthesis", () => {
     );
     expect(
       generatedSectionWalls.some((object) => object.rotation[1] === Math.PI / 2),
+    ).toBe(true);
+  });
+
+  it("adds glass-wall sections around project teams with six or more workers", () => {
+    const project = {
+      id: "proj-large-team-section",
+      departmentId: "dept-codex-projects",
+      name: "Large Team Section",
+      githubUrl: "",
+      status: "active" as const,
+      goal: "Coordinate a larger project team",
+      kpis: [],
+      accountEvents: [],
+      ledger: [],
+      experiments: [],
+      metricEvents: [],
+      resources: [],
+      resourceEvents: [],
+    };
+    const projectAgents = Array.from({ length: 6 }, (_, index) => ({
+      agentId: `large-section-worker-${index}`,
+      role: "builder" as const,
+      projectId: project.id,
+      heartbeatProfileId: "hb-ceo",
+      lifecycleState: "active" as const,
+    }));
+    const result = toOfficeData(
+      createUnifiedOfficeModel({
+        company: createCompanyModel({
+          projects: [project],
+          agents: [createCompanyModel().agents[0], ...projectAgents],
+        }),
+        runtimeAgents: [
+          createRuntimeAgent(),
+          ...projectAgents.map((agent) =>
+            createRuntimeAgent({ agentId: agent.agentId, displayName: agent.agentId }),
+          ),
+        ],
+        configuredAgents: [
+          createRuntimeAgent(),
+          ...projectAgents.map((agent) =>
+            createRuntimeAgent({ agentId: agent.agentId, displayName: agent.agentId }),
+          ),
+        ],
+      }),
+      createOfficeSettings(),
+    );
+    const generatedSectionWalls = result.officeObjects.filter(
+      (object) => object.meshType === "glass-wall" && object.metadata?.sectionType === "large-team",
+    );
+
+    expect(generatedSectionWalls.length).toBeGreaterThan(0);
+    expect(
+      generatedSectionWalls.every((object) => object.metadata?.sectionId === "team-team-proj-large-team-section"),
     ).toBe(true);
   });
 
