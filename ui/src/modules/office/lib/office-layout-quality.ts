@@ -37,6 +37,25 @@ export interface OfficeLayoutQuality {
   score: number;
 }
 
+export interface OfficePoiGraphNode {
+  id: string;
+  label: string;
+  objectId: string;
+  meshType: string;
+  tileKey: string | null;
+  reachable: boolean;
+  pathLengthFromRoot: number | null;
+}
+
+export interface OfficePoiGraphReport {
+  rootId: string | null;
+  nodes: OfficePoiGraphNode[];
+  reachableCount: number;
+  disconnectedCount: number;
+  disconnectedIds: string[];
+  averagePathLength: number | null;
+}
+
 function neighborsOf(point: TilePoint): TilePoint[] {
   return [
     { x: point.x + 1, z: point.z, key: officeLayoutTileKey(point.x + 1, point.z) },
@@ -149,16 +168,17 @@ function nearestWalkableTile(
   position: [number, number, number],
   layoutTiles: Set<string>,
   walkableTiles: Set<string>,
+  acceptedWalkableTiles: Set<string> = walkableTiles,
 ): string | null {
   const start: TilePoint = {
     x: Math.round(position[0]),
     z: Math.round(position[2]),
     key: officeLayoutTileKey(position[0], position[2]),
   };
-  if (walkableTiles.has(start.key)) return start.key;
+  if (acceptedWalkableTiles.has(start.key)) return start.key;
   if (!layoutTiles.has(start.key)) {
     let nearest: { key: string; distance: number } | null = null;
-    for (const tile of parseTileSet(walkableTiles)) {
+    for (const tile of parseTileSet(acceptedWalkableTiles)) {
       const distance = (tile.x - start.x) ** 2 + (tile.z - start.z) ** 2;
       if (!nearest || distance < nearest.distance) nearest = { key: tile.key, distance };
     }
@@ -171,7 +191,7 @@ function nearestWalkableTile(
     const current = queue[index];
     for (const neighbor of neighborsOf(current)) {
       if (!layoutTiles.has(neighbor.key) || visited.has(neighbor.key)) continue;
-      if (walkableTiles.has(neighbor.key)) return neighbor.key;
+      if (acceptedWalkableTiles.has(neighbor.key)) return neighbor.key;
       visited.add(neighbor.key);
       queue.push(neighbor);
     }
@@ -201,17 +221,93 @@ function shortestPathLength(
   return null;
 }
 
+function isPoiObject(object: OfficeObject): boolean {
+  if (object.meshType === "wall-art") return false;
+  if (object.meshType === "glass-wall") return false;
+  if (object.meshType === "office-divider") return object.metadata?.generated === true;
+  return (
+    object.meshType === "team-cluster" ||
+    object.meshType === "plant" ||
+    object.meshType === "bookshelf" ||
+    object.meshType === "couch" ||
+    object.meshType === "pantry" ||
+    object.metadata?.skillBinding != null ||
+    object.metadata?.uiBinding != null
+  );
+}
+
+function getPoiObjectLabel(object: OfficeObject): string {
+  const metadataName = object.metadata?.displayName ?? object.metadata?.name ?? object.metadata?.teamId;
+  return typeof metadataName === "string" && metadataName.trim()
+    ? metadataName.trim()
+    : object._id;
+}
+
 function getImportantTargetKeys(input: {
   objects: OfficeObject[];
   layoutTiles: Set<string>;
   walkableTiles: Set<string>;
 }): string[] {
   const keys = input.objects
-    .filter((object) => object.meshType !== "wall-art" && object.meshType !== "glass-wall")
-    .filter((object) => object.meshType !== "office-divider")
+    .filter(isPoiObject)
     .map((object) => nearestWalkableTile(object.position, input.layoutTiles, input.walkableTiles))
     .filter((key): key is string => Boolean(key));
-  return [...new Set(keys)].slice(0, 16);
+  return [...new Set(keys)];
+}
+
+export function evaluateOfficePoiGraph(input: {
+  layout: OfficeLayoutModel;
+  objects: OfficeObject[];
+}): OfficePoiGraphReport {
+  const layoutTiles = getOfficeLayoutTileSet(input.layout);
+  const occupiedTiles = getOccupiedTileSet(input.objects, layoutTiles);
+  const walkableTiles = new Set([...layoutTiles].filter((tile) => !occupiedTiles.has(tile)));
+  const largestComponent = findLargestComponent(walkableTiles);
+  const poiObjects = input.objects.filter(isPoiObject);
+  const rootObject =
+    poiObjects.find((object) => object.meshType === "team-cluster") ?? poiObjects[0];
+  const rootKey = rootObject
+    ? nearestWalkableTile(rootObject.position, layoutTiles, walkableTiles, largestComponent)
+    : null;
+
+  const nodes = poiObjects.map((object) => {
+    const tileKey = nearestWalkableTile(
+      object.position,
+      layoutTiles,
+      walkableTiles,
+      largestComponent,
+    );
+    const pathLengthFromRoot = rootKey && tileKey
+      ? shortestPathLength(rootKey, tileKey, walkableTiles)
+      : null;
+    return {
+      id: `${object.meshType}:${object._id}`,
+      label: getPoiObjectLabel(object),
+      objectId: object._id,
+      meshType: object.meshType,
+      tileKey,
+      reachable: pathLengthFromRoot != null,
+      pathLengthFromRoot,
+    };
+  });
+  const pathLengths = nodes
+    .map((node) => node.pathLengthFromRoot)
+    .filter((distance): distance is number => typeof distance === "number" && distance > 0);
+  const disconnectedIds = nodes
+    .filter((node) => !node.reachable)
+    .map((node) => node.id);
+
+  return {
+    rootId: rootObject ? `${rootObject.meshType}:${rootObject._id}` : null,
+    nodes,
+    reachableCount: nodes.length - disconnectedIds.length,
+    disconnectedCount: disconnectedIds.length,
+    disconnectedIds,
+    averagePathLength:
+      pathLengths.length > 0
+        ? pathLengths.reduce((sum, distance) => sum + distance, 0) / pathLengths.length
+        : null,
+  };
 }
 
 export function evaluateOfficeLayoutQuality(input: {

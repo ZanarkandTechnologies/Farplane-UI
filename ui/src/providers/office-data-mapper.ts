@@ -43,7 +43,10 @@ import {
   officeLayoutTileKey,
   type OfficeLayoutModel,
 } from "@/modules/office/lib/office-layout";
-import { evaluateOfficeLayoutQuality } from "@/modules/office/lib/office-layout-quality";
+import {
+  evaluateOfficeLayoutQuality,
+  evaluateOfficePoiGraph,
+} from "@/modules/office/lib/office-layout-quality";
 import {
   buildOfficeSectionWallObjects,
   getOfficeObjectFootprintTileBounds,
@@ -115,7 +118,7 @@ const AUTO_FIT_OFFICE_MIN_WIDTH = 8;
 const AUTO_FIT_OFFICE_MIN_DEPTH = 7;
 const AUTO_FIT_CORRIDOR_RADIUS_TILES = 1;
 const AUTO_FIT_LOOP_EDGE_RATIO = 0.2;
-const AUTO_FIT_EMPTY_AREA_TARGET = 0.2;
+const AUTO_FIT_EMPTY_AREA_TARGET = 0.19;
 const COMPACT_CLUSTER_GAP_TILES = 1.25;
 
 export interface OfficeDataContextValue {
@@ -341,6 +344,91 @@ function addCorridorTiles(input: {
   }
 }
 
+function addRoutedCorridorTiles(input: {
+  tileSet: Set<string>;
+  occupiedTiles: Set<string>;
+  from: { x: number; z: number };
+  to: { x: number; z: number };
+  radius: number;
+}): void {
+  const seedLayout = createTileMaskLayoutFromTileSet(input.tileSet);
+  if (!seedLayout) return;
+  const bounds = getOfficeLayoutBounds(seedLayout);
+  const minX = Math.min(bounds.minTileX, input.from.x, input.to.x) - 3;
+  const maxX = Math.max(bounds.maxTileX, input.from.x, input.to.x) + 3;
+  const minZ = Math.min(bounds.minTileZ, input.from.z, input.to.z) - 3;
+  const maxZ = Math.max(bounds.maxTileZ, input.from.z, input.to.z) + 3;
+  const startKey = officeLayoutTileKey(input.from.x, input.from.z);
+  const targetKey = officeLayoutTileKey(input.to.x, input.to.z);
+  const visited = new Set<string>([startKey]);
+  const previous = new Map<string, string | null>([[startKey, null]]);
+  const queue = [input.from];
+
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index];
+    if (officeLayoutTileKey(current.x, current.z) === targetKey) break;
+    const neighbors = [
+      { x: current.x + 1, z: current.z },
+      { x: current.x - 1, z: current.z },
+      { x: current.x, z: current.z + 1 },
+      { x: current.x, z: current.z - 1 },
+    ].sort((left, right) => {
+      const leftDistance = Math.abs(left.x - input.to.x) + Math.abs(left.z - input.to.z);
+      const rightDistance = Math.abs(right.x - input.to.x) + Math.abs(right.z - input.to.z);
+      return leftDistance - rightDistance;
+    });
+    for (const neighbor of neighbors) {
+      if (neighbor.x < minX || neighbor.x > maxX || neighbor.z < minZ || neighbor.z > maxZ) {
+        continue;
+      }
+      const key = officeLayoutTileKey(neighbor.x, neighbor.z);
+      if (visited.has(key)) continue;
+      if (input.occupiedTiles.has(key) && key !== targetKey) continue;
+      visited.add(key);
+      previous.set(key, officeLayoutTileKey(current.x, current.z));
+      queue.push(neighbor);
+    }
+  }
+
+  if (!previous.has(targetKey)) {
+    addCorridorTiles(input);
+    return;
+  }
+
+  let currentKey: string | null = targetKey;
+  while (currentKey) {
+    const [x, z] = currentKey.split(":").map(Number);
+    if (Number.isFinite(x) && Number.isFinite(z)) {
+      addPaddedTile(input.tileSet, x, z, input.radius);
+    }
+    currentKey = previous.get(currentKey) ?? null;
+  }
+}
+
+function getObjectAccessTile(input: {
+  cells: Array<{ x: number; z: number; key: string }>;
+  position: [number, number, number];
+}): { x: number; z: number } | null {
+  if (input.cells.length === 0) return null;
+  const occupied = new Set(input.cells.map((cell) => cell.key));
+  const minX = Math.min(...input.cells.map((cell) => cell.x));
+  const maxX = Math.max(...input.cells.map((cell) => cell.x));
+  const minZ = Math.min(...input.cells.map((cell) => cell.z));
+  const maxZ = Math.max(...input.cells.map((cell) => cell.z));
+  const centerX = Math.round(input.position[0]);
+  const centerZ = Math.round(input.position[2]);
+  const candidates = [
+    { x: maxX + 1, z: centerZ },
+    { x: minX - 1, z: centerZ },
+    { x: centerX, z: maxZ + 1 },
+    { x: centerX, z: minZ - 1 },
+  ];
+  return (
+    candidates.find((candidate) => !occupied.has(officeLayoutTileKey(candidate.x, candidate.z))) ??
+    null
+  );
+}
+
 interface ConnectivityEdge {
   from: number;
   to: number;
@@ -424,6 +512,15 @@ function createUniformLayoutFromTileSet(input: {
   );
 }
 
+function createTileMaskLayoutFromTileSet(tileSet: Set<string>): OfficeLayoutModel | null {
+  if (tileSet.size === 0) return null;
+  return {
+    version: 1,
+    tileSize: 1,
+    tiles: sortLayoutTiles(tileSet),
+  };
+}
+
 function trimUniformLayoutToObjectEdges(input: {
   layout: OfficeLayoutModel;
   objects: OfficeObject[];
@@ -433,6 +530,7 @@ function trimUniformLayoutToObjectEdges(input: {
   const objectBounds = getOfficeObjectFootprintTileBounds(input.objects);
   if (!objectBounds) return input.layout;
   const layoutBounds = getOfficeLayoutBounds(input.layout);
+  const isUniformLayout = input.layout.tiles.length === layoutBounds.width * layoutBounds.depth;
   const trimmedBounds = expandTileBoundsToMinimum({
     minTileX: Math.max(layoutBounds.minTileX, objectBounds.minTileX),
     maxTileX: Math.min(layoutBounds.maxTileX, objectBounds.maxTileX),
@@ -441,6 +539,26 @@ function trimUniformLayoutToObjectEdges(input: {
     minWidth: input.minWidth,
     minDepth: input.minDepth,
   });
+  if (!isUniformLayout) {
+    const tiles = input.layout.tiles.filter((tile) => {
+      const [x, z] = tile.split(":").map(Number);
+      return (
+        Number.isFinite(x) &&
+        Number.isFinite(z) &&
+        x >= trimmedBounds.minTileX &&
+        x <= trimmedBounds.maxTileX &&
+        z >= trimmedBounds.minTileZ &&
+        z <= trimmedBounds.maxTileZ
+      );
+    });
+    return tiles.length > 0
+      ? {
+          version: 1,
+          tileSize: 1,
+          tiles: sortLayoutTiles(tiles),
+        }
+      : input.layout;
+  }
   return createRectangularOfficeLayoutFromTileBounds({
     minTileX: Math.max(layoutBounds.minTileX, trimmedBounds.minTileX),
     maxTileX: Math.min(layoutBounds.maxTileX, trimmedBounds.maxTileX),
@@ -470,6 +588,67 @@ function getOfficeLayoutEmptyPercent(input: {
   return Math.max(0, layoutTiles.size - occupiedTiles.size) / layoutTiles.size;
 }
 
+function getOccupiedOfficeLayoutTiles(input: {
+  layout: OfficeLayoutModel;
+  objects: OfficeObject[];
+}): Set<string> {
+  const layoutTiles = getOfficeLayoutTileSet(input.layout);
+  const occupiedTiles = new Set<string>();
+  for (const object of input.objects) {
+    if (object.meshType === "wall-art") continue;
+    for (const cell of getObjectFootprintCells({
+      meshType: object.meshType,
+      position: object.position,
+      metadata: object.metadata,
+      rotation: object.rotation,
+    })) {
+      if (layoutTiles.has(cell.key)) occupiedTiles.add(cell.key);
+    }
+  }
+  return occupiedTiles;
+}
+
+function pruneEmptyLayoutTilesForTarget(input: {
+  layout: OfficeLayoutModel;
+  objects: OfficeObject[];
+  targetEmptyPercent: number;
+}): OfficeLayoutModel {
+  let current = input.layout;
+  const occupiedTiles = getOccupiedOfficeLayoutTiles({
+    layout: input.layout,
+    objects: input.objects,
+  });
+  const removableTiles = input.layout.tiles
+    .filter((tile) => !occupiedTiles.has(tile))
+    .sort((left, right) => {
+      const leftParsed = left.split(":").map(Number);
+      const rightParsed = right.split(":").map(Number);
+      const leftDistance = Math.abs(leftParsed[0] ?? 0) + Math.abs(leftParsed[1] ?? 0);
+      const rightDistance = Math.abs(rightParsed[0] ?? 0) + Math.abs(rightParsed[1] ?? 0);
+      return rightDistance - leftDistance;
+    });
+
+  for (const tile of removableTiles) {
+    if (
+      getOfficeLayoutEmptyPercent({ layout: current, objects: input.objects }) <
+      input.targetEmptyPercent
+    ) {
+      break;
+    }
+    const nextTiles = current.tiles.filter((candidate) => candidate !== tile);
+    if (nextTiles.length === current.tiles.length) continue;
+    const nextLayout: OfficeLayoutModel = {
+      version: 1,
+      tileSize: 1,
+      tiles: sortLayoutTiles(nextTiles),
+    };
+    const graph = evaluateOfficePoiGraph({ layout: nextLayout, objects: input.objects });
+    if (graph.disconnectedCount > 0) continue;
+    current = nextLayout;
+  }
+  return current;
+}
+
 function buildAutoFitOfficeLayout(input: {
   fallbackLayout: OfficeLayoutModel;
   objects: OfficeObject[];
@@ -478,8 +657,10 @@ function buildAutoFitOfficeLayout(input: {
   minWidth: number;
   minDepth: number;
   connectClusters: boolean;
+  uniformShape?: boolean;
 }): OfficeLayoutModel {
   const tileSet = new Set<string>();
+  const occupiedTiles = new Set<string>();
   const centers: Array<{ x: number; z: number }> = [];
 
   for (const object of input.objects) {
@@ -490,27 +671,36 @@ function buildAutoFitOfficeLayout(input: {
       metadata: object.metadata,
       rotation: object.rotation,
     });
+    for (const cell of cells) occupiedTiles.add(cell.key);
     for (const cell of cells) {
       addPaddedTile(tileSet, cell.x, cell.z, input.paddingTiles);
     }
-    if (cells.length > 0) {
-      centers.push({
-        x: Math.round(object.position[0]),
-        z: Math.round(object.position[2]),
-      });
+    const accessTile = getObjectAccessTile({ cells, position: object.position });
+    if (accessTile) {
+      addPaddedTile(tileSet, accessTile.x, accessTile.z, input.corridorRadiusTiles);
+      centers.push(accessTile);
     }
   }
   if (tileSet.size === 0) return input.fallbackLayout;
 
   if (input.connectClusters) {
     for (const edge of buildConnectivityGraphEdges(centers)) {
-      addCorridorTiles({
+      const corridorInput = {
         tileSet,
         from: centers[edge.from],
         to: centers[edge.to],
         radius: input.corridorRadiusTiles,
-      });
+      };
+      if (input.uniformShape === false) {
+        addRoutedCorridorTiles({ ...corridorInput, occupiedTiles });
+      } else {
+        addCorridorTiles(corridorInput);
+      }
     }
+  }
+
+  if (input.uniformShape === false) {
+    return createTileMaskLayoutFromTileSet(tileSet) ?? input.fallbackLayout;
   }
 
   return (
@@ -539,6 +729,36 @@ function deriveAutoFitOfficeLayout(input: {
     buildAutoFitOfficeLayout({
       fallbackLayout: input.fallbackLayout,
       objects: input.objects,
+      paddingTiles: AUTO_FIT_OFFICE_PADDING_TILES,
+      corridorRadiusTiles: 0,
+      minWidth: 1,
+      minDepth: 1,
+      connectClusters: true,
+      uniformShape: false,
+    }),
+    buildAutoFitOfficeLayout({
+      fallbackLayout: input.fallbackLayout,
+      objects: input.objects,
+      paddingTiles: 0,
+      corridorRadiusTiles: 0,
+      minWidth: 1,
+      minDepth: 1,
+      connectClusters: true,
+      uniformShape: false,
+    }),
+    buildAutoFitOfficeLayout({
+      fallbackLayout: input.fallbackLayout,
+      objects: input.objects,
+      paddingTiles: 0,
+      corridorRadiusTiles: 1,
+      minWidth: 1,
+      minDepth: 1,
+      connectClusters: true,
+      uniformShape: false,
+    }),
+    buildAutoFitOfficeLayout({
+      fallbackLayout: input.fallbackLayout,
+      objects: input.objects,
       paddingTiles: 0,
       corridorRadiusTiles: 0,
       minWidth: 1,
@@ -558,12 +778,24 @@ function deriveAutoFitOfficeLayout(input: {
     layout,
     emptyPercent: getOfficeLayoutEmptyPercent({ layout, objects: input.objects }),
     quality: evaluateOfficeLayoutQuality({ layout, objects: input.objects }),
+    poiGraph: evaluateOfficePoiGraph({ layout, objects: input.objects }),
   }));
   const compactCandidates = candidates.filter(
-    (candidate) => candidate.emptyPercent <= AUTO_FIT_EMPTY_AREA_TARGET,
+    (candidate) =>
+      candidate.emptyPercent <= AUTO_FIT_EMPTY_AREA_TARGET &&
+      candidate.poiGraph.disconnectedCount === 0,
   );
-  const candidatePool = compactCandidates.length > 0 ? compactCandidates : candidates;
+  const connectedCandidates = candidates.filter((candidate) => candidate.poiGraph.disconnectedCount === 0);
+  const candidatePool =
+    compactCandidates.length > 0
+      ? compactCandidates
+      : connectedCandidates.length > 0
+        ? connectedCandidates
+        : candidates;
   const cappedLayout = [...candidatePool].sort((left, right) => {
+    if (left.poiGraph.disconnectedCount !== right.poiGraph.disconnectedCount) {
+      return left.poiGraph.disconnectedCount - right.poiGraph.disconnectedCount;
+    }
     if (compactCandidates.length === 0 && left.emptyPercent !== right.emptyPercent) {
       return left.emptyPercent - right.emptyPercent;
     }
@@ -585,9 +817,14 @@ function deriveAutoFitOfficeLayout(input: {
     minWidth: AUTO_FIT_OFFICE_MIN_WIDTH,
     minDepth: AUTO_FIT_OFFICE_MIN_DEPTH,
   });
-  return areOfficeLayoutTilesEqual(input.fallbackLayout, edgeTrimmedLayout)
+  const compactedLayout = pruneEmptyLayoutTilesForTarget({
+    layout: edgeTrimmedLayout,
+    objects: input.objects,
+    targetEmptyPercent: AUTO_FIT_EMPTY_AREA_TARGET,
+  });
+  return areOfficeLayoutTilesEqual(input.fallbackLayout, compactedLayout)
     ? input.fallbackLayout
-    : edgeTrimmedLayout;
+    : compactedLayout;
 }
 
 function isTeamClusterPlacementLocked(

@@ -14,8 +14,8 @@ requires_qa: true
 requires_demo: false
 created_at: 2026-06-22
 updated_at: 2026-06-22
-next_action: implement POI graph walkability and compact layout proof until the office is under 20 percent empty with visible generated walls
-last_verification: live probe currently shows 28 percent empty and generated walls are not visibly proven
+next_action: commit scoped layout and POI graph changes after successful browser evidence
+last_verification: focused tests and typecheck passed; browser probe shows EMPTY 19 percent and POI disconnected count 0
 ---
 
 # TASK-0005: Optimize Office Treemap Packing, Visible Dividers, And Graph Walkability
@@ -101,10 +101,10 @@ proof:
 ```
 
 ## State
-- `next_action:` create native Goal, inspect current geometry, implement POI graph check, optimize compact fit, prove with browser evidence.
+- `next_action:` commit scoped layout and POI graph changes.
 - `blocked:` false
-- `latest_verification:` current known evidence is insufficient: 28% empty and no visible generated-wall proof.
-- `result:` pending
+- `latest_verification:` focused tests/typecheck passed; live browser probe shows `EMPTY 19%`; POI graph has 16 nodes and 0 disconnected; generated divider renderer probe screenshot captured.
+- `result:` implemented, awaiting commit
 
 ## Links
 - `program:` tickets/TASK-0005/program.md

@@ -1287,7 +1287,7 @@ describe("office-data-provider team synthesis", () => {
     expect(bounds.maxTileX).toBeGreaterThanOrEqual(19);
     expect(
       result.officeSettings.officeLayout.tiles.length / (bounds.width * bounds.depth),
-    ).toBe(1);
+    ).toBeLessThanOrEqual(1);
     expect(bounds.width).toBeGreaterThanOrEqual(objectWidth);
     expect(bounds.width).toBeLessThanOrEqual(Math.max(8, objectWidth));
     expect(bounds.depth).toBeGreaterThanOrEqual(objectDepth);
@@ -1296,13 +1296,13 @@ describe("office-data-provider team synthesis", () => {
     expect(bounds.maxTileX).toBeGreaterThanOrEqual(objectMaxX);
     expect(bounds.minTileZ).toBeLessThanOrEqual(objectMinZ);
     expect(bounds.maxTileZ).toBeGreaterThanOrEqual(objectMaxZ);
-    expect(
-      deriveOfficeSpaceStats({
-        employees: result.employees,
-        officeObjects: result.officeObjects,
-        officeLayout: result.officeSettings.officeLayout,
-      }).walkablePercent,
-    ).toBeGreaterThanOrEqual(0.5);
+    const stats = deriveOfficeSpaceStats({
+      employees: result.employees,
+      officeObjects: result.officeObjects,
+      officeLayout: result.officeSettings.officeLayout,
+    });
+    expect(stats.emptyPercent).toBeLessThan(0.2);
+    expect(stats.walkablePercent).toBeGreaterThanOrEqual(0.5);
   });
 
   it("includes default furniture when auto-fitting the rendered office layout", () => {
