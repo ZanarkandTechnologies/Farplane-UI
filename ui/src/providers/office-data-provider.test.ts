@@ -16,7 +16,12 @@ import type {
   UnifiedOfficeModel,
 } from "@/modules/runtime";
 import { repairTeamClusterPlacements, toOfficeData } from "./office-data-mapper";
-import { mergeAgentLiveStatuses } from "./office-data-provider";
+import {
+  mergeAgentLiveStatuses,
+  mergeObservedCodexWorkersIntoUnifiedOfficeModel,
+  observedCodexWorkersToLiveStatuses,
+  type ObservedCodexWorkerRow,
+} from "./office-data-provider";
 import {
   buildEmployeeSignature,
   buildOfficeObjectSignature,
@@ -247,6 +252,112 @@ describe("office-data-provider stabilization", () => {
         bubbleMessages: [{ threadId: "thread-running", message: "Calling openai docs", eventAt: 3_000 }],
       }),
     );
+  });
+
+  it("keeps telemetry-observed Codex workers read-only unless a real thread agent owns the lane", () => {
+    const observedWorkers: ObservedCodexWorkerRow[] = [
+      {
+        workerId: "codex-observed:machine-a:codex-proj-farplane:thread-1",
+        sourceInstanceId: "machine-a",
+        machineId: "machine-a",
+        machineName: "Studio Mac",
+        sessionKey: "thread-1",
+        threadId: "thread-1",
+        projectId: "codex-proj-farplane",
+        projectPath: "/work/farplane",
+        displayName: "Build presence",
+        state: "running",
+        statusText: "Calling goal advisor",
+        lastSeenAt: 1770000000000,
+        controllable: false,
+      },
+    ];
+    const unified = mergeObservedCodexWorkersIntoUnifiedOfficeModel(
+      createUnifiedOfficeModel({
+        company: createCompanyModel({
+          projects: [],
+          agents: [
+            {
+              agentId: "main",
+              role: "ceo",
+              heartbeatProfileId: "hb-ceo",
+              isCeo: true,
+              lifecycleState: "active",
+            },
+          ],
+        }),
+        runtimeAgents: [createRuntimeAgent()],
+        configuredAgents: [createRuntimeAgent()],
+        diagnostics: {
+          ...createUnifiedOfficeModel().diagnostics,
+          source: "codex",
+        },
+      }),
+      observedWorkers,
+      1770000000000,
+    );
+    const liveStatus = observedCodexWorkersToLiveStatuses(observedWorkers);
+    const result = toOfficeData(unified, createOfficeSettings(), [], liveStatus);
+    const employee = result.employees.find(
+      (entry) => entry._id === "employee-codex-observed:machine-a:codex-proj-farplane:thread-1",
+    );
+
+    expect(unified.company.projects.map((project) => project.id)).toContain("codex-proj-farplane");
+    expect(employee).toEqual(
+      expect.objectContaining({
+        name: "Build presence",
+        teamId: "team-codex-proj-farplane",
+        statusMessage: "Calling goal advisor",
+        presencePersistent: false,
+        presenceExpiresAt: 1770000900000,
+        observedRuntime: expect.objectContaining({
+          kind: "codex",
+          sourceInstanceId: "machine-a",
+          machineId: "machine-a",
+          machineName: "Studio Mac",
+          sessionKey: "thread-1",
+          threadId: "thread-1",
+          controllable: false,
+        }),
+      }),
+    );
+  });
+
+  it("does not duplicate observed telemetry when an app-server thread agent already owns the same thread", () => {
+    const observedWorkers: ObservedCodexWorkerRow[] = [
+      {
+        workerId: "codex-observed:machine-a:codex-proj-farplane:thread-1",
+        sourceInstanceId: "machine-a",
+        machineId: "machine-a",
+        sessionKey: "thread-1",
+        threadId: "thread-1",
+        projectId: "codex-proj-farplane",
+        displayName: "Observed duplicate",
+        state: "running",
+        statusText: "Observed duplicate",
+        lastSeenAt: 1770000000000,
+        controllable: false,
+      },
+    ];
+    const unified = createUnifiedOfficeModel({
+      company: createCompanyModel({
+        agents: [
+          {
+            agentId: "codex-thread:thread-1",
+            role: "builder",
+            projectId: "codex-proj-farplane",
+            heartbeatProfileId: "hb-ceo",
+            lifecycleState: "active",
+          },
+        ],
+      }),
+      runtimeAgents: [createRuntimeAgent({ agentId: "codex-thread:thread-1" })],
+      configuredAgents: [createRuntimeAgent({ agentId: "codex-thread:thread-1" })],
+    });
+
+    const merged = mergeObservedCodexWorkersIntoUnifiedOfficeModel(unified, observedWorkers);
+
+    expect(merged.runtimeAgents.map((agent) => agent.agentId)).toEqual(["codex-thread:thread-1"]);
   });
 
   it("treats activity target changes as employee changes", () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   hookTelemetryRowsToAgentBubbleMessages,
   hookTelemetryRowsToActivityPingRows,
+  hookTelemetryRowsToObservedCodexWorkers,
   hookTelemetryRowsToOfficeTravelIntents,
   hookTelemetryRowsToSkillInvocationRows,
   type HookTelemetryRow,
@@ -69,6 +70,73 @@ describe("hook telemetry projections", () => {
         turnId: "turn-1",
       }),
     ]);
+  });
+
+  it("separates observed Codex workers by machine, project, and thread identity", () => {
+    const rows: HookTelemetryRow[] = [
+      {
+        hookName: "codex-runtime",
+        hookType: "TurnStart",
+        projectId: "codex-proj-farplane",
+        sessionId: "thread-1",
+        eventAt: 1_000,
+        payload: {
+          machineId: "machine-a",
+          machineName: "Studio Mac",
+          threadId: "thread-1",
+          turnId: "turn-1",
+          cwd: "/work/farplane",
+          title: "Build presence",
+        },
+      },
+      {
+        hookName: "codex-runtime",
+        hookType: "PostToolUse",
+        projectId: "codex-proj-farplane",
+        sessionId: "thread-1",
+        eventAt: 2_000,
+        payload: {
+          machineId: "machine-a",
+          machineName: "Studio Mac",
+          threadId: "thread-1",
+          skillId: "goal-advisor",
+          prompt: "should not leak",
+        },
+      },
+      {
+        hookName: "codex-runtime",
+        hookType: "TurnStart",
+        projectId: "codex-proj-farplane",
+        sessionId: "thread-2",
+        eventAt: 3_000,
+        payload: {
+          machineId: "machine-b",
+          machineName: "Laptop",
+          threadId: "thread-2",
+          turnId: "turn-2",
+          cwd: "/work/farplane",
+        },
+      },
+    ];
+
+    const workers = hookTelemetryRowsToObservedCodexWorkers(rows);
+
+    expect(workers).toHaveLength(2);
+    expect(workers.map((worker) => worker.workerId).sort()).toEqual([
+      "codex-observed:machine-a:codex-proj-farplane:thread-1",
+      "codex-observed:machine-b:codex-proj-farplane:thread-2",
+    ]);
+    expect(workers.find((worker) => worker.workerId.includes("machine-a"))).toEqual(
+      expect.objectContaining({
+        sourceInstanceId: "machine-a",
+        projectId: "codex-proj-farplane",
+        sessionKey: "thread-1",
+        state: "running",
+        statusText: "Calling goal advisor",
+        controllable: false,
+      }),
+    );
+    expect(JSON.stringify(workers)).not.toContain("should not leak");
   });
 
   it("projects skill invocation rows into bubble messages and office travel intents", () => {

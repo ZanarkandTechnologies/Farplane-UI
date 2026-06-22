@@ -184,6 +184,10 @@ function dedupeAgentsById(agents: AgentCardModel[]): AgentCardModel[] {
   return deduped;
 }
 
+function isObservedCodexAgentId(value: string): boolean {
+  return value.startsWith("codex-observed:");
+}
+
 export class CodexRuntimeAdapter extends OpenClawAdapter {
   readonly runtimeKind = "codex" as const;
   readonly runtimeLabel = "Codex";
@@ -483,6 +487,7 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
   }
 
   async listSessions(agentId: string): Promise<SessionRowModel[]> {
+    if (isObservedCodexAgentId(agentId)) return [];
     try {
       const threads = await this.listCodexThreads();
       if (!isCodexPmAgentId(agentId)) return toCodexSessionRows(agentId, threads);
@@ -511,6 +516,9 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
     sessionKey: string,
     limit = 200,
   ): Promise<SessionTimelineModel> {
+    if (isObservedCodexAgentId(agentId) || isObservedCodexAgentId(sessionKey)) {
+      return { agentId, sessionKey, events: [] };
+    }
     const threadId = parseCodexThreadId(sessionKey || agentId);
     if (!(await this.isCodexAppServerAvailable())) {
       return { agentId, sessionKey, events: [] };
@@ -529,6 +537,9 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
   async sendMessage(
     input: ChatSendRequest,
   ): Promise<{ ok: boolean; eventId?: string; error?: string }> {
+    if (isObservedCodexAgentId(input.agentId) || isObservedCodexAgentId(input.sessionKey)) {
+      return { ok: false, error: "codex_observed_worker_read_only" };
+    }
     const message = input.message.trim();
     if (!message) return { ok: false, error: "codex_message_empty" };
     try {
