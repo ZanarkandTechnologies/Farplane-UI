@@ -916,7 +916,7 @@ describe("office-data-provider team synthesis", () => {
     ).toContain("farplane");
   });
 
-  it("uses compact generated cluster anchors instead of spreading tables to area centers", () => {
+  it("keeps generated area-anchor clusters inside the final trimmed office", () => {
     const company = createCompanyModel({
       departments: [
         {
@@ -1163,7 +1163,7 @@ describe("office-data-provider team synthesis", () => {
       result.officeSettings.officeLayout.tiles.length / (bounds.width * bounds.depth),
     ).toBe(1);
     expect(bounds.width).toBe(Math.max(8, objectWidth));
-    expect(bounds.depth).toBe(Math.max(7, objectDepth));
+    expect(bounds.depth).toBe(objectDepth);
     expect(bounds.minTileX).toBeLessThanOrEqual(objectMinX);
     expect(bounds.maxTileX).toBeGreaterThanOrEqual(objectMaxX);
     expect(bounds.minTileZ).toBeLessThanOrEqual(objectMinZ);

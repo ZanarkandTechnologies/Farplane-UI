@@ -1402,9 +1402,13 @@ export function toOfficeData(
         origin: compactAnchorOrigin,
         largestFootprint: largestTeamFootprint,
       });
+      const areaAnchor = officeAreaLayout.projectAreaByProjectId[project.id]
+        ? getOfficeAreaAnchor(officeAreaLayout.projectAreaByProjectId[project.id])
+        : undefined;
       const clusterPosition = resolveTeamClusterScenePosition({
         position:
           (shouldPreservePersistedCluster ? persistedClusterPosition : undefined) ??
+          areaAnchor ??
           compactAnchor,
         deskCount,
         officeLayout,
@@ -1569,21 +1573,25 @@ export function toOfficeData(
       },
     };
   });
-  const sectionWalls = buildOfficeSectionWallObjects({
-    companyId,
-    projects: projectList,
-    clusterObjects,
-    officeAreaLayout,
-    wallColor: getWallColorPreset(officeSettings.decor.wallColorId).color,
-  });
   const officeLayoutContentObjects = [
     ...clusterObjects,
-    ...sectionWalls,
     ...sidecarFurniture,
   ];
   const preliminaryOfficeLayout = deriveAutoFitOfficeLayout({
     fallbackLayout: officeLayout,
     objects: officeLayoutContentObjects,
+  });
+  const fittedAreaLayout = buildOfficeAreaLayout({
+    company: companyModel,
+    officeLayout: preliminaryOfficeLayout,
+    workload,
+  });
+  const sectionWalls = buildOfficeSectionWallObjects({
+    companyId,
+    projects: projectList,
+    clusterObjects,
+    officeAreaLayout: fittedAreaLayout,
+    wallColor: getWallColorPreset(officeSettings.decor.wallColorId).color,
   });
   const furnitureObjects =
     sidecarFurniture.length > 0
@@ -1597,6 +1605,11 @@ export function toOfficeData(
   const fittedOfficeLayout = deriveAutoFitOfficeLayout({
     fallbackLayout: preliminaryOfficeLayout,
     objects: officeObjects,
+  });
+  const finalOfficeAreaLayout = buildOfficeAreaLayout({
+    company: companyModel,
+    officeLayout: fittedOfficeLayout,
+    workload,
   });
   const fittedOfficeSettings =
     areOfficeLayoutTilesEqual(sourceOfficeLayout, fittedOfficeLayout)
@@ -1781,7 +1794,7 @@ export function toOfficeData(
     teams,
     employees,
     officeObjects,
-    officeAreas: officeAreaLayout.areas,
+    officeAreas: finalOfficeAreaLayout.areas,
     desks,
     officeSettings: fittedOfficeSettings,
     companyModel: unified.company,
