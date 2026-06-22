@@ -29,7 +29,6 @@ import {
   getOfficeAreaAnchor,
   type OfficeAreaLayout,
   type OfficeAreaNode,
-  type OfficeAreaRect,
 } from "@/modules/office/lib/office-area-layout";
 import { getWallColorPreset } from "@/modules/office/lib/office-decor";
 import { DEFAULT_OFFICE_FOOTPRINT } from "@/modules/office/lib/office-footprint";
@@ -122,6 +121,15 @@ const AUTO_FIT_LOOP_EDGE_RATIO = 0.2;
 const AUTO_FIT_EMPTY_AREA_TARGET = 0.19;
 const ENABLE_GENERATED_SECTION_WALLS = false;
 const COMPACT_CLUSTER_GAP_TILES = 1.25;
+const AUTO_PACKABLE_STARTER_OBJECT_IDS = new Set([
+  "plant-entry-right",
+  "plant-entry-left",
+  "plant-back-left",
+  "plant-center-left",
+  "pantry-main",
+  "couch-main",
+  "farplane-map-console",
+]);
 
 export interface OfficeDataContextValue {
   company: Company | null;
@@ -898,11 +906,46 @@ function deriveAutoFitOfficeLayout(input: {
 function isTeamClusterPlacementLocked(
   object: UnifiedOfficeModel["officeObjects"][number] | undefined,
 ): boolean {
+  return isOfficeObjectPlacementLocked(object);
+}
+
+function isOfficeObjectPlacementLocked(
+  object: UnifiedOfficeModel["officeObjects"][number] | undefined,
+): boolean {
   return (
     object?.metadata?.layoutLocked === true ||
     object?.metadata?.placementLocked === true ||
     object?.metadata?.locked === true
   );
+}
+
+function isAutoPackableStarterObject(
+  object: UnifiedOfficeModel["officeObjects"][number],
+): boolean {
+  return AUTO_PACKABLE_STARTER_OBJECT_IDS.has(normalizeOfficeObjectId(object.id));
+}
+
+function getCompactFurnitureAnchor(input: {
+  meshType: string;
+  index: number;
+  officeLayout: OfficeLayoutModel;
+}): [number, number, number] {
+  const bounds = getOfficeLayoutBounds(input.officeLayout);
+  const centerX = Math.round(bounds.centerX);
+  const centerZ = Math.round(bounds.centerZ);
+  const offsetX = Math.max(2, Math.floor(bounds.width / 5));
+  const offsetZ = Math.max(2, Math.floor(bounds.depth / 5));
+  const plantSlots: Array<[number, number, number]> = [
+    [centerX - offsetX, 0, centerZ + offsetZ],
+    [centerX + offsetX, 0, centerZ + offsetZ],
+    [centerX - offsetX, 0, centerZ - offsetZ],
+    [centerX + offsetX, 0, centerZ - offsetZ],
+  ];
+  if (input.meshType === "bookshelf") return [centerX, 0, centerZ - offsetZ];
+  if (input.meshType === "couch") return [centerX + offsetX, 0, centerZ];
+  if (input.meshType === "pantry") return [centerX - offsetX, 0, centerZ];
+  if (input.meshType === "plant") return plantSlots[input.index % plantSlots.length];
+  return [centerX, 0, centerZ];
 }
 
 function deriveCompactPlanningOfficeLayout(input: {
@@ -931,10 +974,10 @@ function deriveCompactPlanningOfficeLayout(input: {
   const columns = Math.max(1, Math.ceil(Math.sqrt(Math.max(1, teamCount) * 1.35)));
   const rows = Math.max(1, Math.ceil(Math.max(1, teamCount) / columns));
   const teamWidth = Math.ceil(
-    columns * Math.max(3.5, largestTeamFootprint.width + COMPACT_CLUSTER_GAP_TILES) + 2,
+    columns * Math.max(3, largestTeamFootprint.width + COMPACT_CLUSTER_GAP_TILES) + 2,
   );
   const teamDepth = Math.ceil(
-    rows * Math.max(3.5, largestTeamFootprint.depth + COMPACT_CLUSTER_GAP_TILES) + 2,
+    rows * Math.max(3, largestTeamFootprint.depth + COMPACT_CLUSTER_GAP_TILES) + 2,
   );
   const baseLayout =
     teamCount > 0
@@ -1007,122 +1050,13 @@ function getCompactTeamAnchor(input: {
   const col = input.index % columns;
   const row = Math.floor(input.index / columns);
   const rows = Math.max(1, Math.ceil(input.total / columns));
-  const spacingX = Math.max(4, Math.ceil(input.largestFootprint.width + COMPACT_CLUSTER_GAP_TILES));
-  const spacingZ = Math.max(4, Math.ceil(input.largestFootprint.depth + COMPACT_CLUSTER_GAP_TILES));
+  const spacingX = Math.max(3, Math.ceil(input.largestFootprint.width + COMPACT_CLUSTER_GAP_TILES));
+  const spacingZ = Math.max(3, Math.ceil(input.largestFootprint.depth + COMPACT_CLUSTER_GAP_TILES));
   return [
     Math.round(input.origin[0] + (col - (columns - 1) / 2) * spacingX),
     0,
     Math.round(input.origin[2] + (row - (rows - 1) / 2) * spacingZ),
   ];
-}
-
-function rectUnion(rects: OfficeAreaRect[]): OfficeAreaRect | null {
-  if (rects.length === 0) return null;
-  const minX = Math.min(...rects.map((rect) => rect.minX));
-  const maxX = Math.max(...rects.map((rect) => rect.maxX));
-  const minZ = Math.min(...rects.map((rect) => rect.minZ));
-  const maxZ = Math.max(...rects.map((rect) => rect.maxZ));
-  const width = Math.max(0, maxX - minX);
-  const depth = Math.max(0, maxZ - minZ);
-  return {
-    minX,
-    maxX,
-    minZ,
-    maxZ,
-    width,
-    depth,
-    centerX: minX + width / 2,
-    centerZ: minZ + depth / 2,
-  };
-}
-
-function buildPackedProjectAnchorMap(input: {
-  projects: CompanyModel["projects"];
-  officeAreaLayout: OfficeAreaLayout;
-  deskCountsByProjectId: Map<string, number>;
-  fallbackOrigin: [number, number, number];
-}): Map<string, [number, number, number]> {
-  const anchors = new Map<string, [number, number, number]>();
-  const areasById = new Map(input.officeAreaLayout.areas.map((area) => [area.id, area]));
-  const topLevelRect = rectUnion(
-    input.officeAreaLayout.areas.filter((area) => area.parentId === "office"),
-  );
-  const groups = new Map<
-    string,
-    Array<{
-      projectId: string;
-      area: OfficeAreaNode;
-      footprint: { width: number; depth: number };
-    }>
-  >();
-
-  for (const project of input.projects) {
-    if (project.status === "archived") continue;
-    const area = input.officeAreaLayout.projectAreaByProjectId[project.id];
-    if (!area) continue;
-    const deskCount = input.deskCountsByProjectId.get(project.id) ?? 1;
-    const footprint = getClusterOccupancyFootprint(deskCount);
-    const entry = {
-      projectId: project.id,
-      area,
-      footprint: {
-        width: footprint.width + footprint.clearance * 2,
-        depth: footprint.depth + footprint.clearance * 2,
-      },
-    };
-    const groupKey = area.parentId ?? "office";
-    groups.set(groupKey, [...(groups.get(groupKey) ?? []), entry]);
-  }
-
-  const orderedGroups = [...groups.entries()].sort(([leftKey], [rightKey]) => {
-    const leftDepth = leftKey === "office" ? 0 : (areasById.get(leftKey)?.depth ?? 0);
-    const rightDepth = rightKey === "office" ? 0 : (areasById.get(rightKey)?.depth ?? 0);
-    return leftDepth === rightDepth ? leftKey.localeCompare(rightKey) : leftDepth - rightDepth;
-  });
-  for (const [groupKey, entries] of orderedGroups) {
-    const parentArea = groupKey === "office" ? null : areasById.get(groupKey);
-    const fallbackContainer =
-      (groupKey === "office" ? topLevelRect : parentArea?.rect) ??
-      rectUnion(entries.map((entry) => entry.area.rect));
-    const columns = Math.max(1, Math.ceil(Math.sqrt(entries.length * 1.35)));
-    const rows = Math.max(1, Math.ceil(entries.length / columns));
-    const maxFootprint = entries.reduce(
-      (largest, entry) => ({
-        width: Math.max(largest.width, entry.footprint.width),
-        depth: Math.max(largest.depth, entry.footprint.depth),
-      }),
-      { width: 0, depth: 0 },
-    );
-    const spacingX = Math.max(3, Math.ceil(maxFootprint.width));
-    const spacingZ = Math.max(3, Math.ceil(maxFootprint.depth));
-    const parentAnchor = parentArea?.projectId ? anchors.get(parentArea.projectId) : undefined;
-    const centerX = parentAnchor
-      ? parentAnchor[0]
-      : Number.isFinite(fallbackContainer?.centerX)
-        ? fallbackContainer.centerX
-        : input.fallbackOrigin[0];
-    const centerZ = parentAnchor
-      ? parentAnchor[2]
-      : Number.isFinite(fallbackContainer?.centerZ)
-        ? fallbackContainer.centerZ
-        : input.fallbackOrigin[2];
-
-    entries.forEach((entry, index) => {
-      const col = index % columns;
-      const row = Math.floor(index / columns);
-      const proposed: [number, number, number] = [
-        centerX + (col - (columns - 1) / 2) * spacingX,
-        0,
-        centerZ + (row - (rows - 1) / 2) * spacingZ,
-      ];
-      anchors.set(entry.projectId, [
-        Math.round(proposed[0]),
-        proposed[1],
-        Math.round(proposed[2]),
-      ]);
-    });
-  }
-  return anchors;
 }
 
 interface TeamClusterRepairSpec {
@@ -1498,16 +1432,16 @@ function buildDefaultFurnitureObjects(
   const fallbackInsetX = Math.max(3, Math.min(5, Math.floor(bounds.width / 4)));
   const fallbackInsetZ = Math.max(3, Math.min(5, Math.floor(bounds.depth / 4)));
   const leftX = anchorBounds
-    ? anchorBounds.minTileX - 3
+    ? anchorBounds.minTileX - 1
     : bounds.minWorldX + fallbackInsetX;
   const rightX = anchorBounds
-    ? anchorBounds.maxTileX + 3
+    ? anchorBounds.maxTileX + 1
     : bounds.maxWorldX - fallbackInsetX;
   const backZ = anchorBounds
-    ? anchorBounds.minTileZ - 3
+    ? anchorBounds.minTileZ - 1
     : bounds.minWorldZ + fallbackInsetZ;
   const frontZ = anchorBounds
-    ? anchorBounds.maxTileZ + 3
+    ? anchorBounds.maxTileZ + 1
     : bounds.maxWorldZ - fallbackInsetZ;
   const centerX = anchorBounds
     ? Math.round((anchorBounds.minTileX + anchorBounds.maxTileX) / 2)
@@ -1823,6 +1757,9 @@ export function toOfficeData(
   const sidecarFurnitureEntries = sidecarObjects.filter(
     (entry) => entry.meshType !== "team-cluster" && entry.meshType !== "wall-art",
   );
+  const lockedSidecarFurnitureEntries = sidecarFurnitureEntries.filter((entry) =>
+    isOfficeObjectPlacementLocked(entry) || !isAutoPackableStarterObject(entry),
+  );
   const lockedTeamClusterEntries = sidecarObjects.filter(
     (entry) => entry.meshType === "team-cluster" && isTeamClusterPlacementLocked(entry),
   );
@@ -1835,7 +1772,7 @@ export function toOfficeData(
   const officeLayout = deriveCompactPlanningOfficeLayout({
     fallbackLayout: sourceOfficeLayout,
     teamDeskCounts: planningTeamDeskCounts,
-    furnitureObjects: [...sidecarFurnitureEntries, ...lockedTeamClusterEntries].map((entry) => ({
+    furnitureObjects: [...lockedSidecarFurnitureEntries, ...lockedTeamClusterEntries].map((entry) => ({
       meshType: entry.meshType,
       position: entry.position,
       metadata: entry.metadata,
@@ -1843,7 +1780,7 @@ export function toOfficeData(
     })),
   });
   const compactAnchorOrigin = getFurnitureCentroid(
-    sidecarFurnitureEntries.map((entry) => ({
+    lockedSidecarFurnitureEntries.map((entry) => ({
       meshType: entry.meshType,
       position: entry.position,
       metadata: entry.metadata,
@@ -1860,24 +1797,6 @@ export function toOfficeData(
     },
     { width: 0, depth: 0 },
   );
-  const officeAreaLayout = buildOfficeAreaLayout({
-    company: companyModel,
-    officeLayout,
-    workload,
-  });
-  const projectDeskCountsByProjectId = new Map(
-    projectList.map((project) => [
-      project.id,
-      Math.max(companyAgents.filter((agent) => agent.projectId === project.id).length, 1),
-    ]),
-  );
-  const packedProjectAnchorsByProjectId = buildPackedProjectAnchorMap({
-    projects: projectList,
-    officeAreaLayout,
-    deskCountsByProjectId: projectDeskCountsByProjectId,
-    fallbackOrigin: compactAnchorOrigin,
-  });
-
   const appearanceByAgentId = new Map<
     string,
     {
@@ -1965,11 +1884,9 @@ export function toOfficeData(
         origin: compactAnchorOrigin,
         largestFootprint: largestTeamFootprint,
       });
-      const packedAreaAnchor = packedProjectAnchorsByProjectId.get(project.id);
       const clusterPosition = resolveTeamClusterScenePosition({
         position:
           (shouldPreservePersistedCluster ? persistedClusterPosition : undefined) ??
-          packedAreaAnchor ??
           compactAnchor,
         deskCount,
         officeLayout,
@@ -2030,19 +1947,30 @@ export function toOfficeData(
     }
   }
 
+  let unlockedFurnitureIndex = 0;
   sidecarFurniture = sidecarFurnitureEntries.flatMap((item) => {
     const rotation = item.rotation ?? [0, 0, 0];
     const metadata = { ...(item.metadata ?? {}) };
+    const preservePlacement =
+      isOfficeObjectPlacementLocked(item) || !isAutoPackableStarterObject(item);
+    const compactPosition = preservePlacement
+      ? item.position
+      : getCompactFurnitureAnchor({
+          meshType: item.meshType,
+          index: unlockedFurnitureIndex,
+          officeLayout,
+        });
+    if (!preservePlacement) unlockedFurnitureIndex += 1;
     const position = resolveSceneObjectPosition({
       object: {
         meshType: item.meshType,
-        position: item.position,
+        position: compactPosition,
         metadata,
         rotation,
       },
       officeLayout,
       reservation: scenePlacementReservation,
-      allowCollisionFallback: false,
+      allowCollisionFallback: !preservePlacement,
     });
     if (!position) return [];
     return {
