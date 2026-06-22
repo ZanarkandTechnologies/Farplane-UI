@@ -1,8 +1,8 @@
 ---
 ticket_id: TASK-0003
 title: Telemetry-first Codex office presence and lazy multi-instance control
-phase: planning
-status: building
+phase: proof
+status: review
 owner: Farplane UI
 claimed_by:
 priority: high
@@ -14,8 +14,8 @@ requires_qa: true
 requires_demo: false
 created_at: 2026-06-21
 updated_at: 2026-06-22
-next_action: implement telemetry presence contract, run manual hook proof, pre-push checks, and commit scoped changes
-last_verification: impl-plan drafted; git diff --check clean for ticket and QA cookbook
+next_action: review mechanical proof and capture optional browser QA with seeded/live Convex telemetry
+last_verification: focused tests, manual hook proof, UI build, and pre-push gate complete; full UI typecheck remains warn-only existing debt
 ---
 
 # TASK-0003: Telemetry-First Codex Office Presence And Lazy Multi-Instance Control
@@ -286,11 +286,13 @@ proof:
   process management, or changing hook/app-server trust behavior.
 
 ## State
-- `next_action:` implement in the order named in `Program`, then run manual hook
-  proof, pre-push checks, and commit scoped changes.
+- `next_action:` review mechanical proof and capture optional browser QA with
+  seeded/live Convex telemetry if visual evidence is required before archive.
 - `blocked:` false
-- `latest_verification:` impl-plan code-map pass complete; implementation checks not run
-- `result:` planning review
+- `latest_verification:` focused tests passed; root and Convex typechecks
+  passed; UI production build passed; pre-push exited 0 with full UI typecheck
+  warning on existing unrelated debt.
+- `result:` review-ready implementation proof
 
 ## Links
 - `program:` none yet
@@ -320,3 +322,7 @@ proof:
   planning; implementation must still follow `convex/AGENTS.md`, validators,
   module-local query organization, and `npx tsc -p convex/tsconfig.json --noEmit`
   if Convex code changes.
+- `Proof note:` mechanical and manual hook proof is complete. Browser proof was
+  not captured in this pass because no seeded/live Convex telemetry browser
+  fixture was started; use `qa/cookbook/office.md` for the remaining visual QA
+  pass if review requires screenshots before archive.
