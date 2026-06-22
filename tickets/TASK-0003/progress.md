@@ -44,7 +44,26 @@ updated_at: 2026-06-22
     this ticket; representative errors include JSX namespace issues, AI Elements
     exports, office layout typing, OpenClaw adapter ledger typing, and
     skill-studio runtime export debt.
-- Remaining proof gap:
+- Proof gap at commit `e2e9458`:
   - Browser QA screenshots were not captured because no seeded/live Convex
     telemetry browser fixture was started in this pass. The QA cookbook now
     names the exact telemetry-only and connected-control browser proof path.
+
+## 2026-06-22 Browser Evidence
+
+- Ran `npx convex dev --once`.
+- Seeded two recent hook telemetry rows through `/telemetry/hooks/batch`:
+  - `task-0003-machine-a` / `task-0003-thread-a`
+  - `task-0003-machine-b` / `task-0003-thread-b`
+- Started the UI with `VITE_CONVEX_URL` derived from local `.env.local` and
+  without setting `VITE_CODEX_APP_SERVER_URL`.
+- Opened `http://127.0.0.1:5173/office` with `agent-browser`.
+- Captured:
+  - `docs/research/qa-testing/TASK-0003/2026-06-22_telemetry_presence/office-telemetry-observed.png`
+  - `docs/research/qa-testing/TASK-0003/2026-06-22_telemetry_presence/office-telemetry-observed-state.json`
+  - `docs/research/qa-testing/TASK-0003/2026-06-22_telemetry_presence/report.md`
+- Browser state showed `observedCount: 2`; both observed employees were in the
+  same project team, separated by machine id, and had `controllable:false`.
+- The previously noted telemetry-only browser proof gap is now closed.
+- Remaining optional visual proof: connect a real/mock Codex app-server instance
+  and capture controls enabling only for that source instance.

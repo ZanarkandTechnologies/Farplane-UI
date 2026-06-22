@@ -14,8 +14,8 @@ requires_qa: true
 requires_demo: false
 created_at: 2026-06-21
 updated_at: 2026-06-22
-next_action: review mechanical proof and capture optional browser QA with seeded/live Convex telemetry
-last_verification: focused tests, manual hook proof, UI build, and pre-push gate complete; full UI typecheck remains warn-only existing debt
+next_action: review telemetry-only browser evidence; connected-control screenshot remains optional follow-up
+last_verification: telemetry-only browser QA captured with seeded Convex hook telemetry; focused tests, manual hook proof, UI build, and pre-push gate complete
 ---
 
 # TASK-0003: Telemetry-First Codex Office Presence And Lazy Multi-Instance Control
@@ -286,18 +286,18 @@ proof:
   process management, or changing hook/app-server trust behavior.
 
 ## State
-- `next_action:` review mechanical proof and capture optional browser QA with
-  seeded/live Convex telemetry if visual evidence is required before archive.
+- `next_action:` review telemetry-only browser evidence; connected-control
+  screenshot remains optional follow-up if review requires it before archive.
 - `blocked:` false
-- `latest_verification:` focused tests passed; root and Convex typechecks
-  passed; UI production build passed; pre-push exited 0 with full UI typecheck
-  warning on existing unrelated debt.
+- `latest_verification:` telemetry-only browser QA captured; focused tests
+  passed; root and Convex typechecks passed; UI production build passed;
+  pre-push exited 0 with full UI typecheck warning on existing unrelated debt.
 - `result:` review-ready implementation proof
 
 ## Links
 - `program:` none yet
 - `progress:` none yet
-- `artifacts:` docs/research/qa-testing/TASK-0003/
+- `artifacts:` docs/research/qa-testing/TASK-0003/2026-06-22_telemetry_presence/
 - `review:` none yet
 - `refs:` `ARCHITECTURE.md`, `PROJECT_RULES.md`,
   `docs/bootstrap-brief.md`, `docs/MEMORY.md`, `qa/cookbook/office.md`,
@@ -322,7 +322,6 @@ proof:
   planning; implementation must still follow `convex/AGENTS.md`, validators,
   module-local query organization, and `npx tsc -p convex/tsconfig.json --noEmit`
   if Convex code changes.
-- `Proof note:` mechanical and manual hook proof is complete. Browser proof was
-  not captured in this pass because no seeded/live Convex telemetry browser
-  fixture was started; use `qa/cookbook/office.md` for the remaining visual QA
-  pass if review requires screenshots before archive.
+- `Proof note:` mechanical proof, manual hook proof, and telemetry-only browser
+  proof are complete. Connected-control browser proof was not captured because
+  no Codex app-server instance was started or connected in this pass.
