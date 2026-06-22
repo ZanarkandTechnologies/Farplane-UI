@@ -1970,7 +1970,7 @@ export function toOfficeData(
       },
       officeLayout,
       reservation: scenePlacementReservation,
-      allowCollisionFallback: !preservePlacement,
+      allowCollisionFallback: false,
     });
     if (!position) return [];
     return {
