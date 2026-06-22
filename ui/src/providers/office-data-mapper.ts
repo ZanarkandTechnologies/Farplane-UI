@@ -120,6 +120,7 @@ const AUTO_FIT_OFFICE_MIN_DEPTH = 7;
 const AUTO_FIT_CORRIDOR_RADIUS_TILES = 1;
 const AUTO_FIT_LOOP_EDGE_RATIO = 0.2;
 const AUTO_FIT_EMPTY_AREA_TARGET = 0.19;
+const ENABLE_GENERATED_SECTION_WALLS = false;
 const COMPACT_CLUSTER_GAP_TILES = 1.25;
 
 export interface OfficeDataContextValue {
@@ -877,20 +878,21 @@ function deriveAutoFitOfficeLayout(input: {
     }
     return left.emptyPercent - right.emptyPercent;
   })[0]?.layout ?? input.fallbackLayout;
+  const rectangularCappedLayout =
+    createUniformLayoutFromTileSet({
+      tileSet: getOfficeLayoutTileSet(cappedLayout),
+      minWidth: AUTO_FIT_OFFICE_MIN_WIDTH,
+      minDepth: AUTO_FIT_OFFICE_MIN_DEPTH,
+    }) ?? cappedLayout;
   const edgeTrimmedLayout = trimUniformLayoutToObjectEdges({
-    layout: cappedLayout,
+    layout: rectangularCappedLayout,
     objects: input.objects,
     minWidth: AUTO_FIT_OFFICE_MIN_WIDTH,
     minDepth: AUTO_FIT_OFFICE_MIN_DEPTH,
   });
-  const compactedLayout = pruneEmptyLayoutTilesForTarget({
-    layout: edgeTrimmedLayout,
-    objects: input.objects,
-    targetEmptyPercent: AUTO_FIT_EMPTY_AREA_TARGET,
-  });
-  return areOfficeLayoutTilesEqual(input.fallbackLayout, compactedLayout)
+  return areOfficeLayoutTilesEqual(input.fallbackLayout, edgeTrimmedLayout)
     ? input.fallbackLayout
-    : compactedLayout;
+    : edgeTrimmedLayout;
 }
 
 function isTeamClusterPlacementLocked(
@@ -2145,65 +2147,70 @@ export function toOfficeData(
     officeLayout: preliminaryOfficeLayout,
     workload,
   });
-  let sectionWalls = buildOfficeSectionWallObjects({
-    companyId,
-    projects: projectList,
-    clusterObjects,
-    officeAreaLayout: fittedAreaLayout,
-    wallColor: getWallColorPreset(officeSettings.decor.wallColorId).color,
-  });
-  sectionWalls = clipGeneratedDividerWallsAroundClusters({
-    walls: sectionWalls,
-    clusters: clusterObjects,
-  });
-  if (sectionWalls.length > 0) {
-    preliminaryOfficeLayout = deriveAutoFitOfficeLayout({
-      fallbackLayout: preliminaryOfficeLayout,
-      objects: [
-        ...clusterObjects,
+  let sectionWalls: OfficeObject[] = [];
+  if (ENABLE_GENERATED_SECTION_WALLS) {
+    sectionWalls = buildOfficeSectionWallObjects({
+      companyId,
+      projects: projectList,
+      clusterObjects,
+      officeAreaLayout: fittedAreaLayout,
+      wallColor: getWallColorPreset(officeSettings.decor.wallColorId).color,
+    });
+    sectionWalls = clipGeneratedDividerWallsAroundClusters({
+      walls: sectionWalls,
+      clusters: clusterObjects,
+    });
+    if (sectionWalls.length > 0) {
+      preliminaryOfficeLayout = deriveAutoFitOfficeLayout({
+        fallbackLayout: preliminaryOfficeLayout,
+        objects: [
+          ...clusterObjects,
+          ...sectionWalls,
+          ...sidecarFurniture,
+        ],
+      });
+      const dividerAwareReservation = createOfficePlacementReservation([
         ...sectionWalls,
         ...sidecarFurniture,
-      ],
-    });
-    const dividerAwareReservation = createOfficePlacementReservation([
-      ...sectionWalls,
-      ...sidecarFurniture,
-    ]);
-    const nextTeams = teams.map((team, index) => {
-      const cluster = clusterObjects[index];
-      if (!cluster) return team;
-      const deskCount = Math.max(team.deskCount ?? 1, 1);
-      const adjustedPosition = resolveTeamClusterScenePosition({
-        position: cluster.position,
-        deskCount,
-        officeLayout: preliminaryOfficeLayout,
-        reservation: dividerAwareReservation,
-        metadata: cluster.metadata,
-        rotation: cluster.rotation,
-        allowCollisionFallback: false,
+      ]);
+      const nextTeams = teams.map((team, index) => {
+        const cluster = clusterObjects[index];
+        if (!cluster) return team;
+        const deskCount = Math.max(team.deskCount ?? 1, 1);
+        const adjustedPosition = resolveTeamClusterScenePosition({
+          position: cluster.position,
+          deskCount,
+          officeLayout: preliminaryOfficeLayout,
+          reservation: dividerAwareReservation,
+          metadata: cluster.metadata,
+          rotation: cluster.rotation,
+          allowCollisionFallback: false,
+        });
+        return { ...team, clusterPosition: adjustedPosition };
       });
-      return { ...team, clusterPosition: adjustedPosition };
-    });
-    teams.splice(0, teams.length, ...nextTeams);
-    clusterObjects = teams.map((team, index) => {
-      const previousCluster = clusterObjects[index];
-      const persistedCluster = persistedTeamClusterByTeamId.get(team._id);
-      const deskCount = Math.max(team.deskCount ?? 1, 1);
-      return {
-        ...(previousCluster ?? {}),
-        _id: persistedCluster?.id ?? previousCluster?._id ?? `team-cluster-${team._id}`,
-        companyId,
-        meshType: "team-cluster",
-        position:
-          team.clusterPosition ?? previousCluster?.position ?? getDefaultProjectClusterPosition(index),
-        rotation: persistedCluster?.rotation ?? previousCluster?.rotation ?? [0, 0, 0],
-        scale: persistedCluster?.scale ?? previousCluster?.scale,
-        metadata: {
-          ...getTeamClusterPlacementMetadata(persistedCluster?.metadata, deskCount),
-          teamId: team._id,
-        },
-      };
-    });
+      teams.splice(0, teams.length, ...nextTeams);
+      clusterObjects = teams.map((team, index) => {
+        const previousCluster = clusterObjects[index];
+        const persistedCluster = persistedTeamClusterByTeamId.get(team._id);
+        const deskCount = Math.max(team.deskCount ?? 1, 1);
+        return {
+          ...(previousCluster ?? {}),
+          _id: persistedCluster?.id ?? previousCluster?._id ?? `team-cluster-${team._id}`,
+          companyId,
+          meshType: "team-cluster",
+          position:
+            team.clusterPosition ??
+            previousCluster?.position ??
+            getDefaultProjectClusterPosition(index),
+          rotation: persistedCluster?.rotation ?? previousCluster?.rotation ?? [0, 0, 0],
+          scale: persistedCluster?.scale ?? previousCluster?.scale,
+          metadata: {
+            ...getTeamClusterPlacementMetadata(persistedCluster?.metadata, deskCount),
+            teamId: team._id,
+          },
+        };
+      });
+    }
   }
   const furnitureObjects =
     sidecarFurniture.length > 0

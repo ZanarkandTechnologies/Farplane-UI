@@ -75,21 +75,6 @@ function createOfficeObject(overrides: Partial<OfficeObject> = {}): OfficeObject
   };
 }
 
-function canPlaceWithoutColliding(
-  object: OfficeObject,
-  reservedObject: OfficeObject,
-): boolean {
-  return canReserveOfficeObject({
-    object,
-    layout: {
-      version: 1,
-      tileSize: 1,
-      tiles: getObjectFootprintCells(object).map((cell) => `${cell.x}:${cell.z}`),
-    },
-    reservation: createOfficePlacementReservation([reservedObject]),
-  });
-}
-
 function countInteriorLayoutHoles(layout: OfficeLayoutModel): number {
   const tileSet = new Set(layout.tiles);
   const bounds = getOfficeLayoutBounds(layout);
@@ -1342,13 +1327,14 @@ describe("office-data-provider team synthesis", () => {
     expect(bounds.maxTileX).toBeGreaterThanOrEqual(objectMaxX);
     expect(bounds.minTileZ).toBeLessThanOrEqual(objectMinZ);
     expect(bounds.maxTileZ).toBeGreaterThanOrEqual(objectMaxZ);
+    expect(result.officeSettings.officeLayout.tiles).toHaveLength(bounds.width * bounds.depth);
     const stats = deriveOfficeSpaceStats({
       employees: result.employees,
       officeObjects: result.officeObjects,
       officeLayout: result.officeSettings.officeLayout,
     });
     expect(countInteriorLayoutHoles(result.officeSettings.officeLayout)).toBe(0);
-    expect(stats.emptyPercent).toBeLessThan(0.2);
+    expect(stats.emptyPercent).toBeLessThan(0.5);
     expect(stats.walkablePercent).toBeGreaterThanOrEqual(0.5);
   });
 
@@ -1396,7 +1382,7 @@ describe("office-data-provider team synthesis", () => {
     }
   });
 
-  it("adds a minimal office-divider separator for placed project clusters with four or more child projects", () => {
+  it("does not auto-add project section dividers while generated walls are disabled", () => {
     const createProject = (index: number) => ({
       id: `proj-section-${index}`,
       departmentId: "dept-codex-projects",
@@ -1454,45 +1440,22 @@ describe("office-data-provider team synthesis", () => {
       }),
       createOfficeSettings(),
     );
-    const generatedSectionWalls = sectionedResult.officeObjects.filter(
+    const compactGeneratedSectionWalls = compactResult.officeObjects.filter(
+      (object) =>
+        object.meshType === "office-divider" &&
+        object.metadata?.sectionType === "project-subprojects",
+    );
+    const sectionedGeneratedSectionWalls = sectionedResult.officeObjects.filter(
       (object) =>
         object.meshType === "office-divider" &&
         object.metadata?.sectionType === "project-subprojects",
     );
 
-    expect(
-      compactResult.officeObjects.some(
-        (object) =>
-          object.meshType === "office-divider" &&
-          object.metadata?.sectionType === "project-subprojects",
-      ),
-    ).toBe(false);
-    expect(generatedSectionWalls.length).toBeGreaterThan(0);
-    expect(generatedSectionWalls.every((object) => object.metadata?.generated === true)).toBe(
-      true,
-    );
-    expect(
-      generatedSectionWalls.every((object) => object.metadata?.sectionBasis === "area-treemap"),
-    ).toBe(true);
-    expect(
-      generatedSectionWalls.every((object) => object.metadata?.wallColor === "#ede5d6"),
-    ).toBe(true);
-    expect(generatedSectionWalls.every((object) => {
-      const width = object.metadata?.footprintWidth;
-      return typeof width === "number" && width > 0;
-    })).toBe(true);
-    expect(generatedSectionWalls).toHaveLength(1);
-    const clusters = sectionedResult.officeObjects.filter(
-      (object) => object.meshType === "team-cluster",
-    );
-    expect(
-      generatedSectionWalls.every((wall) =>
-        clusters.every((cluster) => canPlaceWithoutColliding(wall, cluster)),
-      ),
-    ).toBe(true);
+    expect(compactGeneratedSectionWalls).toHaveLength(0);
+    expect(sectionedGeneratedSectionWalls).toHaveLength(0);
   });
 
-  it("adds a minimal office-divider separator for placed project teams with six or more workers", () => {
+  it("does not auto-add large-team dividers while generated walls are disabled", () => {
     const project = {
       id: "proj-large-team-section",
       departmentId: "dept-codex-projects",
@@ -1557,19 +1520,7 @@ describe("office-data-provider team synthesis", () => {
         object.meshType === "office-divider" && object.metadata?.sectionType === "large-team",
     );
 
-    expect(generatedSectionWalls.length).toBeGreaterThan(0);
-    expect(
-      generatedSectionWalls.every((object) => object.metadata?.sectionId === "team-team-proj-large-team-section"),
-    ).toBe(true);
-    expect(
-      generatedSectionWalls.every((object) => object.metadata?.sectionBasis === "area-treemap"),
-    ).toBe(true);
-    const clusters = result.officeObjects.filter((object) => object.meshType === "team-cluster");
-    expect(
-      generatedSectionWalls.every((wall) =>
-        clusters.every((cluster) => canPlaceWithoutColliding(wall, cluster)),
-      ),
-    ).toBe(true);
+    expect(generatedSectionWalls).toHaveLength(0);
   });
 
   it("does not synthesize a Farplane fallback cluster when all projects are archived", () => {
