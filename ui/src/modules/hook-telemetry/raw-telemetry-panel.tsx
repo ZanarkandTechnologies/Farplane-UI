@@ -10,12 +10,22 @@
  */
 
 import { Copy, Search } from "lucide-react";
-import { useMemo, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
 import { useQuery } from "convex/react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { api } from "../../../../convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,6 +73,8 @@ type DistributionRow = {
   count: number;
 };
 
+type DistributionViewId = keyof HookTelemetryExplorer["distributions"];
+
 type HookTelemetryExplorer = {
   events: HookTelemetryEvent[];
   total: number;
@@ -74,6 +86,26 @@ type HookTelemetryExplorer = {
   };
 };
 
+type HookConfigState = {
+  enabled: boolean;
+  includeManifestTracked: boolean;
+  selectedManifestPaths: string[];
+  customPatterns: string[];
+};
+
+type HookConfigResponse = {
+  ok?: boolean;
+  projectPath?: string;
+  configPath?: string;
+  manifestPath?: string;
+  manifestExists?: boolean;
+  manifestTracked?: string[];
+  config?: HookConfigState;
+  activePatterns?: string[];
+  installCommand?: string;
+  error?: string;
+};
+
 const RANGE_OPTIONS = [
   { label: "1 day", value: 1 },
   { label: "7 days", value: 7 },
@@ -81,7 +113,7 @@ const RANGE_OPTIONS = [
   { label: "90 days", value: 90 },
 ] as const;
 
-const EVENT_FILTERS = ["all", "skill.invoked", "file.changed", "thread.started", "thread.stopped"] as const;
+const EVENT_FILTERS = ["all", "skill.invoked", "file.change.summary", "thread.started", "thread.stopped"] as const;
 const HOOK_INSTALL_COMMAND = "npm run hooks:install";
 const DEFAULT_FILE_PATTERNS = [
   "progress.md",
@@ -264,42 +296,156 @@ function DistributionGrid({
   data: HookTelemetryExplorer["distributions"];
   total: number;
 }): ReactElement {
+  const [selectedView, setSelectedView] = useState<DistributionViewId>("hookNames");
+  const views: Array<{ id: DistributionViewId; title: string }> = [
+    { id: "hookNames", title: "Hook Names" },
+    { id: "eventNames", title: "Event Names" },
+    { id: "hookTypes", title: "Hook Types" },
+    { id: "sessions", title: "Sessions" },
+  ];
+  const selected = views.find((view) => view.id === selectedView) ?? views[0];
+
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 gap-3 lg:grid-cols-2">
-      <DistributionCard title="Event Names" rows={data.eventNames} total={total} />
-      <DistributionCard title="Hook Names" rows={data.hookNames} total={total} />
-      <DistributionCard title="Hook Types" rows={data.hookTypes} total={total} />
-      <DistributionCard title="Sessions" rows={data.sessions} total={total} />
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        {views.map((view) => (
+          <Button
+            key={view.id}
+            type="button"
+            variant={view.id === selectedView ? "default" : "outline"}
+            className="h-auto justify-between gap-3 px-3 py-2"
+            onClick={() => setSelectedView(view.id)}
+          >
+            <span className="truncate">{view.title}</span>
+            <span className="font-mono text-xs opacity-80">{data[view.id].length}</span>
+          </Button>
+        ))}
+      </div>
+      <DistributionCard title={selected.title} rows={data[selected.id]} total={total} />
     </div>
   );
 }
 
 function DistributionCard({ rows, title, total }: { rows: DistributionRow[]; title: string; total: number }): ReactElement {
+  const chartRows = useMemo(
+    () =>
+      rows.slice(0, 12).map((row) => ({
+        ...row,
+        label: compactDistributionLabel(row.key),
+        percent: total > 0 ? Math.round((row.count / total) * 100) : 0,
+      })),
+    [rows, total],
+  );
+
   return (
-    <Card className="min-h-0 rounded-md">
+    <Card className="flex min-h-0 flex-1 flex-col rounded-md">
       <CardHeader className="py-3">
-        <CardTitle className="text-sm">{title}</CardTitle>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="text-sm">{title}</CardTitle>
+          <span className="font-mono text-xs text-muted-foreground">{rows.length} keys</span>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="min-h-0 flex-1">
         {rows.length === 0 ? <p className="text-sm text-muted-foreground">No rows.</p> : null}
-        {rows.map((row) => (
-          <div key={row.key} className="grid grid-cols-[minmax(0,1fr)_56px] items-center gap-3 text-sm">
-            <div className="min-w-0">
-              <div className="truncate font-medium">{row.key}</div>
-              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
-                <div className="h-full bg-primary" style={{ width: `${Math.max(4, (row.count / Math.max(1, total)) * 100)}%` }} />
-              </div>
-            </div>
-            <div className="text-right font-mono text-xs text-muted-foreground">{row.count}</div>
+        {chartRows.length > 0 ? (
+          <div className="h-full min-h-[320px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={chartRows}
+                layout="vertical"
+                margin={{ top: 8, right: 52, bottom: 18, left: 8 }}
+                barCategoryGap={10}
+              >
+                <CartesianGrid horizontal={false} stroke="#262b31" strokeDasharray="3 3" />
+                <XAxis
+                  type="number"
+                  domain={[0, "dataMax"]}
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: "#8f9aad", fontSize: 11 }}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="label"
+                  width={220}
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: "#c7ccd6", fontSize: 12 }}
+                />
+                <Tooltip cursor={{ fill: "rgba(148, 163, 184, 0.08)" }} content={<DistributionTooltip />} />
+                <Bar
+                  dataKey="count"
+                  fill="#b97455"
+                  radius={[0, 4, 4, 0]}
+                  maxBarSize={24}
+                  label={{
+                    position: "right",
+                    fill: "#9aa5b8",
+                    fontSize: 12,
+                    formatter: (value: unknown) => String(value),
+                  }}
+                />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-        ))}
+        ) : null}
       </CardContent>
     </Card>
   );
 }
 
+function compactDistributionLabel(value: string): string {
+  const normalized = value.trim() || "unknown";
+  if (normalized.length <= 28) return normalized;
+  if (/^[0-9a-f-]{24,}$/i.test(normalized)) return `${normalized.slice(0, 8)}...${normalized.slice(-4)}`;
+  return `${normalized.slice(0, 25)}...`;
+}
+
+type DistributionTooltipProps = {
+  active?: boolean;
+  payload?: Array<{ payload?: { key?: string; count?: number; percent?: number } }>;
+};
+
+function DistributionTooltip({ active, payload }: DistributionTooltipProps): ReactElement | null {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  if (!row) return null;
+  return (
+    <div className="rounded-md border border-[#2b3139] bg-[#111417] px-3 py-2 text-xs shadow-sm">
+      <div className="max-w-[320px] break-all font-mono text-[#eef2f8]">{row.key ?? "unknown"}</div>
+      <div className="mt-1 text-[#9aa5b8]">
+        {row.count ?? 0} events · {row.percent ?? 0}%
+      </div>
+    </div>
+  );
+}
+
 function HooksSetup(): ReactElement {
   const [copied, setCopied] = useState(false);
+  const [data, setData] = useState<HookConfigResponse | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [customPatterns, setCustomPatterns] = useState("");
+  const [includeManifestTracked, setIncludeManifestTracked] = useState(true);
+  const [enabled, setEnabled] = useState(true);
+  const [busyState, setBusyState] = useState<"" | "saving" | "installing">("");
+  const [message, setMessage] = useState("");
+
+  async function loadConfig(): Promise<void> {
+    const response = await fetch("/farplane/hooks/config");
+    const payload = await response.json() as HookConfigResponse;
+    setData(payload);
+    const config = payload.config;
+    setEnabled(config?.enabled ?? true);
+    setIncludeManifestTracked(config?.includeManifestTracked ?? true);
+    setSelected(new Set(config?.selectedManifestPaths ?? payload.manifestTracked ?? []));
+    setCustomPatterns((config?.customPatterns ?? []).join("\n"));
+  }
+
+  useEffect(() => {
+    void loadConfig().catch((error) => {
+      setMessage(error instanceof Error ? error.message : "Failed to load hook config");
+    });
+  }, []);
 
   async function copyCommand(): Promise<void> {
     if (!navigator.clipboard?.writeText) return;
@@ -308,47 +454,161 @@ function HooksSetup(): ReactElement {
     window.setTimeout(() => setCopied(false), 1_200);
   }
 
-  return (
-    <div className="grid h-full min-h-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-      <Card className="rounded-md">
-        <CardHeader className="py-3">
-          <CardTitle className="text-sm">Install Hooks</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <div className="flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate rounded border bg-muted px-2 py-1.5 text-xs">
-              {HOOK_INSTALL_COMMAND}
-            </code>
-            <Button size="icon" variant="outline" aria-label="Copy hook install command" onClick={() => void copyCommand()}>
-              <Copy className="size-4" />
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">{copied ? "Copied" : "CLI install"}</Badge>
-            <Badge variant="outline">Open /hooks to trust</Badge>
-            <Badge variant="outline">Posts to /telemetry/hooks</Badge>
-          </div>
-        </CardContent>
-      </Card>
+  async function saveConfig(): Promise<boolean> {
+    setBusyState("saving");
+    setMessage("");
+    try {
+      const response = await fetch("/farplane/hooks/config", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          config: {
+            enabled,
+            includeManifestTracked,
+            selectedManifestPaths: [...selected],
+            customPatterns: customPatterns.split(/\r?\n|,/).map((entry) => entry.trim()).filter(Boolean),
+          },
+        }),
+      });
+      const payload = await response.json() as HookConfigResponse;
+      if (!response.ok || payload.ok === false) throw new Error(payload.error ?? "hook_config_save_failed");
+      setData(payload);
+      setMessage("Saved hook config.");
+      return true;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to save hook config.");
+      return false;
+    } finally {
+      setBusyState("");
+    }
+  }
 
-      <Card className="min-h-0 rounded-md">
-        <CardHeader className="py-3">
-          <CardTitle className="text-sm">File Change Matcher</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Label htmlFor="file-change-patterns">Watched patterns</Label>
-          <p className="text-xs text-muted-foreground">
-            Default preview. Runtime overrides come from <code>FARPLANE_FILE_CHANGE_PATTERNS</code>.
-          </p>
-          <Textarea
-            id="file-change-patterns"
-            className="h-[260px] resize-none font-mono text-xs"
-            readOnly
-            value={DEFAULT_FILE_PATTERNS}
-          />
-        </CardContent>
-      </Card>
-    </div>
+  async function installHooks(): Promise<void> {
+    setBusyState("installing");
+    setMessage("");
+    try {
+      const saved = await saveConfig();
+      if (!saved) return;
+      const response = await fetch("/farplane/hooks/install", { method: "POST" });
+      const payload = await response.json() as { ok?: boolean; error?: string; hooksPath?: string };
+      if (!response.ok || payload.ok === false) throw new Error(payload.error ?? "hook_install_failed");
+      setMessage(`Installed hooks at ${payload.hooksPath ?? ".codex/hooks.json"}. Open /hooks to trust.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to install hooks.");
+    } finally {
+      setBusyState("");
+    }
+  }
+
+  function togglePath(filePath: string): void {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(filePath)) next.delete(filePath);
+      else next.add(filePath);
+      return next;
+    });
+  }
+
+  return (
+    <Card className="flex h-full min-h-0 flex-col rounded-md">
+      <CardHeader className="border-b py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <CardTitle className="text-sm">Hook Setup</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">Project-local Codex hooks and watched file events.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">{data?.activePatterns?.length ?? 0} active patterns</Badge>
+            {data?.manifestExists === false ? <Badge variant="destructive">Manifest missing</Badge> : null}
+            <Badge variant="outline">Open /hooks to trust</Badge>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="min-h-0 flex-1 p-0">
+        <ScrollArea className="h-full">
+          <div className="mx-auto flex max-w-[980px] flex-col gap-5 px-6 py-5">
+            <section className="space-y-3">
+              <div>
+                <h3 className="font-medium text-sm">Install command</h3>
+                <p className="mt-1 text-xs text-muted-foreground">The UI runs this through the local bridge when you install.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="min-w-0 flex-1 truncate rounded border bg-muted px-2 py-1.5 text-xs">
+                  {HOOK_INSTALL_COMMAND}
+                </code>
+                <Button size="icon" variant="outline" aria-label="Copy hook install command" onClick={() => void copyCommand()}>
+                  <Copy className="size-4" />
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary">{copied ? "Copied" : "CLI install"}</Badge>
+                <Badge variant="outline">Posts to /telemetry/hooks</Badge>
+              </div>
+            </section>
+
+            <section className="space-y-3 border-t pt-5">
+              <div>
+                <h3 className="font-medium text-sm">File change events</h3>
+                <p className="mt-1 text-xs text-muted-foreground">Only selected paths emit local Codex summary telemetry.</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="flex items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-sm">
+                  <Checkbox checked={enabled} onCheckedChange={(value) => setEnabled(Boolean(value))} />
+                  Emit file-change summaries
+                </label>
+                <label className="flex items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-sm">
+                  <Checkbox checked={includeManifestTracked} onCheckedChange={(value) => setIncludeManifestTracked(Boolean(value))} />
+                  Use manifest files
+                </label>
+              </div>
+            </section>
+
+            <section className="space-y-3 border-t pt-5">
+              <div>
+                <h3 className="font-medium text-sm">Farplane manifest files</h3>
+                <p className="mt-1 text-xs text-muted-foreground">{data?.manifestPath ?? "farplane/manifest.json"}</p>
+              </div>
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {(data?.manifestTracked ?? []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No manifest files found.</p>
+                ) : (
+                  (data?.manifestTracked ?? []).map((filePath) => (
+                    <label key={filePath} className="flex min-w-0 items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-xs">
+                      <Checkbox checked={selected.has(filePath)} onCheckedChange={() => togglePath(filePath)} />
+                      <span className="min-w-0 truncate font-mono">{filePath}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-3 border-t pt-5">
+              <div>
+                <Label htmlFor="file-change-patterns">Custom patterns</Label>
+                <p className="mt-1 text-xs text-muted-foreground">Comma or newline separated project-relative globs.</p>
+              </div>
+              <Textarea
+                id="file-change-patterns"
+                className="h-[120px] resize-none font-mono text-xs"
+                placeholder={DEFAULT_FILE_PATTERNS}
+                value={customPatterns}
+                onChange={(event) => setCustomPatterns(event.target.value)}
+              />
+            </section>
+          </div>
+        </ScrollArea>
+      </CardContent>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-background/95 px-6 py-3">
+        <div className="min-w-0 text-xs text-muted-foreground">
+          {message || "Installs project-local Codex hooks with selected summary matchers."}
+        </div>
+        <Button onClick={() => void installHooks()} disabled={busyState !== ""}>
+          {busyState === "saving" ? "Saving..." : busyState === "installing" ? "Installing..." : "Save And Install Hooks"}
+        </Button>
+      </div>
+    </Card>
   );
 }
 

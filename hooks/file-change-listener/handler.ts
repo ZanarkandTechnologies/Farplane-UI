@@ -3,11 +3,17 @@
  * =========================
  * Purpose
  * - Detect tracked project file edits after write-capable tools.
- * - Publish compact `file.changed` hook telemetry for office head bubbles.
+ * - Publish compact local-Codex `file.change.summary` hook telemetry for office head bubbles.
  */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import {
+  resolveCodexSummaryOptions,
+  summarizeTrackedFileChangeWithCodex,
+  type CodexSummaryOptions,
+} from "../shared/codex-summary";
+import { publishHookTelemetryWithOutbox } from "../shared/telemetry-outbox";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -29,12 +35,14 @@ export type PublishFileChangeOptions = {
 
 export type FileChangeParseOptions = {
   trackedPathPatterns?: readonly string[];
+  codexSummary?: CodexSummaryOptions;
+  heuristicFallback?: boolean;
 };
 
 const WRITE_TOOL_PATTERN = /(?:bash|apply_patch|edit|write|create|delete|multi_tool_use)/i;
 const MAX_CHANGED_FILES = 12;
 const MAX_FILE_BYTES = 24_000;
-const DEFAULT_TRACKED_PATH_PATTERNS = [
+export const DEFAULT_TRACKED_PATH_PATTERNS = [
   "progress.md",
   "goals.md",
   "tickets/*/ticket.md",
@@ -266,7 +274,7 @@ function usefulFileLines(projectPath: string, filePath: string): string[] {
   }
 }
 
-function summarizeFileChange(projectPath: string, filePath: string): string {
+function heuristicFileChangeSummary(projectPath: string, filePath: string): string {
   const base = path.basename(filePath);
   const firstUseful = usefulFileLines(projectPath, filePath)[0];
   const suffix = firstUseful ? `: ${firstUseful.slice(0, 90)}` : "";
@@ -275,6 +283,27 @@ function summarizeFileChange(projectPath: string, filePath: string): string {
   if (base.toLowerCase() === "ticket.md") return `Updated ticket${suffix}`;
   if (base.toLowerCase() === "memory.md") return `Updated memory${suffix}`;
   return `Updated ${base}${suffix}`;
+}
+
+function fileContentSnippet(projectPath: string, filePath: string): string {
+  const absolutePath = path.resolve(projectPath, filePath);
+  if (!existsSync(absolutePath)) return "";
+  try {
+    return readFileSync(absolutePath, { encoding: "utf8", flag: "r" }).slice(0, MAX_FILE_BYTES);
+  } catch {
+    return "";
+  }
+}
+
+function payloadSnippet(payload: JsonRecord): string {
+  try {
+    return JSON.stringify(payload, (_key, value) => {
+      if (typeof value === "string") return value.slice(0, 1_000);
+      return value;
+    }).slice(0, 2_000);
+  } catch {
+    return "";
+  }
 }
 
 function stableEventKey(input: {
@@ -298,11 +327,11 @@ function stableEventKey(input: {
     .slice(0, 500);
 }
 
-export function parseFileChangeBubbleCandidatesFromPayload(
+function parseFileChangeCandidatePathsFromPayload(
   payload: unknown,
   now = Date.now(),
   options: FileChangeParseOptions = {},
-): FileChangeBubbleCandidate[] {
+): Array<Omit<FileChangeBubbleCandidate, "message" | "eventKey">> {
   if (!isRecord(payload)) return [];
   if (!/post.*tool.*use/i.test(resolveEventName(payload))) return [];
   if (!WRITE_TOOL_PATTERN.test(resolveToolName(payload))) return [];
@@ -311,32 +340,62 @@ export function parseFileChangeBubbleCandidatesFromPayload(
   const projectPath = path.resolve(metadata.projectPath);
   const eventAt = resolveOccurredAt(payload, now);
   return changedTrackedFilesFromPayload(payload, projectPath, options.trackedPathPatterns).map((filePath) => {
-    const message = summarizeFileChange(projectPath, filePath);
     return {
       threadId: metadata.threadId ?? metadata.sessionId,
       sessionId: metadata.sessionId,
       projectPath,
       filePath,
-      message,
       eventAt,
-      eventKey: stableEventKey({
-        threadId: metadata.threadId,
-        sessionId: metadata.sessionId,
-        projectPath,
-        filePath,
-        message,
-      }),
     };
   });
 }
 
-export function parseFileChangeBubbleCandidatesFromStdin(
+export async function parseFileChangeBubbleCandidatesFromPayload(
+  payload: unknown,
+  now = Date.now(),
+  options: FileChangeParseOptions = {},
+): Promise<FileChangeBubbleCandidate[]> {
+  const paths = parseFileChangeCandidatePathsFromPayload(payload, now, options);
+  const record = isRecord(payload) ? payload : {};
+  const codexSummary = options.codexSummary ?? resolveCodexSummaryOptions();
+  const candidates: FileChangeBubbleCandidate[] = [];
+
+  for (const candidate of paths) {
+    const message =
+      await summarizeTrackedFileChangeWithCodex(
+        {
+          projectPath: candidate.projectPath,
+          filePath: candidate.filePath,
+          fileContentSnippet: fileContentSnippet(candidate.projectPath, candidate.filePath),
+          toolPayloadSnippet: payloadSnippet(record),
+        },
+        codexSummary,
+      ) ??
+      (options.heuristicFallback ? heuristicFileChangeSummary(candidate.projectPath, candidate.filePath) : null);
+    if (!message) continue;
+    candidates.push({
+      ...candidate,
+      message,
+      eventKey: stableEventKey({
+        threadId: candidate.threadId,
+        sessionId: candidate.sessionId,
+        projectPath: candidate.projectPath,
+        filePath: candidate.filePath,
+        message,
+      }),
+    });
+  }
+
+  return candidates;
+}
+
+export async function parseFileChangeBubbleCandidatesFromStdin(
   stdin: string,
   now = Date.now(),
   options: FileChangeParseOptions = {},
-): FileChangeBubbleCandidate[] {
+): Promise<FileChangeBubbleCandidate[]> {
   try {
-    return parseFileChangeBubbleCandidatesFromPayload(JSON.parse(stdin), now, options);
+    return await parseFileChangeBubbleCandidatesFromPayload(JSON.parse(stdin), now, options);
   } catch {
     return [];
   }
@@ -345,41 +404,30 @@ export function parseFileChangeBubbleCandidatesFromStdin(
 export async function publishFileChangeBubbleCandidates(
   candidates: FileChangeBubbleCandidate[],
   options: PublishFileChangeOptions = {},
-): Promise<{ attempted: number; published: number; skipped: boolean }> {
-  const endpointBaseUrl = options.endpointBaseUrl?.replace(/\/+$/, "");
-  if (!endpointBaseUrl || candidates.length === 0) {
-    return { attempted: candidates.length, published: 0, skipped: true };
-  }
-  const fetchImpl = options.fetchImpl ?? fetch;
-  let published = 0;
-  await Promise.all(
-    candidates.map(async (candidate) => {
-      const response = await fetchImpl(`${endpointBaseUrl}/telemetry/hooks`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          ...(options.telemetryToken ? { "x-farplane-telemetry-token": options.telemetryToken } : {}),
-        },
-        body: JSON.stringify({
-          hookName: "file-change-listener",
-          hookType: "PostToolUse",
-          projectId: undefined,
-          sessionId: candidate.sessionId,
-          payload: {
-            eventName: "file.changed",
-            threadId: candidate.threadId,
-            cwd: candidate.projectPath,
-            paths: [candidate.filePath],
-            message: candidate.message,
-          },
-          eventAt: candidate.eventAt,
-          eventKey: candidate.eventKey,
-        }),
-      });
-      if (response.ok) {
-        published += 1;
-      }
-    }),
+): Promise<{ attempted: number; published: number; skipped: boolean; queued?: number; replayed?: number }> {
+  const primaryProjectPath = candidates[0]?.projectPath;
+  const result = await publishHookTelemetryWithOutbox(
+    candidates.map((candidate) => ({
+      hookName: "file-change-listener",
+      hookType: "PostToolUse",
+      projectId: undefined,
+      sessionId: candidate.sessionId,
+      payload: {
+        eventName: "file.change.summary",
+        threadId: candidate.threadId,
+        cwd: candidate.projectPath,
+        paths: [candidate.filePath],
+        message: candidate.message,
+      },
+      eventAt: candidate.eventAt,
+      eventKey: candidate.eventKey,
+    })),
+    {
+      endpointBaseUrl: options.endpointBaseUrl,
+      telemetryToken: options.telemetryToken,
+      fetchImpl: options.fetchImpl,
+      projectPath: primaryProjectPath,
+    },
   );
-  return { attempted: candidates.length, published, skipped: false };
+  return result;
 }

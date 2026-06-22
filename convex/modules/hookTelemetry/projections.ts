@@ -14,7 +14,7 @@ export type HookTelemetryRow = {
 
 export type HookEventName =
   | "skill.invoked"
-  | "file.changed"
+  | "file.change.summary"
   | "thread.started"
   | "thread.stopped"
   | "thread.forked"
@@ -94,7 +94,7 @@ function hookEventName(row: HookTelemetryRow, payload: JsonRecord): HookEventNam
     cleanText(payload.type, 120);
   if (
     explicit === "skill.invoked" ||
-    explicit === "file.changed" ||
+    explicit === "file.change.summary" ||
     explicit === "thread.started" ||
     explicit === "thread.stopped" ||
     explicit === "thread.forked" ||
@@ -197,7 +197,7 @@ export function hookTelemetryRowsToAgentBubbleMessages(rows: HookTelemetryRow[])
         };
       }
 
-      if (eventName === "file.changed") {
+      if (eventName === "file.change.summary") {
         const message = messageFromPayload(payload);
         if (!message) return null;
         return { threadId, message, eventAt: row.eventAt };

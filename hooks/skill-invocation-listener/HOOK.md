@@ -13,12 +13,14 @@ The hook is deterministic and diagnostics-only:
 - derives the skill name from the parent directory of the `SKILL.md` path
 - posts compact path metadata to `/telemetry/hooks`
 - does not store raw hook payloads, command output, or transcript text
+- queues failed telemetry publishes under `.farplane/hooks/outbox.jsonl` when a
+  project path is available
 - exits successfully when no skill file is found or when the endpoint is missing
 
 Install with:
 
 ```bash
-node scripts/install-skill-invocation-hook.mjs --write
+npm run hooks:install
 ```
 
 Then review and trust the hook in Codex with `/hooks`.

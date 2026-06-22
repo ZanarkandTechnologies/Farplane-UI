@@ -96,7 +96,7 @@ describe("skill invocation listener hook", () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
-    expect(result).toEqual({ attempted: 1, published: 1, skipped: false });
+    expect(result).toMatchObject({ attempted: 1, published: 1, queued: 0, replayed: 0, skipped: false });
     expect(fetchImpl).toHaveBeenCalledWith(
       "http://127.0.0.1:3211/telemetry/hooks",
       expect.objectContaining({

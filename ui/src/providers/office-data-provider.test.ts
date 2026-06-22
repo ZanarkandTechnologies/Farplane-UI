@@ -7,10 +7,7 @@ import {
   canReserveOfficeObject,
   createOfficePlacementReservation,
 } from "@/modules/office/systems/placement-engine";
-import {
-  getObjectFootprintCells,
-  objectFootprintsCollide,
-} from "@/modules/office/systems/occupancy-system";
+import { getObjectFootprintCells } from "@/modules/office/systems/occupancy-system";
 import type {
   AgentCardModel,
   AgentLiveStatus,
@@ -67,6 +64,21 @@ function createOfficeObject(overrides: Partial<OfficeObject> = {}): OfficeObject
     metadata: {},
     ...overrides,
   };
+}
+
+function canPlaceWithoutColliding(
+  object: OfficeObject,
+  reservedObject: OfficeObject,
+): boolean {
+  return canReserveOfficeObject({
+    object,
+    layout: {
+      version: 1,
+      tileSize: 1,
+      tiles: getObjectFootprintCells(object).map((cell) => `${cell.x}:${cell.z}`),
+    },
+    reservation: createOfficePlacementReservation([reservedObject]),
+  });
 }
 
 function createValue(params?: { employees?: EmployeeData[]; officeObjects?: OfficeObject[] }) {
@@ -1310,6 +1322,14 @@ describe("office-data-provider team synthesis", () => {
       return typeof width === "number" && width > 4;
     })).toBe(true);
     expect(generatedSectionWalls).toHaveLength(1);
+    const clusters = sectionedResult.officeObjects.filter(
+      (object) => object.meshType === "team-cluster",
+    );
+    expect(
+      generatedSectionWalls.every((wall) =>
+        clusters.every((cluster) => canPlaceWithoutColliding(wall, cluster)),
+      ),
+    ).toBe(true);
   });
 
   it("adds a minimal office-divider separator for placed project teams with six or more workers", () => {
@@ -1388,7 +1408,7 @@ describe("office-data-provider team synthesis", () => {
     const clusters = result.officeObjects.filter((object) => object.meshType === "team-cluster");
     expect(
       generatedSectionWalls.every((wall) =>
-        clusters.every((cluster) => !objectFootprintsCollide(wall, cluster)),
+        clusters.every((cluster) => canPlaceWithoutColliding(wall, cluster)),
       ),
     ).toBe(true);
   });

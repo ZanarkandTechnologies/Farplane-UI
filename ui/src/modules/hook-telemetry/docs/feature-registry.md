@@ -19,9 +19,9 @@ the office launcher entry `raw-telemetry`.
   payload preview.
 - Distributions: renders top event names, hook names, hook types, and sessions
   for the current filtered window.
-- Hooks setup: shows the canonical install command, `/hooks` trust reminder, and
-  a default watcher-pattern preview. Runtime overrides are owned by
-  `FARPLANE_FILE_CHANGE_PATTERNS`.
+- Hooks setup: shows the canonical install command, `/hooks` trust reminder,
+  manifest-backed watched file selection, custom patterns, and a local install
+  action through the Vite state bridge.
 - Access control: launcher action is hidden in read-only modes; the panel also
   skips the Convex query and renders a locked state when opened outside operator
   mode.
@@ -33,6 +33,5 @@ the office launcher entry `raw-telemetry`.
 - Does not calculate runtime agent-hours. That belongs to the Harness Usage
   module under `ui/src/modules/telemetry`.
 - Does not render raw unredacted hook payloads by default.
-- Does not mutate hook config from the browser. Hook installation and runtime
-  pattern overrides stay CLI/local through `npm run hooks:install`,
-  `FARPLANE_FILE_CHANGE_PATTERNS`, and Codex `/hooks` trust.
+- Does not auto-trust Codex hooks. Installation writes repo-local hook config,
+  but the operator still reviews and trusts hook changes through `/hooks`.

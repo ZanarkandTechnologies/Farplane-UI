@@ -7,8 +7,10 @@ import {
   publishFileChangeBubbleCandidates,
 } from "./handler";
 
+const testSummaryRunner = async () => "Summarized tracked file update";
+
 describe("file-change-listener", () => {
-  it("detects tracked progress file paths from the post-tool payload", () => {
+  it("detects tracked progress file paths from the post-tool payload", async () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
     try {
       writeFileSync(
@@ -16,7 +18,7 @@ describe("file-change-listener", () => {
         "# Progress\n\n- Chose acquisition research next.\n",
       );
 
-      const rows = parseFileChangeBubbleCandidatesFromPayload(
+      const rows = await parseFileChangeBubbleCandidatesFromPayload(
         {
           event: "PostToolUse",
           toolName: "apply_patch",
@@ -25,13 +27,14 @@ describe("file-change-listener", () => {
           toolInput: "*** Begin Patch\n*** Update File: progress.md\n@@\n+Chose acquisition research next.\n*** End Patch\n",
         },
         1_000,
+        { codexSummary: { runner: testSummaryRunner } },
       );
 
       expect(rows).toEqual([
         expect.objectContaining({
           threadId: "thread-1",
           filePath: "progress.md",
-          message: "Updated progress: Chose acquisition research next.",
+          message: "Summarized tracked file update",
           eventAt: 1_000,
         }),
       ]);
@@ -40,11 +43,11 @@ describe("file-change-listener", () => {
     }
   });
 
-  it("ignores untracked paths even when a write-capable tool runs", () => {
+  it("ignores untracked paths even when a write-capable tool runs", async () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
     try {
       writeFileSync(path.join(repo, "package.json"), "{}\n");
-      const rows = parseFileChangeBubbleCandidatesFromPayload(
+      const rows = await parseFileChangeBubbleCandidatesFromPayload(
         {
           event: "PostToolUse",
           toolName: "apply_patch",
@@ -53,6 +56,7 @@ describe("file-change-listener", () => {
           toolInput: "*** Begin Patch\n*** Update File: package.json\n@@\n+{}\n*** End Patch\n",
         },
         1_000,
+        { codexSummary: { runner: testSummaryRunner } },
       );
 
       expect(rows).toEqual([]);
@@ -61,11 +65,11 @@ describe("file-change-listener", () => {
     }
   });
 
-  it("supports custom tracked path patterns", () => {
+  it("supports custom tracked path patterns", async () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
     try {
       writeFileSync(path.join(repo, "package.json"), "{\"ok\":true}\n");
-      const rows = parseFileChangeBubbleCandidatesFromPayload(
+      const rows = await parseFileChangeBubbleCandidatesFromPayload(
         {
           event: "PostToolUse",
           toolName: "apply_patch",
@@ -74,13 +78,13 @@ describe("file-change-listener", () => {
           toolInput: "*** Begin Patch\n*** Update File: package.json\n@@\n+{\"ok\":true}\n*** End Patch\n",
         },
         1_000,
-        { trackedPathPatterns: ["package.json"] },
+        { trackedPathPatterns: ["package.json"], codexSummary: { runner: testSummaryRunner } },
       );
 
       expect(rows).toEqual([
         expect.objectContaining({
           filePath: "package.json",
-          message: "Updated package.json: {\"ok\":true}",
+          message: "Summarized tracked file update",
         }),
       ]);
     } finally {
@@ -88,11 +92,11 @@ describe("file-change-listener", () => {
     }
   });
 
-  it("detects top-level changedFiles payloads", () => {
+  it("detects top-level changedFiles payloads", async () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
     try {
       writeFileSync(path.join(repo, "goals.md"), "# Goals\n\n- Harden telemetry hooks.\n");
-      const rows = parseFileChangeBubbleCandidatesFromPayload(
+      const rows = await parseFileChangeBubbleCandidatesFromPayload(
         {
           event: "PostToolUse",
           toolName: "write",
@@ -101,12 +105,13 @@ describe("file-change-listener", () => {
           changedFiles: ["goals.md"],
         },
         1_000,
+        { codexSummary: { runner: testSummaryRunner } },
       );
 
       expect(rows).toEqual([
         expect.objectContaining({
           filePath: "goals.md",
-          message: "Updated goals: Harden telemetry hooks.",
+          message: "Summarized tracked file update",
         }),
       ]);
     } finally {
@@ -114,14 +119,14 @@ describe("file-change-listener", () => {
     }
   });
 
-  it("detects tracked docs paths from bash command payloads", () => {
+  it("detects tracked docs paths from bash command payloads", async () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
     try {
       const docsDir = path.join(repo, "docs", "specs");
       mkdirSync(docsDir, { recursive: true });
       writeFileSync(path.join(repo, "docs", "prd.md"), "# PRD\n\n- Define PM founder loop.\n");
       writeFileSync(path.join(docsDir, "telemetry.md"), "# Telemetry\n\n- Track hook bubbles.\n");
-      const rows = parseFileChangeBubbleCandidatesFromPayload(
+      const rows = await parseFileChangeBubbleCandidatesFromPayload(
         {
           event: "PostToolUse",
           toolName: "bash",
@@ -130,16 +135,17 @@ describe("file-change-listener", () => {
           command: "printf '%s\\n' update > docs/prd.md && printf '%s\\n' update | tee docs/specs/telemetry.md",
         },
         1_000,
+        { codexSummary: { runner: testSummaryRunner } },
       );
 
       expect(rows).toEqual([
         expect.objectContaining({
           filePath: "docs/prd.md",
-          message: "Updated prd.md: Define PM founder loop.",
+          message: "Summarized tracked file update",
         }),
         expect.objectContaining({
           filePath: "docs/specs/telemetry.md",
-          message: "Updated telemetry.md: Track hook bubbles.",
+          message: "Summarized tracked file update",
         }),
       ]);
     } finally {
@@ -147,12 +153,12 @@ describe("file-change-listener", () => {
     }
   });
 
-  it("ignores read-only bash commands that mention tracked docs paths", () => {
+  it("ignores read-only bash commands that mention tracked docs paths", async () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
     try {
       mkdirSync(path.join(repo, "docs"), { recursive: true });
       writeFileSync(path.join(repo, "docs", "prd.md"), "# PRD\n\n- Existing plan.\n");
-      const rows = parseFileChangeBubbleCandidatesFromPayload(
+      const rows = await parseFileChangeBubbleCandidatesFromPayload(
         {
           event: "PostToolUse",
           toolName: "bash",
@@ -161,6 +167,7 @@ describe("file-change-listener", () => {
           command: "cat docs/prd.md && rg Existing docs/prd.md",
         },
         1_000,
+        { codexSummary: { runner: testSummaryRunner } },
       );
 
       expect(rows).toEqual([]);
@@ -169,7 +176,56 @@ describe("file-change-listener", () => {
     }
   });
 
-  it("publishes file changed telemetry without throwing on success", async () => {
+  it("skips tracked file telemetry when summarization fails and fallback is disabled", async () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
+    try {
+      writeFileSync(path.join(repo, "progress.md"), "# Progress\n\n- Local summarizer unavailable.\n");
+      const rows = await parseFileChangeBubbleCandidatesFromPayload(
+        {
+          event: "PostToolUse",
+          toolName: "apply_patch",
+          cwd: repo,
+          sessionId: "thread-1",
+          toolInput: "*** Begin Patch\n*** Update File: progress.md\n@@\n+Local summarizer unavailable.\n*** End Patch\n",
+        },
+        1_000,
+        { codexSummary: { runner: async () => "" }, heuristicFallback: false },
+      );
+
+      expect(rows).toEqual([]);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("can use heuristic fallback when explicitly enabled", async () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
+    try {
+      writeFileSync(path.join(repo, "progress.md"), "# Progress\n\n- Local summarizer unavailable.\n");
+      const rows = await parseFileChangeBubbleCandidatesFromPayload(
+        {
+          event: "PostToolUse",
+          toolName: "apply_patch",
+          cwd: repo,
+          sessionId: "thread-1",
+          toolInput: "*** Begin Patch\n*** Update File: progress.md\n@@\n+Local summarizer unavailable.\n*** End Patch\n",
+        },
+        1_000,
+        { codexSummary: { runner: async () => "" }, heuristicFallback: true },
+      );
+
+      expect(rows).toEqual([
+        expect.objectContaining({
+          filePath: "progress.md",
+          message: "Updated progress: Local summarizer unavailable.",
+        }),
+      ]);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("publishes file change summary telemetry without throwing on success", async () => {
     const fetchImpl = vi.fn(
       async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
     );
@@ -193,13 +249,13 @@ describe("file-change-listener", () => {
       },
     );
 
-    expect(result).toEqual({ attempted: 1, published: 1, skipped: false });
+    expect(result).toMatchObject({ attempted: 1, published: 1, queued: 0, replayed: 0, skipped: false });
     expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual(
       expect.objectContaining({
         hookName: "file-change-listener",
         hookType: "PostToolUse",
         payload: expect.objectContaining({
-          eventName: "file.changed",
+          eventName: "file.change.summary",
           threadId: "thread-1",
           paths: ["progress.md"],
           message: "Updated progress: chose acquisition research",

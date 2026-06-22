@@ -6,10 +6,12 @@ import {
   parseFileChangeBubbleCandidatesFromStdin,
   publishFileChangeBubbleCandidates,
 } from "./handler";
+import { resolveCodexSummaryOptions } from "../shared/codex-summary";
 import {
   resolveDefaultEndpointBaseUrl,
   resolveDefaultTelemetryToken,
 } from "../skill-invocation-listener/handler";
+import { resolveProjectHookConfig } from "../shared/project-hook-config";
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -19,19 +21,26 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-function parseTrackedPathPatterns(value: string | undefined): string[] | undefined {
-  const patterns = value
-    ?.split(/[\n,]/)
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-  return patterns && patterns.length > 0 ? patterns : undefined;
-}
-
 async function main(): Promise<void> {
   const debugEnabled = process.env.FARPLANE_FILE_CHANGE_HOOK_DEBUG === "1";
   const stdin = await readStdin();
-  const candidates = parseFileChangeBubbleCandidatesFromStdin(stdin, Date.now(), {
-    trackedPathPatterns: parseTrackedPathPatterns(process.env.FARPLANE_FILE_CHANGE_PATTERNS),
+  const projectPath = (() => {
+    try {
+      const parsed = JSON.parse(stdin) as Record<string, unknown>;
+      return String(parsed.cwd ?? parsed.projectPath ?? parsed.project_path ?? process.cwd()).trim();
+    } catch {
+      return process.cwd();
+    }
+  })();
+  const hookConfig = resolveProjectHookConfig(projectPath, process.env);
+  if (!hookConfig.enabled) {
+    if (debugEnabled) console.error("[file-change-listener] disabled by project hook config");
+    return;
+  }
+  const candidates = await parseFileChangeBubbleCandidatesFromStdin(stdin, Date.now(), {
+    trackedPathPatterns: hookConfig.patterns,
+    codexSummary: resolveCodexSummaryOptions(process.env),
+    heuristicFallback: process.env.FARPLANE_FILE_CHANGE_SUMMARY_FALLBACK === "1",
   });
   if (candidates.length === 0) {
     if (debugEnabled) console.error("[file-change-listener] no tracked file changes detected");

@@ -1,6 +1,8 @@
 import path from "node:path";
 import { existsSync, readFileSync } from "node:fs";
+import { execFile } from "node:child_process";
 import { cp, mkdir, readdir, readFile, rm, writeFile, stat } from "node:fs/promises";
+import { promisify } from "node:util";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -82,6 +84,7 @@ const MESH_PREVIEW_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
 const CODEX_PET_ASSET_EXTENSIONS = new Set([".json", ".png", ".webp"]);
 const SKILL_PACKAGE_FILE_NAMES = ["SKILL.md", "skill.md"] as const;
 const MESHY_API_BASE = "https://api.meshy.ai/openapi/v2";
+const execFileAsync = promisify(execFile);
 
 function readRootEnvValue(name: string): string {
   for (const fileName of [".env.local", ".env"]) {
@@ -132,6 +135,105 @@ async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
     return JSON.parse(raw) as T;
   } catch {
     return fallback;
+  }
+}
+
+type FarplaneHookConfig = {
+  enabled: boolean;
+  includeManifestTracked: boolean;
+  selectedManifestPaths: string[];
+  customPatterns: string[];
+};
+
+const DEFAULT_HOOK_CONFIG: FarplaneHookConfig = {
+  enabled: true,
+  includeManifestTracked: true,
+  selectedManifestPaths: [],
+  customPatterns: [],
+};
+
+function uniqueHookPatterns(values: readonly unknown[]): string[] {
+  return [...new Set(values
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim().replace(/\\/g, "/"))
+    .filter(Boolean))];
+}
+
+function readManifestTrackedPaths(manifest: JsonObject): string[] {
+  const standard = manifest.standard && typeof manifest.standard === "object" ? manifest.standard as JsonObject : {};
+  const optional = manifest.optional && typeof manifest.optional === "object" ? manifest.optional as JsonObject : {};
+  return uniqueHookPatterns([
+    ...(Array.isArray(standard.tracked) ? standard.tracked : []),
+    ...(Array.isArray(optional.tracked) ? optional.tracked : []),
+  ]).filter((entry) => !entry.endsWith("/"));
+}
+
+function normalizeHookConfig(input: unknown, manifestTracked: string[]): FarplaneHookConfig {
+  const record = input && typeof input === "object" && !Array.isArray(input) ? input as JsonObject : {};
+  const selected = uniqueHookPatterns(
+    Array.isArray(record.selectedManifestPaths) ? record.selectedManifestPaths : manifestTracked,
+  );
+  const custom = uniqueHookPatterns(Array.isArray(record.customPatterns) ? record.customPatterns : []);
+  return {
+    enabled: typeof record.enabled === "boolean" ? record.enabled : DEFAULT_HOOK_CONFIG.enabled,
+    includeManifestTracked:
+      typeof record.includeManifestTracked === "boolean"
+        ? record.includeManifestTracked
+        : DEFAULT_HOOK_CONFIG.includeManifestTracked,
+    selectedManifestPaths: selected,
+    customPatterns: custom,
+  };
+}
+
+function hookConfigPath(projectPath: string): string {
+  return path.join(projectPath, ".farplane", "hooks", "config.json");
+}
+
+async function readProjectHookConfig(projectPath: string): Promise<JsonObject> {
+  const root = path.resolve(projectPath);
+  const manifestPath = path.join(root, "farplane", "manifest.json");
+  const manifest = await readJsonFile<JsonObject>(manifestPath, {});
+  const manifestTracked = readManifestTrackedPaths(manifest);
+  const config = normalizeHookConfig(await readJsonFile<unknown>(hookConfigPath(root), {}), manifestTracked);
+  const activePatterns = config.enabled
+    ? uniqueHookPatterns([
+      ...(config.includeManifestTracked ? config.selectedManifestPaths : []),
+      ...config.customPatterns,
+    ])
+    : [];
+  return {
+    ok: true,
+    projectPath: root,
+    configPath: hookConfigPath(root),
+    manifestPath,
+    manifestExists: await pathExists(manifestPath),
+    manifestTracked,
+    config,
+    activePatterns,
+    installCommand: "npm run hooks:install",
+  };
+}
+
+async function saveProjectHookConfig(projectPath: string, input: unknown): Promise<JsonObject> {
+  const root = path.resolve(projectPath);
+  const manifest = await readJsonFile<JsonObject>(path.join(root, "farplane", "manifest.json"), {});
+  const config = normalizeHookConfig(input, readManifestTrackedPaths(manifest));
+  const filePath = hookConfigPath(root);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  return readProjectHookConfig(root);
+}
+
+async function installProjectHooks(): Promise<JsonObject> {
+  const scriptPath = path.join(REPO_ROOT, "scripts", "install-farplane-hooks.mjs");
+  const { stdout, stderr } = await execFileAsync(process.execPath, [scriptPath, "--write", "--json"], {
+    cwd: REPO_ROOT,
+    maxBuffer: 1024 * 1024,
+  });
+  try {
+    return { ...(JSON.parse(stdout) as JsonObject), stderr: stderr.trim() || undefined };
+  } catch {
+    return { ok: false, error: "hook_install_invalid_json", stdout, stderr };
   }
 }
 
@@ -2162,6 +2264,16 @@ function farplaneStateBridge() {
           return;
         }
 
+        if (method === "GET" && pathname === "/farplane/hooks/config") {
+          const projectPath = url.searchParams.get("projectPath")?.trim() || REPO_ROOT;
+          if (!isSafeProjectPath(projectPath)) {
+            writeJson(res, 400, { ok: false, error: "project_path_required" });
+            return;
+          }
+          writeJson(res, 200, await readProjectHookConfig(projectPath));
+          return;
+        }
+
         if (method === "GET" && pathname === "/farplane/codex-ui-state") {
           writeJson(res, 200, await readCodexUiState());
           return;
@@ -2299,6 +2411,32 @@ function farplaneStateBridge() {
           }
           const pm = await saveProjectPmConfig(projectPath, (body as JsonObject).pm);
           writeJson(res, 200, { ok: true, pm });
+          return;
+        }
+
+        if (method === "POST" && pathname === "/farplane/hooks/config") {
+          if (!hasBridgeWriteAccess(req)) {
+            writeJson(res, 403, { ok: false, error: "forbidden" });
+            return;
+          }
+          const body = await readBody(req);
+          const projectPath =
+            body && typeof body === "object" ? String((body as JsonObject).projectPath ?? REPO_ROOT) : REPO_ROOT;
+          if (!isSafeProjectPath(projectPath)) {
+            writeJson(res, 400, { ok: false, error: "project_path_required" });
+            return;
+          }
+          const config = body && typeof body === "object" ? (body as JsonObject).config : {};
+          writeJson(res, 200, await saveProjectHookConfig(projectPath, config));
+          return;
+        }
+
+        if (method === "POST" && pathname === "/farplane/hooks/install") {
+          if (!hasBridgeWriteAccess(req)) {
+            writeJson(res, 403, { ok: false, error: "forbidden" });
+            return;
+          }
+          writeJson(res, 200, await installProjectHooks());
           return;
         }
 

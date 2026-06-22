@@ -92,4 +92,24 @@ describe("hook telemetry projections", () => {
       { threadId: "thread-1", target: { kind: "skill", id: "openai-docs" }, eventAt: 3_000 },
     ]);
   });
+
+  it("projects file change summaries into bubble messages", () => {
+    const rows: HookTelemetryRow[] = [
+      {
+        hookName: "file-change-listener",
+        hookType: "PostToolUse",
+        sessionId: "thread-1",
+        eventAt: 4_000,
+        payload: {
+          eventName: "file.change.summary",
+          threadId: "thread-1",
+          message: "Updated progress with summary-only hook proof.",
+        },
+      },
+    ];
+
+    expect(hookTelemetryRowsToAgentBubbleMessages(rows)).toEqual([
+      { threadId: "thread-1", message: "Updated progress with summary-only hook proof.", eventAt: 4_000 },
+    ]);
+  });
 });

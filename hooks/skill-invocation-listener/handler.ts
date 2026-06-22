@@ -10,6 +10,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { publishHookTelemetryWithOutbox } from "../shared/telemetry-outbox";
 import { buildSkillInvocationTelemetryEnvelope } from "./telemetry";
 
 export type SkillInvocationCandidate = {
@@ -253,31 +254,18 @@ function readDotenvValue(filePath: string, key: string): string | undefined {
 export async function publishSkillInvocations(
   candidates: SkillInvocationCandidate[],
   options: PublishSkillInvocationOptions = {},
-): Promise<{ attempted: number; published: number; skipped: boolean }> {
-  const endpointBaseUrl = options.endpointBaseUrl?.replace(/\/+$/, "");
-  if (!endpointBaseUrl || candidates.length === 0) {
-    return { attempted: candidates.length, published: 0, skipped: true };
-  }
-  const fetchImpl = options.fetchImpl ?? fetch;
-  let published = 0;
-  for (const candidate of candidates) {
-    const response = await fetchImpl(`${endpointBaseUrl}/telemetry/hooks`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(options.telemetryToken ? { "x-farplane-telemetry-token": options.telemetryToken } : {}),
-      },
-      body: JSON.stringify(buildSkillInvocationTelemetryEnvelope(candidate)),
-    });
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      throw new Error(
-        `skill_invocation_ingest_failed:${response.status}${detail ? `:${detail.slice(0, 120)}` : ""}`,
-      );
-    }
-    published += 1;
-  }
-  return { attempted: candidates.length, published, skipped: false };
+): Promise<{ attempted: number; published: number; skipped: boolean; queued?: number; replayed?: number }> {
+  const primaryProjectPath = candidates.find((candidate) => candidate.projectPath)?.projectPath;
+  const result = await publishHookTelemetryWithOutbox(
+    candidates.map((candidate) => buildSkillInvocationTelemetryEnvelope(candidate)),
+    {
+      endpointBaseUrl: options.endpointBaseUrl,
+      telemetryToken: options.telemetryToken,
+      fetchImpl: options.fetchImpl,
+      projectPath: primaryProjectPath,
+    },
+  );
+  return result;
 }
 
 export function resolveDefaultEndpointBaseUrl(
