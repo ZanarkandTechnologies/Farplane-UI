@@ -29,10 +29,12 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useQuery } from "convex/react";
 import { useShallow } from "zustand/react/shallow";
 import { useAgentLiveStatuses } from "@/hooks/use-agent-live-status";
 import type {
   AgentLiveStatus,
+  CompanyModel,
   FederatedTaskProvider,
   FederationProjectPolicy,
   OfficeSettingsModel,
@@ -56,6 +58,8 @@ import {
 } from "@/modules/office/store";
 import { useOfficeRuntimeAdapter, type OfficeRuntimeAdapter } from "@/modules/runtime";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
+import { isConvexEnabled } from "@/providers/convex-provider";
+import { api } from "../../../convex/_generated/api";
 
 const OfficeDataContext = createContext<OfficeDataContextValue | undefined>(undefined);
 
@@ -89,6 +93,29 @@ type PlacementRepairPersistenceResult =
       objectsResult: Awaited<ReturnType<OfficeRuntimeAdapter["saveOfficeObjects"]>>;
       settingsResult: Awaited<ReturnType<OfficeRuntimeAdapter["saveOfficeSettings"]>>;
     };
+
+export type ObservedCodexWorkerRow = {
+  workerId: string;
+  sourceInstanceId: string;
+  machineId?: string;
+  machineName?: string;
+  sessionKey: string;
+  threadId?: string;
+  projectId: string;
+  projectPath?: string;
+  displayName: string;
+  state: "running" | "idle" | "done";
+  statusText: string;
+  lastSeenAt: number;
+  controllable: false;
+};
+
+type ObservedCodexWorkersQueryResult = {
+  workers?: ObservedCodexWorkerRow[];
+  rangeMs?: number;
+};
+
+const OBSERVED_CODEX_PRESENCE_RANGE_MS = 15 * 60 * 1000;
 
 function isCodexAgentId(agentId: string): boolean {
   return agentId === "codex-main" || agentId.startsWith("codex-thread:");
@@ -140,11 +167,13 @@ export function mergeAgentLiveStatuses(input: {
   agentIds: string[];
   adapterStatuses?: Record<string, AgentLiveStatus>;
   convexStatuses?: Record<string, AgentLiveStatus>;
+  observedStatuses?: Record<string, AgentLiveStatus>;
   runtimeKind?: string;
 }): Record<string, AgentLiveStatus> {
   const adapterStatuses = input.adapterStatuses ?? {};
   const convexStatuses = input.convexStatuses ?? {};
-  const merged: Record<string, AgentLiveStatus> = { ...convexStatuses };
+  const observedStatuses = input.observedStatuses ?? {};
+  const merged: Record<string, AgentLiveStatus> = { ...observedStatuses, ...convexStatuses };
 
   if (input.runtimeKind === "codex") {
     for (const agentId of input.agentIds) {
@@ -157,6 +186,190 @@ export function mergeAgentLiveStatuses(input: {
 
   if (Object.keys(merged).length > 0) return merged;
   return adapterStatuses;
+}
+
+function projectNameFromObservedWorker(worker: ObservedCodexWorkerRow): string {
+  const path = worker.projectPath?.trim();
+  if (path) return path.split("/").filter(Boolean).at(-1) ?? path;
+  return worker.projectId.replace(/^codex-proj-/, "").replace(/[-_]+/g, " ") || "Observed Codex";
+}
+
+function createObservedCodexProject(worker: ObservedCodexWorkerRow): CompanyModel["projects"][number] {
+  return {
+    id: worker.projectId,
+    departmentId: "dept-codex",
+    name: projectNameFromObservedWorker(worker),
+    githubUrl: "",
+    status: "active",
+    goal: "Telemetry-observed Codex work",
+    kpis: [],
+    accountEvents: [],
+    ledger: [],
+    experiments: [],
+    metricEvents: [],
+    resources: [],
+    resourceEvents: [],
+  };
+}
+
+function observedCodexMetadata(worker: ObservedCodexWorkerRow) {
+  return {
+    observedCodex: {
+      sourceInstanceId: worker.sourceInstanceId,
+      machineId: worker.machineId,
+      machineName: worker.machineName,
+      projectId: worker.projectId,
+      sessionKey: worker.sessionKey,
+      threadId: worker.threadId,
+      controllable: false as const,
+    },
+  };
+}
+
+export function observedCodexWorkersToLiveStatuses(
+  workers: ObservedCodexWorkerRow[],
+): Record<string, AgentLiveStatus> {
+  return Object.fromEntries(
+    workers.map((worker) => [
+      worker.workerId,
+      {
+        agentId: worker.workerId,
+        sessionKey: worker.sessionKey,
+        state: worker.state === "done" ? "done" : worker.state === "running" ? "running" : "idle",
+        statusText: worker.statusText,
+        updatedAt: worker.lastSeenAt,
+        bubbles: [
+          {
+            id: `observed:${worker.workerId}:${worker.lastSeenAt}`,
+            label: worker.statusText,
+            weight: worker.state === "running" ? 100 : 60,
+          },
+        ],
+        bubbleMessages: worker.threadId
+          ? [{ threadId: worker.threadId, message: worker.statusText, eventAt: worker.lastSeenAt }]
+          : undefined,
+      } satisfies AgentLiveStatus,
+    ]),
+  );
+}
+
+export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
+  unified: UnifiedOfficeModel,
+  workers: ObservedCodexWorkerRow[],
+  now = Date.now(),
+): UnifiedOfficeModel {
+  const activeWorkers = workers.filter((worker) => worker.workerId.trim() && worker.projectId.trim());
+  if (activeWorkers.length === 0) return unified;
+
+  const existingAgentIds = new Set([
+    ...unified.company.agents.map((agent) => agent.agentId),
+    ...unified.runtimeAgents.map((agent) => agent.agentId),
+    ...unified.configuredAgents.map((agent) => agent.agentId),
+  ]);
+  const existingThreadIds = new Set(
+    unified.company.agents
+      .map((agent) => (agent.agentId.startsWith("codex-thread:") ? agent.agentId.slice("codex-thread:".length) : ""))
+      .filter(Boolean),
+  );
+  const uniqueObservedWorkers = activeWorkers.filter(
+    (worker) =>
+      !existingAgentIds.has(worker.workerId) &&
+      !(worker.threadId && existingThreadIds.has(worker.threadId)),
+  );
+  if (uniqueObservedWorkers.length === 0) return unified;
+
+  const projectIds = new Set(unified.company.projects.map((project) => project.id));
+  const observedProjects = uniqueObservedWorkers
+    .filter((worker) => {
+      if (projectIds.has(worker.projectId)) return false;
+      projectIds.add(worker.projectId);
+      return true;
+    })
+    .map(createObservedCodexProject);
+  const heartbeatProfileId = "hb-observed-codex";
+  const heartbeatProfiles = unified.company.heartbeatProfiles.some((profile) => profile.id === heartbeatProfileId)
+    ? unified.company.heartbeatProfiles
+    : [
+        ...unified.company.heartbeatProfiles,
+        {
+          id: heartbeatProfileId,
+          role: "builder" as const,
+          cadenceMinutes: 15,
+          teamDescription: "Telemetry-observed Codex workers",
+          productDetails: "Read-only office presence derived from hook telemetry",
+          goal: "Show recent Codex work without requiring an app-server control bridge",
+        },
+      ];
+  const observedAgents = uniqueObservedWorkers.map((worker) => ({
+    agentId: worker.workerId,
+    role: "builder" as const,
+    projectId: worker.projectId,
+    heartbeatProfileId,
+    lifecycleState: "active" as const,
+    presenceExpiresAt: now + OBSERVED_CODEX_PRESENCE_RANGE_MS,
+    runtimeMetadata: {
+      observedCodex: {
+        sourceInstanceId: worker.sourceInstanceId,
+        machineId: worker.machineId,
+        machineName: worker.machineName,
+        sessionKey: worker.sessionKey,
+        threadId: worker.threadId,
+        controllable: false as const,
+      },
+    },
+  }));
+  const observedRuntimeAgents = uniqueObservedWorkers.map((worker) => ({
+    agentId: worker.workerId,
+    displayName: worker.displayName,
+    workspacePath: worker.projectPath ?? "~/.codex",
+    agentDir: worker.projectPath ?? "~/.codex",
+    sandboxMode: "codex-observed",
+    toolPolicy: { allow: [], deny: ["send", "thread-read", "office-role-write"] },
+    sessionCount: worker.state === "running" ? 1 : 0,
+    lastUpdatedAt: worker.lastSeenAt,
+    runtimeMetadata: observedCodexMetadata(worker),
+  }));
+
+  const company = {
+    ...unified.company,
+    projects: [...unified.company.projects, ...observedProjects],
+    agents: [...unified.company.agents, ...observedAgents],
+    heartbeatProfiles,
+  };
+  const runtimeAgents = [...unified.runtimeAgents, ...observedRuntimeAgents];
+  const configuredAgents = [...unified.configuredAgents, ...observedRuntimeAgents];
+
+  return {
+    ...unified,
+    company,
+    runtimeAgents,
+    configuredAgents,
+    workload: buildObservedWorkload(unified.workload, observedProjects),
+    diagnostics: {
+      ...unified.diagnostics,
+      configAgentCount: configuredAgents.length,
+      runtimeAgentCount: runtimeAgents.length,
+      sidecarAgentCount: company.agents.length,
+    },
+  };
+}
+
+function buildObservedWorkload(
+  workload: UnifiedOfficeModel["workload"],
+  projects: CompanyModel["projects"],
+): UnifiedOfficeModel["workload"] {
+  const existing = new Set(workload.map((entry) => entry.projectId));
+  return [
+    ...workload,
+    ...projects
+      .filter((project) => !existing.has(project.id))
+      .map((project) => ({
+        projectId: project.id,
+        openTickets: 0,
+        closedTickets: 0,
+        queuePressure: "low" as const,
+      })),
+  ];
 }
 
 declare global {
@@ -219,6 +432,23 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
     };
   });
   const [agentIds, setAgentIds] = useState<string[]>([]);
+  const observedCodexPresence = useQuery(
+    api.modules.hookTelemetry.queries.getObservedCodexWorkers,
+    isConvexEnabled() && sharedAdapter.runtimeKind === "codex"
+      ? {
+          rangeMs: OBSERVED_CODEX_PRESENCE_RANGE_MS,
+          limit: 500,
+        }
+      : "skip",
+  ) as ObservedCodexWorkersQueryResult | undefined;
+  const observedCodexWorkers = useMemo(
+    () => observedCodexPresence?.workers ?? [],
+    [observedCodexPresence?.workers],
+  );
+  const observedCodexStatuses = useMemo(
+    () => observedCodexWorkersToLiveStatuses(observedCodexWorkers),
+    [observedCodexWorkers],
+  );
   const adapterRef = useRef<OfficeRuntimeAdapter | null>(null);
   const cancelledRef = useRef(false);
   const loadGenerationRef = useRef(0);
@@ -261,6 +491,7 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
         adapterStatuses: latestAdapterLiveStatusRef.current,
         convexStatuses: liveStatusByConvexRef.current,
         runtimeKind: runtimeKindRef.current,
+        observedStatuses: observedCodexStatuses,
       });
       applyOfficeWorldSnapshot(
         toOfficeWorldSnapshot(
@@ -270,7 +501,7 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
         "settings",
       );
     },
-    [],
+    [observedCodexStatuses],
   );
 
   const load = React.useCallback(
@@ -295,10 +526,14 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
             adapter.getOfficeSettings(),
             adapter.getConfigSnapshot(),
           ]);
+          const unifiedWithObserved =
+            adapter.runtimeKind === "codex"
+              ? mergeObservedCodexWorkersIntoUnifiedOfficeModel(unified, observedCodexWorkers)
+              : unified;
           const nextAgentIds = [
             ...new Set([
-              ...unified.runtimeAgents.map((item) => item.agentId),
-              ...unified.configuredAgents.map((item) => item.agentId),
+              ...unifiedWithObserved.runtimeAgents.map((item) => item.agentId),
+              ...unifiedWithObserved.configuredAgents.map((item) => item.agentId),
             ]),
           ];
           agentIdsRef.current = nextAgentIds;
@@ -311,11 +546,12 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
             adapterStatuses: latestAdapterLiveStatusRef.current,
             convexStatuses: liveStatusByConvexRef.current,
             runtimeKind: adapter.runtimeKind,
+            observedStatuses: observedCodexStatuses,
           });
           latestLiveStatusSignatureRef.current = JSON.stringify(statusByAgent);
 
           const placementRepair = repairTeamClusterPlacements({
-            unified,
+            unified: unifiedWithObserved,
             officeSettings,
           });
           const repairedUnified = placementRepair.unified;
@@ -398,6 +634,7 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
                   adapterStatuses: adapterStatusByAgent,
                   convexStatuses: liveStatusByConvexRef.current,
                   runtimeKind: adapter.runtimeKind,
+                  observedStatuses: observedCodexStatuses,
                 });
                 const nextStatusSignature = JSON.stringify(mergedStatus);
                 if (latestLiveStatusSignatureRef.current === nextStatusSignature) return;
@@ -462,7 +699,7 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
         }
       }
     },
-    [isReadOnly],
+    [isReadOnly, observedCodexStatuses, observedCodexWorkers],
   );
 
   useEffect(() => {
@@ -472,6 +709,7 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
       adapterStatuses: latestAdapterLiveStatusRef.current,
       convexStatuses: liveStatusByConvex,
       runtimeKind: sharedAdapter.runtimeKind,
+      observedStatuses: observedCodexStatuses,
     });
     const nextStatusSignature = JSON.stringify(mergedStatus);
     if (latestLiveStatusSignatureRef.current === nextStatusSignature) return;
@@ -492,7 +730,7 @@ export function OfficeDataProvider({ children }: { children: ReactNode }): React
       agents: agentIds.length,
       changedKeys,
     });
-  }, [agentIds, liveStatusByConvex, sharedAdapter.runtimeKind]);
+  }, [agentIds, liveStatusByConvex, observedCodexStatuses, sharedAdapter.runtimeKind]);
 
   useEffect(() => {
     adapterRef.current = sharedAdapter;

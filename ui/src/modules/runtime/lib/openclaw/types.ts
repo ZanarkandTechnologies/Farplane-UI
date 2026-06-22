@@ -28,6 +28,17 @@ export interface AgentCardModel {
   };
   sessionCount: number;
   lastUpdatedAt?: number;
+  runtimeMetadata?: {
+    observedCodex?: {
+      sourceInstanceId: string;
+      machineId?: string;
+      machineName?: string;
+      projectId: string;
+      sessionKey: string;
+      threadId?: string;
+      controllable: false;
+    };
+  };
 }
 
 export interface SessionRowModel {
@@ -382,6 +393,16 @@ export interface CompanyAgentModel {
   isCeo?: boolean;
   lifecycleState: AgentLifecycleState;
   presenceExpiresAt?: number;
+  runtimeMetadata?: {
+    observedCodex?: {
+      sourceInstanceId: string;
+      machineId?: string;
+      machineName?: string;
+      sessionKey: string;
+      threadId?: string;
+      controllable: false;
+    };
+  };
 }
 
 export interface CompanyOfficeObjectModel {

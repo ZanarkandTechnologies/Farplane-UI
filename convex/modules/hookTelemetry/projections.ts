@@ -26,6 +26,22 @@ export type AgentBubbleMessage = {
   eventAt: number;
 };
 
+export type ObservedCodexWorker = {
+  workerId: string;
+  sourceInstanceId: string;
+  machineId?: string;
+  machineName?: string;
+  sessionKey: string;
+  threadId?: string;
+  projectId: string;
+  projectPath?: string;
+  displayName: string;
+  state: "running" | "idle" | "done";
+  statusText: string;
+  lastSeenAt: number;
+  controllable: false;
+};
+
 export type OfficeTarget =
   | { kind: "skill"; id: string }
   | { kind: "object"; id: string }
@@ -57,6 +73,17 @@ function cleanText(value: unknown, limit = 500): string | undefined {
   return trimmed ? trimmed.slice(0, limit) : undefined;
 }
 
+function safeIdPart(value: string): string {
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9_.:-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 120) || "unknown"
+  );
+}
+
 function compactLabel(value: string): string {
   return value
     .replace(/^[$@#]+/, "")
@@ -75,6 +102,85 @@ function threadIdFromRow(row: HookTelemetryRow, payload: JsonRecord): string | u
     cleanText(row.sessionId, 200) ??
     cleanText(payload.sessionId, 200) ??
     cleanText(payload.session_id, 200)
+  );
+}
+
+function turnIdFromPayload(payload: JsonRecord): string | undefined {
+  return cleanText(payload.turnId, 200) ?? cleanText(payload.turn_id, 200);
+}
+
+function machineIdFromPayload(payload: JsonRecord): string | undefined {
+  return (
+    cleanText(payload.machineId, 160) ??
+    cleanText(payload.machine_id, 160) ??
+    cleanText(payload.runtimeInstanceId, 160) ??
+    cleanText(payload.runtime_instance_id, 160) ??
+    cleanText(payload.sourceInstanceId, 160) ??
+    cleanText(payload.source_instance_id, 160) ??
+    cleanText(payload.hostId, 160) ??
+    cleanText(payload.hostname, 160)
+  );
+}
+
+function machineNameFromPayload(payload: JsonRecord): string | undefined {
+  return (
+    cleanText(payload.machineName, 160) ??
+    cleanText(payload.machine_name, 160) ??
+    cleanText(payload.hostname, 160) ??
+    cleanText(payload.hostName, 160)
+  );
+}
+
+function projectPathFromPayload(payload: JsonRecord): string | undefined {
+  return cleanText(payload.cwd, 300) ?? cleanText(payload.projectPath, 300) ?? cleanText(payload.projectDirectory, 300);
+}
+
+function projectIdFromRow(row: HookTelemetryRow, payload: JsonRecord): string | undefined {
+  return row.projectId ?? cleanText(payload.projectId, 160) ?? cleanText(payload.project_id, 160);
+}
+
+function observedStatusText(row: HookTelemetryRow, payload: JsonRecord): string {
+  const explicit = cleanText(payload.statusText, 120) ?? cleanText(payload.summary, 120) ?? cleanText(payload.title, 120);
+  if (explicit) return explicit;
+  if (row.hookType === "UserPromptSubmit" || row.hookType === "TurnStart") return "Codex turn running";
+  if (row.hookType === "Stop" || row.hookType === "TurnEnd") return "Codex turn completed";
+  if (row.hookType === "PostToolUse") {
+    const skillId = cleanText(payload.skillId, 120);
+    if (skillId) return `Calling ${compactLabel(skillId)}`;
+    return "Codex tool activity";
+  }
+  return "Codex activity observed";
+}
+
+function observedState(row: HookTelemetryRow): ObservedCodexWorker["state"] {
+  if (row.hookType === "Stop" || row.hookType === "TurnEnd") return "done";
+  if (
+    row.hookType === "SessionStart" ||
+    row.hookType === "UserPromptSubmit" ||
+    row.hookType === "TurnStart" ||
+    row.hookType === "PreToolUse" ||
+    row.hookType === "PostToolUse" ||
+    row.hookType === "PermissionRequest" ||
+    row.hookType === "SubagentStart"
+  ) {
+    return "running";
+  }
+  return "idle";
+}
+
+function observedDisplayName(input: {
+  payload: JsonRecord;
+  machineName?: string;
+  threadId?: string;
+  projectId: string;
+}): string {
+  return (
+    cleanText(input.payload.agentName, 80) ??
+    cleanText(input.payload.threadTitle, 80) ??
+    cleanText(input.payload.title, 80) ??
+    (input.machineName ? `Codex on ${input.machineName}` : undefined) ??
+    (input.threadId ? `Codex ${input.threadId.slice(0, 8)}` : undefined) ??
+    `Codex ${input.projectId.slice(0, 8)}`
   );
 }
 
@@ -176,6 +282,50 @@ export function hookTelemetryRowsToActivityPingRows(rows: HookTelemetryRow[]): A
       };
     })
     .filter((row): row is ActivityPingRow => row !== null);
+}
+
+export function hookTelemetryRowsToObservedCodexWorkers(rows: HookTelemetryRow[]): ObservedCodexWorker[] {
+  const byWorkerId = new Map<string, ObservedCodexWorker>();
+  for (const row of rows) {
+    const payload = asRecord(row.payload);
+    const projectId = projectIdFromRow(row, payload);
+    if (!projectId) continue;
+    const threadId = threadIdFromRow(row, payload);
+    const turnId = turnIdFromPayload(payload);
+    const sessionKey = threadId ?? turnId ?? cleanText(row.sessionId, 200);
+    if (!sessionKey) continue;
+
+    const machineId = machineIdFromPayload(payload);
+    const machineName = machineNameFromPayload(payload);
+    const sourceInstanceId = machineId ?? machineName ?? row.hookName;
+    const workerId = [
+      "codex-observed",
+      safeIdPart(sourceInstanceId),
+      safeIdPart(projectId),
+      safeIdPart(sessionKey),
+    ].join(":");
+    const current = byWorkerId.get(workerId);
+    if (current && current.lastSeenAt >= row.eventAt) continue;
+
+    byWorkerId.set(workerId, {
+      workerId,
+      sourceInstanceId,
+      machineId,
+      machineName,
+      sessionKey,
+      threadId,
+      projectId,
+      projectPath: projectPathFromPayload(payload),
+      displayName: observedDisplayName({ payload, machineName, threadId, projectId }),
+      state: observedState(row),
+      statusText: observedStatusText(row, payload),
+      lastSeenAt: row.eventAt,
+      controllable: false,
+    });
+  }
+  return [...byWorkerId.values()].sort(
+    (left, right) => right.lastSeenAt - left.lastSeenAt || left.workerId.localeCompare(right.workerId),
+  );
 }
 
 export function hookTelemetryRowsToAgentBubbleMessages(rows: HookTelemetryRow[]): AgentBubbleMessage[] {

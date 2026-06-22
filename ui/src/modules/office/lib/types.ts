@@ -118,6 +118,15 @@ export interface EmployeeData extends Employee {
   heartbeatBubbles?: Array<{ label: string; weight: number }>;
   presencePersistent?: boolean;
   presenceExpiresAt?: number;
+  observedRuntime?: {
+    kind: "codex";
+    sourceInstanceId: string;
+    machineId?: string;
+    machineName?: string;
+    sessionKey: string;
+    threadId?: string;
+    controllable: false;
+  };
 }
 
 export interface TeamData extends Team {

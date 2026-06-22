@@ -58,3 +58,9 @@ export const hookTelemetryBubbleArgsValidator = {
   rangeMs: v.optional(v.number()),
   limit: v.optional(v.number()),
 };
+
+export const observedCodexWorkersArgsValidator = {
+  projectId: v.optional(v.string()),
+  rangeMs: v.optional(v.number()),
+  limit: v.optional(v.number()),
+};

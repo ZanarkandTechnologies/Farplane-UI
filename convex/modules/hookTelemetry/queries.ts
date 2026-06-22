@@ -5,17 +5,24 @@ import { buildSkillInvocationDashboard } from "../skillInvocations/contracts";
 import {
   hookTelemetryRowsToAgentBubbleMessages,
   hookTelemetryRowsToActivityPingRows,
+  hookTelemetryRowsToObservedCodexWorkers,
   hookTelemetryRowsToOfficeTravelIntents,
   hookTelemetryRowsToSkillInvocationRows,
   type HookTelemetryRow,
 } from "./projections";
-import { hookTelemetryBubbleArgsValidator, hookTelemetryWindowArgsValidator } from "./validators";
+import {
+  hookTelemetryBubbleArgsValidator,
+  hookTelemetryWindowArgsValidator,
+  observedCodexWorkersArgsValidator,
+} from "./validators";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MAX_DAYS = 90;
 const MAX_ROWS = 5000;
 const DEFAULT_BUBBLE_RANGE_MS = 30_000;
 const MAX_BUBBLE_RANGE_MS = 10 * 60 * 1000;
+const DEFAULT_OBSERVED_WORKER_RANGE_MS = 15 * 60 * 1000;
+const MAX_OBSERVED_WORKER_RANGE_MS = 24 * 60 * 60 * 1000;
 
 type HookTelemetryExplorerEvent = HookTelemetryRow & {
   eventName?: string;
@@ -195,6 +202,35 @@ export const getRuntimeTelemetryDashboardFromHookTelemetry = query({
       turnPage: args.turnPage,
       turnPageSize: args.turnPageSize,
     });
+  },
+});
+
+export const getObservedCodexWorkers = query({
+  args: observedCodexWorkersArgsValidator,
+  handler: async (ctx, args) => {
+    const rangeMs = Math.max(
+      5_000,
+      Math.min(MAX_OBSERVED_WORKER_RANGE_MS, Math.floor(args.rangeMs ?? DEFAULT_OBSERVED_WORKER_RANGE_MS)),
+    );
+    const cutoff = Date.now() - rangeMs;
+    const limit = normalizeLimit(args.limit);
+    const projectId = args.projectId?.trim();
+    const rows = projectId
+      ? await ctx.db
+          .query("hookTelemetryEvents")
+          .withIndex("by_project_eventAt", (q) => q.eq("projectId", projectId).gte("eventAt", cutoff))
+          .order("desc")
+          .take(limit)
+      : await ctx.db
+          .query("hookTelemetryEvents")
+          .withIndex("by_eventAt", (q) => q.gte("eventAt", cutoff))
+          .order("desc")
+          .take(limit);
+
+    return {
+      workers: hookTelemetryRowsToObservedCodexWorkers(rows.map(toHookTelemetryRow)),
+      rangeMs,
+    };
   },
 });
 

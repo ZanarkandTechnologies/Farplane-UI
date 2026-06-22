@@ -59,6 +59,22 @@ Target stable regression coverage for:
 - Agent Session opens from keyboard/command entry
 - Builder Mode toggles without losing panel access
 
+### Telemetry-First Codex Presence Proof
+
+For tickets that render Codex workers from telemetry, prove the read-only
+presence path separately from the app-server control path.
+
+- Start `/office` without `CODEX_APP_SERVER_URL` and with seeded or real recent
+  Codex telemetry rows.
+- Confirm observed Codex workers render with read-only/observed state rather
+  than disappearing or showing generic runtime-waiting copy.
+- Confirm send-message, live-session, and office-role controls are disabled or
+  prompt for connection while no selected Codex instance is connected.
+- Configure or mock one Codex app-server instance, then confirm control actions
+  enable only for workers owned by that instance.
+- When testing multiple Codex instances, confirm source labels or inspector
+  state distinguish the instances and no employee/session ids collide.
+
 ### Office Readiness And Character Renderer Proof
 
 For canvas-heavy office proof, do not rely on a fixed timeout or on network

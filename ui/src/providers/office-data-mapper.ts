@@ -1941,6 +1941,8 @@ export function toOfficeData(
   const employees: EmployeeData[] = agents.map((agent) => {
     const companyAgent = companyAgentsById.get(agent.agentId);
     const runtimeAgent = runtimeById.get(agent.agentId);
+    const observedCodex =
+      agent.runtimeMetadata?.observedCodex ?? companyAgent?.runtimeMetadata?.observedCodex;
     const isRuntimeRunning = Boolean(runtimeAgent);
     const isMainAgent = agent.agentId === "main";
     const isCodexAgent = agent.agentId === "codex-main" || agent.agentId.startsWith("codex-");
@@ -2093,6 +2095,17 @@ export function toOfficeData(
         [],
       presencePersistent,
       presenceExpiresAt: presencePersistent === false ? companyAgent?.presenceExpiresAt : undefined,
+      observedRuntime: observedCodex
+        ? {
+            kind: "codex",
+            sourceInstanceId: observedCodex.sourceInstanceId,
+            machineId: observedCodex.machineId,
+            machineName: observedCodex.machineName,
+            sessionKey: observedCodex.sessionKey,
+            threadId: observedCodex.threadId,
+            controllable: false,
+          }
+        : undefined,
       wantsToWander: roundTableStation ? false : undefined,
       appearance,
     };
