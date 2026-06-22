@@ -974,6 +974,7 @@ function resolveTeamClusterScenePosition(input: {
   reservation: OfficePlacementReservation;
   metadata?: Record<string, unknown>;
   rotation?: [number, number, number];
+  allowCollisionFallback?: boolean;
 }): [number, number, number] {
   return (
     resolveSceneObjectPosition({
@@ -985,7 +986,7 @@ function resolveTeamClusterScenePosition(input: {
       },
       officeLayout: input.officeLayout,
       reservation: input.reservation,
-      allowCollisionFallback: true,
+      allowCollisionFallback: input.allowCollisionFallback ?? true,
     }) ?? clampPositionToOfficeLayout(input.position, input.officeLayout, 0)
   );
 }
@@ -1557,7 +1558,7 @@ export function toOfficeData(
     approvalsByAgent.set(approval.agentId, existing);
   }
 
-  const clusterObjects: OfficeObject[] = teams.map((team, index) => {
+  let clusterObjects: OfficeObject[] = teams.map((team, index) => {
     const persistedCluster = persistedTeamClusterByTeamId.get(team._id);
     const deskCount = Math.max(team.deskCount ?? 1, 1);
     return {
@@ -1593,6 +1594,47 @@ export function toOfficeData(
     officeAreaLayout: fittedAreaLayout,
     wallColor: getWallColorPreset(officeSettings.decor.wallColorId).color,
   });
+  if (sectionWalls.length > 0) {
+    const dividerAwareReservation = createOfficePlacementReservation([
+      ...sectionWalls,
+      ...sidecarFurniture,
+    ]);
+    const nextTeams = teams.map((team, index) => {
+      const cluster = clusterObjects[index];
+      if (!cluster) return team;
+      const deskCount = Math.max(team.deskCount ?? 1, 1);
+      const adjustedPosition = resolveTeamClusterScenePosition({
+        position: cluster.position,
+        deskCount,
+        officeLayout: preliminaryOfficeLayout,
+        reservation: dividerAwareReservation,
+        metadata: cluster.metadata,
+        rotation: cluster.rotation,
+        allowCollisionFallback: false,
+      });
+      return { ...team, clusterPosition: adjustedPosition };
+    });
+    teams.splice(0, teams.length, ...nextTeams);
+    clusterObjects = teams.map((team, index) => {
+      const previousCluster = clusterObjects[index];
+      const persistedCluster = persistedTeamClusterByTeamId.get(team._id);
+      const deskCount = Math.max(team.deskCount ?? 1, 1);
+      return {
+        ...(previousCluster ?? {}),
+        _id: persistedCluster?.id ?? previousCluster?._id ?? `team-cluster-${team._id}`,
+        companyId,
+        meshType: "team-cluster",
+        position:
+          team.clusterPosition ?? previousCluster?.position ?? getDefaultProjectClusterPosition(index),
+        rotation: persistedCluster?.rotation ?? previousCluster?.rotation ?? [0, 0, 0],
+        scale: persistedCluster?.scale ?? previousCluster?.scale,
+        metadata: {
+          ...getTeamClusterPlacementMetadata(persistedCluster?.metadata, deskCount),
+          teamId: team._id,
+        },
+      };
+    });
+  }
   const furnitureObjects =
     sidecarFurniture.length > 0
       ? sidecarFurniture

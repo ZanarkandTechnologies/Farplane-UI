@@ -7,7 +7,10 @@ import {
   canReserveOfficeObject,
   createOfficePlacementReservation,
 } from "@/modules/office/systems/placement-engine";
-import { getObjectFootprintCells } from "@/modules/office/systems/occupancy-system";
+import {
+  getObjectFootprintCells,
+  objectFootprintsCollide,
+} from "@/modules/office/systems/occupancy-system";
 import type {
   AgentCardModel,
   AgentLiveStatus,
@@ -1382,6 +1385,12 @@ describe("office-data-provider team synthesis", () => {
       generatedSectionWalls.every((object) => object.metadata?.sectionBasis === "area-treemap"),
     ).toBe(true);
     expect(generatedSectionWalls).toHaveLength(1);
+    const clusters = result.officeObjects.filter((object) => object.meshType === "team-cluster");
+    expect(
+      generatedSectionWalls.every((wall) =>
+        clusters.every((cluster) => !objectFootprintsCollide(wall, cluster)),
+      ),
+    ).toBe(true);
   });
 
   it("does not synthesize a Farplane fallback cluster when all projects are archived", () => {
