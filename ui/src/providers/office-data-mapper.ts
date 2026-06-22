@@ -27,7 +27,9 @@ import { normalizeOfficeObjectId } from "@/modules/office/components/office-obje
 import {
   buildOfficeAreaLayout,
   getOfficeAreaAnchor,
+  type OfficeAreaLayout,
   type OfficeAreaNode,
+  type OfficeAreaRect,
 } from "@/modules/office/lib/office-area-layout";
 import { getWallColorPreset } from "@/modules/office/lib/office-decor";
 import { DEFAULT_OFFICE_FOOTPRINT } from "@/modules/office/lib/office-footprint";
@@ -113,6 +115,7 @@ const AUTO_FIT_OFFICE_MIN_WIDTH = 8;
 const AUTO_FIT_OFFICE_MIN_DEPTH = 7;
 const AUTO_FIT_CORRIDOR_RADIUS_TILES = 1;
 const AUTO_FIT_LOOP_EDGE_RATIO = 0.2;
+const AUTO_FIT_EMPTY_AREA_TARGET = 0.2;
 const COMPACT_CLUSTER_GAP_TILES = 1.25;
 
 export interface OfficeDataContextValue {
@@ -556,7 +559,14 @@ function deriveAutoFitOfficeLayout(input: {
     emptyPercent: getOfficeLayoutEmptyPercent({ layout, objects: input.objects }),
     quality: evaluateOfficeLayoutQuality({ layout, objects: input.objects }),
   }));
-  const cappedLayout = [...candidates].sort((left, right) => {
+  const compactCandidates = candidates.filter(
+    (candidate) => candidate.emptyPercent <= AUTO_FIT_EMPTY_AREA_TARGET,
+  );
+  const candidatePool = compactCandidates.length > 0 ? compactCandidates : candidates;
+  const cappedLayout = [...candidatePool].sort((left, right) => {
+    if (compactCandidates.length === 0 && left.emptyPercent !== right.emptyPercent) {
+      return left.emptyPercent - right.emptyPercent;
+    }
     if (right.quality.score !== left.quality.score) return right.quality.score - left.quality.score;
     if (right.quality.reachablePercent !== left.quality.reachablePercent) {
       return right.quality.reachablePercent - left.quality.reachablePercent;
@@ -699,6 +709,115 @@ function getCompactTeamAnchor(input: {
     0,
     Math.round(input.origin[2] + (row - (rows - 1) / 2) * spacingZ),
   ];
+}
+
+function rectUnion(rects: OfficeAreaRect[]): OfficeAreaRect | null {
+  if (rects.length === 0) return null;
+  const minX = Math.min(...rects.map((rect) => rect.minX));
+  const maxX = Math.max(...rects.map((rect) => rect.maxX));
+  const minZ = Math.min(...rects.map((rect) => rect.minZ));
+  const maxZ = Math.max(...rects.map((rect) => rect.maxZ));
+  const width = Math.max(0, maxX - minX);
+  const depth = Math.max(0, maxZ - minZ);
+  return {
+    minX,
+    maxX,
+    minZ,
+    maxZ,
+    width,
+    depth,
+    centerX: minX + width / 2,
+    centerZ: minZ + depth / 2,
+  };
+}
+
+function buildPackedProjectAnchorMap(input: {
+  projects: CompanyModel["projects"];
+  officeAreaLayout: OfficeAreaLayout;
+  deskCountsByProjectId: Map<string, number>;
+  fallbackOrigin: [number, number, number];
+}): Map<string, [number, number, number]> {
+  const anchors = new Map<string, [number, number, number]>();
+  const areasById = new Map(input.officeAreaLayout.areas.map((area) => [area.id, area]));
+  const topLevelRect = rectUnion(
+    input.officeAreaLayout.areas.filter((area) => area.parentId === "office"),
+  );
+  const groups = new Map<
+    string,
+    Array<{
+      projectId: string;
+      area: OfficeAreaNode;
+      footprint: { width: number; depth: number };
+    }>
+  >();
+
+  for (const project of input.projects) {
+    if (project.status === "archived") continue;
+    const area = input.officeAreaLayout.projectAreaByProjectId[project.id];
+    if (!area) continue;
+    const deskCount = input.deskCountsByProjectId.get(project.id) ?? 1;
+    const footprint = getClusterOccupancyFootprint(deskCount);
+    const entry = {
+      projectId: project.id,
+      area,
+      footprint: {
+        width: footprint.width + footprint.clearance * 2,
+        depth: footprint.depth + footprint.clearance * 2,
+      },
+    };
+    const groupKey = area.parentId ?? "office";
+    groups.set(groupKey, [...(groups.get(groupKey) ?? []), entry]);
+  }
+
+  const orderedGroups = [...groups.entries()].sort(([leftKey], [rightKey]) => {
+    const leftDepth = leftKey === "office" ? 0 : (areasById.get(leftKey)?.depth ?? 0);
+    const rightDepth = rightKey === "office" ? 0 : (areasById.get(rightKey)?.depth ?? 0);
+    return leftDepth === rightDepth ? leftKey.localeCompare(rightKey) : leftDepth - rightDepth;
+  });
+  for (const [groupKey, entries] of orderedGroups) {
+    const parentArea = groupKey === "office" ? null : areasById.get(groupKey);
+    const fallbackContainer =
+      (groupKey === "office" ? topLevelRect : parentArea?.rect) ??
+      rectUnion(entries.map((entry) => entry.area.rect));
+    const columns = Math.max(1, Math.ceil(Math.sqrt(entries.length * 1.35)));
+    const rows = Math.max(1, Math.ceil(entries.length / columns));
+    const maxFootprint = entries.reduce(
+      (largest, entry) => ({
+        width: Math.max(largest.width, entry.footprint.width),
+        depth: Math.max(largest.depth, entry.footprint.depth),
+      }),
+      { width: 0, depth: 0 },
+    );
+    const spacingX = Math.max(3, Math.ceil(maxFootprint.width));
+    const spacingZ = Math.max(3, Math.ceil(maxFootprint.depth));
+    const parentAnchor = parentArea?.projectId ? anchors.get(parentArea.projectId) : undefined;
+    const centerX = parentAnchor
+      ? parentAnchor[0]
+      : Number.isFinite(fallbackContainer?.centerX)
+        ? fallbackContainer.centerX
+        : input.fallbackOrigin[0];
+    const centerZ = parentAnchor
+      ? parentAnchor[2]
+      : Number.isFinite(fallbackContainer?.centerZ)
+        ? fallbackContainer.centerZ
+        : input.fallbackOrigin[2];
+
+    entries.forEach((entry, index) => {
+      const col = index % columns;
+      const row = Math.floor(index / columns);
+      const proposed: [number, number, number] = [
+        centerX + (col - (columns - 1) / 2) * spacingX,
+        0,
+        centerZ + (row - (rows - 1) / 2) * spacingZ,
+      ];
+      anchors.set(entry.projectId, [
+        Math.round(proposed[0]),
+        proposed[1],
+        Math.round(proposed[2]),
+      ]);
+    });
+  }
+  return anchors;
 }
 
 interface TeamClusterRepairSpec {
@@ -1067,15 +1186,27 @@ function buildPersistedTeamClusterByTeamId(
 function buildDefaultFurnitureObjects(
   companyId: string,
   officeLayout: OfficeLayoutModel,
+  anchorObjects: OfficeObject[] = [],
 ): OfficeObject[] {
   const bounds = getOfficeLayoutBounds(officeLayout);
-  const insetX = Math.max(3, Math.min(5, Math.floor(bounds.width / 4)));
-  const insetZ = Math.max(3, Math.min(5, Math.floor(bounds.depth / 4)));
-  const leftX = bounds.minWorldX + insetX;
-  const rightX = bounds.maxWorldX - insetX;
-  const backZ = bounds.minWorldZ + insetZ;
-  const frontZ = bounds.maxWorldZ - insetZ;
-  const centerX = bounds.centerX;
+  const anchorBounds = getOfficeObjectFootprintTileBounds(anchorObjects);
+  const fallbackInsetX = Math.max(3, Math.min(5, Math.floor(bounds.width / 4)));
+  const fallbackInsetZ = Math.max(3, Math.min(5, Math.floor(bounds.depth / 4)));
+  const leftX = anchorBounds
+    ? anchorBounds.minTileX - 3
+    : bounds.minWorldX + fallbackInsetX;
+  const rightX = anchorBounds
+    ? anchorBounds.maxTileX + 3
+    : bounds.maxWorldX - fallbackInsetX;
+  const backZ = anchorBounds
+    ? anchorBounds.minTileZ - 3
+    : bounds.minWorldZ + fallbackInsetZ;
+  const frontZ = anchorBounds
+    ? anchorBounds.maxTileZ + 3
+    : bounds.maxWorldZ - fallbackInsetZ;
+  const centerX = anchorBounds
+    ? Math.round((anchorBounds.minTileX + anchorBounds.maxTileX) / 2)
+    : bounds.centerX;
   const keepFootprintInsideLayout = (object: OfficeObject): OfficeObject => {
     let position = object.position;
     for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -1143,6 +1274,120 @@ function buildDefaultFurnitureObjects(
       rotation: [0, 0, 0],
     },
   ].map(keepFootprintInsideLayout);
+}
+
+function subtractInterval(
+  intervals: Array<{ start: number; end: number }>,
+  blocked: { start: number; end: number },
+): Array<{ start: number; end: number }> {
+  return intervals.flatMap((interval) => {
+    if (blocked.end <= interval.start || blocked.start >= interval.end) return [interval];
+    return [
+      { start: interval.start, end: Math.max(interval.start, blocked.start) },
+      { start: Math.min(interval.end, blocked.end), end: interval.end },
+    ].filter((entry) => entry.end - entry.start >= 1);
+  });
+}
+
+function findNearestFreeDividerLine(input: {
+  lineCell: number;
+  vertical: boolean;
+  interval: { start: number; end: number };
+  clusters: OfficeObject[];
+}): number | null {
+  const occupied = new Set<string>();
+  for (const cluster of input.clusters) {
+    for (const cell of getObjectFootprintCells({
+      meshType: cluster.meshType,
+      position: cluster.position,
+      metadata: cluster.metadata,
+      rotation: cluster.rotation,
+    })) {
+      const axis = input.vertical ? cell.z : cell.x;
+      if (axis < input.interval.start || axis > input.interval.end) continue;
+      occupied.add(input.vertical ? `${cell.x}` : `${cell.z}`);
+    }
+  }
+  for (let offset = 1; offset <= 8; offset += 1) {
+    for (const candidate of [input.lineCell - offset, input.lineCell + offset]) {
+      if (!occupied.has(`${candidate}`)) return candidate;
+    }
+  }
+  return null;
+}
+
+function clipGeneratedDividerWallsAroundClusters(input: {
+  walls: OfficeObject[];
+  clusters: OfficeObject[];
+}): OfficeObject[] {
+  return input.walls.flatMap((wall) => {
+    if (wall.meshType !== "office-divider" || wall.metadata?.generated !== true) return [wall];
+    const rawLength = wall.metadata?.footprintWidth;
+    const length = typeof rawLength === "number" && Number.isFinite(rawLength) ? rawLength : 0;
+    if (length <= 1) return [wall];
+    const vertical = Math.abs(wall.rotation[1] ?? 0) > Math.PI / 4;
+    const center = vertical ? wall.position[2] : wall.position[0];
+    const line = vertical ? wall.position[0] : wall.position[2];
+    const lineCell = Math.round(line);
+    let intervals = [{ start: center - length / 2, end: center + length / 2 }];
+
+    for (const cluster of input.clusters) {
+      const clusterCells = getObjectFootprintCells({
+        meshType: cluster.meshType,
+        position: cluster.position,
+        metadata: cluster.metadata,
+        rotation: cluster.rotation,
+      });
+      if (clusterCells.length === 0) continue;
+      const crossesLine = vertical
+        ? clusterCells.some((cell) => cell.x === lineCell)
+        : clusterCells.some((cell) => cell.z === lineCell);
+      if (!crossesLine) continue;
+      const axisCells = clusterCells.map((cell) => (vertical ? cell.z : cell.x));
+      const blocked = vertical
+        ? { start: Math.min(...axisCells) - 0.55, end: Math.max(...axisCells) + 0.55 }
+        : { start: Math.min(...axisCells) - 0.55, end: Math.max(...axisCells) + 0.55 };
+      intervals = subtractInterval(intervals, blocked);
+    }
+
+    if (intervals.length === 0) {
+      const freeLine = findNearestFreeDividerLine({
+        lineCell,
+        vertical,
+        interval: { start: center - length / 2, end: center + length / 2 },
+        clusters: input.clusters,
+      });
+      if (freeLine == null) return [];
+      return [
+        {
+          ...wall,
+          position: vertical
+            ? [freeLine, wall.position[1], wall.position[2]]
+            : [wall.position[0], wall.position[1], freeLine],
+          metadata: {
+            ...(wall.metadata ?? {}),
+            nudgedAroundClusters: true,
+          },
+        },
+      ];
+    }
+    return intervals.map((interval, index) => {
+      const nextLength = interval.end - interval.start;
+      const nextCenter = interval.start + nextLength / 2;
+      return {
+        ...wall,
+        _id: intervals.length === 1 ? wall._id : `${wall._id}-clip-${index}`,
+        position: vertical
+          ? [wall.position[0], wall.position[1], nextCenter]
+          : [nextCenter, wall.position[1], wall.position[2]],
+        metadata: {
+          ...(wall.metadata ?? {}),
+          footprintWidth: nextLength,
+          clippedAroundClusters: true,
+        },
+      };
+    });
+  });
 }
 
 export function fallbackData(): OfficeDataContextValue {
@@ -1315,6 +1560,18 @@ export function toOfficeData(
     officeLayout,
     workload,
   });
+  const projectDeskCountsByProjectId = new Map(
+    projectList.map((project) => [
+      project.id,
+      Math.max(companyAgents.filter((agent) => agent.projectId === project.id).length, 1),
+    ]),
+  );
+  const packedProjectAnchorsByProjectId = buildPackedProjectAnchorMap({
+    projects: projectList,
+    officeAreaLayout,
+    deskCountsByProjectId: projectDeskCountsByProjectId,
+    fallbackOrigin: compactAnchorOrigin,
+  });
 
   const appearanceByAgentId = new Map<
     string,
@@ -1403,13 +1660,11 @@ export function toOfficeData(
         origin: compactAnchorOrigin,
         largestFootprint: largestTeamFootprint,
       });
-      const areaAnchor = officeAreaLayout.projectAreaByProjectId[project.id]
-        ? getOfficeAreaAnchor(officeAreaLayout.projectAreaByProjectId[project.id])
-        : undefined;
+      const packedAreaAnchor = packedProjectAnchorsByProjectId.get(project.id);
       const clusterPosition = resolveTeamClusterScenePosition({
         position:
           (shouldPreservePersistedCluster ? persistedClusterPosition : undefined) ??
-          areaAnchor ??
+          packedAreaAnchor ??
           compactAnchor,
         deskCount,
         officeLayout,
@@ -1578,7 +1833,7 @@ export function toOfficeData(
     ...clusterObjects,
     ...sidecarFurniture,
   ];
-  const preliminaryOfficeLayout = deriveAutoFitOfficeLayout({
+  let preliminaryOfficeLayout = deriveAutoFitOfficeLayout({
     fallbackLayout: officeLayout,
     objects: officeLayoutContentObjects,
   });
@@ -1587,14 +1842,26 @@ export function toOfficeData(
     officeLayout: preliminaryOfficeLayout,
     workload,
   });
-  const sectionWalls = buildOfficeSectionWallObjects({
+  let sectionWalls = buildOfficeSectionWallObjects({
     companyId,
     projects: projectList,
     clusterObjects,
     officeAreaLayout: fittedAreaLayout,
     wallColor: getWallColorPreset(officeSettings.decor.wallColorId).color,
   });
+  sectionWalls = clipGeneratedDividerWallsAroundClusters({
+    walls: sectionWalls,
+    clusters: clusterObjects,
+  });
   if (sectionWalls.length > 0) {
+    preliminaryOfficeLayout = deriveAutoFitOfficeLayout({
+      fallbackLayout: preliminaryOfficeLayout,
+      objects: [
+        ...clusterObjects,
+        ...sectionWalls,
+        ...sidecarFurniture,
+      ],
+    });
     const dividerAwareReservation = createOfficePlacementReservation([
       ...sectionWalls,
       ...sidecarFurniture,
@@ -1638,7 +1905,7 @@ export function toOfficeData(
   const furnitureObjects =
     sidecarFurniture.length > 0
       ? sidecarFurniture
-      : buildDefaultFurnitureObjects(companyId, preliminaryOfficeLayout);
+      : buildDefaultFurnitureObjects(companyId, preliminaryOfficeLayout, clusterObjects);
   const officeObjects = [
     ...clusterObjects,
     ...sectionWalls,
