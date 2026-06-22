@@ -41,6 +41,7 @@ import {
   getOfficeLayoutTileSet,
   getManagementAnchorFromOfficeLayout,
   officeLayoutTileKey,
+  parseOfficeLayoutTileKey,
   type OfficeLayoutModel,
 } from "@/modules/office/lib/office-layout";
 import {
@@ -608,6 +609,56 @@ function getOccupiedOfficeLayoutTiles(input: {
   return occupiedTiles;
 }
 
+function getExteriorVoidTiles(tileSet: Set<string>): Set<string> {
+  const seedLayout = createTileMaskLayoutFromTileSet(tileSet);
+  if (!seedLayout) return new Set();
+  const bounds = getOfficeLayoutBounds(seedLayout);
+  const minTileX = bounds.minTileX - 1;
+  const maxTileX = bounds.maxTileX + 1;
+  const minTileZ = bounds.minTileZ - 1;
+  const maxTileZ = bounds.maxTileZ + 1;
+  const exteriorVoid = new Set<string>();
+  const pending = [{ x: minTileX, z: minTileZ }];
+
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current) continue;
+    if (
+      current.x < minTileX ||
+      current.x > maxTileX ||
+      current.z < minTileZ ||
+      current.z > maxTileZ
+    ) {
+      continue;
+    }
+    const key = officeLayoutTileKey(current.x, current.z);
+    if (tileSet.has(key) || exteriorVoid.has(key)) continue;
+    exteriorVoid.add(key);
+    pending.push(
+      { x: current.x + 1, z: current.z },
+      { x: current.x - 1, z: current.z },
+      { x: current.x, z: current.z + 1 },
+      { x: current.x, z: current.z - 1 },
+    );
+  }
+
+  return exteriorVoid;
+}
+
+function isExteriorBoundaryLayoutTile(input: {
+  tile: string;
+  exteriorVoid: Set<string>;
+}): boolean {
+  const parsed = parseOfficeLayoutTileKey(input.tile);
+  if (!parsed) return false;
+  return (
+    input.exteriorVoid.has(officeLayoutTileKey(parsed.x + 1, parsed.z)) ||
+    input.exteriorVoid.has(officeLayoutTileKey(parsed.x - 1, parsed.z)) ||
+    input.exteriorVoid.has(officeLayoutTileKey(parsed.x, parsed.z + 1)) ||
+    input.exteriorVoid.has(officeLayoutTileKey(parsed.x, parsed.z - 1))
+  );
+}
+
 function pruneEmptyLayoutTilesForTarget(input: {
   layout: OfficeLayoutModel;
   objects: OfficeObject[];
@@ -618,33 +669,48 @@ function pruneEmptyLayoutTilesForTarget(input: {
     layout: input.layout,
     objects: input.objects,
   });
-  const removableTiles = input.layout.tiles
-    .filter((tile) => !occupiedTiles.has(tile))
-    .sort((left, right) => {
-      const leftParsed = left.split(":").map(Number);
-      const rightParsed = right.split(":").map(Number);
-      const leftDistance = Math.abs(leftParsed[0] ?? 0) + Math.abs(leftParsed[1] ?? 0);
-      const rightDistance = Math.abs(rightParsed[0] ?? 0) + Math.abs(rightParsed[1] ?? 0);
-      return rightDistance - leftDistance;
-    });
 
-  for (const tile of removableTiles) {
+  while (
+    getOfficeLayoutEmptyPercent({ layout: current, objects: input.objects }) >=
+    input.targetEmptyPercent
+  ) {
+    const currentTileSet = getOfficeLayoutTileSet(current);
+    const exteriorVoid = getExteriorVoidTiles(currentTileSet);
+    const removableTiles = current.tiles
+      .filter(
+        (tile) =>
+          !occupiedTiles.has(tile) &&
+          isExteriorBoundaryLayoutTile({ tile, exteriorVoid }),
+      )
+      .sort((left, right) => {
+        const leftParsed = parseOfficeLayoutTileKey(left);
+        const rightParsed = parseOfficeLayoutTileKey(right);
+        const leftDistance = Math.abs(leftParsed?.x ?? 0) + Math.abs(leftParsed?.z ?? 0);
+        const rightDistance = Math.abs(rightParsed?.x ?? 0) + Math.abs(rightParsed?.z ?? 0);
+        return rightDistance - leftDistance;
+      });
+    let removedTile = false;
+    for (const tile of removableTiles) {
+      const nextTiles = current.tiles.filter((candidate) => candidate !== tile);
+      if (nextTiles.length === current.tiles.length) continue;
+      const nextLayout: OfficeLayoutModel = {
+        version: 1,
+        tileSize: 1,
+        tiles: sortLayoutTiles(nextTiles),
+      };
+      const graph = evaluateOfficePoiGraph({ layout: nextLayout, objects: input.objects });
+      if (graph.disconnectedCount > 0) continue;
+      current = nextLayout;
+      removedTile = true;
+      break;
+    }
+    if (!removedTile) break;
     if (
       getOfficeLayoutEmptyPercent({ layout: current, objects: input.objects }) <
       input.targetEmptyPercent
     ) {
       break;
     }
-    const nextTiles = current.tiles.filter((candidate) => candidate !== tile);
-    if (nextTiles.length === current.tiles.length) continue;
-    const nextLayout: OfficeLayoutModel = {
-      version: 1,
-      tileSize: 1,
-      tiles: sortLayoutTiles(nextTiles),
-    };
-    const graph = evaluateOfficePoiGraph({ layout: nextLayout, objects: input.objects });
-    if (graph.disconnectedCount > 0) continue;
-    current = nextLayout;
   }
   return current;
 }

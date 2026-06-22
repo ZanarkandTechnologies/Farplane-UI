@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { EmployeeData, OfficeObject } from "@/modules/office/lib/types";
-import { getOfficeLayoutBounds } from "@/modules/office/lib/office-layout";
+import {
+  getOfficeLayoutBounds,
+  officeLayoutTileKey,
+  type OfficeLayoutModel,
+} from "@/modules/office/lib/office-layout";
 import { deriveOfficeSpaceStats } from "@/modules/office/lib/office-space-stats";
 import {
   canReserveOfficeObject,
@@ -84,6 +88,48 @@ function canPlaceWithoutColliding(
     },
     reservation: createOfficePlacementReservation([reservedObject]),
   });
+}
+
+function countInteriorLayoutHoles(layout: OfficeLayoutModel): number {
+  const tileSet = new Set(layout.tiles);
+  const bounds = getOfficeLayoutBounds(layout);
+  const minTileX = bounds.minTileX - 1;
+  const maxTileX = bounds.maxTileX + 1;
+  const minTileZ = bounds.minTileZ - 1;
+  const maxTileZ = bounds.maxTileZ + 1;
+  const exteriorVoid = new Set<string>();
+  const pending = [{ x: minTileX, z: minTileZ }];
+
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current) continue;
+    if (
+      current.x < minTileX ||
+      current.x > maxTileX ||
+      current.z < minTileZ ||
+      current.z > maxTileZ
+    ) {
+      continue;
+    }
+    const key = officeLayoutTileKey(current.x, current.z);
+    if (tileSet.has(key) || exteriorVoid.has(key)) continue;
+    exteriorVoid.add(key);
+    pending.push(
+      { x: current.x + 1, z: current.z },
+      { x: current.x - 1, z: current.z },
+      { x: current.x, z: current.z + 1 },
+      { x: current.x, z: current.z - 1 },
+    );
+  }
+
+  let interiorHoles = 0;
+  for (let x = bounds.minTileX; x <= bounds.maxTileX; x += 1) {
+    for (let z = bounds.minTileZ; z <= bounds.maxTileZ; z += 1) {
+      const key = officeLayoutTileKey(x, z);
+      if (!tileSet.has(key) && !exteriorVoid.has(key)) interiorHoles += 1;
+    }
+  }
+  return interiorHoles;
 }
 
 function createValue(params?: { employees?: EmployeeData[]; officeObjects?: OfficeObject[] }) {
@@ -1301,6 +1347,7 @@ describe("office-data-provider team synthesis", () => {
       officeObjects: result.officeObjects,
       officeLayout: result.officeSettings.officeLayout,
     });
+    expect(countInteriorLayoutHoles(result.officeSettings.officeLayout)).toBe(0);
     expect(stats.emptyPercent).toBeLessThan(0.2);
     expect(stats.walkablePercent).toBeGreaterThanOrEqual(0.5);
   });
