@@ -19,16 +19,12 @@ export type CodexSummaryInput = {
 };
 
 export type CodexSummaryOptions = {
-  executable?: string;
   model?: string;
-  useOss?: boolean;
-  localProvider?: "lmstudio" | "ollama" | string;
   timeoutMs?: number;
   runner?: (request: CodexSummaryRunRequest) => Promise<string>;
 };
 
 export type CodexSummaryRunRequest = {
-  executable: string;
   args: string[];
   cwd: string;
   prompt: string;
@@ -44,11 +40,7 @@ const MAX_SUMMARY_LENGTH = 160;
 
 export function resolveCodexSummaryOptions(env: NodeJS.ProcessEnv = process.env): CodexSummaryOptions {
   return {
-    executable: env.FARPLANE_CODEX_EXECUTABLE || "codex",
     model: env.FARPLANE_FILE_CHANGE_SUMMARY_MODEL || DEFAULT_MODEL,
-    useOss: env.FARPLANE_FILE_CHANGE_SUMMARY_OSS === "1",
-    localProvider: env.FARPLANE_FILE_CHANGE_SUMMARY_LOCAL_PROVIDER,
-    timeoutMs: parsePositiveInt(env.FARPLANE_FILE_CHANGE_SUMMARY_TIMEOUT_MS) ?? DEFAULT_TIMEOUT_MS,
   };
 }
 
@@ -77,7 +69,6 @@ export async function summarizeTrackedFileChangeWithCodex(
   input: CodexSummaryInput,
   options: CodexSummaryOptions = {},
 ): Promise<string | null> {
-  const executable = options.executable || "codex";
   const timeoutMs = options.timeoutMs && options.timeoutMs > 0 ? options.timeoutMs : DEFAULT_TIMEOUT_MS;
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "farplane-codex-summary-"));
   const outputPath = path.join(tempDir, "last-message.txt");
@@ -88,13 +79,11 @@ export async function summarizeTrackedFileChangeWithCodex(
       projectPath: input.projectPath,
       outputPath,
       model: options.model,
-      useOss: options.useOss,
-      localProvider: options.localProvider,
     });
     const prompt = buildCodexSummaryPrompt(input);
     const raw = options.runner
-      ? await options.runner({ executable, args, cwd: input.projectPath, prompt, timeoutMs, outputPath })
-      : await runCodexExec({ executable, args, cwd: input.projectPath, prompt, timeoutMs, outputPath });
+      ? await options.runner({ args, cwd: input.projectPath, prompt, timeoutMs, outputPath })
+      : await runCodexExec({ args, cwd: input.projectPath, prompt, timeoutMs, outputPath });
     return normalizeSummary(raw);
   } catch {
     return null;
@@ -107,13 +96,9 @@ function buildCodexExecArgs(input: {
   projectPath: string;
   outputPath: string;
   model?: string;
-  useOss?: boolean;
-  localProvider?: string;
 }): string[] {
   const args = ["exec", "--ephemeral", "--cd", input.projectPath, "--output-last-message", input.outputPath];
-  if (input.useOss) args.push("--oss");
-  if (input.localProvider) args.push("--local-provider", input.localProvider);
-  if (input.model && !input.useOss) args.push("--model", input.model);
+  if (input.model) args.push("--model", input.model);
   return args;
 }
 
@@ -122,7 +107,7 @@ async function runCodexExec(request: CodexSummaryRunRequest): Promise<string> {
   const timeout = setTimeout(() => controller.abort(), request.timeoutMs);
   try {
     await new Promise<void>((resolve, reject) => {
-      const child = spawn(request.executable, request.args, {
+      const child = spawn("codex", request.args, {
         cwd: request.cwd,
         stdio: ["pipe", "ignore", "ignore"],
         signal: controller.signal,
@@ -148,9 +133,4 @@ function normalizeSummary(value: string): string | null {
     .trim()
     .slice(0, MAX_SUMMARY_LENGTH);
   return cleaned ? cleaned : null;
-}
-
-function parsePositiveInt(value: string | undefined): number | undefined {
-  const parsed = Number.parseInt(value ?? "", 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }

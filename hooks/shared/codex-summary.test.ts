@@ -28,7 +28,6 @@ describe("codex-summary", () => {
         fileContentSnippet: "# Progress\n\n- Added summary-only hook proof.\n",
       },
       {
-        executable: "codex",
         model: "gpt-5.4-mini",
         runner: async (request) => {
           expect(request.args).toContain("exec");
@@ -44,43 +43,13 @@ describe("codex-summary", () => {
     expect(summary).toBe("Updated progress with summary-only hook proof.");
   });
 
-  it("supports local OSS provider options without forcing a hosted model", async () => {
-    await summarizeTrackedFileChangeWithCodex(
-      {
-        projectPath: "/repo",
-        filePath: "goals.md",
-        fileContentSnippet: "# Goals\n",
-      },
-      {
-        useOss: true,
-        localProvider: "ollama",
-        model: "ignored-hosted-model",
-        runner: async (request) => {
-          expect(request.args).toContain("--oss");
-          expect(request.args).toContain("--local-provider");
-          expect(request.args).toContain("ollama");
-          expect(request.args).not.toContain("--model");
-          return "Updated goals.";
-        },
-      },
-    );
-  });
-
-  it("resolves env overrides for executable, model, local provider, and timeout", () => {
+  it("resolves the only summary-specific env override: model", () => {
     expect(
       resolveCodexSummaryOptions({
-        FARPLANE_CODEX_EXECUTABLE: "/bin/codex",
         FARPLANE_FILE_CHANGE_SUMMARY_MODEL: "gpt-test",
-        FARPLANE_FILE_CHANGE_SUMMARY_OSS: "1",
-        FARPLANE_FILE_CHANGE_SUMMARY_LOCAL_PROVIDER: "ollama",
-        FARPLANE_FILE_CHANGE_SUMMARY_TIMEOUT_MS: "1234",
       }),
     ).toEqual({
-      executable: "/bin/codex",
       model: "gpt-test",
-      useOss: true,
-      localProvider: "ollama",
-      timeoutMs: 1234,
     });
   });
 });

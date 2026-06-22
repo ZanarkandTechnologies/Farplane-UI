@@ -16,13 +16,10 @@ and never publishes raw `file.changed` telemetry by default.
 
 Codex summary controls:
 
-1. `FARPLANE_CODEX_EXECUTABLE`, default `codex`.
-2. `FARPLANE_FILE_CHANGE_SUMMARY_MODEL`, default `gpt-5.4-mini`.
-3. `FARPLANE_FILE_CHANGE_SUMMARY_OSS=1` with optional
-   `FARPLANE_FILE_CHANGE_SUMMARY_LOCAL_PROVIDER=ollama|lmstudio`.
-4. `FARPLANE_FILE_CHANGE_SUMMARY_TIMEOUT_MS`, default `45000`.
-5. `FARPLANE_FILE_CHANGE_SUMMARY_FALLBACK=1` to allow the old heuristic message
-   when local Codex summarization fails.
+1. `FARPLANE_FILE_CHANGE_SUMMARY_MODEL`, default `gpt-5.4-mini`.
+
+The hook intentionally assumes the installed `codex` CLI. If summarization
+fails, it skips the file-change event instead of publishing a noisy fallback.
 
 Watched path precedence:
 

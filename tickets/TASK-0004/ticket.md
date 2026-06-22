@@ -31,7 +31,7 @@ This ticket keeps summarization project-local through the installed Codex CLI in
   - Add a hook-runtime local Codex summarizer helper with model command discovery, timeout handling, bounded prompt/input, and deterministic test seams.
   - Update `file-change-listener` so tracked file edits publish `file.change.summary` only after local summarization succeeds.
   - Keep publish durability through `hooks/shared/telemetry-outbox.ts`.
-  - Add config/env controls for model, timeout, executable, and optional fallback behavior.
+  - Add one optional model override while keeping the installed hook defaults usable without manual env setup.
   - Update Raw Telemetry filters/copy for `file.change.summary`.
   - Prove the local Codex CLI command works on this machine.
   - Install/use the hook, edit a tracked file, and verify a summary event/status update is emitted.
@@ -44,13 +44,13 @@ This ticket keeps summarization project-local through the installed Codex CLI in
 
 ## Delta
 - Before:
-  - The file-change listener detects tracked writes and publishes raw `file.changed` telemetry with path metadata plus a heuristic message.
+  - The file-change listener detects tracked writes and publishes raw `file.changed` telemetry with path metadata plus a basic message.
   - UI filters include `file.changed`.
   - The app would need a later summarization layer to turn raw events into useful bubbles.
 - After:
   - The file-change listener detects tracked writes, summarizes them locally with Codex, then publishes `file.change.summary`.
   - The summary event payload is minimal: `eventName`, `threadId`, `cwd`, `paths`, and `message`.
-  - If summarization fails or times out, the hook does not publish raw file-change telemetry unless explicit fallback is enabled.
+  - If summarization fails or times out, the hook does not publish raw file-change telemetry.
 
 ## Program
 ```text
@@ -64,7 +64,7 @@ vars:
 
 program:
   ground(current hook parser, outbox, install script, UI filters) -> exact seams
-  probe_codex_cli(local executable/model flags) -> supported command contract
+  probe_codex_cli(default executable + optional model flag) -> supported command contract
   add_summarizer(helper) -> bounded local codex exec wrapper + tests
   update_listener(helper) -> summary-only file.change.summary publish
   update_ui(event contract) -> filters/copy match summary-only behavior
@@ -103,7 +103,7 @@ proof:
     - relevant typecheck scan for touched UI/hook files
     - bash scripts/pre_push_check.sh or documented narrower fallback if existing debt blocks
   manual:
-    - codex CLI probe output proves the selected executable/model invocation works
+    - codex CLI probe output proves the default executable and selected model invocation work
     - npm run hooks:install installs the generated hook config
     - a controlled edit to a tracked file emits file.change.summary telemetry/status
   review:

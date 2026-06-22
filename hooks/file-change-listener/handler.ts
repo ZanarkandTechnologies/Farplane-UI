@@ -36,7 +36,6 @@ export type PublishFileChangeOptions = {
 export type FileChangeParseOptions = {
   trackedPathPatterns?: readonly string[];
   codexSummary?: CodexSummaryOptions;
-  heuristicFallback?: boolean;
 };
 
 const WRITE_TOOL_PATTERN = /(?:bash|apply_patch|edit|write|create|delete|multi_tool_use)/i;
@@ -256,35 +255,6 @@ function changedTrackedFilesFromPayload(
   return [...normalized];
 }
 
-function usefulFileLines(projectPath: string, filePath: string): string[] {
-  const absolutePath = path.resolve(projectPath, filePath);
-  if (!existsSync(absolutePath)) return [];
-  try {
-    const content = readFileSync(absolutePath, { encoding: "utf8", flag: "r" }).slice(0, MAX_FILE_BYTES);
-    return content
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .map((line) => line.replace(/^[-*]\s+/, "").trim())
-      .filter((line) => line && !/^[-#*\s]*$/.test(line))
-      .filter((line) => !/^[a-z_ -]+:\s*$/i.test(line))
-      .slice(-8)
-      .reverse();
-  } catch {
-    return [];
-  }
-}
-
-function heuristicFileChangeSummary(projectPath: string, filePath: string): string {
-  const base = path.basename(filePath);
-  const firstUseful = usefulFileLines(projectPath, filePath)[0];
-  const suffix = firstUseful ? `: ${firstUseful.slice(0, 90)}` : "";
-  if (base.toLowerCase() === "progress.md") return `Updated progress${suffix}`;
-  if (base.toLowerCase() === "goals.md") return `Updated goals${suffix}`;
-  if (base.toLowerCase() === "ticket.md") return `Updated ticket${suffix}`;
-  if (base.toLowerCase() === "memory.md") return `Updated memory${suffix}`;
-  return `Updated ${base}${suffix}`;
-}
-
 function fileContentSnippet(projectPath: string, filePath: string): string {
   const absolutePath = path.resolve(projectPath, filePath);
   if (!existsSync(absolutePath)) return "";
@@ -370,8 +340,7 @@ export async function parseFileChangeBubbleCandidatesFromPayload(
           toolPayloadSnippet: payloadSnippet(record),
         },
         codexSummary,
-      ) ??
-      (options.heuristicFallback ? heuristicFileChangeSummary(candidate.projectPath, candidate.filePath) : null);
+      );
     if (!message) continue;
     candidates.push({
       ...candidate,

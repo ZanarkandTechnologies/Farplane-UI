@@ -40,7 +40,6 @@ async function main(): Promise<void> {
   const candidates = await parseFileChangeBubbleCandidatesFromStdin(stdin, Date.now(), {
     trackedPathPatterns: hookConfig.patterns,
     codexSummary: resolveCodexSummaryOptions(process.env),
-    heuristicFallback: process.env.FARPLANE_FILE_CHANGE_SUMMARY_FALLBACK === "1",
   });
   if (candidates.length === 0) {
     if (debugEnabled) console.error("[file-change-listener] no tracked file changes detected");

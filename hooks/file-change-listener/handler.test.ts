@@ -189,37 +189,10 @@ describe("file-change-listener", () => {
           toolInput: "*** Begin Patch\n*** Update File: progress.md\n@@\n+Local summarizer unavailable.\n*** End Patch\n",
         },
         1_000,
-        { codexSummary: { runner: async () => "" }, heuristicFallback: false },
+        { codexSummary: { runner: async () => "" } },
       );
 
       expect(rows).toEqual([]);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
-  });
-
-  it("can use heuristic fallback when explicitly enabled", async () => {
-    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
-    try {
-      writeFileSync(path.join(repo, "progress.md"), "# Progress\n\n- Local summarizer unavailable.\n");
-      const rows = await parseFileChangeBubbleCandidatesFromPayload(
-        {
-          event: "PostToolUse",
-          toolName: "apply_patch",
-          cwd: repo,
-          sessionId: "thread-1",
-          toolInput: "*** Begin Patch\n*** Update File: progress.md\n@@\n+Local summarizer unavailable.\n*** End Patch\n",
-        },
-        1_000,
-        { codexSummary: { runner: async () => "" }, heuristicFallback: true },
-      );
-
-      expect(rows).toEqual([
-        expect.objectContaining({
-          filePath: "progress.md",
-          message: "Updated progress: Local summarizer unavailable.",
-        }),
-      ]);
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
