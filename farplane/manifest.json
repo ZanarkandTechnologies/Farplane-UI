@@ -1,6 +1,9 @@
 {
   "schema": "farplane_project",
   "spec_version": "1.1.0",
+  "template_uses": {
+    "farplane-framework": "1.1.0"
+  },
   "standard": {
     "tracked": [
       "AGENTS.md",
