@@ -184,6 +184,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
     () =>
       officeActions
         .filter((action) => action.showInMenu !== false)
+        .filter((action) => action.showInSpeedDial !== false)
         .map((action) => ({
           id: action.id,
           icon: action.icon,

@@ -112,6 +112,89 @@ describe("office panel registry", () => {
     expect(toggleBuilderMode).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the speed dial focused on primary operator entry points", () => {
+    const actions = createOfficePanelActions({
+      highlightedMenuActionId: null,
+      isAnimatingCamera: false,
+      isBuilderMode: false,
+      navigateToLanding: vi.fn(),
+      openCeoWorkbench: vi.fn(),
+      openDecoration: vi.fn(),
+      openEvals: vi.fn(),
+      openHarness: vi.fn(),
+      openGlobalTeamWorkspace: vi.fn(),
+      openOrganization: vi.fn(),
+      openDocumentLibrary: vi.fn(),
+      openResourceBank: vi.fn(),
+      openSettings: vi.fn(),
+      openSkillInvocations: vi.fn(),
+      openSkillOs: vi.fn(),
+      openTemplateRollout: vi.fn(),
+      openRawTelemetry: vi.fn(),
+      openTelemetry: vi.fn(),
+      openUserCommunications: vi.fn(),
+      toggleBuilderMode: vi.fn(),
+    });
+
+    const speedDialIds = actions
+      .filter((action) => action.showInMenu !== false)
+      .filter((action) => action.showInSpeedDial !== false)
+      .map((action) => action.id);
+    const paletteIds = actions
+      .filter((action) => action.showInPalette !== false)
+      .map((action) => action.id);
+
+    expect(speedDialIds).toEqual([
+      "organization",
+      "team-workspace",
+      "resource-bank",
+      "skill-os",
+      "ceo-workbench",
+      "user-communications",
+    ]);
+    expect(paletteIds).toContain("settings");
+    expect(paletteIds).toContain("raw-telemetry");
+    expect(paletteIds).toContain("template-rollout");
+    expect(paletteIds).toContain("evals");
+    expect(paletteIds).toContain("harness");
+    expect(paletteIds).toContain("builder-mode");
+    expect(paletteIds).toContain("office-shop");
+    expect(speedDialIds).not.toContain("settings");
+    expect(speedDialIds).not.toContain("raw-telemetry");
+    expect(speedDialIds).not.toContain("template-rollout");
+    expect(speedDialIds).not.toContain("evals");
+    expect(speedDialIds).not.toContain("harness");
+    expect(speedDialIds).not.toContain("builder-mode");
+    expect(speedDialIds).not.toContain("office-shop");
+  });
+
+  it("keeps the decoration entry visible during guided onboarding", () => {
+    const actions = createOfficePanelActions({
+      highlightedMenuActionId: "office-shop",
+      isAnimatingCamera: false,
+      isBuilderMode: false,
+      navigateToLanding: vi.fn(),
+      openCeoWorkbench: vi.fn(),
+      openDecoration: vi.fn(),
+      openEvals: vi.fn(),
+      openHarness: vi.fn(),
+      openGlobalTeamWorkspace: vi.fn(),
+      openOrganization: vi.fn(),
+      openDocumentLibrary: vi.fn(),
+      openResourceBank: vi.fn(),
+      openSettings: vi.fn(),
+      openSkillInvocations: vi.fn(),
+      openSkillOs: vi.fn(),
+      openTemplateRollout: vi.fn(),
+      openRawTelemetry: vi.fn(),
+      openTelemetry: vi.fn(),
+      openUserCommunications: vi.fn(),
+      toggleBuilderMode: vi.fn(),
+    });
+
+    expect(actions.find((action) => action.id === "office-shop")?.showInSpeedDial).toBe(true);
+  });
+
   it("suppresses mutating office actions in read-only mode", () => {
     const openGlobalTeamWorkspace = vi.fn();
     const openSettings = vi.fn();

@@ -87,6 +87,7 @@ export type OfficePanelAction = {
   color: string;
   disabled?: boolean;
   buttonClassName?: string;
+  showInSpeedDial?: boolean;
   showInMenu?: boolean;
   showInPalette?: boolean;
   perform: () => void;
@@ -208,6 +209,7 @@ export function createOfficePanelActions(
       icon: Home,
       keywords: ["home", "landing", "exit", "navigate"],
       color: SECONDARY_BUTTON_COLOR,
+      showInSpeedDial: false,
       perform: deps.navigateToLanding,
     },
     {
@@ -246,6 +248,7 @@ export function createOfficePanelActions(
       keywords: [...telemetryPanel.keywords, "dashboard"],
       shortcut: { key: "m", label: "Alt+Shift+M", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
+      showInSpeedDial: false,
       perform: deps.openTelemetry,
     },
     {
@@ -260,6 +263,7 @@ export function createOfficePanelActions(
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
+      showInSpeedDial: false,
     },
     {
       id: "resource-bank",
@@ -280,6 +284,7 @@ export function createOfficePanelActions(
       icon: LibraryBig,
       keywords: documentLibraryPanel.keywords,
       color: SECONDARY_BUTTON_COLOR,
+      showInSpeedDial: false,
       perform: deps.openDocumentLibrary,
     },
     {
@@ -302,6 +307,7 @@ export function createOfficePanelActions(
       keywords: [...templateRolloutPanel.keywords, "standards", "panel"],
       shortcut: { key: "l", label: "Alt+Shift+L", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
+      showInSpeedDial: false,
       perform: deps.openTemplateRollout,
     },
     {
@@ -313,6 +319,7 @@ export function createOfficePanelActions(
       keywords: [...evalsPanel.keywords, "panel"],
       shortcut: { key: "e", label: "Alt+Shift+E", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
+      showInSpeedDial: false,
       perform: deps.openEvals,
     },
     {
@@ -324,6 +331,7 @@ export function createOfficePanelActions(
       keywords: [...harnessPanel.keywords, "agents", "templates", "panel"],
       shortcut: { key: "h", label: "Alt+Shift+H", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
+      showInSpeedDial: false,
       perform: deps.openHarness,
     },
     {
@@ -353,6 +361,7 @@ export function createOfficePanelActions(
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
+      showInSpeedDial: false,
     },
     {
       id: "user-communications",
@@ -380,6 +389,7 @@ export function createOfficePanelActions(
       disabled: deps.isAnimatingCamera || readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
+      showInSpeedDial: false,
       perform: readOnly ? noop : deps.toggleBuilderMode,
     },
     {
@@ -396,6 +406,7 @@ export function createOfficePanelActions(
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
+      showInSpeedDial: deps.highlightedMenuActionId === "office-shop",
       perform: readOnly ? noop : deps.openDecoration,
     },
     {
@@ -410,6 +421,7 @@ export function createOfficePanelActions(
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
+      showInSpeedDial: false,
       perform: readOnly ? noop : deps.openSettings,
     },
   ];
