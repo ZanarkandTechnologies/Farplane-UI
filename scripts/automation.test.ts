@@ -99,5 +99,46 @@ describe("automation heartbeat", () => {
     expect(result.thread.threadId).toBe("thread-test");
     expect(result.thread.status).toBe("spawned");
     expect(result.decision.spawnedThreadId).toBe("thread-test");
+    const pm = await readJsonFile<{
+      name?: string;
+      threads?: { chats?: string[]; automations?: string[] };
+    }>(path.join(projectRoot, "farplane", "pm.json"), {});
+    expect(pm.name).toMatch(/farplane automation test/i);
+    expect(pm.threads?.automations).toEqual(["thread-test"]);
+  });
+
+  it("preserves existing PM chats and does not duplicate spawned automation threads", async () => {
+    const projectRoot = await setupProject();
+    await writeFile(
+      path.join(projectRoot, "farplane", "pm.json"),
+      `${JSON.stringify(
+        {
+          version: 1,
+          name: "Farplane UI PM",
+          role: "founder_operator",
+          threads: { chats: ["chat-thread"], automations: ["thread-test"] },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+
+    await runHeartbeat({
+      projectRoot,
+      automationId: "farplane-ui-founder-heartbeat",
+      dryRun: false,
+      stateBase: "http://127.0.0.1:5173",
+      now: new Date("2026-06-19T12:00:00.000Z"),
+      spawnImpl: async () => ({ threadId: "thread-test", turnId: "turn-test" }),
+    });
+
+    const pm = await readJsonFile<{
+      name?: string;
+      threads?: { chats?: string[]; automations?: string[] };
+    }>(path.join(projectRoot, "farplane", "pm.json"), {});
+    expect(pm.name).toBe("Farplane UI PM");
+    expect(pm.threads?.chats).toEqual(["chat-thread"]);
+    expect(pm.threads?.automations).toEqual(["thread-test"]);
   });
 });

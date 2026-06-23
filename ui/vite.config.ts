@@ -21,6 +21,10 @@ import {
   saveSkillStudioManifest,
   saveSkillStudioFile,
 } from "./skill-studio-state";
+import {
+  mergeFilesystemThreadsIntoThreadList,
+  readFilesystemObservedCodexThreads,
+} from "./codex-thread-summaries";
 import { normalizeBridgeOfficeSettings, type BridgeOfficeSettings as OfficeSettings } from "./office-settings-bridge";
 
 type JsonObject = Record<string, unknown>;
@@ -53,6 +57,7 @@ const COMPANY_MODEL_PATH = path.join(FARPLANE_HOME, "company.json");
 const COMPANY_TEMPLATE_PATH = path.resolve(__dirname, "../templates/sidecar/company.template.json");
 const OFFICE_OBJECTS_PATH = path.join(FARPLANE_HOME, "office-objects.json");
 const OFFICE_SETTINGS_PATH = path.join(FARPLANE_HOME, "office.json");
+const CODEX_OFFICE_CONFIG_PATH = path.join(FARPLANE_HOME, "codex-office.json");
 const PROJECT_MANAGERS_PATH = path.join(FARPLANE_HOME, "project-managers.json");
 const TELEGRAM_GATEWAY_STATE_PATH = path.join(FARPLANE_HOME, "telegram-gateway", "state.json");
 const FARPLANE_EVALS_ROOT = path.join(REPO_ROOT, ".farplane", "evals");
@@ -1521,18 +1526,51 @@ function normalizeStringList(value: unknown): string[] {
   return [...new Set(value.map((entry) => String(entry ?? "").trim()).filter(Boolean))];
 }
 
-function normalizeProjectPmConfig(raw: unknown): JsonObject {
+function normalizedUniqueProjectPaths(values: readonly unknown[]): string[] {
+  const seen = new Set<string>();
+  const roots: string[] = [];
+  for (const value of values) {
+    if (!isSafeProjectPath(value)) continue;
+    const root = path.resolve(value.trim());
+    const key = root.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    roots.push(root);
+  }
+  return roots;
+}
+
+function projectPathsFromCodexUiState(uiState: JsonObject): string[] {
+  return normalizedUniqueProjectPaths([
+    ...(Array.isArray(uiState.pinnedProjectIds) ? uiState.pinnedProjectIds : []),
+    ...(Array.isArray(uiState.projectOrder) ? uiState.projectOrder : []),
+    ...(Array.isArray(uiState.savedWorkspaceRoots) ? uiState.savedWorkspaceRoots : []),
+    ...(Array.isArray(uiState.activeWorkspaceRoots) ? uiState.activeWorkspaceRoots : []),
+  ]);
+}
+
+function projectDisplayNameFromPath(projectPath: string): string {
+  const base = path.basename(path.resolve(projectPath)).replace(/[-_]+/g, " ");
+  return base.replace(/\s+/g, " ").trim() || "Project";
+}
+
+function defaultProjectPmName(projectPath: string): string {
+  return `${projectDisplayNameFromPath(projectPath)} PM`;
+}
+
+function normalizeProjectPmConfig(raw: unknown, projectPath = ""): JsonObject {
   const config = raw && typeof raw === "object" ? (raw as JsonObject) : {};
   const threads =
     config.threads && typeof config.threads === "object" && !Array.isArray(config.threads)
       ? (config.threads as JsonObject)
       : {};
+  const configuredName =
+    typeof config.name === "string" && config.name.trim() ? config.name.trim() : "";
   return {
     version: 1,
-    name:
-      typeof config.name === "string" && config.name.trim()
-        ? config.name.trim()
-        : "Project PM",
+    name: configuredName && configuredName.toLowerCase() !== "project pm"
+      ? configuredName
+      : defaultProjectPmName(projectPath),
     role:
       typeof config.role === "string" && config.role.trim()
         ? config.role.trim()
@@ -1554,12 +1592,12 @@ async function readProjectPmConfig(projectPath: string): Promise<JsonObject | nu
   const filePath = projectPmConfigPath(projectPath);
   if (!(await pathExists(filePath))) return null;
   const raw = await readJsonFile<unknown>(filePath, {});
-  return normalizeProjectPmConfig(raw);
+  return normalizeProjectPmConfig(raw, projectPath);
 }
 
 async function saveProjectPmConfig(projectPath: string, input: unknown): Promise<JsonObject> {
   const filePath = projectPmConfigPath(projectPath);
-  const normalized = normalizeProjectPmConfig(input);
+  const normalized = normalizeProjectPmConfig(input, projectPath);
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(normalized, null, 2)}\n`, "utf-8");
   return normalized;
@@ -1616,6 +1654,34 @@ async function readCodexUiState(): Promise<JsonObject> {
   return normalizeCodexUiState(raw);
 }
 
+async function readFilesystemObservedCodexThreadsForUiState(limit: number): Promise<JsonObject[]> {
+  const uiState = await readCodexUiState();
+  return readFilesystemObservedCodexThreads({
+    projectPaths: projectPathsFromCodexUiState(uiState),
+    limit,
+    readProjectPmConfig,
+  });
+}
+
+function codexThreadListLimit(params: unknown): number {
+  const record = params && typeof params === "object" ? (params as JsonObject) : {};
+  const raw = record.limit;
+  const parsed = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+  if (!Number.isFinite(parsed) || parsed <= 0) return 80;
+  return Math.min(Math.floor(parsed), 500);
+}
+
+async function mergeCodexThreadListWithFilesystem(
+  result: unknown,
+  limit: number,
+): Promise<JsonObject> {
+  return mergeFilesystemThreadsIntoThreadList({
+    result,
+    filesystemRows: await readFilesystemObservedCodexThreadsForUiState(limit),
+    limit,
+  });
+}
+
 async function saveCodexOfficeConfig(input: unknown): Promise<JsonObject> {
   const normalized = normalizeCodexOfficeConfig(input);
   const settings = await readOfficeSettings();
@@ -1625,12 +1691,17 @@ async function saveCodexOfficeConfig(input: unknown): Promise<JsonObject> {
     `${JSON.stringify({ ...settings, codex: normalized }, null, 2)}\n`,
     "utf-8",
   );
+  await writeFile(CODEX_OFFICE_CONFIG_PATH, `${JSON.stringify(normalized, null, 2)}\n`, "utf-8");
   return normalized;
 }
 
 async function readCodexOfficeConfig(): Promise<JsonObject> {
   const settings = await readOfficeSettings();
-  return normalizeCodexOfficeConfig(settings.codex);
+  const legacy = await readJsonFile<unknown>(CODEX_OFFICE_CONFIG_PATH, {});
+  return normalizeCodexOfficeConfig({
+    ...(legacy && typeof legacy === "object" ? (legacy as JsonObject) : {}),
+    ...(settings.codex && typeof settings.codex === "object" ? settings.codex : {}),
+  });
 }
 
 async function buildProjectReadModel(input: unknown): Promise<JsonObject> {
@@ -1647,15 +1718,7 @@ async function buildProjectReadModel(input: unknown): Promise<JsonObject> {
   const projectPms = await Promise.all(
     normalizedProjects.map(async (project) => {
       const pm = await readProjectPmConfig(project.projectPath);
-      const threads =
-        pm?.threads && typeof pm.threads === "object" && !Array.isArray(pm.threads)
-          ? (pm.threads as JsonObject)
-          : {};
-      const threadIds = [
-        ...normalizeStringList(Array.isArray(pm?.threads) ? pm?.threads : threads.chats),
-        ...normalizeStringList(threads.automations),
-      ];
-      return pm && threadIds.length > 0
+      return pm
         ? {
             projectId: project.projectId,
             projectPath: project.projectPath,
@@ -2231,8 +2294,26 @@ function farplaneStateBridge() {
           }
           try {
             const result = await requestCodexAppServerRpc(rpcMethod, body.params ?? {});
-            writeJson(res, 200, { ok: true, result });
+            const mergedResult =
+              rpcMethod === "thread/list"
+                ? await mergeCodexThreadListWithFilesystem(
+                    result,
+                    codexThreadListLimit(body.params),
+                  )
+                : result;
+            writeJson(res, 200, { ok: true, result: mergedResult });
           } catch (error) {
+            if (rpcMethod === "thread/list") {
+              const limit = codexThreadListLimit(body.params);
+              writeJson(res, 200, {
+                ok: true,
+                result: {
+                  data: await readFilesystemObservedCodexThreadsForUiState(limit),
+                  source: "farplane-message-window",
+                },
+              });
+              return;
+            }
             writeJson(res, 502, {
               ok: false,
               error: error instanceof Error ? error.message : "codex_rpc_failed",

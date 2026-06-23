@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { applyRewardsToBandit, chooseAction, recordSelectedArm } from "./bandit.js";
 import { spawnCodexThread } from "./codex-spawn.js";
@@ -55,18 +55,25 @@ export async function runHeartbeat(options: RunHeartbeatOptions): Promise<Heartb
     metricSnapshots: ledger.metricSnapshots,
   });
 
-  const outcomes = await reconcileThreads(paths.root, policy.automationId, ledger.spawnedThreads, nowIso);
-  const outcomeRewards = outcomes.map((outcome): RewardRecord => ({
-    rewardId: `reward-${outcome.decisionId}-${outcome.occurredAt}`,
-    automationId: outcome.automationId,
-    actionId: outcome.actionId,
-    decisionId: outcome.decisionId,
-    source: "outcome",
-    horizon: "immediate",
-    reward: outcome.reward,
-    reason: outcome.reason,
-    occurredAt: outcome.occurredAt,
-  }));
+  const outcomes = await reconcileThreads(
+    paths.root,
+    policy.automationId,
+    ledger.spawnedThreads,
+    nowIso,
+  );
+  const outcomeRewards = outcomes.map(
+    (outcome): RewardRecord => ({
+      rewardId: `reward-${outcome.decisionId}-${outcome.occurredAt}`,
+      automationId: outcome.automationId,
+      actionId: outcome.actionId,
+      decisionId: outcome.decisionId,
+      source: "outcome",
+      horizon: "immediate",
+      reward: outcome.reward,
+      reason: outcome.reason,
+      occurredAt: outcome.occurredAt,
+    }),
+  );
   const metricRewards = buildMetricRewards({
     automationId: policy.automationId,
     snapshots: ledger.metricSnapshots,
@@ -81,7 +88,13 @@ export async function runHeartbeat(options: RunHeartbeatOptions): Promise<Heartb
   nextBandit = recordSelectedArm(nextBandit, choice.arm.id, nowIso);
   await writeJsonFile(paths.banditState, nextBandit);
 
-  const reflection = buildReflection({ context, rewardsApplied, outcomes, selectedAction: choice.arm.id, reason: choice.reason });
+  const reflection = buildReflection({
+    context,
+    rewardsApplied,
+    outcomes,
+    selectedAction: choice.arm.id,
+    reason: choice.reason,
+  });
   await writeFile(paths.reflectionLatest, reflection, "utf-8");
 
   const decisionId = `hb-${policy.automationId}-${nowIso.replace(/[:.]/g, "-")}`;
@@ -124,8 +137,10 @@ export async function runHeartbeat(options: RunHeartbeatOptions): Promise<Heartb
   };
 
   if (!options.dryRun) {
-    const stateBase = options.stateBase ?? process.env.FARPLANE_STATE_BASE ?? process.env.CODEX_STATE_BASE;
-    if (!stateBase) throw new Error("codex_state_base_missing:pass_--state-base_or_set_FARPLANE_STATE_BASE");
+    const stateBase =
+      options.stateBase ?? process.env.FARPLANE_STATE_BASE ?? process.env.CODEX_STATE_BASE;
+    if (!stateBase)
+      throw new Error("codex_state_base_missing:pass_--state-base_or_set_FARPLANE_STATE_BASE");
     const spawned = await (options.spawnImpl ?? spawnCodexThread)({
       stateBase,
       cwd: paths.root,
@@ -134,6 +149,7 @@ export async function runHeartbeat(options: RunHeartbeatOptions): Promise<Heartb
     });
     decision.spawnedThreadId = spawned.threadId;
     thread = { ...thread, threadId: spawned.threadId };
+    await appendSpawnedThreadToProjectPm(paths.root, spawned.threadId);
   }
 
   await appendJsonl(paths.decisions, decision);
@@ -152,6 +168,72 @@ export async function runHeartbeat(options: RunHeartbeatOptions): Promise<Heartb
   };
 }
 
+async function appendSpawnedThreadToProjectPm(
+  projectRoot: string,
+  threadId: string,
+): Promise<void> {
+  const pmPath = path.join(projectRoot, "farplane", "pm.json");
+  const raw = await readJsonObject(pmPath);
+  const threads =
+    raw.threads && typeof raw.threads === "object" && !Array.isArray(raw.threads)
+      ? raw.threads
+      : {};
+  const chats = Array.isArray(raw.threads)
+    ? normalizeStringList(raw.threads)
+    : normalizeStringList(threads.chats);
+  const automations = normalizeStringList(threads.automations);
+  const alreadyPinned = chats.includes(threadId) || automations.includes(threadId);
+  const name =
+    typeof raw.name === "string" && raw.name.trim()
+      ? raw.name.trim()
+      : defaultProjectPmName(projectRoot);
+  const role =
+    typeof raw.role === "string" && raw.role.trim() ? raw.role.trim() : "founder_operator";
+  await mkdir(path.dirname(pmPath), { recursive: true });
+  await writeFile(
+    pmPath,
+    `${JSON.stringify(
+      {
+        version: 1,
+        name,
+        role,
+        threads: {
+          chats,
+          automations: alreadyPinned ? automations : [...automations, threadId],
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
+}
+
+async function readJsonObject(filePath: string): Promise<Record<string, unknown>> {
+  try {
+    const parsed = JSON.parse(await readFile(filePath, "utf-8")) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map((entry) => String(entry ?? "").trim()).filter(Boolean))];
+}
+
+function defaultProjectPmName(projectRoot: string): string {
+  const name = path
+    .basename(path.resolve(projectRoot))
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `${name || "Project"} PM`;
+}
+
 async function buildContext(input: {
   projectRoot: string;
   automationId: string;
@@ -162,8 +244,12 @@ async function buildContext(input: {
 }): Promise<AutomationContext> {
   const tickets = await readTicketFiles(path.join(input.projectRoot, "tickets"));
   const openTicketCount = tickets.filter((ticket) => !/\bstatus:\s*done\b/i.test(ticket)).length;
-  const staleTicketCount = tickets.filter((ticket) => /last_verification:\s*not run/i.test(ticket)).length;
-  const openSpawned = input.spawnedThreads.filter((row) => row.status === "spawned" || row.status === "still_running");
+  const staleTicketCount = tickets.filter((ticket) =>
+    /last_verification:\s*not run/i.test(ticket),
+  ).length;
+  const openSpawned = input.spawnedThreads.filter(
+    (row) => row.status === "spawned" || row.status === "still_running",
+  );
   const latestMetric = latestIso(input.metricSnapshots.map((snapshot) => snapshot.capturedAt));
   const latestWeekly = latestIso(
     input.decisions
@@ -270,7 +356,8 @@ function buildMetricRewards(input: {
 }
 
 function scoreSnapshot(snapshot: MetricSnapshot): number {
-  if (typeof snapshot.reward === "number" && Number.isFinite(snapshot.reward)) return snapshot.reward;
+  if (typeof snapshot.reward === "number" && Number.isFinite(snapshot.reward))
+    return snapshot.reward;
   const values = Object.values(snapshot.metrics ?? {}).filter((value) => Number.isFinite(value));
   if (values.length === 0) return 0;
   const raw = values.reduce((sum, value) => sum + value, 0) / values.length;

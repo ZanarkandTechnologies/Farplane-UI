@@ -6,7 +6,7 @@ import {
 } from "./codex-summary";
 
 describe("codex-summary", () => {
-  it("builds a bounded one-sentence status prompt", () => {
+  it("builds a bounded tiny-label status prompt", () => {
     const prompt = buildCodexSummaryPrompt({
       projectPath: "/repo",
       filePath: "tickets/TASK-0004/progress.md",
@@ -14,7 +14,8 @@ describe("codex-summary", () => {
       toolPayloadSnippet: "y".repeat(3_000),
     });
 
-    expect(prompt).toContain("Max 140 characters");
+    expect(prompt).toContain("Return 2 to 4 words only");
+    expect(prompt).toContain("Max 48 characters");
     expect(prompt).toContain("tickets/TASK-0004/progress.md");
     expect(prompt).toContain("<file_excerpt>");
     expect(prompt.length).toBeLessThan(8_500);
@@ -40,7 +41,7 @@ describe("codex-summary", () => {
       },
     );
 
-    expect(summary).toBe("Updated progress with summary-only hook proof.");
+    expect(summary).toBe("Updated progress with summary-only");
   });
 
   it("resolves the only summary-specific env override: model", () => {

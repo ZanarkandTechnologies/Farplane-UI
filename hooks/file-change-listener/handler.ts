@@ -345,6 +345,7 @@ export async function parseFileChangeBubbleCandidatesFromPayload(
     candidates.push({
       ...candidate,
       message,
+      eventAt: Date.now(),
       eventKey: stableEventKey({
         threadId: candidate.threadId,
         sessionId: candidate.sessionId,

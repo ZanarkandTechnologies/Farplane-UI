@@ -84,6 +84,17 @@ function safeIdPart(value: string): string {
   );
 }
 
+function codexProjectIdFromPath(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  const slug =
+    trimmed
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "codex";
+  return `codex-proj-${slug}`;
+}
+
 function compactLabel(value: string): string {
   return value
     .replace(/^[$@#]+/, "")
@@ -132,17 +143,31 @@ function machineNameFromPayload(payload: JsonRecord): string | undefined {
 }
 
 function projectPathFromPayload(payload: JsonRecord): string | undefined {
-  return cleanText(payload.cwd, 300) ?? cleanText(payload.projectPath, 300) ?? cleanText(payload.projectDirectory, 300);
+  return (
+    cleanText(payload.cwd, 300) ??
+    cleanText(payload.projectPath, 300) ??
+    cleanText(payload.projectDirectory, 300)
+  );
 }
 
 function projectIdFromRow(row: HookTelemetryRow, payload: JsonRecord): string | undefined {
-  return row.projectId ?? cleanText(payload.projectId, 160) ?? cleanText(payload.project_id, 160);
+  return (
+    row.projectId ??
+    cleanText(payload.projectId, 160) ??
+    cleanText(payload.project_id, 160) ??
+    codexProjectIdFromPath(projectPathFromPayload(payload))
+  );
 }
 
 function observedStatusText(row: HookTelemetryRow, payload: JsonRecord): string {
-  const explicit = cleanText(payload.statusText, 120) ?? cleanText(payload.summary, 120) ?? cleanText(payload.title, 120);
+  const explicit =
+    cleanText(payload.statusText, 120) ??
+    cleanText(payload.summary, 120) ??
+    cleanText(payload.message, 120) ??
+    cleanText(payload.title, 120);
   if (explicit) return explicit;
-  if (row.hookType === "UserPromptSubmit" || row.hookType === "TurnStart") return "Codex turn running";
+  if (row.hookType === "UserPromptSubmit" || row.hookType === "TurnStart")
+    return "Codex turn running";
   if (row.hookType === "Stop" || row.hookType === "TurnEnd") return "Codex turn completed";
   if (row.hookType === "PostToolUse") {
     const skillId = cleanText(payload.skillId, 120);
@@ -221,7 +246,9 @@ export function projectIdToTeamId(projectId: string | undefined): string | undef
   return projectId.startsWith("team-") ? projectId : `team-${projectId}`.toLowerCase();
 }
 
-export function hookTelemetryRowsToSkillInvocationRows(rows: HookTelemetryRow[]): SkillInvocationRow[] {
+export function hookTelemetryRowsToSkillInvocationRows(
+  rows: HookTelemetryRow[],
+): SkillInvocationRow[] {
   return rows
     .map((row): SkillInvocationRow | null => {
       const payload = asRecord(row.payload);
@@ -284,7 +311,9 @@ export function hookTelemetryRowsToActivityPingRows(rows: HookTelemetryRow[]): A
     .filter((row): row is ActivityPingRow => row !== null);
 }
 
-export function hookTelemetryRowsToObservedCodexWorkers(rows: HookTelemetryRow[]): ObservedCodexWorker[] {
+export function hookTelemetryRowsToObservedCodexWorkers(
+  rows: HookTelemetryRow[],
+): ObservedCodexWorker[] {
   const byWorkerId = new Map<string, ObservedCodexWorker>();
   for (const row of rows) {
     const payload = asRecord(row.payload);
@@ -324,11 +353,14 @@ export function hookTelemetryRowsToObservedCodexWorkers(rows: HookTelemetryRow[]
     });
   }
   return [...byWorkerId.values()].sort(
-    (left, right) => right.lastSeenAt - left.lastSeenAt || left.workerId.localeCompare(right.workerId),
+    (left, right) =>
+      right.lastSeenAt - left.lastSeenAt || left.workerId.localeCompare(right.workerId),
   );
 }
 
-export function hookTelemetryRowsToAgentBubbleMessages(rows: HookTelemetryRow[]): AgentBubbleMessage[] {
+export function hookTelemetryRowsToAgentBubbleMessages(
+  rows: HookTelemetryRow[],
+): AgentBubbleMessage[] {
   return rows
     .map((row): AgentBubbleMessage | null => {
       const payload = asRecord(row.payload);
@@ -379,7 +411,9 @@ export function hookTelemetryRowsToAgentBubbleMessages(rows: HookTelemetryRow[])
     .filter((row): row is AgentBubbleMessage => row !== null);
 }
 
-export function hookTelemetryRowsToOfficeTravelIntents(rows: HookTelemetryRow[]): OfficeTravelIntent[] {
+export function hookTelemetryRowsToOfficeTravelIntents(
+  rows: HookTelemetryRow[],
+): OfficeTravelIntent[] {
   return rows
     .map((row): OfficeTravelIntent | null => {
       const payload = asRecord(row.payload);

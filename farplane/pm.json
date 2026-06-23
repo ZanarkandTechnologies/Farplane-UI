@@ -4,6 +4,8 @@
   "role": "founder_operator",
   "threads": {
     "chats": [],
-    "automations": []
+    "automations": [
+      "019ef4a0-5f28-7f51-b682-a44114bf2b0b"
+    ]
   }
 }

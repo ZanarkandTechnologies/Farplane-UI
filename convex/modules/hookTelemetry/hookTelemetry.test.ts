@@ -139,6 +139,35 @@ describe("hook telemetry projections", () => {
     expect(JSON.stringify(workers)).not.toContain("should not leak");
   });
 
+  it("projects file change summaries into observed Codex workers from cwd", () => {
+    const workers = hookTelemetryRowsToObservedCodexWorkers([
+      {
+        hookName: "file-change-listener",
+        hookType: "PostToolUse",
+        sessionId: "thread-3",
+        eventAt: 4_000,
+        payload: {
+          eventName: "file.change.summary",
+          threadId: "thread-3",
+          cwd: "/Users/kenji/Farplane UI",
+          message: "Updated progress with summary-only hook proof.",
+        },
+      },
+    ]);
+
+    expect(workers).toEqual([
+      expect.objectContaining({
+        workerId: "codex-observed:file-change-listener:codex-proj-users-kenji-farplane-ui:thread-3",
+        sourceInstanceId: "file-change-listener",
+        projectId: "codex-proj-users-kenji-farplane-ui",
+        projectPath: "/Users/kenji/Farplane UI",
+        sessionKey: "thread-3",
+        threadId: "thread-3",
+        statusText: "Updated progress with summary-only hook proof.",
+      }),
+    ]);
+  });
+
   it("projects skill invocation rows into bubble messages and office travel intents", () => {
     const rows: HookTelemetryRow[] = [
       {
@@ -177,7 +206,11 @@ describe("hook telemetry projections", () => {
     ];
 
     expect(hookTelemetryRowsToAgentBubbleMessages(rows)).toEqual([
-      { threadId: "thread-1", message: "Updated progress with summary-only hook proof.", eventAt: 4_000 },
+      {
+        threadId: "thread-1",
+        message: "Updated progress with summary-only hook proof.",
+        eventAt: 4_000,
+      },
     ]);
   });
 });

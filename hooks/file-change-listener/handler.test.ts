@@ -12,6 +12,7 @@ const testSummaryRunner = async () => "Summarized tracked file update";
 describe("file-change-listener", () => {
   it("detects tracked progress file paths from the post-tool payload", async () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(2_000);
     try {
       writeFileSync(
         path.join(repo, "progress.md"),
@@ -35,10 +36,11 @@ describe("file-change-listener", () => {
           threadId: "thread-1",
           filePath: "progress.md",
           message: "Summarized tracked file update",
-          eventAt: 1_000,
+          eventAt: 2_000,
         }),
       ]);
     } finally {
+      nowSpy.mockRestore();
       rmSync(repo, { recursive: true, force: true });
     }
   });

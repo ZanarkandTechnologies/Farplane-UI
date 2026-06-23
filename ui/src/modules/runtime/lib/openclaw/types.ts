@@ -38,6 +38,10 @@ export interface AgentCardModel {
       threadId?: string;
       controllable: false;
     };
+    codexProjectPm?: {
+      projectId: string;
+      threadIds: string[];
+    };
   };
 }
 
@@ -398,9 +402,14 @@ export interface CompanyAgentModel {
       sourceInstanceId: string;
       machineId?: string;
       machineName?: string;
+      projectId: string;
       sessionKey: string;
       threadId?: string;
       controllable: false;
+    };
+    codexProjectPm?: {
+      projectId: string;
+      threadIds: string[];
     };
   };
 }

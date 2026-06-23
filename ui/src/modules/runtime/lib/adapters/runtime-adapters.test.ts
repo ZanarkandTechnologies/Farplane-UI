@@ -373,7 +373,9 @@ describe("runtime adapters", () => {
         peerLabel: "Implement app server mode",
       }),
     ]);
-    expect(toCodexTimeline("codex-thread:thread-1", "codex-thread:thread-1", thread).events).toEqual([
+    expect(
+      toCodexTimeline("codex-thread:thread-1", "codex-thread:thread-1", thread).events,
+    ).toEqual([
       expect.objectContaining({ role: "user", text: "hello", type: "message" }),
       expect.objectContaining({ role: "assistant", text: "hi", type: "message" }),
       expect.objectContaining({ role: "tool", text: "$ npm test\npassed", type: "tool" }),
@@ -723,9 +725,9 @@ describe("runtime adapters", () => {
         }),
       ]),
     );
-    expect(company.projects.some((project) => project.name === "am-i-being-scammed-over-here")).toBe(
-      false,
-    );
+    expect(
+      company.projects.some((project) => project.name === "am-i-being-scammed-over-here"),
+    ).toBe(false);
     expect(company.projects.find((project) => project.name === "no-threads")).toEqual(
       expect.objectContaining({
         id: "codex-proj-workspace-no-threads",
@@ -858,9 +860,9 @@ describe("runtime adapters", () => {
     expect(company.agents.some((agent) => agent.agentId === "codex-thread:ticket-drainer")).toBe(
       false,
     );
-    expect(company.agents.some((agent) => agent.agentId === "codex-thread:ordinary-old-life-chat")).toBe(
-      false,
-    );
+    expect(
+      company.agents.some((agent) => agent.agentId === "codex-thread:ordinary-old-life-chat"),
+    ).toBe(false);
   });
 
   it("keeps pinned Codex manager threads visible even when inactive", () => {
@@ -895,6 +897,201 @@ describe("runtime adapters", () => {
         }),
       ]),
     );
+  });
+
+  it("keeps a project-local Codex PM visible before child threads are pinned", () => {
+    const company = toCodexCompanyModel([], 1770000000 * 1000, ["/workspace/farplane-ui"], {
+      projectPms: [
+        {
+          projectId: "codex-proj-workspace-farplane-ui",
+          projectPath: "/workspace/farplane-ui",
+          pm: {
+            version: 1,
+            name: "Farplane UI PM",
+            threads: { chats: [], automations: [] },
+          },
+        },
+      ],
+    });
+
+    expect(company.agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-pm:codex-proj-workspace-farplane-ui",
+          projectId: "codex-proj-workspace-farplane-ui",
+          role: "pm",
+        }),
+      ]),
+    );
+  });
+
+  it("uses configured project PM names, groups PM children, and renders non-PM thread workers", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith("/codex/app-server/health")) {
+          return new Response(JSON.stringify({ ok: true, configured: true }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (url.endsWith("/farplane/codex-ui-state")) {
+          return new Response(JSON.stringify({ savedWorkspaceRoots: ["/workspace/farplane-ui"] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (url.endsWith("/farplane/projects/read-model")) {
+          return new Response(
+            JSON.stringify({
+              generatedAt: 1770000000 * 1000,
+              projectPms: [
+                {
+                  projectId: "codex-proj-workspace-farplane-ui",
+                  projectPath: "/workspace/farplane-ui",
+                  pm: {
+                    version: 1,
+                    name: "Farplane UI PM",
+                    threads: { automations: ["pulse-child"] },
+                  },
+                },
+              ],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        if (url.endsWith("/codex/app-server/rpc")) {
+          const body = JSON.parse(String(init?.body ?? "{}")) as { method?: string };
+          if (body.method === "thread/list") {
+            return new Response(
+              JSON.stringify({
+                ok: true,
+                result: {
+                  data: [
+                    {
+                      id: "pulse-child",
+                      preview: "Heartbeat child",
+                      cwd: "/workspace/farplane-ui",
+                      updatedAt: Math.floor(Date.now() / 1000),
+                      status: { type: "notLoaded" },
+                    },
+                    {
+                      id: "outside-child",
+                      preview: "Independent child",
+                      cwd: "/workspace/farplane-ui",
+                      updatedAt: Math.floor(Date.now() / 1000),
+                      status: { type: "notLoaded" },
+                    },
+                  ],
+                },
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            );
+          }
+        }
+        return new Response(JSON.stringify({}), {
+          status: 404,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+
+    const adapter = new CodexRuntimeAdapter("", "http://state");
+
+    const office = await adapter.getUnifiedOfficeModel();
+
+    expect(office.runtimeAgents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-pm:codex-proj-workspace-farplane-ui",
+          displayName: "Farplane UI PM",
+          runtimeMetadata: {
+            codexProjectPm: {
+              projectId: "codex-proj-workspace-farplane-ui",
+              threadIds: ["pulse-child"],
+            },
+          },
+        }),
+        expect.objectContaining({
+          agentId: "codex-thread:outside-child",
+          displayName: "Independent child",
+        }),
+      ]),
+    );
+    expect(office.runtimeAgents).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-thread:pulse-child",
+        }),
+      ]),
+    );
+    expect(office.company.agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-thread:outside-child",
+          projectId: "codex-proj-workspace-farplane-ui",
+          role: "builder",
+        }),
+      ]),
+    );
+    expect(office.company.agents).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-thread:pulse-child",
+        }),
+      ]),
+    );
+  });
+
+  it("labels the configured Codex CEO placeholder while app-server is disconnected", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/codex/app-server/health")) {
+          return new Response(JSON.stringify({ ok: false, configured: false }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (url.endsWith("/farplane/codex-ui-state")) {
+          return new Response(JSON.stringify({ savedWorkspaceRoots: ["/workspace/farplane-ui"] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (url.endsWith("/farplane/projects/read-model")) {
+          return new Response(
+            JSON.stringify({
+              generatedAt: 1770000000 * 1000,
+              officeVisibility: {
+                ceoThreadId: "missing-strategy-thread",
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        return new Response(JSON.stringify({}), {
+          status: 404,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+
+    const adapter = new CodexRuntimeAdapter("", "http://state");
+
+    const office = await adapter.getUnifiedOfficeModel();
+
+    expect(office.runtimeAgents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-thread:missing-strategy-thread",
+          displayName: "Pinned CEO",
+        }),
+      ]),
+    );
+    expect(office.runtimeAgents.some((agent) => agent.agentId === CODEX_MAIN_AGENT_ID)).toBe(false);
   });
 
   it("assigns pinned Codex manager threads to the pinned project even after cwd drift", () => {
@@ -965,20 +1162,23 @@ describe("runtime adapters", () => {
     expect(company.agents.some((agent) => agent.agentId === CODEX_MAIN_AGENT_ID)).toBe(false);
   });
 
-  it("keeps the synthetic Codex main CEO when the pinned CEO thread is missing", () => {
+  it("keeps a configured Codex CEO pinned when the thread is disconnected", () => {
     const company = toCodexCompanyModel([], 1770000000 * 1000, ["/workspace/farplane-ui"], {
       officeVisibility: {
         ceoThreadId: "missing-strategy-thread",
       },
     });
 
-    expect(company.agents).toEqual([
-      expect.objectContaining({
-        agentId: CODEX_MAIN_AGENT_ID,
-        role: "ceo",
-        isCeo: true,
-      }),
-    ]);
+    expect(company.agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-thread:missing-strategy-thread",
+          role: "ceo",
+          isCeo: true,
+        }),
+      ]),
+    );
+    expect(company.agents.some((agent) => agent.agentId === CODEX_MAIN_AGENT_ID)).toBe(false);
   });
 
   it("prefers Codex UI project roots over stale trusted config projects", async () => {

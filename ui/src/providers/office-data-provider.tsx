@@ -131,7 +131,9 @@ function overlayConvexLiveStatus(
   return {
     ...adapterStatus,
     statusText: convexStatus.statusText || adapterStatus.statusText,
-    updatedAt: Math.max(adapterStatus.updatedAt ?? 0, convexStatus.updatedAt ?? 0) || adapterStatus.updatedAt,
+    updatedAt:
+      Math.max(adapterStatus.updatedAt ?? 0, convexStatus.updatedAt ?? 0) ||
+      adapterStatus.updatedAt,
     bubbles: convexStatus.bubbles.length > 0 ? convexStatus.bubbles : adapterStatus.bubbles,
     currentSkillId: convexStatus.currentSkillId ?? adapterStatus.currentSkillId,
     bubbleMessages: convexStatus.bubbleMessages,
@@ -179,7 +181,8 @@ export function mergeAgentLiveStatuses(input: {
     for (const agentId of input.agentIds) {
       if (!isCodexAgentId(agentId)) continue;
       const adapterStatus = adapterStatuses[agentId];
-      if (adapterStatus) merged[agentId] = overlayConvexLiveStatus(adapterStatus, convexStatuses[agentId]);
+      if (adapterStatus)
+        merged[agentId] = overlayConvexLiveStatus(adapterStatus, convexStatuses[agentId]);
     }
     return merged;
   }
@@ -194,7 +197,9 @@ function projectNameFromObservedWorker(worker: ObservedCodexWorkerRow): string {
   return worker.projectId.replace(/^codex-proj-/, "").replace(/[-_]+/g, " ") || "Observed Codex";
 }
 
-function createObservedCodexProject(worker: ObservedCodexWorkerRow): CompanyModel["projects"][number] {
+function createObservedCodexProject(
+  worker: ObservedCodexWorkerRow,
+): CompanyModel["projects"][number] {
   return {
     id: worker.projectId,
     departmentId: "dept-codex",
@@ -224,6 +229,12 @@ function observedCodexMetadata(worker: ObservedCodexWorkerRow) {
       controllable: false as const,
     },
   };
+}
+
+function codexProjectPmThreadIds(row: {
+  runtimeMetadata?: { codexProjectPm?: { threadIds?: string[] } };
+}): string[] {
+  return row.runtimeMetadata?.codexProjectPm?.threadIds ?? [];
 }
 
 export function observedCodexWorkersToLiveStatuses(
@@ -258,7 +269,9 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
   workers: ObservedCodexWorkerRow[],
   now = Date.now(),
 ): UnifiedOfficeModel {
-  const activeWorkers = workers.filter((worker) => worker.workerId.trim() && worker.projectId.trim());
+  const activeWorkers = workers.filter(
+    (worker) => worker.workerId.trim() && worker.projectId.trim(),
+  );
   if (activeWorkers.length === 0) return unified;
 
   const existingAgentIds = new Set([
@@ -267,9 +280,16 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
     ...unified.configuredAgents.map((agent) => agent.agentId),
   ]);
   const existingThreadIds = new Set(
-    unified.company.agents
-      .map((agent) => (agent.agentId.startsWith("codex-thread:") ? agent.agentId.slice("codex-thread:".length) : ""))
-      .filter(Boolean),
+    [
+      ...unified.company.agents.flatMap((agent) => [
+        ...(agent.agentId.startsWith("codex-thread:")
+          ? [agent.agentId.slice("codex-thread:".length)]
+          : []),
+        ...codexProjectPmThreadIds(agent),
+      ]),
+      ...unified.runtimeAgents.flatMap(codexProjectPmThreadIds),
+      ...unified.configuredAgents.flatMap(codexProjectPmThreadIds),
+    ].filter(Boolean),
   );
   const uniqueObservedWorkers = activeWorkers.filter(
     (worker) =>
@@ -287,7 +307,9 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
     })
     .map(createObservedCodexProject);
   const heartbeatProfileId = "hb-observed-codex";
-  const heartbeatProfiles = unified.company.heartbeatProfiles.some((profile) => profile.id === heartbeatProfileId)
+  const heartbeatProfiles = unified.company.heartbeatProfiles.some(
+    (profile) => profile.id === heartbeatProfileId,
+  )
     ? unified.company.heartbeatProfiles
     : [
         ...unified.company.heartbeatProfiles,
@@ -307,16 +329,7 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
     heartbeatProfileId,
     lifecycleState: "active" as const,
     presenceExpiresAt: now + OBSERVED_CODEX_PRESENCE_RANGE_MS,
-    runtimeMetadata: {
-      observedCodex: {
-        sourceInstanceId: worker.sourceInstanceId,
-        machineId: worker.machineId,
-        machineName: worker.machineName,
-        sessionKey: worker.sessionKey,
-        threadId: worker.threadId,
-        controllable: false as const,
-      },
-    },
+    runtimeMetadata: observedCodexMetadata(worker),
   }));
   const observedRuntimeAgents = uniqueObservedWorkers.map((worker) => ({
     agentId: worker.workerId,

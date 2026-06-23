@@ -11,6 +11,7 @@
 import {
   CODEX_MAIN_AGENT_ID,
   CODEX_PM_PREFIX,
+  CODEX_THREAD_PREFIX,
   CodexAppServerClient,
   type CodexProjectReadModelResponse,
   type CodexThread,
@@ -21,10 +22,12 @@ import {
   normalizeCodexProjectPmThreadIds,
   parseCodexPmProjectId,
   parseCodexThreadId,
+  projectPmDisplayName,
   toCodexAgentCards,
   toCodexCompanyModel,
   toCodexLiveStatus,
   toCodexMainLiveStatus,
+  toCodexPmAgentId,
   toCodexProjectPmSessionRows,
   toCodexSessionRows,
   toCodexTimeline,
@@ -395,8 +398,18 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
       uiState,
     );
     const company = toCodexCompanyModel(threads, Date.now(), projectPaths, readModel);
+    const projectPmNameByAgentId = new Map(
+      (readModel.projectPms ?? []).map((entry) => [
+        toCodexPmAgentId(entry.projectId),
+        projectPmDisplayName(entry.projectPath, entry.pm),
+      ]),
+    );
+    const configuredCeoThreadId = String(readModel.officeVisibility?.ceoThreadId ?? "").trim();
+    const configuredCeoAgentId = configuredCeoThreadId
+      ? `${CODEX_THREAD_PREFIX}${configuredCeoThreadId}`
+      : "";
     const officeAgentIds = new Set(company.agents.map((agent) => agent.agentId));
-    const threadAgentIds = new Set(threads.map((thread) => `codex-thread:${thread.id}`));
+    const threadAgentIds = new Set(threads.map((thread) => `${CODEX_THREAD_PREFIX}${thread.id}`));
     const runtimeAgents = dedupeAgentsById(
       [
         ...toCodexAgentCards([]),
@@ -409,12 +422,17 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
           )
           .map((agent) => ({
             agentId: agent.agentId,
-            displayName: agent.agentId.startsWith(CODEX_PM_PREFIX) ? "Project PM" : agent.agentId,
+            displayName: agent.agentId.startsWith(CODEX_PM_PREFIX)
+              ? (projectPmNameByAgentId.get(agent.agentId) ?? "Project PM")
+              : agent.agentId === configuredCeoAgentId
+                ? "Pinned CEO"
+                : agent.agentId,
             workspacePath: "~/.codex",
             agentDir: "~/.codex",
             sandboxMode: "codex",
             toolPolicy: { allow: [], deny: [] },
             sessionCount: 0,
+            runtimeMetadata: agent.runtimeMetadata,
           })),
       ].filter((agent) => officeAgentIds.has(agent.agentId)),
     );
@@ -501,11 +519,7 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
         .readProjectModel(projectRefs)
         .catch(() => ({}));
       const pm = (readModel.projectPms ?? []).find((entry) => entry.projectId === projectId)?.pm;
-      return toCodexProjectPmSessionRows(
-        agentId,
-        threads,
-        normalizeCodexProjectPmThreadIds(pm),
-      );
+      return toCodexProjectPmSessionRows(agentId, threads, normalizeCodexProjectPmThreadIds(pm));
     } catch {
       return [];
     }

@@ -3,7 +3,7 @@
  * ====================
  * Ownership: Farplane hook runtime.
  * Inputs: bounded file-change context plus local Codex CLI options.
- * Outputs: one short status sentence or null when local summarization fails.
+ * Outputs: one tiny status label or null when local summarization fails.
  * Side effects: spawns `codex exec` and writes a temporary output file.
  */
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -34,9 +34,10 @@ export type CodexSummaryRunRequest = {
 
 const DEFAULT_MODEL = "gpt-5.4-mini";
 const DEFAULT_TIMEOUT_MS = 45_000;
-const MAX_FILE_SNIPPET = 6_000;
+const MAX_FILE_SNIPPET = 5_800;
 const MAX_TOOL_SNIPPET = 2_000;
-const MAX_SUMMARY_LENGTH = 160;
+const MAX_SUMMARY_WORDS = 4;
+const MAX_SUMMARY_LENGTH = 48;
 
 export function resolveCodexSummaryOptions(env: NodeJS.ProcessEnv = process.env): CodexSummaryOptions {
   return {
@@ -46,12 +47,14 @@ export function resolveCodexSummaryOptions(env: NodeJS.ProcessEnv = process.env)
 
 export function buildCodexSummaryPrompt(input: CodexSummaryInput): string {
   return [
-    "Summarize this project file change as one concise employee status bubble.",
+    "Summarize this project file change as one tiny employee status bubble label.",
     `File: ${input.filePath}`,
     "Rules:",
-    "- Return exactly one sentence.",
-    "- Max 140 characters.",
-    "- Mention the artifact and meaningful delta.",
+    "- Return 2 to 4 words only.",
+    "- Max 48 characters.",
+    "- Describe the meaningful delta, not the full file path.",
+    "- Use Title Case or short sentence case.",
+    "- Examples: Progress updated, Goals refined, Ticket proof added, Docs refreshed.",
     "- Do not include secrets, raw diffs, markdown, bullets, quotes, or code fences.",
     "",
     "<file_excerpt>",
@@ -130,7 +133,9 @@ function normalizeSummary(value: string): string | null {
     .replace(/```[\s\S]*?```/g, "")
     .replace(/\s+/g, " ")
     .replace(/^["'`*_ -]+|["'`*_ -]+$/g, "")
-    .trim()
-    .slice(0, MAX_SUMMARY_LENGTH);
-  return cleaned ? cleaned : null;
+    .replace(/[.!,;:]+$/g, "")
+    .trim();
+  const words = cleaned.split(/\s+/).filter(Boolean).slice(0, MAX_SUMMARY_WORDS);
+  const label = words.join(" ").slice(0, MAX_SUMMARY_LENGTH).trim();
+  return label ? label : null;
 }

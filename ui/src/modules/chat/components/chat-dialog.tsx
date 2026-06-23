@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useChatStore, type LocalChatMessage } from "@/modules/chat/chat-store";
 import { useChatContext, useChatThreads, useChatMessages } from "@/modules/chat/hooks";
@@ -9,12 +9,8 @@ import { ChatInput } from "@/modules/chat/components/chat-input";
 import { StoryChatPanel } from "@/modules/chat/components/story-chat-panel";
 import { Sparkles } from "lucide-react";
 import { UI_Z } from "@/lib/z-index";
-import { getGatewayUiConfig, parseCodexThreadId, useOfficeRuntimeAdapter } from "@/modules/runtime";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import {
-  useProjectPmSettings,
-  type ProjectPmOption,
-} from "@/modules/settings/use-project-pm-settings";
 
 /**
  * CHAT DIALOG
@@ -31,7 +27,7 @@ export default function ChatDialog() {
   const presentationMode = useChatStore((state) => state.presentationMode);
   const setPresentationMode = useChatStore((state) => state.setPresentationMode);
   const adapter = useOfficeRuntimeAdapter();
-  const { companyModel, refresh } = useOfficeDataContext();
+  const { companyModel } = useOfficeDataContext();
 
   const { headerTitle, headerSubtitle, isEmployeeScopedChat, storyPersona } = useChatContext();
   const {
@@ -60,8 +56,7 @@ export default function ChatDialog() {
   const isStoryMode = presentationMode === "story";
   const isCodexMode = adapter.runtimeKind === "codex";
   const showConversationSidebar = !isStoryMode;
-  const gatewayConfig = useMemo(() => getGatewayUiConfig(), []);
-  const projectOptions = useMemo<ProjectPmOption[]>(
+  const projectOptions = useMemo<Array<{ projectId: string; name: string; projectPath: string }>>(
     () =>
       (companyModel?.projects ?? [])
         .map((project) => ({
@@ -81,60 +76,17 @@ export default function ChatDialog() {
     if (!projectId) return "";
     return projectOptions.find((project) => project.projectId === projectId)?.projectPath ?? "";
   }, [projectOptions, selectedCompanyAgent?.projectId]);
-  const projectPmSettings = useProjectPmSettings({
-    dialogOpen: isChatOpen && isCodexMode,
-    stateBaseInput: gatewayConfig.stateBase,
-    projectOptions,
-    refreshOfficeData: refresh,
-  });
-
-  useEffect(() => {
-    if (!selectedProjectPath || selectedProjectPath === projectPmSettings.selectedProjectPath) {
-      return;
-    }
-    projectPmSettings.setSelectedProjectPath(selectedProjectPath);
-  }, [
-    projectPmSettings.selectedProjectPath,
-    projectPmSettings.setSelectedProjectPath,
-    selectedProjectPath,
-  ]);
-
-  function threadIdFromSessionKey(sessionKey: string): string {
-    return sessionKey.startsWith("codex-thread:") ? parseCodexThreadId(sessionKey) : sessionKey;
-  }
+  const selectedProjectName = useMemo(
+    () =>
+      projectOptions.find((project) => project.projectPath === selectedProjectPath)?.name ??
+      projectOptions[0]?.name,
+    [projectOptions, selectedProjectPath],
+  );
 
   const pmPinControls =
-    isCodexMode && projectPmSettings.selectedProjectPath
+    isCodexMode && selectedProjectName
       ? {
-          selectedProjectName: projectPmSettings.selectedProject?.name,
-          statusText: projectPmSettings.statusText,
-          isSaving: projectPmSettings.isSaving,
-          getLane: (sessionKey: string) => {
-            const threadId = threadIdFromSessionKey(sessionKey);
-            if (projectPmSettings.pmThreads.chats.includes(threadId)) return "chats" as const;
-            if (projectPmSettings.pmThreads.automations.includes(threadId)) {
-              return "automations" as const;
-            }
-            return "" as const;
-          },
-          onPinChat: (sessionKey: string) =>
-            projectPmSettings.setPinnedThread(threadIdFromSessionKey(sessionKey), "chats", true),
-          onPinAutomation: (sessionKey: string) =>
-            projectPmSettings.setPinnedThread(
-              threadIdFromSessionKey(sessionKey),
-              "automations",
-              true,
-            ),
-          onUnpin: (sessionKey: string) => {
-            const threadId = threadIdFromSessionKey(sessionKey);
-            const lane = projectPmSettings.pmThreads.automations.includes(threadId)
-              ? "automations"
-              : "chats";
-            projectPmSettings.setPinnedThread(threadId, lane, false);
-          },
-          onSave: () => void projectPmSettings.save(),
-          onCreateChat: () => void projectPmSettings.createChatThread(),
-          isCreatingChat: projectPmSettings.isCreatingThread,
+          selectedProjectName,
         }
       : undefined;
 

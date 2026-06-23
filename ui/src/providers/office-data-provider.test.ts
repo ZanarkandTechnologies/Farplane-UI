@@ -262,7 +262,9 @@ describe("office-data-provider stabilization", () => {
           statusText: "Calling openai docs",
           bubbles: [{ id: "hook-bubble", label: "Calling openai docs", weight: 100 }],
           currentSkillId: "openai-docs",
-          bubbleMessages: [{ threadId: "thread-running", message: "Calling openai docs", eventAt: 3_000 }],
+          bubbleMessages: [
+            { threadId: "thread-running", message: "Calling openai docs", eventAt: 3_000 },
+          ],
         },
       },
       adapterStatuses: {
@@ -280,7 +282,9 @@ describe("office-data-provider stabilization", () => {
         state: "running",
         statusText: "Calling openai docs",
         currentSkillId: "openai-docs",
-        bubbleMessages: [{ threadId: "thread-running", message: "Calling openai docs", eventAt: 3_000 }],
+        bubbleMessages: [
+          { threadId: "thread-running", message: "Calling openai docs", eventAt: 3_000 },
+        ],
       }),
     );
   });
@@ -389,6 +393,62 @@ describe("office-data-provider stabilization", () => {
     const merged = mergeObservedCodexWorkersIntoUnifiedOfficeModel(unified, observedWorkers);
 
     expect(merged.runtimeAgents.map((agent) => agent.agentId)).toEqual(["codex-thread:thread-1"]);
+  });
+
+  it("does not duplicate observed telemetry when a Codex PM aggregate owns the thread", () => {
+    const observedWorkers: ObservedCodexWorkerRow[] = [
+      {
+        workerId: "codex-observed:machine-a:codex-proj-farplane:pm-thread",
+        sourceInstanceId: "machine-a",
+        machineId: "machine-a",
+        sessionKey: "pm-thread",
+        threadId: "pm-thread",
+        projectId: "codex-proj-farplane",
+        displayName: "PM telemetry duplicate",
+        state: "running",
+        statusText: "PM heartbeat running",
+        lastSeenAt: 1770000000000,
+        controllable: false,
+      },
+    ];
+    const pmRuntimeMetadata = {
+      codexProjectPm: {
+        projectId: "codex-proj-farplane",
+        threadIds: ["pm-thread"],
+      },
+    };
+    const unified = createUnifiedOfficeModel({
+      company: createCompanyModel({
+        agents: [
+          {
+            agentId: "codex-pm:codex-proj-farplane",
+            role: "pm",
+            projectId: "codex-proj-farplane",
+            heartbeatProfileId: "hb-ceo",
+            lifecycleState: "active",
+            runtimeMetadata: pmRuntimeMetadata,
+          },
+        ],
+      }),
+      runtimeAgents: [
+        createRuntimeAgent({
+          agentId: "codex-pm:codex-proj-farplane",
+          runtimeMetadata: pmRuntimeMetadata,
+        }),
+      ],
+      configuredAgents: [
+        createRuntimeAgent({
+          agentId: "codex-pm:codex-proj-farplane",
+          runtimeMetadata: pmRuntimeMetadata,
+        }),
+      ],
+    });
+
+    const merged = mergeObservedCodexWorkersIntoUnifiedOfficeModel(unified, observedWorkers);
+
+    expect(merged.runtimeAgents.map((agent) => agent.agentId)).toEqual([
+      "codex-pm:codex-proj-farplane",
+    ]);
   });
 
   it("treats activity target changes as employee changes", () => {
@@ -636,7 +696,9 @@ describe("office-data-provider team synthesis", () => {
           { id: "codex-active-flag-0-planning", label: "Planning", weight: 90 },
         ],
         currentSkillId: "world-monitor",
-        bubbleMessages: [{ threadId: "thread-running", message: "Calling world monitor", eventAt: 1770000000000 }],
+        bubbleMessages: [
+          { threadId: "thread-running", message: "Calling world monitor", eventAt: 1770000000000 },
+        ],
         updatedAt: 1770000000000,
       },
     };
@@ -690,7 +752,9 @@ describe("office-data-provider team synthesis", () => {
         activityState: "running",
         activityLabel: "Running",
         activityDetail: "Codex turn running.",
-        bubbleMessages: [{ threadId: "thread-running", message: "Calling world monitor", eventAt: 1770000000000 }],
+        bubbleMessages: [
+          { threadId: "thread-running", message: "Calling world monitor", eventAt: 1770000000000 },
+        ],
         heartbeatState: "running",
         heartbeatBubbles: [
           { label: "Running", weight: 100 },
@@ -1392,9 +1456,7 @@ describe("office-data-provider team synthesis", () => {
       goal: "Build the product",
       kpis: [],
       trackingContext:
-        index === 0
-          ? "/workspace/section-parent"
-          : `/workspace/section-parent/child-${index}`,
+        index === 0 ? "/workspace/section-parent" : `/workspace/section-parent/child-${index}`,
       accountEvents: [],
       ledger: [],
       experiments: [],

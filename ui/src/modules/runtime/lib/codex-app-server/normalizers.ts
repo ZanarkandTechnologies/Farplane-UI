@@ -76,6 +76,18 @@ function projectNameFromCwd(cwd: string): string {
   return name || "Codex";
 }
 
+function friendlyProjectName(projectPath: string): string {
+  return (
+    projectNameFromCwd(projectPath).replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim() || "Project"
+  );
+}
+
+export function projectPmDisplayName(projectPath: string, pm?: CodexProjectPmConfig): string {
+  const configuredName = safeText(pm?.name);
+  if (configuredName && configuredName.toLowerCase() !== "project pm") return configuredName;
+  return `${friendlyProjectName(projectPath)} PM`;
+}
+
 function slugify(value: string): string {
   const slug = value
     .toLowerCase()
@@ -227,11 +239,7 @@ export function normalizeCodexProjectPmThreadIds(pm?: CodexProjectPmConfig): str
 function normalizeProjectPms(projectPms?: CodexProjectPmBinding[]): CodexProjectPmBinding[] {
   if (!Array.isArray(projectPms)) return [];
   return projectPms.filter((entry) => {
-    return Boolean(
-      safeText(entry.projectId) &&
-        safeText(entry.projectPath) &&
-        normalizeCodexProjectPmThreadIds(entry.pm).length > 0,
-    );
+    return Boolean(safeText(entry.projectId) && safeText(entry.projectPath));
   });
 }
 
@@ -276,13 +284,17 @@ export function toCodexCompanyModel(
   const managerPins = [...(readModel.projectManagers ?? []), ...visibility.projectManagers];
   const projectPms = normalizeProjectPms(readModel.projectPms);
   const projectPmByProjectId = new Map(projectPms.map((entry) => [entry.projectId, entry]));
-  const pmThreadIdsByProjectId = new Map<string, Set<string>>();
   const projectIdByPmThreadId = new Map<string, string>();
   for (const entry of projectPms) {
     const threadIds = new Set(normalizeCodexProjectPmThreadIds(entry.pm));
-    pmThreadIdsByProjectId.set(entry.projectId, threadIds);
     for (const threadId of threadIds) projectIdByPmThreadId.set(threadId, entry.projectId);
   }
+  const pmThreadIdsByProjectId = new Map(
+    projectPms.map((entry) => [
+      entry.projectId,
+      new Set(normalizeCodexProjectPmThreadIds(entry.pm)),
+    ]),
+  );
   const pinnedManagerThreadIds = new Set(
     managerPins.map((pin) => safeText(pin.threadId)).filter(Boolean),
   );
@@ -315,7 +327,8 @@ export function toCodexCompanyModel(
     const hasHeartbeat =
       heartbeatThreadIds.has(thread.id) ||
       isThreadStatusActive(thread) ||
-      (visibility.showAutomationThreadsAsHeartbeat && isPersistentAutomationHeartbeatThread(thread));
+      (visibility.showAutomationThreadsAsHeartbeat &&
+        isPersistentAutomationHeartbeatThread(thread));
     const isVisible =
       isCeoThread ||
       isPinned ||
@@ -387,7 +400,8 @@ export function toCodexCompanyModel(
       const hasHeartbeat =
         heartbeatThreadIds.has(thread.id) ||
         isThreadStatusActive(thread) ||
-        (visibility.showAutomationThreadsAsHeartbeat && isPersistentAutomationHeartbeatThread(thread));
+        (visibility.showAutomationThreadsAsHeartbeat &&
+          isPersistentAutomationHeartbeatThread(thread));
       if (
         !isCeoThread &&
         !isManager &&
@@ -404,6 +418,7 @@ export function toCodexCompanyModel(
       visibleThreadAgents.set(thread.id, { projectPath, thread, isManager, presenceExpiresAt });
     }
   }
+  const hasConfiguredCeoThread = Boolean(ceoThreadId);
   const hasVisibleCeoThread = Boolean(ceoThreadId && visibleThreadAgents.has(ceoThreadId));
   const tasks: FederatedTaskModel[] = (readModel.ticketTasks ?? []).map((task) => ({
     id: task.id,
@@ -451,7 +466,7 @@ export function toCodexCompanyModel(
       resourceEvents: [],
     })),
     agents: [
-      ...(hasVisibleCeoThread
+      ...(hasConfiguredCeoThread
         ? []
         : [
             {
@@ -462,38 +477,58 @@ export function toCodexCompanyModel(
               lifecycleState: "active" as const,
             },
           ]),
+      ...(hasConfiguredCeoThread && !hasVisibleCeoThread
+        ? [
+            {
+              agentId: toThreadAgentId(ceoThreadId),
+              role: "ceo" as const,
+              heartbeatProfileId: "hb-codex-thread-ceo",
+              isCeo: true,
+              lifecycleState: "active" as const,
+            },
+          ]
+        : []),
       ...projectGroups
         .map(([projectPath]) => {
           const projectId = codexProjectId(projectPath);
-          if (!projectPmByProjectId.has(projectId)) return null;
+          const pm = projectPmByProjectId.get(projectId);
+          if (!pm) return null;
           return {
             agentId: toCodexPmAgentId(projectId),
             role: "pm" as const,
             projectId,
             heartbeatProfileId: "hb-codex-project-pm",
             lifecycleState: "active" as const,
+            runtimeMetadata: {
+              codexProjectPm: {
+                projectId,
+                threadIds: normalizeCodexProjectPmThreadIds(pm.pm),
+              },
+            },
           };
         })
         .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
-      ...[...visibleThreadAgents.values()].map(({ projectPath, thread, isManager, presenceExpiresAt }) => ({
-        agentId: toThreadAgentId(thread.id),
-        role:
-          hasVisibleCeoThread && thread.id === ceoThreadId
-            ? ("ceo" as const)
-            : isManager
-              ? ("pm" as const)
-              : ("builder" as const),
-        projectId: codexProjectId(projectPath),
-        heartbeatProfileId:
-          hasVisibleCeoThread && thread.id === ceoThreadId
-            ? "hb-codex-thread-ceo"
-            : isManager
-              ? "hb-codex-manager"
-              : "hb-codex-thread",
-        isCeo: hasVisibleCeoThread && thread.id === ceoThreadId,
-        lifecycleState: "active" as const,
-        presenceExpiresAt,
-      })),
+      ...[...visibleThreadAgents.values()].map(
+        ({ projectPath, thread, isManager, presenceExpiresAt }) => ({
+          agentId: toThreadAgentId(thread.id),
+          role:
+            hasVisibleCeoThread && thread.id === ceoThreadId
+              ? ("ceo" as const)
+              : isManager
+                ? ("pm" as const)
+                : ("builder" as const),
+          projectId: codexProjectId(projectPath),
+          heartbeatProfileId:
+            hasVisibleCeoThread && thread.id === ceoThreadId
+              ? "hb-codex-thread-ceo"
+              : isManager
+                ? "hb-codex-manager"
+                : "hb-codex-thread",
+          isCeo: hasVisibleCeoThread && thread.id === ceoThreadId,
+          lifecycleState: "active" as const,
+          presenceExpiresAt,
+        }),
+      ),
     ],
     roleSlots: projectGroups.map(([projectPath]) => ({
       projectId: codexProjectId(projectPath),
@@ -536,8 +571,8 @@ export function toCodexCompanyModel(
         cadenceMinutes: 0,
         teamDescription: "Project PM thread group",
         productDetails:
-          "Project-local farplane/pm.json folds isolated Codex chat and automation threads into one office employee.",
-        goal: "Keep project PM contexts grouped without merging transcripts.",
+          "Project-local farplane/pm.json groups isolated Codex chat and automation sessions under one PM.",
+        goal: "Keep project PM sessions grouped while non-PM Codex threads can appear as workers.",
       },
       {
         id: "hb-codex-thread",

@@ -41,10 +41,15 @@ function normalizePmThreads(
   };
 }
 
-function defaultPmConfig(): CodexProjectPmConfig {
+function defaultProjectPmName(projectName?: string): string {
+  const name = projectName?.trim();
+  return name ? `${name} PM` : "Project PM";
+}
+
+function defaultPmConfig(projectName?: string): CodexProjectPmConfig {
   return {
     version: 1,
-    name: "Project PM",
+    name: defaultProjectPmName(projectName),
     role: "founder_operator",
     threads: { chats: [], automations: [] },
   };
@@ -115,11 +120,11 @@ export function useProjectPmSettings(input: {
       setStatusText("");
       try {
         const loaded = await client.readProjectPmConfig(selectedProjectPath);
-        if (!cancelled) setPmConfig(loaded ?? defaultPmConfig());
+        if (!cancelled) setPmConfig(loaded ?? defaultPmConfig(selectedProject?.name));
       } catch (error) {
         if (!cancelled) {
-          setPmConfig(defaultPmConfig());
-          setStatusText(error instanceof Error ? error.message : "Failed to load PM pins.");
+          setPmConfig(defaultPmConfig(selectedProject?.name));
+          setStatusText(error instanceof Error ? error.message : "Failed to load PM threads.");
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -129,7 +134,7 @@ export function useProjectPmSettings(input: {
     return () => {
       cancelled = true;
     };
-  }, [dialogOpen, selectedProjectPath, stateBaseInput]);
+  }, [dialogOpen, selectedProject?.name, selectedProjectPath, stateBaseInput]);
 
   function setPinnedThread(
     threadId: string,
@@ -190,9 +195,9 @@ export function useProjectPmSettings(input: {
       });
       setPmConfig(saved);
       await refreshOfficeData();
-      setStatusText("Project PM pins saved.");
+      setStatusText("Project PM threads saved.");
     } catch (error) {
-      setStatusText(error instanceof Error ? error.message : "Failed to save PM pins.");
+      setStatusText(error instanceof Error ? error.message : "Failed to save PM threads.");
     } finally {
       setIsSaving(false);
     }
