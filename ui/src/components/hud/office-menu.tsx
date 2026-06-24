@@ -183,26 +183,44 @@ export function OfficeMenu({ className }: SpeedDialProps) {
 
   const speedDialItems: SpeedDialItem[] = useMemo(
     () =>
-      createOfficeLauncherGroups(officeActions).map((group) => ({
-        id: group.id,
-        icon: group.icon,
-        label: group.label,
-        color: group.color,
-        buttonClassName: group.buttonClassName,
-        children: group.actions.map((action) => ({
-          id: action.id,
-          icon: action.icon,
-          label: action.label,
-          onClick: action.perform,
-          badge: action.badge,
-          color: action.color,
-          disabled: action.disabled,
-          buttonClassName: action.buttonClassName,
-        })),
-      })),
+      createOfficeLauncherGroups(officeActions).map((group) => {
+        if (group.actions.length === 1) {
+          const [action] = group.actions;
+          if (!action) {
+            throw new Error(`Office launcher group ${group.id} has no action to render.`);
+          }
+          return {
+            id: action.id,
+            icon: action.icon,
+            label: action.label,
+            onClick: action.perform,
+            badge: action.badge,
+            color: action.color,
+            disabled: action.disabled,
+            buttonClassName: action.buttonClassName,
+          };
+        }
+
+        return {
+          id: group.id,
+          icon: group.icon,
+          label: group.label,
+          color: group.color,
+          buttonClassName: group.buttonClassName,
+          children: group.actions.map((action) => ({
+            id: action.id,
+            icon: action.icon,
+            label: action.label,
+            onClick: action.perform,
+            badge: action.badge,
+            color: action.color,
+            disabled: action.disabled,
+            buttonClassName: action.buttonClassName,
+          })),
+        };
+      }),
     [officeActions],
   );
-
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || isEditableEventTarget(event.target)) {

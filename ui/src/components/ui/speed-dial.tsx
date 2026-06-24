@@ -252,6 +252,7 @@ export function SpeedDial({
                           item.component
                         ) : (
                           <Button
+                            aria-label={item.label}
                             onClick={() => {
                               if (item.disabled) return;
                               if (hasChildren) {

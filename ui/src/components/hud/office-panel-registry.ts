@@ -21,8 +21,10 @@ import {
   Archive,
   BarChart3,
   BookOpen,
+  Boxes,
   BriefcaseBusiness,
   Building2,
+  ChartNoAxesCombined,
   Hammer,
   Home,
   LibraryBig,
@@ -32,8 +34,12 @@ import {
   RadioTower,
   Settings,
   ShoppingBag,
+  SlidersHorizontal,
+  Sparkles,
   TestTube2,
   Users,
+  Workflow,
+  Wrench,
 } from "lucide-react";
 
 import { getOfficeInternalPanelEntry } from "@/modules/office/panels/internal-panel-catalog";
@@ -145,13 +151,13 @@ const OFFICE_LAUNCHER_GROUPS: Array<{
   label: string;
   icon: LucideIcon;
 }> = [
-  { id: "people", label: "People", icon: Building2 },
-  { id: "work", label: "Work", icon: BriefcaseBusiness },
-  { id: "skills", label: "Skills", icon: BookOpen },
-  { id: "library", label: "Library", icon: Archive },
-  { id: "observe", label: "Observe", icon: BarChart3 },
-  { id: "build", label: "Build", icon: Hammer },
-  { id: "utility", label: "Utility", icon: Settings },
+  { id: "people", label: "People", icon: Users },
+  { id: "work", label: "Work", icon: Workflow },
+  { id: "skills", label: "Skills", icon: Sparkles },
+  { id: "library", label: "Library", icon: Boxes },
+  { id: "observe", label: "Observe", icon: ChartNoAxesCombined },
+  { id: "build", label: "Build", icon: Wrench },
+  { id: "utility", label: "Utility", icon: SlidersHorizontal },
 ];
 
 export function isEditableEventTarget(target: EventTarget | null): boolean {

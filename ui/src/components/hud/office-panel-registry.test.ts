@@ -166,6 +166,9 @@ describe("office panel registry", () => {
     expect(groupedIdsByGroup.observe).toEqual(["telemetry", "raw-telemetry"]);
     expect(groupedIdsByGroup.build).toEqual(["builder-mode", "office-shop"]);
     expect(groupedIdsByGroup.utility).toEqual(["back-landing", "settings"]);
+    for (const group of groups.filter((entry) => entry.actions.length > 1)) {
+      expect(group.actions.map((action) => action.icon)).not.toContain(group.icon);
+    }
     expect(paletteIds).toContain("settings");
     expect(paletteIds).toContain("raw-telemetry");
     expect(paletteIds).toContain("template-rollout");
