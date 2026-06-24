@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OfficeSettingsModel, UnifiedOfficeModel } from "@/modules/runtime";
-import { persistPlacementRepairIfAllowed } from "@/providers/office-data-provider";
+import { persistPlacementRepairIfAllowed } from "@/providers/office-data-refresh";
 
 const officeObjects: UnifiedOfficeModel["officeObjects"] = [];
 

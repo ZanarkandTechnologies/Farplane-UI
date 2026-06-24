@@ -28,8 +28,8 @@ import {
   mergeAgentLiveStatuses,
   mergeObservedCodexWorkersIntoUnifiedOfficeModel,
   observedCodexWorkersToLiveStatuses,
-  type ObservedCodexWorkerRow,
-} from "./office-data-provider";
+} from "./office-data-refresh";
+import type { ObservedCodexWorkerRow } from "./local-observed-codex-workers";
 import {
   buildEmployeeSignature,
   buildOfficeObjectSignature,
