@@ -348,37 +348,44 @@ export function SpeedDial({
                             animate={{ opacity: 1, x: 0, scale: 1 }}
                             exit={{ opacity: 0, x: -6, scale: 0.98 }}
                             transition={{ duration: 0.12 }}
-                            className="absolute left-full top-1/2 z-10 ml-3 flex -translate-y-1/2 items-center gap-2 rounded-md border bg-background/95 p-1.5 shadow-lg backdrop-blur-sm"
+                            className="absolute left-full top-1/2 z-10 ml-3 flex -translate-y-1/2 items-center gap-2"
                           >
                             {item.children?.map((child) => (
-                              <Button
+                              <div
                                 key={child.id}
-                                onClick={() => {
-                                  if (child.disabled) return;
-                                  child.onClick?.();
-                                  closeMenu();
-                                }}
-                                size="sm"
-                                disabled={child.disabled}
-                                className={cn(
-                                  "h-10 max-w-[11rem] justify-start gap-2 rounded-md px-3 text-xs shadow-md",
-                                  child.color ||
-                                    "bg-primary hover:bg-primary/90 text-primary-foreground",
-                                  child.disabled && "cursor-not-allowed opacity-50",
-                                  child.buttonClassName,
-                                )}
+                                className="group/child relative flex items-center"
                               >
-                                <child.icon className="h-4 w-4 shrink-0" />
-                                <span className="truncate">{child.label}</span>
+                                <Button
+                                  aria-label={child.label}
+                                  onClick={() => {
+                                    if (child.disabled) return;
+                                    child.onClick?.();
+                                    closeMenu();
+                                  }}
+                                  size="icon"
+                                  disabled={child.disabled}
+                                  className={cn(
+                                    "h-10 w-10 rounded-full shadow-lg transition-all duration-200",
+                                    child.color ||
+                                      "bg-primary hover:bg-primary/90 text-primary-foreground",
+                                    child.disabled && "cursor-not-allowed opacity-50",
+                                    child.buttonClassName,
+                                  )}
+                                >
+                                  <child.icon className="h-4 w-4" />
+                                </Button>
                                 {child.badge ? (
                                   <Badge
                                     variant="destructive"
-                                    className="ml-1 h-5 min-w-5 rounded-full px-1 text-[10px]"
+                                    className="-right-1 -top-1 absolute h-5 min-w-5 rounded-full px-1 text-[10px]"
                                   >
                                     {child.badge > 99 ? "99+" : child.badge}
                                   </Badge>
                                 ) : null}
-                              </Button>
+                                <span className="pointer-events-none absolute top-12 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-md border bg-background/95 px-2 py-1 text-xs font-medium opacity-0 shadow-md backdrop-blur-sm transition-opacity group-hover/child:opacity-100 group-focus-within/child:opacity-100">
+                                  {child.label}
+                                </span>
+                              </div>
                             ))}
                           </motion.div>
                         ) : null}
