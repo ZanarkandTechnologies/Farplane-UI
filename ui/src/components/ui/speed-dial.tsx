@@ -210,18 +210,20 @@ export function SpeedDial({
               className={getItemsContainerClasses()}
             >
               {items.map((item, index) => {
-                // Calculate tooltip animation delay
-                const tooltipDelay = position.includes("bottom")
-                  ? (items.length - 1 - index) * 0.05 + 0.1
-                  : index * 0.05 + 0.1;
                 const hasChildren = Boolean(item.children?.length);
                 const isChildRailVisible = hasChildren && visibleChildRailId === item.id;
+                const openToLeft =
+                  direction === "vertical" &&
+                  (tooltipDirection === "left" || position.includes("right"));
 
                 return (
                   <motion.div
                     key={item.id}
                     {...getItemAnimation(index)}
-                    className={direction === "vertical" ? "" : "flex items-center gap-3"}
+                    className={cn(
+                      "group/item",
+                      direction === "vertical" ? "" : "flex items-center gap-3",
+                    )}
                     onBlur={(event) => {
                       if (!event.currentTarget.contains(event.relatedTarget)) {
                         setActiveChildRailId(null);
@@ -240,12 +242,9 @@ export function SpeedDial({
                   >
                     <div
                       className={cn(
-                        "relative flex items-center gap-3",
+                        "relative flex items-center",
                         // For right-side positions or explicit left tooltip, reverse the layout
-                        (tooltipDirection === "left" || position.includes("right")) &&
-                          direction === "vertical"
-                          ? "flex-row-reverse"
-                          : "",
+                        openToLeft ? "flex-row-reverse" : "",
                       )}
                     >
                       <div className="relative">
@@ -290,44 +289,10 @@ export function SpeedDial({
                         )}
                       </div>
 
-                      {/* Label */}
-                      <motion.div
-                        initial={
-                          direction === "vertical"
-                            ? {
-                                opacity: 0,
-                                x:
-                                  tooltipDirection === "left" || position.includes("right")
-                                    ? 10
-                                    : -10,
-                              }
-                            : { opacity: 0, y: -10 }
-                        }
-                        animate={
-                          direction === "vertical"
-                            ? {
-                                opacity: 1,
-                                x: 0,
-                                transition: { delay: tooltipDelay },
-                              }
-                            : {
-                                opacity: 1,
-                                y: 0,
-                                transition: { delay: tooltipDelay },
-                              }
-                        }
-                        exit={
-                          direction === "vertical"
-                            ? {
-                                opacity: 0,
-                                x:
-                                  tooltipDirection === "left" || position.includes("right")
-                                    ? 10
-                                    : -10,
-                              }
-                            : { opacity: 0, y: -10 }
-                        }
-                        className="bg-background/95 backdrop-blur-sm px-3 py-1 rounded-md shadow-md border text-sm font-medium whitespace-nowrap"
+                      <div
+                        className={cn(
+                          "pointer-events-none absolute bottom-12 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-md border bg-background/95 px-3 py-1 text-sm font-medium opacity-0 shadow-md backdrop-blur-sm transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100",
+                        )}
                       >
                         <div className="flex items-center gap-2">
                           <span>{item.label}</span>
@@ -340,7 +305,7 @@ export function SpeedDial({
                             <span className="text-xs text-muted-foreground">(Coming Soon)</span>
                           )}
                         </div>
-                      </motion.div>
+                      </div>
                       <AnimatePresence>
                         {isChildRailVisible ? (
                           <motion.div
@@ -348,7 +313,10 @@ export function SpeedDial({
                             animate={{ opacity: 1, x: 0, scale: 1 }}
                             exit={{ opacity: 0, x: -6, scale: 0.98 }}
                             transition={{ duration: 0.12 }}
-                            className="absolute left-full top-1/2 z-10 ml-3 flex -translate-y-1/2 items-center gap-2"
+                            className={cn(
+                              "absolute top-1/2 z-10 flex -translate-y-1/2 items-center gap-2",
+                              openToLeft ? "right-12 mr-3" : "left-12 ml-3",
+                            )}
                           >
                             {item.children?.map((child) => (
                               <div
