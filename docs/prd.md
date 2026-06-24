@@ -2,7 +2,7 @@
 
 **Status**: Draft  
 **Created**: 2026-02-21  
-**Updated**: 2026-03-17  
+**Updated**: 2026-06-24
 **Author**: gpt-5.3-codex
 
 ## Documentation Indexes
@@ -20,9 +20,31 @@ When a founder runs a small autonomous company on one VPS, they need a minimal o
 - Operators who need a compact way to create and steer small teams
 - Teams that prefer local state directories over additional hosted infrastructure
 
+## Product Model
+
+Farplane is the cloneable harness substrate. A serious operator should be able
+to clone Farplane, adapt it to their own standards, and evolve their own
+harness over time: skills, evals, templates, tickets, automations, runtime
+adapters, goals, guardrails, and self-improvement loops.
+
+Farplane UI is the cockpit for that harness. It has two levels of utility:
+
+- **Global harness surfaces** for using and maintaining Farplane itself:
+  Harness Map, Skill OS, Eval OS, Rollout, Template Tracking, User Comms, and
+  Settings.
+- **Project-specific autonomous company views** where each project has goals,
+  teams, agents, files, board state, memory, evidence, metrics, and review
+  loops.
+
+Canonical doctrine:
+[`docs/specs/FP02-harness-product-model.md`](./specs/FP02-harness-product-model.md).
+
 ## Problem
 
-OpenClaw already solves agent runtime, routing, and plugin loading. The missing layer is not a huge simulated company. It is a founder control surface that turns CEO-led team formation and small-team oversight into a clean, repeatable workflow.
+Codex/OpenClaw can run agents, sessions, routing, and plugins. The missing
+layer is not a huge simulated company. It is a cloneable harness and cockpit
+that turns standards, skills, evals, templates, projects, CEO-led team
+formation, review, and small-team oversight into a clean, repeatable workflow.
 
 ## Solution
 

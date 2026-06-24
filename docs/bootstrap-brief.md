@@ -63,10 +63,17 @@ Existing-project migration brief for aligning Farplane UI with the current
 
 ## Product Direction
 
-Farplane is the Zanarkand Labs product shell for operating AI work from one
-office. Codex is the default v0 runtime adapter for local projects and threads.
+Farplane is the Zanarkand Labs cloneable harness substrate for AI work. An
+operator should be able to clone Farplane, adapt the harness to their own
+standards, and then use Farplane UI to operate both global harness surfaces and
+project-specific autonomous company views.
+
+Codex is the default v0 runtime adapter for local projects and threads.
 OpenClaw remains an optional adapter/gateway path for persistent agent
 customization, channels, and isolated workspaces.
+
+Canonical product model:
+`docs/specs/FP02-harness-product-model.md`.
 
 ## Runtime And State Decisions
 

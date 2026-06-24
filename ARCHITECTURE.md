@@ -1,13 +1,28 @@
 # Architecture
 
-Current-state system map for Farplane UI.
+Current-state system map for Farplane UI, the cockpit for the Farplane
+cloneable harness.
 
 ## Purpose
 
-Farplane is the product shell for operating Codex/OpenClaw-backed agent work
-through one founder-facing office. The repo owns the UI, CLI, local state
-bridge, sidecar templates, Convex-backed realtime surfaces, and in-repo
-extensions/skills that make the office useful.
+Farplane is the cloneable harness substrate for operating AI work: skills,
+evals, standards, templates, tickets, automations, runtime adapters, goals,
+guardrails, and self-improvement loops. Farplane UI is the browser cockpit over
+that harness.
+
+The top-level split is:
+
+- **Global harness surfaces**: maintain and inspect the harness itself, such as
+  Harness Map, Skill OS, Eval OS, Rollout, Template Tracking, User Comms, and
+  Settings.
+- **Project/company surfaces**: treat each selected project as an autonomous
+  company with goals, teams, agents, files, board state, memory, evidence,
+  metrics, and review loops.
+
+The repo owns the UI, CLI, local state bridge, sidecar templates,
+Convex-backed realtime surfaces, and in-repo extensions/skills that make the
+harness and office useful. The product model is defined in
+`docs/specs/FP02-harness-product-model.md`.
 
 ## Canonical Surfaces
 

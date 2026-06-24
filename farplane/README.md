@@ -10,6 +10,9 @@ framework_template_version: "0.1.0"
 
 Tracked project framework config lives here.
 
+This folder is the project-local declaration that Farplane UI should be able to
+summarize as one autonomous company inside the broader harness cockpit.
+
 ```text
 farplane/
   README.md        # this index

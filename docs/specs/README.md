@@ -9,7 +9,11 @@ contracts, runtime adapters, sidecars, workflow state, or UI behavior.
 
 ### Farplane Testament
 
-- `FP01-operator-intelligence-modules-roadmap.md`
+- `FP01-operator-intelligence-modules-roadmap.md` - operator-intelligence
+  module roadmap and global/project scope split.
+- `FP02-harness-product-model.md` - canonical product model: Farplane as the
+  cloneable harness substrate, Farplane UI as the cockpit, global modules for
+  harness operation, and project modules as autonomous company views.
 
 ### Legacy SC Specs
 

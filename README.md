@@ -1,23 +1,49 @@
-# Farplane
+# Farplane UI
 
-One AI office for running an OpenClaw-powered business.
+The cockpit for a cloneable AI harness.
 
-Farplane is the founder-facing orchestration layer for OpenClaw. Start with one office, define a goal, ask the CEO to form a team, approve the plan, and run the work from a control surface that is operational, customizable, and actually fun to use.
+Farplane is the cloneable harness substrate for AI work: skills, evals,
+standards, templates, tickets, automations, runtime adapters, goals,
+guardrails, and self-improvement loops. Farplane UI is the cockpit for that
+harness. It gives the operator global surfaces for using and maintaining the
+harness itself, then opens project-specific surfaces where each project behaves
+like an autonomous company with its own goals, teams, files, work state,
+evidence, and metrics.
 
-OpenClaw stays the system of record for agents, sessions, routing, and plugins. Farplane adds the office, the Core-owned CLI, the review loop, and the operator surfaces that turn raw agent runtime into something you can steer like a business.
+Use the two repos together:
 
-## What Is Farplane?
+| Repo | Job |
+| --- | --- |
+| `Farplane/` | Cloneable harness core: framework contracts, skills, evals, templates, tickets, automations, graph/projection payloads, review loops, and install/runtime policy. |
+| `Farplane-UI/` | Operator cockpit: launcher, global harness modules, project/company views, state bridge, visual office, settings, and browser-facing workflows. |
 
-If OpenClaw is the runtime, Farplane is the office.
+Codex is the default local runtime adapter for Farplane UI v0, and OpenClaw
+remains an optional adapter path for persistent agents, sessions, routing, and
+plugins. Farplane adds the cloneable harness, the office, the Core-owned CLI,
+the review loop, and the operator surfaces that turn raw agent runtime into
+something you can steer like a business.
 
-Farplane is a UI-first control layer for founders and operators who want to run a small autonomous business from one place. Instead of juggling raw terminals, scattered configs, and hand-wired team coordination, you start with one office, ask the CEO to form a team around a goal, review the proposal, approve it, and monitor the work from the office or the CLI.
+## What Is Farplane UI?
+
+If the runtime runs agents, Farplane is the harness around them. Farplane UI is
+where the operator sees and steers that harness.
+
+The UI is for founders and operators who want one readable place to run AI
+work. Instead of juggling raw terminals, scattered configs, and hand-wired team
+coordination, you clone Farplane, adapt the harness to your own standards, then
+use Farplane UI to operate global harness surfaces and project-specific
+autonomous company views.
 
 The product is intentionally different from a static "spawn a giant company" model:
 
+- clone your own harness, not a fixed hosted workspace
 - start with one office, not a crowded org chart
 - create teams around a concrete goal when they are needed
-- keep OpenClaw as the runtime source of truth
+- keep runtime adapters such as Codex/OpenClaw as runtime sources of truth
 - make orchestration operational, but also playful and expressive
+
+The product doctrine behind this model lives in
+[`docs/specs/FP02-harness-product-model.md`](./docs/specs/FP02-harness-product-model.md).
 
 ## How It Works
 
