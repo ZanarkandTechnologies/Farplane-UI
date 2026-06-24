@@ -55,6 +55,14 @@ export type OfficeShortcut = {
 
 export type OfficeActionGroup = "navigation" | "panel" | "action";
 export type OfficeAccessPolicy = "operator" | "read-only";
+export type OfficeLauncherGroupId =
+  | "people"
+  | "work"
+  | "skills"
+  | "library"
+  | "observe"
+  | "build"
+  | "utility";
 
 export type OfficePanelActionId =
   | "back-landing"
@@ -87,10 +95,19 @@ export type OfficePanelAction = {
   color: string;
   disabled?: boolean;
   buttonClassName?: string;
-  showInSpeedDial?: boolean;
+  launcherGroup?: OfficeLauncherGroupId;
   showInMenu?: boolean;
   showInPalette?: boolean;
   perform: () => void;
+};
+
+export type OfficeLauncherGroup = {
+  id: OfficeLauncherGroupId;
+  label: string;
+  icon: LucideIcon;
+  color: string;
+  buttonClassName?: string;
+  actions: OfficePanelAction[];
 };
 
 export type OfficePanelRegistryDependencies = {
@@ -122,6 +139,20 @@ export const OFFICE_COMMAND_PALETTE_SHORTCUT: OfficeShortcut = {
   label: "Ctrl/Cmd+K",
   metaOrCtrlKey: true,
 };
+
+const OFFICE_LAUNCHER_GROUPS: Array<{
+  id: OfficeLauncherGroupId;
+  label: string;
+  icon: LucideIcon;
+}> = [
+  { id: "people", label: "People", icon: Building2 },
+  { id: "work", label: "Work", icon: BriefcaseBusiness },
+  { id: "skills", label: "Skills", icon: BookOpen },
+  { id: "library", label: "Library", icon: Archive },
+  { id: "observe", label: "Observe", icon: BarChart3 },
+  { id: "build", label: "Build", icon: Hammer },
+  { id: "utility", label: "Utility", icon: Settings },
+];
 
 export function isEditableEventTarget(target: EventTarget | null): boolean {
   if (!target || typeof target !== "object") {
@@ -209,7 +240,7 @@ export function createOfficePanelActions(
       icon: Home,
       keywords: ["home", "landing", "exit", "navigate"],
       color: SECONDARY_BUTTON_COLOR,
-      showInSpeedDial: false,
+      launcherGroup: "utility",
       perform: deps.navigateToLanding,
     },
     {
@@ -221,6 +252,7 @@ export function createOfficePanelActions(
       keywords: ["teams", "people", "directory", "organization", "panel"],
       shortcut: { key: "o", label: "Alt+Shift+O", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
+      launcherGroup: "people",
       perform: deps.openOrganization,
     },
     {
@@ -237,6 +269,7 @@ export function createOfficePanelActions(
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
+      launcherGroup: "work",
       perform: readOnly ? noop : deps.openGlobalTeamWorkspace,
     },
     {
@@ -248,7 +281,7 @@ export function createOfficePanelActions(
       keywords: [...telemetryPanel.keywords, "dashboard"],
       shortcut: { key: "m", label: "Alt+Shift+M", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      showInSpeedDial: false,
+      launcherGroup: "observe",
       perform: deps.openTelemetry,
     },
     {
@@ -263,7 +296,7 @@ export function createOfficePanelActions(
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
-      showInSpeedDial: false,
+      launcherGroup: "observe",
     },
     {
       id: "resource-bank",
@@ -274,6 +307,7 @@ export function createOfficePanelActions(
       keywords: [...resourceBankPanel.keywords, "pinterest", "media"],
       shortcut: { key: "r", label: "Alt+Shift+R", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
+      launcherGroup: "library",
       perform: deps.openResourceBank,
     },
     {
@@ -284,7 +318,7 @@ export function createOfficePanelActions(
       icon: LibraryBig,
       keywords: documentLibraryPanel.keywords,
       color: SECONDARY_BUTTON_COLOR,
-      showInSpeedDial: false,
+      launcherGroup: "library",
       perform: deps.openDocumentLibrary,
     },
     {
@@ -296,6 +330,7 @@ export function createOfficePanelActions(
       keywords: [...skillOsPanel.keywords, "panel"],
       shortcut: { key: "s", label: "Alt+Shift+S", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
+      launcherGroup: "skills",
       perform: deps.openSkillOs,
     },
     {
@@ -307,7 +342,7 @@ export function createOfficePanelActions(
       keywords: [...templateRolloutPanel.keywords, "standards", "panel"],
       shortcut: { key: "l", label: "Alt+Shift+L", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      showInSpeedDial: false,
+      launcherGroup: "skills",
       perform: deps.openTemplateRollout,
     },
     {
@@ -319,7 +354,7 @@ export function createOfficePanelActions(
       keywords: [...evalsPanel.keywords, "panel"],
       shortcut: { key: "e", label: "Alt+Shift+E", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      showInSpeedDial: false,
+      launcherGroup: "skills",
       perform: deps.openEvals,
     },
     {
@@ -331,7 +366,7 @@ export function createOfficePanelActions(
       keywords: [...harnessPanel.keywords, "agents", "templates", "panel"],
       shortcut: { key: "h", label: "Alt+Shift+H", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      showInSpeedDial: false,
+      launcherGroup: "skills",
       perform: deps.openHarness,
     },
     {
@@ -347,6 +382,7 @@ export function createOfficePanelActions(
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
+      launcherGroup: "work",
     },
     {
       id: "human-review",
@@ -361,7 +397,7 @@ export function createOfficePanelActions(
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
-      showInSpeedDial: false,
+      launcherGroup: "work",
     },
     {
       id: "user-communications",
@@ -376,6 +412,7 @@ export function createOfficePanelActions(
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
+      launcherGroup: "work",
     },
     {
       id: "builder-mode",
@@ -389,7 +426,7 @@ export function createOfficePanelActions(
       disabled: deps.isAnimatingCamera || readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
-      showInSpeedDial: false,
+      launcherGroup: "build",
       perform: readOnly ? noop : deps.toggleBuilderMode,
     },
     {
@@ -406,7 +443,7 @@ export function createOfficePanelActions(
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
-      showInSpeedDial: deps.highlightedMenuActionId === "office-shop",
+      launcherGroup: "build",
       perform: readOnly ? noop : deps.openDecoration,
     },
     {
@@ -421,10 +458,26 @@ export function createOfficePanelActions(
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
-      showInSpeedDial: false,
+      launcherGroup: "utility",
       perform: readOnly ? noop : deps.openSettings,
     },
   ];
+}
+
+export function createOfficeLauncherGroups(actions: OfficePanelAction[]): OfficeLauncherGroup[] {
+  const visibleActions = actions.filter(
+    (action) => action.showInMenu !== false && !action.disabled && action.launcherGroup,
+  );
+
+  return OFFICE_LAUNCHER_GROUPS.map((group) => {
+    const groupActions = visibleActions.filter((action) => action.launcherGroup === group.id);
+    return {
+      ...group,
+      color: SECONDARY_BUTTON_COLOR,
+      buttonClassName: groupActions.find((action) => action.buttonClassName)?.buttonClassName,
+      actions: groupActions,
+    };
+  }).filter((group) => group.actions.length > 0);
 }
 
 function noop(): void {}

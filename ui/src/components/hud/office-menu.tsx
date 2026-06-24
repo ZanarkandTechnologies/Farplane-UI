@@ -27,6 +27,7 @@ import { useAppStore } from "@/store";
 import { FurnitureShop } from "./furniture-shop";
 import { OfficeCommandPalette } from "./office-command-palette";
 import {
+  createOfficeLauncherGroups,
   createOfficePanelActions,
   eventMatchesShortcut,
   isEditableEventTarget,
@@ -182,10 +183,13 @@ export function OfficeMenu({ className }: SpeedDialProps) {
 
   const speedDialItems: SpeedDialItem[] = useMemo(
     () =>
-      officeActions
-        .filter((action) => action.showInMenu !== false)
-        .filter((action) => action.showInSpeedDial !== false)
-        .map((action) => ({
+      createOfficeLauncherGroups(officeActions).map((group) => ({
+        id: group.id,
+        icon: group.icon,
+        label: group.label,
+        color: group.color,
+        buttonClassName: group.buttonClassName,
+        children: group.actions.map((action) => ({
           id: action.id,
           icon: action.icon,
           label: action.label,
@@ -195,6 +199,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
           disabled: action.disabled,
           buttonClassName: action.buttonClassName,
         })),
+      })),
     [officeActions],
   );
 

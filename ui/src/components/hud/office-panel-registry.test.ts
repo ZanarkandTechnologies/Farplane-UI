@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  createOfficeLauncherGroups,
   createOfficePanelActions,
   eventMatchesShortcut,
   isEditableEventTarget,
@@ -112,7 +113,7 @@ describe("office panel registry", () => {
     expect(toggleBuilderMode).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the speed dial focused on primary operator entry points", () => {
+  it("groups office launcher actions into horizontal second-tier rails", () => {
     const actions = createOfficePanelActions({
       highlightedMenuActionId: null,
       isAnimatingCamera: false,
@@ -136,22 +137,35 @@ describe("office panel registry", () => {
       toggleBuilderMode: vi.fn(),
     });
 
-    const speedDialIds = actions
-      .filter((action) => action.showInMenu !== false)
-      .filter((action) => action.showInSpeedDial !== false)
-      .map((action) => action.id);
+    const groups = createOfficeLauncherGroups(actions);
+    const groupedIdsByGroup = Object.fromEntries(
+      groups.map((group) => [group.id, group.actions.map((action) => action.id)]),
+    );
     const paletteIds = actions
       .filter((action) => action.showInPalette !== false)
       .map((action) => action.id);
 
-    expect(speedDialIds).toEqual([
-      "organization",
+    expect(groups.map((group) => group.id)).toEqual([
+      "people",
+      "work",
+      "skills",
+      "library",
+      "observe",
+      "build",
+      "utility",
+    ]);
+    expect(groupedIdsByGroup.people).toEqual(["organization"]);
+    expect(groupedIdsByGroup.work).toEqual([
       "team-workspace",
-      "resource-bank",
-      "skill-os",
       "ceo-workbench",
+      "human-review",
       "user-communications",
     ]);
+    expect(groupedIdsByGroup.skills).toEqual(["skill-os", "template-rollout", "evals", "harness"]);
+    expect(groupedIdsByGroup.library).toEqual(["resource-bank", "document-library"]);
+    expect(groupedIdsByGroup.observe).toEqual(["telemetry", "raw-telemetry"]);
+    expect(groupedIdsByGroup.build).toEqual(["builder-mode", "office-shop"]);
+    expect(groupedIdsByGroup.utility).toEqual(["back-landing", "settings"]);
     expect(paletteIds).toContain("settings");
     expect(paletteIds).toContain("raw-telemetry");
     expect(paletteIds).toContain("template-rollout");
@@ -159,16 +173,9 @@ describe("office panel registry", () => {
     expect(paletteIds).toContain("harness");
     expect(paletteIds).toContain("builder-mode");
     expect(paletteIds).toContain("office-shop");
-    expect(speedDialIds).not.toContain("settings");
-    expect(speedDialIds).not.toContain("raw-telemetry");
-    expect(speedDialIds).not.toContain("template-rollout");
-    expect(speedDialIds).not.toContain("evals");
-    expect(speedDialIds).not.toContain("harness");
-    expect(speedDialIds).not.toContain("builder-mode");
-    expect(speedDialIds).not.toContain("office-shop");
   });
 
-  it("keeps the decoration entry visible during guided onboarding", () => {
+  it("carries guided onboarding emphasis onto the launcher group", () => {
     const actions = createOfficePanelActions({
       highlightedMenuActionId: "office-shop",
       isAnimatingCamera: false,
@@ -192,7 +199,11 @@ describe("office panel registry", () => {
       toggleBuilderMode: vi.fn(),
     });
 
-    expect(actions.find((action) => action.id === "office-shop")?.showInSpeedDial).toBe(true);
+    const groups = createOfficeLauncherGroups(actions);
+    const buildGroup = groups.find((group) => group.id === "build");
+
+    expect(buildGroup?.buttonClassName).toContain("ring-2");
+    expect(buildGroup?.actions.map((action) => action.id)).toContain("office-shop");
   });
 
   it("suppresses mutating office actions in read-only mode", () => {
