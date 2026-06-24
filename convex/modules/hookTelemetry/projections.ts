@@ -33,6 +33,7 @@ export type ObservedCodexWorker = {
   machineName?: string;
   sessionKey: string;
   threadId?: string;
+  parentThreadId?: string;
   projectId: string;
   projectPath?: string;
   displayName: string;
@@ -150,6 +151,17 @@ function turnIdFromPayload(payload: JsonRecord): string | undefined {
   return cleanText(payload.turnId, 200) ?? cleanText(payload.turn_id, 200);
 }
 
+function observedParentThreadIdFromPayload(payload: JsonRecord): string | undefined {
+  return (
+    cleanText(payload.parentThreadId, 200) ??
+    cleanText(payload.parent_thread_id, 200) ??
+    cleanText(payload.parentSessionId, 200) ??
+    cleanText(payload.parent_session_id, 200) ??
+    cleanText(payload.sourceThreadId, 200) ??
+    cleanText(payload.source_thread_id, 200)
+  );
+}
+
 function machineIdFromPayload(payload: JsonRecord): string | undefined {
   return (
     cleanText(payload.machineId, 160) ??
@@ -248,7 +260,10 @@ function messageFromPayload(payload: JsonRecord): string | undefined {
   );
 }
 
-function lineageEventName(row: HookTelemetryRow, payload: JsonRecord): "thread.created" | "thread.forked" | undefined {
+function lineageEventName(
+  row: HookTelemetryRow,
+  payload: JsonRecord,
+): "thread.created" | "thread.forked" | undefined {
   const eventName = hookEventName(row, payload);
   if (eventName === "thread.created" || eventName === "thread.forked") return eventName;
   return undefined;
@@ -280,20 +295,22 @@ function parentThreadIdFromPayload(row: HookTelemetryRow, payload: JsonRecord): 
 }
 
 function lineageTitle(payload: JsonRecord): string | undefined {
-  return cleanText(payload.title, 120) ?? cleanText(payload.threadTitle, 120) ?? cleanText(payload.thread_title, 120);
+  return (
+    cleanText(payload.title, 120) ??
+    cleanText(payload.threadTitle, 120) ??
+    cleanText(payload.thread_title, 120)
+  );
 }
 
 function threadLabel(id: string, title?: string): string {
   if (title) return title;
-  if (id.startsWith("pending:")) return `Pending ${id.slice("pending:".length, "pending:".length + 8)}`;
+  if (id.startsWith("pending:"))
+    return `Pending ${id.slice("pending:".length, "pending:".length + 8)}`;
   if (id === "unknown-parent") return "Unknown parent";
   return `Thread ${id.slice(0, 8)}`;
 }
 
-function upsertLineageNode(
-  nodes: Map<string, ThreadLineageNode>,
-  node: ThreadLineageNode,
-): void {
+function upsertLineageNode(nodes: Map<string, ThreadLineageNode>, node: ThreadLineageNode): void {
   const current = nodes.get(node.id);
   if (!current || current.lastSeenAt <= node.lastSeenAt) {
     nodes.set(node.id, { ...current, ...node });
@@ -398,10 +415,12 @@ export function hookTelemetryRowsToObservedCodexWorkers(
 ): ObservedCodexWorker[] {
   const byWorkerId = new Map<string, ObservedCodexWorker>();
   for (const row of rows) {
+    if (row.hookType === "SubagentStart" || row.hookType === "SubagentStop") continue;
     const payload = asRecord(row.payload);
     const projectId = projectIdFromRow(row, payload);
     if (!projectId) continue;
     const threadId = threadIdFromRow(row, payload);
+    const parentThreadId = observedParentThreadIdFromPayload(payload);
     const turnId = turnIdFromPayload(payload);
     const sessionKey = threadId ?? turnId ?? cleanText(row.sessionId, 200);
     if (!sessionKey) continue;
@@ -416,7 +435,12 @@ export function hookTelemetryRowsToObservedCodexWorkers(
       safeIdPart(sessionKey),
     ].join(":");
     const current = byWorkerId.get(workerId);
-    if (current && current.lastSeenAt >= row.eventAt) continue;
+    if (current && current.lastSeenAt >= row.eventAt) {
+      if (!current.parentThreadId && parentThreadId) {
+        byWorkerId.set(workerId, { ...current, parentThreadId });
+      }
+      continue;
+    }
 
     byWorkerId.set(workerId, {
       workerId,
@@ -425,6 +449,7 @@ export function hookTelemetryRowsToObservedCodexWorkers(
       machineName,
       sessionKey,
       threadId,
+      parentThreadId: parentThreadId ?? current?.parentThreadId,
       projectId,
       projectPath: projectPathFromPayload(payload),
       displayName: observedDisplayName({ payload, machineName, threadId, projectId }),
@@ -507,7 +532,8 @@ export function hookTelemetryRowsToThreadLineageGraph(
     const parentId = parentThreadIdFromPayload(row, payload) ?? "unknown-parent";
     const childThreadId = childThreadIdFromPayload(payload);
     const pendingWorktreeId = pendingWorktreeIdFromPayload(payload);
-    const childId = childThreadId ?? (pendingWorktreeId ? `pending:${pendingWorktreeId}` : undefined);
+    const childId =
+      childThreadId ?? (pendingWorktreeId ? `pending:${pendingWorktreeId}` : undefined);
     if (!childId) continue;
     const title = lineageTitle(payload);
     const kind = eventName === "thread.forked" ? "forked" : "created";

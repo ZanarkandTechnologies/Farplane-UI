@@ -239,13 +239,28 @@ export const getObservedCodexWorkers = query({
 export const getThreadLineageGraph = query({
   args: threadLineageGraphArgsValidator,
   handler: async (ctx, args) => {
-    const rows = await fetchHookTelemetryRows(ctx, {
-      projectId: args.projectId,
-      sessionId: args.sessionId,
-      hookName: "thread-lineage-listener",
-      rangeDays: args.rangeDays,
-      limit: args.limit,
-    });
+    const rows =
+      args.projectId?.trim() || args.sessionId?.trim()
+        ? await fetchHookTelemetryRows(ctx, {
+            projectId: args.projectId,
+            sessionId: args.sessionId,
+            rangeDays: args.rangeDays,
+            limit: args.limit,
+          })
+        : (
+            await Promise.all([
+              fetchHookTelemetryRows(ctx, {
+                hookName: "thread-lineage-listener",
+                rangeDays: args.rangeDays,
+                limit: args.limit,
+              }),
+              fetchHookTelemetryRows(ctx, {
+                hookName: "thread-lineage-backfill",
+                rangeDays: args.rangeDays,
+                limit: args.limit,
+              }),
+            ])
+          ).flat();
     return hookTelemetryRowsToThreadLineageGraph(rows.map(toHookTelemetryRow));
   },
 });

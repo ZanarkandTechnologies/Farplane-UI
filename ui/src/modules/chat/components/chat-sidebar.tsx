@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, MessageSquare, Trash2 } from "lucide-react";
+import { CornerDownRight, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertDialog,
@@ -42,6 +42,7 @@ interface ChatSidebarProps {
 
 export function ChatSidebar({
   threads,
+  subthreadsMap,
   threadId,
   onThreadSelect,
   onNewThread,
@@ -54,7 +55,8 @@ export function ChatSidebar({
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string>("");
   const [isDeleting, setIsDeleting] = useState(false);
-  const deleteTarget = threads?.find((thread) => thread._id === deleteTargetId) ?? null;
+  const flatThreads = [...(threads ?? []), ...Object.values(subthreadsMap).flat()];
+  const deleteTarget = flatThreads.find((thread) => thread._id === deleteTargetId) ?? null;
 
   return (
     <div
@@ -92,38 +94,31 @@ export function ChatSidebar({
                 <p className="px-3 py-1 text-xs text-destructive">{deleteError}</p>
               ) : null}
               {threads?.map((thread) => {
+                const subthreads = subthreadsMap[thread._id] ?? [];
                 return (
-                  <div
-                    key={thread._id}
-                    className={cn(
-                      "grid w-full grid-cols-[minmax(0,1fr)_24px] items-start gap-2 overflow-hidden rounded-md px-3 py-2 transition-colors hover:bg-accent",
-                      thread._id === threadId ? "bg-accent" : "",
-                    )}
-                  >
-                    <button
-                      type="button"
-                      className="grid min-w-0 grid-cols-[16px_minmax(0,1fr)] items-start gap-2 text-left"
-                      onClick={() => {
-                        onThreadSelect(thread._id);
-                      }}
-                    >
-                      <MessageSquare className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                      <span className="block min-w-0 truncate pr-1 text-sm">
-                        {thread.title || "New Chat"}
-                      </span>
-                    </button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 shrink-0 p-0 text-muted-foreground/80 hover:bg-destructive/20 hover:text-destructive"
-                      onClick={(event) => {
-                        event.stopPropagation();
+                  <div key={thread._id} className="space-y-1">
+                    <ThreadRow
+                      thread={thread}
+                      activeThreadId={threadId}
+                      onThreadSelect={onThreadSelect}
+                      onDelete={(id) => {
                         setDeleteError("");
-                        setDeleteTargetId(thread._id);
+                        setDeleteTargetId(id);
                       }}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                    />
+                    {subthreads.map((subthread) => (
+                      <ThreadRow
+                        key={subthread._id}
+                        thread={subthread}
+                        activeThreadId={threadId}
+                        depth="child"
+                        onThreadSelect={onThreadSelect}
+                        onDelete={(id) => {
+                          setDeleteError("");
+                          setDeleteTargetId(id);
+                        }}
+                      />
+                    ))}
                   </div>
                 );
               })}
@@ -175,6 +170,66 @@ export function ChatSidebar({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+function ThreadRow({
+  activeThreadId,
+  depth = "root",
+  onDelete,
+  onThreadSelect,
+  thread,
+}: {
+  activeThreadId: string | null;
+  depth?: "root" | "child";
+  onDelete: (threadId: string) => void;
+  onThreadSelect: (threadId: string) => void;
+  thread: ThreadItem;
+}) {
+  const isChild = depth === "child";
+  const Icon = isChild ? CornerDownRight : MessageSquare;
+
+  return (
+    <div
+      className={cn(
+        "grid w-full grid-cols-[minmax(0,1fr)_24px] items-start gap-2 overflow-hidden rounded-md py-2 transition-colors hover:bg-accent",
+        isChild ? "ml-5 px-2 text-muted-foreground" : "px-3",
+        thread._id === activeThreadId ? "bg-accent text-foreground" : "",
+      )}
+    >
+      <button
+        type="button"
+        className={cn(
+          "grid min-w-0 items-start gap-2 text-left",
+          isChild ? "grid-cols-[14px_minmax(0,1fr)]" : "grid-cols-[16px_minmax(0,1fr)]",
+        )}
+        onClick={() => {
+          onThreadSelect(thread._id);
+        }}
+      >
+        <Icon
+          className={cn(
+            "mt-0.5 flex-shrink-0 text-muted-foreground",
+            isChild ? "h-3.5 w-3.5" : "h-4 w-4",
+          )}
+        />
+        <span className={cn("block min-w-0 truncate pr-1", isChild ? "text-xs" : "text-sm")}>
+          {thread.title || "New Chat"}
+        </span>
+      </button>
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label={`Delete ${thread.title || "chat"}`}
+        className="h-6 w-6 shrink-0 p-0 text-muted-foreground/80 hover:bg-destructive/20 hover:text-destructive"
+        onClick={(event) => {
+          event.stopPropagation();
+          onDelete(thread._id);
+        }}
+      >
+        <Trash2 className="h-3 w-3" />
+      </Button>
     </div>
   );
 }

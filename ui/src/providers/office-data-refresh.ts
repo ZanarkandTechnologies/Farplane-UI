@@ -90,6 +90,7 @@ function observedWorkerStructuralKey(worker: ObservedCodexWorkerRow): string {
     worker.projectId,
     worker.projectPath ?? "",
     worker.displayName,
+    worker.parentThreadId ?? "",
   ].join("|");
 }
 
@@ -286,6 +287,7 @@ function observedCodexMetadata(worker: ObservedCodexWorkerRow) {
       projectId: worker.projectId,
       sessionKey: worker.sessionKey,
       threadId: worker.threadId,
+      parentThreadId: worker.parentThreadId,
       controllable: false as const,
     },
   };
@@ -341,7 +343,8 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
   now = Date.now(),
 ): UnifiedOfficeModel {
   const activeWorkers = workers.filter(
-    (worker) => worker.workerId.trim() && worker.projectId.trim(),
+    (worker) =>
+      worker.workerId.trim() && worker.projectId.trim() && !worker.parentThreadId?.trim(),
   );
   if (activeWorkers.length === 0) return unified;
 

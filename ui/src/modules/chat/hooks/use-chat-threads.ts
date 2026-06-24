@@ -1,340 +1,482 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../../../../convex/_generated/api";
 import { useChatStore } from "@/modules/chat/chat-store";
 import { useAppStore } from "@/store";
 import type { AgentCardModel, SessionRowModel } from "@/modules/runtime";
 import { useGateway } from "@/providers/gateway-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
+import { isConvexEnabled } from "@/providers/convex-provider";
+import {
+  chatThreadListContains,
+  codexSessionKeyFromThreadId,
+  organizeChatThreadsByLineage,
+  type ChatThreadLineageEdge,
+} from "@/modules/chat/thread-lineage";
 
-type AgentsListResult = { agents: Array<{ id: string; name?: string; identity?: { name?: string } }> };
-type SessionsListResult = { sessions: Array<{ key: string; label?: string; displayName?: string; surface?: string; updatedAt?: number | null; sessionId?: string }> };
+type AgentsListResult = {
+  agents: Array<{ id: string; name?: string; identity?: { name?: string } }>;
+};
+type SessionsListResult = {
+  sessions: Array<{
+    key: string;
+    label?: string;
+    displayName?: string;
+    surface?: string;
+    updatedAt?: number | null;
+    sessionId?: string;
+  }>;
+};
 type SessionsResolveResult = { ok?: boolean; key?: string };
 type SessionsDeleteResult = { ok?: boolean; deleted?: boolean };
+type ThreadLineageGraph = {
+  edges: Array<{
+    source: string;
+    target: string;
+    kind: "created" | "forked";
+    eventAt: number;
+    title?: string;
+  }>;
+};
 
 function mapAgentToCard(entry: AgentsListResult["agents"][number]): AgentCardModel {
-    const displayName = entry.name ?? entry.identity?.name ?? entry.id;
-    return {
-        agentId: entry.id,
-        displayName,
-        workspacePath: "",
-        agentDir: "",
-        sandboxMode: "off",
-        toolPolicy: { allow: [], deny: [] },
-        sessionCount: 0,
-    };
+  const displayName = entry.name ?? entry.identity?.name ?? entry.id;
+  return {
+    agentId: entry.id,
+    displayName,
+    workspacePath: "",
+    agentDir: "",
+    sandboxMode: "off",
+    toolPolicy: { allow: [], deny: [] },
+    sessionCount: 0,
+  };
 }
 
-function mapSessionToRow(agentId: string, entry: SessionsListResult["sessions"][number]): SessionRowModel {
-    return {
-        agentId,
-        sessionKey: entry.key,
-        sessionId: entry.sessionId,
-        updatedAt: entry.updatedAt ?? undefined,
-        channel: entry.surface,
-        peerLabel: entry.label ?? entry.displayName,
-    };
+function mapSessionToRow(
+  agentId: string,
+  entry: SessionsListResult["sessions"][number],
+): SessionRowModel {
+  return {
+    agentId,
+    sessionKey: entry.key,
+    sessionId: entry.sessionId,
+    updatedAt: entry.updatedAt ?? undefined,
+    channel: entry.surface,
+    peerLabel: entry.label ?? entry.displayName,
+  };
 }
 
 function parseAgentIdFromKey(key: string): string {
-    const parts = key.split(":");
-    return parts[1] ?? "";
+  const parts = key.split(":");
+  return parts[1] ?? "";
 }
 
 function mapRowsToThreads(agentId: string, rows: SessionRowModel[]) {
-    return rows.map((row) => ({
-        _id: row.sessionKey,
-        title: row.peerLabel || row.channel || row.sessionKey,
-        agentId: row.agentId || agentId,
-        sessionKey: row.sessionKey,
-    }));
+  return rows.map((row) => ({
+    _id: row.sessionKey,
+    title: row.peerLabel || row.channel || row.sessionKey,
+    agentId: row.agentId || agentId,
+    sessionKey: row.sessionKey,
+    parentThreadId: row.parentThreadId
+      ? codexSessionKeyFromThreadId(row.parentThreadId)
+      : undefined,
+  }));
 }
 
 export function useChatThreads(): {
-    threads: Array<{ _id: string; title?: string; parentThreadId?: string; agentId?: string; sessionKey?: string; isPendingNew?: boolean }>;
-    subthreadsMap: Record<string, Array<{ _id: string; title?: string; parentThreadId?: string; agentId?: string; sessionKey?: string; isPendingNew?: boolean }>>;
-    threadId: string | null;
-    setThreadId: (threadId: string) => void;
-    handleNewThread: () => void;
-    handleDeleteThread: (threadId: string) => Promise<{ ok: boolean; error?: string }>;
-    isCreatingThread: boolean;
-    agents: AgentCardModel[];
-    selectedAgentId: string | null;
-    setSelectedAgentId: (agentId: string | null) => void;
+  threads: Array<{
+    _id: string;
+    title?: string;
+    parentThreadId?: string;
+    agentId?: string;
+    sessionKey?: string;
+    isPendingNew?: boolean;
+  }>;
+  subthreadsMap: Record<
+    string,
+    Array<{
+      _id: string;
+      title?: string;
+      parentThreadId?: string;
+      agentId?: string;
+      sessionKey?: string;
+      isPendingNew?: boolean;
+    }>
+  >;
+  threadId: string | null;
+  setThreadId: (threadId: string) => void;
+  handleNewThread: () => void;
+  handleDeleteThread: (threadId: string) => Promise<{ ok: boolean; error?: string }>;
+  isCreatingThread: boolean;
+  agents: AgentCardModel[];
+  selectedAgentId: string | null;
+  setSelectedAgentId: (agentId: string | null) => void;
 } {
-    const threads = useChatStore((state) => state.threads);
-    const setThreads = useChatStore((state) => state.setThreads);
-    const selectedSessionKey = useAppStore((state) => state.selectedSessionKey);
-    const setSelectedSessionKey = useAppStore((state) => state.setSelectedSessionKey);
-    const selectedAgentId = useAppStore((state) => state.selectedAgentId);
-    const setSelectedAgentId = useAppStore((state) => state.setSelectedAgentId);
-    const messagesByThread = useChatStore((state) => state.messagesByThread);
-    const setMessagesByThread = useChatStore((state) => state.setMessagesByThread);
-    const currentEmployeeId = useChatStore((state) => state.currentEmployeeId);
-    const [agents, setAgents] = useState<AgentCardModel[]>([]);
-    const [sessions, setSessions] = useState<SessionRowModel[]>([]);
-    const [isCreatingThread, setIsCreatingThread] = useState(false);
-    const { client } = useGateway();
-    const adapter = useOfficeRuntimeAdapter();
-
-    const setThreadId = useCallback(
-        (nextThreadId: string): void => {
-            setSelectedSessionKey(nextThreadId);
-        },
-        [setSelectedSessionKey],
-    );
-
-    const resolveSessionKeyForAgent = useCallback(
-        async (agentId: string): Promise<string | null> => {
-            if (adapter.runtimeKind === "codex") {
-                const rows = await adapter.listSessions(agentId);
-                return rows[0]?.sessionKey ?? "codex-main";
-            }
-            const fallbackKey = `agent:${agentId}:main`;
-            try {
-                const resolved = await client.request<SessionsResolveResult>("sessions.resolve", {
-                    key: fallbackKey,
-                    includeGlobal: false,
-                    includeUnknown: false,
-                });
-                const key = typeof resolved?.key === "string" ? resolved.key.trim() : "";
-                return key || fallbackKey;
-            } catch {
-                return fallbackKey;
-            }
-        },
-        [adapter, client],
-    );
-
-    const syncSessionsForAgent = useCallback(
-        async (agentId: string): Promise<Array<{ _id: string; title?: string; parentThreadId?: string; agentId?: string; sessionKey?: string; isPendingNew?: boolean }>> => {
-            if (adapter.runtimeKind === "codex") {
-                const rows = await adapter.listSessions(agentId);
-                const mappedThreads = mapRowsToThreads(agentId, rows);
-                setSessions(rows);
-                setThreads(mappedThreads);
-                return mappedThreads;
-            }
-            const res = await client.request<SessionsListResult>("sessions.list", { agentId });
-            const raw = Array.isArray(res?.sessions) ? res.sessions : [];
-            const rows = raw.filter((s) => parseAgentIdFromKey(s.key) === agentId).map((s) => mapSessionToRow(agentId, s));
-            const mappedThreads = mapRowsToThreads(agentId, rows);
-            setSessions(rows);
-            setThreads(mappedThreads);
-            return mappedThreads;
-        },
-        [adapter, client, setThreads],
-    );
-
-    useEffect(() => {
-        let cancelled = false;
-        async function loadAgents(): Promise<void> {
-            try {
-                if (adapter.runtimeKind === "codex") {
-                    const rows = await adapter.listAgents();
-                    if (cancelled) return;
-                    setAgents(rows);
-                    if (!selectedAgentId && rows.length > 0) {
-                        setSelectedAgentId(rows[0].agentId);
-                    }
-                    return;
-                }
-                const res = await client.request<AgentsListResult>("agents.list", {});
-                if (cancelled) return;
-                const rows = Array.isArray(res?.agents) ? res.agents.map(mapAgentToCard) : [];
-                setAgents(rows);
-                if (!selectedAgentId && rows.length > 0) {
-                    setSelectedAgentId(rows[0].agentId);
-                }
-            } catch {
-                if (!cancelled) setAgents([]);
-            }
-        }
-        void loadAgents();
-        return () => {
-            cancelled = true;
-        };
-    }, [adapter, client, selectedAgentId, setSelectedAgentId]);
-
-    useEffect(() => {
-        if (!selectedAgentId) {
-            setSessions([]);
-            setThreads([]);
-            setSelectedSessionKey(null);
-            return;
-        }
-        const activeAgentId = selectedAgentId;
-        let cancelled = false;
-        async function loadSessions(): Promise<void> {
-            try {
-                const mappedThreads = await syncSessionsForAgent(activeAgentId);
-                if (cancelled) return;
-                const sessionAgentId = adapter.runtimeKind === "codex" ? activeAgentId : selectedSessionKey ? parseAgentIdFromKey(selectedSessionKey) : "";
-                const selectedStillValid = Boolean(selectedSessionKey && mappedThreads.some((thread) => thread._id === selectedSessionKey));
-                if (mappedThreads.length > 0) {
-                    if (!selectedStillValid || sessionAgentId !== activeAgentId) {
-                        setSelectedSessionKey(mappedThreads[0]._id);
-                    }
-                    return;
-                }
-
-                const resolvedKey = await resolveSessionKeyForAgent(activeAgentId);
-                if (cancelled) return;
-                if (resolvedKey) {
-                    setThreads([{ _id: resolvedKey, title: "New Chat", agentId: activeAgentId, sessionKey: resolvedKey, isPendingNew: true }]);
-                    setSelectedSessionKey(resolvedKey);
-                } else {
-                    setThreads([]);
-                    setSelectedSessionKey(null);
-                }
-            } catch {
-                if (cancelled) return;
-                setSessions([]);
-                setThreads([]);
-                if (selectedSessionKey && parseAgentIdFromKey(selectedSessionKey) === activeAgentId) {
-                    setSelectedSessionKey(null);
-                }
-            }
-        }
-        void loadSessions();
-        return () => {
-            cancelled = true;
-        };
-    }, [adapter.runtimeKind, resolveSessionKeyForAgent, selectedAgentId, selectedSessionKey, setSelectedSessionKey, setThreads, syncSessionsForAgent]);
-
-    useEffect(() => {
-        if (!currentEmployeeId) return;
-        if (selectedSessionKey) return;
-        if (threads.length === 0) return;
-        setSelectedSessionKey(threads[0]._id);
-    }, [currentEmployeeId, selectedSessionKey, setSelectedSessionKey, threads]);
-
-    const handleNewThread = useCallback((): void => {
-        if (!selectedAgentId || isCreatingThread || currentEmployeeId) return;
-        setIsCreatingThread(true);
-        void (async () => {
-            if (adapter.runtimeKind === "codex") {
-                const pendingKey = "codex-main";
-                setThreads([{ _id: pendingKey, title: "New Codex Thread", agentId: selectedAgentId, sessionKey: pendingKey, isPendingNew: true }]);
-                setSelectedSessionKey(pendingKey);
-                return;
-            }
-            let currentSessionKey = selectedSessionKey;
-            if (!currentSessionKey || parseAgentIdFromKey(currentSessionKey) !== selectedAgentId) {
-                currentSessionKey = sessions[0]?.sessionKey ?? (await resolveSessionKeyForAgent(selectedAgentId));
-            }
-            if (!currentSessionKey) {
-                setIsCreatingThread(false);
-                return;
-            }
-            setSelectedSessionKey(currentSessionKey);
-            await client.request("chat.send", { sessionKey: currentSessionKey, message: "/new", deliver: false });
-            const mappedThreads = await syncSessionsForAgent(selectedAgentId);
-            if (mappedThreads.length > 0) {
-                setSelectedSessionKey(mappedThreads[0]._id);
-                return;
-            }
-            const resolvedKey = await resolveSessionKeyForAgent(selectedAgentId);
-            if (resolvedKey) {
-                setThreads([{ _id: resolvedKey, title: "New Chat", agentId: selectedAgentId, sessionKey: resolvedKey, isPendingNew: true }]);
-                setSelectedSessionKey(resolvedKey);
-            }
-        })()
-            .catch(() => {
-                // Keep existing list/state when creating a thread fails.
-            })
-            .finally(() => setIsCreatingThread(false));
-    }, [
-        client,
-        adapter.runtimeKind,
-        currentEmployeeId,
-        isCreatingThread,
-        resolveSessionKeyForAgent,
-        selectedAgentId,
-        selectedSessionKey,
-        sessions,
-        setSelectedSessionKey,
-        setThreads,
-        syncSessionsForAgent,
-    ]);
-
-    const handleDeleteThread = useCallback(
-        async (deleteThreadId: string): Promise<{ ok: boolean; error?: string }> => {
-            if (!deleteThreadId) return { ok: false, error: "session_delete_invalid_key" };
-            if (adapter.runtimeKind === "codex") {
-                return { ok: false, error: "codex_thread_delete_unsupported" };
-            }
-            try {
-                const deleteResult = await client.request<SessionsDeleteResult>("sessions.delete", {
-                    key: deleteThreadId,
-                    deleteTranscript: true,
-                });
-
-                if (deleteResult?.ok === false) {
-                    return { ok: false, error: "session_delete_failed" };
-                }
-                const targetAgentId = parseAgentIdFromKey(deleteThreadId);
-                const refreshAgentId = selectedAgentId || targetAgentId;
-                if (!refreshAgentId) {
-                    return { ok: false, error: "session_delete_agent_missing" };
-                }
-
-                const nextMessagesByThread = { ...messagesByThread };
-                delete nextMessagesByThread[deleteThreadId];
-                setMessagesByThread(nextMessagesByThread);
-
-                const mappedThreads = await syncSessionsForAgent(refreshAgentId);
-                if (mappedThreads.length === 0) {
-                    const resolvedKey = await resolveSessionKeyForAgent(refreshAgentId);
-                    if (resolvedKey) {
-                        setThreads([
-                            {
-                                _id: resolvedKey,
-                                title: "New Chat",
-                                agentId: refreshAgentId,
-                                sessionKey: resolvedKey,
-                                isPendingNew: true,
-                            },
-                        ]);
-                        setSelectedSessionKey(resolvedKey);
-                    } else {
-                        setSelectedSessionKey(null);
-                    }
-                } else if (selectedSessionKey === deleteThreadId || !mappedThreads.some((thread) => thread._id === selectedSessionKey)) {
-                    setSelectedSessionKey(mappedThreads[0]._id);
-                }
-                return { ok: true };
-            } catch (error) {
-                return {
-                    ok: false,
-                    error: error instanceof Error ? error.message : "session_delete_failed",
-                };
-            }
-        },
-        [
-            client,
-            adapter.runtimeKind,
-            messagesByThread,
-            resolveSessionKeyForAgent,
-            selectedAgentId,
-            selectedSessionKey,
-            setMessagesByThread,
-            setSelectedSessionKey,
-            setThreads,
-            syncSessionsForAgent,
-        ],
-    );
-
-    return {
+  const threads = useChatStore((state) => state.threads);
+  const setThreads = useChatStore((state) => state.setThreads);
+  const selectedSessionKey = useAppStore((state) => state.selectedSessionKey);
+  const setSelectedSessionKey = useAppStore((state) => state.setSelectedSessionKey);
+  const selectedAgentId = useAppStore((state) => state.selectedAgentId);
+  const setSelectedAgentId = useAppStore((state) => state.setSelectedAgentId);
+  const messagesByThread = useChatStore((state) => state.messagesByThread);
+  const setMessagesByThread = useChatStore((state) => state.setMessagesByThread);
+  const currentEmployeeId = useChatStore((state) => state.currentEmployeeId);
+  const [agents, setAgents] = useState<AgentCardModel[]>([]);
+  const [sessions, setSessions] = useState<SessionRowModel[]>([]);
+  const [isCreatingThread, setIsCreatingThread] = useState(false);
+  const { client } = useGateway();
+  const adapter = useOfficeRuntimeAdapter();
+  const lineageGraph = useQuery(
+    api.modules.hookTelemetry.queries.getThreadLineageGraph,
+    isConvexEnabled() && adapter.runtimeKind === "codex" ? { rangeDays: 90, limit: 1_000 } : "skip",
+  ) as ThreadLineageGraph | undefined;
+  const lineageEdges = useMemo<ChatThreadLineageEdge[]>(
+    () => lineageGraph?.edges ?? [],
+    [lineageGraph?.edges],
+  );
+  const organizedThreads = useMemo(
+    () =>
+      organizeChatThreadsByLineage({
         threads,
-        subthreadsMap: {},
-        threadId: selectedSessionKey,
-        setThreadId,
-        handleNewThread,
-        handleDeleteThread,
-        isCreatingThread,
-        agents,
+        lineageEdges,
         selectedAgentId,
-        setSelectedAgentId,
+      }),
+    [lineageEdges, selectedAgentId, threads],
+  );
+
+  const setThreadId = useCallback(
+    (nextThreadId: string): void => {
+      setSelectedSessionKey(nextThreadId);
+    },
+    [setSelectedSessionKey],
+  );
+
+  const resolveSessionKeyForAgent = useCallback(
+    async (agentId: string): Promise<string | null> => {
+      if (adapter.runtimeKind === "codex") {
+        const rows = await adapter.listSessions(agentId);
+        return rows[0]?.sessionKey ?? "codex-main";
+      }
+      const fallbackKey = `agent:${agentId}:main`;
+      try {
+        const resolved = await client.request<SessionsResolveResult>("sessions.resolve", {
+          key: fallbackKey,
+          includeGlobal: false,
+          includeUnknown: false,
+        });
+        const key = typeof resolved?.key === "string" ? resolved.key.trim() : "";
+        return key || fallbackKey;
+      } catch {
+        return fallbackKey;
+      }
+    },
+    [adapter, client],
+  );
+
+  const syncSessionsForAgent = useCallback(
+    async (
+      agentId: string,
+    ): Promise<
+      Array<{
+        _id: string;
+        title?: string;
+        parentThreadId?: string;
+        agentId?: string;
+        sessionKey?: string;
+        isPendingNew?: boolean;
+      }>
+    > => {
+      if (adapter.runtimeKind === "codex") {
+        const rows = await adapter.listSessions(agentId);
+        const mappedThreads = mapRowsToThreads(agentId, rows);
+        setSessions(rows);
+        setThreads(mappedThreads);
+        return mappedThreads;
+      }
+      const res = await client.request<SessionsListResult>("sessions.list", { agentId });
+      const raw = Array.isArray(res?.sessions) ? res.sessions : [];
+      const rows = raw
+        .filter((s) => parseAgentIdFromKey(s.key) === agentId)
+        .map((s) => mapSessionToRow(agentId, s));
+      const mappedThreads = mapRowsToThreads(agentId, rows);
+      setSessions(rows);
+      setThreads(mappedThreads);
+      return mappedThreads;
+    },
+    [adapter, client, setThreads],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadAgents(): Promise<void> {
+      try {
+        if (adapter.runtimeKind === "codex") {
+          const rows = await adapter.listAgents();
+          if (cancelled) return;
+          setAgents(rows);
+          if (!selectedAgentId && rows.length > 0) {
+            setSelectedAgentId(rows[0].agentId);
+          }
+          return;
+        }
+        const res = await client.request<AgentsListResult>("agents.list", {});
+        if (cancelled) return;
+        const rows = Array.isArray(res?.agents) ? res.agents.map(mapAgentToCard) : [];
+        setAgents(rows);
+        if (!selectedAgentId && rows.length > 0) {
+          setSelectedAgentId(rows[0].agentId);
+        }
+      } catch {
+        if (!cancelled) setAgents([]);
+      }
+    }
+    void loadAgents();
+    return () => {
+      cancelled = true;
     };
+  }, [adapter, client, selectedAgentId, setSelectedAgentId]);
+
+  useEffect(() => {
+    if (!selectedAgentId) {
+      setSessions([]);
+      setThreads([]);
+      setSelectedSessionKey(null);
+      return;
+    }
+    const activeAgentId = selectedAgentId;
+    let cancelled = false;
+    async function loadSessions(): Promise<void> {
+      try {
+        const mappedThreads = await syncSessionsForAgent(activeAgentId);
+        if (cancelled) return;
+        const sessionAgentId =
+          adapter.runtimeKind === "codex"
+            ? activeAgentId
+            : selectedSessionKey
+              ? parseAgentIdFromKey(selectedSessionKey)
+              : "";
+        const organizedMappedThreads = organizeChatThreadsByLineage({
+          threads: mappedThreads,
+          lineageEdges,
+          selectedAgentId: activeAgentId,
+        });
+        const selectedStillValid = chatThreadListContains(
+          organizedMappedThreads.allThreads,
+          selectedSessionKey,
+        );
+        if (mappedThreads.length > 0) {
+          if (!selectedStillValid || sessionAgentId !== activeAgentId) {
+            setSelectedSessionKey(mappedThreads[0]._id);
+          }
+          return;
+        }
+
+        const resolvedKey = await resolveSessionKeyForAgent(activeAgentId);
+        if (cancelled) return;
+        if (resolvedKey) {
+          setThreads([
+            {
+              _id: resolvedKey,
+              title: "New Chat",
+              agentId: activeAgentId,
+              sessionKey: resolvedKey,
+              isPendingNew: true,
+            },
+          ]);
+          setSelectedSessionKey(resolvedKey);
+        } else {
+          setThreads([]);
+          setSelectedSessionKey(null);
+        }
+      } catch {
+        if (cancelled) return;
+        setSessions([]);
+        setThreads([]);
+        if (selectedSessionKey && parseAgentIdFromKey(selectedSessionKey) === activeAgentId) {
+          setSelectedSessionKey(null);
+        }
+      }
+    }
+    void loadSessions();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    adapter.runtimeKind,
+    lineageEdges,
+    resolveSessionKeyForAgent,
+    selectedAgentId,
+    selectedSessionKey,
+    setSelectedSessionKey,
+    setThreads,
+    syncSessionsForAgent,
+  ]);
+
+  useEffect(() => {
+    if (!currentEmployeeId) return;
+    if (selectedSessionKey) return;
+    if (threads.length === 0) return;
+    setSelectedSessionKey(threads[0]._id);
+  }, [currentEmployeeId, selectedSessionKey, setSelectedSessionKey, threads]);
+
+  const handleNewThread = useCallback((): void => {
+    if (!selectedAgentId || isCreatingThread || currentEmployeeId) return;
+    setIsCreatingThread(true);
+    void (async () => {
+      if (adapter.runtimeKind === "codex") {
+        const pendingKey = "codex-main";
+        setThreads([
+          {
+            _id: pendingKey,
+            title: "New Codex Thread",
+            agentId: selectedAgentId,
+            sessionKey: pendingKey,
+            isPendingNew: true,
+          },
+        ]);
+        setSelectedSessionKey(pendingKey);
+        return;
+      }
+      let currentSessionKey = selectedSessionKey;
+      if (!currentSessionKey || parseAgentIdFromKey(currentSessionKey) !== selectedAgentId) {
+        currentSessionKey =
+          sessions[0]?.sessionKey ?? (await resolveSessionKeyForAgent(selectedAgentId));
+      }
+      if (!currentSessionKey) {
+        setIsCreatingThread(false);
+        return;
+      }
+      setSelectedSessionKey(currentSessionKey);
+      await client.request("chat.send", {
+        sessionKey: currentSessionKey,
+        message: "/new",
+        deliver: false,
+      });
+      const mappedThreads = await syncSessionsForAgent(selectedAgentId);
+      if (mappedThreads.length > 0) {
+        setSelectedSessionKey(mappedThreads[0]._id);
+        return;
+      }
+      const resolvedKey = await resolveSessionKeyForAgent(selectedAgentId);
+      if (resolvedKey) {
+        setThreads([
+          {
+            _id: resolvedKey,
+            title: "New Chat",
+            agentId: selectedAgentId,
+            sessionKey: resolvedKey,
+            isPendingNew: true,
+          },
+        ]);
+        setSelectedSessionKey(resolvedKey);
+      }
+    })()
+      .catch(() => {
+        // Keep existing list/state when creating a thread fails.
+      })
+      .finally(() => setIsCreatingThread(false));
+  }, [
+    client,
+    adapter.runtimeKind,
+    currentEmployeeId,
+    isCreatingThread,
+    resolveSessionKeyForAgent,
+    selectedAgentId,
+    selectedSessionKey,
+    sessions,
+    setSelectedSessionKey,
+    setThreads,
+    syncSessionsForAgent,
+  ]);
+
+  const handleDeleteThread = useCallback(
+    async (deleteThreadId: string): Promise<{ ok: boolean; error?: string }> => {
+      if (!deleteThreadId) return { ok: false, error: "session_delete_invalid_key" };
+      if (adapter.runtimeKind === "codex") {
+        return { ok: false, error: "codex_thread_delete_unsupported" };
+      }
+      try {
+        const deleteResult = await client.request<SessionsDeleteResult>("sessions.delete", {
+          key: deleteThreadId,
+          deleteTranscript: true,
+        });
+
+        if (deleteResult?.ok === false) {
+          return { ok: false, error: "session_delete_failed" };
+        }
+        const targetAgentId = parseAgentIdFromKey(deleteThreadId);
+        const refreshAgentId = selectedAgentId || targetAgentId;
+        if (!refreshAgentId) {
+          return { ok: false, error: "session_delete_agent_missing" };
+        }
+
+        const nextMessagesByThread = { ...messagesByThread };
+        delete nextMessagesByThread[deleteThreadId];
+        setMessagesByThread(nextMessagesByThread);
+
+        const mappedThreads = await syncSessionsForAgent(refreshAgentId);
+        const organizedMappedThreads = organizeChatThreadsByLineage({
+          threads: mappedThreads,
+          lineageEdges,
+          selectedAgentId: refreshAgentId,
+        });
+        if (mappedThreads.length === 0) {
+          const resolvedKey = await resolveSessionKeyForAgent(refreshAgentId);
+          if (resolvedKey) {
+            setThreads([
+              {
+                _id: resolvedKey,
+                title: "New Chat",
+                agentId: refreshAgentId,
+                sessionKey: resolvedKey,
+                isPendingNew: true,
+              },
+            ]);
+            setSelectedSessionKey(resolvedKey);
+          } else {
+            setSelectedSessionKey(null);
+          }
+        } else if (
+          selectedSessionKey === deleteThreadId ||
+          !chatThreadListContains(organizedMappedThreads.allThreads, selectedSessionKey)
+        ) {
+          setSelectedSessionKey(mappedThreads[0]._id);
+        }
+        return { ok: true };
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : "session_delete_failed",
+        };
+      }
+    },
+    [
+      client,
+      adapter.runtimeKind,
+      messagesByThread,
+      resolveSessionKeyForAgent,
+      lineageEdges,
+      selectedAgentId,
+      selectedSessionKey,
+      setMessagesByThread,
+      setSelectedSessionKey,
+      setThreads,
+      syncSessionsForAgent,
+    ],
+  );
+
+  return {
+    threads: organizedThreads.threads,
+    subthreadsMap: organizedThreads.subthreadsMap,
+    threadId: selectedSessionKey,
+    setThreadId,
+    handleNewThread,
+    handleDeleteThread,
+    isCreatingThread,
+    agents,
+    selectedAgentId,
+    setSelectedAgentId,
+  };
 }

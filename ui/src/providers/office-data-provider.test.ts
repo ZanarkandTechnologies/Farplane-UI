@@ -447,6 +447,21 @@ describe("office-data-provider stabilization", () => {
         lastSeenAt: 1770000000000,
         controllable: false,
       },
+      {
+        workerId: "codex-observed:machine-a:codex-proj-farplane:child-thread",
+        sourceInstanceId: "machine-a",
+        machineId: "machine-a",
+        sessionKey: "child-thread",
+        threadId: "child-thread",
+        parentThreadId: "thread-1",
+        projectId: "codex-proj-farplane",
+        projectPath: "/work/farplane",
+        displayName: "Delegated review",
+        state: "done",
+        statusText: "Review complete",
+        lastSeenAt: 1770000000100,
+        controllable: false,
+      },
     ];
     const unified = mergeObservedCodexWorkersIntoUnifiedOfficeModel(
       createUnifiedOfficeModel({
@@ -484,6 +499,11 @@ describe("office-data-provider stabilization", () => {
         entry._id ===
         "employee-codex-observed:machine-a:codex-proj-farplane:thread-1",
     );
+    const delegatedEmployee = result.employees.find(
+      (entry) =>
+        entry._id ===
+        "employee-codex-observed:machine-a:codex-proj-farplane:child-thread",
+    );
 
     expect(unified.company.projects.map((project) => project.id)).toContain(
       "codex-proj-farplane",
@@ -506,6 +526,7 @@ describe("office-data-provider stabilization", () => {
         }),
       }),
     );
+    expect(delegatedEmployee).toBeUndefined();
   });
 
   it("does not duplicate observed telemetry when an app-server thread agent already owns the same thread", () => {

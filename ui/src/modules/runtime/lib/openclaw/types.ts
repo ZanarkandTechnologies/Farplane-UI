@@ -36,6 +36,7 @@ export interface AgentCardModel {
       projectId: string;
       sessionKey: string;
       threadId?: string;
+      parentThreadId?: string;
       controllable: false;
     };
     codexProjectPm?: {
@@ -49,6 +50,7 @@ export interface SessionRowModel {
   agentId: string;
   sessionKey: string;
   sessionId?: string;
+  parentThreadId?: string;
   updatedAt?: number;
   channel?: string;
   peerLabel?: string;
@@ -422,6 +424,7 @@ export interface CompanyAgentModel {
       projectId: string;
       sessionKey: string;
       threadId?: string;
+      parentThreadId?: string;
       controllable: false;
     };
     codexProjectPm?: {

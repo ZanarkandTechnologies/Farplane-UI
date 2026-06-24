@@ -173,6 +173,36 @@ function isThreadStatusActive(thread: CodexThread): boolean {
   return thread.status?.type === "active";
 }
 
+function threadSearchText(thread: CodexThread): string {
+  return [safeText(thread.name), safeText(thread.preview)].filter(Boolean).join("\n");
+}
+
+function inferredDelegationParentThreadId(thread: CodexThread): string | undefined {
+  const explicit = safeText(thread.parentThreadId);
+  if (explicit) return explicit;
+  const match = threadSearchText(thread).match(
+    /<source_thread_id>\s*([^<\s]+)\s*<\/source_thread_id>/i,
+  );
+  return match?.[1]?.trim() || undefined;
+}
+
+function isDelegatedChildThread(thread: CodexThread): boolean {
+  return Boolean(inferredDelegationParentThreadId(thread));
+}
+
+function isInternalAuxiliaryThread(thread: CodexThread): boolean {
+  const haystack = threadSearchText(thread);
+  return (
+    isDelegatedChildThread(thread) ||
+    /(^|\n)Summarize this project file change as one (tiny employee status bubble label|concise employee status bubble)\b/i.test(
+      haystack,
+    ) ||
+    /(^|\n)# Overview\s+Generate 0 to 3 hyperpersonalized suggestions for what this user can do with Codex\b/i.test(
+      haystack,
+    )
+  );
+}
+
 function threadActivityUpdatedAtMs(thread: CodexThread): number | undefined {
   const updatedAt = secondsToMs(thread.updatedAt);
   const completedTurnAt = [...(thread.turns ?? [])]
@@ -328,11 +358,14 @@ export function toCodexCompanyModel(
     const cwd = safeText(thread.cwd);
     const isPinned = pinnedManagerThreadIds.has(thread.id);
     const isCeoThread = ceoThreadId === thread.id;
-    const hasHeartbeat =
+    const hasExplicitHeartbeat =
       heartbeatThreadIds.has(thread.id) ||
-      isThreadStatusActive(thread) ||
       (visibility.showAutomationThreadsAsHeartbeat &&
         isPersistentAutomationHeartbeatThread(thread));
+    const hasHeartbeat = hasExplicitHeartbeat || isThreadStatusActive(thread);
+    if (isInternalAuxiliaryThread(thread) && !isCeoThread && !isPinned && !hasExplicitHeartbeat) {
+      continue;
+    }
     const isVisible =
       isCeoThread ||
       isPinned ||
@@ -401,11 +434,19 @@ export function toCodexCompanyModel(
       if (pmThreadIds.has(thread.id)) continue;
       const isManager = managerThreadIds.has(thread.id);
       const isCeoThread = ceoThreadId === thread.id;
-      const hasHeartbeat =
+      const hasExplicitHeartbeat =
         heartbeatThreadIds.has(thread.id) ||
-        isThreadStatusActive(thread) ||
         (visibility.showAutomationThreadsAsHeartbeat &&
           isPersistentAutomationHeartbeatThread(thread));
+      const hasHeartbeat = hasExplicitHeartbeat || isThreadStatusActive(thread);
+      if (
+        isInternalAuxiliaryThread(thread) &&
+        !isCeoThread &&
+        !isManager &&
+        !hasExplicitHeartbeat
+      ) {
+        continue;
+      }
       if (
         !isCeoThread &&
         !isManager &&
@@ -623,6 +664,7 @@ function toCodexSessionRowsForThreads(agentId: string, threads: CodexThread[]): 
     agentId,
     sessionKey: toThreadAgentId(thread.id),
     sessionId: thread.sessionId,
+    parentThreadId: inferredDelegationParentThreadId(thread),
     updatedAt: secondsToMs(thread.updatedAt),
     channel: "codex",
     peerLabel: threadTitle(thread),

@@ -332,6 +332,7 @@ describe("runtime adapters", () => {
     const thread = {
       id: "thread-1",
       sessionId: "session-1",
+      parentThreadId: "parent-thread",
       name: "App server mode",
       preview: "Implement app server mode",
       cwd: "/workspace/farplane-ui",
@@ -372,7 +373,27 @@ describe("runtime adapters", () => {
       expect.objectContaining({
         agentId: "codex-thread:thread-1",
         sessionKey: "codex-thread:thread-1",
+        parentThreadId: "parent-thread",
         peerLabel: "App server mode",
+      }),
+    ]);
+    expect(
+      toCodexSessionRows("codex-thread:delegated-thread", [
+        {
+          id: "delegated-thread",
+          sessionId: "delegated-thread",
+          name: "Verify thread lineage hook",
+          preview:
+            "<codex_delegation> <source_thread_id>parent-from-preview</source_thread_id> <input>Probe thread</input>",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1770000000,
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        agentId: "codex-thread:delegated-thread",
+        sessionKey: "codex-thread:delegated-thread",
+        parentThreadId: "parent-from-preview",
       }),
     ]);
     expect(
@@ -805,6 +826,112 @@ describe("runtime adapters", () => {
       ]),
     );
     expect(company.agents.some((agent) => agent.agentId === "codex-thread:old-hidden")).toBe(false);
+  });
+
+  it("does not promote delegated child Codex threads into office workers unless pinned", () => {
+    const nowMs = 1770000000 * 1000;
+    const company = toCodexCompanyModel(
+      [
+        {
+          id: "parent-thread",
+          preview: "Parent worker",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769999990,
+        },
+        {
+          id: "child-thread",
+          parentThreadId: "parent-thread",
+          preview: "Delegated review lane",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769999995,
+        },
+        {
+          id: "delegation-envelope-thread",
+          preview:
+            "<codex_delegation> <source_thread_id>parent-thread</source_thread_id> <input>Review lane</input>",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769999995,
+        },
+        {
+          id: "pinned-child-thread",
+          parentThreadId: "parent-thread",
+          preview: "Promoted delegated lane",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769999995,
+        },
+      ],
+      nowMs,
+      ["/workspace/farplane-ui"],
+      {
+        projectManagers: [
+          {
+            projectId: "codex-proj-workspace-farplane-ui",
+            threadId: "pinned-child-thread",
+          },
+        ],
+      },
+    );
+
+    expect(company.agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ agentId: "codex-thread:parent-thread" }),
+        expect.objectContaining({
+          agentId: "codex-thread:pinned-child-thread",
+          role: "pm",
+        }),
+      ]),
+    );
+    expect(company.agents.some((agent) => agent.agentId === "codex-thread:child-thread")).toBe(
+      false,
+    );
+    expect(
+      company.agents.some((agent) => agent.agentId === "codex-thread:delegation-envelope-thread"),
+    ).toBe(false);
+  });
+
+  it("does not promote Farplane internal Codex helper threads into office workers", () => {
+    const nowMs = 1770000000 * 1000;
+    const company = toCodexCompanyModel(
+      [
+        {
+          id: "operator-thread",
+          name: "Implement visible task",
+          preview: "please implement the office fix",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769999995,
+        },
+        {
+          id: "file-summary-thread",
+          name: "Summarize this project file change as one tiny employee status bubble l...",
+          preview:
+            "Summarize this project file change as one tiny employee status bubble label. File: docs/HISTORY.md Rules: Return 2 to 4 words only.",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769999995,
+        },
+        {
+          id: "suggestion-thread",
+          name: "# Overview Generate 0 to 3 hyperpersonalized suggestions for what this...",
+          preview:
+            "# Overview Generate 0 to 3 hyperpersonalized suggestions for what this user can do with Codex in this local project: /workspace/farplane-ui",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769999995,
+        },
+      ],
+      nowMs,
+      ["/workspace/farplane-ui"],
+    );
+
+    expect(company.agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ agentId: "codex-thread:operator-thread" }),
+      ]),
+    );
+    expect(
+      company.agents.some((agent) => agent.agentId === "codex-thread:file-summary-thread"),
+    ).toBe(false);
+    expect(company.agents.some((agent) => agent.agentId === "codex-thread:suggestion-thread")).toBe(
+      false,
+    );
   });
 
   it("keeps persistent automation heartbeats visible while scheduled automations age out", () => {

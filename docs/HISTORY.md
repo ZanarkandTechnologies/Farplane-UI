@@ -1,5 +1,11 @@
 # HISTORY
 
+2026-06-25 | feature | MEM-0238 | ui,office,layout | Added the first deterministic Team Neighborhoods office layout solver: required team clusters and locked furniture are treated as hard constraints, walk paths are reserved before optional furniture packing, movable sidecar/default objects are repacked into legal leftover cells, the final floor mask is rebuilt from placed objects plus reserved routes, empty/disconnected edge pockets are pruned, and generated wall behavior stays out of the strategy.
+
+2026-06-25 | bugfix | MEM-0237 | ui,codex,office,telemetry | Fixed the remaining ephemeral-agent leak by inferring delegated Codex parentage from `<codex_delegation>` prompts, filtering Farplane-internal file-change summary and suggestion-generator threads out of office worker promotion unless pinned, and preserving observed telemetry `parentThreadId` so read-only child workers cannot reappear through the observed presence merge.
+
+2026-06-25 | bugfix | MEM-0236 | ui,chat,codex,telemetry | Contained delegated Codex child threads inside the Conversations sidebar by preserving `parentThreadId` on Codex session rows, overlaying `thread.created`/`thread.forked` telemetry into nested subthread rows, filtering delegated child threads and subagent lifecycle hooks out of office-worker promotion unless explicitly pinned, and widening thread lineage graph reads to include backfill rows.
+
 2026-06-13 | bugfix | MEM-0235 | convex,telemetry,lifecycle | Runtime telemetry now infers a missing turn end from the next `turn_start` in the same session, so missed stop hooks no longer leave prior turns running indefinitely while cross-session starts remain isolated.
 
 2026-06-11 | refactor | MEM-0234 | ui,office,modules | Moved the office system and office scene internals into `ui/src/modules/office/`, added a public office module barrel for scene/panel/layout exports, and kept office-specific docs with the owning module.

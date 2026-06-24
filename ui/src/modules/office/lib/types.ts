@@ -125,6 +125,7 @@ export interface EmployeeData extends Employee {
     machineName?: string;
     sessionKey: string;
     threadId?: string;
+    parentThreadId?: string;
     controllable: false;
   };
 }

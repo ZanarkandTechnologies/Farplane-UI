@@ -140,6 +140,76 @@ describe("hook telemetry projections", () => {
     expect(JSON.stringify(workers)).not.toContain("should not leak");
   });
 
+  it("preserves observed worker parent lineage across newer rows", () => {
+    const workers = hookTelemetryRowsToObservedCodexWorkers([
+      {
+        hookName: "codex-runtime",
+        hookType: "UserPromptSubmit",
+        projectId: "codex-proj-farplane",
+        sessionId: "child-thread",
+        eventAt: 1_000,
+        payload: {
+          machineId: "machine-a",
+          threadId: "child-thread",
+          parentThreadId: "parent-thread",
+          cwd: "/work/farplane",
+        },
+      },
+      {
+        hookName: "codex-runtime",
+        hookType: "Stop",
+        projectId: "codex-proj-farplane",
+        sessionId: "child-thread",
+        eventAt: 2_000,
+        payload: {
+          machineId: "machine-a",
+          threadId: "child-thread",
+          cwd: "/work/farplane",
+        },
+      },
+    ]);
+
+    expect(workers).toEqual([
+      expect.objectContaining({
+        workerId: "codex-observed:machine-a:codex-proj-farplane:child-thread",
+        parentThreadId: "parent-thread",
+        state: "done",
+      }),
+    ]);
+  });
+
+  it("does not promote subagent lifecycle hooks into observed workers", () => {
+    const workers = hookTelemetryRowsToObservedCodexWorkers([
+      {
+        hookName: "codex-runtime",
+        hookType: "SubagentStart",
+        projectId: "codex-proj-farplane",
+        sessionId: "subagent-thread",
+        eventAt: 1_000,
+        payload: {
+          machineId: "machine-a",
+          threadId: "subagent-thread",
+          cwd: "/work/farplane",
+          title: "Review lane",
+        },
+      },
+      {
+        hookName: "codex-runtime",
+        hookType: "SubagentStop",
+        projectId: "codex-proj-farplane",
+        sessionId: "subagent-thread",
+        eventAt: 2_000,
+        payload: {
+          machineId: "machine-a",
+          threadId: "subagent-thread",
+          cwd: "/work/farplane",
+        },
+      },
+    ]);
+
+    expect(workers).toEqual([]);
+  });
+
   it("projects file change summaries into observed Codex workers from cwd", () => {
     const workers = hookTelemetryRowsToObservedCodexWorkers([
       {
@@ -258,14 +328,28 @@ describe("hook telemetry projections", () => {
     expect(graph.nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: "parent-thread", kind: "thread" }),
-        expect.objectContaining({ id: "child-thread", label: "Child implementation", kind: "thread" }),
+        expect.objectContaining({
+          id: "child-thread",
+          label: "Child implementation",
+          kind: "thread",
+        }),
         expect.objectContaining({ id: "pending:pending-1", kind: "pending" }),
       ]),
     );
     expect(graph.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: "edge-create", source: "parent-thread", target: "child-thread", kind: "created" }),
-        expect.objectContaining({ id: "edge-fork", source: "parent-thread", target: "pending:pending-1", kind: "forked" }),
+        expect.objectContaining({
+          id: "edge-create",
+          source: "parent-thread",
+          target: "child-thread",
+          kind: "created",
+        }),
+        expect.objectContaining({
+          id: "edge-fork",
+          source: "parent-thread",
+          target: "pending:pending-1",
+          kind: "forked",
+        }),
       ]),
     );
   });

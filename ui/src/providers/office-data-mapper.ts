@@ -2924,6 +2924,7 @@ export function toOfficeData(
             machineName: observedCodex.machineName,
             sessionKey: observedCodex.sessionKey,
             threadId: observedCodex.threadId,
+            parentThreadId: observedCodex.parentThreadId,
             controllable: false,
           }
         : undefined,
