@@ -1,10 +1,32 @@
 "use client";
 
 export type HarnessGraphNode = {
+  eval?: string;
+  has_checklist?: boolean;
+  heat?: {
+    distinct_threads_30d?: number;
+    distinct_threads_window?: number;
+    distinct_tickets_30d?: number;
+    distinct_tickets_window?: number;
+    heat_score?: number;
+    invocation_count_30d?: number;
+    invocation_count_7d?: number;
+    invocation_count_all?: number;
+    invocation_count_recent?: number;
+    invocation_count_window?: number;
+    last_invoked_at?: string;
+    observed_event_count_all?: number;
+    recent_days?: number;
+    window_days?: number;
+  };
   id: string;
   kind: string;
   label?: string;
   path?: string;
+  qa_checklist?: string;
+  skill_ui?: string;
+  source?: string;
+  tier?: number;
 };
 
 export type HarnessGraphEdge = {
@@ -158,6 +180,42 @@ export type HarnessSkillRolloutPayload = {
       total_consumers?: number;
     }
   >;
+};
+
+export type HarnessTemplateTrackingStatus =
+  | "tracked"
+  | "unversioned"
+  | "missing"
+  | "scanner-gap";
+
+export type HarnessTemplateTrackingFamily = {
+  consumerCount?: number;
+  currentVersion?: string;
+  description?: string;
+  familyId: string;
+  label: string;
+  notes?: string;
+  observedVersion?: string;
+  owner?: string;
+  paths?: string[];
+  scope: string;
+  source: "manifest" | "frontmatter" | "template-file" | "derived" | "scanner-gap";
+  status: HarnessTemplateTrackingStatus;
+};
+
+export type HarnessTemplateTrackingPayload = {
+  counts?: {
+    families?: number;
+    missing?: number;
+    scannerGaps?: number;
+    tracked?: number;
+    unversioned?: number;
+  };
+  families: HarnessTemplateTrackingFamily[];
+  generatedAt?: string;
+  projectRoot?: string;
+  schema?: string;
+  schemaVersion?: string;
 };
 
 export type HarnessBridgePayload<T> = {

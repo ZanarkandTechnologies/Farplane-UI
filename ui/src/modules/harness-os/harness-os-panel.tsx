@@ -1,12 +1,10 @@
 "use client";
 
-import { HeartPulse, Network, RadioTower } from "lucide-react";
+import { Network } from "lucide-react";
 import { type ReactElement, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GraphWorkbench } from "@/modules/graph-workbench";
-import { HarnessHealthPanel } from "./harness-health-panel";
 import { HarnessLifecycleCockpit } from "./harness-lifecycle-cockpit";
 import {
   buildHarnessLifecycleModel,
@@ -15,6 +13,7 @@ import {
 } from "./harness-os-model";
 import { HarnessRolloutPanel } from "./harness-rollout-panel";
 import type { HarnessFeatureSummary } from "./harness-os-types";
+import { TemplateTrackingPanel } from "./template-tracking-panel";
 import { useHarnessOsData } from "./use-harness-os-data";
 
 function SummaryStrip({
@@ -78,24 +77,17 @@ function FeatureRegistry({ features }: { features: HarnessFeatureSummary[] }): R
 }
 
 export function HarnessOsPanel({
-  initialTab = "health",
+  initialView = "map",
 }: {
-  initialTab?: "health" | "map" | "rollout";
+  initialView?: "map" | "lifecycle" | "features";
 }): ReactElement {
   const {
-    adoption,
-    adoptionError,
     error,
     graph,
     lifecycle,
-    skillRollout,
-    skillRolloutError,
     templateIntelligence,
   } = useHarnessOsData();
-  const [activeTab, setActiveTab] = useState(initialTab);
-  const [activeMapView, setActiveMapView] = useState<"lifecycle" | "graph" | "features">(
-    "lifecycle",
-  );
+  const [activeView, setActiveView] = useState<"map" | "lifecycle" | "features">(initialView);
   const model = useMemo(() => {
     if (!graph) return null;
     return buildHarnessOsModel({ graph, templateIntelligence });
@@ -119,90 +111,89 @@ export function HarnessOsPanel({
   }
 
   return (
-    <Tabs
-      value={activeTab}
-      onValueChange={setActiveTab}
-      className="flex h-full min-h-0 flex-col overflow-hidden"
-    >
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <TabsList className="w-fit max-w-full flex-wrap justify-start">
-          <TabsTrigger value="health">
-            <HeartPulse className="size-4" />
-            Health
-          </TabsTrigger>
-          <TabsTrigger value="map">
-            <Network className="size-4" />
-            Map
-          </TabsTrigger>
-          <TabsTrigger value="rollout">
-            <RadioTower className="size-4" />
-            Rollout
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex flex-wrap gap-2">
+          {[
+            ["map", "Map"],
+            ["lifecycle", "Lifecycle"],
+            ["features", "Feature Registry"],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveView(id as typeof activeView)}
+              className={`rounded-md border px-3 py-1.5 text-sm transition ${
+                activeView === id
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "bg-background"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Network className="h-4 w-4 text-primary" />
-          Farplane-wide harness map
+          Farplane harness contract
         </div>
       </div>
 
       <SummaryStrip generatedAt={model.generatedAt} summary={model.summary} />
 
-      <TabsContent value="health" className="mt-3 min-h-0 flex-1">
-        <HarnessHealthPanel
-          adoption={adoption}
-          adoptionError={adoptionError}
-          lifecycleModel={lifecycleModel}
-          model={model}
-          onOpenMap={() => setActiveTab("map")}
-          onOpenRollout={() => setActiveTab("rollout")}
-          skillRollout={skillRollout}
-          skillRolloutError={skillRolloutError}
-        />
-      </TabsContent>
-      <TabsContent value="map" className="mt-3 min-h-0 flex-1">
-        <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
-          <div className="flex flex-wrap gap-2">
-            {[
-              ["lifecycle", "Lifecycle"],
-              ["graph", "Graph"],
-              ["features", "Feature Registry"],
-            ].map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setActiveMapView(id as typeof activeMapView)}
-                className={`rounded-md border px-3 py-1.5 text-sm transition ${
-                  activeMapView === id
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "bg-background"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="min-h-0">
-            {activeMapView === "lifecycle" ? <HarnessLifecycleCockpit model={lifecycleModel} /> : null}
-            {activeMapView === "graph" ? (
-              <GraphWorkbench
-                edges={model.edges}
-                kinds={HARNESS_GRAPH_KINDS}
-                nodes={model.nodes}
-                telemetryLabel="HARNESS_GRAPH_OS"
-              />
-            ) : null}
-            {activeMapView === "features" ? <FeatureRegistry features={model.features} /> : null}
-          </div>
-        </div>
-      </TabsContent>
-      <TabsContent value="rollout" className="mt-3 min-h-0 flex-1">
-        <HarnessRolloutPanel
-          adoption={adoption}
-          adoptionError={adoptionError}
-          skillRollout={skillRollout}
-          skillRolloutError={skillRolloutError}
-        />
-      </TabsContent>
-    </Tabs>
+      <div className="mt-3 min-h-0 flex-1">
+        {activeView === "map" ? (
+          <GraphWorkbench
+            edges={model.edges}
+            kinds={HARNESS_GRAPH_KINDS}
+            nodes={model.nodes}
+            telemetryLabel="HARNESS_MAP_OS"
+          />
+        ) : null}
+        {activeView === "lifecycle" ? <HarnessLifecycleCockpit model={lifecycleModel} /> : null}
+        {activeView === "features" ? <FeatureRegistry features={model.features} /> : null}
+      </div>
+    </div>
   );
+}
+
+export function HarnessGraphPanel(): ReactElement {
+  return <HarnessOsPanel initialView="map" />;
+}
+
+export function RolloutSurface(): ReactElement {
+  const { adoption, adoptionError } = useHarnessOsData();
+  return (
+    <HarnessRolloutPanel
+      adoption={adoption}
+      adoptionError={adoptionError}
+    />
+  );
+}
+
+export function HarnessRolloutSurface(): ReactElement {
+  return <RolloutSurface />;
+}
+
+export function TemplateTrackingSurface(): ReactElement {
+  const {
+    adoption,
+    graph,
+    skillRollout,
+    templateTracking,
+    templateTrackingError,
+  } = useHarnessOsData();
+  return (
+    <TemplateTrackingPanel
+      adoption={adoption}
+      graph={graph}
+      skillRollout={skillRollout}
+      templateTracking={templateTracking}
+      error={templateTrackingError}
+    />
+  );
+}
+
+export function TemplateRolloutSurface(): ReactElement {
+  return <TemplateTrackingSurface />;
 }
