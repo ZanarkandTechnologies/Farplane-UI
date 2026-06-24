@@ -19,6 +19,7 @@ export type TabKey =
   | "kanban"
   | "memory"
   | "timeline"
+  | "threads"
   | "telemetry"
   | "goals"
   | "docs"

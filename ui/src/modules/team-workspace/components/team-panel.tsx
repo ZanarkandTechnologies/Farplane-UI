@@ -45,6 +45,7 @@ import { OverviewTab } from "./overview-tab";
 import { TeamMemoryTab } from "./team-memory-tab";
 import { TelemetryTab } from "./telemetry-tab";
 import { deriveProjectId, type TabKey } from "./team-panel-types";
+import { ThreadLineageTab } from "./thread-lineage-tab";
 import { TimelineTab } from "./timeline-tab";
 import { useTeamPanelBoardState } from "./use-team-panel-board";
 import { useTeamPanelBusinessState } from "./use-team-panel-business";
@@ -237,6 +238,9 @@ export function TeamPanel({
               <TabsTrigger className="flex-none" value="timeline">
                 Timeline
               </TabsTrigger>
+              <TabsTrigger className="flex-none" value="threads">
+                Threads
+              </TabsTrigger>
               <TabsTrigger className="flex-none" value="telemetry">
                 Usage
               </TabsTrigger>
@@ -323,6 +327,14 @@ export function TeamPanel({
               teamScopeId={teamScopeId}
               activityFeedCandidates={activityFeedCandidates}
               communicationRows={communicationRows}
+            />
+          </TabsContent>
+
+          <TabsContent value="threads" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <ThreadLineageTab
+              isActive={isOpen && activeTab === "threads"}
+              projectId={project?.id ?? null}
+              projectName={project?.name ?? panelTitle}
             />
           </TabsContent>
 
