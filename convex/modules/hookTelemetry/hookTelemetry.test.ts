@@ -5,6 +5,7 @@ import {
   hookTelemetryRowsToObservedCodexWorkers,
   hookTelemetryRowsToOfficeTravelIntents,
   hookTelemetryRowsToSkillInvocationRows,
+  hookTelemetryRowsToThreadLineageGraph,
   type HookTelemetryRow,
 } from "./projections";
 
@@ -211,6 +212,100 @@ describe("hook telemetry projections", () => {
         message: "Updated progress with summary-only hook proof.",
         eventAt: 4_000,
       },
+    ]);
+  });
+
+  it("projects thread lineage rows into graph nodes and edges", () => {
+    const graph = hookTelemetryRowsToThreadLineageGraph([
+      {
+        hookName: "thread-lineage-listener",
+        hookType: "PostToolUse",
+        sessionId: "parent-thread",
+        eventAt: 5_000,
+        eventKey: "edge-create",
+        payload: {
+          eventName: "thread.created",
+          toolName: "create_thread",
+          parentThreadId: "parent-thread",
+          childThreadId: "child-thread",
+          title: "Child implementation",
+          cwd: "/repo",
+        },
+      },
+      {
+        hookName: "thread-lineage-listener",
+        hookType: "PostToolUse",
+        sessionId: "parent-thread",
+        eventAt: 6_000,
+        eventKey: "edge-fork",
+        payload: {
+          eventName: "thread.forked",
+          toolName: "fork_thread",
+          parentThreadId: "parent-thread",
+          pendingWorktreeId: "pending-1",
+          cwd: "/repo",
+        },
+      },
+    ]);
+
+    expect(graph.stats).toEqual({
+      nodeCount: 3,
+      edgeCount: 2,
+      forkCount: 1,
+      createCount: 1,
+      orphanCount: 0,
+    });
+    expect(graph.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "parent-thread", kind: "thread" }),
+        expect.objectContaining({ id: "child-thread", label: "Child implementation", kind: "thread" }),
+        expect.objectContaining({ id: "pending:pending-1", kind: "pending" }),
+      ]),
+    );
+    expect(graph.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "edge-create", source: "parent-thread", target: "child-thread", kind: "created" }),
+        expect.objectContaining({ id: "edge-fork", source: "parent-thread", target: "pending:pending-1", kind: "forked" }),
+      ]),
+    );
+  });
+
+  it("projects thread lineage backfill rows into the same graph", () => {
+    const graph = hookTelemetryRowsToThreadLineageGraph([
+      {
+        hookName: "thread-lineage-backfill",
+        hookType: "Backfill",
+        sessionId: "parent-thread",
+        projectId: "codex-proj-repo",
+        eventAt: 7_000,
+        eventKey: "thread-lineage:v1:codex-proj-repo:parent-thread:child-thread:forked",
+        payload: {
+          eventName: "thread.forked",
+          sourceTool: "backfill",
+          parentThreadId: "parent-thread",
+          childThreadId: "child-thread",
+          title: "Manual fork",
+          cwd: "/repo",
+        },
+      },
+    ]);
+
+    expect(graph.stats).toEqual({
+      nodeCount: 2,
+      edgeCount: 1,
+      forkCount: 1,
+      createCount: 0,
+      orphanCount: 0,
+    });
+    expect(graph.edges).toEqual([
+      expect.objectContaining({
+        id: "thread-lineage:v1:codex-proj-repo:parent-thread:child-thread:forked",
+        source: "parent-thread",
+        target: "child-thread",
+        kind: "forked",
+        sourceTool: "backfill",
+        title: "Manual fork",
+      }),
     ]);
   });
 });

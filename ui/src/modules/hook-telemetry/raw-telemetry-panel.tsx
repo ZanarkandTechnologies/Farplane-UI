@@ -48,6 +48,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { UI_Z } from "@/lib/z-index";
+import { GraphWorkbench, type GraphWorkbenchEdge, type GraphWorkbenchNode } from "@/modules/graph-workbench";
 import { isConvexEnabled } from "@/providers/convex-provider";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 
@@ -86,6 +87,32 @@ type HookTelemetryExplorer = {
   };
 };
 
+type ThreadLineageGraph = {
+  nodes: Array<{
+    id: string;
+    kind: "thread" | "pending" | "unknown-parent";
+    label: string;
+    projectPath?: string;
+    lastSeenAt: number;
+  }>;
+  edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    kind: "created" | "forked";
+    eventAt: number;
+    sourceTool: string;
+    title?: string;
+  }>;
+  stats: {
+    nodeCount: number;
+    edgeCount: number;
+    forkCount: number;
+    createCount: number;
+    orphanCount: number;
+  };
+};
+
 type HookConfigState = {
   enabled: boolean;
   includeManifestTracked: boolean;
@@ -113,7 +140,7 @@ const RANGE_OPTIONS = [
   { label: "90 days", value: 90 },
 ] as const;
 
-const EVENT_FILTERS = ["all", "skill.invoked", "file.change.summary", "thread.started", "thread.stopped"] as const;
+const EVENT_FILTERS = ["all", "skill.invoked", "file.change.summary", "thread.started", "thread.stopped", "thread.created", "thread.forked"] as const;
 const HOOK_INSTALL_COMMAND = "npm run hooks:install";
 const DEFAULT_FILE_PATTERNS = [
   "progress.md",
@@ -143,6 +170,17 @@ export function RawTelemetryPanel({ open, onOpenChange }: RawTelemetryPanelProps
   );
 }
 
+export function RawTelemetryRoute(): ReactElement {
+  return (
+    <main className="flex h-[100dvh] w-[100dvw] flex-col overflow-hidden bg-background text-foreground">
+      <div className="border-b px-6 py-4">
+        <h1 className="text-lg font-semibold">Raw Telemetry</h1>
+      </div>
+      <RawTelemetryContent />
+    </main>
+  );
+}
+
 function RawTelemetryContent(): ReactElement {
   const { isReadOnly } = useOfficeAccessMode();
   const convexEnabled = isConvexEnabled();
@@ -164,6 +202,10 @@ function RawTelemetryContent(): ReactElement {
     api.modules.hookTelemetry.queries.getHookTelemetryExplorer,
     convexEnabled && !isReadOnly ? queryArgs : "skip",
   ) as HookTelemetryExplorer | undefined;
+  const lineageGraph = useQuery(
+    api.modules.hookTelemetry.queries.getThreadLineageGraph,
+    convexEnabled && !isReadOnly ? { rangeDays, limit: 500 } : "skip",
+  ) as ThreadLineageGraph | undefined;
 
   if (isReadOnly) {
     return (
@@ -186,6 +228,7 @@ function RawTelemetryContent(): ReactElement {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <TabsList>
           <TabsTrigger value="events">Events</TabsTrigger>
+          <TabsTrigger value="threads">Threads</TabsTrigger>
           <TabsTrigger value="distribution">Distribution</TabsTrigger>
           <TabsTrigger value="hooks">Hooks</TabsTrigger>
         </TabsList>
@@ -237,6 +280,9 @@ function RawTelemetryContent(): ReactElement {
       <TabsContent value="events" className="mt-3 min-h-0 flex-1">
         {data ? <EventTable rows={data.events} total={data.total} /> : <StateCard title="Loading events" detail="Reading hook telemetry rows..." />}
       </TabsContent>
+      <TabsContent value="threads" className="mt-3 min-h-0 flex-1">
+        {lineageGraph ? <ThreadLineagePanel graph={lineageGraph} /> : <StateCard title="Loading thread graph" detail="Projecting thread lineage telemetry..." />}
+      </TabsContent>
       <TabsContent value="distribution" className="mt-3 min-h-0 flex-1">
         {data ? <DistributionGrid data={data.distributions} total={data.total} /> : <StateCard title="Loading distribution" detail="Aggregating hook telemetry rows..." />}
       </TabsContent>
@@ -280,6 +326,96 @@ function EventTable({ rows, total }: { rows: HookTelemetryEvent[]; total: number
                 <TableCell className="max-w-[360px] truncate font-mono text-xs text-muted-foreground">
                   {payloadPreview(row.payload)}
                 </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </ScrollArea>
+    </div>
+  );
+}
+
+function ThreadLineagePanel({ graph }: { graph: ThreadLineageGraph }): ReactElement {
+  if (graph.nodes.length === 0) {
+    return (
+      <StateCard
+        title="No thread lineage yet"
+        detail="Create or fork a Codex thread after installing hooks to see branching context here."
+      />
+    );
+  }
+  const nodes: GraphWorkbenchNode[] = graph.nodes.map((node) => ({
+    id: node.id,
+    kind: node.kind,
+    label: node.label,
+    path: node.projectPath ?? node.id,
+    description: `${node.kind} observed ${formatDate(node.lastSeenAt)}`,
+    weight: node.kind === "unknown-parent" ? 0 : 1,
+  }));
+  const edges: GraphWorkbenchEdge[] = graph.edges.map((edge) => ({
+    source: edge.source,
+    target: edge.target,
+    type: edge.kind,
+    label: edge.title ?? edge.kind,
+  }));
+  return (
+    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-3">
+      <div className="grid gap-2 md:grid-cols-5">
+        <LineageMetric label="nodes" value={graph.stats.nodeCount} />
+        <LineageMetric label="edges" value={graph.stats.edgeCount} />
+        <LineageMetric label="created" value={graph.stats.createCount} />
+        <LineageMetric label="forked" value={graph.stats.forkCount} />
+        <LineageMetric label="orphans" value={graph.stats.orphanCount} />
+      </div>
+      <GraphWorkbench
+        telemetryLabel="Codex thread lineage"
+        searchPlaceholder="Search threads"
+        kinds={[
+          { id: "thread", label: "Thread", color: "#2563eb" },
+          { id: "pending", label: "Pending", color: "#b45309" },
+          { id: "unknown-parent", label: "Unknown", color: "#64748b" },
+        ]}
+        nodes={nodes}
+        edges={edges}
+      />
+      <ThreadLineageEdges rows={graph.edges} />
+    </div>
+  );
+}
+
+function LineageMetric({ label, value }: { label: string; value: number }): ReactElement {
+  return (
+    <div className="rounded-md border bg-background/70 px-3 py-2">
+      <p className="text-[10px] uppercase text-muted-foreground">{label}</p>
+      <p className="font-mono text-lg font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function ThreadLineageEdges({ rows }: { rows: ThreadLineageGraph["edges"] }): ReactElement {
+  return (
+    <div className="max-h-[160px] overflow-hidden rounded-md border">
+      <ScrollArea className="h-[160px]">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Time</TableHead>
+              <TableHead>Kind</TableHead>
+              <TableHead>Parent</TableHead>
+              <TableHead>Child</TableHead>
+              <TableHead>Title</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.slice(0, 80).map((row) => (
+              <TableRow key={row.id}>
+                <TableCell className="whitespace-nowrap text-xs">{formatDate(row.eventAt)}</TableCell>
+                <TableCell>
+                  <Badge variant={row.kind === "forked" ? "secondary" : "outline"}>{row.kind}</Badge>
+                </TableCell>
+                <TableCell className="max-w-[220px] truncate font-mono text-xs">{row.source}</TableCell>
+                <TableCell className="max-w-[220px] truncate font-mono text-xs">{row.target}</TableCell>
+                <TableCell className="max-w-[260px] truncate text-xs text-muted-foreground">{row.title ?? row.sourceTool}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -640,6 +776,9 @@ function payloadPreview(payload: unknown): string {
     message: stringValue(record.message),
     skillId: stringValue(record.skillId),
     threadId: stringValue(record.threadId),
+    parentThreadId: stringValue(record.parentThreadId),
+    childThreadId: stringValue(record.childThreadId),
+    pendingWorktreeId: stringValue(record.pendingWorktreeId),
     paths: Array.isArray(record.paths)
       ? record.paths.filter((entry): entry is string => typeof entry === "string").slice(0, 5)
       : undefined,

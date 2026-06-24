@@ -27,6 +27,13 @@ const HOOKS = [
     timeout: 60,
     runPath: path.join(repoRoot, "hooks/file-change-listener/run.ts"),
   },
+  {
+    id: "thread-lineage-listener",
+    matcher: "create_thread|fork_thread|codex_app.*thread|mcp__.*thread.*",
+    statusMessage: "Track thread lineage",
+    timeout: 5,
+    runPath: path.join(repoRoot, "hooks/thread-lineage-listener/run.ts"),
+  },
 ];
 
 function parseArgs(argv) {

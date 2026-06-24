@@ -64,3 +64,10 @@ export const observedCodexWorkersArgsValidator = {
   rangeMs: v.optional(v.number()),
   limit: v.optional(v.number()),
 };
+
+export const threadLineageGraphArgsValidator = {
+  projectId: v.optional(v.string()),
+  sessionId: v.optional(v.string()),
+  rangeDays: v.optional(v.number()),
+  limit: v.optional(v.number()),
+};

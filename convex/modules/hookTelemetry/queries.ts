@@ -8,12 +8,14 @@ import {
   hookTelemetryRowsToObservedCodexWorkers,
   hookTelemetryRowsToOfficeTravelIntents,
   hookTelemetryRowsToSkillInvocationRows,
+  hookTelemetryRowsToThreadLineageGraph,
   type HookTelemetryRow,
 } from "./projections";
 import {
   hookTelemetryBubbleArgsValidator,
   hookTelemetryWindowArgsValidator,
   observedCodexWorkersArgsValidator,
+  threadLineageGraphArgsValidator,
 } from "./validators";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -231,6 +233,20 @@ export const getObservedCodexWorkers = query({
       workers: hookTelemetryRowsToObservedCodexWorkers(rows.map(toHookTelemetryRow)),
       rangeMs,
     };
+  },
+});
+
+export const getThreadLineageGraph = query({
+  args: threadLineageGraphArgsValidator,
+  handler: async (ctx, args) => {
+    const rows = await fetchHookTelemetryRows(ctx, {
+      projectId: args.projectId,
+      sessionId: args.sessionId,
+      hookName: "thread-lineage-listener",
+      rangeDays: args.rangeDays,
+      limit: args.limit,
+    });
+    return hookTelemetryRowsToThreadLineageGraph(rows.map(toHookTelemetryRow));
   },
 });
 

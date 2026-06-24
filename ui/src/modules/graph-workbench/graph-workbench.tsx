@@ -135,11 +135,13 @@ export function GraphWorkbench({
   edges,
   kinds,
   nodes,
+  searchPlaceholder = "Search harness",
   telemetryLabel,
 }: {
   edges: GraphWorkbenchEdge[];
   kinds: GraphWorkbenchKind[];
   nodes: GraphWorkbenchNode[];
+  searchPlaceholder?: string;
   telemetryLabel: string;
 }): ReactElement {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -255,7 +257,7 @@ export function GraphWorkbench({
               className="h-9 min-w-0 flex-1 rounded-md border bg-background px-3 font-mono text-sm outline-none focus:border-primary"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search harness"
+              placeholder={searchPlaceholder}
             />
           </div>
           <div className="flex flex-wrap gap-2">

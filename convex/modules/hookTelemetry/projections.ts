@@ -53,6 +53,36 @@ export type OfficeTravelIntent = {
   eventAt: number;
 };
 
+export type ThreadLineageNode = {
+  id: string;
+  kind: "thread" | "pending" | "unknown-parent";
+  label: string;
+  projectPath?: string;
+  lastSeenAt: number;
+};
+
+export type ThreadLineageEdge = {
+  id: string;
+  source: string;
+  target: string;
+  kind: "created" | "forked";
+  eventAt: number;
+  sourceTool: string;
+  title?: string;
+};
+
+export type ThreadLineageGraph = {
+  nodes: ThreadLineageNode[];
+  edges: ThreadLineageEdge[];
+  stats: {
+    nodeCount: number;
+    edgeCount: number;
+    forkCount: number;
+    createCount: number;
+    orphanCount: number;
+  };
+};
+
 type JsonRecord = Record<string, unknown>;
 const MAX_BUBBLE_MESSAGE_LENGTH = 140;
 
@@ -216,6 +246,58 @@ function messageFromPayload(payload: JsonRecord): string | undefined {
     cleanText(payload.title, MAX_BUBBLE_MESSAGE_LENGTH) ??
     cleanText(payload.statusText, MAX_BUBBLE_MESSAGE_LENGTH)
   );
+}
+
+function lineageEventName(row: HookTelemetryRow, payload: JsonRecord): "thread.created" | "thread.forked" | undefined {
+  const eventName = hookEventName(row, payload);
+  if (eventName === "thread.created" || eventName === "thread.forked") return eventName;
+  return undefined;
+}
+
+function childThreadIdFromPayload(payload: JsonRecord): string | undefined {
+  return (
+    cleanText(payload.childThreadId, 200) ??
+    cleanText(payload.child_thread_id, 200) ??
+    cleanText(payload.createdThreadId, 200) ??
+    cleanText(payload.created_thread_id, 200) ??
+    cleanText(payload.forkedThreadId, 200) ??
+    cleanText(payload.forked_thread_id, 200)
+  );
+}
+
+function pendingWorktreeIdFromPayload(payload: JsonRecord): string | undefined {
+  return cleanText(payload.pendingWorktreeId, 200) ?? cleanText(payload.pending_worktree_id, 200);
+}
+
+function parentThreadIdFromPayload(row: HookTelemetryRow, payload: JsonRecord): string | undefined {
+  return (
+    cleanText(payload.parentThreadId, 200) ??
+    cleanText(payload.parent_thread_id, 200) ??
+    cleanText(payload.parentSessionId, 200) ??
+    cleanText(payload.parent_session_id, 200) ??
+    cleanText(row.sessionId, 200)
+  );
+}
+
+function lineageTitle(payload: JsonRecord): string | undefined {
+  return cleanText(payload.title, 120) ?? cleanText(payload.threadTitle, 120) ?? cleanText(payload.thread_title, 120);
+}
+
+function threadLabel(id: string, title?: string): string {
+  if (title) return title;
+  if (id.startsWith("pending:")) return `Pending ${id.slice("pending:".length, "pending:".length + 8)}`;
+  if (id === "unknown-parent") return "Unknown parent";
+  return `Thread ${id.slice(0, 8)}`;
+}
+
+function upsertLineageNode(
+  nodes: Map<string, ThreadLineageNode>,
+  node: ThreadLineageNode,
+): void {
+  const current = nodes.get(node.id);
+  if (!current || current.lastSeenAt <= node.lastSeenAt) {
+    nodes.set(node.id, { ...current, ...node });
+  }
 }
 
 function hookEventName(row: HookTelemetryRow, payload: JsonRecord): HookEventName | undefined {
@@ -409,6 +491,72 @@ export function hookTelemetryRowsToAgentBubbleMessages(
       return null;
     })
     .filter((row): row is AgentBubbleMessage => row !== null);
+}
+
+export function hookTelemetryRowsToThreadLineageGraph(
+  rows: HookTelemetryRow[],
+): ThreadLineageGraph {
+  const nodes = new Map<string, ThreadLineageNode>();
+  const edgeById = new Map<string, ThreadLineageEdge>();
+  let orphanCount = 0;
+
+  for (const row of rows) {
+    const payload = asRecord(row.payload);
+    const eventName = lineageEventName(row, payload);
+    if (!eventName) continue;
+    const parentId = parentThreadIdFromPayload(row, payload) ?? "unknown-parent";
+    const childThreadId = childThreadIdFromPayload(payload);
+    const pendingWorktreeId = pendingWorktreeIdFromPayload(payload);
+    const childId = childThreadId ?? (pendingWorktreeId ? `pending:${pendingWorktreeId}` : undefined);
+    if (!childId) continue;
+    const title = lineageTitle(payload);
+    const kind = eventName === "thread.forked" ? "forked" : "created";
+    const projectPath = projectPathFromPayload(payload);
+    if (parentId === "unknown-parent") orphanCount += 1;
+
+    upsertLineageNode(nodes, {
+      id: parentId,
+      kind: parentId === "unknown-parent" ? "unknown-parent" : "thread",
+      label: threadLabel(parentId),
+      projectPath,
+      lastSeenAt: row.eventAt,
+    });
+    upsertLineageNode(nodes, {
+      id: childId,
+      kind: childThreadId ? "thread" : "pending",
+      label: threadLabel(childId, title),
+      projectPath,
+      lastSeenAt: row.eventAt,
+    });
+    const edgeId = row.eventKey ?? `${kind}:${parentId}:${childId}:${row.eventAt}`;
+    edgeById.set(edgeId, {
+      id: edgeId,
+      source: parentId,
+      target: childId,
+      kind,
+      eventAt: row.eventAt,
+      sourceTool: cleanText(payload.toolName, 120) ?? cleanText(payload.sourceTool, 120) ?? kind,
+      title,
+    });
+  }
+
+  const edges = [...edgeById.values()].sort(
+    (left, right) => right.eventAt - left.eventAt || left.id.localeCompare(right.id),
+  );
+  const nodeRows = [...nodes.values()].sort(
+    (left, right) => right.lastSeenAt - left.lastSeenAt || left.id.localeCompare(right.id),
+  );
+  return {
+    nodes: nodeRows,
+    edges,
+    stats: {
+      nodeCount: nodeRows.length,
+      edgeCount: edges.length,
+      forkCount: edges.filter((edge) => edge.kind === "forked").length,
+      createCount: edges.filter((edge) => edge.kind === "created").length,
+      orphanCount,
+    },
+  };
 }
 
 export function hookTelemetryRowsToOfficeTravelIntents(

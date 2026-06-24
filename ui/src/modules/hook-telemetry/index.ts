@@ -1,1 +1,1 @@
-export { RawTelemetryPanel } from "./raw-telemetry-panel";
+export { RawTelemetryPanel, RawTelemetryRoute } from "./raw-telemetry-panel";
