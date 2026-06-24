@@ -5,7 +5,7 @@
  * Outputs: idempotent telemetry activity pings posted to Convex HTTP ingress.
  * Side effects: writes to Convex unless --dry-run is set.
  */
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -14,11 +14,31 @@ const DEFAULT_CODEX_HOME = path.join(os.homedir(), ".codex");
 const DEFAULT_BATCH_SIZE = 200;
 const MAX_PROMPT_LENGTH = 100;
 
+function farplaneHome() {
+  return process.env.FARPLANE_STATE_DIR?.trim() || process.env.FARPLANE_HOME?.trim() || path.join(os.homedir(), ".farplane");
+}
+
+function readJsonObject(filePath) {
+  try {
+    const parsed = JSON.parse(readFileSync(filePath, "utf8"));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function savedConfigValue(name, { secret = false } = {}) {
+  const root = farplaneHome();
+  const source = readJsonObject(path.join(root, secret ? "secrets.json" : "config.json"));
+  const value = source.env?.[name];
+  return typeof value === "string" ? value.trim() : process.env[name]?.trim() || "";
+}
+
 function parseArgs(argv) {
   const args = {
     codexHome: process.env.CODEX_HOME || DEFAULT_CODEX_HOME,
-    siteUrl: process.env.FARPLANE_CONVEX_SITE_URL || process.env.CONVEX_SITE_URL || "",
-    telemetryToken: process.env.FARPLANE_TELEMETRY_TOKEN || "",
+    siteUrl: savedConfigValue("FARPLANE_CONVEX_SITE_URL") || savedConfigValue("CONVEX_SITE_URL"),
+    telemetryToken: savedConfigValue("FARPLANE_TELEMETRY_TOKEN", { secret: true }),
     companyPath:
       process.env.FARPLANE_COMPANY_PATH ||
       path.join(process.env.FARPLANE_HOME || path.join(os.homedir(), ".farplane"), "company.json"),

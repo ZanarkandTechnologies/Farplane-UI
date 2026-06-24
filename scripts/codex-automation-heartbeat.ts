@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import path from "node:path";
+import { readFarplaneConfigValue } from "../cli/runtime-config.js";
 import { applyRewardsToBandit } from "./automation/bandit.js";
 import { runHeartbeat } from "./automation/heartbeat.js";
 import { automationPaths, loadBanditState, loadLedger, writeDefaultConfig, writeJsonFile } from "./automation/state.js";
@@ -54,7 +55,7 @@ function parseArgs(argv: string[]): Args {
   let automationId = process.env.FARPLANE_AUTOMATION_ID || "farplane-ui-founder-heartbeat";
   let projectRoot = process.env.FARPLANE_PROJECT_ROOT || ".";
   let dryRun = false;
-  let stateBase = process.env.FARPLANE_STATE_BASE;
+  let stateBase = readFarplaneConfigValue("FARPLANE_STATE_BASE");
   let json = false;
 
   for (let index = 0; index < argv.length; index += 1) {

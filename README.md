@@ -222,6 +222,8 @@ Skills are part of how Farplane makes agents easier to understand and operate. T
 
 Canonical Farplane UI-owned sidecar state lives under `~/.farplane`, especially:
 
+- `~/.farplane/config.json`
+- `~/.farplane/secrets.json`
 - `~/.farplane/company.json`
 - `~/.farplane/office.json`
 - `~/.farplane/office-objects.json`
@@ -243,6 +245,13 @@ heartbeat employees, and unmatched/projectless chats are grouped under the
 configurable `miscProjectName` table. `miscPathIncludes` can force scratch
 folders such as `Documents/Codex` into that table even when Codex has
 registered them as project paths.
+
+Local runtime settings are configured in the app under Settings -> Runtime ->
+Project Config. That panel mirrors the project settings from `.env.example`;
+non-secret values are saved to `~/.farplane/config.json`, and API keys/secrets
+are saved to `~/.farplane/secrets.json`. The Vite bridge, CLI, hooks, and
+runtime scripts read those files first, with process env and legacy `.env.local`
+paths kept as bootstrap/CI fallbacks.
 OpenClaw runtime files, when the optional OpenClaw adapter is configured with
 `VITE_FARPLANE_RUNTIME_ADAPTER=openclaw`, remain OpenClaw-owned under
 `~/.openclaw`.
@@ -324,8 +333,9 @@ Notes:
 - `npm run build` currently preserves the narrower root-owned build gate; use `npm run ui:build` for the Vite bundle.
 - The UI reads Farplane-owned office sidecars from `~/.farplane`; Codex is the default runtime adapter, Codex app-server is reached only through the local state bridge, and OpenClaw runtime state remains adapter-owned when explicitly enabled.
 - Optional Codex app-server smoke: run `codex app-server --listen ws://127.0.0.1:47891`, then launch the UI with `CODEX_APP_SERVER_URL=ws://127.0.0.1:47891 npm run ui -- --host 127.0.0.1`.
-- The UI reads `VITE_*` values from `ui/.env.local`; backend/private env stays in the repo-root `.env.local`.
-- Optional: set `VITE_MESHY_API_KEY` (get one at meshy.ai) to enable **Generate with AI** in Decoration → Import; generated GLB furniture is saved to Custom Library.
+- Normal local setup should use Settings -> Runtime -> Project Config for the settings listed in `.env.example`, including runtime URLs, hook/debug flags, review settings, and API keys. Farplane stores non-secret config in `~/.farplane/config.json` and secret values in the local secret store.
+- Env vars remain supported for bootstrap, CI, and explicit shell overrides; `ui/.env.local` is only the fallback source for UI-safe `VITE_*` values.
+- Optional: add a Meshy API key in Settings -> Runtime -> Project Config to enable **Generate with AI** in Decoration -> Import; generated GLB furniture is saved to Custom Library.
 - The global `farplane` alias comes from Farplane Core. This repo exposes only the module-local `farplane-ui` package bin for direct checkout development.
 - `templates/` is only for bootstrap and scaffolding. It is not the live source of truth after onboarding runs.
 

@@ -7,6 +7,11 @@ import type { OfficeSettingsModel } from "@/modules/runtime";
 import type { RuntimeAdapterKind } from "@/modules/runtime";
 import type { CharacterRendererId } from "@/modules/office/components/employee/renderers/types";
 import type { OfficeOverlayKey, OfficeOverlaySettings } from "@/store";
+import type {
+  RuntimeEnvEntry,
+  RuntimeConfigForm,
+  RuntimeSecretStatus,
+} from "./runtime-config-settings";
 import type { CodexOfficeVisibilityForm } from "./use-codex-office-visibility-settings";
 
 const DEBUG_OVERLAY_OPTIONS: Array<{
@@ -402,6 +407,9 @@ type RuntimeSettingsPanelProps = {
   codexForm: CodexOfficeVisibilityForm;
   codexStatusText: string;
   isSavingCodexSettings: boolean;
+  runtimeConfigForm: RuntimeConfigForm;
+  runtimeConfigStatusText: string;
+  isSavingRuntimeConfig: boolean;
   onRuntimeKindChange: (value: RuntimeAdapterKind) => void;
   onApplyRuntimeMode: () => void;
   onGatewayBaseChange: (value: string) => void;
@@ -413,6 +421,8 @@ type RuntimeSettingsPanelProps = {
   onRefreshGatewayConfig: () => void;
   onCodexFormChange: (value: CodexOfficeVisibilityForm) => void;
   onSaveCodexSettings: () => void;
+  onRuntimeConfigFormChange: (value: RuntimeConfigForm) => void;
+  onSaveRuntimeConfig: () => void;
 };
 
 export function RuntimeSettingsPanel(props: RuntimeSettingsPanelProps) {
@@ -428,6 +438,9 @@ export function RuntimeSettingsPanel(props: RuntimeSettingsPanelProps) {
     codexForm,
     codexStatusText,
     isSavingCodexSettings,
+    runtimeConfigForm,
+    runtimeConfigStatusText,
+    isSavingRuntimeConfig,
     onRuntimeKindChange,
     onApplyRuntimeMode,
     onGatewayBaseChange,
@@ -439,6 +452,8 @@ export function RuntimeSettingsPanel(props: RuntimeSettingsPanelProps) {
     onRefreshGatewayConfig,
     onCodexFormChange,
     onSaveCodexSettings,
+    onRuntimeConfigFormChange,
+    onSaveRuntimeConfig,
   } = props;
 
   return (
@@ -489,7 +504,164 @@ export function RuntimeSettingsPanel(props: RuntimeSettingsPanelProps) {
           onRefreshGatewayConfig={onRefreshGatewayConfig}
         />
       )}
+
+      <RuntimeProjectConfigSettings
+        form={runtimeConfigForm}
+        statusText={runtimeConfigStatusText}
+        isSaving={isSavingRuntimeConfig}
+        onFormChange={onRuntimeConfigFormChange}
+        onSave={onSaveRuntimeConfig}
+      />
     </div>
+  );
+}
+
+function RuntimeProjectConfigSettings(props: {
+  form: RuntimeConfigForm;
+  statusText: string;
+  isSaving: boolean;
+  onFormChange: (value: RuntimeConfigForm) => void;
+  onSave: () => void;
+}) {
+  const { form, statusText, isSaving, onFormChange, onSave } = props;
+  const updateEnvEntry = (name: string, value: string) =>
+    onFormChange({
+      ...form,
+      env: form.env.map((entry) =>
+        entry.name === name ? { ...entry, value } : entry,
+      ),
+    });
+  const envGroups = form.env.reduce<Array<[string, RuntimeEnvEntry[]]>>(
+    (groups, entry) => {
+      const existing = groups.find(([group]) => group === entry.group);
+      if (existing) {
+        existing[1].push(entry);
+      } else {
+        groups.push([entry.group, [entry]]);
+      }
+      return groups;
+    },
+    [],
+  );
+
+  return (
+    <div className="space-y-3 border-t pt-4">
+      <div className="flex flex-col gap-1">
+        <Label>Project Config</Label>
+        <span className="text-xs text-muted-foreground">
+          Saved here first. Env files are fallbacks for shells, CI, and
+          bootstrap.
+        </span>
+      </div>
+
+      {envGroups.map(([group, entries]) => (
+        <div
+          key={group}
+          className="space-y-2 rounded-md border border-border/70 p-3"
+        >
+          <Label>{group}</Label>
+          <div className="space-y-3">
+            {entries.map((entry) =>
+              entry.secret ? (
+                <SecretEnvInputField
+                  key={entry.name}
+                  entry={entry}
+                  onChange={(value) => updateEnvEntry(entry.name, value)}
+                />
+              ) : (
+                <EnvInputField
+                  key={entry.name}
+                  entry={entry}
+                  onChange={(value) => updateEnvEntry(entry.name, value)}
+                />
+              ),
+            )}
+          </div>
+        </div>
+      ))}
+
+      <Button size="sm" onClick={onSave} disabled={isSaving}>
+        {isSaving ? "Saving..." : "Save Project Config"}
+      </Button>
+      {statusText ? (
+        <p className="text-xs text-muted-foreground">{statusText}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function EnvInputField(props: {
+  entry: RuntimeEnvEntry;
+  onChange: (value: string) => void;
+}) {
+  const { entry, onChange } = props;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-xs text-muted-foreground">{entry.label}</Label>
+        <ConfigSourceBadge status={entry.status} />
+      </div>
+      {entry.multiline ? (
+        <textarea
+          className="min-h-16 w-full rounded-md border bg-background px-2 py-2 font-mono text-xs"
+          value={entry.value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={entry.placeholder}
+        />
+      ) : (
+        <Input
+          value={entry.value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={entry.placeholder}
+        />
+      )}
+      {entry.description ? (
+        <p className="text-xs leading-snug text-muted-foreground">
+          {entry.description}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function SecretEnvInputField(props: {
+  entry: RuntimeEnvEntry;
+  onChange: (value: string) => void;
+}) {
+  const { entry, onChange } = props;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-xs text-muted-foreground">{entry.label}</Label>
+        <ConfigSourceBadge status={entry.status} />
+      </div>
+      <Input
+        type="password"
+        value={entry.value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={entry.status.configured ? "configured" : "paste key"}
+      />
+      {entry.description ? (
+        <p className="text-xs leading-snug text-muted-foreground">
+          {entry.description}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ConfigSourceBadge(props: { status: RuntimeSecretStatus }) {
+  const { status } = props;
+  return (
+    <span
+      className={`rounded-sm px-1.5 py-0.5 text-[11px] ${
+        status.configured
+          ? "bg-emerald-500/10 text-emerald-600"
+          : "bg-muted text-muted-foreground"
+      }`}
+    >
+      {status.source}
+    </span>
   );
 }
 

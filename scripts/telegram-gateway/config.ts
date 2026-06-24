@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { readFarplaneConfigValue } from "../../cli/runtime-config.js";
 import type { ResolvedTelegramGatewayConfig, TelegramGatewayFileConfig } from "./types";
 
 const execFileAsync = promisify(execFile);
@@ -42,11 +43,12 @@ export async function resolveGatewayConfig(): Promise<ResolvedTelegramGatewayCon
         ? [legacyChatId]
         : (fileConfig.telegram?.allowFrom ?? []).map(String).map((entry) => entry.trim()).filter(Boolean);
   const envToken = await readTelegramToken();
-  const responseTimeoutMs = Number(process.env.TELEGRAM_RESPONSE_TIMEOUT_MS ?? "120000");
+  const responseTimeoutMs = Number(readFarplaneConfigValue("TELEGRAM_RESPONSE_TIMEOUT_MS") || "120000");
   const codexAppServerUrl = (
-    process.env.CODEX_APP_SERVER_URL?.trim() ||
-    process.env.FARPLANE_CODEX_APP_SERVER_URL?.trim() ||
     fileConfig.runtime?.codexAppServerUrl?.trim() ||
+    readFarplaneConfigValue("CODEX_APP_SERVER_URL") ||
+    readFarplaneConfigValue("FARPLANE_CODEX_APP_SERVER_URL") ||
+    readFarplaneConfigValue("VITE_CODEX_APP_SERVER_URL") ||
     ""
   );
   return {
@@ -61,11 +63,11 @@ export async function resolveGatewayConfig(): Promise<ResolvedTelegramGatewayCon
       fileConfig.mainThreadId?.trim() ||
       undefined,
     stateBase:
-      process.env.FARPLANE_STATE_BASE?.trim() ||
-      process.env.VITE_STATE_URL?.trim() ||
       fileConfig.runtime?.aiOfficeUrl?.trim() ||
       fileConfig.runtime?.stateBase?.trim() ||
       fileConfig.stateBase?.trim() ||
+      readFarplaneConfigValue("FARPLANE_STATE_BASE") ||
+      readFarplaneConfigValue("VITE_STATE_URL") ||
       "http://127.0.0.1:5173",
   };
 }

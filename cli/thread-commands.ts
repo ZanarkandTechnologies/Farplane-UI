@@ -11,6 +11,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Command } from "commander";
 import { cliDim, cliSection, formatOutput, type OutputMode } from "./cli-utils.js";
+import { firstFarplaneConfigValue, readFarplaneConfigValue } from "./runtime-config.js";
 import type { CodexThread } from "../ui/src/modules/runtime/lib/codex-app-server/types.js";
 
 type HookTelemetryEnvelope = {
@@ -160,23 +161,13 @@ export function buildThreadLineageBackfillEvents(input: {
 }
 
 function resolveStateBase(input?: string): string {
-  return normalizeUrl(
-    input ??
-      process.env.FARPLANE_STATE_BASE?.trim() ??
-      process.env.VITE_STATE_URL?.trim() ??
-      "http://127.0.0.1:5173",
-    "state_base",
-  );
+  const configured = input ?? firstFarplaneConfigValue(["FARPLANE_STATE_BASE", "VITE_STATE_URL"]);
+  return normalizeUrl(configured || "http://127.0.0.1:5173", "state_base");
 }
 
 function resolveSiteUrl(input?: string): string {
-  return normalizeUrl(
-    input ??
-      process.env.FARPLANE_CONVEX_SITE_URL?.trim() ??
-      process.env.CONVEX_SITE_URL?.trim() ??
-      "",
-    "convex_site_url",
-  );
+  const configured = input ?? firstFarplaneConfigValue(["FARPLANE_CONVEX_SITE_URL", "CONVEX_SITE_URL"]);
+  return normalizeUrl(configured || "", "convex_site_url");
 }
 
 async function listCodexThreads(input: {
@@ -258,7 +249,9 @@ export async function runThreadLineageBackfill(options: BackfillOptions = {}): P
           events,
           fetchImpl,
           siteUrl: resolveSiteUrl(options.siteUrl),
-          telemetryToken: options.telemetryToken ?? process.env.FARPLANE_TELEMETRY_TOKEN?.trim(),
+          telemetryToken:
+            options.telemetryToken ??
+            readFarplaneConfigValue("FARPLANE_TELEMETRY_TOKEN", { secret: true }),
         })
       : { count: 0, duplicateCount: 0 };
   return {

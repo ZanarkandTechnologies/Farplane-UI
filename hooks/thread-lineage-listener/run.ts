@@ -9,6 +9,7 @@ import {
   resolveDefaultEndpointBaseUrl,
   resolveDefaultTelemetryToken,
 } from "./handler";
+import { readFarplaneConfigValue } from "../../cli/runtime-config";
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -19,7 +20,7 @@ async function readStdin(): Promise<string> {
 }
 
 async function main(): Promise<void> {
-  const debugEnabled = process.env.FARPLANE_THREAD_LINEAGE_HOOK_DEBUG === "1";
+  const debugEnabled = readFarplaneConfigValue("FARPLANE_THREAD_LINEAGE_HOOK_DEBUG") === "1";
   const stdin = await readStdin();
   const candidates = parseThreadLineageEventsFromStdin(stdin);
   if (candidates.length === 0) {

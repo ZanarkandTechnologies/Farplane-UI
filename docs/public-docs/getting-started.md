@@ -35,7 +35,14 @@ Onboarding now handles:
 
 ## UI Environment
 
-Farplane treats env files in two buckets:
+For day-to-day local projects, use Settings -> Runtime -> Project Config for
+the settings listed in `.env.example`, including runtime URLs, hook/debug
+flags, review settings, and API keys. Farplane stores local non-secret values
+in `~/.farplane/config.json` and saves API keys outside the browser bundle.
+The Vite bridge, Farplane CLI, hooks, and runtime scripts read those local
+settings files before falling back to shell env or legacy `.env.local` values.
+
+Env files are still supported as bootstrap and CI fallbacks:
 
 - repo-root `.env.local`: backend and private values such as Convex/OpenRouter/Notion tokens
 - `ui/.env.local`: UI-safe `VITE_*` values only

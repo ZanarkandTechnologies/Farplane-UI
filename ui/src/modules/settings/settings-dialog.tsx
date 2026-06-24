@@ -24,6 +24,12 @@ import {
   OfficeViewSettingsPanel,
   RuntimeSettingsPanel,
 } from "./settings-dialog-panels";
+import {
+  EMPTY_RUNTIME_CONFIG_FORM,
+  loadRuntimeConfigSettings,
+  saveRuntimeConfigSettings,
+  type RuntimeConfigForm,
+} from "./runtime-config-settings";
 import { useCodexOfficeVisibilitySettings } from "./use-codex-office-visibility-settings";
 import {
   readOfficeCharacterRendererSettings,
@@ -74,6 +80,11 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     () => getRuntimeAdapterKind(import.meta.env.VITE_FARPLANE_RUNTIME_ADAPTER),
   );
   const [runtimeStatusText, setRuntimeStatusText] = useState("");
+  const [runtimeConfigForm, setRuntimeConfigForm] = useState<RuntimeConfigForm>(
+    EMPTY_RUNTIME_CONFIG_FORM,
+  );
+  const [runtimeConfigStatusText, setRuntimeConfigStatusText] = useState("");
+  const [isSavingRuntimeConfig, setIsSavingRuntimeConfig] = useState(false);
   const [viewProfileInput, setViewProfileInput] = useState<
     OfficeSettingsModel["viewProfile"]
   >(officeSettings.viewProfile);
@@ -117,6 +128,7 @@ export default function SettingsDialog(props: SettingsDialogProps) {
       getRuntimeAdapterKind(import.meta.env.VITE_FARPLANE_RUNTIME_ADAPTER),
     );
     setRuntimeStatusText("");
+    setRuntimeConfigStatusText("");
     setViewProfileInput(officeSettings.viewProfile);
     setLayoutStrategyInput(officeSettings.layoutStrategy ?? "activity_treemap");
     setCameraOrientationInput(officeSettings.cameraOrientation);
@@ -137,6 +149,24 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     officeSettings.orbitControlsEnabled,
     officeSettings.viewProfile,
   ]);
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+    let cancelled = false;
+    loadRuntimeConfigSettings()
+      .then((result) => {
+        if (cancelled) return;
+        setRuntimeConfigForm(result.form);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRuntimeConfigForm(EMPTY_RUNTIME_CONFIG_FORM);
+        setRuntimeConfigStatusText("Runtime config is unavailable.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dialogOpen]);
 
   function handleRefreshGatewayConfig(): void {
     const next = getGatewayUiConfig();
@@ -168,6 +198,20 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     const saved = saveRuntimeAdapterKind(runtimeKindInput);
     setRuntimeStatusText(`Runtime mode saved as ${saved}. Reloading...`);
     window.setTimeout(() => window.location.reload(), 250);
+  }
+
+  async function handleSaveRuntimeConfig(): Promise<void> {
+    setIsSavingRuntimeConfig(true);
+    setRuntimeConfigStatusText("");
+    try {
+      const result = await saveRuntimeConfigSettings(runtimeConfigForm);
+      setRuntimeConfigForm(result.form);
+      setRuntimeConfigStatusText("Runtime config saved.");
+    } catch {
+      setRuntimeConfigStatusText("Failed to save runtime config.");
+    } finally {
+      setIsSavingRuntimeConfig(false);
+    }
   }
 
   async function handleSaveViewSettings(): Promise<void> {
@@ -306,6 +350,9 @@ export default function SettingsDialog(props: SettingsDialogProps) {
               codexForm={codexOfficeVisibility.form}
               codexStatusText={codexOfficeVisibility.statusText}
               isSavingCodexSettings={codexOfficeVisibility.isSaving}
+              runtimeConfigForm={runtimeConfigForm}
+              runtimeConfigStatusText={runtimeConfigStatusText}
+              isSavingRuntimeConfig={isSavingRuntimeConfig}
               onRuntimeKindChange={setRuntimeKindInput}
               onApplyRuntimeMode={handleApplyRuntimeMode}
               onGatewayBaseChange={setGatewayBaseInput}
@@ -317,6 +364,8 @@ export default function SettingsDialog(props: SettingsDialogProps) {
               onRefreshGatewayConfig={handleRefreshGatewayConfig}
               onCodexFormChange={codexOfficeVisibility.setForm}
               onSaveCodexSettings={() => void codexOfficeVisibility.save()}
+              onRuntimeConfigFormChange={setRuntimeConfigForm}
+              onSaveRuntimeConfig={() => void handleSaveRuntimeConfig()}
             />
             {runtimeKindInput === "openclaw" && statusText ? (
               <p className="text-xs text-muted-foreground">{statusText}</p>

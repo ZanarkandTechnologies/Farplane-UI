@@ -10,6 +10,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { readFarplaneConfigValue } from "../../cli/runtime-config";
 
 export type CodexSummaryInput = {
   projectPath: string;
@@ -41,7 +42,7 @@ const MAX_SUMMARY_LENGTH = 48;
 
 export function resolveCodexSummaryOptions(env: NodeJS.ProcessEnv = process.env): CodexSummaryOptions {
   return {
-    model: env.FARPLANE_FILE_CHANGE_SUMMARY_MODEL || DEFAULT_MODEL,
+    model: readFarplaneConfigValue("FARPLANE_FILE_CHANGE_SUMMARY_MODEL", { env }) || DEFAULT_MODEL,
   };
 }
 

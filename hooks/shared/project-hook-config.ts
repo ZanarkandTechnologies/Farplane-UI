@@ -8,6 +8,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { readFarplaneConfigValue } from "../../cli/runtime-config";
 
 export type ProjectHookConfig = {
   enabled: boolean;
@@ -102,7 +103,7 @@ export function resolveProjectHookConfig(
   const manifestPath = path.join(root, "farplane", "manifest.json");
   const manifestTracked = readFarplaneManifestTracked(root);
   const config = normalizeConfig(existsSync(configPath) ? readJsonFile(configPath) : undefined, manifestTracked);
-  const envPatterns = parsePatternList(env.FARPLANE_FILE_CHANGE_PATTERNS);
+  const envPatterns = parsePatternList(readFarplaneConfigValue("FARPLANE_FILE_CHANGE_PATTERNS", { env }));
   const manifestPatterns = config.includeManifestTracked ? config.selectedManifestPaths : [];
   const patterns = envPatterns ?? uniquePatterns([...manifestPatterns, ...config.customPatterns]);
   return {

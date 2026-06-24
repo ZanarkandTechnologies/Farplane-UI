@@ -3,6 +3,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { Codex } from "@openai/codex-sdk";
+import { readFarplaneConfigValue } from "../cli/runtime-config.js";
 
 type ReviewFinding = {
   severity: "critical" | "high" | "medium" | "low";
@@ -25,9 +26,9 @@ const root = resolve(process.cwd());
 const contextPath = resolve(process.argv[2] ?? ".farplane/reviews/latest/context.md");
 const outputPath = resolve(process.argv[3] ?? ".farplane/reviews/latest/review.json");
 const markdownPath = outputPath.replace(/\.json$/u, ".md");
-const strict = process.env.STRICT_AGENT_REVIEW === "1";
-const model = process.env.CODEX_REVIEW_MODEL;
-const timeoutMs = Math.max(30_000, Number(process.env.CODEX_REVIEW_TIMEOUT_MS ?? 180_000));
+const strict = readFarplaneConfigValue("STRICT_AGENT_REVIEW") === "1";
+const model = readFarplaneConfigValue("CODEX_REVIEW_MODEL") || undefined;
+const timeoutMs = Math.max(30_000, Number(readFarplaneConfigValue("CODEX_REVIEW_TIMEOUT_MS") || 180_000));
 
 const outputSchema = {
   type: "object",

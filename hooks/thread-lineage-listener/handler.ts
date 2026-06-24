@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { publishHookTelemetryWithOutbox } from "../shared/telemetry-outbox";
+import { firstFarplaneConfigValue, readFarplaneConfigValue } from "../../cli/runtime-config";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -339,8 +340,8 @@ export function resolveDefaultEndpointBaseUrl(
   env: NodeJS.ProcessEnv = process.env,
   searchDirs: string[] = [],
 ): string {
-  const envValue = (env.FARPLANE_CONVEX_SITE_URL || env.CONVEX_SITE_URL || "").trim();
-  if (envValue) return envValue;
+  const configured = firstFarplaneConfigValue(["FARPLANE_CONVEX_SITE_URL", "CONVEX_SITE_URL"], { env });
+  if (configured) return configured;
   for (const dir of searchDirs) {
     const value =
       readDotenvValue(path.join(dir, ".env.local"), "FARPLANE_CONVEX_SITE_URL") ??
@@ -354,8 +355,8 @@ export function resolveDefaultTelemetryToken(
   env: NodeJS.ProcessEnv = process.env,
   searchDirs: string[] = [],
 ): string {
-  const envValue = (env.FARPLANE_TELEMETRY_TOKEN || "").trim();
-  if (envValue) return envValue;
+  const configured = readFarplaneConfigValue("FARPLANE_TELEMETRY_TOKEN", { env, secret: true });
+  if (configured) return configured;
   for (const dir of searchDirs) {
     const value = readDotenvValue(path.join(dir, ".env.local"), "FARPLANE_TELEMETRY_TOKEN");
     if (value) return value.trim();

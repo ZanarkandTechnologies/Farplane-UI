@@ -12,6 +12,7 @@ import {
   resolveDefaultTelemetryToken,
 } from "../skill-invocation-listener/handler";
 import { resolveProjectHookConfig } from "../shared/project-hook-config";
+import { readFarplaneConfigValue } from "../../cli/runtime-config";
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -22,7 +23,7 @@ async function readStdin(): Promise<string> {
 }
 
 async function main(): Promise<void> {
-  const debugEnabled = process.env.FARPLANE_FILE_CHANGE_HOOK_DEBUG === "1";
+  const debugEnabled = readFarplaneConfigValue("FARPLANE_FILE_CHANGE_HOOK_DEBUG") === "1";
   const stdin = await readStdin();
   const projectPath = (() => {
     try {

@@ -1,3 +1,5 @@
+import { firstFarplaneConfigValue, readFarplaneConfigValue } from "../../cli/runtime-config";
+
 const HEARTBEAT_START_PATTERN = /read\s+heartbeat\.md/i;
 const HEARTBEAT_OK_PATTERN = /\bheartbeat_ok\b/i;
 const HEARTBEAT_ERROR_PATTERN = /\b(error|failed|exception|timeout)\b/i;
@@ -208,10 +210,9 @@ export async function publishEvents(convexSiteUrl: string, events: ConvexStatusE
 
 export default async function transform(event: HookEvent): Promise<void> {
   const convexSiteUrl =
-    process.env.FARPLANE_CONVEX_SITE_URL ??
-    process.env.CONVEX_SITE_URL ??
+    firstFarplaneConfigValue(["FARPLANE_CONVEX_SITE_URL", "CONVEX_SITE_URL"]) ||
     "http://127.0.0.1:3211";
-  const debugEnabled = process.env.FARPLANE_STATUS_HOOK_DEBUG === "1";
+  const debugEnabled = readFarplaneConfigValue("FARPLANE_STATUS_HOOK_DEBUG") === "1";
   if (!convexSiteUrl) return;
 
   try {

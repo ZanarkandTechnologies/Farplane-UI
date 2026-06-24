@@ -19,6 +19,7 @@
  */
 import path from "node:path";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { firstFarplaneConfigValue, readFarplaneConfigValue } from "../runtime-config.js";
 import {
   asRecord,
   readActorRole,
@@ -68,9 +69,8 @@ async function readPersistedConvexSiteUrl(): Promise<string> {
 }
 
 async function resolveConvexSiteUrl(): Promise<string> {
-  const envRaw =
-    process.env.FARPLANE_CONVEX_SITE_URL?.trim() || process.env.CONVEX_SITE_URL?.trim() || "";
-  if (envRaw) return normalizeConvexSiteUrl(envRaw);
+  const configuredRaw = firstFarplaneConfigValue(["FARPLANE_CONVEX_SITE_URL", "CONVEX_SITE_URL"]);
+  if (configuredRaw) return normalizeConvexSiteUrl(configuredRaw);
 
   const persistedRaw = await readPersistedConvexSiteUrl();
   if (persistedRaw) return normalizeConvexSiteUrl(persistedRaw);
@@ -110,9 +110,9 @@ export async function postConvexJson(
     "content-type": "application/json",
     "x-farplane-actor-role": readActorRole(),
   };
-  const token = process.env.FARPLANE_BOARD_OPERATOR_TOKEN?.trim();
+  const token = readFarplaneConfigValue("FARPLANE_BOARD_OPERATOR_TOKEN", { secret: true });
   if (token) headers["x-farplane-board-token"] = token;
-  const allowed = process.env.FARPLANE_ALLOWED_PERMISSIONS?.trim();
+  const allowed = readFarplaneConfigValue("FARPLANE_ALLOWED_PERMISSIONS");
   if (allowed) headers["x-farplane-allowed-permissions"] = allowed;
 
   let response: Response;

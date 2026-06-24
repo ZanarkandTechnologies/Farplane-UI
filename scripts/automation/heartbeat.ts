@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { firstFarplaneConfigValue } from "../../cli/runtime-config.js";
 import { applyRewardsToBandit, chooseAction, recordSelectedArm } from "./bandit.js";
 import { spawnCodexThread } from "./codex-spawn.js";
 import {
@@ -138,7 +139,7 @@ export async function runHeartbeat(options: RunHeartbeatOptions): Promise<Heartb
 
   if (!options.dryRun) {
     const stateBase =
-      options.stateBase ?? process.env.FARPLANE_STATE_BASE ?? process.env.CODEX_STATE_BASE;
+      options.stateBase ?? firstFarplaneConfigValue(["FARPLANE_STATE_BASE", "CODEX_STATE_BASE"]);
     if (!stateBase)
       throw new Error("codex_state_base_missing:pass_--state-base_or_set_FARPLANE_STATE_BASE");
     const spawned = await (options.spawnImpl ?? spawnCodexThread)({
