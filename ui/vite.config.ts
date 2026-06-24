@@ -63,8 +63,9 @@ const CODEX_SKILL_MAINTENANCE_GRAPH_ROOT = path.join(
 const COMPANY_MODEL_PATH = path.join(FARPLANE_HOME, "company.json");
 const LOCAL_HOOK_EVENTS_DIR = path.join(FARPLANE_HOME, "events");
 const COMPANY_TEMPLATE_PATH = path.resolve(__dirname, "../templates/sidecar/company.template.json");
-const FARPLANE_CONFIG_PATH = path.join(FARPLANE_HOME, "config.json");
-const FARPLANE_SECRETS_PATH = path.join(FARPLANE_HOME, "secrets.json");
+const FARPLANE_CONFIG_TOML_PATH = path.join(FARPLANE_HOME, "config.toml");
+const FARPLANE_CONFIG_JSON_PATH = path.join(FARPLANE_HOME, "config.json");
+const FARPLANE_SECRETS_JSON_PATH = path.join(FARPLANE_HOME, "secrets.json");
 const OFFICE_OBJECTS_PATH = path.join(FARPLANE_HOME, "office-objects.json");
 const OFFICE_SETTINGS_PATH = path.join(FARPLANE_HOME, "office.json");
 const CODEX_OFFICE_CONFIG_PATH = path.join(FARPLANE_HOME, "codex-office.json");
@@ -128,6 +129,98 @@ function readLocalJsonObjectSync(filePath: string): JsonObject {
   }
 }
 
+function stripTomlComment(line: string): string {
+  let quoted = false;
+  let escaped = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\" && quoted) {
+      escaped = true;
+      continue;
+    }
+    if (char === "\"") {
+      quoted = !quoted;
+      continue;
+    }
+    if (char === "#" && !quoted) return line.slice(0, index).trimEnd();
+  }
+  return line.trimEnd();
+}
+
+function parseTomlString(rawValue: string): string {
+  const value = rawValue.trim();
+  if (!value) return "";
+  if (value.startsWith("\"") && value.endsWith("\"")) {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return typeof parsed === "string" ? parsed.trim() : "";
+    } catch {
+      return value.slice(1, -1).trim();
+    }
+  }
+  return value.trim();
+}
+
+function readLocalTomlObjectSync(filePath: string): JsonObject {
+  let current: JsonObject | null = null;
+  const root: JsonObject = {};
+  try {
+    const lines = readFileSync(filePath, "utf-8").split(/\r?\n/);
+    for (const rawLine of lines) {
+      const line = stripTomlComment(rawLine).trim();
+      if (!line) continue;
+      const sectionMatch = line.match(/^\[([A-Za-z0-9_.-]+)\]$/);
+      if (sectionMatch) {
+        current = root;
+        for (const part of sectionMatch[1].split(".")) {
+          const child = current[part];
+          if (!child || typeof child !== "object" || Array.isArray(child)) {
+            current[part] = {};
+          }
+          current = current[part] as JsonObject;
+        }
+        continue;
+      }
+      const assignmentMatch = line.match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*(.*)$/);
+      if (!assignmentMatch || !current) continue;
+      current[assignmentMatch[1]] = parseTomlString(assignmentMatch[2]);
+    }
+  } catch {
+    return {};
+  }
+  return root;
+}
+
+function tomlString(value: unknown): string {
+  return JSON.stringify(typeof value === "string" ? value : String(value ?? ""));
+}
+
+function serializeTomlSection(name: string, row: unknown): string[] {
+  if (!row || typeof row !== "object" || Array.isArray(row)) return [];
+  const entries = Object.entries(row as JsonObject)
+    .filter(([, value]) => typeof value === "string" && value.trim())
+    .sort(([left], [right]) => left.localeCompare(right));
+  if (!entries.length) return [];
+  return [`[${name}]`, ...entries.map(([key, value]) => `${key} = ${tomlString(value)}`), ""];
+}
+
+function serializeFarplaneConfigToml(row: JsonObject): string {
+  const lines = [
+    "# Managed by Farplane UI Settings. Keep this file local and private.",
+    "# Farplane Core treats this as the canonical runtime config.",
+    "",
+    ...serializeTomlSection("runtime", row.runtime),
+    ...serializeTomlSection("convex", row.convex),
+    ...serializeTomlSection("integrations", row.integrations),
+    ...serializeTomlSection("env", row.env),
+  ];
+  return `${lines.join("\n").trimEnd()}\n`;
+}
+
 function objectStringAt(row: JsonObject, pathParts: string[]): string {
   let current: unknown = row;
   for (const part of pathParts) {
@@ -137,12 +230,22 @@ function objectStringAt(row: JsonObject, pathParts: string[]): string {
   return typeof current === "string" ? current.trim() : "";
 }
 
+function canonicalConfigString(pathParts: string[]): string {
+  return objectStringAt(readLocalTomlObjectSync(FARPLANE_CONFIG_TOML_PATH), pathParts);
+}
+
 function localConfigString(pathParts: string[]): string {
-  return objectStringAt(readLocalJsonObjectSync(FARPLANE_CONFIG_PATH), pathParts);
+  return (
+    canonicalConfigString(pathParts) ||
+    objectStringAt(readLocalJsonObjectSync(FARPLANE_CONFIG_JSON_PATH), pathParts)
+  );
 }
 
 function localSecretString(pathParts: string[]): string {
-  return objectStringAt(readLocalJsonObjectSync(FARPLANE_SECRETS_PATH), pathParts);
+  return (
+    canonicalConfigString(pathParts) ||
+    objectStringAt(readLocalJsonObjectSync(FARPLANE_SECRETS_JSON_PATH), pathParts)
+  );
 }
 
 function localConfigEnvString(name: string): string {
@@ -151,6 +254,22 @@ function localConfigEnvString(name: string): string {
 
 function localSecretEnvString(name: string): string {
   return localSecretString(["env", name]);
+}
+
+function firstLocalConfigString(paths: string[][]): string {
+  for (const pathParts of paths) {
+    const value = localConfigString(pathParts);
+    if (value) return value;
+  }
+  return "";
+}
+
+function firstLocalSecretString(paths: string[][]): string {
+  for (const pathParts of paths) {
+    const value = localSecretString(pathParts);
+    if (value) return value;
+  }
+  return "";
 }
 
 function firstEnvValue(names: string[]): string {
@@ -258,7 +377,19 @@ function setNestedString(row: JsonObject, pathParts: string[], value: string): v
 }
 
 function runtimeSecretStatus(pathParts: string[], envNames: string[]): JsonObject {
-  if (localSecretString(pathParts)) {
+  const saved =
+    localSecretString(pathParts) ||
+    (pathParts[0] === "integrations" && pathParts[1] === "meshyApiKey"
+      ? localSecretString(["integrations", "meshy_api_key"])
+      : "") ||
+    (pathParts[0] === "integrations" && pathParts[1] === "notionApiKey"
+      ? localSecretString(["integrations", "notion_api_key"]) ||
+        localSecretString(["integrations", "notion_token"])
+      : "") ||
+    (pathParts[0] === "convex" && pathParts[1] === "telemetryToken"
+      ? localSecretString(["convex", "telemetry_token"])
+      : "");
+  if (saved) {
     return { configured: true, source: "saved" };
   }
   for (const name of envNames) {
@@ -442,21 +573,30 @@ function readRuntimeConfigForUi(): JsonObject {
       codexAppServerUrl:
         localConfigEnvString("CODEX_APP_SERVER_URL") ||
         localConfigEnvString("VITE_CODEX_APP_SERVER_URL") ||
-        localConfigString(["runtime", "codexAppServerUrl"]) ||
+        firstLocalConfigString([
+          ["runtime", "codex_app_server_url"],
+          ["runtime", "codexAppServerUrl"],
+        ]) ||
         process.env.CODEX_APP_SERVER_URL?.trim() ||
         process.env.VITE_CODEX_APP_SERVER_URL?.trim() ||
         process.env.FARPLANE_CODEX_APP_SERVER_URL?.trim() ||
         "",
       stateBase:
         localConfigEnvString("FARPLANE_STATE_BASE") ||
-        localConfigString(["runtime", "stateBase"]) ||
+        firstLocalConfigString([
+          ["runtime", "state_base"],
+          ["runtime", "stateBase"],
+        ]) ||
         process.env.FARPLANE_STATE_BASE?.trim() ||
         process.env.VITE_STATE_URL?.trim() ||
         "",
       convexSiteUrl:
         localConfigEnvString("FARPLANE_CONVEX_SITE_URL") ||
         localConfigEnvString("CONVEX_SITE_URL") ||
-        localConfigString(["convex", "siteUrl"]) ||
+        firstLocalConfigString([
+          ["convex", "site_url"],
+          ["convex", "siteUrl"],
+        ]) ||
         process.env.FARPLANE_CONVEX_SITE_URL?.trim() ||
         process.env.CONVEX_SITE_URL?.trim() ||
         readRootEnvValue("FARPLANE_CONVEX_SITE_URL") ||
@@ -465,7 +605,10 @@ function readRuntimeConfigForUi(): JsonObject {
       convexClientUrl:
         localConfigEnvString("VITE_CONVEX_URL") ||
         localConfigEnvString("CONVEX_URL") ||
-        localConfigString(["convex", "clientUrl"]) ||
+        firstLocalConfigString([
+          ["convex", "client_url"],
+          ["convex", "clientUrl"],
+        ]) ||
         process.env.VITE_CONVEX_URL?.trim() ||
         process.env.CONVEX_URL?.trim() ||
         readRootEnvValue("VITE_CONVEX_URL") ||
@@ -498,13 +641,13 @@ async function saveRuntimeConfigFromUi(input: unknown): Promise<JsonObject> {
     body.secrets && typeof body.secrets === "object" && !Array.isArray(body.secrets)
       ? (body.secrets as JsonObject)
       : {};
-  const config = await readJsonFile<JsonObject>(FARPLANE_CONFIG_PATH, {});
-  const secrets = await readJsonFile<JsonObject>(FARPLANE_SECRETS_PATH, {});
+  const config = readLocalTomlObjectSync(FARPLANE_CONFIG_TOML_PATH);
+  const legacySecrets = await readJsonFile<JsonObject>(FARPLANE_SECRETS_JSON_PATH, {});
 
-  setNestedString(config, ["runtime", "codexAppServerUrl"], String(configInput.codexAppServerUrl ?? ""));
-  setNestedString(config, ["runtime", "stateBase"], String(configInput.stateBase ?? ""));
-  setNestedString(config, ["convex", "siteUrl"], String(configInput.convexSiteUrl ?? ""));
-  setNestedString(config, ["convex", "clientUrl"], String(configInput.convexClientUrl ?? ""));
+  setNestedString(config, ["runtime", "codex_app_server_url"], String(configInput.codexAppServerUrl ?? ""));
+  setNestedString(config, ["runtime", "state_base"], String(configInput.stateBase ?? ""));
+  setNestedString(config, ["convex", "site_url"], String(configInput.convexSiteUrl ?? ""));
+  setNestedString(config, ["convex", "client_url"], String(configInput.convexClientUrl ?? ""));
   setNestedString(config, ["env", "CODEX_APP_SERVER_URL"], String(configInput.codexAppServerUrl ?? ""));
   setNestedString(config, ["env", "FARPLANE_STATE_BASE"], String(configInput.stateBase ?? ""));
   setNestedString(config, ["env", "FARPLANE_CONVEX_SITE_URL"], String(configInput.convexSiteUrl ?? ""));
@@ -516,36 +659,45 @@ async function saveRuntimeConfigFromUi(input: unknown): Promise<JsonObject> {
       : {};
   for (const entry of RUNTIME_ENV_CATALOG) {
     if (!Object.prototype.hasOwnProperty.call(envInput, entry.name)) continue;
-    const value = typeof envInput[entry.name] === "string" ? envInput[entry.name].trim() : "";
+    const rawValue = envInput[entry.name];
+    const value = typeof rawValue === "string" ? rawValue.trim() : "";
     if (entry.secret && !value) continue;
-    setNestedString(entry.secret ? secrets : config, ["env", entry.name], value);
+    setNestedString(config, ["env", entry.name], value);
   }
 
   for (const [key, pathParts] of [
-    ["meshyApiKey", ["integrations", "meshyApiKey"]],
-    ["notionApiKey", ["integrations", "notionApiKey"]],
-    ["telemetryToken", ["convex", "telemetryToken"]],
+    ["meshyApiKey", ["integrations", "meshy_api_key"]],
+    ["notionApiKey", ["integrations", "notion_api_key"]],
+    ["telemetryToken", ["convex", "telemetry_token"]],
   ] as const) {
     const value = typeof secretInput[key] === "string" ? secretInput[key].trim() : "";
-    if (value) setNestedString(secrets, pathParts, value);
+    if (value) setNestedString(config, [...pathParts], value);
   }
   const secretEnv =
-    secrets.env && typeof secrets.env === "object" && !Array.isArray(secrets.env)
-      ? (secrets.env as JsonObject)
+    config.env && typeof config.env === "object" && !Array.isArray(config.env)
+      ? (config.env as JsonObject)
       : {};
   const meshyApiKey =
     objectStringAt(secretEnv, ["FARPLANE_MESHY_API_KEY"]) ||
-    objectStringAt(secretEnv, ["MESHY_API_KEY"]);
-  const notionApiKey = objectStringAt(secretEnv, ["NOTION_API_KEY"]);
-  const telemetryToken = objectStringAt(secretEnv, ["FARPLANE_TELEMETRY_TOKEN"]);
-  if (meshyApiKey) setNestedString(secrets, ["integrations", "meshyApiKey"], meshyApiKey);
-  if (notionApiKey) setNestedString(secrets, ["integrations", "notionApiKey"], notionApiKey);
-  if (telemetryToken) setNestedString(secrets, ["convex", "telemetryToken"], telemetryToken);
+    objectStringAt(secretEnv, ["MESHY_API_KEY"]) ||
+    firstLocalSecretString([
+      ["integrations", "meshy_api_key"],
+      ["integrations", "meshyApiKey"],
+    ]);
+  const notionApiKey =
+    objectStringAt(secretEnv, ["NOTION_API_KEY"]) ||
+    objectStringAt(secretEnv, ["NOTION_TOKEN"]) ||
+    objectStringAt(legacySecrets, ["integrations", "notionApiKey"]);
+  const telemetryToken =
+    objectStringAt(secretEnv, ["FARPLANE_TELEMETRY_TOKEN"]) ||
+    objectStringAt(legacySecrets, ["convex", "telemetryToken"]);
+  if (meshyApiKey) setNestedString(config, ["integrations", "meshy_api_key"], meshyApiKey);
+  if (notionApiKey) setNestedString(config, ["integrations", "notion_api_key"], notionApiKey);
+  if (telemetryToken) setNestedString(config, ["convex", "telemetry_token"], telemetryToken);
 
   await mkdir(FARPLANE_HOME, { recursive: true });
-  await writeFile(FARPLANE_CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
-  await writeFile(FARPLANE_SECRETS_PATH, `${JSON.stringify({ ...secrets, version: 1 }, null, 2)}\n`, "utf-8");
-  await chmod(FARPLANE_SECRETS_PATH, 0o600).catch(() => undefined);
+  await writeFile(FARPLANE_CONFIG_TOML_PATH, serializeFarplaneConfigToml(config), "utf-8");
+  await chmod(FARPLANE_CONFIG_TOML_PATH, 0o600).catch(() => undefined);
   return readRuntimeConfigForUi();
 }
 
@@ -909,17 +1061,14 @@ type JsonRpcMessage = {
 };
 
 function readCodexAppServerUrl(): string {
-  const configValue = (() => {
-    const runtime = readLocalJsonObjectSync(FARPLANE_CONFIG_PATH).runtime;
-    return runtime && typeof runtime === "object" && !Array.isArray(runtime)
-      ? objectStringAt(runtime as JsonObject, ["codexAppServerUrl"])
-      : "";
-  })();
   return (
     localConfigEnvString("CODEX_APP_SERVER_URL") ||
     localConfigEnvString("VITE_CODEX_APP_SERVER_URL") ||
     localConfigEnvString("FARPLANE_CODEX_APP_SERVER_URL") ||
-    configValue ||
+    firstLocalConfigString([
+      ["runtime", "codex_app_server_url"],
+      ["runtime", "codexAppServerUrl"],
+    ]) ||
     process.env.CODEX_APP_SERVER_URL ||
     process.env.VITE_CODEX_APP_SERVER_URL ||
     process.env.FARPLANE_CODEX_APP_SERVER_URL ||

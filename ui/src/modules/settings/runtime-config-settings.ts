@@ -3,9 +3,8 @@
  *
  * Inputs: Settings form values for local runtime URLs and API keys.
  * Outputs: sanitized config/status rows from the Vite state bridge.
- * Side effects: saves non-secret config to ~/.farplane/config.json and secrets
- * to the local secrets store through the bridge; secret values are never read
- * back into the browser.
+ * Side effects: saves local Farplane runtime config to ~/.farplane/config.toml
+ * through the bridge; secret values are never read back into the browser.
  */
 
 type SecretSource = "saved" | "env" | "missing";
