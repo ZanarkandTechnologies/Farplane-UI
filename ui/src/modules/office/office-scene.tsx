@@ -38,20 +38,24 @@ const OfficeScene = memo((props: OfficeSceneProps) => {
   const shouldForceBuilderPerspective =
     isBuilderMode && props.officeViewSettings.viewProfile === "fixed_2_5d";
   const forcePerspective =
-    (isChatOpen && presentationMode === "story") || shouldForceBuilderPerspective;
+    (isChatOpen && presentationMode === "story") ||
+    shouldForceBuilderPerspective;
   const layoutCenter = useMemo(() => {
     const bounds = getOfficeLayoutBounds(props.officeLayout);
     return { x: bounds.centerX, z: bounds.centerZ };
   }, [props.officeLayout]);
-  const initialCameraConfig = getInitialOfficeCameraConfig(props.officeViewSettings, {
-    forcePerspective,
-    isBuilderMode,
-    layoutCenter,
-  });
+  const initialCameraConfig = getInitialOfficeCameraConfig(
+    props.officeViewSettings,
+    {
+      forcePerspective,
+      isBuilderMode,
+      layoutCenter,
+    },
+  );
 
   return (
     <Canvas
-      key={`${initialCameraConfig.projection}-${forcePerspective ? "forced" : "normal"}`}
+      key={initialCameraConfig.projection}
       shadows="percentage"
       orthographic={initialCameraConfig.projection === "orthographic"}
       camera={{

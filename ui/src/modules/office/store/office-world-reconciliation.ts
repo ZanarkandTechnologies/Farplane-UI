@@ -91,7 +91,10 @@ function createDefaultOfficeSettings(): OfficeSettingsModel {
   };
 }
 
-function indexById<T>(items: T[], getId: (item: T) => string): Record<string, T> {
+function indexById<T>(
+  items: T[],
+  getId: (item: T) => string,
+): Record<string, T> {
   return Object.fromEntries(items.map((item) => [getId(item), item]));
 }
 
@@ -104,6 +107,35 @@ function buildOfficeWorldData(
   snapshot: OfficeWorldSnapshot,
   reason: OfficeWorldRefreshReason,
 ): { next: OfficeWorldData; changedKeys: OfficeWorldChangedKey[] } {
+  if (reason === "live-status") {
+    const changedKeys: OfficeWorldChangedKey[] = [];
+    if (
+      !areJsonEqual(current.liveStatusByAgentId, snapshot.liveStatusByAgentId)
+    ) {
+      changedKeys.push("liveStatus");
+    }
+    if (current.isLoading !== snapshot.isLoading) changedKeys.push("loading");
+    if ((current.error ?? "") !== (snapshot.error ?? ""))
+      changedKeys.push("error");
+    if (changedKeys.length === 0) {
+      return { next: current, changedKeys };
+    }
+    return {
+      changedKeys,
+      next: {
+        ...current,
+        liveStatusByAgentId: changedKeys.includes("liveStatus")
+          ? snapshot.liveStatusByAgentId
+          : current.liveStatusByAgentId,
+        isLoading: snapshot.isLoading,
+        error: snapshot.error,
+        lastRefreshReason: reason,
+        lastChangedKeys: changedKeys,
+        lastUpdatedAt: Date.now(),
+      },
+    };
+  }
+
   const stabilized = stabilizeOfficeData(current, snapshot);
   const changedKeys: OfficeWorldChangedKey[] = [];
 
@@ -111,24 +143,32 @@ function buildOfficeWorldData(
   if (current.teams !== stabilized.teams) changedKeys.push("teams");
   if (current.employees !== stabilized.employees) changedKeys.push("employees");
   if (current.desks !== stabilized.desks) changedKeys.push("desks");
-  if (current.officeObjects !== stabilized.officeObjects) changedKeys.push("officeObjects");
-  if (current.officeAreas !== stabilized.officeAreas) changedKeys.push("officeAreas");
-  if (current.officeSettings !== stabilized.officeSettings) changedKeys.push("officeSettings");
-  if (current.companyModel !== stabilized.companyModel) changedKeys.push("companyModel");
+  if (current.officeObjects !== stabilized.officeObjects)
+    changedKeys.push("officeObjects");
+  if (current.officeAreas !== stabilized.officeAreas)
+    changedKeys.push("officeAreas");
+  if (current.officeSettings !== stabilized.officeSettings)
+    changedKeys.push("officeSettings");
+  if (current.companyModel !== stabilized.companyModel)
+    changedKeys.push("companyModel");
   if (current.workload !== stabilized.workload) changedKeys.push("workload");
   if (current.warnings !== stabilized.warnings) changedKeys.push("warnings");
-  if (!areJsonEqual(current.liveStatusByAgentId, snapshot.liveStatusByAgentId)) {
+  if (
+    !areJsonEqual(current.liveStatusByAgentId, snapshot.liveStatusByAgentId)
+  ) {
     changedKeys.push("liveStatus");
   }
   if (current.isLoading !== snapshot.isLoading) changedKeys.push("loading");
-  if ((current.error ?? "") !== (snapshot.error ?? "")) changedKeys.push("error");
+  if ((current.error ?? "") !== (snapshot.error ?? ""))
+    changedKeys.push("error");
 
   if (changedKeys.length === 0) {
     return { next: current, changedKeys };
   }
 
-  const liveStatusByAgentId =
-    changedKeys.includes("liveStatus") ? snapshot.liveStatusByAgentId : current.liveStatusByAgentId;
+  const liveStatusByAgentId = changedKeys.includes("liveStatus")
+    ? snapshot.liveStatusByAgentId
+    : current.liveStatusByAgentId;
 
   return {
     changedKeys,
@@ -141,11 +181,17 @@ function buildOfficeWorldData(
       teamIds: stabilized.teams.map((team) => team._id),
       teamsById: indexById(stabilized.teams, (team) => team._id),
       employeeIds: stabilized.employees.map((employee) => employee._id),
-      employeesById: indexById(stabilized.employees, (employee) => employee._id),
+      employeesById: indexById(
+        stabilized.employees,
+        (employee) => employee._id,
+      ),
       deskIds: stabilized.desks.map((desk) => desk.id),
       desksById: indexById(stabilized.desks, (desk) => desk.id),
       officeObjectIds: stabilized.officeObjects.map((object) => object._id),
-      officeObjectsById: indexById(stabilized.officeObjects, (object) => object._id),
+      officeObjectsById: indexById(
+        stabilized.officeObjects,
+        (object) => object._id,
+      ),
       officeAreaIds: stabilized.officeAreas.map((area) => area.id),
       officeAreasById: indexById(stabilized.officeAreas, (area) => area.id),
       lastRefreshReason: reason,

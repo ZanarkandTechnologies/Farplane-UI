@@ -14,7 +14,13 @@
  * - MEM-0143
  */
 
-import type { DeskLayoutData, EmployeeData, OfficeId, OfficeObject, TeamData } from "@/modules/office/lib/types";
+import type {
+  DeskLayoutData,
+  EmployeeData,
+  OfficeId,
+  OfficeObject,
+  TeamData,
+} from "@/modules/office/lib/types";
 import type { OfficeLayoutModel } from "@/modules/office/lib/office-layout";
 import type { OfficeAreaNode } from "@/modules/office/lib/office-area-layout";
 import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
@@ -34,5 +40,7 @@ export interface OfficeSceneProps {
     "viewProfile" | "orbitControlsEnabled" | "cameraOrientation"
   >;
   companyId?: OfficeId<"companies">;
+  customMeshLoadSignature?: string;
   onNavigationReady?: () => void;
+  onNavigationReset?: () => void;
 }

@@ -19,6 +19,7 @@ import path from "node:path";
 
 export interface BridgeOfficeSettings {
   meshAssetDir?: string;
+  layoutStrategy?: "manual" | "legacy" | "activity_treemap" | "command_districts";
   officeFootprint?: {
     width?: number;
     depth?: number;
@@ -52,7 +53,9 @@ function officeLayoutTileKey(x: number, z: number): string {
   return `${Math.round(x)}:${Math.round(z)}`;
 }
 
-function parseOfficeLayoutTileKey(value: string): { x: number; z: number } | null {
+function parseOfficeLayoutTileKey(
+  value: string,
+): { x: number; z: number } | null {
   const match = /^(-?\d+):(-?\d+)$/.exec(value.trim());
   if (!match) return null;
   return { x: Number(match[1]), z: Number(match[2]) };
@@ -65,7 +68,10 @@ function compareTileKeys(a: string, b: string): number {
   return left.z === right.z ? left.x - right.x : left.z - right.z;
 }
 
-function createRectangularOfficeLayout(footprint: { width: number; depth: number }): string[] {
+function createRectangularOfficeLayout(footprint: {
+  width: number;
+  depth: number;
+}): string[] {
   const halfWidth = Math.floor(footprint.width / 2);
   const halfDepth = Math.floor(footprint.depth / 2);
   const tiles: string[] = [];
@@ -111,7 +117,10 @@ function normalizeOfficeLayout(
   };
 }
 
-function deriveOfficeFootprintFromLayout(layout: { tiles: string[] }): { width: number; depth: number } {
+function deriveOfficeFootprintFromLayout(layout: { tiles: string[] }): {
+  width: number;
+  depth: number;
+} {
   const parsed = layout.tiles
     .map((tile) => parseOfficeLayoutTileKey(tile))
     .filter((tile): tile is { x: number; z: number } => tile !== null);
@@ -151,17 +160,30 @@ export function normalizeBridgeOfficeSettings(
     width: normalizeAxis(rawFootprint.width, 35),
     depth: normalizeAxis(rawFootprint.depth, 35),
   };
-  const rawDecor = row.decor && typeof row.decor === "object" ? (row.decor as JsonObject) : {};
-  const viewProfile = row.viewProfile === "fixed_2_5d" ? "fixed_2_5d" : "free_orbit_3d";
-  const officeLayout = normalizeOfficeLayout(row.officeLayout, fallbackFootprint);
+  const rawDecor =
+    row.decor && typeof row.decor === "object" ? (row.decor as JsonObject) : {};
+  const layoutStrategy =
+    row.layoutStrategy === "manual" ||
+    row.layoutStrategy === "activity_treemap" ||
+    row.layoutStrategy === "command_districts"
+      ? row.layoutStrategy
+      : "legacy";
+  const viewProfile =
+    row.viewProfile === "fixed_2_5d" ? "fixed_2_5d" : "free_orbit_3d";
+  const officeLayout = normalizeOfficeLayout(
+    row.officeLayout,
+    fallbackFootprint,
+  );
 
   return {
     meshAssetDir,
+    layoutStrategy,
     officeFootprint: deriveOfficeFootprintFromLayout(officeLayout),
     officeLayout,
     decor: {
       floorPatternId:
-        rawDecor.floorPatternId === "graphite_grid" || rawDecor.floorPatternId === "walnut_parquet"
+        rawDecor.floorPatternId === "graphite_grid" ||
+        rawDecor.floorPatternId === "walnut_parquet"
           ? rawDecor.floorPatternId
           : "sandstone_tiles",
       wallColorId:
@@ -185,6 +207,9 @@ export function normalizeBridgeOfficeSettings(
       row.cameraOrientation === "south_west"
         ? row.cameraOrientation
         : "south_east",
-    codex: row.codex && typeof row.codex === "object" ? (row.codex as JsonObject) : {},
+    codex:
+      row.codex && typeof row.codex === "object"
+        ? (row.codex as JsonObject)
+        : {},
   };
 }

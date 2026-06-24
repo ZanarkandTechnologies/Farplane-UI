@@ -22,13 +22,17 @@
  * - MEM-0194
  */
 
-import { computeBusinessReadinessIssues, projectToBusinessBuilderDraft } from "@/modules/business";
+import {
+  computeBusinessReadinessIssues,
+  projectToBusinessBuilderDraft,
+} from "@/modules/business";
 import { normalizeOfficeObjectId } from "@/modules/office/components/office-object-id";
 import {
   buildOfficeAreaLayout,
   getOfficeAreaAnchor,
   type OfficeAreaLayout,
   type OfficeAreaNode,
+  type ProjectActivitySummary,
 } from "@/modules/office/lib/office-area-layout";
 import { getWallColorPreset } from "@/modules/office/lib/office-decor";
 import { DEFAULT_OFFICE_FOOTPRINT } from "@/modules/office/lib/office-footprint";
@@ -60,7 +64,10 @@ import type {
   TeamData,
 } from "@/modules/office/lib/types";
 import { parseOfficeObjectInteractionConfig } from "@/modules/office/office-object-ui";
-import { buildSkillEffectSeed, resolveSkillEffectVariant } from "@/modules/office/skill-effects";
+import {
+  buildSkillEffectSeed,
+  resolveSkillEffectVariant,
+} from "@/modules/office/skill-effects";
 import {
   buildSkillTargetObjectMap,
   getOfficeSkillAnchorPositionForOccupant,
@@ -88,6 +95,7 @@ import type {
   FederatedTaskProvider,
   FederationProjectPolicy,
   OfficeSettingsModel,
+  ProjectModel,
   OpenClawConfigSnapshot,
   PendingApprovalModel,
   ProjectWorkloadSummary,
@@ -118,9 +126,18 @@ const AUTO_FIT_OFFICE_MIN_WIDTH = 8;
 const AUTO_FIT_OFFICE_MIN_DEPTH = 7;
 const AUTO_FIT_CORRIDOR_RADIUS_TILES = 1;
 const AUTO_FIT_LOOP_EDGE_RATIO = 0.2;
-const AUTO_FIT_EMPTY_AREA_TARGET = 0.19;
-const ENABLE_GENERATED_SECTION_WALLS = false;
+const AUTO_FIT_EMPTY_AREA_TARGET = 0.3;
+const ENABLE_GENERATED_SECTION_WALLS = true;
 const COMPACT_CLUSTER_GAP_TILES = 1.25;
+const AREA_PLANNER_TARGET_ASPECT = 1.65;
+const AREA_PLANNER_TABLE_PADDING_TILES = 2.75;
+const AREA_PLANNER_LABEL_CLEARANCE_TILES = 1.5;
+const AREA_PLANNER_MIN_TEAM_WIDTH = 10;
+const AREA_PLANNER_MIN_TEAM_DEPTH = 8;
+const COMMAND_AREA_PLANNER_TABLE_PADDING_TILES = 1.35;
+const COMMAND_AREA_PLANNER_LABEL_CLEARANCE_TILES = 0.75;
+const COMMAND_AREA_PLANNER_MIN_TEAM_WIDTH = 7;
+const COMMAND_AREA_PLANNER_MIN_TEAM_DEPTH = 6;
 const AUTO_PACKABLE_STARTER_OBJECT_IDS = new Set([
   "plant-entry-right",
   "plant-entry-left",
@@ -164,10 +181,17 @@ const demoCompany: Company = { _id: "company-demo", name: "Farplane UI" };
 function isAppearanceClothesStyle(
   value: unknown,
 ): value is NonNullable<EmployeeAppearance["clothesStyle"]> {
-  return value === "default" || value === "dj" || value === "professional" || value === "techBro";
+  return (
+    value === "default" ||
+    value === "dj" ||
+    value === "professional" ||
+    value === "techBro"
+  );
 }
 
-function isAppearancePetType(value: unknown): value is NonNullable<EmployeeAppearance["petType"]> {
+function isAppearancePetType(
+  value: unknown,
+): value is NonNullable<EmployeeAppearance["petType"]> {
   return (
     value === "none" ||
     value === "dog" ||
@@ -192,23 +216,33 @@ function parseAppearanceCharacterRenderer(
     const sourceRow = row.source as Record<string, unknown>;
     if (sourceRow.type === "codex-pet" && typeof sourceRow.petId === "string") {
       source = { type: "codex-pet", petId: sourceRow.petId.trim() };
-    } else if (sourceRow.type === "url" && typeof sourceRow.atlasUrl === "string") {
+    } else if (
+      sourceRow.type === "url" &&
+      typeof sourceRow.atlasUrl === "string"
+    ) {
       source = {
         type: "url",
         atlasUrl: sourceRow.atlasUrl,
-        manifestUrl: typeof sourceRow.manifestUrl === "string" ? sourceRow.manifestUrl : undefined,
+        manifestUrl:
+          typeof sourceRow.manifestUrl === "string"
+            ? sourceRow.manifestUrl
+            : undefined,
       };
     }
   }
   return id || source ? { id, source } : undefined;
 }
 
-function getDefaultProjectClusterPosition(projectIndex: number): [number, number, number] {
-  const safeIndex = Number.isFinite(projectIndex) ? Math.max(0, Math.floor(projectIndex)) : 0;
+function getDefaultProjectClusterPosition(
+  projectIndex: number,
+): [number, number, number] {
+  const safeIndex = Number.isFinite(projectIndex)
+    ? Math.max(0, Math.floor(projectIndex))
+    : 0;
   return (
-    DEFAULT_PROJECT_CLUSTER_POSITIONS[safeIndex % DEFAULT_PROJECT_CLUSTER_POSITIONS.length] ?? [
-      0, 0, 8,
-    ]
+    DEFAULT_PROJECT_CLUSTER_POSITIONS[
+      safeIndex % DEFAULT_PROJECT_CLUSTER_POSITIONS.length
+    ] ?? [0, 0, 8]
   );
 }
 
@@ -228,7 +262,8 @@ function getTeamClusterPlacementMetadata(
 
 function hasPinnedCeoThread(companyAgents: CompanyModel["agents"]): boolean {
   return companyAgents.some(
-    (agent) => agent.role === "ceo" && agent.agentId.startsWith("codex-thread:"),
+    (agent) =>
+      agent.role === "ceo" && agent.agentId.startsWith("codex-thread:"),
   );
 }
 
@@ -236,10 +271,18 @@ function arePositionsEqual(
   left: [number, number, number] | undefined,
   right: [number, number, number],
 ): boolean {
-  return Boolean(left && left[0] === right[0] && left[1] === right[1] && left[2] === right[2]);
+  return Boolean(
+    left &&
+    left[0] === right[0] &&
+    left[1] === right[1] &&
+    left[2] === right[2],
+  );
 }
 
-function areOfficeLayoutTilesEqual(left: OfficeLayoutModel, right: OfficeLayoutModel): boolean {
+function areOfficeLayoutTilesEqual(
+  left: OfficeLayoutModel,
+  right: OfficeLayoutModel,
+): boolean {
   if (left.tiles.length !== right.tiles.length) return false;
   return left.tiles.every((tile, index) => tile === right.tiles[index]);
 }
@@ -248,8 +291,10 @@ function sortLayoutTiles(tiles: Iterable<string>): string[] {
   return [...tiles].sort((left, right) => {
     const [leftX, leftZ] = left.split(":").map(Number);
     const [rightX, rightZ] = right.split(":").map(Number);
-    if (!Number.isFinite(leftX) || !Number.isFinite(leftZ)) return left.localeCompare(right);
-    if (!Number.isFinite(rightX) || !Number.isFinite(rightZ)) return left.localeCompare(right);
+    if (!Number.isFinite(leftX) || !Number.isFinite(leftZ))
+      return left.localeCompare(right);
+    if (!Number.isFinite(rightX) || !Number.isFinite(rightZ))
+      return left.localeCompare(right);
     return leftZ === rightZ ? leftX - rightX : leftZ - rightZ;
   });
 }
@@ -330,7 +375,12 @@ function expandTileBoundsToMinimum(input: {
   return { minTileX, maxTileX, minTileZ, maxTileZ };
 }
 
-function addPaddedTile(tileSet: Set<string>, x: number, z: number, radius: number): void {
+function addPaddedTile(
+  tileSet: Set<string>,
+  x: number,
+  z: number,
+  radius: number,
+): void {
   for (let dx = -radius; dx <= radius; dx += 1) {
     for (let dz = -radius; dz <= radius; dz += 1) {
       tileSet.add(officeLayoutTileKey(x + dx, z + dz));
@@ -383,12 +433,19 @@ function addRoutedCorridorTiles(input: {
       { x: current.x, z: current.z + 1 },
       { x: current.x, z: current.z - 1 },
     ].sort((left, right) => {
-      const leftDistance = Math.abs(left.x - input.to.x) + Math.abs(left.z - input.to.z);
-      const rightDistance = Math.abs(right.x - input.to.x) + Math.abs(right.z - input.to.z);
+      const leftDistance =
+        Math.abs(left.x - input.to.x) + Math.abs(left.z - input.to.z);
+      const rightDistance =
+        Math.abs(right.x - input.to.x) + Math.abs(right.z - input.to.z);
       return leftDistance - rightDistance;
     });
     for (const neighbor of neighbors) {
-      if (neighbor.x < minX || neighbor.x > maxX || neighbor.z < minZ || neighbor.z > maxZ) {
+      if (
+        neighbor.x < minX ||
+        neighbor.x > maxX ||
+        neighbor.z < minZ ||
+        neighbor.z > maxZ
+      ) {
         continue;
       }
       const key = officeLayoutTileKey(neighbor.x, neighbor.z);
@@ -434,8 +491,10 @@ function getObjectAccessTile(input: {
     { x: centerX, z: minZ - 1 },
   ];
   return (
-    candidates.find((candidate) => !occupied.has(officeLayoutTileKey(candidate.x, candidate.z))) ??
-    null
+    candidates.find(
+      (candidate) =>
+        !occupied.has(officeLayoutTileKey(candidate.x, candidate.z)),
+    ) ?? null
   );
 }
 
@@ -522,7 +581,9 @@ function createUniformLayoutFromTileSet(input: {
   );
 }
 
-function createTileMaskLayoutFromTileSet(tileSet: Set<string>): OfficeLayoutModel | null {
+function createTileMaskLayoutFromTileSet(
+  tileSet: Set<string>,
+): OfficeLayoutModel | null {
   if (tileSet.size === 0) return null;
   return {
     version: 1,
@@ -540,7 +601,8 @@ function trimUniformLayoutToObjectEdges(input: {
   const objectBounds = getOfficeObjectFootprintTileBounds(input.objects);
   if (!objectBounds) return input.layout;
   const layoutBounds = getOfficeLayoutBounds(input.layout);
-  const isUniformLayout = input.layout.tiles.length === layoutBounds.width * layoutBounds.depth;
+  const isUniformLayout =
+    input.layout.tiles.length === layoutBounds.width * layoutBounds.depth;
   const trimmedBounds = expandTileBoundsToMinimum({
     minTileX: Math.max(layoutBounds.minTileX, objectBounds.minTileX),
     maxTileX: Math.min(layoutBounds.maxTileX, objectBounds.maxTileX),
@@ -694,8 +756,10 @@ function pruneEmptyLayoutTilesForTarget(input: {
       .sort((left, right) => {
         const leftParsed = parseOfficeLayoutTileKey(left);
         const rightParsed = parseOfficeLayoutTileKey(right);
-        const leftDistance = Math.abs(leftParsed?.x ?? 0) + Math.abs(leftParsed?.z ?? 0);
-        const rightDistance = Math.abs(rightParsed?.x ?? 0) + Math.abs(rightParsed?.z ?? 0);
+        const leftDistance =
+          Math.abs(leftParsed?.x ?? 0) + Math.abs(leftParsed?.z ?? 0);
+        const rightDistance =
+          Math.abs(rightParsed?.x ?? 0) + Math.abs(rightParsed?.z ?? 0);
         return rightDistance - leftDistance;
       });
     let removedTile = false;
@@ -707,7 +771,10 @@ function pruneEmptyLayoutTilesForTarget(input: {
         tileSize: 1,
         tiles: sortLayoutTiles(nextTiles),
       };
-      const graph = evaluateOfficePoiGraph({ layout: nextLayout, objects: input.objects });
+      const graph = evaluateOfficePoiGraph({
+        layout: nextLayout,
+        objects: input.objects,
+      });
       if (graph.disconnectedCount > 0) continue;
       current = nextLayout;
       removedTile = true;
@@ -740,6 +807,8 @@ function buildAutoFitOfficeLayout(input: {
 
   for (const object of input.objects) {
     if (object.meshType === "wall-art") continue;
+    const isWallBoundary =
+      object.meshType === "office-divider" || object.meshType === "glass-wall";
     const cells = getObjectFootprintCells({
       meshType: object.meshType,
       position: object.position,
@@ -748,11 +817,25 @@ function buildAutoFitOfficeLayout(input: {
     });
     for (const cell of cells) occupiedTiles.add(cell.key);
     for (const cell of cells) {
-      addPaddedTile(tileSet, cell.x, cell.z, input.paddingTiles);
+      addPaddedTile(
+        tileSet,
+        cell.x,
+        cell.z,
+        isWallBoundary ? 0 : input.paddingTiles,
+      );
     }
-    const accessTile = getObjectAccessTile({ cells, position: object.position });
+    if (isWallBoundary) continue;
+    const accessTile = getObjectAccessTile({
+      cells,
+      position: object.position,
+    });
     if (accessTile) {
-      addPaddedTile(tileSet, accessTile.x, accessTile.z, input.corridorRadiusTiles);
+      addPaddedTile(
+        tileSet,
+        accessTile.x,
+        accessTile.z,
+        input.corridorRadiusTiles,
+      );
       centers.push(accessTile);
     }
   }
@@ -851,7 +934,10 @@ function deriveAutoFitOfficeLayout(input: {
     }),
   ].map((layout) => ({
     layout,
-    emptyPercent: getOfficeLayoutEmptyPercent({ layout, objects: input.objects }),
+    emptyPercent: getOfficeLayoutEmptyPercent({
+      layout,
+      objects: input.objects,
+    }),
     quality: evaluateOfficeLayoutQuality({ layout, objects: input.objects }),
     poiGraph: evaluateOfficePoiGraph({ layout, objects: input.objects }),
   }));
@@ -860,32 +946,43 @@ function deriveAutoFitOfficeLayout(input: {
       candidate.emptyPercent <= AUTO_FIT_EMPTY_AREA_TARGET &&
       candidate.poiGraph.disconnectedCount === 0,
   );
-  const connectedCandidates = candidates.filter((candidate) => candidate.poiGraph.disconnectedCount === 0);
+  const connectedCandidates = candidates.filter(
+    (candidate) => candidate.poiGraph.disconnectedCount === 0,
+  );
   const candidatePool =
     compactCandidates.length > 0
       ? compactCandidates
       : connectedCandidates.length > 0
         ? connectedCandidates
         : candidates;
-  const cappedLayout = [...candidatePool].sort((left, right) => {
-    if (left.poiGraph.disconnectedCount !== right.poiGraph.disconnectedCount) {
-      return left.poiGraph.disconnectedCount - right.poiGraph.disconnectedCount;
-    }
-    if (compactCandidates.length === 0 && left.emptyPercent !== right.emptyPercent) {
+  const cappedLayout =
+    [...candidatePool].sort((left, right) => {
+      if (
+        left.poiGraph.disconnectedCount !== right.poiGraph.disconnectedCount
+      ) {
+        return (
+          left.poiGraph.disconnectedCount - right.poiGraph.disconnectedCount
+        );
+      }
+      if (
+        compactCandidates.length === 0 &&
+        left.emptyPercent !== right.emptyPercent
+      ) {
+        return left.emptyPercent - right.emptyPercent;
+      }
+      if (right.quality.score !== left.quality.score)
+        return right.quality.score - left.quality.score;
+      if (right.quality.reachablePercent !== left.quality.reachablePercent) {
+        return right.quality.reachablePercent - left.quality.reachablePercent;
+      }
+      if (left.quality.chokePointCount !== right.quality.chokePointCount) {
+        return left.quality.chokePointCount - right.quality.chokePointCount;
+      }
+      if (left.quality.deadEndCount !== right.quality.deadEndCount) {
+        return left.quality.deadEndCount - right.quality.deadEndCount;
+      }
       return left.emptyPercent - right.emptyPercent;
-    }
-    if (right.quality.score !== left.quality.score) return right.quality.score - left.quality.score;
-    if (right.quality.reachablePercent !== left.quality.reachablePercent) {
-      return right.quality.reachablePercent - left.quality.reachablePercent;
-    }
-    if (left.quality.chokePointCount !== right.quality.chokePointCount) {
-      return left.quality.chokePointCount - right.quality.chokePointCount;
-    }
-    if (left.quality.deadEndCount !== right.quality.deadEndCount) {
-      return left.quality.deadEndCount - right.quality.deadEndCount;
-    }
-    return left.emptyPercent - right.emptyPercent;
-  })[0]?.layout ?? input.fallbackLayout;
+    })[0]?.layout ?? input.fallbackLayout;
   const rectangularCappedLayout =
     createUniformLayoutFromTileSet({
       tileSet: getOfficeLayoutTileSet(cappedLayout),
@@ -898,9 +995,14 @@ function deriveAutoFitOfficeLayout(input: {
     minWidth: AUTO_FIT_OFFICE_MIN_WIDTH,
     minDepth: AUTO_FIT_OFFICE_MIN_DEPTH,
   });
-  return areOfficeLayoutTilesEqual(input.fallbackLayout, edgeTrimmedLayout)
+  const prunedLayout = pruneEmptyLayoutTilesForTarget({
+    layout: edgeTrimmedLayout,
+    objects: input.objects,
+    targetEmptyPercent: AUTO_FIT_EMPTY_AREA_TARGET,
+  });
+  return areOfficeLayoutTilesEqual(input.fallbackLayout, prunedLayout)
     ? input.fallbackLayout
-    : edgeTrimmedLayout;
+    : prunedLayout;
 }
 
 function isTeamClusterPlacementLocked(
@@ -922,7 +1024,9 @@ function isOfficeObjectPlacementLocked(
 function isAutoPackableStarterObject(
   object: UnifiedOfficeModel["officeObjects"][number],
 ): boolean {
-  return AUTO_PACKABLE_STARTER_OBJECT_IDS.has(normalizeOfficeObjectId(object.id));
+  return AUTO_PACKABLE_STARTER_OBJECT_IDS.has(
+    normalizeOfficeObjectId(object.id),
+  );
 }
 
 function getCompactFurnitureAnchor(input: {
@@ -944,13 +1048,55 @@ function getCompactFurnitureAnchor(input: {
   if (input.meshType === "bookshelf") return [centerX, 0, centerZ - offsetZ];
   if (input.meshType === "couch") return [centerX + offsetX, 0, centerZ];
   if (input.meshType === "pantry") return [centerX - offsetX, 0, centerZ];
-  if (input.meshType === "plant") return plantSlots[input.index % plantSlots.length];
+  if (input.meshType === "plant")
+    return plantSlots[input.index % plantSlots.length];
   return [centerX, 0, centerZ];
 }
 
-function deriveCompactPlanningOfficeLayout(input: {
+interface TeamAreaPlanningEntry {
+  teamId: string;
+  projectId?: string;
+  deskCount: number;
+}
+
+function getReadableTeamAreaSize(
+  deskCount: number,
+  layoutStrategy: NonNullable<OfficeSettingsModel["layoutStrategy"]>,
+): {
+  width: number;
+  depth: number;
+} {
+  const footprint = getClusterOccupancyFootprint(deskCount);
+  const isCommandDistricts = layoutStrategy === "command_districts";
+  const edgeClearance =
+    footprint.clearance * 2 +
+    (isCommandDistricts
+      ? COMMAND_AREA_PLANNER_TABLE_PADDING_TILES
+      : AREA_PLANNER_TABLE_PADDING_TILES) *
+      2 +
+    (isCommandDistricts
+      ? COMMAND_AREA_PLANNER_LABEL_CLEARANCE_TILES
+      : AREA_PLANNER_LABEL_CLEARANCE_TILES);
+  return {
+    width: Math.max(
+      isCommandDistricts
+        ? COMMAND_AREA_PLANNER_MIN_TEAM_WIDTH
+        : AREA_PLANNER_MIN_TEAM_WIDTH,
+      Math.ceil(footprint.width + edgeClearance),
+    ),
+    depth: Math.max(
+      isCommandDistricts
+        ? COMMAND_AREA_PLANNER_MIN_TEAM_DEPTH
+        : AREA_PLANNER_MIN_TEAM_DEPTH,
+      Math.ceil(footprint.depth + edgeClearance),
+    ),
+  };
+}
+
+function deriveAreaFirstPlanningOfficeLayout(input: {
   fallbackLayout: OfficeLayoutModel;
-  teamDeskCounts: number[];
+  teams: TeamAreaPlanningEntry[];
+  layoutStrategy: NonNullable<OfficeSettingsModel["layoutStrategy"]>;
   furnitureObjects: Array<{
     meshType: string;
     position: [number, number, number];
@@ -958,32 +1104,43 @@ function deriveCompactPlanningOfficeLayout(input: {
     rotation?: [number, number, number];
   }>;
 }): OfficeLayoutModel {
-  const teamCount = input.teamDeskCounts.length;
-  if (teamCount === 0 && input.furnitureObjects.length === 0) return input.fallbackLayout;
+  const teamCount = input.teams.length;
+  if (teamCount === 0 && input.furnitureObjects.length === 0)
+    return input.fallbackLayout;
 
-  const largestTeamFootprint = input.teamDeskCounts.reduce(
-    (largest, deskCount) => {
-      const footprint = getClusterOccupancyFootprint(deskCount);
+  const teamSizes = input.teams.map((team) =>
+    getReadableTeamAreaSize(team.deskCount, input.layoutStrategy),
+  );
+  const demand = teamSizes.reduce(
+    (result, size) => {
       return {
-        width: Math.max(largest.width, footprint.width + footprint.clearance * 2),
-        depth: Math.max(largest.depth, footprint.depth + footprint.clearance * 2),
+        totalArea: result.totalArea + size.width * size.depth,
+        maxWidth: Math.max(result.maxWidth, size.width),
+        maxDepth: Math.max(result.maxDepth, size.depth),
       };
     },
-    { width: 0, depth: 0 },
+    { totalArea: 0, maxWidth: 0, maxDepth: 0 },
   );
-  const columns = Math.max(1, Math.ceil(Math.sqrt(Math.max(1, teamCount) * 1.35)));
-  const rows = Math.max(1, Math.ceil(Math.max(1, teamCount) / columns));
-  const teamWidth = Math.ceil(
-    columns * Math.max(3, largestTeamFootprint.width + COMPACT_CLUSTER_GAP_TILES) + 2,
+
+  const targetWidth = Math.ceil(
+    Math.sqrt(Math.max(1, demand.totalArea) * AREA_PLANNER_TARGET_ASPECT),
   );
-  const teamDepth = Math.ceil(
-    rows * Math.max(3, largestTeamFootprint.depth + COMPACT_CLUSTER_GAP_TILES) + 2,
+  const targetDepth = Math.ceil(
+    Math.max(1, demand.totalArea) / Math.max(1, targetWidth),
   );
   const baseLayout =
     teamCount > 0
       ? createRectangularOfficeLayout({
-          width: Math.max(AUTO_FIT_OFFICE_MIN_WIDTH, teamWidth),
-          depth: Math.max(AUTO_FIT_OFFICE_MIN_DEPTH, teamDepth),
+          width: Math.max(
+            AUTO_FIT_OFFICE_MIN_WIDTH,
+            demand.maxWidth + 3,
+            targetWidth + 2,
+          ),
+          depth: Math.max(
+            AUTO_FIT_OFFICE_MIN_DEPTH,
+            demand.maxDepth + 3,
+            targetDepth + 2,
+          ),
         })
       : createRectangularOfficeLayout({
           width: AUTO_FIT_OFFICE_MIN_WIDTH,
@@ -1037,7 +1194,11 @@ function getFurnitureCentroid(
     (sum, cell) => ({ x: sum.x + cell.x, z: sum.z + cell.z }),
     { x: 0, z: 0 },
   );
-  return [Math.round(center.x / cells.length), 0, Math.round(center.z / cells.length)];
+  return [
+    Math.round(center.x / cells.length),
+    0,
+    Math.round(center.z / cells.length),
+  ];
 }
 
 function getCompactTeamAnchor(input: {
@@ -1046,12 +1207,21 @@ function getCompactTeamAnchor(input: {
   origin: [number, number, number];
   largestFootprint: { width: number; depth: number };
 }): [number, number, number] {
-  const columns = Math.max(1, Math.ceil(Math.sqrt(Math.max(1, input.total) * 1.35)));
+  const columns = Math.max(
+    1,
+    Math.ceil(Math.sqrt(Math.max(1, input.total) * 1.35)),
+  );
   const col = input.index % columns;
   const row = Math.floor(input.index / columns);
   const rows = Math.max(1, Math.ceil(input.total / columns));
-  const spacingX = Math.max(3, Math.ceil(input.largestFootprint.width + COMPACT_CLUSTER_GAP_TILES));
-  const spacingZ = Math.max(3, Math.ceil(input.largestFootprint.depth + COMPACT_CLUSTER_GAP_TILES));
+  const spacingX = Math.max(
+    3,
+    Math.ceil(input.largestFootprint.width + COMPACT_CLUSTER_GAP_TILES),
+  );
+  const spacingZ = Math.max(
+    3,
+    Math.ceil(input.largestFootprint.depth + COMPACT_CLUSTER_GAP_TILES),
+  );
   return [
     Math.round(input.origin[0] + (col - (columns - 1) / 2) * spacingX),
     0,
@@ -1068,12 +1238,78 @@ interface TeamClusterRepairSpec {
   existing?: SidecarOfficeObject;
 }
 
+interface ProjectPlacementEntry {
+  project: ProjectModel;
+  sourceIndex: number;
+  projectAgents: CompanyModel["agents"];
+  deskCount: number;
+}
+
+function normalizeProjectTrackingPathForPlacement(
+  path: string | undefined,
+): string {
+  return (path ?? "").trim().replace(/\\/g, "/").replace(/\/+$/, "");
+}
+
+function getProjectPathDepthForPlacement(project: ProjectModel): number {
+  return normalizeProjectTrackingPathForPlacement(project.trackingContext)
+    .split("/")
+    .filter(Boolean).length;
+}
+
+function getProjectDescendantCountForPlacement(
+  project: ProjectModel,
+  projects: ProjectModel[],
+): number {
+  const projectPath = normalizeProjectTrackingPathForPlacement(
+    project.trackingContext,
+  );
+  if (!projectPath) return 0;
+  return projects.filter((candidate) => {
+    if (candidate.id === project.id) return false;
+    const candidatePath = normalizeProjectTrackingPathForPlacement(
+      candidate.trackingContext,
+    );
+    return candidatePath.startsWith(`${projectPath}/`);
+  }).length;
+}
+
+function compareProjectPlacementEntries(input: {
+  layoutStrategy: NonNullable<OfficeSettingsModel["layoutStrategy"]>;
+  projects: ProjectModel[];
+  left: ProjectPlacementEntry;
+  right: ProjectPlacementEntry;
+}): number {
+  const { layoutStrategy, projects, left, right } = input;
+  if (layoutStrategy === "command_districts") {
+    const leftDescendants = getProjectDescendantCountForPlacement(
+      left.project,
+      projects,
+    );
+    const rightDescendants = getProjectDescendantCountForPlacement(
+      right.project,
+      projects,
+    );
+    if (rightDescendants !== leftDescendants)
+      return rightDescendants - leftDescendants;
+    const leftDepth = getProjectPathDepthForPlacement(left.project);
+    const rightDepth = getProjectPathDepthForPlacement(right.project);
+    if (leftDepth !== rightDepth) return leftDepth - rightDepth;
+  }
+  return right.deskCount === left.deskCount
+    ? left.sourceIndex - right.sourceIndex
+    : right.deskCount - left.deskCount;
+}
+
 function getTeamClusterRepairSpecs(input: {
   unified: UnifiedOfficeModel;
   officeLayout: OfficeLayoutModel;
 }): TeamClusterRepairSpec[] {
-  const sidecarObjects = dedupeCanonicalSidecarObjects(input.unified.officeObjects ?? []);
-  const persistedTeamClusterByTeamId = buildPersistedTeamClusterByTeamId(sidecarObjects);
+  const sidecarObjects = dedupeCanonicalSidecarObjects(
+    input.unified.officeObjects ?? [],
+  );
+  const persistedTeamClusterByTeamId =
+    buildPersistedTeamClusterByTeamId(sidecarObjects);
   const companyAgents = input.unified.company.agents ?? [];
   const officeAreaLayout = buildOfficeAreaLayout({
     company: input.unified.company,
@@ -1088,10 +1324,12 @@ function getTeamClusterRepairSpecs(input: {
     specs.push({
       teamId,
       name: "Management",
-      description: "Executive control desk inside the dedicated management zone.",
+      description:
+        "Executive control desk inside the dedicated management zone.",
       deskCount: 1,
       preferredPosition:
-        existing?.position ?? getManagementAnchorFromOfficeLayout(input.officeLayout),
+        existing?.position ??
+        getManagementAnchorFromOfficeLayout(input.officeLayout),
       existing,
     });
   }
@@ -1100,10 +1338,16 @@ function getTeamClusterRepairSpecs(input: {
     .filter((project) => project.status !== "archived")
     .forEach((project, projectIndex) => {
       const teamId = `team-${project.id}`;
-      const projectAgents = companyAgents.filter((agent) => agent.projectId === project.id);
+      const projectAgents = companyAgents.filter(
+        (agent) => agent.projectId === project.id,
+      );
       const existing = persistedTeamClusterByTeamId.get(teamId);
-      const preferredAreaAnchor = officeAreaLayout.projectAreaByProjectId[project.id]
-        ? getOfficeAreaAnchor(officeAreaLayout.projectAreaByProjectId[project.id])
+      const preferredAreaAnchor = officeAreaLayout.projectAreaByProjectId[
+        project.id
+      ]
+        ? getOfficeAreaAnchor(
+            officeAreaLayout.projectAreaByProjectId[project.id],
+          )
         : undefined;
       specs.push({
         teamId,
@@ -1135,7 +1379,10 @@ function buildRepairedTeamClusterObject(
     rotation: spec.existing?.rotation ?? [0, 0, 0],
     scale: spec.existing?.scale,
     metadata: {
-      ...getTeamClusterPlacementMetadata(spec.existing?.metadata, spec.deskCount),
+      ...getTeamClusterPlacementMetadata(
+        spec.existing?.metadata,
+        spec.deskCount,
+      ),
       teamId: spec.teamId,
       name: spec.name,
       description: spec.description,
@@ -1175,7 +1422,10 @@ function resolveTeamClusterRepairPass(input: {
     const object = {
       meshType: "team-cluster",
       position: spec.preferredPosition,
-      metadata: getTeamClusterPlacementMetadata(spec.existing?.metadata, spec.deskCount),
+      metadata: getTeamClusterPlacementMetadata(
+        spec.existing?.metadata,
+        spec.deskCount,
+      ),
       rotation: spec.existing?.rotation,
     };
     const result = reserveOfficeObjectPlacement({
@@ -1207,7 +1457,9 @@ export function repairTeamClusterPlacements(input: {
   unified: UnifiedOfficeModel;
   officeSettings: OfficeSettingsModel;
 }): TeamClusterPlacementRepairResult {
-  const originalObjects = dedupeCanonicalSidecarObjects(input.unified.officeObjects ?? []);
+  const originalObjects = dedupeCanonicalSidecarObjects(
+    input.unified.officeObjects ?? [],
+  );
   const specs = getTeamClusterRepairSpecs({
     unified: input.unified,
     officeLayout: input.officeSettings.officeLayout,
@@ -1234,8 +1486,14 @@ export function repairTeamClusterPlacements(input: {
     (largest, spec) => {
       const footprint = getClusterOccupancyFootprint(spec.deskCount);
       return {
-        width: Math.max(largest.width, footprint.width + footprint.clearance * 2),
-        depth: Math.max(largest.depth, footprint.depth + footprint.clearance * 2),
+        width: Math.max(
+          largest.width,
+          footprint.width + footprint.clearance * 2,
+        ),
+        depth: Math.max(
+          largest.depth,
+          footprint.depth + footprint.clearance * 2,
+        ),
       };
     },
     { width: 0, depth: 0 },
@@ -1281,11 +1539,13 @@ export function repairTeamClusterPlacements(input: {
       const repaired = repairedByTeamId.get(spec.teamId);
       return Boolean(
         repaired &&
-          (!spec.existing ||
-            !arePositionsEqual(spec.existing.position, repaired.position) ||
-            spec.existing.metadata?.deskCount !== spec.deskCount ||
-            spec.existing.metadata?.footprintWidth !== repaired.metadata?.footprintWidth ||
-            spec.existing.metadata?.footprintDepth !== repaired.metadata?.footprintDepth),
+        (!spec.existing ||
+          !arePositionsEqual(spec.existing.position, repaired.position) ||
+          spec.existing.metadata?.deskCount !== spec.deskCount ||
+          spec.existing.metadata?.footprintWidth !==
+            repaired.metadata?.footprintWidth ||
+          spec.existing.metadata?.footprintDepth !==
+            repaired.metadata?.footprintDepth),
       );
     })
     .map((spec) => spec.teamId);
@@ -1301,7 +1561,9 @@ export function repairTeamClusterPlacements(input: {
     !areOfficeLayoutTilesEqual(input.officeSettings.officeLayout, officeLayout);
 
   return {
-    unified: changed ? { ...input.unified, officeObjects: nextObjects } : input.unified,
+    unified: changed
+      ? { ...input.unified, officeObjects: nextObjects }
+      : input.unified,
     officeSettings: changed ? officeSettings : input.officeSettings,
     changed,
     expandedLayout,
@@ -1339,7 +1601,10 @@ function resolveTeamClusterScenePosition(input: {
       object: {
         meshType: "team-cluster",
         position: input.position,
-        metadata: getTeamClusterPlacementMetadata(input.metadata, input.deskCount),
+        metadata: getTeamClusterPlacementMetadata(
+          input.metadata,
+          input.deskCount,
+        ),
         rotation: input.rotation,
       },
       officeLayout: input.officeLayout,
@@ -1363,7 +1628,10 @@ function shouldReplaceCanonicalSidecarObject(
 function dedupeCanonicalSidecarObjects(
   objects: UnifiedOfficeModel["officeObjects"],
 ): UnifiedOfficeModel["officeObjects"] {
-  const byCanonicalId = new Map<string, UnifiedOfficeModel["officeObjects"][number]>();
+  const byCanonicalId = new Map<
+    string,
+    UnifiedOfficeModel["officeObjects"][number]
+  >();
   for (const object of objects) {
     const canonicalId = normalizeOfficeObjectId(object.id);
     const existing = byCanonicalId.get(canonicalId);
@@ -1401,7 +1669,10 @@ function resolveTeamClusterTeamId(
 function buildPersistedTeamClusterByTeamId(
   objects: UnifiedOfficeModel["officeObjects"],
 ): Map<string, UnifiedOfficeModel["officeObjects"][number]> {
-  const clusterByTeamId = new Map<string, UnifiedOfficeModel["officeObjects"][number]>();
+  const clusterByTeamId = new Map<
+    string,
+    UnifiedOfficeModel["officeObjects"][number]
+  >();
   for (const object of objects) {
     if (object.meshType !== "team-cluster") continue;
     const teamId = resolveTeamClusterTeamId(object);
@@ -1415,7 +1686,11 @@ function buildPersistedTeamClusterByTeamId(
     const nextCanonical = normalizeOfficeObjectId(object.id);
     const existingIsCurrent = existing.id.startsWith("team-cluster-");
     const nextIsCurrent = object.id.startsWith("team-cluster-");
-    if (existingCanonical !== nextCanonical ? nextIsCurrent : !existingIsCurrent && nextIsCurrent) {
+    if (
+      existingCanonical !== nextCanonical
+        ? nextIsCurrent
+        : !existingIsCurrent && nextIsCurrent
+    ) {
       clusterByTeamId.set(teamId, object);
     }
   }
@@ -1476,7 +1751,7 @@ function buildDefaultFurnitureObjects(
     }
     return { ...object, position };
   };
-  return [
+  const defaultFurniture: OfficeObject[] = [
     {
       _id: "plant-1",
       companyId,
@@ -1512,7 +1787,33 @@ function buildDefaultFurnitureObjects(
       position: [leftX, 0, backZ],
       rotation: [0, 0, 0],
     },
-  ].map(keepFootprintInsideLayout);
+  ];
+  return defaultFurniture.map(keepFootprintInsideLayout);
+}
+
+function toPlacementObject(object: OfficeObject): ScenePlacementObject {
+  return {
+    meshType: object.meshType,
+    position: object.position,
+    metadata: object.metadata,
+    rotation: object.rotation,
+  };
+}
+
+function placeFurnitureObjects(input: {
+  objects: OfficeObject[];
+  officeLayout: OfficeLayoutModel;
+  reservation: OfficePlacementReservation;
+}): OfficeObject[] {
+  return input.objects.flatMap((object) => {
+    const position = resolveSceneObjectPosition({
+      object: toPlacementObject(object),
+      officeLayout: input.officeLayout,
+      reservation: input.reservation,
+      allowCollisionFallback: false,
+    });
+    return position ? [{ ...object, position }] : [];
+  });
 }
 
 function subtractInterval(
@@ -1520,7 +1821,8 @@ function subtractInterval(
   blocked: { start: number; end: number },
 ): Array<{ start: number; end: number }> {
   return intervals.flatMap((interval) => {
-    if (blocked.end <= interval.start || blocked.start >= interval.end) return [interval];
+    if (blocked.end <= interval.start || blocked.start >= interval.end)
+      return [interval];
     return [
       { start: interval.start, end: Math.max(interval.start, blocked.start) },
       { start: Math.min(interval.end, blocked.end), end: interval.end },
@@ -1528,41 +1830,18 @@ function subtractInterval(
   });
 }
 
-function findNearestFreeDividerLine(input: {
-  lineCell: number;
-  vertical: boolean;
-  interval: { start: number; end: number };
-  clusters: OfficeObject[];
-}): number | null {
-  const occupied = new Set<string>();
-  for (const cluster of input.clusters) {
-    for (const cell of getObjectFootprintCells({
-      meshType: cluster.meshType,
-      position: cluster.position,
-      metadata: cluster.metadata,
-      rotation: cluster.rotation,
-    })) {
-      const axis = input.vertical ? cell.z : cell.x;
-      if (axis < input.interval.start || axis > input.interval.end) continue;
-      occupied.add(input.vertical ? `${cell.x}` : `${cell.z}`);
-    }
-  }
-  for (let offset = 1; offset <= 8; offset += 1) {
-    for (const candidate of [input.lineCell - offset, input.lineCell + offset]) {
-      if (!occupied.has(`${candidate}`)) return candidate;
-    }
-  }
-  return null;
-}
-
-function clipGeneratedDividerWallsAroundClusters(input: {
+function clipGeneratedDividerWallsAroundObstacles(input: {
   walls: OfficeObject[];
-  clusters: OfficeObject[];
+  obstacles: OfficeObject[];
 }): OfficeObject[] {
   return input.walls.flatMap((wall) => {
-    if (wall.meshType !== "office-divider" || wall.metadata?.generated !== true) return [wall];
+    if (wall.meshType !== "office-divider" || wall.metadata?.generated !== true)
+      return [wall];
     const rawLength = wall.metadata?.footprintWidth;
-    const length = typeof rawLength === "number" && Number.isFinite(rawLength) ? rawLength : 0;
+    const length =
+      typeof rawLength === "number" && Number.isFinite(rawLength)
+        ? rawLength
+        : 0;
     if (length <= 1) return [wall];
     const vertical = Math.abs(wall.rotation[1] ?? 0) > Math.PI / 4;
     const center = vertical ? wall.position[2] : wall.position[0];
@@ -1570,45 +1849,35 @@ function clipGeneratedDividerWallsAroundClusters(input: {
     const lineCell = Math.round(line);
     let intervals = [{ start: center - length / 2, end: center + length / 2 }];
 
-    for (const cluster of input.clusters) {
+    for (const obstacle of input.obstacles) {
       const clusterCells = getObjectFootprintCells({
-        meshType: cluster.meshType,
-        position: cluster.position,
-        metadata: cluster.metadata,
-        rotation: cluster.rotation,
+        meshType: obstacle.meshType,
+        position: obstacle.position,
+        metadata: obstacle.metadata,
+        rotation: obstacle.rotation,
       });
       if (clusterCells.length === 0) continue;
       const crossesLine = vertical
         ? clusterCells.some((cell) => cell.x === lineCell)
         : clusterCells.some((cell) => cell.z === lineCell);
       if (!crossesLine) continue;
-      const axisCells = clusterCells.map((cell) => (vertical ? cell.z : cell.x));
+      const axisCells = clusterCells.map((cell) =>
+        vertical ? cell.z : cell.x,
+      );
       const blocked = vertical
-        ? { start: Math.min(...axisCells) - 0.55, end: Math.max(...axisCells) + 0.55 }
-        : { start: Math.min(...axisCells) - 0.55, end: Math.max(...axisCells) + 0.55 };
+        ? {
+            start: Math.min(...axisCells) - 0.55,
+            end: Math.max(...axisCells) + 0.55,
+          }
+        : {
+            start: Math.min(...axisCells) - 0.55,
+            end: Math.max(...axisCells) + 0.55,
+          };
       intervals = subtractInterval(intervals, blocked);
     }
 
     if (intervals.length === 0) {
-      const freeLine = findNearestFreeDividerLine({
-        lineCell,
-        vertical,
-        interval: { start: center - length / 2, end: center + length / 2 },
-        clusters: input.clusters,
-      });
-      if (freeLine == null) return [];
-      return [
-        {
-          ...wall,
-          position: vertical
-            ? [freeLine, wall.position[1], wall.position[2]]
-            : [wall.position[0], wall.position[1], freeLine],
-          metadata: {
-            ...(wall.metadata ?? {}),
-            nudgedAroundClusters: true,
-          },
-        },
-      ];
+      return [];
     }
     return intervals.map((interval, index) => {
       const nextLength = interval.end - interval.start;
@@ -1622,11 +1891,19 @@ function clipGeneratedDividerWallsAroundClusters(input: {
         metadata: {
           ...(wall.metadata ?? {}),
           footprintWidth: nextLength,
-          clippedAroundClusters: true,
+          clippedAroundObstacles: true,
         },
       };
     });
   });
+}
+
+function isPreservedOfficeObjectPlacement(object: OfficeObject): boolean {
+  return (
+    object.metadata?.layoutLocked === true ||
+    object.metadata?.placementLocked === true ||
+    object.metadata?.locked === true
+  );
 }
 
 export function fallbackData(): OfficeDataContextValue {
@@ -1701,8 +1978,14 @@ export function fallbackData(): OfficeDataContextValue {
     refresh: async () => {},
     applyOfficeSettings: () => {},
     manualResync: async () => ({ ok: false, error: "adapter_unavailable" }),
-    upsertFederationPolicy: async () => ({ ok: false, error: "adapter_unavailable" }),
-    upsertProviderIndexProfile: async () => ({ ok: false, error: "adapter_unavailable" }),
+    upsertFederationPolicy: async () => ({
+      ok: false,
+      error: "adapter_unavailable",
+    }),
+    upsertProviderIndexProfile: async () => ({
+      ok: false,
+      error: "adapter_unavailable",
+    }),
     isLoading: false,
   };
 }
@@ -1715,14 +1998,58 @@ function resolveRuntimeTeamId(
   hasPinnedCeoThread: boolean,
 ): string {
   if (agentId === "main") return "team-management";
-  if (companyAgentProjectId) return projectToTeamId.get(companyAgentProjectId) ?? "team-management";
-  if (companyAgentRole === "ceo" && hasPinnedCeoThread) return "team-ceo-thread";
+  if (companyAgentProjectId)
+    return projectToTeamId.get(companyAgentProjectId) ?? "team-management";
+  if (companyAgentRole === "ceo" && hasPinnedCeoThread)
+    return "team-ceo-thread";
   return "team-management";
 }
 
-export function areStringArraysEqual(current: string[], next: string[]): boolean {
+export function areStringArraysEqual(
+  current: string[],
+  next: string[],
+): boolean {
   if (current.length !== next.length) return false;
   return current.every((value, index) => value === next[index]);
+}
+
+function timestampToMs(value: number | undefined): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0)
+    return undefined;
+  return value < 10_000_000_000 ? value * 1000 : value;
+}
+
+function deriveProjectActivitySummaries(input: {
+  companyAgents: CompanyModel["agents"];
+  runtimeAgents: AgentCardModel[];
+  nowMs?: number;
+}): ProjectActivitySummary[] {
+  const runtimeById = new Map(
+    input.runtimeAgents.map((agent) => [agent.agentId, agent]),
+  );
+  const nowMs = input.nowMs ?? Date.now();
+  const activityByProjectId = new Map<string, number>();
+  for (const agent of input.companyAgents) {
+    if (!agent.projectId) continue;
+    const runtime = runtimeById.get(agent.agentId);
+    const updatedAt = timestampToMs(runtime?.lastUpdatedAt);
+    const ageHours = updatedAt
+      ? Math.max(0, (nowMs - updatedAt) / (60 * 60 * 1000))
+      : Number.POSITIVE_INFINITY;
+    const recencyScore = Number.isFinite(ageHours)
+      ? Math.max(0, 4 - ageHours / 6)
+      : 0;
+    activityByProjectId.set(
+      agent.projectId,
+      (activityByProjectId.get(agent.projectId) ?? 0) + recencyScore,
+    );
+  }
+  return [...activityByProjectId.entries()].map(
+    ([projectId, recentActivityScore]) => ({
+      projectId,
+      recentActivityScore,
+    }),
+  );
 }
 
 export function toOfficeData(
@@ -1734,17 +2061,29 @@ export function toOfficeData(
 ): OfficeDataContextValue {
   const runtimeAgents = unified.runtimeAgents;
   const configuredAgents = unified.configuredAgents;
-  const sidecarObjects = dedupeCanonicalSidecarObjects(unified.officeObjects ?? []);
+  const sidecarObjects = dedupeCanonicalSidecarObjects(
+    unified.officeObjects ?? [],
+  );
   const companyModel = unified.company;
   const workload = unified.workload;
   const warnings = unified.warnings;
   const sourceOfficeLayout = officeSettings.officeLayout;
-  const agents: AgentCardModel[] = configuredAgents.length > 0 ? configuredAgents : runtimeAgents;
+  const layoutStrategy = officeSettings.layoutStrategy ?? "activity_treemap";
+  const isManualLayout = layoutStrategy === "manual";
+  const usesProjectDistricts =
+    layoutStrategy === "activity_treemap" ||
+    layoutStrategy === "command_districts";
+  const agents: AgentCardModel[] =
+    configuredAgents.length > 0 ? configuredAgents : runtimeAgents;
   if (agents.length === 0) return fallbackData();
 
   const companyId = demoCompany._id;
-  const runtimeById = new Map(runtimeAgents.map((agent) => [agent.agentId, agent]));
-  const companyAgentsById = new Map(companyModel.agents.map((agent) => [agent.agentId, agent]));
+  const runtimeById = new Map(
+    runtimeAgents.map((agent) => [agent.agentId, agent]),
+  );
+  const companyAgentsById = new Map(
+    companyModel.agents.map((agent) => [agent.agentId, agent]),
+  );
   const projectToTeamId = new Map<string, string>();
   const teams: TeamData[] = [];
   const projectList = (companyModel.projects ?? []).filter(
@@ -1752,32 +2091,103 @@ export function toOfficeData(
   );
   const companyAgents = companyModel.agents ?? [];
   const hasPinnedCeoThread = companyAgents.some(
-    (agent) => agent.role === "ceo" && agent.agentId.startsWith("codex-thread:"),
+    (agent) =>
+      agent.role === "ceo" && agent.agentId.startsWith("codex-thread:"),
+  );
+  const projectPlacementEntries: ProjectPlacementEntry[] = projectList
+    .map((project, sourceIndex) => {
+      const projectAgents = companyAgents.filter(
+        (agent) => agent.projectId === project.id,
+      );
+      return {
+        project,
+        sourceIndex,
+        projectAgents,
+        deskCount: Math.max(projectAgents.length, 1),
+      };
+    })
+    .sort((left, right) =>
+      compareProjectPlacementEntries({
+        layoutStrategy,
+        projects: projectList,
+        left,
+        right,
+      }),
+    );
+  const projectAgentsByProjectId = new Map(
+    projectPlacementEntries.map((entry) => [
+      entry.project.id,
+      entry.projectAgents,
+    ]),
+  );
+  const projectActivity = deriveProjectActivitySummaries({
+    companyAgents,
+    runtimeAgents,
+  });
+  const projectDeskCountByProjectId = new Map(
+    projectPlacementEntries.map((entry) => [entry.project.id, entry.deskCount]),
   );
   const sidecarFurnitureEntries = sidecarObjects.filter(
-    (entry) => entry.meshType !== "team-cluster" && entry.meshType !== "wall-art",
+    (entry) =>
+      entry.meshType !== "team-cluster" && entry.meshType !== "wall-art",
   );
-  const lockedSidecarFurnitureEntries = sidecarFurnitureEntries.filter((entry) =>
-    isOfficeObjectPlacementLocked(entry) || !isAutoPackableStarterObject(entry),
-  );
-  const lockedTeamClusterEntries = sidecarObjects.filter(
-    (entry) => entry.meshType === "team-cluster" && isTeamClusterPlacementLocked(entry),
-  );
-  const planningTeamDeskCounts = [
-    ...(!hasPinnedCeoThread ? [1] : []),
-    ...projectList.map((project) =>
-      Math.max(companyAgents.filter((agent) => agent.projectId === project.id).length, 1),
-    ),
-  ];
-  const officeLayout = deriveCompactPlanningOfficeLayout({
-    fallbackLayout: sourceOfficeLayout,
-    teamDeskCounts: planningTeamDeskCounts,
-    furnitureObjects: [...lockedSidecarFurnitureEntries, ...lockedTeamClusterEntries].map((entry) => ({
+  const existingDividerWalls: OfficeObject[] = sidecarFurnitureEntries
+    .filter(
+      (entry) =>
+        entry.meshType === "office-divider" || entry.meshType === "glass-wall",
+    )
+    .map((entry) => ({
+      _id: normalizeOfficeObjectId(entry.id),
+      companyId,
       meshType: entry.meshType,
       position: entry.position,
+      rotation: entry.rotation ?? [0, 0, 0],
+      scale: entry.scale,
       metadata: entry.metadata,
-      rotation: entry.rotation,
+    }));
+  const lockedSidecarFurnitureEntries = sidecarFurnitureEntries.filter(
+    (entry) =>
+      isOfficeObjectPlacementLocked(entry) ||
+      !isAutoPackableStarterObject(entry),
+  );
+  const lockedTeamClusterEntries = sidecarObjects.filter(
+    (entry) =>
+      entry.meshType === "team-cluster" && isTeamClusterPlacementLocked(entry),
+  );
+  const planningTeams: TeamAreaPlanningEntry[] = [
+    ...projectPlacementEntries.map((entry) => ({
+      teamId: `team-${entry.project.id}`,
+      projectId: entry.project.id,
+      deskCount: entry.deskCount,
     })),
+    ...(!hasPinnedCeoThread
+      ? [{ teamId: "team-management", deskCount: 1 }]
+      : []),
+  ];
+  const officeLayout = isManualLayout
+    ? sourceOfficeLayout
+    : usesProjectDistricts
+      ? deriveAreaFirstPlanningOfficeLayout({
+          fallbackLayout: sourceOfficeLayout,
+          teams: planningTeams,
+          layoutStrategy,
+          furnitureObjects: [
+            ...lockedSidecarFurnitureEntries,
+            ...lockedTeamClusterEntries,
+          ].map((entry) => ({
+            meshType: entry.meshType,
+            position: entry.position,
+            metadata: entry.metadata,
+            rotation: entry.rotation,
+          })),
+        })
+      : createRectangularOfficeLayout(officeSettings.officeFootprint);
+  const planningAreaLayout = buildOfficeAreaLayout({
+    company: companyModel,
+    officeLayout,
+    layoutStrategy,
+    workload,
+    activity: projectActivity,
   });
   const compactAnchorOrigin = getFurnitureCentroid(
     lockedSidecarFurnitureEntries.map((entry) => ({
@@ -1787,12 +2197,18 @@ export function toOfficeData(
       rotation: entry.rotation,
     })),
   );
-  const largestTeamFootprint = planningTeamDeskCounts.reduce(
+  const largestTeamFootprint = planningTeams.reduce(
     (largest, deskCount) => {
-      const footprint = getClusterOccupancyFootprint(deskCount);
+      const footprint = getClusterOccupancyFootprint(deskCount.deskCount);
       return {
-        width: Math.max(largest.width, footprint.width + footprint.clearance * 2),
-        depth: Math.max(largest.depth, footprint.depth + footprint.clearance * 2),
+        width: Math.max(
+          largest.width,
+          footprint.width + footprint.clearance * 2,
+        ),
+        depth: Math.max(
+          largest.depth,
+          footprint.depth + footprint.clearance * 2,
+        ),
       };
     },
     { width: 0, depth: 0 },
@@ -1807,55 +2223,128 @@ export function toOfficeData(
     }
   >();
 
-  const rootConfig = configSnapshot?.config as Record<string, unknown> | undefined;
+  const rootConfig = configSnapshot?.config as
+    | Record<string, unknown>
+    | undefined;
   if (rootConfig && typeof rootConfig.agentAppearances === "object") {
-    const appearancesNode = rootConfig.agentAppearances as Record<string, unknown>;
+    const appearancesNode = rootConfig.agentAppearances as Record<
+      string,
+      unknown
+    >;
     for (const [agentId, value] of Object.entries(appearancesNode)) {
       if (!value || typeof value !== "object") continue;
       const row = value as Record<string, unknown>;
       const clothesStyle = isAppearanceClothesStyle(row.clothesStyle)
         ? row.clothesStyle
         : undefined;
-      const hairColor = typeof row.hairColor === "string" ? row.hairColor : undefined;
-      const petType = isAppearancePetType(row.petType) ? row.petType : undefined;
-      const characterRenderer = parseAppearanceCharacterRenderer(row.characterRenderer);
-      appearanceByAgentId.set(agentId, { clothesStyle, hairColor, petType, characterRenderer });
+      const hairColor =
+        typeof row.hairColor === "string" ? row.hairColor : undefined;
+      const petType = isAppearancePetType(row.petType)
+        ? row.petType
+        : undefined;
+      const characterRenderer = parseAppearanceCharacterRenderer(
+        row.characterRenderer,
+      );
+      appearanceByAgentId.set(agentId, {
+        clothesStyle,
+        hairColor,
+        petType,
+        characterRenderer,
+      });
     }
   }
-  const teamClusterAnchorsByTeamId = new Map<string, [number, number, number]>();
-  const persistedTeamClusterByTeamId = buildPersistedTeamClusterByTeamId(sidecarObjects);
-  for (const object of sidecarObjects.filter((entry) => entry.meshType === "team-cluster")) {
+  const teamClusterAnchorsByTeamId = new Map<
+    string,
+    [number, number, number]
+  >();
+  const persistedTeamClusterByTeamId =
+    buildPersistedTeamClusterByTeamId(sidecarObjects);
+  for (const object of sidecarObjects.filter(
+    (entry) => entry.meshType === "team-cluster",
+  )) {
     const resolvedTeamId = resolveTeamClusterTeamId(object);
     if (!resolvedTeamId) continue;
     teamClusterAnchorsByTeamId.set(resolvedTeamId, object.position);
   }
   const ceoAnchor = getManagementAnchorFromOfficeLayout(officeLayout);
   const scenePlacementReservation = createOfficePlacementReservation();
+  const teamClusterPositionsByTeamId = new Map<
+    string,
+    [number, number, number]
+  >();
+  let managementClusterPosition: [number, number, number] | undefined;
   let sidecarFurniture: OfficeObject[] = [];
 
-  if (!hasPinnedCeoThread) {
-    const managementCompactAnchor = getCompactTeamAnchor({
-      index: 0,
-      total: planningTeamDeskCounts.length,
+  for (const [placementIndex, entry] of projectPlacementEntries.entries()) {
+    const { project, deskCount } = entry;
+    const teamId = `team-${project.id}`;
+    projectToTeamId.set(project.id, teamId);
+    const persistedClusterPosition = teamClusterAnchorsByTeamId.get(teamId);
+    const persistedCluster = persistedTeamClusterByTeamId.get(teamId);
+    const shouldPreservePersistedCluster =
+      (isManualLayout && Boolean(persistedClusterPosition)) ||
+      isTeamClusterPlacementLocked(persistedCluster);
+    const compactAnchor = getCompactTeamAnchor({
+      index: placementIndex,
+      total: planningTeams.length,
       origin: compactAnchorOrigin,
       largestFootprint: largestTeamFootprint,
     });
-    const managementClusterPosition = resolveTeamClusterScenePosition({
-      position: isTeamClusterPlacementLocked(persistedTeamClusterByTeamId.get("team-management"))
-        ? (teamClusterAnchorsByTeamId.get("team-management") ?? ceoAnchor)
-        : managementCompactAnchor,
+    const areaAnchor =
+      usesProjectDistricts &&
+      planningAreaLayout.projectAreaByProjectId[project.id]
+        ? getOfficeAreaAnchor(
+            planningAreaLayout.projectAreaByProjectId[project.id],
+          )
+        : undefined;
+    const clusterPosition = resolveTeamClusterScenePosition({
+      position:
+        (shouldPreservePersistedCluster
+          ? persistedClusterPosition
+          : undefined) ??
+        areaAnchor ??
+        compactAnchor,
+      deskCount,
+      officeLayout,
+      reservation: scenePlacementReservation,
+      metadata: { ...(persistedCluster?.metadata ?? {}), teamId },
+      rotation: persistedCluster?.rotation,
+    });
+    teamClusterPositionsByTeamId.set(teamId, clusterPosition);
+  }
+
+  if (!hasPinnedCeoThread) {
+    const managementCompactAnchor = getCompactTeamAnchor({
+      index: projectPlacementEntries.length,
+      total: planningTeams.length,
+      origin: compactAnchorOrigin,
+      largestFootprint: largestTeamFootprint,
+    });
+    managementClusterPosition = resolveTeamClusterScenePosition({
+      position:
+        isManualLayout ||
+        isTeamClusterPlacementLocked(
+          persistedTeamClusterByTeamId.get("team-management"),
+        )
+          ? (teamClusterAnchorsByTeamId.get("team-management") ?? ceoAnchor)
+          : managementCompactAnchor,
       deskCount: 1,
       officeLayout,
       reservation: scenePlacementReservation,
       metadata: { teamId: "team-management" },
       rotation: persistedTeamClusterByTeamId.get("team-management")?.rotation,
     });
+    teamClusterPositionsByTeamId.set(
+      "team-management",
+      managementClusterPosition,
+    );
 
     teams.push({
       _id: "team-management",
       companyId,
       name: "Management",
-      description: "Executive control desk inside the dedicated management zone.",
+      description:
+        "Executive control desk inside the dedicated management zone.",
       deskCount: 1,
       clusterPosition: managementClusterPosition,
       employees: [],
@@ -1863,37 +2352,24 @@ export function toOfficeData(
   }
 
   if (projectList.length > 0) {
-    for (const [projectIndex, project] of projectList.entries()) {
+    for (const project of projectList) {
       const teamId = `team-${project.id}`;
-      const projectAgents = companyAgents.filter((agent) => agent.projectId === project.id);
-      const deskCount = Math.max(projectAgents.length, 1);
+      const projectAgents = projectAgentsByProjectId.get(project.id) ?? [];
+      const deskCount = projectDeskCountByProjectId.get(project.id) ?? 1;
       projectToTeamId.set(project.id, teamId);
       const summary = workload.find((item) => item.projectId === project.id);
       const revenueCents = (project.ledger ?? [])
         .filter((entry) => entry.type === "revenue")
-        .reduce((total, entry) => total + Math.max(0, Math.round(entry.amount)), 0);
+        .reduce(
+          (total, entry) => total + Math.max(0, Math.round(entry.amount)),
+          0,
+        );
       const costCents = (project.ledger ?? [])
         .filter((entry) => entry.type === "cost")
-        .reduce((total, entry) => total + Math.max(0, Math.round(entry.amount)), 0);
-      const persistedClusterPosition = teamClusterAnchorsByTeamId.get(teamId);
-      const persistedCluster = persistedTeamClusterByTeamId.get(teamId);
-      const shouldPreservePersistedCluster = isTeamClusterPlacementLocked(persistedCluster);
-      const compactAnchor = getCompactTeamAnchor({
-        index: projectIndex + (!hasPinnedCeoThread ? 1 : 0),
-        total: planningTeamDeskCounts.length,
-        origin: compactAnchorOrigin,
-        largestFootprint: largestTeamFootprint,
-      });
-      const clusterPosition = resolveTeamClusterScenePosition({
-        position:
-          (shouldPreservePersistedCluster ? persistedClusterPosition : undefined) ??
-          compactAnchor,
-        deskCount,
-        officeLayout,
-        reservation: scenePlacementReservation,
-        metadata: { ...(persistedCluster?.metadata ?? {}), teamId },
-        rotation: persistedCluster?.rotation,
-      });
+        .reduce(
+          (total, entry) => total + Math.max(0, Math.round(entry.amount)),
+          0,
+        );
       const resources = (project.resources ?? []).map((resource) => {
         const softLimit = resource.policy.softLimit;
         const hardLimit = resource.policy.hardLimit;
@@ -1923,7 +2399,7 @@ export function toOfficeData(
         name: project.name,
         description: `${project.goal} | open=${summary?.openTickets ?? 0} closed=${summary?.closedTickets ?? 0}`,
         deskCount,
-        clusterPosition,
+        clusterPosition: teamClusterPositionsByTeamId.get(teamId),
         employees: projectAgents.map((agent) => `employee-${agent.agentId}`),
         businessType: project.businessConfig?.type,
         capabilitySkills: project.businessConfig
@@ -1946,43 +2422,6 @@ export function toOfficeData(
       });
     }
   }
-
-  let unlockedFurnitureIndex = 0;
-  sidecarFurniture = sidecarFurnitureEntries.flatMap((item) => {
-    const rotation = item.rotation ?? [0, 0, 0];
-    const metadata = { ...(item.metadata ?? {}) };
-    const preservePlacement =
-      isOfficeObjectPlacementLocked(item) || !isAutoPackableStarterObject(item);
-    const compactPosition = preservePlacement
-      ? item.position
-      : getCompactFurnitureAnchor({
-          meshType: item.meshType,
-          index: unlockedFurnitureIndex,
-          officeLayout,
-        });
-    if (!preservePlacement) unlockedFurnitureIndex += 1;
-    const position = resolveSceneObjectPosition({
-      object: {
-        meshType: item.meshType,
-        position: compactPosition,
-        metadata,
-        rotation,
-      },
-      officeLayout,
-      reservation: scenePlacementReservation,
-      allowCollisionFallback: false,
-    });
-    if (!position) return [];
-    return {
-      _id: normalizeOfficeObjectId(item.id),
-      companyId,
-      meshType: item.meshType,
-      position,
-      rotation,
-      scale: item.scale,
-      metadata,
-    } satisfies OfficeObject;
-  });
 
   const desks: DeskLayoutData[] = teams.flatMap((team) =>
     Array.from(
@@ -2014,7 +2453,9 @@ export function toOfficeData(
       .map((desk, originalIndex) => ({
         desk,
         originalIndex,
-        persistedIndex: Number.isFinite(desk.deskIndex) ? desk.deskIndex : Number.MAX_SAFE_INTEGER,
+        persistedIndex: Number.isFinite(desk.deskIndex)
+          ? desk.deskIndex
+          : Number.MAX_SAFE_INTEGER,
       }))
       .sort((a, b) =>
         a.persistedIndex === b.persistedIndex
@@ -2030,9 +2471,15 @@ export function toOfficeData(
   }
   const teamDeskCursor = new Map<string, number>();
 
-  const approvalsByAgent = new Map<string, { count: number; maxRisk: number }>();
+  const approvalsByAgent = new Map<
+    string,
+    { count: number; maxRisk: number }
+  >();
   for (const approval of pendingApprovals) {
-    const existing = approvalsByAgent.get(approval.agentId) ?? { count: 0, maxRisk: 0 };
+    const existing = approvalsByAgent.get(approval.agentId) ?? {
+      count: 0,
+      maxRisk: 0,
+    };
     existing.count += 1;
     const riskValue =
       approval.riskLevel === "critical"
@@ -2053,50 +2500,93 @@ export function toOfficeData(
       _id: persistedCluster?.id ?? `team-cluster-${team._id}`,
       companyId,
       meshType: "team-cluster",
-      position: team.clusterPosition ?? getDefaultProjectClusterPosition(Math.max(0, index - 1)),
+      position:
+        team.clusterPosition ??
+        getDefaultProjectClusterPosition(Math.max(0, index - 1)),
       rotation: persistedCluster?.rotation ?? [0, 0, 0],
       scale: persistedCluster?.scale,
       metadata: {
-        ...getTeamClusterPlacementMetadata(persistedCluster?.metadata, deskCount),
+        ...getTeamClusterPlacementMetadata(
+          persistedCluster?.metadata,
+          deskCount,
+        ),
         teamId: team._id,
       },
     };
   });
-  const officeLayoutContentObjects = [
-    ...clusterObjects,
-    ...sidecarFurniture,
-  ];
-  let preliminaryOfficeLayout = deriveAutoFitOfficeLayout({
-    fallbackLayout: officeLayout,
-    objects: officeLayoutContentObjects,
-  });
+  const officeLayoutContentObjects = [...clusterObjects, ...sidecarFurniture];
+  let preliminaryOfficeLayout = usesProjectDistricts
+    ? officeLayout
+    : isManualLayout
+      ? officeLayout
+      : deriveAutoFitOfficeLayout({
+          fallbackLayout: officeLayout,
+          objects: officeLayoutContentObjects,
+        });
   const fittedAreaLayout = buildOfficeAreaLayout({
     company: companyModel,
     officeLayout: preliminaryOfficeLayout,
+    layoutStrategy,
     workload,
+    activity: projectActivity,
   });
+  let unlockedFurnitureIndex = 0;
+  const sidecarFurnitureCandidates: OfficeObject[] =
+    sidecarFurnitureEntries.map((item) => {
+      const rotation = item.rotation ?? [0, 0, 0];
+      const metadata = { ...(item.metadata ?? {}) };
+      const preservePlacement =
+        isManualLayout ||
+        isOfficeObjectPlacementLocked(item) ||
+        !isAutoPackableStarterObject(item);
+      const position = preservePlacement
+        ? item.position
+        : getCompactFurnitureAnchor({
+            meshType: item.meshType,
+            index: unlockedFurnitureIndex,
+            officeLayout: preliminaryOfficeLayout,
+          });
+      if (!preservePlacement) unlockedFurnitureIndex += 1;
+      return {
+        _id: normalizeOfficeObjectId(item.id),
+        companyId,
+        meshType: item.meshType,
+        position,
+        rotation,
+        scale: item.scale,
+        metadata,
+      };
+    });
+  const buildGeneratedSectionWalls = (
+    clusters: OfficeObject[],
+    targetOfficeLayout: OfficeLayoutModel,
+  ): OfficeObject[] =>
+    clipGeneratedDividerWallsAroundObstacles({
+      walls: buildOfficeSectionWallObjects({
+        companyId,
+        projects: projectList,
+        clusterObjects: clusters,
+        officeAreaLayout: fittedAreaLayout,
+        officeLayout: targetOfficeLayout,
+        existingWalls: existingDividerWalls,
+        layoutStrategy,
+        wallColor: getWallColorPreset(officeSettings.decor.wallColorId).color,
+      }),
+      obstacles: [...clusters, ...sidecarFurnitureCandidates],
+    });
   let sectionWalls: OfficeObject[] = [];
-  if (ENABLE_GENERATED_SECTION_WALLS) {
-    sectionWalls = buildOfficeSectionWallObjects({
-      companyId,
-      projects: projectList,
+  if (ENABLE_GENERATED_SECTION_WALLS && !isManualLayout) {
+    sectionWalls = buildGeneratedSectionWalls(
       clusterObjects,
-      officeAreaLayout: fittedAreaLayout,
-      wallColor: getWallColorPreset(officeSettings.decor.wallColorId).color,
-    });
-    sectionWalls = clipGeneratedDividerWallsAroundClusters({
-      walls: sectionWalls,
-      clusters: clusterObjects,
-    });
+      preliminaryOfficeLayout,
+    );
     if (sectionWalls.length > 0) {
-      preliminaryOfficeLayout = deriveAutoFitOfficeLayout({
-        fallbackLayout: preliminaryOfficeLayout,
-        objects: [
-          ...clusterObjects,
-          ...sectionWalls,
-          ...sidecarFurniture,
-        ],
-      });
+      if (!usesProjectDistricts) {
+        preliminaryOfficeLayout = deriveAutoFitOfficeLayout({
+          fallbackLayout: preliminaryOfficeLayout,
+          objects: [...clusterObjects, ...sectionWalls, ...sidecarFurniture],
+        });
+      }
       const dividerAwareReservation = createOfficePlacementReservation([
         ...sectionWalls,
         ...sidecarFurniture,
@@ -2123,53 +2613,119 @@ export function toOfficeData(
         const deskCount = Math.max(team.deskCount ?? 1, 1);
         return {
           ...(previousCluster ?? {}),
-          _id: persistedCluster?.id ?? previousCluster?._id ?? `team-cluster-${team._id}`,
+          _id:
+            persistedCluster?.id ??
+            previousCluster?._id ??
+            `team-cluster-${team._id}`,
           companyId,
           meshType: "team-cluster",
           position:
             team.clusterPosition ??
             previousCluster?.position ??
             getDefaultProjectClusterPosition(index),
-          rotation: persistedCluster?.rotation ?? previousCluster?.rotation ?? [0, 0, 0],
+          rotation: persistedCluster?.rotation ??
+            previousCluster?.rotation ?? [0, 0, 0],
           scale: persistedCluster?.scale ?? previousCluster?.scale,
           metadata: {
-            ...getTeamClusterPlacementMetadata(persistedCluster?.metadata, deskCount),
+            ...getTeamClusterPlacementMetadata(
+              persistedCluster?.metadata,
+              deskCount,
+            ),
             teamId: team._id,
           },
         };
       });
+      sectionWalls = buildGeneratedSectionWalls(
+        clusterObjects,
+        preliminaryOfficeLayout,
+      );
     }
   }
+  const defaultFurnitureCandidates = buildDefaultFurnitureObjects(
+    companyId,
+    preliminaryOfficeLayout,
+    clusterObjects,
+  );
+  const furnitureCandidates =
+    sidecarFurnitureCandidates.length > 0
+      ? sidecarFurnitureCandidates
+      : defaultFurnitureCandidates;
+  if (!usesProjectDistricts && !isManualLayout) {
+    preliminaryOfficeLayout = deriveAutoFitOfficeLayout({
+      fallbackLayout: preliminaryOfficeLayout,
+      objects: [...clusterObjects, ...sectionWalls, ...furnitureCandidates],
+    });
+  }
+  const preservedSidecarFurniture = sidecarFurnitureCandidates.filter(
+    isPreservedOfficeObjectPlacement,
+  );
+  const movableSidecarFurniture = sidecarFurnitureCandidates.filter(
+    (object) => !isPreservedOfficeObjectPlacement(object),
+  );
+  const furnitureReservation = createOfficePlacementReservation([
+    ...clusterObjects.map(toPlacementObject),
+    ...sectionWalls.map(toPlacementObject),
+    ...preservedSidecarFurniture.map(toPlacementObject),
+  ]);
+  sidecarFurniture = [
+    ...preservedSidecarFurniture,
+    ...placeFurnitureObjects({
+      objects: movableSidecarFurniture,
+      officeLayout: preliminaryOfficeLayout,
+      reservation: furnitureReservation,
+    }),
+  ];
+  const defaultFurnitureReservation = createOfficePlacementReservation([
+    ...clusterObjects.map(toPlacementObject),
+    ...sectionWalls.map(toPlacementObject),
+    ...sidecarFurniture.map(toPlacementObject),
+  ]);
+  const placedDefaultFurniture = placeFurnitureObjects({
+    objects: defaultFurnitureCandidates,
+    officeLayout: preliminaryOfficeLayout,
+    reservation: defaultFurnitureReservation,
+  });
   const furnitureObjects =
     sidecarFurniture.length > 0
       ? sidecarFurniture
-      : buildDefaultFurnitureObjects(companyId, preliminaryOfficeLayout, clusterObjects);
+      : sectionWalls.length > 0
+        ? placedDefaultFurniture
+        : defaultFurnitureCandidates;
   const officeObjects = [
     ...clusterObjects,
     ...sectionWalls,
     ...furnitureObjects,
   ];
-  const fittedOfficeLayout = deriveAutoFitOfficeLayout({
-    fallbackLayout: preliminaryOfficeLayout,
-    objects: officeObjects,
-  });
+  const fittedOfficeLayout = usesProjectDistricts
+    ? preliminaryOfficeLayout
+    : isManualLayout
+      ? preliminaryOfficeLayout
+      : deriveAutoFitOfficeLayout({
+          fallbackLayout: preliminaryOfficeLayout,
+          objects: officeObjects,
+        });
   const finalOfficeAreaLayout = buildOfficeAreaLayout({
     company: companyModel,
     officeLayout: fittedOfficeLayout,
+    layoutStrategy,
     workload,
+    activity: projectActivity,
   });
-  const fittedOfficeSettings =
-    areOfficeLayoutTilesEqual(sourceOfficeLayout, fittedOfficeLayout)
-      ? officeSettings
-      : {
-          ...officeSettings,
-          officeLayout: fittedOfficeLayout,
-          officeFootprint: getOfficeFootprintFromLayout(fittedOfficeLayout),
-        };
+  const fittedOfficeSettings = areOfficeLayoutTilesEqual(
+    sourceOfficeLayout,
+    fittedOfficeLayout,
+  )
+    ? officeSettings
+    : {
+        ...officeSettings,
+        officeLayout: fittedOfficeLayout,
+        officeFootprint: getOfficeFootprintFromLayout(fittedOfficeLayout),
+      };
   const skillTargetObjects = buildSkillTargetObjectMap(officeObjects);
   const skillOccupants = new Map<string, string[]>();
   for (const agent of agents) {
-    const activeSkillId = liveStatusByAgent[agent.agentId]?.currentSkillId?.trim();
+    const activeSkillId =
+      liveStatusByAgent[agent.agentId]?.currentSkillId?.trim();
     if (!activeSkillId) continue;
     const occupants = skillOccupants.get(activeSkillId) ?? [];
     occupants.push(agent.agentId);
@@ -2180,10 +2736,12 @@ export function toOfficeData(
     const companyAgent = companyAgentsById.get(agent.agentId);
     const runtimeAgent = runtimeById.get(agent.agentId);
     const observedCodex =
-      agent.runtimeMetadata?.observedCodex ?? companyAgent?.runtimeMetadata?.observedCodex;
+      agent.runtimeMetadata?.observedCodex ??
+      companyAgent?.runtimeMetadata?.observedCodex;
     const isRuntimeRunning = Boolean(runtimeAgent);
     const isMainAgent = agent.agentId === "main";
-    const isCodexAgent = agent.agentId === "codex-main" || agent.agentId.startsWith("codex-");
+    const isCodexAgent =
+      agent.agentId === "codex-main" || agent.agentId.startsWith("codex-");
     const teamId = resolveRuntimeTeamId(
       agent.agentId,
       companyAgent?.role,
@@ -2196,22 +2754,31 @@ export function toOfficeData(
       (item) => item.id === companyAgent?.heartbeatProfileId,
     );
     const liveStatus = liveStatusByAgent[agent.agentId];
-    const isOfficeCeo = companyAgent?.role === "ceo" || (isMainAgent && !hasPinnedCeoThread);
+    const isOfficeCeo =
+      companyAgent?.role === "ceo" || (isMainAgent && !hasPinnedCeoThread);
     const isOfficeSupervisor =
-      isOfficeCeo || companyAgent?.role === "pm" || companyAgent?.role === "biz_pm";
+      isOfficeCeo ||
+      companyAgent?.role === "pm" ||
+      companyAgent?.role === "biz_pm";
     const presencePersistent = isCodexAgent
       ? isOfficeSupervisor || agent.agentId === "codex-main"
       : undefined;
     const activeSkillId = liveStatus?.currentSkillId?.trim();
-    const skillOccupantIds = activeSkillId ? (skillOccupants.get(activeSkillId) ?? []) : [];
+    const skillOccupantIds = activeSkillId
+      ? (skillOccupants.get(activeSkillId) ?? [])
+      : [];
     const skillOccupantIndex =
-      activeSkillId && skillOccupantIds.length > 0 ? skillOccupantIds.indexOf(agent.agentId) : -1;
-    const skillTargetObject = activeSkillId ? skillTargetObjects.get(activeSkillId) : undefined;
+      activeSkillId && skillOccupantIds.length > 0
+        ? skillOccupantIds.indexOf(agent.agentId)
+        : -1;
+    const skillTargetObject = activeSkillId
+      ? skillTargetObjects.get(activeSkillId)
+      : undefined;
     const activityEffectVariant =
       activeSkillId && skillTargetObject
         ? resolveSkillEffectVariant(
-            parseOfficeObjectInteractionConfig(skillTargetObject.metadata).skillBinding ??
-              undefined,
+            parseOfficeObjectInteractionConfig(skillTargetObject.metadata)
+              .skillBinding ?? undefined,
             buildSkillEffectSeed({
               agentId: agent.agentId,
               skillId: activeSkillId,
@@ -2220,21 +2787,28 @@ export function toOfficeData(
           )
         : undefined;
     const pressure = companyAgent?.projectId
-      ? workload.find((item) => item.projectId === companyAgent.projectId)?.queuePressure
+      ? workload.find((item) => item.projectId === companyAgent.projectId)
+          ?.queuePressure
       : undefined;
     const teamCenter = team?.clusterPosition ?? [0, 0, 8];
-    const teamDeskLayouts = team ? (normalizedDeskLayoutsByTeamId.get(team._id) ?? []) : [];
+    const teamDeskLayouts = team
+      ? (normalizedDeskLayoutsByTeamId.get(team._id) ?? [])
+      : [];
     const currentDeskCursor = teamDeskCursor.get(teamId) ?? 0;
     const initialDeskLayout =
       teamDeskLayouts.length > 0
-        ? teamDeskLayouts[Math.min(currentDeskCursor, teamDeskLayouts.length - 1)]
+        ? teamDeskLayouts[
+            Math.min(currentDeskCursor, teamDeskLayouts.length - 1)
+          ]
         : null;
     if (teamDeskLayouts.length > 0) {
       teamDeskCursor.set(teamId, currentDeskCursor + 1);
     }
     const roundTableStation =
       initialDeskLayout && shouldUseRoundTeamTable(initialDeskLayout.total)
-        ? solveRoundTeamTableLayout(initialDeskLayout.total).stations[initialDeskLayout.layoutIndex]
+        ? solveRoundTeamTableLayout(initialDeskLayout.total).stations[
+            initialDeskLayout.layoutIndex
+          ]
         : null;
     const roundTableEmployeePosition = roundTableStation
       ? getEmployeePositionAtRoundTableStation(roundTableStation)
@@ -2249,7 +2823,10 @@ export function toOfficeData(
         : null;
     const deskRotation =
       initialDeskLayout && !roundTableStation
-        ? getDeskRotation(initialDeskLayout.layoutIndex, initialDeskLayout.total)
+        ? getDeskRotation(
+            initialDeskLayout.layoutIndex,
+            initialDeskLayout.total,
+          )
         : null;
     const initialPosition: [number, number, number] =
       isMainAgent && initialDeskLayout == null
@@ -2275,7 +2852,8 @@ export function toOfficeData(
               ? "success"
               : liveStatus?.state === "running"
                 ? "info"
-                : liveStatus?.state === "planning" || liveStatus?.state === "executing"
+                : liveStatus?.state === "planning" ||
+                    liveStatus?.state === "executing"
                   ? "info"
                   : liveStatus?.state === "no_work"
                     ? "info"
@@ -2329,10 +2907,15 @@ export function toOfficeData(
       bubbleMessages: liveStatus?.bubbleMessages,
       heartbeatState: liveStatus?.state,
       heartbeatBubbles:
-        liveStatus?.bubbles?.map((bubble) => ({ label: bubble.label, weight: bubble.weight })) ??
-        [],
+        liveStatus?.bubbles?.map((bubble) => ({
+          label: bubble.label,
+          weight: bubble.weight,
+        })) ?? [],
       presencePersistent,
-      presenceExpiresAt: presencePersistent === false ? companyAgent?.presenceExpiresAt : undefined,
+      presenceExpiresAt:
+        presencePersistent === false
+          ? companyAgent?.presenceExpiresAt
+          : undefined,
       observedRuntime: observedCodex
         ? {
             kind: "codex",
@@ -2363,8 +2946,14 @@ export function toOfficeData(
     refresh: async () => {},
     applyOfficeSettings: () => {},
     manualResync: async () => ({ ok: false, error: "adapter_unavailable" }),
-    upsertFederationPolicy: async () => ({ ok: false, error: "adapter_unavailable" }),
-    upsertProviderIndexProfile: async () => ({ ok: false, error: "adapter_unavailable" }),
+    upsertFederationPolicy: async () => ({
+      ok: false,
+      error: "adapter_unavailable",
+    }),
+    upsertProviderIndexProfile: async () => ({
+      ok: false,
+      error: "adapter_unavailable",
+    }),
     isLoading: false,
   };
 }

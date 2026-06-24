@@ -64,7 +64,7 @@ export type OfficeAccessPolicy = "operator" | "read-only";
 export type OfficeLauncherGroupId =
   | "people"
   | "work"
-  | "skills"
+  | "systems"
   | "library"
   | "observe"
   | "build"
@@ -153,7 +153,7 @@ const OFFICE_LAUNCHER_GROUPS: Array<{
 }> = [
   { id: "people", label: "People", icon: Users },
   { id: "work", label: "Work", icon: Workflow },
-  { id: "skills", label: "Skills", icon: Sparkles },
+  { id: "systems", label: "Systems", icon: Sparkles },
   { id: "library", label: "Library", icon: Boxes },
   { id: "observe", label: "Observe", icon: ChartNoAxesCombined },
   { id: "build", label: "Build", icon: Wrench },
@@ -336,7 +336,7 @@ export function createOfficePanelActions(
       keywords: [...skillOsPanel.keywords, "panel"],
       shortcut: { key: "s", label: "Alt+Shift+S", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      launcherGroup: "skills",
+      launcherGroup: "systems",
       perform: deps.openSkillOs,
     },
     {
@@ -348,7 +348,7 @@ export function createOfficePanelActions(
       keywords: [...templateRolloutPanel.keywords, "standards", "panel"],
       shortcut: { key: "l", label: "Alt+Shift+L", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      launcherGroup: "skills",
+      launcherGroup: "systems",
       perform: deps.openTemplateRollout,
     },
     {
@@ -360,7 +360,7 @@ export function createOfficePanelActions(
       keywords: [...evalsPanel.keywords, "panel"],
       shortcut: { key: "e", label: "Alt+Shift+E", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      launcherGroup: "skills",
+      launcherGroup: "systems",
       perform: deps.openEvals,
     },
     {
@@ -372,7 +372,7 @@ export function createOfficePanelActions(
       keywords: [...harnessPanel.keywords, "agents", "templates", "panel"],
       shortcut: { key: "h", label: "Alt+Shift+H", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      launcherGroup: "skills",
+      launcherGroup: "systems",
       perform: deps.openHarness,
     },
     {

@@ -7,9 +7,16 @@ import type {
 } from "@/modules/graph-workbench";
 import type {
   HarnessFeatureSummary,
+  HarnessAdoptionPayload,
+  HarnessBridgePayload,
+  HarnessFsaProjection,
   HarnessGraphEdge,
   HarnessGraphNode,
   HarnessGraphPayload,
+  HarnessLifecycleEdge,
+  HarnessLifecycleNode,
+  HarnessLifecyclePayload,
+  HarnessSkillRolloutPayload,
   HarnessTemplateIntelligencePayload,
 } from "./harness-os-types";
 
@@ -29,6 +36,24 @@ export const HARNESS_GRAPH_KINDS: GraphWorkbenchKind[] = [
 
 const INCLUDED_KINDS = new Set(HARNESS_GRAPH_KINDS.map((kind) => kind.id));
 
+export const LIFECYCLE_GRAPH_KINDS: GraphWorkbenchKind[] = [
+  { color: "#2563EB", id: "skill", label: "skills" },
+  { color: "#0F766E", id: "file", label: "files" },
+  { color: "#7C3AED", id: "doc", label: "docs" },
+  { color: "#D97706", id: "ticket", label: "tickets" },
+  { color: "#E11D48", id: "automation", label: "automations" },
+  { color: "#BE185D", id: "hook", label: "hooks" },
+  { color: "#16A34A", id: "report", label: "reports" },
+  { color: "#0891B2", id: "runtime", label: "runtime" },
+  { color: "#64748B", id: "route", label: "routes" },
+  { color: "#94A3B8", id: "state", label: "states" },
+  { color: "#F97316", id: "command", label: "commands" },
+  { color: "#DB2777", id: "gate", label: "gates" },
+  { color: "#475569", id: "fsa_state", label: "FSA states" },
+];
+
+const LIFECYCLE_KIND_IDS = new Set(LIFECYCLE_GRAPH_KINDS.map((kind) => kind.id));
+
 export type HarnessOsModel = {
   edges: GraphWorkbenchEdge[];
   features: HarnessFeatureSummary[];
@@ -38,6 +63,36 @@ export type HarnessOsModel = {
     docs: number;
     edges: number;
     features: number;
+    nodes: number;
+    skills: number;
+  };
+};
+
+export type HarnessLifecycleStage = {
+  description: string;
+  edgeTypes: Record<string, number>;
+  evidenceRefs: string[];
+  guardrailCount: number;
+  id: string;
+  nodeIds: string[];
+  primaryKinds: string[];
+  readiness: "ready" | "active" | "partial" | "missing";
+  title: string;
+};
+
+export type HarnessLifecycleModel = {
+  confidence: Record<string, number>;
+  edges: GraphWorkbenchEdge[];
+  generatedAt: string;
+  graphAvailable: boolean;
+  nodes: GraphWorkbenchNode[];
+  projections: HarnessFsaProjection[];
+  stages: HarnessLifecycleStage[];
+  summary: {
+    automations: number;
+    edges: number;
+    fsaProjections: number;
+    guardrails: number;
     nodes: number;
     skills: number;
   };
@@ -68,7 +123,29 @@ function normalizeNode(node: HarnessGraphNode): GraphWorkbenchNode {
 
 function normalizeEdge(edge: HarnessGraphEdge): GraphWorkbenchEdge {
   return {
-    label: edge.raw_ref,
+    label: edge.label ?? edge.raw_ref,
+    source: edge.source,
+    target: edge.target,
+    type: edge.type,
+  };
+}
+
+function normalizeLifecycleNode(node: HarnessLifecycleNode): GraphWorkbenchNode {
+  return {
+    description:
+      typeof node.metadata?.description === "string"
+        ? node.metadata.description
+        : `${node.kind} in the Farplane lifecycle projection.`,
+    id: node.id,
+    kind: LIFECYCLE_KIND_IDS.has(node.kind) ? node.kind : "state",
+    label: node.label,
+    path: node.path,
+  };
+}
+
+function normalizeLifecycleEdge(edge: HarnessLifecycleEdge): GraphWorkbenchEdge {
+  return {
+    label: edge.label ?? edge.evidence_ref,
     source: edge.source,
     target: edge.target,
     type: edge.type,
@@ -160,3 +237,200 @@ export function isHarnessTemplateIntelligencePayload(
   const candidate = value as Partial<HarnessTemplateIntelligencePayload>;
   return candidate.features === undefined || Array.isArray(candidate.features);
 }
+
+export function isHarnessLifecyclePayload(value: unknown): value is HarnessLifecyclePayload {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<HarnessLifecyclePayload>;
+  return Array.isArray(candidate.nodes) && Array.isArray(candidate.edges);
+}
+
+export function isHarnessAdoptionPayload(value: unknown): value is HarnessAdoptionPayload {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<HarnessAdoptionPayload>;
+  return candidate.schema === "farplane_adoption_stats" || Array.isArray(candidate.projects);
+}
+
+export function isHarnessSkillRolloutPayload(value: unknown): value is HarnessSkillRolloutPayload {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<HarnessSkillRolloutPayload>;
+  return candidate.schema === "farplane_skill_rollout" || Array.isArray(candidate.skills);
+}
+
+export function isHarnessBridgePayload<T>(
+  value: unknown,
+  isPayload: (payload: unknown) => payload is T,
+): value is HarnessBridgePayload<T> {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<HarnessBridgePayload<T>>;
+  return typeof candidate.ok === "boolean" && (!candidate.payload || isPayload(candidate.payload));
+}
+
+function humanizeLifecycleState(stateId: string): string {
+  const tail = stateId.split(":").pop() ?? stateId;
+  return tail
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function projectionDescription(projection: HarnessFsaProjection): string {
+  if (projection.id === "project_initialization") {
+    return "Turns operator intent into a visible Farplane project substrate and a first Goal Advisor handoff.";
+  }
+  if (projection.id === "automation_activation") {
+    return "Moves reviewed automation prompts into Pulse, Interval, scheduler state, and PM grouping.";
+  }
+  if (projection.id === "ticket_goal_execution") {
+    return "Compiles one selected ticket into a native Codex Goal, proof bundle, review, and closeout.";
+  }
+  if (projection.id === "memory_drain_upkeep") {
+    return "Compresses reports, lessons, troubles, and outcomes back into durable memory and skills.";
+  }
+  return "Lifecycle projection generated from the Farplane graph contract.";
+}
+
+function stageStatus(index: number, total: number): HarnessLifecycleStage["readiness"] {
+  if (total <= 0) return "missing";
+  if (index < Math.max(1, total - 2)) return "ready";
+  if (index === total - 2) return "active";
+  return "partial";
+}
+
+function buildStagesFromProjections(
+  projections: HarnessFsaProjection[],
+  lifecycleEdges: HarnessLifecycleEdge[],
+): HarnessLifecycleStage[] {
+  return projections.map((projection, index) => {
+    const edgeTypes = projection.transitions.reduce<Record<string, number>>((types, edge) => {
+      const type = edge.type ?? "transition";
+      types[type] = (types[type] ?? 0) + 1;
+      return types;
+    }, {});
+    const evidenceRefs = Array.from(
+      new Set(projection.transitions.map((edge) => edge.evidence_ref).filter(Boolean)),
+    );
+    const transitionTargets = new Set([
+      ...projection.transitions.map((edge) => edge.source),
+      ...projection.transitions.map((edge) => edge.target),
+    ]);
+    const relatedEdges = lifecycleEdges.filter(
+      (edge) => transitionTargets.has(edge.source) || transitionTargets.has(edge.target),
+    );
+    const guardrailCount = relatedEdges.filter((edge) =>
+      ["guards", "triggers", "contains"].includes(edge.type ?? ""),
+    ).length;
+
+    return {
+      description: projectionDescription(projection),
+      edgeTypes,
+      evidenceRefs,
+      guardrailCount,
+      id: projection.id,
+      nodeIds: projection.states,
+      primaryKinds: ["fsa", "skill", "file"],
+      readiness: stageStatus(index, projections.length),
+      title: projection.label,
+    };
+  });
+}
+
+function fallbackStages(): HarnessLifecycleStage[] {
+  return [
+    {
+      description: "Capture project intent and write the initial Farplane project substrate.",
+      edgeTypes: {},
+      evidenceRefs: [],
+      guardrailCount: 0,
+      id: "pilot",
+      nodeIds: [],
+      primaryKinds: ["doc", "file"],
+      readiness: "partial",
+      title: "Pilot intake",
+    },
+    {
+      description: "Shape goals, frontier, tickets, and Goal Packets before execution.",
+      edgeTypes: {},
+      evidenceRefs: [],
+      guardrailCount: 0,
+      id: "goal-packet",
+      nodeIds: [],
+      primaryKinds: ["ticket", "skill"],
+      readiness: "partial",
+      title: "Goal packet",
+    },
+    {
+      description: "Run native Codex Goals with implementation, QA, demo, and review proof.",
+      edgeTypes: {},
+      evidenceRefs: [],
+      guardrailCount: 0,
+      id: "execution",
+      nodeIds: [],
+      primaryKinds: ["runtime", "report"],
+      readiness: "missing",
+      title: "Execution proof",
+    },
+    {
+      description: "Activate Pulse, Interval, hooks, and memory drains after proof surfaces exist.",
+      edgeTypes: {},
+      evidenceRefs: [],
+      guardrailCount: 0,
+      id: "production-loop",
+      nodeIds: [],
+      primaryKinds: ["automation", "hook"],
+      readiness: "missing",
+      title: "Production loop",
+    },
+  ];
+}
+
+export function buildHarnessLifecycleModel(
+  lifecycle: HarnessLifecyclePayload | null,
+): HarnessLifecycleModel {
+  if (!lifecycle) {
+    return {
+      confidence: {},
+      edges: [],
+      generatedAt: "not generated",
+      graphAvailable: false,
+      nodes: [],
+      projections: [],
+      stages: fallbackStages(),
+      summary: {
+        automations: 0,
+        edges: 0,
+        fsaProjections: 0,
+        guardrails: 0,
+        nodes: 0,
+        skills: 0,
+      },
+    };
+  }
+
+  const nodes = lifecycle.nodes.map(normalizeLifecycleNode);
+  const edges = lifecycle.edges.map(normalizeLifecycleEdge);
+  const projections = lifecycle.fsa_projections ?? [];
+  const guardrails = lifecycle.edges.filter((edge) =>
+    ["guards", "triggers", "contains"].includes(edge.type ?? ""),
+  ).length;
+
+  return {
+    confidence: lifecycle.counts?.edge_confidence ?? {},
+    edges,
+    generatedAt: lifecycle.generated_at ?? "unknown",
+    graphAvailable: true,
+    nodes,
+    projections,
+    stages: projections.length > 0 ? buildStagesFromProjections(projections, lifecycle.edges) : fallbackStages(),
+    summary: {
+      automations: lifecycle.counts?.node_kinds?.automation ?? 0,
+      edges: lifecycle.counts?.edges ?? lifecycle.edges.length,
+      fsaProjections: lifecycle.counts?.fsa_projections ?? projections.length,
+      guardrails,
+      nodes: lifecycle.counts?.nodes ?? lifecycle.nodes.length,
+      skills: lifecycle.counts?.node_kinds?.skill ?? 0,
+    },
+  };
+}
+
+export { humanizeLifecycleState };

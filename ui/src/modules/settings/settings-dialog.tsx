@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore } from "@/store";
 import { getGatewayUiConfig } from "@/modules/runtime";
@@ -45,25 +50,36 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   const setOfficeOverlay = useAppStore((state) => state.setOfficeOverlay);
   const isBuilderMode = useAppStore((state) => state.isBuilderMode);
   const setBuilderMode = useAppStore((state) => state.setBuilderMode);
-  const setIsOfficeOnboardingVisible = useAppStore((state) => state.setIsOfficeOnboardingVisible);
-  const setOfficeOnboardingStep = useAppStore((state) => state.setOfficeOnboardingStep);
+  const setIsOfficeOnboardingVisible = useAppStore(
+    (state) => state.setIsOfficeOnboardingVisible,
+  );
+  const setOfficeOnboardingStep = useAppStore(
+    (state) => state.setOfficeOnboardingStep,
+  );
   const { connected, updateConfig } = useGateway();
   const gatewayConfig = useMemo(() => getGatewayUiConfig(), []);
-  const [gatewayBaseInput, setGatewayBaseInput] = useState(gatewayConfig.gatewayBase);
-  const [gatewayTokenInput, setGatewayTokenInput] = useState(gatewayConfig.gatewayToken);
+  const [gatewayBaseInput, setGatewayBaseInput] = useState(
+    gatewayConfig.gatewayBase,
+  );
+  const [gatewayTokenInput, setGatewayTokenInput] = useState(
+    gatewayConfig.gatewayToken,
+  );
   const [stateBaseInput, setStateBaseInput] = useState(gatewayConfig.stateBase);
   const [defaultSessionKeyInput, setDefaultSessionKeyInput] = useState(
     gatewayConfig.defaultSessionKey,
   );
   const [languageInput, setLanguageInput] = useState(gatewayConfig.language);
   const [statusText, setStatusText] = useState("");
-  const [runtimeKindInput, setRuntimeKindInput] = useState<RuntimeAdapterKind>(() =>
-    getRuntimeAdapterKind(import.meta.env.VITE_FARPLANE_RUNTIME_ADAPTER),
+  const [runtimeKindInput, setRuntimeKindInput] = useState<RuntimeAdapterKind>(
+    () => getRuntimeAdapterKind(import.meta.env.VITE_FARPLANE_RUNTIME_ADAPTER),
   );
   const [runtimeStatusText, setRuntimeStatusText] = useState("");
-  const [viewProfileInput, setViewProfileInput] = useState<OfficeSettingsModel["viewProfile"]>(
-    officeSettings.viewProfile,
-  );
+  const [viewProfileInput, setViewProfileInput] = useState<
+    OfficeSettingsModel["viewProfile"]
+  >(officeSettings.viewProfile);
+  const [layoutStrategyInput, setLayoutStrategyInput] = useState<
+    NonNullable<OfficeSettingsModel["layoutStrategy"]>
+  >(officeSettings.layoutStrategy ?? "activity_treemap");
   const [cameraOrientationInput, setCameraOrientationInput] = useState<
     OfficeSettingsModel["cameraOrientation"]
   >(officeSettings.cameraOrientation);
@@ -76,9 +92,12 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   const [isShufflingOffice, setIsShufflingOffice] = useState(false);
   const [characterRendererIdInput, setCharacterRendererIdInput] =
     useState<CharacterRendererId>("three-human");
-  const [characterSpritePetIdInput, setCharacterSpritePetIdInput] = useState("");
-  const [characterSpriteEmployeeIdInput, setCharacterSpriteEmployeeIdInput] = useState("");
-  const [characterGraphicsStatusText, setCharacterGraphicsStatusText] = useState("");
+  const [characterSpritePetIdInput, setCharacterSpritePetIdInput] =
+    useState("");
+  const [characterSpriteEmployeeIdInput, setCharacterSpriteEmployeeIdInput] =
+    useState("");
+  const [characterGraphicsStatusText, setCharacterGraphicsStatusText] =
+    useState("");
   const codexOfficeVisibility = useCodexOfficeVisibilitySettings({
     dialogOpen,
     stateBaseInput,
@@ -94,21 +113,27 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     setDefaultSessionKeyInput(next.defaultSessionKey);
     setLanguageInput(next.language);
     setStatusText("");
-    setRuntimeKindInput(getRuntimeAdapterKind(import.meta.env.VITE_FARPLANE_RUNTIME_ADAPTER));
+    setRuntimeKindInput(
+      getRuntimeAdapterKind(import.meta.env.VITE_FARPLANE_RUNTIME_ADAPTER),
+    );
     setRuntimeStatusText("");
     setViewProfileInput(officeSettings.viewProfile);
+    setLayoutStrategyInput(officeSettings.layoutStrategy ?? "activity_treemap");
     setCameraOrientationInput(officeSettings.cameraOrientation);
     setOrbitControlsEnabled(officeSettings.orbitControlsEnabled);
     setViewStatusText("");
     setShuffleStatusText("");
     const characterSettings = readOfficeCharacterRendererSettings();
-    setCharacterRendererIdInput(characterSettings.petId ? "sprite-sheet-2d" : "three-human");
+    setCharacterRendererIdInput(
+      characterSettings.petId ? "sprite-sheet-2d" : "three-human",
+    );
     setCharacterSpritePetIdInput(characterSettings.petId);
     setCharacterSpriteEmployeeIdInput(characterSettings.employeeId);
     setCharacterGraphicsStatusText("");
   }, [
     dialogOpen,
     officeSettings.cameraOrientation,
+    officeSettings.layoutStrategy,
     officeSettings.orbitControlsEnabled,
     officeSettings.viewProfile,
   ]);
@@ -150,6 +175,7 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     setViewStatusText("");
     const result = await adapter.saveOfficeSettings({
       ...officeSettings,
+      layoutStrategy: layoutStrategyInput,
       viewProfile: viewProfileInput,
       cameraOrientation: cameraOrientationInput,
       orbitControlsEnabled,
@@ -166,10 +192,14 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   async function handleShuffleOffice(): Promise<void> {
     setIsShufflingOffice(true);
     setShuffleStatusText("");
-    const result = await adapter.shuffleOfficeObjects(officeObjects, { seed: Date.now() });
+    const result = await adapter.shuffleOfficeObjects(officeObjects, {
+      seed: Date.now(),
+    });
     setIsShufflingOffice(false);
     if (!result.ok) {
-      setShuffleStatusText(result.error ?? "Failed to shuffle office furniture.");
+      setShuffleStatusText(
+        result.error ?? "Failed to shuffle office furniture.",
+      );
       return;
     }
     await refresh();
@@ -237,6 +267,7 @@ export default function SettingsDialog(props: SettingsDialogProps) {
           <TabsContent value="office" className="mt-4 space-y-3">
             <OfficeViewSettingsPanel
               viewProfile={viewProfileInput}
+              layoutStrategy={layoutStrategyInput}
               cameraOrientation={cameraOrientationInput}
               orbitControlsEnabled={orbitControlsEnabled}
               statusText={viewStatusText}
@@ -248,13 +279,16 @@ export default function SettingsDialog(props: SettingsDialogProps) {
               characterSpriteEmployeeId={characterSpriteEmployeeIdInput}
               characterGraphicsStatusText={characterGraphicsStatusText}
               onViewProfileChange={setViewProfileInput}
+              onLayoutStrategyChange={setLayoutStrategyInput}
               onCameraOrientationChange={setCameraOrientationInput}
               onOrbitControlsEnabledChange={setOrbitControlsEnabled}
               onSave={() => void handleSaveViewSettings()}
               onShuffle={() => void handleShuffleOffice()}
               onCharacterRendererIdChange={setCharacterRendererIdInput}
               onCharacterSpritePetIdChange={setCharacterSpritePetIdInput}
-              onCharacterSpriteEmployeeIdChange={setCharacterSpriteEmployeeIdInput}
+              onCharacterSpriteEmployeeIdChange={
+                setCharacterSpriteEmployeeIdInput
+              }
               onApplyCharacterGraphics={handleApplyCharacterGraphics}
             />
           </TabsContent>

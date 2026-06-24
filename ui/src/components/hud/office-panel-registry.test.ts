@@ -148,7 +148,7 @@ describe("office panel registry", () => {
     expect(groups.map((group) => group.id)).toEqual([
       "people",
       "work",
-      "skills",
+      "systems",
       "library",
       "observe",
       "build",
@@ -161,7 +161,12 @@ describe("office panel registry", () => {
       "human-review",
       "user-communications",
     ]);
-    expect(groupedIdsByGroup.skills).toEqual(["skill-os", "template-rollout", "evals", "harness"]);
+    expect(groupedIdsByGroup.systems).toEqual([
+      "skill-os",
+      "template-rollout",
+      "evals",
+      "harness",
+    ]);
     expect(groupedIdsByGroup.library).toEqual(["resource-bank", "document-library"]);
     expect(groupedIdsByGroup.observe).toEqual(["telemetry", "raw-telemetry"]);
     expect(groupedIdsByGroup.build).toEqual(["builder-mode", "office-shop"]);

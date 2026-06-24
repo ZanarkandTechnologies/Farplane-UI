@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   MAX_GRID_DESKS_PER_TEAM,
+  ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS,
   ROUND_TEAM_TABLE_MIN_STATIONS,
   getClusterOccupancyFootprint,
   getEmployeePositionAtRoundTableStation,
@@ -19,20 +20,53 @@ describe("office cluster layout", () => {
     const layout = solveRoundTeamTableLayout(8);
 
     expect(layout.stations).toHaveLength(8);
-    expect(layout.stations[0]).toMatchObject({ x: 0, z: layout.stationRadius, yaw: 0 });
+    expect(layout.radius).toBeGreaterThanOrEqual(1.95);
+    expect(layout.stations[0]).toMatchObject({
+      x: 0,
+      z: layout.stationRadius,
+      yaw: 0,
+    });
     expect(layout.stations[2]?.x).toBeCloseTo(layout.stationRadius);
     expect(layout.stations[2]?.z).toBeCloseTo(0);
     expect(layout.stations[4]?.x).toBeCloseTo(0);
     expect(layout.stations[4]?.z).toBeCloseTo(-layout.stationRadius);
   });
 
-  it("keeps large-team occupancy compact instead of growing as a desk row", () => {
+  it("grows round-table occupancy up to the active-agent design cap", () => {
     const seven = getClusterOccupancyFootprint(7);
-    const twelve = getClusterOccupancyFootprint(12);
+    const ten = getClusterOccupancyFootprint(
+      ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS,
+    );
 
     expect(seven.width).toBeCloseTo(seven.depth);
-    expect(twelve.width).toBeCloseTo(twelve.depth);
-    expect(twelve.width).toBeLessThan(6);
+    expect(ten.width).toBeCloseTo(ten.depth);
+    expect(ten.width).toBeGreaterThan(seven.width);
+  });
+
+  it("keeps a minimum gap between neighboring monitor stations at the design cap", () => {
+    const layout = solveRoundTeamTableLayout(
+      ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS,
+    );
+    const first = layout.stations[0];
+    const second = layout.stations[1];
+    const stationGap = Math.hypot(first.x - second.x, first.z - second.z);
+
+    expect(stationGap).toBeGreaterThanOrEqual(0.82);
+  });
+
+  it("keeps stress layouts above ten seats bounded instead of expanding the room", () => {
+    const ten = getClusterOccupancyFootprint(
+      ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS,
+    );
+    const twenty = getClusterOccupancyFootprint(20);
+    const stressLayout = solveRoundTeamTableLayout(20);
+    const designLayout = solveRoundTeamTableLayout(
+      ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS,
+    );
+
+    expect(stressLayout.stations).toHaveLength(20);
+    expect(stressLayout.radius).toBeCloseTo(designLayout.radius);
+    expect(twenty.width).toBeCloseTo(ten.width);
   });
 
   it("places round-table employees outside their monitor station", () => {

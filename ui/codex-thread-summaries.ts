@@ -48,10 +48,37 @@ function parseDateMs(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function defaultCodexHome(): string {
+  if (process.env.CODEX_HOME) return process.env.CODEX_HOME;
+  return process.env.HOME ? path.join(process.env.HOME, ".codex") : "";
+}
+
 function clippedText(value: unknown, max = 180): string {
   if (typeof value !== "string") return "";
   const text = value.replace(/\s+/g, " ").trim();
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}...` : text;
+}
+
+function threadTitleText(value: unknown, max = 72): string {
+  if (typeof value !== "string") return "";
+  let text = value.trim();
+  const requestMarker = "## My request for Codex:";
+  const requestIndex = text.indexOf(requestMarker);
+  if (requestIndex >= 0) text = text.slice(requestIndex + requestMarker.length).trim();
+  text = text
+    .replace(/<image\b[\s\S]*?<\/image>/gi, " ")
+    .replace(/^# AGENTS\.md instructions[\s\S]*$/i, " ")
+    .replace(/^# Files mentioned by the user:[\s\S]*?## My request for Codex:/i, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "";
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}...` : text;
+}
+
+function isLowSignalThreadTitle(value: string): boolean {
+  return /^(ok|okay|sure|yes|pls|please)?\s*(continue|go on|do it|impl|implement|commit|commit this|thanks?)\s*$/i.test(
+    value.trim(),
+  );
 }
 
 function newestExchange(summary: JsonObject): JsonObject | null {
@@ -65,6 +92,35 @@ function newestExchange(summary: JsonObject): JsonObject | null {
     if (entry && typeof entry === "object") return entry as JsonObject;
   }
   return null;
+}
+
+function messageWindowTitle(summary: JsonObject): string {
+  const directTitle =
+    threadTitleText(summary.title) ||
+    threadTitleText(summary.name) ||
+    threadTitleText(summary.thread_title) ||
+    threadTitleText(summary.threadTitle) ||
+    threadTitleText(summary.session_name) ||
+    threadTitleText(summary.sessionName);
+  if (directTitle) return directTitle;
+
+  const exchanges = Array.isArray(summary.rolling_exchanges)
+    ? summary.rolling_exchanges
+    : Array.isArray(summary.rollingExchangeWindow)
+      ? summary.rollingExchangeWindow
+      : [];
+  for (const entry of exchanges) {
+    if (!entry || typeof entry !== "object") continue;
+    const title = threadTitleText((entry as JsonObject).user_text);
+    if (title && !isLowSignalThreadTitle(title)) return title;
+  }
+
+  const pending =
+    summary.pending_user_turn && typeof summary.pending_user_turn === "object"
+      ? (summary.pending_user_turn as JsonObject)
+      : {};
+  const pendingTitle = threadTitleText(pending.user_text);
+  return pendingTitle && !isLowSignalThreadTitle(pendingTitle) ? pendingTitle : "";
 }
 
 function messageWindowPreview(summary: JsonObject): string {
@@ -98,9 +154,39 @@ function messageWindowUpdatedMs(summary: JsonObject, fallbackMs: number): number
   );
 }
 
+async function readCodexSessionIndexThreadNames(codexHome?: string): Promise<Map<string, string>> {
+  const root = codexHome || defaultCodexHome();
+  if (!root) return new Map();
+  const raw = await readFile(path.join(root, "session_index.jsonl"), "utf-8").catch(() => "");
+  const names = new Map<string, { name: string; updatedMs: number }>();
+  for (const line of raw.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    let row: JsonObject;
+    try {
+      row = JSON.parse(line) as JsonObject;
+    } catch {
+      continue;
+    }
+    const id = typeof row.id === "string" ? row.id.trim() : "";
+    const name =
+      threadTitleText(row.thread_name) ||
+      threadTitleText(row.threadName) ||
+      threadTitleText(row.title) ||
+      threadTitleText(row.name);
+    if (!id || !name) continue;
+    const updatedMs = parseDateMs(row.updated_at) ?? parseDateMs(row.updatedAt) ?? 0;
+    const existing = names.get(id);
+    if (!existing || updatedMs >= existing.updatedMs) {
+      names.set(id, { name, updatedMs });
+    }
+  }
+  return new Map([...names].map(([id, value]) => [id, value.name]));
+}
+
 async function readMessageWindowThreadSummaries(
   projectPath: string,
   pmThreadIds: Set<string>,
+  sessionIndexThreadNames: Map<string, string>,
 ): Promise<JsonObject[]> {
   const root = path.resolve(projectPath);
   const messageWindowDir = path.join(root, ".farplane", "state", "message-windows");
@@ -115,9 +201,11 @@ async function readMessageWindowThreadSummaries(
     const summary = await readJsonFile<JsonObject>(filePath, {});
     const updatedMs = messageWindowUpdatedMs(summary, fileStat?.mtimeMs ?? Date.now());
     const preview = messageWindowPreview(summary) || `Codex thread ${threadId.slice(0, 8)}`;
+    const name = sessionIndexThreadNames.get(threadId) || messageWindowTitle(summary) || preview;
     rows.push({
       id: threadId,
       sessionId: typeof summary.session_id === "string" ? summary.session_id : undefined,
+      name,
       preview,
       cwd: root,
       updatedAt: Math.floor(updatedMs / 1000),
@@ -142,11 +230,17 @@ export async function readFilesystemObservedCodexThreads(input: {
   projectPaths: string[];
   limit: number;
   readProjectPmConfig: ProjectPmReader;
+  codexHome?: string;
 }): Promise<JsonObject[]> {
+  const sessionIndexThreadNames = await readCodexSessionIndexThreadNames(input.codexHome);
   const perProjectRows = await Promise.all(
     input.projectPaths.map(async (projectPath) => {
       const pm = await input.readProjectPmConfig(projectPath);
-      return readMessageWindowThreadSummaries(projectPath, normalizedProjectPmThreadIds(pm));
+      return readMessageWindowThreadSummaries(
+        projectPath,
+        normalizedProjectPmThreadIds(pm),
+        sessionIndexThreadNames,
+      );
     }),
   );
   return perProjectRows
@@ -164,10 +258,26 @@ export function mergeFilesystemThreadsIntoThreadList(input: {
   const existingRows = Array.isArray(base.data)
     ? base.data.filter((entry): entry is JsonObject => Boolean(entry && typeof entry === "object"))
     : [];
+  const filesystemById = new Map(
+    input.filesystemRows
+      .map((entry) => [String(entry.id ?? "").trim(), entry] as const)
+      .filter(([id]) => Boolean(id)),
+  );
   const seenIds = new Set(
     existingRows.map((entry) => String(entry.id ?? "").trim()).filter(Boolean),
   );
-  const mergedRows = [...existingRows];
+  const mergedRows = existingRows.map((entry) => {
+    const filesystemRow = filesystemById.get(String(entry.id ?? "").trim());
+    if (!filesystemRow) return entry;
+    return {
+      ...entry,
+      name:
+        typeof entry.name === "string" && entry.name.trim()
+          ? entry.name
+          : filesystemRow.name,
+      source: entry.source ?? filesystemRow.source,
+    };
+  });
   for (const row of input.filesystemRows) {
     const id = String(row.id ?? "").trim();
     if (!id || seenIds.has(id)) continue;

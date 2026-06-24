@@ -91,7 +91,9 @@ function createDesk(): DeskLayoutData {
   return { id: "desk-main-0", deskIndex: 0, team: "team-main" };
 }
 
-function createLiveStatus(overrides: Partial<AgentLiveStatus> = {}): AgentLiveStatus {
+function createLiveStatus(
+  overrides: Partial<AgentLiveStatus> = {},
+): AgentLiveStatus {
   return {
     agentId: "main",
     state: "idle",
@@ -142,7 +144,11 @@ describe("office world reconciliation", () => {
 
   it("reports changed keys for the first adapter snapshot", () => {
     const current = createInitialOfficeWorldData();
-    const { next, changedKeys } = reconcileOfficeWorldSnapshot(current, createSnapshot(), "initial");
+    const { next, changedKeys } = reconcileOfficeWorldSnapshot(
+      current,
+      createSnapshot(),
+      "initial",
+    );
 
     expect(changedKeys).toEqual(
       expect.arrayContaining([
@@ -168,7 +174,11 @@ describe("office world reconciliation", () => {
       createSnapshot(),
       "initial",
     ).next;
-    const second = reconcileOfficeWorldSnapshot(first, createSnapshot(), "poll");
+    const second = reconcileOfficeWorldSnapshot(
+      first,
+      createSnapshot(),
+      "poll",
+    );
 
     expect(second.changedKeys).toEqual([]);
     expect(second.next).toBe(first);
@@ -179,9 +189,13 @@ describe("office world reconciliation", () => {
     expect(store.applySnapshot(createSnapshot(), "initial")).not.toEqual([]);
     const before = useOfficeWorldStore.getState();
 
-    expect(useOfficeWorldStore.getState().applySnapshot(createSnapshot(), "poll")).toEqual([]);
+    expect(
+      useOfficeWorldStore.getState().applySnapshot(createSnapshot(), "poll"),
+    ).toEqual([]);
     expect(useOfficeWorldStore.getState().employees).toBe(before.employees);
-    expect(useOfficeWorldStore.getState().officeObjects).toBe(before.officeObjects);
+    expect(useOfficeWorldStore.getState().officeObjects).toBe(
+      before.officeObjects,
+    );
   });
 
   it("reports live status changes independently from structural world data", () => {
@@ -194,6 +208,14 @@ describe("office world reconciliation", () => {
       first,
       {
         ...createSnapshot(),
+        employees: [
+          createEmployee({
+            status: "running",
+            statusMessage: "Running a live-status-only update",
+            activityState: "working",
+            activityUpdatedAt: "1770000000000",
+          }),
+        ],
         liveStatusByAgentId: {
           main: createLiveStatus({ state: "running", statusText: "Running" }),
         },
@@ -203,5 +225,6 @@ describe("office world reconciliation", () => {
 
     expect(second.changedKeys).toEqual(["liveStatus"]);
     expect(second.next.employees).toBe(first.employees);
+    expect(second.next.employeesById["employee-main"]).toBe(first.employees[0]);
   });
 });

@@ -20,4 +20,25 @@ describe("office settings bridge normalization", () => {
     expect(normalized.officeLayout.tiles).toEqual(["0:0", "1:0", "0:1"]);
     expect(normalized.officeFootprint).toEqual({ width: 2, depth: 2 });
   });
+
+  it("preserves the activity treemap layout strategy", () => {
+    expect(
+      normalizeBridgeOfficeSettings(
+        { layoutStrategy: "activity_treemap" },
+        "/tmp/meshes",
+      ).layoutStrategy,
+    ).toBe("activity_treemap");
+    expect(
+      normalizeBridgeOfficeSettings(
+        { layoutStrategy: "command_districts" },
+        "/tmp/meshes",
+      ).layoutStrategy,
+    ).toBe("command_districts");
+    expect(
+      normalizeBridgeOfficeSettings(
+        { layoutStrategy: "unknown" },
+        "/tmp/meshes",
+      ).layoutStrategy,
+    ).toBe("legacy");
+  });
 });

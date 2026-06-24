@@ -49,6 +49,21 @@ describe("office settings normalization", () => {
     });
   });
 
+  it("normalizes the office layout strategy", () => {
+    expect(
+      toOfficeSettings({ layoutStrategy: "activity_treemap" }).layoutStrategy,
+    ).toBe("activity_treemap");
+    expect(toOfficeSettings({ layoutStrategy: "legacy" }).layoutStrategy).toBe(
+      "legacy",
+    );
+    expect(
+      toOfficeSettings({ layoutStrategy: "command_districts" }).layoutStrategy,
+    ).toBe("command_districts");
+    expect(toOfficeSettings({ layoutStrategy: "unknown" }).layoutStrategy).toBe(
+      "activity_treemap",
+    );
+  });
+
   it("derives footprint bounds from persisted office layouts", () => {
     expect(
       toOfficeSettings({

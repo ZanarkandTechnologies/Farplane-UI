@@ -31,6 +31,12 @@ export type OfficeBootstrapStage = {
   isReady: boolean;
 };
 
+export type OfficeSceneShellReadinessInput = {
+  isLoading: boolean;
+  meshesReady: boolean;
+  hasRenderedScene: boolean;
+};
+
 const STAGE_ORDER: Array<{
   id: OfficeBootstrapStageId;
   label: string;
@@ -44,12 +50,14 @@ const STAGE_ORDER: Array<{
   {
     id: "meshes",
     label: "Preparing scene assets",
-    detail: "Preloading custom meshes so object instances can render without local pop-in.",
+    detail:
+      "Preloading custom meshes so object instances can render without local pop-in.",
   },
   {
     id: "navigation",
     label: "Building navigation grid",
-    detail: "Finalizing obstacle registration and pathfinding startup for the live office scene.",
+    detail:
+      "Finalizing obstacle registration and pathfinding startup for the live office scene.",
   },
 ];
 
@@ -67,13 +75,22 @@ export function buildOfficeBootstrapStages(
   }));
 }
 
+export function shouldRenderOfficeSceneShell({
+  isLoading,
+  meshesReady,
+  hasRenderedScene,
+}: OfficeSceneShellReadinessInput): boolean {
+  return (!isLoading || hasRenderedScene) && (meshesReady || hasRenderedScene);
+}
+
 export function getOfficeBootstrapState(stages: OfficeBootstrapStage[]): {
   activeStage: OfficeBootstrapStage;
   completionRatio: number;
   isReady: boolean;
 } {
   const readyCount = stages.filter((stage) => stage.isReady).length;
-  const activeStage = stages.find((stage) => !stage.isReady) ?? stages[stages.length - 1];
+  const activeStage =
+    stages.find((stage) => !stage.isReady) ?? stages[stages.length - 1];
 
   return {
     activeStage,

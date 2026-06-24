@@ -9,39 +9,42 @@ import type { CharacterRendererId } from "@/modules/office/components/employee/r
 import type { OfficeOverlayKey, OfficeOverlaySettings } from "@/store";
 import type { CodexOfficeVisibilityForm } from "./use-codex-office-visibility-settings";
 
-const DEBUG_OVERLAY_OPTIONS: Array<{ key: OfficeOverlayKey; label: string; description: string }> =
-  [
-    {
-      key: "grid",
-      label: "Walkability grid",
-      description: "Navigation cells and blocked/open pathing tiles.",
-    },
-    {
-      key: "occupancy",
-      label: "Object occupancy",
-      description: "Furniture, team-cluster, and out-of-floor footprint cells.",
-    },
-    {
-      key: "paths",
-      label: "Agent paths",
-      description: "Live route lines and movement decisions for employees.",
-    },
-    {
-      key: "destinations",
-      label: "Reserved destinations",
-      description: "Active navigation target reservations.",
-    },
-    {
-      key: "areas",
-      label: "Team areas",
-      description: "Hierarchy-derived office districts.",
-    },
-    {
-      key: "layout",
-      label: "Layout labels",
-      description: "Tile coordinates and protected anchor labels while editing.",
-    },
-  ];
+const DEBUG_OVERLAY_OPTIONS: Array<{
+  key: OfficeOverlayKey;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "grid",
+    label: "Walkability grid",
+    description: "Navigation cells and blocked/open pathing tiles.",
+  },
+  {
+    key: "occupancy",
+    label: "Object occupancy",
+    description: "Furniture, team-cluster, and out-of-floor footprint cells.",
+  },
+  {
+    key: "paths",
+    label: "Agent paths",
+    description: "Live route lines and movement decisions for employees.",
+  },
+  {
+    key: "destinations",
+    label: "Reserved destinations",
+    description: "Active navigation target reservations.",
+  },
+  {
+    key: "areas",
+    label: "Team areas",
+    description: "Hierarchy-derived office districts.",
+  },
+  {
+    key: "layout",
+    label: "Layout labels",
+    description: "Tile coordinates and protected anchor labels while editing.",
+  },
+];
 
 type GeneralSettingsPanelProps = {
   debugMode: boolean;
@@ -82,7 +85,8 @@ export function GeneralSettingsPanel(props: GeneralSettingsPanelProps) {
         <div className="flex flex-col gap-1">
           <Label>Debug Overlays</Label>
           <span className="text-xs text-muted-foreground">
-            Debug Mode is a master switch. These categories opt in one at a time.
+            Debug Mode is a master switch. These categories opt in one at a
+            time.
           </span>
         </div>
         <div className="space-y-1.5">
@@ -132,7 +136,9 @@ function OverlayToggle(props: {
   return (
     <label
       className={`grid grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-md px-2 py-2 text-sm transition-colors ${
-        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-muted"
+        disabled
+          ? "cursor-not-allowed opacity-50"
+          : "cursor-pointer hover:bg-muted"
       }`}
     >
       <Checkbox
@@ -143,7 +149,9 @@ function OverlayToggle(props: {
       />
       <span className="grid min-w-0 gap-0.5">
         <span className="font-medium leading-none">{label}</span>
-        <span className="text-xs leading-snug text-muted-foreground">{description}</span>
+        <span className="text-xs leading-snug text-muted-foreground">
+          {description}
+        </span>
       </span>
     </label>
   );
@@ -151,6 +159,7 @@ function OverlayToggle(props: {
 
 type OfficeViewSettingsPanelProps = {
   viewProfile: OfficeSettingsModel["viewProfile"];
+  layoutStrategy: NonNullable<OfficeSettingsModel["layoutStrategy"]>;
   cameraOrientation: OfficeSettingsModel["cameraOrientation"];
   orbitControlsEnabled: boolean;
   statusText: string;
@@ -162,7 +171,12 @@ type OfficeViewSettingsPanelProps = {
   characterSpriteEmployeeId: string;
   characterGraphicsStatusText: string;
   onViewProfileChange: (value: OfficeSettingsModel["viewProfile"]) => void;
-  onCameraOrientationChange: (value: OfficeSettingsModel["cameraOrientation"]) => void;
+  onLayoutStrategyChange: (
+    value: NonNullable<OfficeSettingsModel["layoutStrategy"]>,
+  ) => void;
+  onCameraOrientationChange: (
+    value: OfficeSettingsModel["cameraOrientation"],
+  ) => void;
   onOrbitControlsEnabledChange: (value: boolean) => void;
   onSave: () => void;
   onShuffle: () => void;
@@ -175,6 +189,7 @@ type OfficeViewSettingsPanelProps = {
 export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
   const {
     viewProfile,
+    layoutStrategy,
     cameraOrientation,
     orbitControlsEnabled,
     statusText,
@@ -186,6 +201,7 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
     characterSpriteEmployeeId,
     characterGraphicsStatusText,
     onViewProfileChange,
+    onLayoutStrategyChange,
     onCameraOrientationChange,
     onOrbitControlsEnabledChange,
     onSave,
@@ -201,14 +217,48 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
       <div className="flex flex-col gap-1">
         <Label>Office View</Label>
         <span className="text-xs text-muted-foreground">
-          Switch between free-orbit 3D and a locked 2.5D game view.
+          Switch camera, layout mode, and rendering preferences for the office.
         </span>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">
+          Office Layout Mode
+        </Label>
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          <ModeOptionButton
+            label="Manual Builder"
+            description="Turn off auto layout and keep builder-placed objects where they are."
+            selected={layoutStrategy === "manual"}
+            onClick={() => onLayoutStrategyChange("manual")}
+          />
+          <ModeOptionButton
+            label="Classic Auto-Fit"
+            description="Pack desks and furniture into a compact open office."
+            selected={layoutStrategy === "legacy"}
+            onClick={() => onLayoutStrategyChange("legacy")}
+          />
+          <ModeOptionButton
+            label="Project Districts"
+            description="Give projects readable areas and draw walls on shared edges."
+            selected={layoutStrategy === "activity_treemap"}
+            onClick={() => onLayoutStrategyChange("activity_treemap")}
+          />
+          <ModeOptionButton
+            label="Command Districts"
+            description="Put parent projects near the center and arrange children around them."
+            selected={layoutStrategy === "command_districts"}
+            onClick={() => onLayoutStrategyChange("command_districts")}
+          />
+        </div>
       </div>
 
       <SelectField
         label="View Profile"
         value={viewProfile}
-        onChange={(value) => onViewProfileChange(value as OfficeSettingsModel["viewProfile"])}
+        onChange={(value) =>
+          onViewProfileChange(value as OfficeSettingsModel["viewProfile"])
+        }
         options={[
           ["free_orbit_3d", "Free Orbit 3D"],
           ["fixed_2_5d", "Isometric 2.5D"],
@@ -219,7 +269,9 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
         label="Camera Orientation"
         value={cameraOrientation}
         onChange={(value) =>
-          onCameraOrientationChange(value as OfficeSettingsModel["cameraOrientation"])
+          onCameraOrientationChange(
+            value as OfficeSettingsModel["cameraOrientation"],
+          )
         }
         options={[
           ["south_east", "South East"],
@@ -239,7 +291,9 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
       <Button size="sm" onClick={onSave} disabled={isSaving}>
         {isSaving ? "Saving..." : "Apply View"}
       </Button>
-      {statusText ? <p className="text-xs text-muted-foreground">{statusText}</p> : null}
+      {statusText ? (
+        <p className="text-xs text-muted-foreground">{statusText}</p>
+      ) : null}
 
       <div className="flex items-center justify-between gap-4 border-t pt-3">
         <div className="flex flex-col gap-1">
@@ -248,7 +302,12 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
             Reflow tables and floor objects into open slots.
           </span>
         </div>
-        <Button size="sm" variant="outline" onClick={onShuffle} disabled={isShuffling}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onShuffle}
+          disabled={isShuffling}
+        >
           {isShuffling ? "Shuffling..." : "Shuffle"}
         </Button>
       </div>
@@ -267,7 +326,9 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
         <SelectField
           label="Renderer"
           value={characterRendererId}
-          onChange={(value) => onCharacterRendererIdChange(value as CharacterRendererId)}
+          onChange={(value) =>
+            onCharacterRendererIdChange(value as CharacterRendererId)
+          }
           options={[
             ["three-human", "Three.js Humans"],
             ["sprite-sheet-2d", "2D Sprite Sheet"],
@@ -295,10 +356,37 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
           Apply Graphics
         </Button>
         {characterGraphicsStatusText ? (
-          <p className="text-xs text-muted-foreground">{characterGraphicsStatusText}</p>
+          <p className="text-xs text-muted-foreground">
+            {characterGraphicsStatusText}
+          </p>
         ) : null}
       </div>
     </div>
+  );
+}
+
+function ModeOptionButton(props: {
+  label: string;
+  description: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const { label, description, selected, onClick } = props;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+        selected
+          ? "border-primary bg-primary/10 text-foreground"
+          : "border-border bg-background hover:bg-muted"
+      }`}
+    >
+      <span className="block font-medium leading-tight">{label}</span>
+      <span className="mt-1 block text-xs leading-snug text-muted-foreground">
+        {description}
+      </span>
+    </button>
   );
 }
 
@@ -414,7 +502,15 @@ function CodexRuntimeSettings(props: {
   onFormChange: (value: CodexOfficeVisibilityForm) => void;
   onSave: () => void;
 }) {
-  const { stateBase, form, statusText, isSaving, onStateBaseChange, onFormChange, onSave } = props;
+  const {
+    stateBase,
+    form,
+    statusText,
+    isSaving,
+    onStateBaseChange,
+    onFormChange,
+    onSave,
+  } = props;
   const patchForm = (patch: Partial<CodexOfficeVisibilityForm>) =>
     onFormChange({ ...form, ...patch });
 
@@ -424,7 +520,11 @@ function CodexRuntimeSettings(props: {
         label="State Bridge URL"
         value={stateBase}
         onChange={onStateBaseChange}
-        placeholder={typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:5173"}
+        placeholder={
+          typeof window !== "undefined"
+            ? window.location.origin
+            : "http://127.0.0.1:5173"
+        }
       />
 
       <InputField
@@ -435,15 +535,18 @@ function CodexRuntimeSettings(props: {
         onChange={(value) => patchForm({ recentMinutes: value })}
       />
       <p className="-mt-2 text-xs text-muted-foreground">
-        Shows ordinary Codex thread workers, and their desks, while they were active within this
-        many minutes. Persistent PM, CEO, running, and automation heartbeat threads ignore this timer.
+        Shows ordinary Codex thread workers, and their desks, while they were
+        active within this many minutes. Persistent PM, CEO, running, and
+        automation heartbeat threads ignore this timer.
       </p>
 
       <ToggleRow
         label="Persistent Automation Heartbeats"
         description="Keep strategy or heartbeat automations visible; scheduled task-drainer runs still age out."
         enabled={form.showAutomationThreads}
-        onToggle={() => patchForm({ showAutomationThreads: !form.showAutomationThreads })}
+        onToggle={() =>
+          patchForm({ showAutomationThreads: !form.showAutomationThreads })
+        }
       />
 
       <InputField
@@ -463,7 +566,9 @@ function CodexRuntimeSettings(props: {
       <Button size="sm" onClick={onSave} disabled={isSaving}>
         {isSaving ? "Saving..." : "Apply Worker Visibility"}
       </Button>
-      {statusText ? <p className="text-xs text-muted-foreground">{statusText}</p> : null}
+      {statusText ? (
+        <p className="text-xs text-muted-foreground">{statusText}</p>
+      ) : null}
     </div>
   );
 }
@@ -503,7 +608,9 @@ function OpenClawRuntimeSettings(props: {
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center justify-between">
         <Label>Gateway Access</Label>
-        <span className={`text-xs ${connected ? "text-emerald-500" : "text-amber-500"}`}>
+        <span
+          className={`text-xs ${connected ? "text-emerald-500" : "text-amber-500"}`}
+        >
           {connected ? "connected" : "disconnected"}
         </span>
       </div>
@@ -525,7 +632,11 @@ function OpenClawRuntimeSettings(props: {
         label="State Bridge URL"
         value={stateBase}
         onChange={onStateBaseChange}
-        placeholder={typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:5173"}
+        placeholder={
+          typeof window !== "undefined"
+            ? window.location.origin
+            : "http://127.0.0.1:5173"
+        }
       />
       <InputField
         label="Default Session Key"
@@ -569,7 +680,11 @@ function ToggleRow(props: {
         <Label>{label}</Label>
         <span className="text-xs text-muted-foreground">{description}</span>
       </div>
-      <Button onClick={onToggle} variant={enabled ? "default" : "outline"} size="sm">
+      <Button
+        onClick={onToggle}
+        variant={enabled ? "default" : "outline"}
+        size="sm"
+      >
         {enabled ? "On" : "Off"}
       </Button>
     </div>

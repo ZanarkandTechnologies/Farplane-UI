@@ -28,19 +28,40 @@ import { useChatStore } from "@/modules/chat/chat-store";
 import type { StatusType } from "@/modules/navigation/components/status-indicator";
 import { Employee } from "@/modules/office/components/employee";
 import { getOfficeLayoutBounds } from "@/modules/office/lib/office-layout";
+import { useOfficeWorldStore } from "@/modules/office/store";
 import { useAppStore } from "@/store";
 import { OfficeClickProbe } from "./office-click-probe";
-import { getOfficeDebugOverlayPlan, OfficeDebugOverlaySystem } from "./office-debug-overlay-system";
+import {
+  getOfficeDebugOverlayPlan,
+  OfficeDebugOverlaySystem,
+} from "./office-debug-overlay-system";
 import { OfficeLayoutEditor } from "./office-layout-editor";
 import { OfficeLighting } from "./office-lighting";
+import {
+  buildNavigableOfficeObjectSignature,
+  getNavigableOfficeObjects,
+} from "./office-object-navigation";
 import { OfficeObjectRenderer } from "./office-object-renderer";
-import { getOrbitWallFadeMask, OfficeRoomShell, type WallFadeMask } from "./office-room-shell";
+import {
+  getOrbitWallFadeMask,
+  OfficeRoomShell,
+  type WallFadeMask,
+} from "./office-room-shell";
 import type { OfficeSceneProps } from "./types";
 import { useOfficeSceneBootstrap } from "./use-office-scene-bootstrap";
-import { useOfficeSceneCameraTransition, useOfficeSceneTheme } from "./use-office-scene-camera";
-import { useOfficeSceneDerivedData } from "./use-office-scene-derived-data";
+import {
+  useOfficeSceneCameraTransition,
+  useOfficeSceneTheme,
+} from "./use-office-scene-camera";
+import {
+  applyLiveStatusToSceneEmployees,
+  useOfficeSceneDerivedData,
+} from "./use-office-scene-derived-data";
 import { useOfficeSceneInteractions } from "./use-office-scene-interactions";
-import { getOfficeSceneViewState, isFixedOfficeSceneView } from "./view-profile";
+import {
+  getOfficeSceneViewState,
+  isFixedOfficeSceneView,
+} from "./view-profile";
 
 /** Clamps orthographic camera zoom to [minZoom, maxZoom] each frame when in fixed 2.5D. */
 function ZoomClamp({ minZoom, maxZoom }: { minZoom: number; maxZoom: number }) {
@@ -56,7 +77,11 @@ function ZoomClamp({ minZoom, maxZoom }: { minZoom: number; maxZoom: number }) {
 }
 
 /** Returns current orthographic zoom, updating only when zoom changes beyond threshold. */
-function useCameraZoomWhenFixed(minZoom: number, maxZoom: number, enabled: boolean) {
+function useCameraZoomWhenFixed(
+  minZoom: number,
+  maxZoom: number,
+  enabled: boolean,
+) {
   const [zoom, setZoom] = useState(() => minZoom + (maxZoom - minZoom) * 0.5);
   const last = useRef(zoom);
   useFrame((state) => {
@@ -86,8 +111,14 @@ function wallFadeMaskKey(mask: WallFadeMask): string {
 }
 
 /** Returns the near-camera wall fade mask for free-orbit perspective mode. */
-function useOrbitWallFadeMask(officeLayout: OfficeSceneProps["officeLayout"], enabled: boolean) {
-  const bounds = useMemo(() => getOfficeLayoutBounds(officeLayout), [officeLayout]);
+function useOrbitWallFadeMask(
+  officeLayout: OfficeSceneProps["officeLayout"],
+  enabled: boolean,
+) {
+  const bounds = useMemo(
+    () => getOfficeLayoutBounds(officeLayout),
+    [officeLayout],
+  );
   const [mask, setMask] = useState<WallFadeMask | undefined>(undefined);
   const lastKey = useRef("off");
 
@@ -123,9 +154,12 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
     officeDecorSettings,
     officeViewSettings,
     companyId,
+    customMeshLoadSignature,
     onNavigationReady,
+    onNavigationReset,
   } = props;
-  const enableOfficeObjects = import.meta.env.VITE_ENABLE_OFFICE_OBJECTS !== "false";
+  const enableOfficeObjects =
+    import.meta.env.VITE_ENABLE_OFFICE_OBJECTS !== "false";
 
   const isBuilderMode = useAppStore((state) => state.isBuilderMode);
   const debugMode = useAppStore((state) => state.debugMode);
@@ -158,7 +192,9 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
     [debugMode, officeOverlays, placementMode.active, sceneBuilderMode],
   );
   // MEM-0170 decision: fixed 2.5D uses compact scene overlays so Html cards cannot occlude the office.
-  const useCompactSceneOverlays = isStoryMode ? false : isFixedOfficeSceneView(officeViewSettings);
+  const useCompactSceneOverlays = isStoryMode
+    ? false
+    : isFixedOfficeSceneView(officeViewSettings);
   const layoutCenter = useMemo(() => {
     const bounds = getOfficeLayoutBounds(officeLayout);
     return { x: bounds.centerX, z: bounds.centerZ };
@@ -170,30 +206,55 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
     forcePerspective,
     layoutCenter,
   });
-  const isFixed25 = isFixedOfficeSceneView(officeViewSettings) && !forcePerspective;
+  const isFixed25 =
+    isFixedOfficeSceneView(officeViewSettings) && !forcePerspective;
   const minZoom = viewState.minZoom ?? 12;
   const maxZoom = viewState.maxZoom ?? 55;
   const cameraZoom = useCameraZoomWhenFixed(minZoom, maxZoom, isFixed25);
   const orbitWallFadeMask = useOrbitWallFadeMask(
     officeLayout,
-    !sceneBuilderMode && !isFixed25 && officeViewSettings.viewProfile === "free_orbit_3d",
+    !sceneBuilderMode &&
+      !isFixed25 &&
+      officeViewSettings.viewProfile === "free_orbit_3d",
   );
 
-  const { employeesForScene, teamById, desksByTeamId } = useOfficeSceneDerivedData({
-    teams,
-    employees,
-    desks,
-    officeViewSettings,
-  });
-  const navigableOfficeObjectCount = useMemo(() => {
-    if (!enableOfficeObjects) return 0;
-    return officeObjects.filter((object) => {
-      if (object.meshType === "wall-art") return false;
-      if (object.meshType !== "team-cluster") return true;
-      const teamId = typeof object.metadata?.teamId === "string" ? object.metadata.teamId : "";
-      return teamById.has(teamId);
-    }).length;
+  const { employeesForScene, teamById, desksByTeamId } =
+    useOfficeSceneDerivedData({
+      teams,
+      employees,
+      desks,
+      officeViewSettings,
+    });
+  const liveStatusByAgentId = useOfficeWorldStore(
+    (state) => state.liveStatusByAgentId,
+  );
+  const presentedEmployeesForScene = useMemo(
+    () =>
+      applyLiveStatusToSceneEmployees({
+        employees: employeesForScene,
+        liveStatusByAgentId,
+        officeObjects,
+      }),
+    [employeesForScene, liveStatusByAgentId, officeObjects],
+  );
+  const navigableOfficeObjects = useMemo(() => {
+    return getNavigableOfficeObjects({
+      officeObjects,
+      teamById,
+      enabled: enableOfficeObjects,
+    });
   }, [officeObjects, teamById]);
+  const navigableOfficeObjectCount = navigableOfficeObjects.length;
+  const navigableOfficeObjectSignature = useMemo(
+    () =>
+      buildNavigableOfficeObjectSignature({
+        officeObjects: navigableOfficeObjects,
+        teamById,
+        desksByTeamId,
+        customMeshLoadSignature,
+      }),
+    [customMeshLoadSignature, desksByTeamId, navigableOfficeObjects, teamById],
+  );
   const consultCameraTarget = useMemo<[number, number, number] | null>(() => {
     if (!isChatOpen || presentationMode !== "story") return null;
     const fallbackEmployeeId = (() => {
@@ -202,19 +263,37 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
     })();
     const resolvedEmployeeId = currentEmployeeId ?? fallbackEmployeeId;
     if (!resolvedEmployeeId) return null;
-    const employee = employeesForScene.find((item) => item._id === resolvedEmployeeId);
+    const employee = presentedEmployeesForScene.find(
+      (item) => item._id === resolvedEmployeeId,
+    );
     return employee?.position ?? employee?.initialPosition ?? null;
-  }, [currentEmployeeId, employeesForScene, isChatOpen, presentationMode, selectedAgentId]);
+  }, [
+    currentEmployeeId,
+    isChatOpen,
+    presentationMode,
+    presentedEmployeesForScene,
+    selectedAgentId,
+  ]);
 
-  const { orbitControlsRef, floorRef, createRegisteredObjectRef, getObjectRef } =
-    useOfficeSceneBootstrap({
-      officeLayout,
-      officeObjectCount: navigableOfficeObjectCount,
-      onNavigationReady,
-    });
+  const {
+    orbitControlsRef,
+    floorRef,
+    createRegisteredObjectRef,
+    getObjectRef,
+  } = useOfficeSceneBootstrap({
+    officeLayout,
+    officeObjectCount: navigableOfficeObjectCount,
+    officeObjectSignature: navigableOfficeObjectSignature,
+    onNavigationReady,
+    onNavigationReset,
+  });
 
-  const { handleBackgroundClick, handleEmployeeClick, handleTeamClick, handleCeoDeskClick } =
-    useOfficeSceneInteractions({ employees });
+  const {
+    handleBackgroundClick,
+    handleEmployeeClick,
+    handleTeamClick,
+    handleCeoDeskClick,
+  } = useOfficeSceneInteractions({ employees });
 
   useOfficeSceneCameraTransition({
     isBuilderMode,
@@ -268,8 +347,12 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
 
       <OrbitControls
         ref={orbitControlsRef}
-        enabled={viewState.controlsEnabled && !isLayoutEditing && !consultCameraTarget}
-        enableRotate={viewState.rotateEnabled && !isLayoutEditing && !consultCameraTarget}
+        enabled={
+          viewState.controlsEnabled && !isLayoutEditing && !consultCameraTarget
+        }
+        enableRotate={
+          viewState.rotateEnabled && !isLayoutEditing && !consultCameraTarget
+        }
         enablePan={viewState.panEnabled && !consultCameraTarget}
         enableZoom={viewState.zoomEnabled && !consultCameraTarget}
         panSpeed={sceneBuilderMode ? 0.75 : 1}
@@ -293,10 +376,13 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
       />
       <OfficeLayoutEditor showDebugLabels={overlayPlan.showLayoutDebugLabels} />
       {import.meta.env.DEV ? (
-        <OfficeClickProbe teams={teams} employees={employeesForScene} />
+        <OfficeClickProbe
+          teams={teams}
+          employees={presentedEmployeesForScene}
+        />
       ) : null}
       {!sceneBuilderMode &&
-        employeesForScene.map((employee) => (
+        presentedEmployeesForScene.map((employee) => (
           <Employee
             key={employee._id}
             _id={employee._id}

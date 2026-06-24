@@ -26,6 +26,10 @@ import {
   readFilesystemObservedCodexThreads,
 } from "./codex-thread-summaries";
 import { normalizeBridgeOfficeSettings, type BridgeOfficeSettings as OfficeSettings } from "./office-settings-bridge";
+import {
+  LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS,
+  localFarplaneEventsToObservedCodexWorkers,
+} from "./src/providers/local-observed-codex-workers";
 
 type JsonObject = Record<string, unknown>;
 type MemoryEntryType = "discovery" | "decision" | "problem" | "solution" | "pattern" | "warning" | "success" | "refactor" | "bugfix" | "feature";
@@ -45,6 +49,9 @@ const CODEX_GLOBAL_STATE_PATH = path.join(CODEX_HOME, ".codex-global-state.json"
 const OPENCLAW_HOME = process.env.OPENCLAW_STATE_DIR || path.join(process.env.HOME || "", ".openclaw");
 const OPENCLAW_CONFIG_PATH = process.env.OPENCLAW_CONFIG_PATH || path.join(OPENCLAW_HOME, "openclaw.json");
 const REPO_ROOT = path.resolve(__dirname, "..");
+const FARPLANE_FRAMEWORK_ROOT =
+  process.env.FARPLANE_FRAMEWORK_ROOT ||
+  path.resolve(REPO_ROOT, "..", "Farplane");
 const SKILLS_ROOT = path.join(REPO_ROOT, "skills");
 const PROJECT_CODEX_SKILLS_ROOT = path.join(REPO_ROOT, ".codex", "skills");
 const CODEX_SKILLS_ROOT = path.join(CODEX_HOME, "skills");
@@ -54,6 +61,7 @@ const CODEX_SKILL_MAINTENANCE_GRAPH_ROOT = path.join(
   "graph",
 );
 const COMPANY_MODEL_PATH = path.join(FARPLANE_HOME, "company.json");
+const LOCAL_HOOK_EVENTS_DIR = path.join(FARPLANE_HOME, "events");
 const COMPANY_TEMPLATE_PATH = path.resolve(__dirname, "../templates/sidecar/company.template.json");
 const OFFICE_OBJECTS_PATH = path.join(FARPLANE_HOME, "office-objects.json");
 const OFFICE_SETTINGS_PATH = path.join(FARPLANE_HOME, "office.json");
@@ -107,11 +115,54 @@ function readRootEnvValue(name: string): string {
   return "";
 }
 
-const VITE_CONVEX_URL =
-  process.env.VITE_CONVEX_URL?.trim() ||
-  readRootEnvValue("VITE_CONVEX_URL") ||
-  process.env.CONVEX_URL?.trim() ||
-  readRootEnvValue("CONVEX_URL");
+function firstEnvValue(names: string[]): string {
+  for (const name of names) {
+    const value = process.env[name]?.trim() || readRootEnvValue(name);
+    if (value) return value;
+  }
+  return "";
+}
+
+function normalizeConvexClientUrl(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  try {
+    const url = new URL(trimmed);
+    url.pathname = "";
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return trimmed.replace(/\/$/, "");
+  }
+}
+
+function convexClientUrlFromSiteUrl(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  try {
+    const url = new URL(trimmed);
+    if (url.hostname.endsWith(".convex.cloud")) return normalizeConvexClientUrl(trimmed);
+    if (!url.hostname.endsWith(".convex.site")) return "";
+    url.hostname = url.hostname.replace(/\.convex\.site$/, ".convex.cloud");
+    url.pathname = "";
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+}
+
+function resolveViteConvexUrl(): string {
+  const clientUrl = firstEnvValue(["VITE_CONVEX_URL", "CONVEX_URL"]);
+  if (clientUrl) return normalizeConvexClientUrl(clientUrl);
+  return convexClientUrlFromSiteUrl(
+    firstEnvValue(["FARPLANE_CONVEX_SITE_URL", "CONVEX_SITE_URL"]),
+  );
+}
+
+const VITE_CONVEX_URL = resolveViteConvexUrl();
 
 interface SessionUsageTotals {
   inputTokens: number;
@@ -239,6 +290,37 @@ async function installProjectHooks(): Promise<JsonObject> {
     return { ...(JSON.parse(stdout) as JsonObject), stderr: stderr.trim() || undefined };
   } catch {
     return { ok: false, error: "hook_install_invalid_json", stdout, stderr };
+  }
+}
+
+async function runFarplaneFrameworkCli(args: string[], timeoutMs = 20_000): Promise<JsonObject> {
+  const cliPath = path.join(FARPLANE_FRAMEWORK_ROOT, "bin", "farplane.py");
+  if (!(await pathExists(cliPath))) {
+    return {
+      ok: false,
+      error: "farplane_framework_cli_not_found",
+      frameworkRoot: FARPLANE_FRAMEWORK_ROOT,
+    };
+  }
+  try {
+    const { stdout, stderr } = await execFileAsync("python3", [cliPath, ...args], {
+      cwd: FARPLANE_FRAMEWORK_ROOT,
+      maxBuffer: 16 * 1024 * 1024,
+      timeout: timeoutMs,
+    });
+    const parsed = JSON.parse(stdout) as JsonObject;
+    return {
+      ok: true,
+      frameworkRoot: FARPLANE_FRAMEWORK_ROOT,
+      stderr: stderr.trim() || undefined,
+      payload: parsed,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "farplane_framework_cli_failed",
+      frameworkRoot: FARPLANE_FRAMEWORK_ROOT,
+    };
   }
 }
 
@@ -410,6 +492,57 @@ async function readBody(req: { on: (name: string, cb: (chunk?: Buffer) => void) 
   } catch {
     return {};
   }
+}
+
+function clampNumber(value: string | null, fallback: number, min: number, max: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, parsed));
+}
+
+async function readLocalFarplaneEventRows(options: {
+  rangeMs: number;
+  now: number;
+  maxRows: number;
+}): Promise<unknown[]> {
+  const cutoff = options.now - options.rangeMs;
+  let files: string[] = [];
+  try {
+    files = await readdir(LOCAL_HOOK_EVENTS_DIR);
+  } catch {
+    return [];
+  }
+
+  const rows: unknown[] = [];
+  const jsonlFiles = files
+    .filter((fileName) => /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(fileName))
+    .sort()
+    .reverse();
+
+  for (const fileName of jsonlFiles) {
+    if (rows.length >= options.maxRows) break;
+    const filePath = path.join(LOCAL_HOOK_EVENTS_DIR, fileName);
+    let content = "";
+    try {
+      content = await readFile(filePath, "utf-8");
+    } catch {
+      continue;
+    }
+    const lines = content.split(/\r?\n/).filter(Boolean).reverse();
+    for (const line of lines) {
+      if (rows.length >= options.maxRows) break;
+      try {
+        const row = JSON.parse(line) as JsonObject;
+        const timestamp = Date.parse(String(row.timestamp ?? row.eventAt ?? ""));
+        if (Number.isFinite(timestamp) && timestamp < cutoff) continue;
+        rows.push(row);
+      } catch {
+        // Ignore partial JSONL writes from an in-flight hook.
+      }
+    }
+  }
+
+  return rows;
 }
 
 type JsonRpcMessage = {
@@ -1660,6 +1793,7 @@ async function readFilesystemObservedCodexThreadsForUiState(limit: number): Prom
     projectPaths: projectPathsFromCodexUiState(uiState),
     limit,
     readProjectPmConfig,
+    codexHome: CODEX_HOME,
   });
 }
 
@@ -2275,6 +2409,29 @@ function farplaneStateBridge() {
           return;
         }
 
+        if (method === "GET" && pathname === "/farplane/harness/adoption-scan") {
+          const projectRoot = url.searchParams.get("projectRoot")?.trim() || FARPLANE_FRAMEWORK_ROOT;
+          if (!isSafeProjectPath(projectRoot)) {
+            writeJson(res, 400, { ok: false, error: "project_root_required" });
+            return;
+          }
+          const result = await runFarplaneFrameworkCli([
+            "adoption",
+            "scan",
+            "--project-root",
+            projectRoot,
+            "--json",
+          ]);
+          writeJson(res, result.ok ? 200 : 502, result);
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/harness/skills-rollout-scan") {
+          const result = await runFarplaneFrameworkCli(["skills", "rollout", "scan", "--json"]);
+          writeJson(res, result.ok ? 200 : 502, result);
+          return;
+        }
+
         if (pathname === "/codex/app-server/health") {
           const appServerUrl = readCodexAppServerUrl();
           writeJson(res, 200, {
@@ -2352,6 +2509,29 @@ function farplaneStateBridge() {
             return;
           }
           writeJson(res, 200, await readProjectHookConfig(projectPath));
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/local-observed-codex-workers") {
+          const now = Date.now();
+          const rangeMs = clampNumber(
+            url.searchParams.get("rangeMs"),
+            LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS,
+            60_000,
+            LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS,
+          );
+          const limit = clampNumber(url.searchParams.get("limit"), 500, 1, 1000);
+          const rows = await readLocalFarplaneEventRows({
+            rangeMs,
+            now,
+            maxRows: Math.max(limit * 8, 500),
+          });
+          writeJson(res, 200, {
+            ok: true,
+            source: "local-farplane-events",
+            rangeMs,
+            workers: localFarplaneEventsToObservedCodexWorkers(rows, { now, rangeMs, limit }),
+          });
           return;
         }
 

@@ -3,11 +3,11 @@
  * ====================
  * Derives generated inner divider walls between meaningful treemap areas.
  *
- * Inputs are already-derived office area rectangles, placed team clusters, and
- * project metadata. Output is ordinary `office-divider` office objects so
- * renderer, occupancy, and auto-fit logic consume the same object contract as
- * user-placed dividers. Generated walls are extracted from shared treemap edges:
- * they separate neighboring regions instead of enclosing clusters with boxes.
+ * Inputs are already-derived office area rectangles and project metadata.
+ * Output is ordinary `office-divider` office objects so renderer, occupancy,
+ * and auto-fit logic consume the same object contract as user-placed dividers.
+ * Project dividers are extracted from shared treemap edges; team tables stay
+ * furniture-first instead of spawning ad hoc rooms.
  */
 
 import type {
@@ -15,14 +15,17 @@ import type {
   OfficeAreaNode,
   OfficeAreaRect,
 } from "@/modules/office/lib/office-area-layout";
+import type { OfficeLayoutModel } from "@/modules/office/lib/office-layout";
 import type { OfficeObject } from "@/modules/office/lib/types";
 import { getObjectFootprintCells } from "@/modules/office/systems/occupancy-system";
-import type { ProjectModel } from "@/modules/runtime";
+import type { OfficeLayoutStrategyId, ProjectModel } from "@/modules/runtime";
 
 export const PROJECT_SECTION_MIN_SUBPROJECTS = 4;
-export const TEAM_SECTION_MIN_DESKS = 6;
 
 const SECTION_MIN_WALL_SPAN = 0.75;
+const SECTION_DOOR_WIDTH = 2.25;
+const SECTION_WALL_REUSE_DISTANCE = 1.25;
+const SECTION_WALL_REUSE_MIN_COVERAGE = 0.25;
 
 interface TileBounds {
   minTileX: number;
@@ -33,7 +36,7 @@ interface TileBounds {
 
 interface SectionAreaGroup {
   id: string;
-  sectionType: "project-subprojects" | "large-team";
+  sectionType: "project-subprojects" | "project-room";
   area: OfficeAreaNode;
 }
 
@@ -51,7 +54,10 @@ function normalizeProjectPath(path: string | undefined): string {
   return (path ?? "").trim().replace(/\\/g, "/").replace(/\/+$/, "");
 }
 
-function findParentProject(project: ProjectModel, projects: ProjectModel[]): ProjectModel | null {
+function findParentProject(
+  project: ProjectModel,
+  projects: ProjectModel[],
+): ProjectModel | null {
   const projectPath = normalizeProjectPath(project.trackingContext);
   if (!projectPath) return null;
   return (
@@ -69,23 +75,9 @@ function findParentProject(project: ProjectModel, projects: ProjectModel[]): Pro
   );
 }
 
-function getClusterTeamId(object: OfficeObject): string | null {
-  return typeof object.metadata?.teamId === "string" ? object.metadata.teamId : null;
-}
-
-function getClusterProjectId(object: OfficeObject): string | null {
-  const teamId = getClusterTeamId(object);
-  if (!teamId?.startsWith("team-")) return null;
-  const projectId = teamId.slice("team-".length);
-  return projectId.length > 0 ? projectId : null;
-}
-
-function getClusterDeskCount(object: OfficeObject): number {
-  const raw = object.metadata?.deskCount;
-  return typeof raw === "number" && Number.isFinite(raw) ? Math.max(1, Math.floor(raw)) : 1;
-}
-
-export function getOfficeObjectFootprintTileBounds(objects: OfficeObject[]): TileBounds | null {
+export function getOfficeObjectFootprintTileBounds(
+  objects: OfficeObject[],
+): TileBounds | null {
   let minTileX = Number.POSITIVE_INFINITY;
   let maxTileX = Number.NEGATIVE_INFINITY;
   let minTileZ = Number.POSITIVE_INFINITY;
@@ -140,11 +132,56 @@ function createDividerObject(input: {
   };
 }
 
+function splitSegmentAroundDoor(
+  segment: SectionDividerSegment,
+): SectionDividerSegment[] {
+  if (segment.length < SECTION_DOOR_WIDTH + SECTION_MIN_WALL_SPAN * 2)
+    return [segment];
+  const center = segment.start + segment.length / 2;
+  const firstEnd = center - SECTION_DOOR_WIDTH / 2;
+  const secondStart = center + SECTION_DOOR_WIDTH / 2;
+  const buildSegment = (
+    start: number,
+    end: number,
+  ): SectionDividerSegment | null => {
+    const length = end - start;
+    if (length < SECTION_MIN_WALL_SPAN) return null;
+    const nextCenter = start + length / 2;
+    return {
+      ...segment,
+      start,
+      end,
+      length,
+      position:
+        segment.side === "west" || segment.side === "east"
+          ? [segment.line, 0, nextCenter]
+          : [nextCenter, 0, segment.line],
+      side: segment.side,
+      rotation: segment.rotation,
+    };
+  };
+  return [
+    buildSegment(segment.start, firstEnd),
+    buildSegment(secondStart, segment.end),
+  ].filter((entry): entry is SectionDividerSegment => Boolean(entry));
+}
+
 function rectsTouch(left: number, right: number): boolean {
   return Math.abs(left - right) < 0.001;
 }
 
-function getOverlap(minA: number, maxA: number, minB: number, maxB: number): {
+function getNearEdgeLine(leftEdge: number, rightEdge: number): number | null {
+  const gap = rightEdge - leftEdge;
+  if (gap < -0.001 || gap > 0.001) return null;
+  return leftEdge + Math.max(0, gap) / 2;
+}
+
+function getOverlap(
+  minA: number,
+  maxA: number,
+  minB: number,
+  maxB: number,
+): {
   start: number;
   end: number;
   length: number;
@@ -153,6 +190,59 @@ function getOverlap(minA: number, maxA: number, minB: number, maxB: number): {
   const end = Math.min(maxA, maxB);
   const length = end - start;
   return length >= SECTION_MIN_WALL_SPAN ? { start, end, length } : null;
+}
+
+function getDividerSpan(wall: OfficeObject): {
+  vertical: boolean;
+  line: number;
+  start: number;
+  end: number;
+} | null {
+  if (wall.meshType !== "office-divider" && wall.meshType !== "glass-wall")
+    return null;
+  const rawLength = wall.metadata?.footprintWidth;
+  const length =
+    typeof rawLength === "number" && Number.isFinite(rawLength) ? rawLength : 0;
+  if (length <= 0) return null;
+  const vertical = Math.abs(wall.rotation?.[1] ?? 0) > Math.PI / 4;
+  const center = vertical ? wall.position[2] : wall.position[0];
+  return {
+    vertical,
+    line: vertical ? wall.position[0] : wall.position[2],
+    start: center - length / 2,
+    end: center + length / 2,
+  };
+}
+
+function getSegmentOverlapLength(
+  left: { start: number; end: number },
+  right: { start: number; end: number },
+): number {
+  return Math.max(
+    0,
+    Math.min(left.end, right.end) - Math.max(left.start, right.start),
+  );
+}
+
+function isDividerCoveredByExistingWall(
+  candidate: OfficeObject,
+  existingWalls: OfficeObject[],
+): boolean {
+  const candidateSpan = getDividerSpan(candidate);
+  if (!candidateSpan) return false;
+  const candidateLength = candidateSpan.end - candidateSpan.start;
+  if (candidateLength <= 0) return false;
+  let coveredLength = 0;
+  for (const wall of existingWalls) {
+    const wallSpan = getDividerSpan(wall);
+    if (!wallSpan || wallSpan.vertical !== candidateSpan.vertical) continue;
+    if (
+      Math.abs(wallSpan.line - candidateSpan.line) > SECTION_WALL_REUSE_DISTANCE
+    )
+      continue;
+    coveredLength += getSegmentOverlapLength(candidateSpan, wallSpan);
+  }
+  return coveredLength / candidateLength >= SECTION_WALL_REUSE_MIN_COVERAGE;
 }
 
 function getSharedEdgeSegments(input: {
@@ -166,25 +256,27 @@ function getSharedEdgeSegments(input: {
     input.neighbor.minZ,
     input.neighbor.maxZ,
   );
-  if (zOverlap && rectsTouch(input.target.minX, input.neighbor.maxX)) {
+  const westLine = getNearEdgeLine(input.neighbor.maxX, input.target.minX);
+  if (zOverlap && westLine !== null) {
     segments.push({
       side: "west",
-      line: input.target.minX,
+      line: westLine,
       start: zOverlap.start,
       end: zOverlap.end,
       length: zOverlap.length,
-      position: [input.target.minX, 0, zOverlap.start + zOverlap.length / 2],
+      position: [westLine, 0, zOverlap.start + zOverlap.length / 2],
       rotation: [0, Math.PI / 2, 0],
     });
   }
-  if (zOverlap && rectsTouch(input.target.maxX, input.neighbor.minX)) {
+  const eastLine = getNearEdgeLine(input.target.maxX, input.neighbor.minX);
+  if (zOverlap && eastLine !== null) {
     segments.push({
       side: "east",
-      line: input.target.maxX,
+      line: eastLine,
       start: zOverlap.start,
       end: zOverlap.end,
       length: zOverlap.length,
-      position: [input.target.maxX, 0, zOverlap.start + zOverlap.length / 2],
+      position: [eastLine, 0, zOverlap.start + zOverlap.length / 2],
       rotation: [0, Math.PI / 2, 0],
     });
   }
@@ -195,36 +287,42 @@ function getSharedEdgeSegments(input: {
     input.neighbor.minX,
     input.neighbor.maxX,
   );
-  if (xOverlap && rectsTouch(input.target.minZ, input.neighbor.maxZ)) {
+  const northLine = getNearEdgeLine(input.neighbor.maxZ, input.target.minZ);
+  if (xOverlap && northLine !== null) {
     segments.push({
       side: "north",
-      line: input.target.minZ,
+      line: northLine,
       start: xOverlap.start,
       end: xOverlap.end,
       length: xOverlap.length,
-      position: [xOverlap.start + xOverlap.length / 2, 0, input.target.minZ],
+      position: [xOverlap.start + xOverlap.length / 2, 0, northLine],
       rotation: [0, 0, 0],
     });
   }
-  if (xOverlap && rectsTouch(input.target.maxZ, input.neighbor.minZ)) {
+  const southLine = getNearEdgeLine(input.target.maxZ, input.neighbor.minZ);
+  if (xOverlap && southLine !== null) {
     segments.push({
       side: "south",
-      line: input.target.maxZ,
+      line: southLine,
       start: xOverlap.start,
       end: xOverlap.end,
       length: xOverlap.length,
-      position: [xOverlap.start + xOverlap.length / 2, 0, input.target.maxZ],
+      position: [xOverlap.start + xOverlap.length / 2, 0, southLine],
       rotation: [0, 0, 0],
     });
   }
   return segments;
 }
 
-function mergeSegments(segments: SectionDividerSegment[]): SectionDividerSegment[] {
+function mergeSegments(
+  segments: SectionDividerSegment[],
+): SectionDividerSegment[] {
   const sorted = [...segments].sort((left, right) =>
     left.side === right.side && left.line === right.line
       ? left.start - right.start
-      : `${left.side}:${left.line}`.localeCompare(`${right.side}:${right.line}`),
+      : `${left.side}:${left.line}`.localeCompare(
+          `${right.side}:${right.line}`,
+        ),
   );
   const merged: SectionDividerSegment[] = [];
   for (const segment of sorted) {
@@ -249,11 +347,16 @@ function mergeSegments(segments: SectionDividerSegment[]): SectionDividerSegment
   return merged;
 }
 
-function selectMinimalDividerSide(segments: SectionDividerSegment[]): SectionDividerSegment[] {
+function selectMinimalDividerSide(
+  segments: SectionDividerSegment[],
+): SectionDividerSegment[] {
   const merged = mergeSegments(segments);
   const totalsBySide = new Map<SectionDividerSegment["side"], number>();
   for (const segment of merged) {
-    totalsBySide.set(segment.side, (totalsBySide.get(segment.side) ?? 0) + segment.length);
+    totalsBySide.set(
+      segment.side,
+      (totalsBySide.get(segment.side) ?? 0) + segment.length,
+    );
   }
   const bestSide = [...totalsBySide.entries()].sort((left, right) =>
     right[1] === left[1] ? left[0].localeCompare(right[0]) : right[1] - left[1],
@@ -266,7 +369,8 @@ function getSiblingSharedSegments(input: {
   officeAreaLayout: OfficeAreaLayout;
 }): SectionDividerSegment[] {
   const siblings = input.officeAreaLayout.areas.filter(
-    (area) => area.parentId === input.area.parentId && area.id !== input.area.id,
+    (area) =>
+      area.parentId === input.area.parentId && area.id !== input.area.id,
   );
   return selectMinimalDividerSide(
     siblings.flatMap((sibling) =>
@@ -278,7 +382,10 @@ function getSiblingSharedSegments(input: {
   );
 }
 
-function findAreaById(officeAreaLayout: OfficeAreaLayout, areaId: string): OfficeAreaNode | null {
+function findAreaById(
+  officeAreaLayout: OfficeAreaLayout,
+  areaId: string,
+): OfficeAreaNode | null {
   return officeAreaLayout.areas.find((area) => area.id === areaId) ?? null;
 }
 
@@ -288,9 +395,14 @@ function findDividerAreaAndSegments(input: {
 }): { area: OfficeAreaNode; segments: SectionDividerSegment[] } | null {
   let area: OfficeAreaNode | null = input.group.area;
   while (area) {
-    const segments = getSiblingSharedSegments({ area, officeAreaLayout: input.officeAreaLayout });
+    const segments = getSiblingSharedSegments({
+      area,
+      officeAreaLayout: input.officeAreaLayout,
+    });
     if (segments.length > 0) return { area, segments };
-    area = area.parentId ? findAreaById(input.officeAreaLayout, area.parentId) : null;
+    area = area.parentId
+      ? findAreaById(input.officeAreaLayout, area.parentId)
+      : null;
   }
   return null;
 }
@@ -321,7 +433,36 @@ function buildWallsForAreaGroup(input: {
   );
 }
 
-function dedupeSectionAreaGroups(groups: SectionAreaGroup[]): SectionAreaGroup[] {
+function createDividerObjectsForSegments(input: {
+  companyId: string;
+  group: SectionAreaGroup;
+  dividerArea: OfficeAreaNode;
+  segments: SectionDividerSegment[];
+  wallColor: string;
+  doorGaps: boolean;
+}): OfficeObject[] {
+  return input.segments.flatMap((segment, segmentIndex) => {
+    const wallSegments = input.doorGaps
+      ? splitSegmentAroundDoor(segment)
+      : [segment];
+    return wallSegments.map((wallSegment, wallIndex) =>
+      createDividerObject({
+        companyId: input.companyId,
+        group: input.group,
+        dividerArea: input.dividerArea,
+        wallId: `${wallSegment.side}-${segmentIndex}-${wallIndex}`,
+        length: wallSegment.length,
+        wallColor: input.wallColor,
+        position: wallSegment.position,
+        rotation: wallSegment.rotation,
+      }),
+    );
+  });
+}
+
+function dedupeSectionAreaGroups(
+  groups: SectionAreaGroup[],
+): SectionAreaGroup[] {
   const seen = new Set<string>();
   return groups.filter((group) => {
     const key = `${group.sectionType}:${group.id}:${group.area.id}`;
@@ -337,7 +478,9 @@ function deriveProjectSubprojectGroups(input: {
   projects: ProjectModel[];
   officeAreaLayout: OfficeAreaLayout;
 }): SectionAreaGroup[] {
-  const activeProjects = input.projects.filter((project) => project.status !== "archived");
+  const activeProjects = input.projects.filter(
+    (project) => project.status !== "archived",
+  );
   const childrenByParentId = new Map<string, ProjectModel[]>();
   for (const project of activeProjects) {
     const parent = findParentProject(project, activeProjects);
@@ -362,25 +505,57 @@ function deriveProjectSubprojectGroups(input: {
   return groups;
 }
 
-function deriveLargeTeamGroups(input: {
-  clusterObjects: OfficeObject[];
+function buildActivityTreemapWallObjects(input: {
+  companyId: string;
+  projects: ProjectModel[];
   officeAreaLayout: OfficeAreaLayout;
-}): SectionAreaGroup[] {
-  return input.clusterObjects.flatMap((object) => {
-    const teamId = getClusterTeamId(object);
-    if (!teamId || getClusterDeskCount(object) < TEAM_SECTION_MIN_DESKS) return [];
-    const projectId = getClusterProjectId(object);
-    if (!projectId) return [];
-    const area = input.officeAreaLayout.projectAreaByProjectId[projectId];
-    if (!area) return [];
-    return [
-      {
-        id: `team-${teamId}`,
-        sectionType: "large-team" as const,
-        area,
-      },
-    ];
-  });
+  wallColor: string;
+}): OfficeObject[] {
+  const activeProjectIds = new Set(
+    input.projects
+      .filter((project) => project.status !== "archived")
+      .map((project) => project.id),
+  );
+  const projectAreas = Object.values(
+    input.officeAreaLayout.projectAreaByProjectId,
+  )
+    .filter((area) => area.projectId && activeProjectIds.has(area.projectId))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const walls: OfficeObject[] = [];
+  for (let leftIndex = 0; leftIndex < projectAreas.length; leftIndex += 1) {
+    const leftArea = projectAreas[leftIndex];
+    if (!leftArea) continue;
+    for (
+      let rightIndex = leftIndex + 1;
+      rightIndex < projectAreas.length;
+      rightIndex += 1
+    ) {
+      const rightArea = projectAreas[rightIndex];
+      if (!rightArea) continue;
+      const segments = mergeSegments(
+        getSharedEdgeSegments({
+          target: leftArea.rect,
+          neighbor: rightArea.rect,
+        }),
+      );
+      if (segments.length === 0) continue;
+      walls.push(
+        ...createDividerObjectsForSegments({
+          companyId: input.companyId,
+          group: {
+            id: `project-edge-${leftArea.projectId}-to-${rightArea.projectId}`,
+            sectionType: "project-room",
+            area: leftArea,
+          },
+          dividerArea: rightArea,
+          segments,
+          wallColor: input.wallColor,
+          doorGaps: true,
+        }),
+      );
+    }
+  }
+  return walls;
 }
 
 export function buildOfficeSectionWallObjects(input: {
@@ -388,24 +563,36 @@ export function buildOfficeSectionWallObjects(input: {
   projects: ProjectModel[];
   clusterObjects: OfficeObject[];
   officeAreaLayout: OfficeAreaLayout;
+  officeLayout: OfficeLayoutModel;
+  existingWalls?: OfficeObject[];
+  layoutStrategy?: OfficeLayoutStrategyId;
   wallColor: string;
 }): OfficeObject[] {
-  const groups = dedupeSectionAreaGroups([
-    ...deriveProjectSubprojectGroups({
-      projects: input.projects,
-      officeAreaLayout: input.officeAreaLayout,
-    }),
-    ...deriveLargeTeamGroups({
-      clusterObjects: input.clusterObjects,
-      officeAreaLayout: input.officeAreaLayout,
-    }),
-  ]);
-  return groups.flatMap((group) =>
-    buildWallsForAreaGroup({
-      companyId: input.companyId,
-      group,
-      officeAreaLayout: input.officeAreaLayout,
-      wallColor: input.wallColor,
-    }),
+  const strategy = input.layoutStrategy ?? "legacy";
+  const projectDividerWalls =
+    strategy === "activity_treemap" || strategy === "command_districts"
+      ? buildActivityTreemapWallObjects({
+          companyId: input.companyId,
+          projects: input.projects,
+          officeAreaLayout: input.officeAreaLayout,
+          wallColor: input.wallColor,
+        })
+      : dedupeSectionAreaGroups([
+          ...deriveProjectSubprojectGroups({
+            projects: input.projects,
+            officeAreaLayout: input.officeAreaLayout,
+          }),
+        ]).flatMap((group) =>
+          buildWallsForAreaGroup({
+            companyId: input.companyId,
+            group,
+            officeAreaLayout: input.officeAreaLayout,
+            wallColor: input.wallColor,
+          }),
+        );
+  const existingWalls = input.existingWalls ?? [];
+  const reusableProjectDividerWalls = projectDividerWalls.filter(
+    (wall) => !isDividerCoveredByExistingWall(wall, existingWalls),
   );
+  return reusableProjectDividerWalls;
 }

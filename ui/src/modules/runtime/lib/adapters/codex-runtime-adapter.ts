@@ -90,6 +90,8 @@ const CODEX_CAPABILITIES: RuntimeAdapterCapabilities = {
 };
 
 const CODEX_BOOTSTRAP_RPC_TIMEOUT_MS = 1500;
+// Thread listing can include Vite-side filesystem summary merging before employees are built.
+const CODEX_THREAD_LIST_BOOTSTRAP_TIMEOUT_MS = 6000;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, code: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -243,7 +245,7 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
       }
       const response = await withTimeout(
         this.codexClient.listThreads(80),
-        CODEX_BOOTSTRAP_RPC_TIMEOUT_MS,
+        CODEX_THREAD_LIST_BOOTSTRAP_TIMEOUT_MS,
         "codex_thread_list_bootstrap_timeout",
       );
       const threads = Array.isArray(response.data)

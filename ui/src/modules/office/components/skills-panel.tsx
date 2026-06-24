@@ -27,17 +27,18 @@ import { useSkillsPanelController } from "@/modules/office/components/use-skills
 import { SkillOsMiniApp } from "@/modules/skills-studio/components/skill-os";
 
 function panelTitle(
-  surface: "skill-os" | "evals" | "harness",
+  surface: "skill-os" | "template-rollout" | "evals" | "harness",
   focusAgentId: string | null,
 ): string {
   if (focusAgentId) return "Agent Skills";
+  if (surface === "template-rollout") return "Template Rollout";
   if (surface === "evals") return "Evals";
   if (surface === "harness") return "Harness OS";
   return "Skill OS";
 }
 
 function panelDescription(
-  surface: "skill-os" | "evals" | "harness",
+  surface: "skill-os" | "template-rollout" | "evals" | "harness",
   focusAgentId: string | null,
 ): string {
   if (focusAgentId) {
@@ -45,6 +46,9 @@ function panelDescription(
   }
   if (surface === "evals") {
     return "Eval OS mini app for latest runs, health, history, task drilldown, and report artifacts.";
+  }
+  if (surface === "template-rollout") {
+    return "Harness rollout view focused on project adoption, reusable templates, skill templates, and drift.";
   }
   if (surface === "harness") {
     return "Repo-wide Harness OS: skills, docs, specs, features, agents, templates, validators, and policies.";
@@ -73,6 +77,7 @@ export function SkillsPanel(): ReactElement {
           {surface === "skill-os" ? <SkillOsMiniApp /> : null}
           {surface === "evals" ? <EvalOsPanel /> : null}
           {surface === "harness" ? <HarnessOsPanel /> : null}
+          {surface === "template-rollout" ? <HarnessOsPanel initialTab="rollout" /> : null}
         </div>
       </DialogContent>
     </Dialog>

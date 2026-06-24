@@ -15,7 +15,10 @@ import {
   SkillsPanel,
 } from "@/modules/office";
 import { ProjectDocumentLibraryPanel } from "@/modules/office/components/project-document-library-panel";
-import { selectOfficeWorldContextData, useOfficeWorldStore } from "@/modules/office/store";
+import {
+  selectOfficeWorldContextData,
+  useOfficeWorldStore,
+} from "@/modules/office/store";
 import { ResourceBankPanel } from "@/modules/resource-bank";
 import { gatewayBase } from "@/modules/runtime";
 import { SettingsDialog } from "@/modules/settings";
@@ -24,7 +27,10 @@ import { SkillInvocationsPanel } from "@/modules/skill-invocations";
 import { TeamPanel } from "@/modules/team-workspace";
 import { TelemetryPanel } from "@/modules/telemetry";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
-import { OfficeDataProvider, useOptionalOfficeDataContext } from "@/providers/office-data-provider";
+import {
+  OfficeDataProvider,
+  useOptionalOfficeDataContext,
+} from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
 import { TeamOptionsDialog } from "./dialogs/team-options-dialog";
 import { BuilderToolbar } from "./hud/builder-toolbar";
@@ -36,7 +42,11 @@ import { OfficeMenu } from "./hud/office-menu";
 import { OfficeOnboardingPanel } from "./hud/office-onboarding-panel";
 import { OfficeStatsHud } from "./hud/office-stats-hud";
 import { UserTasksPanel } from "./hud/user-tasks-panel";
-import { buildOfficeBootstrapStages, getOfficeBootstrapState } from "./office-bootstrap";
+import {
+  buildOfficeBootstrapStages,
+  getOfficeBootstrapState,
+  shouldRenderOfficeSceneShell,
+} from "./office-bootstrap";
 import { OfficeLoader } from "./office-loader";
 
 export default function OfficeSimulation() {
@@ -66,32 +76,65 @@ function OfficeSimulationContent() {
   } = useOfficeWorldStore(useShallow(selectOfficeWorldContextData));
 
   // Get team options dialog state from app store with selectors
-  const isTeamOptionsDialogOpen = useAppStore((state) => state.isTeamOptionsDialogOpen);
-  const setIsTeamOptionsDialogOpen = useAppStore((state) => state.setIsTeamOptionsDialogOpen);
-  const activeTeamForOptions = useAppStore((state) => state.activeTeamForOptions);
+  const isTeamOptionsDialogOpen = useAppStore(
+    (state) => state.isTeamOptionsDialogOpen,
+  );
+  const setIsTeamOptionsDialogOpen = useAppStore(
+    (state) => state.setIsTeamOptionsDialogOpen,
+  );
+  const activeTeamForOptions = useAppStore(
+    (state) => state.activeTeamForOptions,
+  );
   const isTeamPanelOpen = useAppStore((state) => state.isTeamPanelOpen);
   const setIsTeamPanelOpen = useAppStore((state) => state.setIsTeamPanelOpen);
   const activeTeamId = useAppStore((state) => state.activeTeamId);
   const kanbanFocusAgentId = useAppStore((state) => state.kanbanFocusAgentId);
-  const isGlobalTeamPanelOpen = useAppStore((state) => state.isGlobalTeamPanelOpen);
-  const setIsGlobalTeamPanelOpen = useAppStore((state) => state.setIsGlobalTeamPanelOpen);
-  const isUserTasksModalOpen = useAppStore((state) => state.isUserTasksModalOpen);
-  const setIsUserTasksModalOpen = useAppStore((state) => state.setIsUserTasksModalOpen);
-  const setKanbanFocusAgentId = useAppStore((state) => state.setKanbanFocusAgentId);
+  const isGlobalTeamPanelOpen = useAppStore(
+    (state) => state.isGlobalTeamPanelOpen,
+  );
+  const setIsGlobalTeamPanelOpen = useAppStore(
+    (state) => state.setIsGlobalTeamPanelOpen,
+  );
+  const isUserTasksModalOpen = useAppStore(
+    (state) => state.isUserTasksModalOpen,
+  );
+  const setIsUserTasksModalOpen = useAppStore(
+    (state) => state.setIsUserTasksModalOpen,
+  );
+  const setKanbanFocusAgentId = useAppStore(
+    (state) => state.setKanbanFocusAgentId,
+  );
   const isSettingsModalOpen = useAppStore((state) => state.isSettingsModalOpen);
-  const setIsSettingsModalOpen = useAppStore((state) => state.setIsSettingsModalOpen);
-  const isTelemetryPanelOpen = useAppStore((state) => state.isTelemetryPanelOpen);
-  const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
-  const isRawTelemetryPanelOpen = useAppStore((state) => state.isRawTelemetryPanelOpen);
-  const setIsRawTelemetryPanelOpen = useAppStore((state) => state.setIsRawTelemetryPanelOpen);
-  const isSkillInvocationsPanelOpen = useAppStore((state) => state.isSkillInvocationsPanelOpen);
+  const setIsSettingsModalOpen = useAppStore(
+    (state) => state.setIsSettingsModalOpen,
+  );
+  const isTelemetryPanelOpen = useAppStore(
+    (state) => state.isTelemetryPanelOpen,
+  );
+  const setIsTelemetryPanelOpen = useAppStore(
+    (state) => state.setIsTelemetryPanelOpen,
+  );
+  const isRawTelemetryPanelOpen = useAppStore(
+    (state) => state.isRawTelemetryPanelOpen,
+  );
+  const setIsRawTelemetryPanelOpen = useAppStore(
+    (state) => state.setIsRawTelemetryPanelOpen,
+  );
+  const isSkillInvocationsPanelOpen = useAppStore(
+    (state) => state.isSkillInvocationsPanelOpen,
+  );
   const setIsSkillInvocationsPanelOpen = useAppStore(
     (state) => state.setIsSkillInvocationsPanelOpen,
   );
-  const isResourceBankPanelOpen = useAppStore((state) => state.isResourceBankPanelOpen);
-  const setIsResourceBankPanelOpen = useAppStore((state) => state.setIsResourceBankPanelOpen);
+  const isResourceBankPanelOpen = useAppStore(
+    (state) => state.isResourceBankPanelOpen,
+  );
+  const setIsResourceBankPanelOpen = useAppStore(
+    (state) => state.setIsResourceBankPanelOpen,
+  );
   const [isLogsDrawerOpen, setIsLogsDrawerOpen] = useState(false);
   const [navigationReady, setNavigationReady] = useState(false);
+  const [hasNavigationReadyOnce, setHasNavigationReadyOnce] = useState(false);
 
   // Get company ID from the first team (all teams should have same companyId)
   const companyId = company?._id;
@@ -100,26 +143,41 @@ function OfficeSimulationContent() {
     const urls = officeObjects
       .filter((obj) => obj.meshType === "custom-mesh")
       .map((obj) =>
-        typeof obj.metadata?.meshPublicPath === "string" ? obj.metadata.meshPublicPath : "",
+        typeof obj.metadata?.meshPublicPath === "string"
+          ? obj.metadata.meshPublicPath
+          : "",
       )
       .filter(Boolean);
     // Keep signature stable across periodic provider refreshes.
     return [...new Set(urls)].sort();
   }, [officeObjects]);
 
-  const customMeshSignature = useMemo(() => customMeshUrls.join("|"), [customMeshUrls]);
+  const customMeshSignature = useMemo(
+    () => customMeshUrls.join("|"),
+    [customMeshUrls],
+  );
   const [loadedMeshSignature, setLoadedMeshSignature] = useState<string>(() =>
     customMeshUrls.length === 0 ? "" : "__pending__",
   );
-  const meshesReady = customMeshUrls.length === 0 || loadedMeshSignature === customMeshSignature;
+  const [hasRenderedScene, setHasRenderedScene] = useState(false);
+  const meshesReady =
+    customMeshUrls.length === 0 || loadedMeshSignature === customMeshSignature;
   const dataReady = !isLoading;
-  const sceneShellReady = dataReady && meshesReady;
+  const sceneShellReady = shouldRenderOfficeSceneShell({
+    isLoading,
+    meshesReady,
+    hasRenderedScene,
+  });
 
   useEffect(() => {
-    if (!sceneShellReady) {
+    if (sceneShellReady) {
+      setHasRenderedScene(true);
+      return;
+    }
+    if (!hasRenderedScene) {
       setNavigationReady(false);
     }
-  }, [sceneShellReady]);
+  }, [hasRenderedScene, sceneShellReady]);
 
   useEffect(() => {
     if (customMeshUrls.length === 0) {
@@ -147,14 +205,28 @@ function OfficeSimulationContent() {
       buildOfficeBootstrapStages({
         dataReady,
         meshesReady,
-        navigationReady: sceneShellReady && navigationReady,
+        navigationReady:
+          sceneShellReady && (navigationReady || hasNavigationReadyOnce),
       }),
-    [dataReady, meshesReady, navigationReady, sceneShellReady],
+    [
+      dataReady,
+      hasNavigationReadyOnce,
+      meshesReady,
+      navigationReady,
+      sceneShellReady,
+    ],
   );
 
-  const bootstrapState = useMemo(() => getOfficeBootstrapState(bootstrapStages), [bootstrapStages]);
+  const bootstrapState = useMemo(
+    () => getOfficeBootstrapState(bootstrapStages),
+    [bootstrapStages],
+  );
   const handleNavigationReady = useCallback(() => {
     setNavigationReady(true);
+    setHasNavigationReadyOnce(true);
+  }, []);
+  const handleNavigationReset = useCallback(() => {
+    setNavigationReady(false);
   }, []);
 
   return (
@@ -172,7 +244,9 @@ function OfficeSimulationContent() {
             officeDecorSettings={officeSettings.decor}
             officeViewSettings={officeSettings}
             companyId={companyId}
+            customMeshLoadSignature={loadedMeshSignature}
             onNavigationReady={handleNavigationReady}
+            onNavigationReset={handleNavigationReset}
           />
         ) : null}
 
@@ -219,9 +293,15 @@ function OfficeSimulationContent() {
               />
             ) : null}
             {!isReadOnly ? (
-              <SettingsDialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen} />
+              <SettingsDialog
+                open={isSettingsModalOpen}
+                onOpenChange={setIsSettingsModalOpen}
+              />
             ) : null}
-            <TelemetryPanel open={isTelemetryPanelOpen} onOpenChange={setIsTelemetryPanelOpen} />
+            <TelemetryPanel
+              open={isTelemetryPanelOpen}
+              onOpenChange={setIsTelemetryPanelOpen}
+            />
             {!isReadOnly ? (
               <RawTelemetryPanel
                 open={isRawTelemetryPanelOpen}
@@ -296,7 +376,10 @@ function OfficeSimulationContent() {
         ) : null}
 
         {!bootstrapState.isReady ? (
-          <OfficeLoader completionRatio={bootstrapState.completionRatio} stages={bootstrapStages} />
+          <OfficeLoader
+            completionRatio={bootstrapState.completionRatio}
+            stages={bootstrapStages}
+          />
         ) : null}
       </div>
     </LayoutEditorHudProvider>

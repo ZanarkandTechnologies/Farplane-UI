@@ -55,6 +55,10 @@ function threadTitle(thread: CodexThread): string {
   );
 }
 
+function threadOfficeDisplayName(thread: CodexThread): string {
+  return safeText(thread.name) || basename(safeText(thread.cwd)) || thread.id;
+}
+
 function toThreadAgentId(threadId: string): string {
   return `${CODEX_THREAD_PREFIX}${threadId}`;
 }
@@ -247,7 +251,7 @@ export function toCodexAgentCards(threads: CodexThread[]): AgentCardModel[] {
   if (threads.length === 0) return [CODEX_MAIN_AGENT];
   return threads.map((thread) => ({
     agentId: toThreadAgentId(thread.id),
-    displayName: thread.agentNickname || threadTitle(thread),
+    displayName: safeText(thread.agentNickname) || threadOfficeDisplayName(thread),
     workspacePath: safeText(thread.cwd) || "~/.codex",
     agentDir: safeText(thread.path) || safeText(thread.cwd) || "~/.codex",
     sandboxMode: "codex",

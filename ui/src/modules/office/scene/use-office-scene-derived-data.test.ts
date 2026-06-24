@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import type { DeskLayoutData, EmployeeData } from "../lib/types";
+import type { AgentLiveStatus } from "@/modules/runtime";
+import type { DeskLayoutData, EmployeeData, OfficeObject } from "../lib/types";
 import { assignRandomStatuses, buildDesksByTeamId } from "./derived-data-utils";
-import { buildCeoDeskData } from "./use-office-scene-derived-data";
+import {
+  applyLiveStatusToSceneEmployees,
+  buildCeoDeskData,
+} from "./use-office-scene-derived-data";
 import { getOfficePresentationRotationY } from "./view-profile";
 
-function createEmployeeData(overrides: Partial<EmployeeData> = {}): EmployeeData {
+function createEmployeeData(
+  overrides: Partial<EmployeeData> = {},
+): EmployeeData {
   return {
     _id: "emp-1",
     teamId: "team-a",
@@ -82,12 +88,18 @@ describe("office scene derived data", () => {
       "desk-team-alpha-0",
       "desk-team-alpha-1",
     ]);
-    expect(desksByTeamId.get("team-beta")?.map((desk) => desk.id)).toEqual(["desk-team-beta-0"]);
+    expect(desksByTeamId.get("team-beta")?.map((desk) => desk.id)).toEqual([
+      "desk-team-beta-0",
+    ]);
   });
 
   it("resolves deterministic presentation yaw for fixed 2.5D orientations", () => {
-    expect(getOfficePresentationRotationY("south_east")).toBeCloseTo(Math.PI / 4);
-    expect(getOfficePresentationRotationY("north_west")).toBeCloseTo((-3 * Math.PI) / 4);
+    expect(getOfficePresentationRotationY("south_east")).toBeCloseTo(
+      Math.PI / 4,
+    );
+    expect(getOfficePresentationRotationY("north_west")).toBeCloseTo(
+      (-3 * Math.PI) / 4,
+    );
   });
 
   it("keeps CEO desk placement derived from the management anchor", () => {
@@ -101,7 +113,9 @@ describe("office scene derived data", () => {
           employees: [],
         },
       ],
-      desks: [{ id: "desk-team-management-0", deskIndex: 0, team: "Management" }],
+      desks: [
+        { id: "desk-team-management-0", deskIndex: 0, team: "Management" },
+      ],
       officeViewSettings: {
         viewProfile: "free_orbit_3d",
         orbitControlsEnabled: true,
@@ -112,5 +126,60 @@ describe("office scene derived data", () => {
     expect(ceoDeskData?.anchorPosition).toEqual([12, 0, -6]);
     expect(ceoDeskData?.position).toEqual([12, 0, -6]);
     expect(ceoDeskData?.localPosition).toEqual([0, 0, 0]);
+  });
+
+  it("overlays live status presentation without changing structural employee data", () => {
+    const employee = createEmployeeData({
+      _id: "employee-agent-1",
+      statusMessage: "Old status",
+      activityState: "idle",
+    });
+    const monitor: OfficeObject = {
+      _id: "monitor-1",
+      meshType: "custom-mesh",
+      position: [6, 0, 7],
+      rotation: [0, 0, 0],
+      metadata: {
+        skillBinding: {
+          skillId: "openai-docs",
+          effectVariant: "blink",
+        },
+      },
+    };
+    const liveStatus: AgentLiveStatus = {
+      agentId: "agent-1",
+      state: "running",
+      statusText: "Calling openai-docs",
+      currentSkillId: "openai-docs",
+      sessionKey: "session-1",
+      updatedAt: 1770000000000,
+      bubbles: [{ id: "bubble-1", label: "Working", weight: 80 }],
+      bubbleMessages: [
+        {
+          threadId: "thread-1",
+          message: "Calling openai-docs",
+          eventAt: 1770000000000,
+        },
+      ],
+    };
+
+    const [presented] = applyLiveStatusToSceneEmployees({
+      employees: [employee],
+      liveStatusByAgentId: { "agent-1": liveStatus },
+      officeObjects: [monitor],
+    });
+
+    expect(presented).not.toBe(employee);
+    expect(employee.statusMessage).toBe("Old status");
+    expect(presented?.initialPosition).toBe(employee.initialPosition);
+    expect(presented?.statusMessage).toBe("Calling openai-docs");
+    expect(presented?.activityState).toBe("running");
+    expect(presented?.activityTargetSkillId).toBe("openai-docs");
+    expect(presented?.activityTargetObjectPosition).toEqual([6, 0, 7]);
+    expect(presented?.activityEffectVariant).toBe("blink");
+    expect(presented?.heartbeatBubbles).toEqual([
+      { label: "Working", weight: 80 },
+    ]);
+    expect(presented?.bubbleMessages).toEqual(liveStatus.bubbleMessages);
   });
 });

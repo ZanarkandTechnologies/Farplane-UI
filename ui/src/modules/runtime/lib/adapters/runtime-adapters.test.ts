@@ -17,6 +17,7 @@ import {
 } from "../..";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -331,6 +332,7 @@ describe("runtime adapters", () => {
     const thread = {
       id: "thread-1",
       sessionId: "session-1",
+      name: "App server mode",
       preview: "Implement app server mode",
       cwd: "/workspace/farplane-ui",
       modelProvider: "openai",
@@ -362,7 +364,7 @@ describe("runtime adapters", () => {
     expect(toCodexAgentCards([thread])[0]).toEqual(
       expect.objectContaining({
         agentId: "codex-thread:thread-1",
-        displayName: "Implement app server mode",
+        displayName: "App server mode",
         workspacePath: "/workspace/farplane-ui",
       }),
     );
@@ -370,7 +372,7 @@ describe("runtime adapters", () => {
       expect.objectContaining({
         agentId: "codex-thread:thread-1",
         sessionKey: "codex-thread:thread-1",
-        peerLabel: "Implement app server mode",
+        peerLabel: "App server mode",
       }),
     ]);
     expect(
@@ -380,6 +382,22 @@ describe("runtime adapters", () => {
       expect.objectContaining({ role: "assistant", text: "hi", type: "message" }),
       expect.objectContaining({ role: "tool", text: "$ npm test\npassed", type: "tool" }),
     ]);
+  });
+
+  it("does not use Codex thread preview as the office worker title", () => {
+    expect(
+      toCodexAgentCards([
+        {
+          id: "thread-with-last-message-preview",
+          preview: "okay pls continue",
+          cwd: "/workspace/farplane-ui",
+        },
+      ])[0],
+    ).toEqual(
+      expect.objectContaining({
+        displayName: "farplane-ui",
+      }),
+    );
   });
 
   it("maps Codex thread status into loader-friendly live status", () => {
@@ -1015,7 +1033,7 @@ describe("runtime adapters", () => {
         }),
         expect.objectContaining({
           agentId: "codex-thread:outside-child",
-          displayName: "Independent child",
+          displayName: "farplane-ui",
         }),
       ]),
     );
@@ -1039,6 +1057,89 @@ describe("runtime adapters", () => {
       expect.arrayContaining([
         expect.objectContaining({
           agentId: "codex-thread:pulse-child",
+        }),
+      ]),
+    );
+  });
+
+  it("keeps thread workers when Codex thread listing is slower than generic bootstrap RPCs", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith("/codex/app-server/health")) {
+          return new Response(JSON.stringify({ ok: true, configured: true }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (url.endsWith("/farplane/codex-ui-state")) {
+          return new Response(JSON.stringify({ savedWorkspaceRoots: ["/workspace/farplane-ui"] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (url.endsWith("/farplane/projects/read-model")) {
+          return new Response(JSON.stringify({ generatedAt: 1770000000 * 1000 }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (url.endsWith("/codex/app-server/rpc")) {
+          const body = JSON.parse(String(init?.body ?? "{}")) as { method?: string };
+          if (body.method === "thread/list") {
+            return await new Promise<Response>((resolve) => {
+              setTimeout(() => {
+                resolve(
+                  new Response(
+                    JSON.stringify({
+                      ok: true,
+                      result: {
+                        data: [
+                          {
+                            id: "slow-worker",
+                            preview: "Slow merged worker",
+                            cwd: "/workspace/farplane-ui",
+                            updatedAt: Math.floor(Date.now() / 1000),
+                            status: { type: "notLoaded" },
+                          },
+                        ],
+                      },
+                    }),
+                    { status: 200, headers: { "content-type": "application/json" } },
+                  ),
+                );
+              }, 1700);
+            });
+          }
+        }
+        return new Response(JSON.stringify({}), {
+          status: 404,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+
+    const adapter = new CodexRuntimeAdapter("", "http://state");
+
+    const officePromise = adapter.getUnifiedOfficeModel();
+    await vi.advanceTimersByTimeAsync(1700);
+    const office = await officePromise;
+
+    expect(office.runtimeAgents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-thread:slow-worker",
+          displayName: "farplane-ui",
+        }),
+      ]),
+    );
+    expect(office.company.agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-thread:slow-worker",
+          role: "builder",
         }),
       ]),
     );

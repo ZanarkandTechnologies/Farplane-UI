@@ -3,6 +3,7 @@
     "width": 15,
     "depth": 17
   },
+  "layoutStrategy": "legacy",
   "officeLayout": {
     "version": 1,
     "tileSize": 1,

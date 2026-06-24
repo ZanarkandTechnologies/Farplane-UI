@@ -16,7 +16,23 @@
  */
 
 import { useMemo } from "react";
-import type { DeskLayoutData, EmployeeData, TeamData } from "../lib/types";
+import { deriveEmployeeActivity } from "@/providers/office-employee-activity";
+import type { AgentLiveStatus } from "@/modules/runtime";
+import { parseOfficeObjectInteractionConfig } from "../office-object-ui";
+import {
+  buildSkillEffectSeed,
+  resolveSkillEffectVariant,
+} from "../skill-effects";
+import {
+  buildSkillTargetObjectMap,
+  getOfficeSkillAnchorPositionForOccupant,
+} from "../skill-targeting";
+import type {
+  DeskLayoutData,
+  EmployeeData,
+  OfficeObject,
+  TeamData,
+} from "../lib/types";
 import {
   getAbsoluteDeskPosition,
   getDeskPosition,
@@ -39,13 +55,95 @@ export type OfficeSceneDerivedData = {
         rotationY: number;
       })
     | null;
-  employeesForScene: Array<EmployeeData & { position: [number, number, number] }>;
+  employeesForScene: Array<
+    EmployeeData & { position: [number, number, number] }
+  >;
   teamById: Map<string, TeamData>;
   desksByTeamId: Map<string, DeskLayoutData[]>;
   teamWanderLocks: Map<string, number | undefined>;
 };
 
 export { assignRandomStatuses, buildDesksByTeamId, buildTeamWanderLocks };
+
+function agentIdFromEmployeeId(employeeId: string): string {
+  return employeeId.startsWith("employee-")
+    ? employeeId.slice("employee-".length)
+    : employeeId;
+}
+
+export function applyLiveStatusToSceneEmployees(input: {
+  employees: Array<EmployeeData & { position?: [number, number, number] }>;
+  liveStatusByAgentId: Record<string, AgentLiveStatus>;
+  officeObjects: OfficeObject[];
+}): Array<EmployeeData & { position?: [number, number, number] }> {
+  const skillTargetObjects = buildSkillTargetObjectMap(input.officeObjects);
+  const skillOccupants = new Map<string, string[]>();
+  for (const employee of input.employees) {
+    const agentId = agentIdFromEmployeeId(employee._id);
+    const skillId = input.liveStatusByAgentId[agentId]?.currentSkillId?.trim();
+    if (!skillId) continue;
+    const occupants = skillOccupants.get(skillId) ?? [];
+    occupants.push(agentId);
+    skillOccupants.set(skillId, occupants);
+  }
+
+  return input.employees.map((employee) => {
+    const agentId = agentIdFromEmployeeId(employee._id);
+    const liveStatus = input.liveStatusByAgentId[agentId];
+    if (!liveStatus) return employee;
+    const activeSkillId = liveStatus.currentSkillId?.trim();
+    const skillOccupantIds = activeSkillId
+      ? (skillOccupants.get(activeSkillId) ?? [])
+      : [];
+    const skillOccupantIndex =
+      activeSkillId && skillOccupantIds.length > 0
+        ? skillOccupantIds.indexOf(agentId)
+        : -1;
+    const skillTargetObject = activeSkillId
+      ? skillTargetObjects.get(activeSkillId)
+      : undefined;
+    const activity = deriveEmployeeActivity(liveStatus);
+    const activityEffectVariant =
+      activeSkillId && skillTargetObject
+        ? resolveSkillEffectVariant(
+            parseOfficeObjectInteractionConfig(skillTargetObject.metadata)
+              .skillBinding ?? undefined,
+            buildSkillEffectSeed({
+              agentId,
+              skillId: activeSkillId,
+              sessionKey: liveStatus.sessionKey,
+            }),
+          )
+        : undefined;
+
+    return {
+      ...employee,
+      activityTargetPosition:
+        skillTargetObject && skillOccupantIndex >= 0
+          ? getOfficeSkillAnchorPositionForOccupant(
+              skillTargetObject,
+              skillOccupantIndex,
+              skillOccupantIds.length,
+            )
+          : undefined,
+      activityTargetObjectPosition: skillTargetObject?.position,
+      activityTargetSkillId: activeSkillId,
+      activityEffectVariant,
+      statusMessage: liveStatus.statusText ?? employee.statusMessage,
+      activityState: activity.state,
+      activityLabel: activity.label,
+      activityDetail: activity.detail,
+      activityUpdatedAt: liveStatus.updatedAt,
+      bubbleMessages: liveStatus.bubbleMessages,
+      heartbeatState: liveStatus.state,
+      heartbeatBubbles:
+        liveStatus.bubbles?.map((bubble) => ({
+          label: bubble.label,
+          weight: bubble.weight,
+        })) ?? [],
+    };
+  });
+}
 
 export function buildCeoDeskData(params: {
   teams: TeamData[];
@@ -54,22 +152,33 @@ export function buildCeoDeskData(params: {
 }): OfficeSceneDerivedData["ceoDeskData"] {
   const { teams, desks, officeViewSettings } = params;
   const ceoDesk = desks.find(
-    (desk) => desk.id.startsWith("desk-team-management-") || desk.id === "ceo-desk",
+    (desk) =>
+      desk.id.startsWith("desk-team-management-") || desk.id === "ceo-desk",
   );
   if (!ceoDesk) return null;
 
   const managementTeam = teams.find((team) => team.name === "Management");
   if (!managementTeam?.clusterPosition) return null;
 
-  const managementDesks = desks.filter((desk) => desk.id.startsWith("desk-team-management-"));
+  const managementDesks = desks.filter((desk) =>
+    desk.id.startsWith("desk-team-management-"),
+  );
   const clusterPosition = managementTeam.clusterPosition;
-  const localPosition = getDeskPosition([0, 0, 0], ceoDesk.deskIndex, managementDesks.length);
+  const localPosition = getDeskPosition(
+    [0, 0, 0],
+    ceoDesk.deskIndex,
+    managementDesks.length,
+  );
 
   return {
     ...ceoDesk,
     anchorPosition: clusterPosition,
     localPosition,
-    position: getAbsoluteDeskPosition(clusterPosition, ceoDesk.deskIndex, managementDesks.length),
+    position: getAbsoluteDeskPosition(
+      clusterPosition,
+      ceoDesk.deskIndex,
+      managementDesks.length,
+    ),
     rotationY:
       officeViewSettings.viewProfile === "fixed_2_5d"
         ? getOfficePresentationRotationY(officeViewSettings.cameraOrientation)
@@ -90,7 +199,10 @@ export function useOfficeSceneDerivedData(params: {
     [desks, officeViewSettings, teams],
   );
 
-  const teamById = useMemo(() => new Map(teams.map((team) => [team._id, team])), [teams]);
+  const teamById = useMemo(
+    () => new Map(teams.map((team) => [team._id, team])),
+    [teams],
+  );
   const desksByTeamId = useMemo(() => buildDesksByTeamId(desks), [desks]);
   const teamWanderLocks = useMemo(() => buildTeamWanderLocks(teams), [teams]);
 

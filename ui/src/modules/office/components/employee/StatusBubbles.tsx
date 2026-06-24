@@ -30,17 +30,13 @@ const FLOATING_STATUS_CARD_CLASS =
 const TITLE_TEXT_CLASS =
   "line-clamp-2 whitespace-normal break-keep leading-snug [hyphens:none] [overflow-wrap:normal] [word-break:keep-all]";
 const ACTIVITY_ROW_CLASS = "flex items-center justify-center gap-1.5";
-const THINKING_CLOUD_FRAME_CLASS =
-  "relative h-[39px] w-[132px] max-w-[132px] translate-x-[15px] -translate-y-[15px] drop-shadow-[0_2px_4px_rgba(15,23,42,0.18)]";
-const THINKING_CLOUD_BODY_CLASS =
-  "absolute left-[16px] top-[7px] z-0 h-[22px] w-[99px] rounded-full border border-white/90 bg-white/95 shadow-[inset_0_-1px_0_rgba(15,23,42,0.08)]";
-const THINKING_CLOUD_LOBE_CLASS = "absolute z-0 rounded-full border border-white/90 bg-white/95";
-const THINKING_CLOUD_TEXT_CLASS =
-  "absolute left-[22px] top-[12px] z-10 flex h-[17px] w-[86px] items-center justify-center text-center text-[7.5px] font-semibold leading-tight text-slate-800";
-const THINKING_CLOUD_STACK_TEXT_CLASS =
-  "absolute left-[21px] top-[8px] z-10 flex h-[24px] w-[88px] flex-col items-center justify-center gap-0.5 text-center text-[6.5px] font-semibold leading-tight text-slate-800";
-const BUBBLE_MESSAGE_ROW_CLASS = "line-clamp-2 whitespace-normal break-words leading-snug";
-const THINKING_CLOUD_DOT_CLASS = "absolute rounded-full border border-white/90 bg-white/95";
+const ACTIVITY_SIGNAL_CARD_CLASS =
+  "relative w-[104px] max-w-[104px] translate-x-[7px] -translate-y-[8px] overflow-hidden rounded-sm border border-emerald-100/20 bg-emerald-950/45 px-2 py-1 text-emerald-50/85 shadow-[0_4px_10px_rgba(2,8,23,0.16)] backdrop-blur-[2px]";
+const ACTIVITY_SIGNAL_TEXT_CLASS =
+  "relative z-10 min-h-[11px] min-w-0 flex-1 text-left text-[7px] font-semibold leading-none tracking-[0.01em]";
+const ACTIVITY_SIGNAL_STACK_TEXT_CLASS =
+  "relative z-10 flex min-h-[16px] min-w-0 flex-1 flex-col justify-center gap-0.5 text-left text-[6.5px] font-semibold leading-none tracking-[0.01em]";
+const BUBBLE_MESSAGE_ROW_CLASS = "line-clamp-1 whitespace-normal break-words leading-tight";
 
 type EmployeeStatusBubblesProps = {
   statusMessage?: string;
@@ -172,7 +168,7 @@ function EmployeeActivityBadge({
   );
 }
 
-function ThoughtCloud({
+function ActivitySignalCard({
   children,
   stacked = false,
 }: {
@@ -180,17 +176,14 @@ function ThoughtCloud({
   stacked?: boolean;
 }) {
   return (
-    <div className={THINKING_CLOUD_FRAME_CLASS}>
-      <span className={THINKING_CLOUD_BODY_CLASS} />
-      <span className={`${THINKING_CLOUD_LOBE_CLASS} left-[12px] top-[13px] h-[17px] w-[22px]`} />
-      <span className={`${THINKING_CLOUD_LOBE_CLASS} left-[27px] top-[4px] h-[22px] w-[28px]`} />
-      <span className={`${THINKING_CLOUD_LOBE_CLASS} left-[49px] top-[1px] h-[26px] w-[35px]`} />
-      <span className={`${THINKING_CLOUD_LOBE_CLASS} right-[15px] top-[7px] h-[21px] w-[29px]`} />
-      <span className={`${THINKING_CLOUD_LOBE_CLASS} left-[37px] bottom-[6px] h-[15px] w-[26px]`} />
-      <span className={`${THINKING_CLOUD_DOT_CLASS} left-[64px] bottom-[2px] h-[5px] w-[5px]`} />
-      <span className={`${THINKING_CLOUD_DOT_CLASS} left-[60px] bottom-[-3px] h-[3px] w-[3px] opacity-90`} />
-      <div className={stacked ? THINKING_CLOUD_STACK_TEXT_CLASS : THINKING_CLOUD_TEXT_CLASS}>
-        {children}
+    <div className={ACTIVITY_SIGNAL_CARD_CLASS}>
+      <span className="pointer-events-none absolute inset-0 bg-white/[0.04]" />
+      <span className="pointer-events-none absolute -left-[3px] top-[10px] h-1.5 w-1.5 rotate-45 border-b border-l border-emerald-100/20 bg-emerald-950/45" />
+      <div className="relative z-10 flex items-start gap-1">
+        <span className="mt-[3px] h-1 w-1 shrink-0 rounded-full bg-emerald-100/70" />
+        <div className={stacked ? ACTIVITY_SIGNAL_STACK_TEXT_CLASS : ACTIVITY_SIGNAL_TEXT_CLASS}>
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -266,13 +259,21 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
         <Html
           position={[0, totalHeight + bubbleOffset, 0]}
           center
+          transform
+          sprite
+          distanceFactor={4.8}
           zIndexRange={[115, 0]}
-          style={{ pointerEvents: "none", userSelect: "none" }}
+          style={{
+            backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden",
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
         >
           <div className="animate-in fade-in zoom-in-95 duration-150">
-            <ThoughtCloud>
-              <span className="line-clamp-2 whitespace-normal break-words">{invocationLabel}</span>
-            </ThoughtCloud>
+            <ActivitySignalCard>
+              <span className="line-clamp-1 whitespace-normal break-words">{invocationLabel}</span>
+            </ActivitySignalCard>
           </div>
         </Html>
       ) : null}
@@ -281,17 +282,25 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
         <Html
           position={[0, totalHeight + bubbleOffset, 0]}
           center
+          transform
+          sprite
+          distanceFactor={4.8}
           zIndexRange={[112, 0]}
-          style={{ pointerEvents: "none", userSelect: "none" }}
+          style={{
+            backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden",
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
         >
           <div className="animate-in fade-in zoom-in-95 duration-150">
-            <ThoughtCloud stacked>
+            <ActivitySignalCard stacked>
               {visibleBubbleMessages.map((message) => (
                 <div key={`${message.threadId}:${message.eventAt}`} className={BUBBLE_MESSAGE_ROW_CLASS}>
                   {message.message}
                 </div>
               ))}
-            </ThoughtCloud>
+            </ActivitySignalCard>
           </div>
         </Html>
       ) : null}

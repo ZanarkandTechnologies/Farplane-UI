@@ -16,12 +16,16 @@ type OfficeDataStabilityShape = {
   isLoading: boolean;
 };
 
-function buildPositionSignature(position: [number, number, number] | undefined): string {
+function buildPositionSignature(
+  position: [number, number, number] | undefined,
+): string {
   if (!position) return "";
   return position.join(",");
 }
 
-function buildCompanySignature(company: OfficeDataStabilityShape["company"]): string {
+function buildCompanySignature(
+  company: OfficeDataStabilityShape["company"],
+): string {
   if (!company) return "";
   return `${company._id}|${company.name}`;
 }
@@ -31,17 +35,23 @@ function buildTeamSignature(teams: OfficeDataStabilityShape["teams"]): string {
 }
 
 function buildDeskSignature(desks: OfficeDataStabilityShape["desks"]): string {
-  return desks.map((desk) => `${desk.id}|${desk.deskIndex}|${desk.team}`).join("||");
+  return desks
+    .map((desk) => `${desk.id}|${desk.deskIndex}|${desk.team}`)
+    .join("||");
 }
 
 function buildHeartbeatBubbleSignature(
   bubbles: Array<{ label: string; weight?: number }> | undefined,
 ): string {
-  return (bubbles ?? []).map((bubble) => `${bubble.label}:${bubble.weight ?? ""}`).join(",");
+  return (bubbles ?? [])
+    .map((bubble) => `${bubble.label}:${bubble.weight ?? ""}`)
+    .join(",");
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 export function buildEmployeeSignature(employees: EmployeeData[]): string {
@@ -82,7 +92,9 @@ export function buildEmployeeSignature(employees: EmployeeData[]): string {
     .join("||");
 }
 
-export function buildOfficeObjectSignature(officeObjects: OfficeObject[]): string {
+export function buildOfficeObjectSignature(
+  officeObjects: OfficeObject[],
+): string {
   return officeObjects
     .map((officeObject) => {
       const uiBinding = asRecord(officeObject.metadata?.uiBinding);
@@ -96,7 +108,9 @@ export function buildOfficeObjectSignature(officeObjects: OfficeObject[]): strin
         typeof officeObject.metadata?.displayName === "string"
           ? officeObject.metadata.displayName
           : "",
-        typeof officeObject.metadata?.teamId === "string" ? officeObject.metadata.teamId : "",
+        typeof officeObject.metadata?.teamId === "string"
+          ? officeObject.metadata.teamId
+          : "",
         typeof officeObject.metadata?.meshPublicPath === "string"
           ? officeObject.metadata.meshPublicPath
           : "",
@@ -136,6 +150,7 @@ function buildOfficeAreaSignature(officeAreas: OfficeAreaNode[]): string {
 function buildOfficeSettingsSignature(settings: OfficeSettingsModel): string {
   return [
     settings.meshAssetDir,
+    settings.layoutStrategy ?? "activity_treemap",
     settings.officeFootprint.width,
     settings.officeFootprint.depth,
     settings.officeLayout.version,
@@ -158,9 +173,13 @@ function buildUnknownSignature(value: unknown): string {
   }
 }
 
-export function stabilizeOfficeData<T extends OfficeDataStabilityShape>(current: T, next: T): T {
+export function stabilizeOfficeData<T extends OfficeDataStabilityShape>(
+  current: T,
+  next: T,
+): T {
   const stabilizedCompany =
-    buildCompanySignature(current.company) === buildCompanySignature(next.company)
+    buildCompanySignature(current.company) ===
+    buildCompanySignature(next.company)
       ? current.company
       : next.company;
   const stabilizedTeams =
@@ -168,7 +187,8 @@ export function stabilizeOfficeData<T extends OfficeDataStabilityShape>(current:
       ? current.teams
       : next.teams;
   const stabilizedEmployees =
-    buildEmployeeSignature(current.employees) === buildEmployeeSignature(next.employees)
+    buildEmployeeSignature(current.employees) ===
+    buildEmployeeSignature(next.employees)
       ? current.employees
       : next.employees;
   const stabilizedOfficeObjects =
@@ -177,7 +197,8 @@ export function stabilizeOfficeData<T extends OfficeDataStabilityShape>(current:
       ? current.officeObjects
       : next.officeObjects;
   const stabilizedOfficeAreas =
-    buildOfficeAreaSignature(current.officeAreas) === buildOfficeAreaSignature(next.officeAreas)
+    buildOfficeAreaSignature(current.officeAreas) ===
+    buildOfficeAreaSignature(next.officeAreas)
       ? current.officeAreas
       : next.officeAreas;
   const stabilizedDesks =
@@ -190,15 +211,18 @@ export function stabilizeOfficeData<T extends OfficeDataStabilityShape>(current:
       ? current.officeSettings
       : next.officeSettings;
   const stabilizedCompanyModel =
-    buildUnknownSignature(current.companyModel) === buildUnknownSignature(next.companyModel)
+    buildUnknownSignature(current.companyModel) ===
+    buildUnknownSignature(next.companyModel)
       ? current.companyModel
       : next.companyModel;
   const stabilizedWorkload =
-    buildUnknownSignature(current.workload) === buildUnknownSignature(next.workload)
+    buildUnknownSignature(current.workload) ===
+    buildUnknownSignature(next.workload)
       ? current.workload
       : next.workload;
   const stabilizedWarnings =
-    buildUnknownSignature(current.warnings) === buildUnknownSignature(next.warnings)
+    buildUnknownSignature(current.warnings) ===
+    buildUnknownSignature(next.warnings)
       ? current.warnings
       : next.warnings;
 

@@ -21,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EvalRunHistory } from "@/modules/evals/components/eval-run-history";
 import { EvalTaskDetailPanel } from "@/modules/evals/components/eval-task-detail";
 import { EvalTaskGrid } from "@/modules/evals/components/eval-task-grid";
 import {
@@ -67,6 +69,7 @@ export function EvalOsPanel(): ReactElement {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<EvalTaskFilter>("all");
   const [scopeFilter, setScopeFilter] = useState<EvalTaskScopeFilter>("all");
+  const [activeEvalTab, setActiveEvalTab] = useState("tasks");
   const [status, setStatus] = useState("Loading eval artifacts...");
   const [error, setError] = useState<string | null>(null);
   const summaryInputRef = useRef<HTMLInputElement | null>(null);
@@ -182,7 +185,7 @@ export function EvalOsPanel(): ReactElement {
 
   return (
     <div
-      className="grid h-full min-h-0 grid-rows-[auto_176px_minmax(0,1fr)] gap-3"
+      className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3"
       data-testid="eval-os-panel"
     >
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2">
@@ -236,66 +239,153 @@ export function EvalOsPanel(): ReactElement {
       </div>
 
       {summary ? (
-        <>
-          <div className="grid min-h-0 grid-cols-[220px_minmax(0,1fr)_190px] gap-3 rounded-md border p-3">
-            <div className="grid place-items-center rounded-md border bg-muted/10">
-              <div className="text-center">
-                <p className="text-5xl font-semibold leading-none">{health.score}</p>
-                <p className="mt-1 text-[11px] uppercase text-muted-foreground">health</p>
-                <Badge className="mt-3" variant={health.failureCount ? "destructive" : "secondary"}>
-                  {health.verdict}
-                </Badge>
-              </div>
-            </div>
-            <div className="min-w-0 space-y-2 rounded-md border p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-semibold">Verdict Mix</p>
-                  <p className="text-xs text-muted-foreground">
-                    {health.taskCount} tasks / {health.loadedDetailCount} details loaded
-                  </p>
-                </div>
-                <Badge variant={health.failureCount ? "destructive" : "secondary"}>
-                  {health.failureCount} failure{health.failureCount === 1 ? "" : "s"}
-                </Badge>
-              </div>
-              <div className="space-y-2">
-                {verdictEntries.map((entry) => (
-                  <div key={entry.key} className="grid grid-cols-[28px_minmax(0,1fr)_32px] items-center gap-2 text-xs">
-                    <span className="font-semibold">{entry.key}</span>
-                    <Progress value={entry.percent} className="h-1.5 bg-muted" />
-                    <span className="text-right text-muted-foreground">{entry.count}</span>
+        <Tabs
+          value={activeEvalTab}
+          onValueChange={setActiveEvalTab}
+          className="flex min-h-0 flex-col overflow-hidden"
+        >
+          <TabsList className="mb-3 w-fit max-w-full flex-wrap justify-start">
+            <TabsTrigger value="runs">Runs</TabsTrigger>
+            <TabsTrigger value="tasks">Tasks</TabsTrigger>
+            <TabsTrigger value="health">Health</TabsTrigger>
+            <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="runs" className="m-0 min-h-0 flex-1">
+            <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[22rem_minmax(0,1fr)]">
+              <EvalRunHistory
+                runs={runs}
+                selectedRunId={selectedRunId}
+                onSelectRun={(runId) =>
+                  void loadRun(runId).catch((nextError) => {
+                    setError(nextError instanceof Error ? nextError.message : "eval_run_load_failed");
+                  })
+                }
+              />
+              <div className="min-h-0 rounded-md border p-4">
+                <p className="text-xs uppercase text-muted-foreground">Selected Run</p>
+                <h2 className="mt-1 truncate text-xl font-semibold">{summary.label ?? summary.job_id}</h2>
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Pass rate</p>
+                    <p className="mt-2 text-2xl font-semibold">{formatPercent(health.passRate)}</p>
                   </div>
-                ))}
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Tasks</p>
+                    <p className="mt-2 text-2xl font-semibold">{health.taskCount}</p>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Details</p>
+                    <p className="mt-2 text-2xl font-semibold">{health.loadedDetailCount}</p>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-md border p-3">
-                <p className="text-muted-foreground">Pass rate</p>
-                <p className="mt-2 text-2xl font-semibold">{formatPercent(health.passRate)}</p>
+          </TabsContent>
+
+          <TabsContent value="tasks" className="m-0 min-h-0 flex-1">
+            <EvalTaskGrid
+              tasks={summary.tasks}
+              detailsByTaskId={detailsByTaskId}
+              selectedTaskId={selectedTaskId}
+              query={query}
+              filter={filter}
+              scopeFilter={scopeFilter}
+              onQueryChange={setQuery}
+              onFilterChange={setFilter}
+              onScopeFilterChange={setScopeFilter}
+              onSelectTask={openTaskDetail}
+            />
+          </TabsContent>
+
+          <TabsContent value="health" className="m-0 min-h-0 flex-1">
+            <div className="grid min-h-0 gap-3 lg:grid-cols-[220px_minmax(0,1fr)_190px]">
+              <div className="grid place-items-center rounded-md border bg-muted/10">
+                <div className="text-center">
+                  <p className="text-5xl font-semibold leading-none">{health.score}</p>
+                  <p className="mt-1 text-[11px] uppercase text-muted-foreground">health</p>
+                  <Badge className="mt-3" variant={health.failureCount ? "destructive" : "secondary"}>
+                    {health.verdict}
+                  </Badge>
+                </div>
               </div>
-              <div className="rounded-md border p-3">
-                <p className="text-muted-foreground">Runs</p>
-                <p className="mt-2 text-2xl font-semibold">{runs.length}</p>
+              <div className="min-w-0 space-y-2 rounded-md border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">Verdict Mix</p>
+                    <p className="text-xs text-muted-foreground">
+                      {health.taskCount} tasks / {health.loadedDetailCount} details loaded
+                    </p>
+                  </div>
+                  <Badge variant={health.failureCount ? "destructive" : "secondary"}>
+                    {health.failureCount} failure{health.failureCount === 1 ? "" : "s"}
+                  </Badge>
+                </div>
+                <div className="space-y-2">
+                  {verdictEntries.map((entry) => (
+                    <div key={entry.key} className="grid grid-cols-[28px_minmax(0,1fr)_32px] items-center gap-2 text-xs">
+                      <span className="font-semibold">{entry.key}</span>
+                      <Progress value={entry.percent} className="h-1.5 bg-muted" />
+                      <span className="text-right text-muted-foreground">{entry.count}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="col-span-2 min-w-0 rounded-md border p-3">
-                <p className="text-muted-foreground">Run artifact</p>
-                <p className="mt-2 truncate font-mono text-xs">{summary.job_id}</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-md border p-3">
+                  <p className="text-muted-foreground">Pass rate</p>
+                  <p className="mt-2 text-2xl font-semibold">{formatPercent(health.passRate)}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                  <p className="text-muted-foreground">Runs</p>
+                  <p className="mt-2 text-2xl font-semibold">{runs.length}</p>
+                </div>
+                <div className="col-span-2 min-w-0 rounded-md border p-3">
+                  <p className="text-muted-foreground">Run artifact</p>
+                  <p className="mt-2 truncate font-mono text-xs">{summary.job_id}</p>
+                </div>
               </div>
             </div>
-          </div>
-          <EvalTaskGrid
-            tasks={summary.tasks}
-            detailsByTaskId={detailsByTaskId}
-            selectedTaskId={selectedTaskId}
-            query={query}
-            filter={filter}
-            scopeFilter={scopeFilter}
-            onQueryChange={setQuery}
-            onFilterChange={setFilter}
-            onScopeFilterChange={setScopeFilter}
-            onSelectTask={openTaskDetail}
-          />
+          </TabsContent>
+
+          <TabsContent value="artifacts" className="m-0 min-h-0 flex-1">
+            <div className="grid h-full min-h-0 gap-3 md:grid-cols-2">
+              <div className="rounded-md border p-4">
+                <p className="text-sm font-semibold">Loaded Artifacts</p>
+                <div className="mt-4 space-y-2 text-sm">
+                  <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
+                    <span className="text-muted-foreground">summary</span>
+                    <span className="truncate font-mono text-xs">{summary.job_id}</span>
+                  </div>
+                  <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
+                    <span className="text-muted-foreground">details</span>
+                    <span>{Object.keys(detailsByTaskId).length} loaded</span>
+                  </div>
+                  <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
+                    <span className="text-muted-foreground">suite</span>
+                    <span>{summary.suite ?? "--"}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-md border p-4">
+                <p className="text-sm font-semibold">Manual Import</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Import remains read-only: JSON files update the local panel state without mutating eval artifacts.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button type="button" onClick={() => summaryInputRef.current?.click()}>
+                    <Upload className="size-4" />
+                    Summary
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => detailsInputRef.current?.click()}>
+                    <FileJson2 className="size-4" />
+                    Details
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
           <Sheet open={isDetailOpen && Boolean(selectedTask)} onOpenChange={setIsDetailOpen}>
             <SheetContent className="z-[10000] w-[640px] max-w-[92vw] gap-0 p-0 sm:max-w-[640px]">
               <SheetHeader className="border-b">
@@ -306,7 +396,7 @@ export function EvalOsPanel(): ReactElement {
               </div>
             </SheetContent>
           </Sheet>
-        </>
+        </Tabs>
       ) : (
         <div className="grid min-h-0 place-items-center rounded-md border border-dashed bg-muted/10">
           <div className="w-full max-w-2xl space-y-4 p-6 text-center">

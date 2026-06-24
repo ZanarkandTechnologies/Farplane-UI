@@ -6,6 +6,7 @@ import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export interface SpeedDialItem {
@@ -292,7 +293,9 @@ export function SpeedDial({
 
                       <div
                         className={cn(
-                          "pointer-events-none absolute bottom-12 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-md border bg-background/95 px-3 py-1 text-sm font-medium opacity-0 shadow-md backdrop-blur-sm transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100",
+                          "pointer-events-none whitespace-nowrap rounded-md border bg-background/95 px-3 py-1 text-sm font-medium shadow-md backdrop-blur-sm transition-opacity",
+                          openToLeft ? "mr-2" : "ml-2",
+                          isChildRailVisible && "opacity-0",
                         )}
                       >
                         <div className="flex items-center gap-2">
@@ -315,7 +318,7 @@ export function SpeedDial({
                             exit={{ opacity: 0, x: -6, scale: 0.98 }}
                             transition={{ duration: 0.12 }}
                             className={cn(
-                              "absolute top-1/2 z-10 flex -translate-y-1/2 items-center gap-2",
+                              "absolute top-1/2 z-10 flex -translate-y-1/2 items-center gap-1.5",
                               openToLeft ? "right-12 mr-3" : "left-12 ml-3",
                             )}
                           >
@@ -324,25 +327,39 @@ export function SpeedDial({
                                 key={child.id}
                                 className="group/child relative flex items-center"
                               >
-                                <Button
-                                  aria-label={child.label}
-                                  onClick={() => {
-                                    if (child.disabled) return;
-                                    child.onClick?.();
-                                    closeMenu();
-                                  }}
-                                  size="icon"
-                                  disabled={child.disabled}
-                                  className={cn(
-                                    "h-10 w-10 rounded-full shadow-lg transition-all duration-200",
-                                    child.color ||
-                                      "bg-primary hover:bg-primary/90 text-primary-foreground",
-                                    child.disabled && "cursor-not-allowed opacity-50",
-                                    child.buttonClassName,
-                                  )}
-                                >
-                                  <child.icon className="h-4 w-4" />
-                                </Button>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-flex">
+                                      <Button
+                                        aria-label={child.label}
+                                        onClick={() => {
+                                          if (child.disabled) return;
+                                          child.onClick?.();
+                                          closeMenu();
+                                        }}
+                                        size="icon"
+                                        disabled={child.disabled}
+                                        className={cn(
+                                          "h-9 w-9 rounded-full shadow-lg transition-all duration-200",
+                                          child.color ||
+                                            "bg-primary hover:bg-primary/90 text-primary-foreground",
+                                          child.disabled && "cursor-not-allowed opacity-50",
+                                          child.buttonClassName,
+                                        )}
+                                      >
+                                        <child.icon className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent
+                                    side="bottom"
+                                    sideOffset={6}
+                                    className="z-[80] border bg-background/95 px-3 py-1 text-sm font-medium text-foreground shadow-md backdrop-blur-sm"
+                                    arrowClassName="bg-background fill-background"
+                                  >
+                                    {child.label}
+                                  </TooltipContent>
+                                </Tooltip>
                                 {child.badge ? (
                                   <Badge
                                     variant="destructive"
@@ -351,9 +368,6 @@ export function SpeedDial({
                                     {child.badge > 99 ? "99+" : child.badge}
                                   </Badge>
                                 ) : null}
-                                <span className="pointer-events-none absolute top-12 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-md border bg-background/95 px-2 py-1 text-xs font-medium opacity-0 shadow-md backdrop-blur-sm transition-opacity group-hover/child:opacity-100 group-focus-within/child:opacity-100">
-                                  {child.label}
-                                </span>
                               </div>
                             ))}
                           </motion.div>

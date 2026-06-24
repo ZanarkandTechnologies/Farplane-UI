@@ -114,6 +114,7 @@ export type {
   MemoryItemModel,
   MeshAssetModel,
   MetricEventModel,
+  OfficeLayoutStrategyId,
   OfficeObjectSidecarModel,
   OfficeSettingsModel,
   OpenClawConfigPreview,

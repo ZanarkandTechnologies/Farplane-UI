@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildOfficeBootstrapStages,
   getOfficeBootstrapState,
+  shouldRenderOfficeSceneShell,
 } from "./office-bootstrap";
 
 describe("office bootstrap", () => {
@@ -13,7 +14,11 @@ describe("office bootstrap", () => {
       navigationReady: false,
     });
 
-    expect(stages.map((stage) => stage.id)).toEqual(["data", "meshes", "navigation"]);
+    expect(stages.map((stage) => stage.id)).toEqual([
+      "data",
+      "meshes",
+      "navigation",
+    ]);
     expect(stages.map((stage) => stage.isReady)).toEqual([true, false, false]);
   });
 
@@ -29,5 +34,29 @@ describe("office bootstrap", () => {
     expect(state.isReady).toBe(false);
     expect(state.activeStage.id).toBe("navigation");
     expect(state.completionRatio).toBeCloseTo(2 / 3);
+  });
+
+  it("keeps the scene shell mounted after the first successful render", () => {
+    expect(
+      shouldRenderOfficeSceneShell({
+        isLoading: true,
+        meshesReady: true,
+        hasRenderedScene: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldRenderOfficeSceneShell({
+        isLoading: false,
+        meshesReady: true,
+        hasRenderedScene: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldRenderOfficeSceneShell({
+        isLoading: true,
+        meshesReady: false,
+        hasRenderedScene: true,
+      }),
+    ).toBe(true);
   });
 });
