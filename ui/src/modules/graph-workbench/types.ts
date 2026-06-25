@@ -2,6 +2,7 @@
 
 export type GraphWorkbenchNode = {
   description?: string;
+  frameworkRole?: string;
   id: string;
   kind: string;
   label: string;
@@ -11,6 +12,7 @@ export type GraphWorkbenchNode = {
 
 export type GraphWorkbenchEdge = {
   label?: string;
+  renderKey?: string;
   source: string;
   target: string;
   type?: string;

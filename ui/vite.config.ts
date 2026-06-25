@@ -60,6 +60,12 @@ const CODEX_SKILL_MAINTENANCE_GRAPH_ROOT = path.join(
   "skill-maintenance",
   "graph",
 );
+const FARPLANE_FRAMEWORK_GRAPH_ROOT = path.join(
+  FARPLANE_FRAMEWORK_ROOT,
+  "skills",
+  "skill-maintenance",
+  "graph",
+);
 const COMPANY_MODEL_PATH = path.join(FARPLANE_HOME, "company.json");
 const LOCAL_HOOK_EVENTS_DIR = path.join(FARPLANE_HOME, "events");
 const COMPANY_TEMPLATE_PATH = path.resolve(__dirname, "../templates/sidecar/company.template.json");
@@ -101,6 +107,24 @@ type TemplateTrackingFamilyConfig = {
   notes?: string;
   owner?: string;
 };
+type TemplateRegistryRow = {
+  applies_to?: unknown;
+  consumer_scope?: string;
+  feature_refs?: unknown;
+  kind?: string;
+  path?: string;
+  template_id?: string;
+  template_version?: string;
+};
+type TemplateInstallTarget =
+  | "codex-global"
+  | "project-scaffold"
+  | "skill-package"
+  | "ticket-scaffold"
+  | "runtime-template"
+  | "source-only"
+  | "unknown";
+type TemplateHistoryPolicy = "git" | "snapshot" | "none";
 const TEMPLATE_TRACKING_FAMILIES: TemplateTrackingFamilyConfig[] = [
   {
     familyId: "farplane-framework",
@@ -1043,6 +1067,129 @@ async function readTemplatePathVersion(filePath: string): Promise<string | undef
   return frontMatterTemplateVersion(parseSimpleFrontMatter(raw));
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+async function readTemplateRegistryRows(frameworkRoot: string): Promise<TemplateRegistryRow[] | null> {
+  const registryPath = path.join(frameworkRoot, "docs", "templates", "registry.jsonl");
+  const raw = await readFile(registryPath, "utf-8").catch(() => "");
+  if (!raw.trim()) return null;
+  const rows: TemplateRegistryRow[] = [];
+  for (const line of raw.split(/\r?\n/g)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const parsed = JSON.parse(trimmed) as TemplateRegistryRow;
+      if (typeof parsed.template_id === "string" && parsed.template_id.trim()) {
+        rows.push(parsed);
+      }
+    } catch {
+      return null;
+    }
+  }
+  return rows.length ? rows : null;
+}
+
+function humanizeTemplateId(templateId: string): string {
+  return templateId
+    .split(/[-_]/g)
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
+function inferTemplateOwner(row: TemplateRegistryRow): string {
+  const templateId = String(row.template_id ?? "");
+  const templatePath = String(row.path ?? "");
+  if (templateId.includes("skill") || templatePath.startsWith("docs/skills/")) {
+    return "skill-maintenance";
+  }
+  if (templateId.includes("ticket")) return "ticket-loop";
+  if (templateId.includes("goal")) return "goal-advisor";
+  if (templateId.includes("harness")) return "harness-creator";
+  if (templateId.includes("framework") || templatePath.includes("MANIFEST_TEMPLATE")) {
+    return "deep-init-project";
+  }
+  if (templatePath.startsWith("templates/global/")) return "global-install";
+  return "farplane-framework";
+}
+
+function inferTemplateInstallTarget(row: TemplateRegistryRow): TemplateInstallTarget {
+  const templateId = String(row.template_id ?? "");
+  const templatePath = String(row.path ?? "");
+  if (templatePath.startsWith("templates/global/")) return "codex-global";
+  if (templatePath.startsWith("docs/skills/") || templateId.startsWith("skill-")) {
+    return "skill-package";
+  }
+  if (templatePath.startsWith("tickets/templates/")) return "ticket-scaffold";
+  if (templatePath.includes("harness-creator") || templatePath.includes("deep-init-project")) {
+    return "project-scaffold";
+  }
+  if (templatePath.startsWith("templates/")) return "runtime-template";
+  return "source-only";
+}
+
+function inferTemplateHistoryPolicy(_row: TemplateRegistryRow): TemplateHistoryPolicy {
+  return "git";
+}
+
+function readRegistryAppliesTo(row: TemplateRegistryRow): string[] {
+  return isStringArray(row.applies_to) ? row.applies_to : [];
+}
+
+function readRegistryFeatureRefs(row: TemplateRegistryRow): string[] {
+  return isStringArray(row.feature_refs) ? row.feature_refs : [];
+}
+
+async function buildRegistryTemplateTrackingFamily(
+  manifest: JsonObject,
+  row: TemplateRegistryRow,
+): Promise<JsonObject> {
+  const templateUses = readTemplateUses(manifest);
+  const templateId = String(row.template_id ?? "").trim();
+  const registryPath = typeof row.path === "string" ? row.path.trim() : "";
+  const resolvedPath = registryPath ? resolveProjectRelativePath(FARPLANE_FRAMEWORK_ROOT, registryPath) : null;
+  const currentVersion = typeof row.template_version === "string" ? row.template_version.trim() : undefined;
+  const usedVersion = templateUses[templateId];
+  const consumerScope = row.consumer_scope ?? (readRegistryAppliesTo(row).length ? readRegistryAppliesTo(row)[0] : "template");
+  const pathExistsInFramework = resolvedPath ? await pathExists(resolvedPath) : false;
+  const installTarget = inferTemplateInstallTarget(row);
+  const historyPolicy = inferTemplateHistoryPolicy(row);
+  const status =
+    !pathExistsInFramework
+      ? "missing"
+      : usedVersion
+        ? usedVersion === currentVersion
+          ? "tracked"
+          : "stale"
+        : currentVersion
+          ? "tracked"
+          : "unversioned";
+
+  return {
+    consumerCount: usedVersion ? 1 : 0,
+    consumerScope,
+    currentVersion,
+    description: `Registry-backed template owned by ${inferTemplateOwner(row)}.`,
+    featureRefs: readRegistryFeatureRefs(row),
+    familyId: templateId,
+    historyPolicy,
+    installTarget,
+    label: humanizeTemplateId(templateId),
+    notes: "Registry-backed; source template stays with its owner surface.",
+    observedVersion: usedVersion ?? currentVersion,
+    owner: inferTemplateOwner(row),
+    paths: registryPath ? [registryPath] : [],
+    registryPath,
+    scope: consumerScope,
+    source: "registry",
+    status,
+    templateVersion: currentVersion,
+    usedVersion,
+  };
+}
+
 async function buildTemplateTrackingFamily(
   projectRoot: string,
   manifest: JsonObject,
@@ -1135,27 +1282,35 @@ async function buildTemplateTrackingFamily(
 async function buildTemplateTrackingScan(projectRoot: string): Promise<JsonObject> {
   const root = path.resolve(projectRoot);
   const manifest = await readJsonFile<JsonObject>(path.join(root, "farplane", "manifest.json"), {});
-  const families = await Promise.all(
-    TEMPLATE_TRACKING_FAMILIES.map((config) => buildTemplateTrackingFamily(root, manifest, config)),
-  );
+  const registryRows = await readTemplateRegistryRows(FARPLANE_FRAMEWORK_ROOT);
+  const families = registryRows?.length
+    ? await Promise.all(
+        registryRows.map((row) => buildRegistryTemplateTrackingFamily(manifest, row)),
+      )
+    : await Promise.all(
+        TEMPLATE_TRACKING_FAMILIES.map((config) => buildTemplateTrackingFamily(root, manifest, config)),
+      );
   const counts = families.reduce(
     (acc, family) => {
       const status = String(family.status ?? "missing");
       if (status === "tracked") acc.tracked += 1;
+      if (status === "stale") acc.stale += 1;
       if (status === "unversioned") acc.unversioned += 1;
       if (status === "missing") acc.missing += 1;
       if (status === "scanner-gap") acc.scannerGaps += 1;
       return acc;
     },
-    { families: families.length, missing: 0, scannerGaps: 0, tracked: 0, unversioned: 0 },
+    { families: families.length, missing: 0, scannerGaps: 0, stale: 0, tracked: 0, unversioned: 0 },
   );
   return {
     counts,
     families,
     generatedAt: new Date().toISOString(),
+    registrySource: registryRows?.length ? path.join(FARPLANE_FRAMEWORK_ROOT, "docs", "templates", "registry.jsonl") : null,
+    registryStatus: registryRows?.length ? "loaded" : "fallback",
     projectRoot: root,
     schema: "farplane_template_tracking",
-    schemaVersion: "1.0.0",
+    schemaVersion: "1.1.0",
   };
 }
 
@@ -3231,14 +3386,25 @@ function farplaneStateBridge() {
           /^\/codex\/skill-maintenance-graph\/?(.*)$/,
         );
         if (method === "GET" && skillMaintenanceGraphMatch) {
-          const served = await writeStaticFile(
+          const requestedGraphPath = skillMaintenanceGraphMatch[1] || "index.html";
+          let served = await writeStaticFile(
             res as unknown as {
               setHeader: (k: string, v: string) => void;
               end: (body: Buffer) => void;
             },
             CODEX_SKILL_MAINTENANCE_GRAPH_ROOT,
-            skillMaintenanceGraphMatch[1] || "index.html",
+            requestedGraphPath,
           );
+          if (!served) {
+            served = await writeStaticFile(
+              res as unknown as {
+                setHeader: (k: string, v: string) => void;
+                end: (body: Buffer) => void;
+              },
+              FARPLANE_FRAMEWORK_GRAPH_ROOT,
+              requestedGraphPath,
+            );
+          }
           if (!served) {
             writeJson(res, 404, { ok: false, error: "skill_maintenance_graph_asset_not_found" });
           }

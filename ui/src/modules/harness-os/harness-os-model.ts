@@ -17,14 +17,17 @@ import type {
   HarnessLifecycleNode,
   HarnessLifecyclePayload,
   HarnessSkillRolloutPayload,
+  HarnessTemplateTrackingPayload,
   HarnessTemplateIntelligencePayload,
 } from "./harness-os-types";
 
 export const HARNESS_GRAPH_KINDS: GraphWorkbenchKind[] = [
+  { color: "#F97316", id: "workflow", label: "workflows" },
   { color: "#2563EB", id: "skill", label: "skills" },
   { color: "#0F766E", id: "feature", label: "features" },
   { color: "#64748B", id: "doc", label: "docs" },
   { color: "#94A3B8", id: "root-doc", label: "root" },
+  { color: "#475569", id: "file", label: "files" },
   { color: "#06B6D4", id: "skill-doc", label: "skill docs" },
   { color: "#7C3AED", id: "spec", label: "specs" },
   { color: "#16A34A", id: "script", label: "scripts" },
@@ -32,6 +35,7 @@ export const HARNESS_GRAPH_KINDS: GraphWorkbenchKind[] = [
   { color: "#D97706", id: "template", label: "templates" },
   { color: "#BE185D", id: "review-rubric", label: "rubrics" },
   { color: "#0891B2", id: "research", label: "research" },
+  { color: "#71717A", id: "other", label: "other" },
 ];
 
 const INCLUDED_KINDS = new Set(HARNESS_GRAPH_KINDS.map((kind) => kind.id));
@@ -63,8 +67,10 @@ export type HarnessOsModel = {
     docs: number;
     edges: number;
     features: number;
+    frameworkRoles: Record<string, number>;
     nodes: number;
     skills: number;
+    workflows: number;
   };
 };
 
@@ -99,25 +105,30 @@ export type HarnessLifecycleModel = {
 };
 
 function nodeDescription(node: HarnessGraphNode): string {
+  if (node.kind === "workflow") return node.description ?? "Farplane workflow spine.";
   if (node.kind === "skill") return "Farplane skill package.";
   if (node.kind === "spec") return "Harness behavior specification.";
   if (node.kind === "skill-doc") return "Skill-system documentation and registry source.";
   if (node.kind === "root-doc") return "Root operating document.";
+  if (node.kind === "file") return "Manifest-tracked or linked framework file.";
   if (node.kind === "script") return "Harness script, validator, or automation file.";
   if (node.kind === "agent") return "Agent profile or execution role.";
   if (node.kind === "review-rubric") return "Review rubric document.";
   if (node.kind === "template") return "Reusable harness template.";
   if (node.kind === "research") return "Research or prior analysis document.";
+  if (node.kind === "other") return "Linked framework node outside the current manifest source roles.";
   return "Farplane repository document.";
 }
 
 function normalizeNode(node: HarnessGraphNode): GraphWorkbenchNode {
   return {
     description: nodeDescription(node),
+    frameworkRole: node.framework_role,
     id: node.id,
     kind: node.kind,
     label: node.label ?? node.path ?? node.id,
     path: node.path,
+    weight: Math.min(8, node.heat?.heat_score ?? 0),
   };
 }
 
@@ -218,8 +229,10 @@ export function buildHarnessOsModel({
       ).length,
       edges: edges.length,
       features: features.length,
+      frameworkRoles: graph.counts?.framework_roles ?? {},
       nodes: allNodes.length,
       skills: allNodes.filter((node) => node.kind === "skill").length,
+      workflows: allNodes.filter((node) => node.kind === "workflow").length,
     },
   };
 }
@@ -254,6 +267,14 @@ export function isHarnessSkillRolloutPayload(value: unknown): value is HarnessSk
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<HarnessSkillRolloutPayload>;
   return candidate.schema === "farplane_skill_rollout" || Array.isArray(candidate.skills);
+}
+
+export function isHarnessTemplateTrackingPayload(
+  value: unknown,
+): value is HarnessTemplateTrackingPayload {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<HarnessTemplateTrackingPayload>;
+  return candidate.schema === "farplane_template_tracking" || Array.isArray(candidate.families);
 }
 
 export function isHarnessBridgePayload<T>(

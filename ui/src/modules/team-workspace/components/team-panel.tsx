@@ -21,16 +21,18 @@
  * - MEM-0209
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { type ReactElement, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useChatActions } from "@/modules/chat/chat-store";
 import { useAppStore } from "@/store";
 import { UI_Z } from "@/lib/z-index";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { useOfficeRuntimeAdapter } from "@/modules/runtime";
-import { LedgerTabPanel } from "./business-flow/ledger-tab-panel";
+import { type CompanyModel, useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { KanbanTab } from "./kanban-tab";
 import {
   AutomationsTab,
@@ -44,7 +46,12 @@ import {
 import { OverviewTab } from "./overview-tab";
 import { TeamMemoryTab } from "./team-memory-tab";
 import { TelemetryTab } from "./telemetry-tab";
-import { deriveProjectId, type TabKey } from "./team-panel-types";
+import {
+  deriveProjectId,
+  type PanelTask,
+  type TabKey,
+  type TeamMemoryRow,
+} from "./team-panel-types";
 import { ThreadLineageTab } from "./thread-lineage-tab";
 import { TimelineTab } from "./timeline-tab";
 import { useTeamPanelBoardState } from "./use-team-panel-board";
@@ -60,6 +67,8 @@ interface TeamPanelProps {
   focusAgentId?: string | null;
   globalMode?: boolean;
 }
+
+type ProjectModel = CompanyModel["projects"][number];
 
 export function TeamPanel({
   teamId,
@@ -78,6 +87,10 @@ export function TeamPanel({
   const setSelectedAgentId = useAppStore((state) => state.setSelectedAgentId);
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  const [pulseTab, setPulseTab] = useState("activity");
+  const [proofTab, setProofTab] = useState("evals");
+  const [memoryTab, setMemoryTab] = useState("memory");
+  const [configTab, setConfigTab] = useState("manifest");
 
   const team = useMemo(() => {
     if (!teamId || globalMode) return null;
@@ -157,13 +170,7 @@ export function TeamPanel({
     projectTasks,
   });
 
-  const {
-    ledgerActionState,
-    hasBusinessConfig,
-    accountEvents,
-    teamAccount,
-    handleRecordAccountEvent,
-  } = useTeamPanelBusinessState({
+  const { hasBusinessConfig } = useTeamPanelBusinessState({
     adapter,
     refresh,
     project,
@@ -232,42 +239,64 @@ export function TeamPanel({
               <TabsTrigger className="flex-none" value="kanban">
                 Kanban
               </TabsTrigger>
-              <TabsTrigger className="flex-none" value="memory">
-                Memory
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="timeline">
-                Timeline
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="threads">
-                Threads
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="telemetry">
-                Usage
-              </TabsTrigger>
               <TabsTrigger className="flex-none" value="goals">
                 Goals
               </TabsTrigger>
-              <TabsTrigger className="flex-none" value="docs">
-                Files/Docs
+              <TabsTrigger className="flex-none" value="pulse">
+                Pulse
               </TabsTrigger>
-              <TabsTrigger className="flex-none" value="skills">
-                Skills
+              {activeTab === "pulse" ? (
+                <InlineSubTabs
+                  activeValue={pulseTab}
+                  tabs={[
+                    { value: "activity", label: "Activity" },
+                    { value: "threads", label: "Threads" },
+                    { value: "usage", label: "Usage" },
+                    { value: "steer", label: "Steer" },
+                  ]}
+                  onSelect={setPulseTab}
+                />
+              ) : null}
+              <TabsTrigger className="flex-none" value="proof">
+                Proof
               </TabsTrigger>
-              <TabsTrigger className="flex-none" value="evals">
-                Evals/QA
+              {activeTab === "proof" ? (
+                <InlineSubTabs
+                  activeValue={proofTab}
+                  tabs={[
+                    { value: "evals", label: "Evals/QA" },
+                    { value: "guard", label: "Guard" },
+                    { value: "hardcases", label: "Hardcases" },
+                  ]}
+                  onSelect={setProofTab}
+                />
+              ) : null}
+              <TabsTrigger className="flex-none" value="memory">
+                Memory
               </TabsTrigger>
-              <TabsTrigger className="flex-none" value="automations">
-                Automations
+              {activeTab === "memory" ? (
+                <InlineSubTabs
+                  activeValue={memoryTab}
+                  tabs={[
+                    { value: "memory", label: "Memory" },
+                    { value: "docs", label: "Files/Docs" },
+                  ]}
+                  onSelect={setMemoryTab}
+                />
+              ) : null}
+              <TabsTrigger className="flex-none" value="config">
+                Config
               </TabsTrigger>
-              <TabsTrigger className="flex-none" value="guard">
-                Guard
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="hardcases">
-                Hardcases
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="ledger">
-                Ledger
-              </TabsTrigger>
+              {activeTab === "config" ? (
+                <InlineSubTabs
+                  activeValue={configTab}
+                  tabs={[
+                    { value: "manifest", label: "Manifest" },
+                    { value: "skills", label: "Skills" },
+                  ]}
+                  onSelect={setConfigTab}
+                />
+              ) : null}
             </TabsList>
           </div>
 
@@ -306,46 +335,6 @@ export function TeamPanel({
             />
           </TabsContent>
 
-          <TabsContent value="memory" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <TeamMemoryTab
-              projectId={project?.id ?? null}
-              projectPath={
-                typeof project?.trackingContext === "string" && project.trackingContext.trim()
-                  ? project.trackingContext.trim()
-                  : null
-              }
-              teamId={teamScopeId}
-              memoryRows={memoryRows}
-              composeState={composeState}
-              onReloadMemory={reloadMemory}
-            />
-          </TabsContent>
-
-          <TabsContent value="timeline" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <TimelineTab
-              convexEnabled={convexEnabled}
-              teamScopeId={teamScopeId}
-              activityFeedCandidates={activityFeedCandidates}
-              communicationRows={communicationRows}
-            />
-          </TabsContent>
-
-          <TabsContent value="threads" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ThreadLineageTab
-              isActive={isOpen && activeTab === "threads"}
-              projectId={project?.id ?? null}
-              projectName={project?.name ?? panelTitle}
-            />
-          </TabsContent>
-
-          <TabsContent value="telemetry" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <TelemetryTab
-              projectId={project?.id ?? null}
-              teamId={teamScopeId}
-              title={project?.name ?? panelTitle}
-            />
-          </TabsContent>
-
           <TabsContent value="goals" className="mt-4 min-h-0 flex-1 overflow-hidden">
             <GoalsTab
               project={project}
@@ -356,77 +345,389 @@ export function TeamPanel({
             />
           </TabsContent>
 
-          <TabsContent value="docs" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <DocsTab
-              project={project}
-              companyModel={companyModel}
-              projectTasks={projectTasks}
-              memoryRows={memoryRows}
-              globalMode={globalMode}
+          <TabsContent value="pulse" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <InlineTabContent
+              activeValue={pulseTab}
+              tabs={[
+                {
+                  value: "activity",
+                  label: "Activity",
+                  content: (
+                    <TimelineTab
+                      convexEnabled={convexEnabled}
+                      teamScopeId={teamScopeId}
+                      activityFeedCandidates={activityFeedCandidates}
+                      communicationRows={communicationRows}
+                    />
+                  ),
+                },
+                {
+                  value: "threads",
+                  label: "Threads",
+                  content: (
+                    <ThreadLineageTab
+                      isActive={isOpen && activeTab === "pulse"}
+                      projectId={project?.id ?? null}
+                      projectName={project?.name ?? panelTitle}
+                    />
+                  ),
+                },
+                {
+                  value: "usage",
+                  label: "Usage",
+                  content: (
+                    <TelemetryTab
+                      projectId={project?.id ?? null}
+                      teamId={teamScopeId}
+                      title={project?.name ?? panelTitle}
+                    />
+                  ),
+                },
+                {
+                  value: "steer",
+                  label: "Steer",
+                  content: <AutomationsTab />,
+                },
+              ]}
             />
           </TabsContent>
 
-          <TabsContent value="skills" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <SkillsReadinessTab
-              project={project}
-              companyModel={companyModel}
-              projectTasks={projectTasks}
-              memoryRows={memoryRows}
-              globalMode={globalMode}
+          <TabsContent value="proof" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <InlineTabContent
+              activeValue={proofTab}
+              tabs={[
+                {
+                  value: "evals",
+                  label: "Evals/QA",
+                  content: (
+                    <EvalsQaTab
+                      project={project}
+                      companyModel={companyModel}
+                      projectTasks={projectTasks}
+                      memoryRows={memoryRows}
+                      globalMode={globalMode}
+                    />
+                  ),
+                },
+                {
+                  value: "guard",
+                  label: "Guard",
+                  content: (
+                    <GuardTab
+                      project={project}
+                      companyModel={companyModel}
+                      projectTasks={projectTasks}
+                      memoryRows={memoryRows}
+                      globalMode={globalMode}
+                    />
+                  ),
+                },
+                {
+                  value: "hardcases",
+                  label: "Hardcases",
+                  content: (
+                    <HardcasesTab
+                      project={project}
+                      companyModel={companyModel}
+                      projectTasks={projectTasks}
+                      memoryRows={memoryRows}
+                      globalMode={globalMode}
+                    />
+                  ),
+                },
+              ]}
             />
           </TabsContent>
 
-          <TabsContent value="evals" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <EvalsQaTab
-              project={project}
-              companyModel={companyModel}
-              projectTasks={projectTasks}
-              memoryRows={memoryRows}
-              globalMode={globalMode}
+          <TabsContent value="memory" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <InlineTabContent
+              activeValue={memoryTab}
+              tabs={[
+                {
+                  value: "memory",
+                  label: "Memory",
+                  content: (
+                    <TeamMemoryTab
+                      projectId={project?.id ?? null}
+                      projectPath={
+                        typeof project?.trackingContext === "string" &&
+                        project.trackingContext.trim()
+                          ? project.trackingContext.trim()
+                          : null
+                      }
+                      teamId={teamScopeId}
+                      memoryRows={memoryRows}
+                      composeState={composeState}
+                      onReloadMemory={reloadMemory}
+                    />
+                  ),
+                },
+                {
+                  value: "docs",
+                  label: "Files/Docs",
+                  content: (
+                    <DocsTab
+                      project={project}
+                      companyModel={companyModel}
+                      projectTasks={projectTasks}
+                      memoryRows={memoryRows}
+                      globalMode={globalMode}
+                    />
+                  ),
+                },
+              ]}
             />
           </TabsContent>
 
-          <TabsContent value="automations" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <AutomationsTab />
-          </TabsContent>
-
-          <TabsContent value="guard" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <GuardTab
-              project={project}
-              companyModel={companyModel}
-              projectTasks={projectTasks}
-              memoryRows={memoryRows}
-              globalMode={globalMode}
+          <TabsContent value="config" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <InlineTabContent
+              activeValue={configTab}
+              tabs={[
+                {
+                  value: "manifest",
+                  label: "Manifest",
+                  content: (
+                    <ConfigTab
+                      project={project}
+                      companyModel={companyModel}
+                      projectTasks={projectTasks}
+                      memoryRows={memoryRows}
+                      globalMode={globalMode}
+                      hasBusinessConfig={hasBusinessConfig}
+                      teamScopeId={teamScopeId}
+                      convexEnabled={convexEnabled}
+                      teamUsageError={teamUsageError}
+                    />
+                  ),
+                },
+                {
+                  value: "skills",
+                  label: "Skills",
+                  content: (
+                    <SkillsReadinessTab
+                      project={project}
+                      companyModel={companyModel}
+                      projectTasks={projectTasks}
+                      memoryRows={memoryRows}
+                      globalMode={globalMode}
+                    />
+                  ),
+                },
+              ]}
             />
-          </TabsContent>
-
-          <TabsContent value="hardcases" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <HardcasesTab
-              project={project}
-              companyModel={companyModel}
-              projectTasks={projectTasks}
-              memoryRows={memoryRows}
-              globalMode={globalMode}
-            />
-          </TabsContent>
-
-          <TabsContent value="ledger" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <LedgerTabPanel
-              account={teamAccount}
-              events={accountEvents}
-              aiUsageSummary={teamAiUsageSummary}
-              aiUsageUnavailableText={teamUsageError}
-              onRecordEvent={handleRecordAccountEvent}
-            />
-            {ledgerActionState.error ? (
-              <p className="mt-2 text-sm text-destructive">{ledgerActionState.error}</p>
-            ) : null}
-            {ledgerActionState.ok ? (
-              <p className="mt-2 text-sm text-emerald-500">{ledgerActionState.ok}</p>
-            ) : null}
           </TabsContent>
         </Tabs>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function InlineSubTabs({
+  activeValue,
+  tabs,
+  onSelect,
+}: {
+  activeValue: string;
+  tabs: Array<{ value: string; label: string }>;
+  onSelect: (value: string) => void;
+}): ReactElement {
+  return (
+    <span className="mx-1 flex h-7 items-center gap-1 border-l border-border pl-2">
+      {tabs.map((tab) => (
+        <button
+          key={tab.value}
+          type="button"
+          onClick={() => onSelect(tab.value)}
+          className={`h-7 rounded-sm px-2 text-xs transition ${
+            activeValue === tab.value
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </span>
+  );
+}
+
+function InlineTabContent({
+  activeValue,
+  tabs,
+}: {
+  activeValue: string;
+  tabs: Array<{ value: string; label: string; content: ReactElement }>;
+}): ReactElement {
+  const activeContent = tabs.find((tab) => tab.value === activeValue)?.content ?? tabs[0]?.content;
+  return <div className="h-full min-h-0 overflow-hidden">{activeContent}</div>;
+}
+
+function ConfigTab({
+  project,
+  companyModel,
+  projectTasks,
+  memoryRows,
+  globalMode,
+  hasBusinessConfig,
+  teamScopeId,
+  convexEnabled,
+  teamUsageError,
+}: {
+  project: ProjectModel | null;
+  companyModel: CompanyModel | null;
+  projectTasks: PanelTask[];
+  memoryRows: TeamMemoryRow[];
+  globalMode: boolean;
+  hasBusinessConfig: boolean;
+  teamScopeId: string | null;
+  convexEnabled: boolean;
+  teamUsageError: string | null;
+}): ReactElement {
+  const setIsSkillsPanelOpen = useAppStore((state) => state.setIsSkillsPanelOpen);
+  const setSkillStudioSurface = useAppStore((state) => state.setSkillStudioSurface);
+  const setSelectedSkillStudioSkillId = useAppStore((state) => state.setSelectedSkillStudioSkillId);
+  const setSkillStudioFocusAgentId = useAppStore((state) => state.setSkillStudioFocusAgentId);
+  const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
+  const manifest = findMemoryByName(memoryRows, "manifest.json");
+  const automations = findMemoryByName(memoryRows, "automations.md");
+  const goals = findMemoryByName(memoryRows, "goals.md");
+  const openSkillSurface = (surface: "skill-os" | "evals" | "harness"): void => {
+    setSelectedSkillStudioSkillId(null);
+    setSkillStudioFocusAgentId(null);
+    setSkillStudioSurface(surface);
+    setIsSkillsPanelOpen(true);
+  };
+  const sourceRows = [
+    {
+      label: "Manifest",
+      value: manifest ? "loaded" : "missing",
+      detail: manifest?.sourcePath ?? "farplane/manifest.json not loaded for this scope",
+    },
+    {
+      label: "Automations",
+      value: automations ? "loaded" : "unavailable",
+      detail: automations?.sourcePath ?? "farplane/automations.md not loaded",
+    },
+    {
+      label: "Goals file",
+      value: goals ? "loaded" : "project goal",
+      detail: goals?.sourcePath ?? project?.goal ?? "no explicit goal source",
+    },
+    {
+      label: "Runtime",
+      value: "codex",
+      detail: teamUsageError ?? "default office runtime adapter",
+    },
+  ];
+
+  return (
+    <ScrollArea className="h-full pr-3">
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <ConfigMetric
+            label="Project"
+            value={project?.name ?? "unmapped"}
+            detail={project?.id ?? "no project id"}
+          />
+          <ConfigMetric
+            label="Team scope"
+            value={teamScopeId ?? "none"}
+            detail={globalMode ? "global mode" : "team mode"}
+          />
+          <ConfigMetric
+            label="Board source"
+            value={convexEnabled ? "convex" : "fallback"}
+            detail={`${projectTasks.length} scoped task(s)`}
+          />
+          <ConfigMetric
+            label="Business config"
+            value={hasBusinessConfig ? "ready" : "missing"}
+            detail={`${companyModel?.projects.length ?? 0} project(s) loaded`}
+          />
+        </div>
+
+        <Card className="rounded-md">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Manifest / Runtime Sources</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2 md:grid-cols-2">
+            {sourceRows.map((row) => (
+              <div key={row.label} className="rounded-md border p-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-medium">{row.label}</p>
+                  <Badge
+                    variant={
+                      row.value === "missing" || row.value === "unavailable"
+                        ? "destructive"
+                        : "outline"
+                    }
+                  >
+                    {row.value}
+                  </Badge>
+                </div>
+                <p className="mt-2 break-all text-xs text-muted-foreground">{row.detail}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-md">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Deep Links</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => openSkillSurface("skill-os")}>
+              Skill OS
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => openSkillSurface("evals")}>
+              Eval OS
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => openSkillSurface("harness")}>
+              Harness OS
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setIsTelemetryPanelOpen(true)}>
+              Telemetry
+            </Button>
+            <p className="basis-full text-xs text-muted-foreground">
+              Primary details stay in their global OS panels; Config keeps scoped wiring and source
+              health visible.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </ScrollArea>
+  );
+}
+
+function ConfigMetric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}): JSX.Element {
+  return (
+    <Card className="gap-3 rounded-md py-4">
+      <CardHeader className="px-4 pb-0">
+        <CardTitle className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
+          {label}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-4">
+        <div className="truncate text-2xl font-semibold tabular-nums">{value}</div>
+        <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function findMemoryByName(rows: TeamMemoryRow[], name: string): TeamMemoryRow | null {
+  const lowerName = name.toLowerCase();
+  return (
+    rows.find((row) => row.sourcePath?.toLowerCase().endsWith(lowerName)) ??
+    rows.find((row) => row.title?.toLowerCase().includes(lowerName.replace(".md", ""))) ??
+    null
   );
 }

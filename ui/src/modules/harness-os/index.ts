@@ -1,1 +1,8 @@
-export { HarnessOsPanel } from "./harness-os-panel";
+export {
+  HarnessGraphPanel,
+  HarnessOsPanel,
+  HarnessRolloutSurface,
+  RolloutSurface,
+  TemplateTrackingSurface,
+  TemplateRolloutSurface,
+} from "./harness-os-panel";

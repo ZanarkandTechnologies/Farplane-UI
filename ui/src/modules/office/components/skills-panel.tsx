@@ -49,9 +49,9 @@ function panelDescription(
     return "Eval OS mini app for latest runs, health, history, task drilldown, and report artifacts.";
   }
   if (surface === "template-tracking") {
-    return "Harness OS template tracking for framework, project, ticket, workspace, sidecar, runtime, skill, and eval templates.";
+    return "Harness OS Templates for registry-backed structural parameters and install policy.";
   }
-  if (surface === "rollout") return "Harness OS project rollout and manifest adoption.";
+  if (surface === "rollout") return "Harness OS Projects for active project framework adoption.";
   if (surface === "harness") {
     return "Semantic graph, lifecycle, and feature registry for the Farplane Harness OS.";
   }

@@ -9,19 +9,10 @@
  * Side effects: optional clipboard copy only.
  */
 
-import { Copy, Search } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactElement } from "react";
 import { useQuery } from "convex/react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { api } from "../../../../convex/_generated/api";
+import { Copy, Search } from "lucide-react";
+import { type ReactElement, useEffect, useMemo, useState } from "react";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,9 +39,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { UI_Z } from "@/lib/z-index";
-import { GraphWorkbench, type GraphWorkbenchEdge, type GraphWorkbenchNode } from "@/modules/graph-workbench";
 import { isConvexEnabled } from "@/providers/convex-provider";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
+import { api } from "../../../../convex/_generated/api";
 
 type RawTelemetryPanelProps = {
   open: boolean;
@@ -87,32 +78,6 @@ type HookTelemetryExplorer = {
   };
 };
 
-type ThreadLineageGraph = {
-  nodes: Array<{
-    id: string;
-    kind: "thread" | "pending" | "unknown-parent";
-    label: string;
-    projectPath?: string;
-    lastSeenAt: number;
-  }>;
-  edges: Array<{
-    id: string;
-    source: string;
-    target: string;
-    kind: "created" | "forked";
-    eventAt: number;
-    sourceTool: string;
-    title?: string;
-  }>;
-  stats: {
-    nodeCount: number;
-    edgeCount: number;
-    forkCount: number;
-    createCount: number;
-    orphanCount: number;
-  };
-};
-
 type HookConfigState = {
   enabled: boolean;
   includeManifestTracked: boolean;
@@ -140,7 +105,15 @@ const RANGE_OPTIONS = [
   { label: "90 days", value: 90 },
 ] as const;
 
-const EVENT_FILTERS = ["all", "skill.invoked", "file.change.summary", "thread.started", "thread.stopped", "thread.created", "thread.forked"] as const;
+const EVENT_FILTERS = [
+  "all",
+  "skill.invoked",
+  "file.change.summary",
+  "thread.started",
+  "thread.stopped",
+  "thread.created",
+  "thread.forked",
+] as const;
 const HOOK_INSTALL_COMMAND = "npm run hooks:install";
 const DEFAULT_FILE_PATTERNS = [
   "progress.md",
@@ -202,15 +175,14 @@ function RawTelemetryContent(): ReactElement {
     api.modules.hookTelemetry.queries.getHookTelemetryExplorer,
     convexEnabled && !isReadOnly ? queryArgs : "skip",
   ) as HookTelemetryExplorer | undefined;
-  const lineageGraph = useQuery(
-    api.modules.hookTelemetry.queries.getThreadLineageGraph,
-    convexEnabled && !isReadOnly ? { rangeDays, limit: 500 } : "skip",
-  ) as ThreadLineageGraph | undefined;
 
   if (isReadOnly) {
     return (
       <div className="px-6 py-6">
-        <StateCard title="Raw telemetry locked" detail="Raw hook events are only available in operator mode." />
+        <StateCard
+          title="Raw telemetry locked"
+          detail="Raw hook events are only available in operator mode."
+        />
       </div>
     );
   }
@@ -218,7 +190,10 @@ function RawTelemetryContent(): ReactElement {
   if (!convexEnabled) {
     return (
       <div className="px-6 py-6">
-        <StateCard title="Raw telemetry unavailable" detail="Convex is not configured for this UI session." />
+        <StateCard
+          title="Raw telemetry unavailable"
+          detail="Convex is not configured for this UI session."
+        />
       </div>
     );
   }
@@ -228,7 +203,6 @@ function RawTelemetryContent(): ReactElement {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <TabsList>
           <TabsTrigger value="events">Events</TabsTrigger>
-          <TabsTrigger value="threads">Threads</TabsTrigger>
           <TabsTrigger value="distribution">Distribution</TabsTrigger>
           <TabsTrigger value="hooks">Hooks</TabsTrigger>
         </TabsList>
@@ -245,7 +219,10 @@ function RawTelemetryContent(): ReactElement {
               ))}
             </SelectContent>
           </Select>
-          <Select value={eventName} onValueChange={(value) => setEventName(value as typeof eventName)}>
+          <Select
+            value={eventName}
+            onValueChange={(value) => setEventName(value as typeof eventName)}
+          >
             <SelectTrigger aria-label="Event name filter" size="sm" className="w-[150px]">
               <SelectValue />
             </SelectTrigger>
@@ -278,13 +255,18 @@ function RawTelemetryContent(): ReactElement {
       </div>
 
       <TabsContent value="events" className="mt-3 min-h-0 flex-1">
-        {data ? <EventTable rows={data.events} total={data.total} /> : <StateCard title="Loading events" detail="Reading hook telemetry rows..." />}
-      </TabsContent>
-      <TabsContent value="threads" className="mt-3 min-h-0 flex-1">
-        {lineageGraph ? <ThreadLineagePanel graph={lineageGraph} /> : <StateCard title="Loading thread graph" detail="Projecting thread lineage telemetry..." />}
+        {data ? (
+          <EventTable rows={data.events} total={data.total} />
+        ) : (
+          <StateCard title="Loading events" detail="Reading hook telemetry rows..." />
+        )}
       </TabsContent>
       <TabsContent value="distribution" className="mt-3 min-h-0 flex-1">
-        {data ? <DistributionGrid data={data.distributions} total={data.total} /> : <StateCard title="Loading distribution" detail="Aggregating hook telemetry rows..." />}
+        {data ? (
+          <DistributionGrid data={data.distributions} total={data.total} />
+        ) : (
+          <StateCard title="Loading distribution" detail="Aggregating hook telemetry rows..." />
+        )}
       </TabsContent>
       <TabsContent value="hooks" className="mt-3 min-h-0 flex-1">
         <HooksSetup />
@@ -295,12 +277,19 @@ function RawTelemetryContent(): ReactElement {
 
 function EventTable({ rows, total }: { rows: HookTelemetryEvent[]; total: number }): ReactElement {
   if (rows.length === 0) {
-    return <StateCard title="No hook events" detail="Install hooks or widen the filters to see raw event rows." />;
+    return (
+      <StateCard
+        title="No hook events"
+        detail="Install hooks or widen the filters to see raw event rows."
+      />
+    );
   }
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2">
-      <div className="text-xs text-muted-foreground">{total} event{total === 1 ? "" : "s"} in the current window</div>
+      <div className="text-xs text-muted-foreground">
+        {total} event{total === 1 ? "" : "s"} in the current window
+      </div>
       <ScrollArea className="min-h-0 flex-1 pr-3">
         <Table>
           <TableHeader>
@@ -316,106 +305,22 @@ function EventTable({ rows, total }: { rows: HookTelemetryEvent[]; total: number
           <TableBody>
             {rows.map((row) => (
               <TableRow key={row._id ?? row.eventKey ?? `${row.hookName}:${row.eventAt}`}>
-                <TableCell className="whitespace-nowrap text-xs">{formatDate(row.eventAt)}</TableCell>
+                <TableCell className="whitespace-nowrap text-xs">
+                  {formatDate(row.eventAt)}
+                </TableCell>
                 <TableCell>
                   <Badge variant="outline">{row.eventName ?? "unknown"}</Badge>
                 </TableCell>
-                <TableCell className="max-w-[180px] truncate font-mono text-xs">{row.hookName}</TableCell>
+                <TableCell className="max-w-[180px] truncate font-mono text-xs">
+                  {row.hookName}
+                </TableCell>
                 <TableCell className="max-w-[140px] truncate">{row.hookType}</TableCell>
-                <TableCell className="max-w-[180px] truncate font-mono text-xs">{row.sessionId ?? "none"}</TableCell>
+                <TableCell className="max-w-[180px] truncate font-mono text-xs">
+                  {row.sessionId ?? "none"}
+                </TableCell>
                 <TableCell className="max-w-[360px] truncate font-mono text-xs text-muted-foreground">
                   {payloadPreview(row.payload)}
                 </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </ScrollArea>
-    </div>
-  );
-}
-
-function ThreadLineagePanel({ graph }: { graph: ThreadLineageGraph }): ReactElement {
-  if (graph.nodes.length === 0) {
-    return (
-      <StateCard
-        title="No thread lineage yet"
-        detail="Create or fork a Codex thread after installing hooks to see branching context here."
-      />
-    );
-  }
-  const nodes: GraphWorkbenchNode[] = graph.nodes.map((node) => ({
-    id: node.id,
-    kind: node.kind,
-    label: node.label,
-    path: node.projectPath ?? node.id,
-    description: `${node.kind} observed ${formatDate(node.lastSeenAt)}`,
-    weight: node.kind === "unknown-parent" ? 0 : 1,
-  }));
-  const edges: GraphWorkbenchEdge[] = graph.edges.map((edge) => ({
-    source: edge.source,
-    target: edge.target,
-    type: edge.kind,
-    label: edge.title ?? edge.kind,
-  }));
-  return (
-    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-3">
-      <div className="grid gap-2 md:grid-cols-5">
-        <LineageMetric label="nodes" value={graph.stats.nodeCount} />
-        <LineageMetric label="edges" value={graph.stats.edgeCount} />
-        <LineageMetric label="created" value={graph.stats.createCount} />
-        <LineageMetric label="forked" value={graph.stats.forkCount} />
-        <LineageMetric label="orphans" value={graph.stats.orphanCount} />
-      </div>
-      <GraphWorkbench
-        telemetryLabel="Codex thread lineage"
-        searchPlaceholder="Search threads"
-        kinds={[
-          { id: "thread", label: "Thread", color: "#2563eb" },
-          { id: "pending", label: "Pending", color: "#b45309" },
-          { id: "unknown-parent", label: "Unknown", color: "#64748b" },
-        ]}
-        nodes={nodes}
-        edges={edges}
-      />
-      <ThreadLineageEdges rows={graph.edges} />
-    </div>
-  );
-}
-
-function LineageMetric({ label, value }: { label: string; value: number }): ReactElement {
-  return (
-    <div className="rounded-md border bg-background/70 px-3 py-2">
-      <p className="text-[10px] uppercase text-muted-foreground">{label}</p>
-      <p className="font-mono text-lg font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function ThreadLineageEdges({ rows }: { rows: ThreadLineageGraph["edges"] }): ReactElement {
-  return (
-    <div className="max-h-[160px] overflow-hidden rounded-md border">
-      <ScrollArea className="h-[160px]">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Time</TableHead>
-              <TableHead>Kind</TableHead>
-              <TableHead>Parent</TableHead>
-              <TableHead>Child</TableHead>
-              <TableHead>Title</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.slice(0, 80).map((row) => (
-              <TableRow key={row.id}>
-                <TableCell className="whitespace-nowrap text-xs">{formatDate(row.eventAt)}</TableCell>
-                <TableCell>
-                  <Badge variant={row.kind === "forked" ? "secondary" : "outline"}>{row.kind}</Badge>
-                </TableCell>
-                <TableCell className="max-w-[220px] truncate font-mono text-xs">{row.source}</TableCell>
-                <TableCell className="max-w-[220px] truncate font-mono text-xs">{row.target}</TableCell>
-                <TableCell className="max-w-[260px] truncate text-xs text-muted-foreground">{row.title ?? row.sourceTool}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -462,7 +367,15 @@ function DistributionGrid({
   );
 }
 
-function DistributionCard({ rows, title, total }: { rows: DistributionRow[]; title: string; total: number }): ReactElement {
+function DistributionCard({
+  rows,
+  title,
+  total,
+}: {
+  rows: DistributionRow[];
+  title: string;
+  total: number;
+}): ReactElement {
   const chartRows = useMemo(
     () =>
       rows.slice(0, 12).map((row) => ({
@@ -508,7 +421,10 @@ function DistributionCard({ rows, title, total }: { rows: DistributionRow[]; tit
                   axisLine={false}
                   tick={{ fill: "#c7ccd6", fontSize: 12 }}
                 />
-                <Tooltip cursor={{ fill: "rgba(148, 163, 184, 0.08)" }} content={<DistributionTooltip />} />
+                <Tooltip
+                  cursor={{ fill: "rgba(148, 163, 184, 0.08)" }}
+                  content={<DistributionTooltip />}
+                />
                 <Bar
                   dataKey="count"
                   fill="#b97455"
@@ -533,7 +449,8 @@ function DistributionCard({ rows, title, total }: { rows: DistributionRow[]; tit
 function compactDistributionLabel(value: string): string {
   const normalized = value.trim() || "unknown";
   if (normalized.length <= 28) return normalized;
-  if (/^[0-9a-f-]{24,}$/i.test(normalized)) return `${normalized.slice(0, 8)}...${normalized.slice(-4)}`;
+  if (/^[0-9a-f-]{24,}$/i.test(normalized))
+    return `${normalized.slice(0, 8)}...${normalized.slice(-4)}`;
   return `${normalized.slice(0, 25)}...`;
 }
 
@@ -568,7 +485,7 @@ function HooksSetup(): ReactElement {
 
   async function loadConfig(): Promise<void> {
     const response = await fetch("/farplane/hooks/config");
-    const payload = await response.json() as HookConfigResponse;
+    const payload = (await response.json()) as HookConfigResponse;
     setData(payload);
     const config = payload.config;
     setEnabled(config?.enabled ?? true);
@@ -602,12 +519,16 @@ function HooksSetup(): ReactElement {
             enabled,
             includeManifestTracked,
             selectedManifestPaths: [...selected],
-            customPatterns: customPatterns.split(/\r?\n|,/).map((entry) => entry.trim()).filter(Boolean),
+            customPatterns: customPatterns
+              .split(/\r?\n|,/)
+              .map((entry) => entry.trim())
+              .filter(Boolean),
           },
         }),
       });
-      const payload = await response.json() as HookConfigResponse;
-      if (!response.ok || payload.ok === false) throw new Error(payload.error ?? "hook_config_save_failed");
+      const payload = (await response.json()) as HookConfigResponse;
+      if (!response.ok || payload.ok === false)
+        throw new Error(payload.error ?? "hook_config_save_failed");
       setData(payload);
       setMessage("Saved hook config.");
       return true;
@@ -626,9 +547,16 @@ function HooksSetup(): ReactElement {
       const saved = await saveConfig();
       if (!saved) return;
       const response = await fetch("/farplane/hooks/install", { method: "POST" });
-      const payload = await response.json() as { ok?: boolean; error?: string; hooksPath?: string };
-      if (!response.ok || payload.ok === false) throw new Error(payload.error ?? "hook_install_failed");
-      setMessage(`Installed hooks at ${payload.hooksPath ?? ".codex/hooks.json"}. Open /hooks to trust.`);
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        hooksPath?: string;
+      };
+      if (!response.ok || payload.ok === false)
+        throw new Error(payload.error ?? "hook_install_failed");
+      setMessage(
+        `Installed hooks at ${payload.hooksPath ?? ".codex/hooks.json"}. Open /hooks to trust.`,
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to install hooks.");
     } finally {
@@ -651,11 +579,15 @@ function HooksSetup(): ReactElement {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle className="text-sm">Hook Setup</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">Project-local Codex hooks and watched file events.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Project-local Codex hooks and watched file events.
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{data?.activePatterns?.length ?? 0} active patterns</Badge>
-            {data?.manifestExists === false ? <Badge variant="destructive">Manifest missing</Badge> : null}
+            {data?.manifestExists === false ? (
+              <Badge variant="destructive">Manifest missing</Badge>
+            ) : null}
             <Badge variant="outline">Open /hooks to trust</Badge>
           </div>
         </div>
@@ -667,13 +599,20 @@ function HooksSetup(): ReactElement {
             <section className="space-y-3">
               <div>
                 <h3 className="font-medium text-sm">Install command</h3>
-                <p className="mt-1 text-xs text-muted-foreground">The UI runs this through the local bridge when you install.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  The UI runs this through the local bridge when you install.
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <code className="min-w-0 flex-1 truncate rounded border bg-muted px-2 py-1.5 text-xs">
                   {HOOK_INSTALL_COMMAND}
                 </code>
-                <Button size="icon" variant="outline" aria-label="Copy hook install command" onClick={() => void copyCommand()}>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  aria-label="Copy hook install command"
+                  onClick={() => void copyCommand()}
+                >
                   <Copy className="size-4" />
                 </Button>
               </div>
@@ -686,15 +625,23 @@ function HooksSetup(): ReactElement {
             <section className="space-y-3 border-t pt-5">
               <div>
                 <h3 className="font-medium text-sm">File change events</h3>
-                <p className="mt-1 text-xs text-muted-foreground">Only selected paths emit local Codex summary telemetry.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Only selected paths emit local Codex summary telemetry.
+                </p>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="flex items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-sm">
-                  <Checkbox checked={enabled} onCheckedChange={(value) => setEnabled(Boolean(value))} />
+                  <Checkbox
+                    checked={enabled}
+                    onCheckedChange={(value) => setEnabled(Boolean(value))}
+                  />
                   Emit file-change summaries
                 </label>
                 <label className="flex items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-sm">
-                  <Checkbox checked={includeManifestTracked} onCheckedChange={(value) => setIncludeManifestTracked(Boolean(value))} />
+                  <Checkbox
+                    checked={includeManifestTracked}
+                    onCheckedChange={(value) => setIncludeManifestTracked(Boolean(value))}
+                  />
                   Use manifest files
                 </label>
               </div>
@@ -703,15 +650,23 @@ function HooksSetup(): ReactElement {
             <section className="space-y-3 border-t pt-5">
               <div>
                 <h3 className="font-medium text-sm">Farplane manifest files</h3>
-                <p className="mt-1 text-xs text-muted-foreground">{data?.manifestPath ?? "farplane/manifest.json"}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {data?.manifestPath ?? "farplane/manifest.json"}
+                </p>
               </div>
               <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                 {(data?.manifestTracked ?? []).length === 0 ? (
                   <p className="text-sm text-muted-foreground">No manifest files found.</p>
                 ) : (
                   (data?.manifestTracked ?? []).map((filePath) => (
-                    <label key={filePath} className="flex min-w-0 items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-xs">
-                      <Checkbox checked={selected.has(filePath)} onCheckedChange={() => togglePath(filePath)} />
+                    <label
+                      key={filePath}
+                      className="flex min-w-0 items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-xs"
+                    >
+                      <Checkbox
+                        checked={selected.has(filePath)}
+                        onCheckedChange={() => togglePath(filePath)}
+                      />
                       <span className="min-w-0 truncate font-mono">{filePath}</span>
                     </label>
                   ))
@@ -722,7 +677,9 @@ function HooksSetup(): ReactElement {
             <section className="space-y-3 border-t pt-5">
               <div>
                 <Label htmlFor="file-change-patterns">Custom patterns</Label>
-                <p className="mt-1 text-xs text-muted-foreground">Comma or newline separated project-relative globs.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Comma or newline separated project-relative globs.
+                </p>
               </div>
               <Textarea
                 id="file-change-patterns"
@@ -741,7 +698,11 @@ function HooksSetup(): ReactElement {
           {message || "Installs project-local Codex hooks with selected summary matchers."}
         </div>
         <Button onClick={() => void installHooks()} disabled={busyState !== ""}>
-          {busyState === "saving" ? "Saving..." : busyState === "installing" ? "Installing..." : "Save And Install Hooks"}
+          {busyState === "saving"
+            ? "Saving..."
+            : busyState === "installing"
+              ? "Installing..."
+              : "Save And Install Hooks"}
         </Button>
       </div>
     </Card>

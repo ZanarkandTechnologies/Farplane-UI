@@ -14,21 +14,7 @@
  * - MEM-0196
  */
 
-export type TabKey =
-  | "overview"
-  | "kanban"
-  | "memory"
-  | "timeline"
-  | "threads"
-  | "telemetry"
-  | "goals"
-  | "docs"
-  | "skills"
-  | "evals"
-  | "automations"
-  | "guard"
-  | "hardcases"
-  | "ledger";
+export type TabKey = "overview" | "kanban" | "goals" | "pulse" | "proof" | "memory" | "config";
 
 export type TaskStatus = "todo" | "in_progress" | "review" | "blocked" | "done";
 export type KanbanLaneKey = TaskStatus;

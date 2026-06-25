@@ -39,10 +39,11 @@ const KIND_TARGETS: Record<string, { x: number; y: number }> = {
   "skill-doc": { x: 530, y: 330 },
   spec: { x: 740, y: 330 },
   template: { x: 930, y: 210 },
+  workflow: { x: 620, y: 390 },
 };
 
 function nodeRadius(node: GraphWorkbenchNode, degree: number): number {
-  const base = node.kind === "feature" ? 24 : node.kind === "skill" ? 20 : 16;
+  const base = node.kind === "workflow" ? 28 : node.kind === "feature" ? 24 : node.kind === "skill" ? 20 : 16;
   return base + Math.min(11, degree * 0.55) + Math.min(8, node.weight ?? 0);
 }
 
@@ -57,6 +58,9 @@ function linkId(value: string | number | ForceNode | undefined): string {
 
 function linkDistance(edge: GraphWorkbenchEdge): number {
   if (edge.type === "feature-surface") return 130;
+  if (edge.type === "workflow-stage") return 150;
+  if (edge.type === "workflow-skill") return 125;
+  if (edge.type === "workflow-next") return 105;
   if (edge.type === "markdown-link") return 190;
   if (edge.type === "literal-path") return 150;
   return 170;

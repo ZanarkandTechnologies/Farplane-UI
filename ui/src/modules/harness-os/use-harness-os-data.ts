@@ -7,6 +7,7 @@ import {
   isHarnessBridgePayload,
   isHarnessLifecyclePayload,
   isHarnessSkillRolloutPayload,
+  isHarnessTemplateTrackingPayload,
   isHarnessTemplateIntelligencePayload,
 } from "./harness-os-model";
 import type {
@@ -14,6 +15,7 @@ import type {
   HarnessGraphPayload,
   HarnessLifecyclePayload,
   HarnessSkillRolloutPayload,
+  HarnessTemplateTrackingPayload,
   HarnessTemplateIntelligencePayload,
 } from "./harness-os-types";
 
@@ -25,6 +27,8 @@ export function useHarnessOsData(): {
   lifecycle: HarnessLifecyclePayload | null;
   skillRollout: HarnessSkillRolloutPayload | null;
   skillRolloutError: string | null;
+  templateTracking: HarnessTemplateTrackingPayload | null;
+  templateTrackingError: string | null;
   templateIntelligence: HarnessTemplateIntelligencePayload | null;
 } {
   const [adoption, setAdoption] = useState<HarnessAdoptionPayload | null>(null);
@@ -33,6 +37,8 @@ export function useHarnessOsData(): {
   const [lifecycle, setLifecycle] = useState<HarnessLifecyclePayload | null>(null);
   const [skillRollout, setSkillRollout] = useState<HarnessSkillRolloutPayload | null>(null);
   const [skillRolloutError, setSkillRolloutError] = useState<string | null>(null);
+  const [templateTracking, setTemplateTracking] = useState<HarnessTemplateTrackingPayload | null>(null);
+  const [templateTrackingError, setTemplateTrackingError] = useState<string | null>(null);
   const [templateIntelligence, setTemplateIntelligence] =
     useState<HarnessTemplateIntelligencePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,20 +53,26 @@ export function useHarnessOsData(): {
           templateResponse,
           adoptionResponse,
           skillRolloutResponse,
+          templateTrackingResponse,
         ] = await Promise.all([
-          fetch("/codex/skill-maintenance-graph/harness-graph.json"),
+          fetch("/codex/skill-maintenance-graph/farplane-framework-core-graph.json"),
           fetch("/codex/skill-maintenance-graph/farplane-lifecycle-graph.json"),
           fetch("/codex/skill-maintenance-graph/skill-template-intelligence.json"),
           fetch("/farplane/harness/adoption-scan"),
           fetch("/farplane/harness/skills-rollout-scan"),
+          fetch("/farplane/harness/template-tracking-scan"),
         ]);
-        const graphPayload = (await graphResponse.json()) as unknown;
+        let nextGraphError: string | null = null;
+        const graphPayload = graphResponse.ok ? (await graphResponse.json()) as unknown : null;
         if (cancelled) return;
-        if (!isHarnessGraphPayload(graphPayload)) {
-          setError("harness_graph_payload_invalid");
-          return;
+        if (isHarnessGraphPayload(graphPayload)) {
+          setGraph(graphPayload);
+        } else {
+          setGraph(null);
+          nextGraphError = graphResponse.ok
+            ? "harness_graph_payload_invalid"
+            : "harness_graph_unavailable";
         }
-        setGraph(graphPayload);
         if (lifecycleResponse.ok) {
           const lifecyclePayload = (await lifecycleResponse.json()) as unknown;
           setLifecycle(isHarnessLifecyclePayload(lifecyclePayload) ? lifecyclePayload : null);
@@ -109,7 +121,25 @@ export function useHarnessOsData(): {
           setSkillRollout(null);
           setSkillRolloutError(bridgePayload.error ?? "skills_rollout_scan_unavailable");
         }
-        setError(null);
+        if (templateTrackingResponse.ok) {
+          const bridgePayload = (await templateTrackingResponse.json()) as unknown;
+          if (isHarnessBridgePayload(bridgePayload, isHarnessTemplateTrackingPayload)) {
+            setTemplateTracking(bridgePayload.payload ?? null);
+            setTemplateTrackingError(
+              bridgePayload.ok ? null : bridgePayload.error ?? "template_tracking_scan_failed",
+            );
+          } else {
+            setTemplateTracking(null);
+            setTemplateTrackingError("template_tracking_payload_invalid");
+          }
+        } else {
+          const bridgePayload = (await templateTrackingResponse.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          setTemplateTracking(null);
+          setTemplateTrackingError(bridgePayload.error ?? "template_tracking_scan_unavailable");
+        }
+        setError(nextGraphError);
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : "harness_os_load_failed");
@@ -130,6 +160,8 @@ export function useHarnessOsData(): {
     lifecycle,
     skillRollout,
     skillRolloutError,
+    templateTracking,
+    templateTrackingError,
     templateIntelligence,
   };
 }

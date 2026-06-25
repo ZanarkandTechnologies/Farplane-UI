@@ -1,6 +1,7 @@
 "use client";
 
 export type HarnessGraphNode = {
+  description?: string;
   eval?: string;
   has_checklist?: boolean;
   heat?: {
@@ -20,13 +21,19 @@ export type HarnessGraphNode = {
     window_days?: number;
   };
   id: string;
+  framework_role?: "source" | "linked" | "isolated" | "other" | string;
   kind: string;
   label?: string;
+  matched_patterns?: string[];
   path?: string;
   qa_checklist?: string;
   skill_ui?: string;
   source?: string;
+  source_match?: boolean;
+  source_path?: string;
   tier?: number;
+  workflow_order?: number;
+  workflow_skills?: string[];
 };
 
 export type HarnessGraphEdge = {
@@ -46,13 +53,25 @@ export type HarnessGraphPayload = {
     edges?: number;
     node_kinds?: Record<string, number>;
     nodes?: number;
+    framework_roles?: Record<string, number>;
+    isolated_nodes?: number;
+    linked_nodes?: number;
+    other_nodes?: number;
     scanned_files?: number;
+    source_nodes?: number;
     unresolved_refs?: number;
+    workflow_nodes?: number;
   };
   edges: HarnessGraphEdge[];
   generated_at?: string;
   nodes: HarnessGraphNode[];
   schema_version?: string;
+  source?: {
+    exclude?: string[];
+    expansion?: string;
+    include?: string[];
+    manifest?: string;
+  };
   unresolved_refs?: unknown[];
 };
 
@@ -184,23 +203,39 @@ export type HarnessSkillRolloutPayload = {
 
 export type HarnessTemplateTrackingStatus =
   | "tracked"
+  | "stale"
   | "unversioned"
   | "missing"
   | "scanner-gap";
 
 export type HarnessTemplateTrackingFamily = {
+  consumerScope?: string;
   consumerCount?: number;
   currentVersion?: string;
   description?: string;
   familyId: string;
+  featureRefs?: string[];
+  historyPolicy?: "git" | "snapshot" | "none" | string;
+  installTarget?:
+    | "codex-global"
+    | "project-scaffold"
+    | "skill-package"
+    | "ticket-scaffold"
+    | "runtime-template"
+    | "source-only"
+    | "unknown"
+    | string;
   label: string;
   notes?: string;
   observedVersion?: string;
   owner?: string;
   paths?: string[];
+  registryPath?: string;
   scope: string;
-  source: "manifest" | "frontmatter" | "template-file" | "derived" | "scanner-gap";
+  source: "manifest" | "frontmatter" | "template-file" | "derived" | "scanner-gap" | "registry";
   status: HarnessTemplateTrackingStatus;
+  templateVersion?: string;
+  usedVersion?: string;
 };
 
 export type HarnessTemplateTrackingPayload = {
@@ -208,12 +243,15 @@ export type HarnessTemplateTrackingPayload = {
     families?: number;
     missing?: number;
     scannerGaps?: number;
+    stale?: number;
     tracked?: number;
     unversioned?: number;
   };
   families: HarnessTemplateTrackingFamily[];
   generatedAt?: string;
   projectRoot?: string;
+  registrySource?: string | null;
+  registryStatus?: "loaded" | "fallback" | string;
   schema?: string;
   schemaVersion?: string;
 };

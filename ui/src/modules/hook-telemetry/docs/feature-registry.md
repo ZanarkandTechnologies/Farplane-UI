@@ -1,7 +1,7 @@
 ---
 owner: hook-telemetry
 status: active
-updated: 2026-06-17
+updated: 2026-06-25
 ---
 
 # Hook Telemetry Feature Registry
@@ -22,6 +22,9 @@ the office launcher entry `raw-telemetry`.
 - Hooks setup: shows the canonical install command, `/hooks` trust reminder,
   manifest-backed watched file selection, custom patterns, and a local install
   action through the Vite state bridge.
+- Thread telemetry: `thread.created` and `thread.forked` rows remain available
+  through Events and Distributions; Raw Telemetry does not expose a separate
+  thread lineage tab.
 - Access control: launcher action is hidden in read-only modes; the panel also
   skips the Convex query and renders a locked state when opened outside operator
   mode.
