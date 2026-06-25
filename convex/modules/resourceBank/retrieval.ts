@@ -2,9 +2,9 @@
 import { query } from "../../_generated/server";
 import {
   buildResourceBankDashboard,
+  buildRetrievalTagPlan,
   clampLimit,
   cleanText,
-  mergeTags,
   RESOURCE_BANK_QUERY_LIMIT,
 } from "./resourceBank";
 import { matchesFilters, toAnalysisRow, toAssetRow, toSkillFindingRow } from "./records";
@@ -48,14 +48,14 @@ export const retrieveForCreation = query({
   args: retrieveForCreationArgsValidator,
   handler: async (ctx, args) => {
     const count = clampLimit(args.count, 5, 12);
-    const tags = mergeTags(args.tags, args.outputType ? [`output:${args.outputType}`] : undefined);
+    const tagPlan = buildRetrievalTagPlan(args);
     const queryText = cleanText(args.goal, 500) ?? "";
     const assets = await ctx.db
       .query("resourceBankAssets")
       .withSearchIndex("search_assets", (q) => q.search("searchableText", queryText))
       .take(count * 4);
     const filteredAssets = assets
-      .filter((row) => matchesFilters(row, { ...args, tags }))
+      .filter((row) => matchesFilters(row, { ...args, tags: tagPlan.filterTags }))
       .slice(0, count);
     const packets = [];
     for (const asset of filteredAssets) {
@@ -89,10 +89,15 @@ export const retrieveForCreation = query({
     return {
       query: args.goal,
       top_matches: packets,
-      tag_expansions: tags,
+      tag_expansions: tagPlan.tagExpansions,
       retrieval_notes:
         args.embedding == null
-          ? ["Used full-text/tag retrieval. Pass an embedding to a vector-search action for semantic nearest-neighbor search."]
+          ? [
+              "Used full-text/tag retrieval. Pass an embedding to a vector-search action for semantic nearest-neighbor search.",
+              ...(args.outputType
+                ? [`Treated outputType "${args.outputType}" as a soft hint, not a required tag.`]
+                : []),
+            ]
           : ["Embedding was supplied but this query path is full-text; use findSimilarAssets for vector search."],
     };
   },

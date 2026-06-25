@@ -99,6 +99,18 @@ export function mergeTags(...groups: Array<readonly string[] | undefined>): stri
   return normalizeTags(groups.flatMap((group) => [...(group ?? [])]));
 }
 
+export function buildRetrievalTagPlan(input: {
+  tags?: readonly string[];
+  outputType?: string;
+}): { filterTags: string[]; tagExpansions: string[] } {
+  const filterTags = normalizeTags(input.tags);
+  const outputTags = input.outputType ? normalizeTags([`output:${input.outputType}`]) : [];
+  return {
+    filterTags,
+    tagExpansions: mergeTags(filterTags, outputTags),
+  };
+}
+
 export function clampLimit(limit: number | undefined, fallback = 24, max = 80): number {
   return Math.max(1, Math.min(max, Math.floor(limit ?? fallback)));
 }

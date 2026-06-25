@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildAnalysisEmbeddingText,
   buildResourceBankDashboard,
+  buildRetrievalTagPlan,
   buildSkillFindingEmbeddingText,
   mergeTags,
   normalizeTags,
@@ -39,6 +40,16 @@ describe("resource bank helpers", () => {
     expect(analysisText).toContain("warm side key");
     expect(skillText).toContain("Break down lighting");
     expect(skillText).toContain("skill:video-lighting");
+  });
+
+  it("keeps output type as a retrieval hint instead of a hard filter", () => {
+    const plan = buildRetrievalTagPlan({
+      tags: ["Intent:AI Office Agent"],
+      outputType: "video",
+    });
+
+    expect(plan.filterTags).toEqual(["intent:ai-office-agent"]);
+    expect(plan.tagExpansions).toEqual(["intent:ai-office-agent", "output:video"]);
   });
 
   it("builds dashboard clusters from asset and skill-finding tags", () => {
