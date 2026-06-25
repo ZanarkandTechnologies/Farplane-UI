@@ -41,6 +41,16 @@ function safeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function safeJsonText(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (!value || typeof value !== "object") return "";
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "";
+  }
+}
+
 function secondsToMs(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? Math.floor(value * 1000) : undefined;
 }
@@ -190,10 +200,29 @@ function isDelegatedChildThread(thread: CodexThread): boolean {
   return Boolean(inferredDelegationParentThreadId(thread));
 }
 
+function isHeadlessCodexExecThread(thread: CodexThread): boolean {
+  const sourceText = safeJsonText(thread.source).toLowerCase();
+  if (
+    sourceText &&
+    /\b(codex[-_\s]?exec|exec)\b/.test(sourceText) &&
+    /\b(ephemeral|headless|eval|evaluation)\b/.test(sourceText)
+  ) {
+    return true;
+  }
+
+  const haystack = threadSearchText(thread);
+  return (
+    /(^|\n)\s*You are judging an agent answer\b/i.test(haystack) ||
+    /(^|\n)\s*Context:\s+.+\bis a clean-room toy app\b/i.test(haystack) ||
+    /\bclean eval coverage\b/i.test(haystack)
+  );
+}
+
 function isInternalAuxiliaryThread(thread: CodexThread): boolean {
   const haystack = threadSearchText(thread);
   return (
     isDelegatedChildThread(thread) ||
+    isHeadlessCodexExecThread(thread) ||
     /(^|\n)Summarize this project file change as one (tiny employee status bubble label|concise employee status bubble)\b/i.test(
       haystack,
     ) ||

@@ -934,6 +934,51 @@ describe("runtime adapters", () => {
     );
   });
 
+  it("does not promote headless Codex exec eval runs into office workers", () => {
+    const nowMs = 1770000000 * 1000;
+    const company = toCodexCompanyModel(
+      [
+        {
+          id: "operator-thread",
+          name: "Implement visible task",
+          preview: "please implement the office fix",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769999995,
+        },
+        {
+          id: "eval-judge-thread",
+          name: "Context: AGI Toy Shop is a clean-room toy app...",
+          preview:
+            "Context: AGI Toy Shop is a clean-room toy app. You are judging an agent answer for macness.",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769999995,
+        },
+        {
+          id: "ephemeral-exec-thread",
+          name: "Clean eval coverage",
+          preview: "Run the eval and report the pass/fail result.",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769999995,
+          source: { command: "codex exec", mode: "ephemeral", purpose: "evaluation" },
+        },
+      ],
+      nowMs,
+      ["/workspace/farplane-ui"],
+    );
+
+    expect(company.agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ agentId: "codex-thread:operator-thread" }),
+      ]),
+    );
+    expect(company.agents.some((agent) => agent.agentId === "codex-thread:eval-judge-thread")).toBe(
+      false,
+    );
+    expect(
+      company.agents.some((agent) => agent.agentId === "codex-thread:ephemeral-exec-thread"),
+    ).toBe(false);
+  });
+
   it("keeps persistent automation heartbeats visible while scheduled automations age out", () => {
     const nowMs = 1770000000 * 1000;
     const company = toCodexCompanyModel(

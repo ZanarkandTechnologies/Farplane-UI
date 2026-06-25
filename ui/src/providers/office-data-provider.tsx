@@ -395,6 +395,7 @@ export function OfficeDataProvider({
   const load = React.useCallback(
     async (reason: OfficeDataRefreshReason = "manual"): Promise<void> => {
       if (inFlightLoadRef.current) {
+        const blockedRun = inFlightLoadRef.current;
         pendingLoadReasonRef.current = coalesceOfficeRefreshReason(
           pendingLoadReasonRef.current,
           reason,
@@ -403,7 +404,15 @@ export function OfficeDataProvider({
           reason,
           pendingReason: pendingLoadReasonRef.current,
         });
-        await inFlightLoadRef.current;
+        await blockedRun;
+        if (inFlightLoadRef.current === blockedRun) {
+          inFlightLoadRef.current = null;
+        }
+        const replayReason = pendingLoadReasonRef.current;
+        if (replayReason && !cancelledRef.current) {
+          pendingLoadReasonRef.current = null;
+          await load(replayReason);
+        }
         return;
       }
 
@@ -525,16 +534,18 @@ export function OfficeDataProvider({
             });
           }
 
-          latestUnifiedRef.current = repairedUnified;
-          latestApprovalsRef.current = pendingApprovals;
+          const hadLoadedStructuralSnapshot = Boolean(latestUnifiedRef.current);
           if (
-            cancelledRef.current ||
-            generation !== loadGenerationRef.current
+            (cancelledRef.current ||
+              generation !== loadGenerationRef.current) &&
+            hadLoadedStructuralSnapshot
           ) {
             logOfficeRefresh("drop-stale", { reason: currentReason, generation });
             pendingLoadReasonRef.current = null;
             return;
           }
+          latestUnifiedRef.current = repairedUnified;
+          latestApprovalsRef.current = pendingApprovals;
           const officeData = toOfficeData(
             repairedUnified,
             repairedOfficeSettings,
