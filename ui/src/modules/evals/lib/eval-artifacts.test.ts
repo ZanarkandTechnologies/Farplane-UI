@@ -4,6 +4,7 @@ import {
   formatPercent,
   getTaskScope,
   isEvalSummary,
+  resolveEvalArtifactsRoot,
   sortRunIndex,
 } from "./eval-artifacts";
 import { computeEvalHealth } from "./eval-health";
@@ -57,5 +58,20 @@ describe("Eval OS artifact helpers", () => {
     expect(getTaskScope({ task_id: "skill-a", tags: ["skill"] })).toBe("skill");
     expect(getTaskScope({ task_id: "agent-md-a", tags: ["agent.md"] })).toBe("agent-md");
     expect(getTaskScope({ task_id: "task-quality-a", tags: ["task-quality"] })).toBe("task");
+  });
+
+  it("resolves eval artifacts root with explicit and framework-first precedence", () => {
+    const roots = {
+      frameworkRoot: "/framework/.farplane/evals",
+      projectRoot: "/project/.farplane/evals",
+    };
+
+    expect(resolveEvalArtifactsRoot({ ...roots, envRoot: "/custom/evals", hasFrameworkIndex: true })).toBe(
+      "/custom/evals",
+    );
+    expect(resolveEvalArtifactsRoot({ ...roots, envRoot: "   ", hasFrameworkIndex: true })).toBe(
+      roots.frameworkRoot,
+    );
+    expect(resolveEvalArtifactsRoot({ ...roots, hasFrameworkIndex: false })).toBe(roots.projectRoot);
   });
 });

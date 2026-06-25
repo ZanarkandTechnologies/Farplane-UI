@@ -21,6 +21,22 @@ export function isEvalTaskDetail(value: unknown): value is EvalTaskDetail {
   return isRecord(value) && (typeof value.task_id === "string" || isRecord(value.task));
 }
 
+export function resolveEvalArtifactsRoot({
+  envRoot,
+  frameworkRoot,
+  projectRoot,
+  hasFrameworkIndex,
+}: {
+  envRoot?: string;
+  frameworkRoot: string;
+  projectRoot: string;
+  hasFrameworkIndex: boolean;
+}): string {
+  const explicitRoot = envRoot?.trim();
+  if (explicitRoot) return explicitRoot;
+  return hasFrameworkIndex ? frameworkRoot : projectRoot;
+}
+
 export function getTaskId(task: EvalTaskSummary | EvalTaskDetail): string {
   if ("task_id" in task && typeof task.task_id === "string") return task.task_id;
   if ("summary" in task && typeof task.summary?.task_id === "string") return task.summary.task_id;

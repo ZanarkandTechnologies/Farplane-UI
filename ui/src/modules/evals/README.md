@@ -9,7 +9,13 @@ Eval OS is the global mini app for Farplane/Codex eval artifacts.
 - `.farplane/evals/runs/<job_id>/tasks/<task_id>.json`
 - `.farplane/evals/runs/<job_id>/tasks/<task_id>/agent_answer.txt`
 
-The Vite bridge exposes these through `/farplane/evals/*` for the browser. When the project has no eval artifacts yet, the module shows an empty state and manual JSON loading controls.
+The Vite bridge exposes these through `/farplane/evals/*` for the browser. Root precedence is:
+
+1. `FARPLANE_EVALS_ROOT`, when explicitly set.
+2. `${FARPLANE_FRAMEWORK_ROOT}/.farplane/evals`, when that framework root has `runs/index.json`.
+3. `${REPO_ROOT}/.farplane/evals`, as the project-local fallback.
+
+When the selected root has no eval artifacts yet, the module shows an empty state and manual JSON loading controls.
 
 ## Auto-Fetch Standard
 

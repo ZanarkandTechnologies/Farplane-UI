@@ -30,6 +30,7 @@ import {
   LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS,
   localFarplaneEventsToObservedCodexWorkers,
 } from "./src/providers/local-observed-codex-workers";
+import { resolveEvalArtifactsRoot } from "./src/modules/evals/lib/eval-artifacts";
 
 type JsonObject = Record<string, unknown>;
 type MemoryEntryType = "discovery" | "decision" | "problem" | "solution" | "pattern" | "warning" | "success" | "refactor" | "bugfix" | "feature";
@@ -77,7 +78,14 @@ const OFFICE_SETTINGS_PATH = path.join(FARPLANE_HOME, "office.json");
 const CODEX_OFFICE_CONFIG_PATH = path.join(FARPLANE_HOME, "codex-office.json");
 const PROJECT_MANAGERS_PATH = path.join(FARPLANE_HOME, "project-managers.json");
 const TELEGRAM_GATEWAY_STATE_PATH = path.join(FARPLANE_HOME, "telegram-gateway", "state.json");
-const FARPLANE_EVALS_ROOT = path.join(REPO_ROOT, ".farplane", "evals");
+const PROJECT_EVALS_ROOT = path.join(REPO_ROOT, ".farplane", "evals");
+const FRAMEWORK_EVALS_ROOT = path.join(FARPLANE_FRAMEWORK_ROOT, ".farplane", "evals");
+const FARPLANE_EVALS_ROOT = resolveEvalArtifactsRoot({
+  envRoot: process.env.FARPLANE_EVALS_ROOT,
+  frameworkRoot: FRAMEWORK_EVALS_ROOT,
+  projectRoot: PROJECT_EVALS_ROOT,
+  hasFrameworkIndex: existsSync(path.join(FRAMEWORK_EVALS_ROOT, "runs", "index.json")),
+});
 const OFFICE_OBJECTS_TEMPLATE_PATH = path.resolve(
   __dirname,
   "../templates/sidecar/office-objects.template.json",
