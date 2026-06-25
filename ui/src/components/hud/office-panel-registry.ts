@@ -21,12 +21,10 @@ import {
   Archive,
   BarChart3,
   BookOpen,
-  Boxes,
-  BriefcaseBusiness,
   Building2,
-  ChartNoAxesCombined,
+  FileCode2,
+  GitPullRequestArrow,
   Hammer,
-  Home,
   LibraryBig,
   type LucideIcon,
   MessageSquareText,
@@ -34,16 +32,11 @@ import {
   RadioTower,
   Settings,
   ShoppingBag,
-  SlidersHorizontal,
-  Sparkles,
   TestTube2,
   Users,
-  Workflow,
-  Wrench,
 } from "lucide-react";
 
 import { getOfficeInternalPanelEntry } from "@/modules/office/panels/internal-panel-catalog";
-import type { CeoWorkbenchView } from "@/store";
 
 const SECONDARY_BUTTON_COLOR = "bg-secondary hover:bg-secondary/80 text-secondary-foreground";
 const GUIDED_BUTTON_CLASS =
@@ -61,17 +54,8 @@ export type OfficeShortcut = {
 
 export type OfficeActionGroup = "navigation" | "panel" | "action";
 export type OfficeAccessPolicy = "operator" | "read-only";
-export type OfficeLauncherGroupId =
-  | "people"
-  | "work"
-  | "systems"
-  | "library"
-  | "observe"
-  | "build"
-  | "utility";
 
 export type OfficePanelActionId =
-  | "back-landing"
   | "organization"
   | "team-workspace"
   | "telemetry"
@@ -79,7 +63,8 @@ export type OfficePanelActionId =
   | "resource-bank"
   | "document-library"
   | "skill-os"
-  | "template-rollout"
+  | "rollout"
+  | "template-tracking"
   | "evals"
   | "harness"
   | "ceo-workbench"
@@ -101,19 +86,9 @@ export type OfficePanelAction = {
   color: string;
   disabled?: boolean;
   buttonClassName?: string;
-  launcherGroup?: OfficeLauncherGroupId;
   showInMenu?: boolean;
   showInPalette?: boolean;
   perform: () => void;
-};
-
-export type OfficeLauncherGroup = {
-  id: OfficeLauncherGroupId;
-  label: string;
-  icon: LucideIcon;
-  color: string;
-  buttonClassName?: string;
-  actions: OfficePanelAction[];
 };
 
 export type OfficePanelRegistryDependencies = {
@@ -121,14 +96,13 @@ export type OfficePanelRegistryDependencies = {
   highlightedMenuActionId: string | null;
   isAnimatingCamera: boolean;
   isBuilderMode: boolean;
-  navigateToLanding: () => void;
-  openCeoWorkbench: (view: CeoWorkbenchView) => void;
   openUserCommunications: () => void;
   openDecoration: () => void;
   openEvals: () => void;
   openHarness: () => void;
+  openRollout: () => void;
   openSkillOs: () => void;
-  openTemplateRollout: () => void;
+  openTemplateTracking: () => void;
   openGlobalTeamWorkspace: () => void;
   openOrganization: () => void;
   openSettings: () => void;
@@ -146,18 +120,19 @@ export const OFFICE_COMMAND_PALETTE_SHORTCUT: OfficeShortcut = {
   metaOrCtrlKey: true,
 };
 
-const OFFICE_LAUNCHER_GROUPS: Array<{
-  id: OfficeLauncherGroupId;
-  label: string;
-  icon: LucideIcon;
-}> = [
-  { id: "people", label: "People", icon: Users },
-  { id: "work", label: "Work", icon: Workflow },
-  { id: "systems", label: "Systems", icon: Sparkles },
-  { id: "library", label: "Library", icon: Boxes },
-  { id: "observe", label: "Observe", icon: ChartNoAxesCombined },
-  { id: "build", label: "Build", icon: Wrench },
-  { id: "utility", label: "Utility", icon: SlidersHorizontal },
+const OFFICE_LAUNCHER_ACTION_ORDER: OfficePanelActionId[] = [
+  "organization",
+  "user-communications",
+  "harness",
+  "skill-os",
+  "evals",
+  "resource-bank",
+  "document-library",
+  "telemetry",
+  "raw-telemetry",
+  "builder-mode",
+  "office-shop",
+  "settings",
 ];
 
 export function isEditableEventTarget(target: EventTarget | null): boolean {
@@ -229,26 +204,14 @@ export function createOfficePanelActions(
   const resourceBankPanel = getOfficeInternalPanelEntry("resource-bank");
   const documentLibraryPanel = getOfficeInternalPanelEntry("document-library");
   const skillOsPanel = getOfficeInternalPanelEntry("skill-os");
-  const templateRolloutPanel = getOfficeInternalPanelEntry("template-rollout");
+  const rolloutPanel = getOfficeInternalPanelEntry("rollout");
+  const templateTrackingPanel = getOfficeInternalPanelEntry("template-tracking");
   const evalsPanel = getOfficeInternalPanelEntry("evals");
   const harnessPanel = getOfficeInternalPanelEntry("harness");
-  const ceoWorkbenchPanel = getOfficeInternalPanelEntry("ceo-workbench");
-  const humanReviewPanel = getOfficeInternalPanelEntry("human-review");
   const userCommsPanel = getOfficeInternalPanelEntry("user-communications");
   const officeShopPanel = getOfficeInternalPanelEntry("office-shop");
   const settingsPanel = getOfficeInternalPanelEntry("settings");
   return [
-    {
-      id: "back-landing",
-      label: "Back to Landing",
-      description: "Leave the office and return to the public landing page.",
-      group: "navigation",
-      icon: Home,
-      keywords: ["home", "landing", "exit", "navigate"],
-      color: SECONDARY_BUTTON_COLOR,
-      launcherGroup: "utility",
-      perform: deps.navigateToLanding,
-    },
     {
       id: "organization",
       label: "Organization",
@@ -258,7 +221,6 @@ export function createOfficePanelActions(
       keywords: ["teams", "people", "directory", "organization", "panel"],
       shortcut: { key: "o", label: "Alt+Shift+O", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      launcherGroup: "people",
       perform: deps.openOrganization,
     },
     {
@@ -273,9 +235,8 @@ export function createOfficePanelActions(
       buttonClassName:
         deps.highlightedMenuActionId === "team-workspace" ? GUIDED_BUTTON_CLASS : undefined,
       disabled: readOnly,
-      showInMenu: !readOnly,
-      showInPalette: !readOnly,
-      launcherGroup: "work",
+      showInMenu: false,
+      showInPalette: false,
       perform: readOnly ? noop : deps.openGlobalTeamWorkspace,
     },
     {
@@ -287,7 +248,6 @@ export function createOfficePanelActions(
       keywords: [...telemetryPanel.keywords, "dashboard"],
       shortcut: { key: "m", label: "Alt+Shift+M", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      launcherGroup: "observe",
       perform: deps.openTelemetry,
     },
     {
@@ -302,7 +262,6 @@ export function createOfficePanelActions(
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
-      launcherGroup: "observe",
     },
     {
       id: "resource-bank",
@@ -313,7 +272,6 @@ export function createOfficePanelActions(
       keywords: [...resourceBankPanel.keywords, "pinterest", "media"],
       shortcut: { key: "r", label: "Alt+Shift+R", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      launcherGroup: "library",
       perform: deps.openResourceBank,
     },
     {
@@ -324,7 +282,6 @@ export function createOfficePanelActions(
       icon: LibraryBig,
       keywords: documentLibraryPanel.keywords,
       color: SECONDARY_BUTTON_COLOR,
-      launcherGroup: "library",
       perform: deps.openDocumentLibrary,
     },
     {
@@ -336,20 +293,43 @@ export function createOfficePanelActions(
       keywords: [...skillOsPanel.keywords, "panel"],
       shortcut: { key: "s", label: "Alt+Shift+S", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      launcherGroup: "systems",
       perform: deps.openSkillOs,
     },
     {
-      id: "template-rollout",
-      label: templateRolloutPanel.label,
-      description: templateRolloutPanel.description,
+      id: "harness",
+      label: harnessPanel.label,
+      description: harnessPanel.description,
       group: "panel",
-      icon: RadioTower,
-      keywords: [...templateRolloutPanel.keywords, "standards", "panel"],
+      icon: Network,
+      keywords: [...harnessPanel.keywords, "agents", "panel"],
+      shortcut: { key: "h", label: "Alt+Shift+H", altKey: true, shiftKey: true },
+      color: SECONDARY_BUTTON_COLOR,
+      perform: deps.openHarness,
+    },
+    {
+      id: "rollout",
+      label: rolloutPanel.label,
+      description: rolloutPanel.description,
+      group: "panel",
+      icon: GitPullRequestArrow,
+      keywords: [...rolloutPanel.keywords, "panel"],
+      color: SECONDARY_BUTTON_COLOR,
+      showInMenu: false,
+      showInPalette: false,
+      perform: deps.openRollout,
+    },
+    {
+      id: "template-tracking",
+      label: templateTrackingPanel.label,
+      description: templateTrackingPanel.description,
+      group: "panel",
+      icon: FileCode2,
+      keywords: [...templateTrackingPanel.keywords, "standards", "panel"],
       shortcut: { key: "l", label: "Alt+Shift+L", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      launcherGroup: "systems",
-      perform: deps.openTemplateRollout,
+      showInMenu: false,
+      showInPalette: false,
+      perform: deps.openTemplateTracking,
     },
     {
       id: "evals",
@@ -360,50 +340,7 @@ export function createOfficePanelActions(
       keywords: [...evalsPanel.keywords, "panel"],
       shortcut: { key: "e", label: "Alt+Shift+E", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      launcherGroup: "systems",
       perform: deps.openEvals,
-    },
-    {
-      id: "harness",
-      label: harnessPanel.label,
-      description: harnessPanel.description,
-      group: "panel",
-      icon: Network,
-      keywords: [...harnessPanel.keywords, "agents", "templates", "panel"],
-      shortcut: { key: "h", label: "Alt+Shift+H", altKey: true, shiftKey: true },
-      color: SECONDARY_BUTTON_COLOR,
-      launcherGroup: "systems",
-      perform: deps.openHarness,
-    },
-    {
-      id: "ceo-workbench",
-      label: ceoWorkbenchPanel.label,
-      description: ceoWorkbenchPanel.description,
-      group: "panel",
-      icon: BriefcaseBusiness,
-      keywords: [...ceoWorkbenchPanel.keywords, "panel"],
-      shortcut: { key: "w", label: "Alt+Shift+W", altKey: true, shiftKey: true },
-      color: SECONDARY_BUTTON_COLOR,
-      perform: readOnly ? noop : () => deps.openCeoWorkbench("board"),
-      disabled: readOnly,
-      showInMenu: !readOnly,
-      showInPalette: !readOnly,
-      launcherGroup: "work",
-    },
-    {
-      id: "human-review",
-      label: humanReviewPanel.label,
-      description: humanReviewPanel.description,
-      group: "panel",
-      icon: BriefcaseBusiness,
-      keywords: [...humanReviewPanel.keywords, "panel"],
-      shortcut: { key: "r", label: "Alt+Shift+R", altKey: true, shiftKey: true },
-      color: SECONDARY_BUTTON_COLOR,
-      perform: readOnly ? noop : () => deps.openCeoWorkbench("review"),
-      disabled: readOnly,
-      showInMenu: !readOnly,
-      showInPalette: !readOnly,
-      launcherGroup: "work",
     },
     {
       id: "user-communications",
@@ -418,7 +355,6 @@ export function createOfficePanelActions(
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
-      launcherGroup: "work",
     },
     {
       id: "builder-mode",
@@ -432,7 +368,6 @@ export function createOfficePanelActions(
       disabled: deps.isAnimatingCamera || readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
-      launcherGroup: "build",
       perform: readOnly ? noop : deps.toggleBuilderMode,
     },
     {
@@ -449,7 +384,6 @@ export function createOfficePanelActions(
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
-      launcherGroup: "build",
       perform: readOnly ? noop : deps.openDecoration,
     },
     {
@@ -464,26 +398,18 @@ export function createOfficePanelActions(
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
-      launcherGroup: "utility",
       perform: readOnly ? noop : deps.openSettings,
     },
   ];
 }
 
-export function createOfficeLauncherGroups(actions: OfficePanelAction[]): OfficeLauncherGroup[] {
-  const visibleActions = actions.filter(
-    (action) => action.showInMenu !== false && !action.disabled && action.launcherGroup,
-  );
+export function createOfficeLauncherActions(actions: OfficePanelAction[]): OfficePanelAction[] {
+  const actionById = new Map(actions.map((action) => [action.id, action]));
 
-  return OFFICE_LAUNCHER_GROUPS.map((group) => {
-    const groupActions = visibleActions.filter((action) => action.launcherGroup === group.id);
-    return {
-      ...group,
-      color: SECONDARY_BUTTON_COLOR,
-      buttonClassName: groupActions.find((action) => action.buttonClassName)?.buttonClassName,
-      actions: groupActions,
-    };
-  }).filter((group) => group.actions.length > 0);
+  return OFFICE_LAUNCHER_ACTION_ORDER.map((actionId) => actionById.get(actionId)).filter(
+    (action): action is OfficePanelAction =>
+      Boolean(action && action.showInMenu !== false && !action.disabled),
+  );
 }
 
 function noop(): void {}

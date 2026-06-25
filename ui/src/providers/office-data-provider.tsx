@@ -67,6 +67,7 @@ import {
 } from "@/providers/local-observed-codex-workers";
 import {
   OBSERVED_CODEX_PRESENCE_RANGE_MS,
+  buildAgentLiveStatusSignature,
   buildOfficeStructuralRefreshSignature,
   mergeAgentLiveStatuses,
   mergeObservedCodexWorkerRows,
@@ -102,6 +103,14 @@ type ObservedCodexWorkersQueryResult = {
 const LOCAL_OBSERVED_CODEX_POLL_MS = 15 * 1000;
 const OFFICE_STRUCTURAL_POLL_MS = 30 * 1000;
 const EMPTY_OBSERVED_CODEX_WORKERS: ObservedCodexWorkerRow[] = [];
+
+function coalesceOfficeRefreshReason(
+  current: OfficeDataRefreshReason | null,
+  next: OfficeDataRefreshReason,
+): OfficeDataRefreshReason {
+  if (!current || current === "poll") return next;
+  return current;
+}
 
 function useLocalObservedCodexWorkers(
   enabled: boolean,
@@ -255,6 +264,7 @@ export function OfficeDataProvider({
   const cancelledRef = useRef(false);
   const loadGenerationRef = useRef(0);
   const inFlightLoadRef = useRef<Promise<void> | null>(null);
+  const pendingLoadReasonRef = useRef<OfficeDataRefreshReason | null>(null);
   const latestUnifiedRef = useRef<UnifiedOfficeModel | null>(null);
   const latestApprovalsRef = useRef<PendingApprovalModel[]>([]);
   const latestStructuralSignatureRef = useRef("");
@@ -342,7 +352,7 @@ export function OfficeDataProvider({
             runtimeKind: adapter.runtimeKind,
             observedStatuses: observedCodexStatusesRef.current,
           });
-          const nextStatusSignature = JSON.stringify(mergedStatus);
+          const nextStatusSignature = buildAgentLiveStatusSignature(mergedStatus);
           if (latestLiveStatusSignatureRef.current === nextStatusSignature)
             return;
           latestLiveStatusSignatureRef.current = nextStatusSignature;
@@ -385,26 +395,39 @@ export function OfficeDataProvider({
   const load = React.useCallback(
     async (reason: OfficeDataRefreshReason = "manual"): Promise<void> => {
       if (inFlightLoadRef.current) {
-        logOfficeRefresh("skip-in-flight", { reason });
+        pendingLoadReasonRef.current = coalesceOfficeRefreshReason(
+          pendingLoadReasonRef.current,
+          reason,
+        );
+        logOfficeRefresh("skip-in-flight", {
+          reason,
+          pendingReason: pendingLoadReasonRef.current,
+        });
         await inFlightLoadRef.current;
-        if (cancelledRef.current) return;
-        return load(reason);
+        return;
       }
 
-      const run = (async (): Promise<void> => {
-        const adapter = adapterRef.current;
-        if (!adapter) return;
-        const generation = loadGenerationRef.current;
-        const startedAt = performance.now();
-        logOfficeRefresh("start", { reason, runtimeKind: adapter.runtimeKind });
-        try {
-          const [unified, pendingApprovals, officeSettings, configSnapshot] =
-            await Promise.all([
-              adapter.getUnifiedOfficeModel(),
-              adapter.getPendingApprovals(),
-              adapter.getOfficeSettings(),
-              adapter.getConfigSnapshot(),
-            ]);
+      let nextReason: OfficeDataRefreshReason | null = reason;
+      while (nextReason && !cancelledRef.current) {
+        const currentReason = nextReason;
+        pendingLoadReasonRef.current = null;
+        const run = (async (): Promise<void> => {
+          const adapter = adapterRef.current;
+          if (!adapter) return;
+          const generation = loadGenerationRef.current;
+          const startedAt = performance.now();
+          logOfficeRefresh("start", {
+            reason: currentReason,
+            runtimeKind: adapter.runtimeKind,
+          });
+          try {
+            const [unified, pendingApprovals, officeSettings, configSnapshot] =
+              await Promise.all([
+                adapter.getUnifiedOfficeModel(),
+                adapter.getPendingApprovals(),
+                adapter.getOfficeSettings(),
+                adapter.getConfigSnapshot(),
+              ]);
           const observedWorkers = observedCodexWorkersRef.current;
           const structuralSignature = buildOfficeStructuralRefreshSignature({
             unified,
@@ -414,7 +437,7 @@ export function OfficeDataProvider({
             observedWorkers,
           });
           if (
-            reason === "poll" &&
+            currentReason === "poll" &&
             latestStructuralSignatureRef.current === structuralSignature
           ) {
             refreshAdapterLiveStatus(
@@ -424,7 +447,7 @@ export function OfficeDataProvider({
               "adapter-live-status",
             );
             logOfficeRefresh("skip-unchanged-structural", {
-              reason,
+              reason: currentReason,
               elapsedMs: Math.round(performance.now() - startedAt),
             });
             return;
@@ -459,7 +482,7 @@ export function OfficeDataProvider({
             runtimeKind: adapter.runtimeKind,
             observedStatuses: observedCodexStatusesRef.current,
           });
-          latestLiveStatusSignatureRef.current = JSON.stringify(statusByAgent);
+          latestLiveStatusSignatureRef.current = buildAgentLiveStatusSignature(statusByAgent);
 
           const placementRepair = repairTeamClusterPlacements({
             unified: unifiedWithObserved,
@@ -478,7 +501,7 @@ export function OfficeDataProvider({
             });
           if (!placementRepairPersistence.skipped) {
             logOfficeRefresh("placement-repair", {
-              reason,
+              reason: currentReason,
               expandedLayout: placementRepair.expandedLayout,
               repairedTeamIds: placementRepair.repairedTeamIds,
             });
@@ -496,7 +519,7 @@ export function OfficeDataProvider({
             }
           } else if (placementRepair.changed) {
             logOfficeRefresh("placement-repair-skip-readonly", {
-              reason,
+              reason: currentReason,
               expandedLayout: placementRepair.expandedLayout,
               repairedTeamIds: placementRepair.repairedTeamIds,
             });
@@ -508,7 +531,8 @@ export function OfficeDataProvider({
             cancelledRef.current ||
             generation !== loadGenerationRef.current
           ) {
-            logOfficeRefresh("drop-stale", { reason, generation });
+            logOfficeRefresh("drop-stale", { reason: currentReason, generation });
+            pendingLoadReasonRef.current = null;
             return;
           }
           const officeData = toOfficeData(
@@ -520,12 +544,12 @@ export function OfficeDataProvider({
           );
           const changedKeys = applyOfficeWorldSnapshot(
             toOfficeWorldSnapshot(officeData, statusByAgent),
-            reason,
+            currentReason,
           );
           const elapsedMs = Math.round(performance.now() - startedAt);
           if (changedKeys.length === 0) {
             logOfficeRefresh("unchanged", {
-              reason,
+              reason: currentReason,
               elapsedMs,
               agents: nextAgentIds.length,
               objects: officeData.officeObjects.length,
@@ -533,7 +557,7 @@ export function OfficeDataProvider({
             });
           } else {
             logOfficeRefresh("changed", {
-              reason,
+              reason: currentReason,
               elapsedMs,
               agents: nextAgentIds.length,
               objects: officeData.officeObjects.length,
@@ -549,7 +573,7 @@ export function OfficeDataProvider({
           );
         } catch (error) {
           logOfficeRefresh("error", {
-            reason,
+            reason: currentReason,
             message: error instanceof Error ? error.message : String(error),
           });
           if (cancelledRef.current || generation !== loadGenerationRef.current)
@@ -564,15 +588,17 @@ export function OfficeDataProvider({
             "error",
           );
         }
-      })();
+        })();
 
-      inFlightLoadRef.current = run;
-      try {
-        await run;
-      } finally {
-        if (inFlightLoadRef.current === run) {
-          inFlightLoadRef.current = null;
+        inFlightLoadRef.current = run;
+        try {
+          await run;
+        } finally {
+          if (inFlightLoadRef.current === run) {
+            inFlightLoadRef.current = null;
+          }
         }
+        nextReason = pendingLoadReasonRef.current;
       }
     },
     [isReadOnly, refreshAdapterLiveStatus],
@@ -589,7 +615,7 @@ export function OfficeDataProvider({
       runtimeKind: sharedAdapter.runtimeKind,
       observedStatuses: observedCodexStatuses,
     });
-    const nextStatusSignature = JSON.stringify(mergedStatus);
+    const nextStatusSignature = buildAgentLiveStatusSignature(mergedStatus);
     if (latestLiveStatusSignatureRef.current === nextStatusSignature) return;
     if (!latestUnifiedRef.current) return;
     latestLiveStatusSignatureRef.current = nextStatusSignature;

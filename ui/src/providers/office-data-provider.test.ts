@@ -7,11 +7,17 @@ import {
   type OfficeLayoutModel,
 } from "@/modules/office/lib/office-layout";
 import { deriveOfficeSpaceStats } from "@/modules/office/lib/office-space-stats";
+import { evaluateOfficePoiGraph } from "@/modules/office/lib/office-layout-quality";
 import {
   canReserveOfficeObject,
   createOfficePlacementReservation,
 } from "@/modules/office/systems/placement-engine";
 import { getObjectFootprintCells } from "@/modules/office/systems/occupancy-system";
+import {
+  getAbsoluteDeskPosition,
+  getDeskRotation,
+  getEmployeePositionAtDesk,
+} from "@/modules/office/utils/layout";
 import type {
   AgentCardModel,
   AgentLiveStatus,
@@ -19,11 +25,9 @@ import type {
   OfficeSettingsModel,
   UnifiedOfficeModel,
 } from "@/modules/runtime";
+import { repairTeamClusterPlacements, toOfficeData } from "./office-data-mapper";
 import {
-  repairTeamClusterPlacements,
-  toOfficeData,
-} from "./office-data-mapper";
-import {
+  buildAgentLiveStatusSignature,
   buildOfficeStructuralRefreshSignature,
   mergeAgentLiveStatuses,
   mergeObservedCodexWorkersIntoUnifiedOfficeModel,
@@ -68,9 +72,7 @@ function createEmployee(overrides: Partial<EmployeeData> = {}): EmployeeData {
   };
 }
 
-function createOfficeObject(
-  overrides: Partial<OfficeObject> = {},
-): OfficeObject {
+function createOfficeObject(overrides: Partial<OfficeObject> = {}): OfficeObject {
   return {
     _id: "monitor-1",
     meshType: "custom-mesh",
@@ -79,6 +81,15 @@ function createOfficeObject(
     metadata: {},
     ...overrides,
   };
+}
+
+function expectPositionCloseTo(
+  received: [number, number, number],
+  expected: [number, number, number],
+): void {
+  expect(received[0]).toBeCloseTo(expected[0], 4);
+  expect(received[1]).toBeCloseTo(expected[1], 4);
+  expect(received[2]).toBeCloseTo(expected[2], 4);
 }
 
 function countInteriorLayoutHoles(layout: OfficeLayoutModel): number {
@@ -137,10 +148,7 @@ function getCellBounds(cells: Array<{ x: number; z: number }>): {
   };
 }
 
-function createValue(params?: {
-  employees?: EmployeeData[];
-  officeObjects?: OfficeObject[];
-}) {
+function createValue(params?: { employees?: EmployeeData[]; officeObjects?: OfficeObject[] }) {
   return {
     company: { _id: "company-demo", name: "Farplane UI" },
     teams: [],
@@ -167,9 +175,7 @@ function createValue(params?: {
   };
 }
 
-function createRuntimeAgent(
-  overrides: Partial<AgentCardModel> = {},
-): AgentCardModel {
+function createRuntimeAgent(overrides: Partial<AgentCardModel> = {}): AgentCardModel {
   return {
     agentId: "main",
     displayName: "Main Agent",
@@ -182,9 +188,7 @@ function createRuntimeAgent(
   };
 }
 
-function createCompanyModel(
-  overrides: Partial<CompanyModel> = {},
-): CompanyModel {
+function createCompanyModel(overrides: Partial<CompanyModel> = {}): CompanyModel {
   return {
     version: 1,
     departments: [],
@@ -225,9 +229,7 @@ function createCompanyModel(
   };
 }
 
-function createUnifiedOfficeModel(
-  overrides: Partial<UnifiedOfficeModel> = {},
-): UnifiedOfficeModel {
+function createUnifiedOfficeModel(overrides: Partial<UnifiedOfficeModel> = {}): UnifiedOfficeModel {
   return {
     company: createCompanyModel(),
     runtimeAgents: [createRuntimeAgent()],
@@ -365,9 +367,7 @@ describe("office-data-provider stabilization", () => {
           agentId: "codex-thread:thread-running",
           state: "running",
           statusText: "Codex turn running.",
-          bubbles: [
-            { id: "codex-thread-running", label: "Running", weight: 100 },
-          ],
+          bubbles: [{ id: "codex-thread-running", label: "Running", weight: 100 }],
         },
       },
     });
@@ -389,9 +389,7 @@ describe("office-data-provider stabilization", () => {
           agentId: "codex-thread:thread-running",
           state: "running",
           statusText: "Calling openai docs",
-          bubbles: [
-            { id: "hook-bubble", label: "Calling openai docs", weight: 100 },
-          ],
+          bubbles: [{ id: "hook-bubble", label: "Calling openai docs", weight: 100 }],
           currentSkillId: "openai-docs",
           bubbleMessages: [
             {
@@ -407,9 +405,7 @@ describe("office-data-provider stabilization", () => {
           agentId: "codex-thread:thread-running",
           state: "running",
           statusText: "Codex turn running.",
-          bubbles: [
-            { id: "codex-thread-running", label: "Running", weight: 100 },
-          ],
+          bubbles: [{ id: "codex-thread-running", label: "Running", weight: 100 }],
         },
       },
     });
@@ -488,26 +484,15 @@ describe("office-data-provider stabilization", () => {
       1770000000000,
     );
     const liveStatus = observedCodexWorkersToLiveStatuses(observedWorkers);
-    const result = toOfficeData(
-      unified,
-      createOfficeSettings(),
-      [],
-      liveStatus,
-    );
+    const result = toOfficeData(unified, createOfficeSettings(), [], liveStatus);
     const employee = result.employees.find(
-      (entry) =>
-        entry._id ===
-        "employee-codex-observed:machine-a:codex-proj-farplane:thread-1",
+      (entry) => entry._id === "employee-codex-observed:machine-a:codex-proj-farplane:thread-1",
     );
     const delegatedEmployee = result.employees.find(
-      (entry) =>
-        entry._id ===
-        "employee-codex-observed:machine-a:codex-proj-farplane:child-thread",
+      (entry) => entry._id === "employee-codex-observed:machine-a:codex-proj-farplane:child-thread",
     );
 
-    expect(unified.company.projects.map((project) => project.id)).toContain(
-      "codex-proj-farplane",
-    );
+    expect(unified.company.projects.map((project) => project.id)).toContain("codex-proj-farplane");
     expect(employee).toEqual(
       expect.objectContaining({
         name: "Build presence",
@@ -558,19 +543,12 @@ describe("office-data-provider stabilization", () => {
         ],
       }),
       runtimeAgents: [createRuntimeAgent({ agentId: "codex-thread:thread-1" })],
-      configuredAgents: [
-        createRuntimeAgent({ agentId: "codex-thread:thread-1" }),
-      ],
+      configuredAgents: [createRuntimeAgent({ agentId: "codex-thread:thread-1" })],
     });
 
-    const merged = mergeObservedCodexWorkersIntoUnifiedOfficeModel(
-      unified,
-      observedWorkers,
-    );
+    const merged = mergeObservedCodexWorkersIntoUnifiedOfficeModel(unified, observedWorkers);
 
-    expect(merged.runtimeAgents.map((agent) => agent.agentId)).toEqual([
-      "codex-thread:thread-1",
-    ]);
+    expect(merged.runtimeAgents.map((agent) => agent.agentId)).toEqual(["codex-thread:thread-1"]);
   });
 
   it("does not duplicate observed telemetry when a Codex PM aggregate owns the thread", () => {
@@ -622,10 +600,7 @@ describe("office-data-provider stabilization", () => {
       ],
     });
 
-    const merged = mergeObservedCodexWorkersIntoUnifiedOfficeModel(
-      unified,
-      observedWorkers,
-    );
+    const merged = mergeObservedCodexWorkersIntoUnifiedOfficeModel(unified, observedWorkers);
 
     expect(merged.runtimeAgents.map((agent) => agent.agentId)).toEqual([
       "codex-pm:codex-proj-farplane",
@@ -751,6 +726,124 @@ describe("office-data-provider stabilization", () => {
     expect(changedConfig).not.toBe(first);
   });
 
+  it("keeps structural signatures stable for volatile runtime metadata and default settings", () => {
+    const officeSettings = createOfficeSettings();
+    const explicitDefaultSettings = {
+      ...officeSettings,
+      layoutStrategy: "team_neighborhoods" as const,
+      officeLayout: {
+        ...officeSettings.officeLayout,
+        tiles: [...officeSettings.officeLayout.tiles].reverse(),
+      },
+    };
+    const first = buildOfficeStructuralRefreshSignature({
+      unified: createUnifiedOfficeModel({
+        company: createCompanyModel({
+          agents: [
+            {
+              agentId: "main",
+              role: "ceo",
+              heartbeatProfileId: "hb-ceo",
+              isCeo: true,
+              lifecycleState: "active",
+              runtimeMetadata: {
+                projectAnchor: "hq",
+                lastSeenAt: 1770000000000,
+                statusText: "thinking",
+              },
+            },
+          ],
+        }),
+        runtimeAgents: [
+          createRuntimeAgent({
+            runtimeMetadata: {
+              projectAnchor: "hq",
+              updatedAt: 1770000000000,
+              sessionCount: 4,
+            },
+          }),
+        ],
+      }),
+      officeSettings,
+      pendingApprovals: [],
+      configSnapshot: null,
+      observedWorkers: [],
+    });
+    const second = buildOfficeStructuralRefreshSignature({
+      unified: createUnifiedOfficeModel({
+        company: createCompanyModel({
+          agents: [
+            {
+              agentId: "main",
+              role: "ceo",
+              heartbeatProfileId: "hb-ceo",
+              isCeo: true,
+              lifecycleState: "active",
+              runtimeMetadata: {
+                projectAnchor: "hq",
+                lastSeenAt: 1770000040000,
+                statusText: "ready",
+              },
+            },
+          ],
+        }),
+        runtimeAgents: [
+          createRuntimeAgent({
+            runtimeMetadata: {
+              projectAnchor: "hq",
+              updatedAt: 1770000040000,
+              sessionCount: 8,
+            },
+          }),
+        ],
+      }),
+      officeSettings: explicitDefaultSettings,
+      pendingApprovals: [],
+      configSnapshot: null,
+      observedWorkers: [],
+    });
+    const changedAnchor = buildOfficeStructuralRefreshSignature({
+      unified: createUnifiedOfficeModel({
+        runtimeAgents: [
+          createRuntimeAgent({
+            runtimeMetadata: {
+              projectAnchor: "annex",
+              updatedAt: 1770000040000,
+            },
+          }),
+        ],
+      }),
+      officeSettings,
+      pendingApprovals: [],
+      configSnapshot: null,
+      observedWorkers: [],
+    });
+
+    expect(second).toBe(first);
+    expect(changedAnchor).not.toBe(first);
+  });
+
+  it("compares live-status signatures independent of insertion order", () => {
+    const alpha: AgentLiveStatus = {
+      agentId: "alpha",
+      state: "running",
+      statusText: "Running",
+      bubbles: [],
+      updatedAt: 1770000000000,
+    };
+    const beta: AgentLiveStatus = {
+      agentId: "beta",
+      state: "done",
+      statusText: "Ready",
+      bubbles: [],
+      updatedAt: 1770000000001,
+    };
+
+    expect(buildAgentLiveStatusSignature({ alpha, beta })).toBe(
+      buildAgentLiveStatusSignature({ beta, alpha }),
+    );
+  });
+
   it("treats activity target changes as employee changes", () => {
     const base = [createEmployee()];
     const next = [
@@ -791,9 +884,7 @@ describe("office-data-provider stabilization", () => {
       }),
     ];
 
-    expect(buildOfficeObjectSignature(base)).not.toBe(
-      buildOfficeObjectSignature(next),
-    );
+    expect(buildOfficeObjectSignature(base)).not.toBe(buildOfficeObjectSignature(next));
 
     const currentValue = createValue({ officeObjects: base });
     const nextValue = createValue({ officeObjects: next });
@@ -814,9 +905,7 @@ describe("office-data-provider stabilization", () => {
           queuePressure: "low",
         },
       ],
-      warnings: [
-        { code: "runtime_empty", message: "Runtime has no visible agents." },
-      ],
+      warnings: [{ code: "runtime_empty", message: "Runtime has no visible agents." }],
     };
     const nextValue = {
       ...createValue(),
@@ -829,9 +918,7 @@ describe("office-data-provider stabilization", () => {
           queuePressure: "low",
         },
       ],
-      warnings: [
-        { code: "runtime_empty", message: "Runtime has no visible agents." },
-      ],
+      warnings: [{ code: "runtime_empty", message: "Runtime has no visible agents." }],
     };
 
     const stabilized = stabilizeOfficeData(currentValue, nextValue);
@@ -914,16 +1001,88 @@ describe("office-data-provider team synthesis", () => {
       "team-codex-proj-pinned",
       "team-codex-proj-active",
     ]);
+    expect(result.employees.some((employee) => employee.teamId === "team-codex-proj-idle")).toBe(
+      false,
+    );
     expect(
-      result.employees.some(
-        (employee) => employee.teamId === "team-codex-proj-idle",
-      ),
-    ).toBe(false);
-    expect(
-      result.officeObjects.some(
-        (object) => object.metadata?.teamId === "team-codex-proj-idle",
-      ),
+      result.officeObjects.some((object) => object.metadata?.teamId === "team-codex-proj-idle"),
     ).toBe(true);
+  });
+
+  it("derives employee desk targets from the final procedural desk positions", () => {
+    const project = {
+      id: "proj-desk-sync",
+      departmentId: "dept-farplane",
+      name: "Desk Sync Project",
+      githubUrl: "",
+      status: "active" as const,
+      goal: "Keep agents visually anchored to their assigned desks",
+      kpis: [],
+      accountEvents: [],
+      ledger: [],
+      experiments: [],
+      metricEvents: [],
+      resources: [],
+      resourceEvents: [],
+    };
+    const projectAgents = Array.from({ length: 3 }, (_, index) => ({
+      agentId: `desk-sync-worker-${index}`,
+      role: "builder" as const,
+      projectId: project.id,
+      heartbeatProfileId: "hb-ceo",
+      lifecycleState: "active" as const,
+    }));
+    const runtimeAgents = projectAgents.map((agent) =>
+      createRuntimeAgent({
+        agentId: agent.agentId,
+        displayName: agent.agentId,
+      }),
+    );
+    const company = createCompanyModel({
+      projects: [project],
+      agents: [
+        {
+          agentId: "main",
+          role: "ceo",
+          heartbeatProfileId: "hb-ceo",
+          isCeo: true,
+          lifecycleState: "active",
+        },
+        ...projectAgents,
+      ],
+    });
+    const result = toOfficeData(
+      createUnifiedOfficeModel({
+        company,
+        runtimeAgents: [createRuntimeAgent(), ...runtimeAgents],
+        configuredAgents: [createRuntimeAgent(), ...runtimeAgents],
+      }),
+      createOfficeSettings(),
+    );
+    const team = result.teams.find((entry) => entry._id === "team-proj-desk-sync");
+    const workers = result.employees.filter((entry) => entry.teamId === team?._id);
+
+    expect(team?.clusterPosition).toBeDefined();
+    expect(team?.deskCount).toBe(3);
+    expect(workers).toHaveLength(3);
+
+    for (const worker of workers) {
+      const deskPrefix = `desk-${team?._id}-`;
+      const deskId = String(worker.deskId ?? "");
+      expect(deskId.startsWith(deskPrefix)).toBe(true);
+      const deskIndex = Number(deskId.slice(deskPrefix.length));
+      const deskPosition = getAbsoluteDeskPosition(
+        team?.clusterPosition ?? [0, 0, 0],
+        deskIndex,
+        team?.deskCount ?? 1,
+      );
+      const deskRotation = getDeskRotation(deskIndex, team?.deskCount ?? 1);
+
+      expectPositionCloseTo(
+        worker.initialPosition,
+        getEmployeePositionAtDesk(deskPosition, deskRotation),
+      );
+    }
   });
 
   it("places seven-person project teams around one round table", () => {
@@ -984,12 +1143,8 @@ describe("office-data-provider team synthesis", () => {
     });
 
     const result = toOfficeData(unified, createOfficeSettings());
-    const team = result.teams.find(
-      (entry) => entry._id === "team-proj-round-table",
-    );
-    const workers = result.employees.filter(
-      (entry) => entry.teamId === "team-proj-round-table",
-    );
+    const team = result.teams.find((entry) => entry._id === "team-proj-round-table");
+    const workers = result.employees.filter((entry) => entry.teamId === "team-proj-round-table");
     const teamCenter = team?.clusterPosition ?? [0, 0, 0];
     const workerDistances = workers.map((worker) =>
       Number(
@@ -1002,22 +1157,16 @@ describe("office-data-provider team synthesis", () => {
 
     expect(team?.deskCount).toBe(7);
     expect(workers).toHaveLength(7);
-    expect(workers.every((worker) => worker.wantsToWander === false)).toBe(
-      true,
-    );
-    expect(
-      new Set(workers.map((worker) => worker.initialPosition.join(":"))).size,
-    ).toBe(7);
+    expect(workers.every((worker) => worker.wantsToWander === false)).toBe(true);
+    expect(new Set(workers.map((worker) => worker.initialPosition.join(":"))).size).toBe(7);
     expect(new Set(workerDistances).size).toBe(1);
     expect(
-      result.officeObjects.find(
-        (object) => object.metadata?.teamId === "team-proj-round-table",
-      )?.metadata?.footprintWidth,
+      result.officeObjects.find((object) => object.metadata?.teamId === "team-proj-round-table")
+        ?.metadata?.footprintWidth,
     ).toBeGreaterThan(6);
     expect(
-      result.officeObjects.find(
-        (object) => object.metadata?.teamId === "team-proj-round-table",
-      )?.metadata?.footprintWidth,
+      result.officeObjects.find((object) => object.metadata?.teamId === "team-proj-round-table")
+        ?.metadata?.footprintWidth,
     ).toBeLessThan(7.5);
   });
 
@@ -1083,15 +1232,8 @@ describe("office-data-provider team synthesis", () => {
       ],
     });
 
-    const result = toOfficeData(
-      unified,
-      createOfficeSettings(),
-      [],
-      liveStatus,
-    );
-    const employee = result.employees.find(
-      (entry) => entry._id === "employee-codex-worker",
-    );
+    const result = toOfficeData(unified, createOfficeSettings(), [], liveStatus);
+    const employee = result.employees.find((entry) => entry._id === "employee-codex-worker");
 
     expect(employee).toEqual(
       expect.objectContaining({
@@ -1167,15 +1309,8 @@ describe("office-data-provider team synthesis", () => {
       ],
     });
 
-    const result = toOfficeData(
-      unified,
-      createOfficeSettings(),
-      [],
-      liveStatus,
-    );
-    const employee = result.employees.find(
-      (entry) => entry._id === "employee-codex-worker",
-    );
+    const result = toOfficeData(unified, createOfficeSettings(), [], liveStatus);
+    const employee = result.employees.find((entry) => entry._id === "employee-codex-worker");
 
     expect(employee).toEqual(
       expect.objectContaining({
@@ -1245,12 +1380,7 @@ describe("office-data-provider team synthesis", () => {
       ],
     });
 
-    const result = toOfficeData(
-      unified,
-      createOfficeSettings(),
-      [],
-      liveStatus,
-    );
+    const result = toOfficeData(unified, createOfficeSettings(), [], liveStatus);
     const employee = result.employees.find(
       (entry) => entry._id === "employee-codex-thread:ready-thread",
     );
@@ -1330,13 +1460,9 @@ describe("office-data-provider team synthesis", () => {
 
     const result = toOfficeData(unified, createOfficeSettings());
 
-    expect(result.teams.some((team) => team._id === "team-management")).toBe(
-      false,
-    );
+    expect(result.teams.some((team) => team._id === "team-management")).toBe(false);
     expect(
-      result.officeObjects.some(
-        (object) => object.metadata?.teamId === "team-management",
-      ),
+      result.officeObjects.some((object) => object.metadata?.teamId === "team-management"),
     ).toBe(false);
     expect(result.employees).toEqual([
       expect.objectContaining({
@@ -1465,8 +1591,7 @@ describe("office-data-provider team synthesis", () => {
           status: "active",
           goal: "",
           kpis: [],
-          trackingContext:
-            "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane",
+          trackingContext: "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane",
           accountEvents: [],
           ledger: [],
           experiments: [],
@@ -1482,8 +1607,7 @@ describe("office-data-provider team synthesis", () => {
           status: "active",
           goal: "",
           kpis: [],
-          trackingContext:
-            "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
+          trackingContext: "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
           accountEvents: [],
           ledger: [],
           experiments: [],
@@ -1500,28 +1624,17 @@ describe("office-data-provider team synthesis", () => {
         version: 1 as const,
         tileSize: 1 as const,
         tiles: Array.from({ length: 31 }, (_, xIndex) =>
-          Array.from(
-            { length: 25 },
-            (_z, zIndex) => `${xIndex - 15}:${zIndex - 12}`,
-          ),
+          Array.from({ length: 25 }, (_z, zIndex) => `${xIndex - 15}:${zIndex - 12}`),
         ).flat(),
       },
     };
 
-    const result = toOfficeData(
-      createUnifiedOfficeModel({ company }),
-      settings,
-    );
+    const result = toOfficeData(createUnifiedOfficeModel({ company }), settings);
     expect(result.officeAreas.map((area) => area.label)).toEqual(
-      expect.arrayContaining([
-        "Zanarkand Technologies",
-        "Farplane",
-        "Farplane UI",
-      ]),
+      expect.arrayContaining(["Zanarkand Technologies", "Farplane", "Farplane UI"]),
     );
     expect(
-      result.officeAreas.find((area) => area.projectId === "proj-farplane-ui")
-        ?.parentId,
+      result.officeAreas.find((area) => area.projectId === "proj-farplane-ui")?.parentId,
     ).toContain("farplane");
   });
 
@@ -1544,8 +1657,7 @@ describe("office-data-provider team synthesis", () => {
           status: "active",
           goal: "",
           kpis: [],
-          trackingContext:
-            "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
+          trackingContext: "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
           accountEvents: [],
           ledger: [],
           experiments: [],
@@ -1561,17 +1673,11 @@ describe("office-data-provider team synthesis", () => {
         version: 1 as const,
         tileSize: 1 as const,
         tiles: Array.from({ length: 31 }, (_, xIndex) =>
-          Array.from(
-            { length: 25 },
-            (_z, zIndex) => `${xIndex - 15}:${zIndex - 12}`,
-          ),
+          Array.from({ length: 25 }, (_z, zIndex) => `${xIndex - 15}:${zIndex - 12}`),
         ).flat(),
       },
     };
-    const result = toOfficeData(
-      createUnifiedOfficeModel({ company }),
-      settings,
-    );
+    const result = toOfficeData(createUnifiedOfficeModel({ company }), settings);
     const uiCluster = result.officeObjects.find(
       (object) => object.metadata?.teamId === "team-proj-farplane-ui",
     );
@@ -1603,8 +1709,7 @@ describe("office-data-provider team synthesis", () => {
           status: "active",
           goal: "",
           kpis: [],
-          trackingContext:
-            "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
+          trackingContext: "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
           accountEvents: [],
           ledger: [],
           experiments: [],
@@ -1634,10 +1739,7 @@ describe("office-data-provider team synthesis", () => {
           version: 1,
           tileSize: 1,
           tiles: Array.from({ length: 31 }, (_, xIndex) =>
-            Array.from(
-              { length: 25 },
-              (_z, zIndex) => `${xIndex - 15}:${zIndex - 12}`,
-            ),
+            Array.from({ length: 25 }, (_z, zIndex) => `${xIndex - 15}:${zIndex - 12}`),
           ).flat(),
         },
       },
@@ -1677,15 +1779,13 @@ describe("office-data-provider team synthesis", () => {
           ...projectBase,
           id: "proj-farplane",
           name: "Farplane",
-          trackingContext:
-            "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane",
+          trackingContext: "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane",
         },
         {
           ...projectBase,
           id: "proj-farplane-ui",
           name: "Farplane UI",
-          trackingContext:
-            "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
+          trackingContext: "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
         },
       ],
     });
@@ -1695,10 +1795,7 @@ describe("office-data-provider team synthesis", () => {
         version: 1,
         tileSize: 1,
         tiles: Array.from({ length: 31 }, (_, xIndex) =>
-          Array.from(
-            { length: 25 },
-            (_z, zIndex) => `${xIndex - 15}:${zIndex - 12}`,
-          ),
+          Array.from({ length: 25 }, (_z, zIndex) => `${xIndex - 15}:${zIndex - 12}`),
         ).flat(),
       },
     });
@@ -1725,8 +1822,7 @@ describe("office-data-provider team synthesis", () => {
           status: "active",
           goal: "Build the product",
           kpis: [],
-          trackingContext:
-            "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
+          trackingContext: "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
           accountEvents: [],
           ledger: [],
           experiments: [],
@@ -1742,10 +1838,7 @@ describe("office-data-provider team synthesis", () => {
         version: 1 as const,
         tileSize: 1 as const,
         tiles: Array.from({ length: 61 }, (_, xIndex) =>
-          Array.from(
-            { length: 61 },
-            (_z, zIndex) => `${xIndex - 30}:${zIndex - 30}`,
-          ),
+          Array.from({ length: 61 }, (_z, zIndex) => `${xIndex - 30}:${zIndex - 30}`),
         ).flat(),
       },
     };
@@ -1766,6 +1859,7 @@ describe("office-data-provider team synthesis", () => {
       settings,
     );
     const bounds = getOfficeLayoutBounds(result.officeSettings.officeLayout);
+    const plant = result.officeObjects.find((object) => object._id === "plant-entry");
     const objectCells = result.officeObjects
       .filter((object) => object.meshType !== "wall-art")
       .flatMap((object) =>
@@ -1785,12 +1879,12 @@ describe("office-data-provider team synthesis", () => {
 
     expect(result.officeSettings.officeFootprint.width).toBeLessThan(61);
     expect(result.officeSettings.officeFootprint.depth).toBeLessThan(61);
-    expect(result.officeSettings.officeLayout.tiles).toContain("18:-3");
+    expect(plant?.position).toBeDefined();
+    expect(plant?.position).not.toEqual([18, 0, -3]);
+    expect(Math.abs(plant?.position[0] ?? 18)).toBeLessThan(18);
     expect(bounds.width).toBeLessThanOrEqual(Math.max(30, objectWidth) + 1);
-    expect(bounds.maxTileX).toBeGreaterThanOrEqual(19);
     expect(
-      result.officeSettings.officeLayout.tiles.length /
-        (bounds.width * bounds.depth),
+      result.officeSettings.officeLayout.tiles.length / (bounds.width * bounds.depth),
     ).toBeLessThanOrEqual(1);
     expect(bounds.width).toBeGreaterThanOrEqual(objectWidth);
     expect(bounds.width).toBeLessThanOrEqual(Math.max(30, objectWidth) + 1);
@@ -1808,9 +1902,7 @@ describe("office-data-provider team synthesis", () => {
       officeObjects: result.officeObjects,
       officeLayout: result.officeSettings.officeLayout,
     });
-    expect(countInteriorLayoutHoles(result.officeSettings.officeLayout)).toBe(
-      0,
-    );
+    expect(countInteriorLayoutHoles(result.officeSettings.officeLayout)).toBe(0);
     expect(stats.walkablePercent).toBeGreaterThanOrEqual(0.5);
   });
 
@@ -1836,10 +1928,7 @@ describe("office-data-provider team synthesis", () => {
       ],
     });
 
-    const result = toOfficeData(
-      createUnifiedOfficeModel({ company }),
-      createOfficeSettings(),
-    );
+    const result = toOfficeData(createUnifiedOfficeModel({ company }), createOfficeSettings());
     const bounds = getOfficeLayoutBounds(result.officeSettings.officeLayout);
     const defaultFurniture = result.officeObjects.filter((object) =>
       ["plant", "bookshelf", "couch", "pantry"].includes(object.meshType),
@@ -1861,7 +1950,7 @@ describe("office-data-provider team synthesis", () => {
     }
   });
 
-  it("does not add auto-fit clearance outside divider wall boundaries", () => {
+  it("treats unlocked divider-like furniture as packable instead of a layout boundary", () => {
     const result = toOfficeData(
       createUnifiedOfficeModel({
         officeObjects: [
@@ -1893,20 +1982,27 @@ describe("office-data-provider team synthesis", () => {
       },
     );
     const bounds = getOfficeLayoutBounds(result.officeSettings.officeLayout);
-    const wall = result.officeObjects.find(
-      (object) => object._id === "test-wall",
-    );
-    const wallBounds = getCellBounds(
-      getObjectFootprintCells({
-        meshType: wall!.meshType,
-        position: wall!.position,
-        metadata: wall!.metadata,
-        rotation: wall!.rotation,
-      }),
+    const wall = result.officeObjects.find((object) => object._id === "test-wall");
+    const generatedWalls = result.officeObjects.filter(
+      (object) => object.meshType === "office-divider" && object.metadata?.generated === true,
     );
 
-    expect(wall).toBeDefined();
-    expect(bounds.maxTileX).toBe(wallBounds.maxX);
+    expect(generatedWalls).toHaveLength(0);
+    expect(bounds.maxTileX).toBeLessThan(20);
+    if (wall) {
+      expect(wall.position).not.toEqual([20, 0, 0]);
+      for (const cell of getObjectFootprintCells({
+        meshType: wall.meshType,
+        position: wall.position,
+        metadata: wall.metadata,
+        rotation: wall.rotation,
+      })) {
+        expect(cell.x).toBeGreaterThanOrEqual(bounds.minTileX);
+        expect(cell.x).toBeLessThanOrEqual(bounds.maxTileX);
+        expect(cell.z).toBeGreaterThanOrEqual(bounds.minTileZ);
+        expect(cell.z).toBeLessThanOrEqual(bounds.maxTileZ);
+      }
+    }
   });
 
   it("keeps narrow subproject circulation lanes open instead of forcing dividers", () => {
@@ -1919,9 +2015,7 @@ describe("office-data-provider team synthesis", () => {
       goal: "Build the product",
       kpis: [],
       trackingContext:
-        index === 0
-          ? "/workspace/section-parent"
-          : `/workspace/section-parent/child-${index}`,
+        index === 0 ? "/workspace/section-parent" : `/workspace/section-parent/child-${index}`,
       accountEvents: [],
       ledger: [],
       experiments: [],
@@ -1986,9 +2080,7 @@ describe("office-data-provider team synthesis", () => {
 
     expect(compactGeneratedSectionWalls).toHaveLength(0);
     expect(sectionedGeneratedSectionWalls).toHaveLength(0);
-    expect(sectionedResult.officeAreas.length).toBeGreaterThan(
-      compactResult.officeAreas.length,
-    );
+    expect(sectionedResult.officeAreas.length).toBeGreaterThan(compactResult.officeAreas.length);
   });
 
   it("keeps large project tables furniture-first instead of wrapping them in ad hoc rooms", () => {
@@ -2079,14 +2171,13 @@ describe("office-data-provider team synthesis", () => {
     });
     const projectRoomWalls = result.officeObjects.filter(
       (object) =>
-        object.meshType === "office-divider" &&
-        object.metadata?.sectionType === "project-room",
+        object.meshType === "office-divider" && object.metadata?.sectionType === "project-room",
     );
 
     expect(projectRoomWalls).toHaveLength(0);
-    expect(
-      result.officeAreas.map((area) => area.projectId).filter(Boolean),
-    ).toEqual(expect.arrayContaining(["proj-left-room", "proj-right-room"]));
+    expect(result.officeAreas.map((area) => area.projectId).filter(Boolean)).toEqual(
+      expect.arrayContaining(["proj-left-room", "proj-right-room"]),
+    );
   });
 
   it("keeps Classic Auto-Fit from drawing project district room walls", () => {
@@ -2097,16 +2188,14 @@ describe("office-data-provider team synthesis", () => {
     });
     const projectRoomWalls = result.officeObjects.filter(
       (object) =>
-        object.meshType === "office-divider" &&
-        object.metadata?.sectionType === "project-room",
+        object.meshType === "office-divider" && object.metadata?.sectionType === "project-room",
     );
 
     expect(projectRoomWalls).toHaveLength(0);
   });
 
-  it("preserves the planned district footprint so rooms keep padding around tables", () => {
-    const { model, leftProject, rightProject } =
-      createTwoProjectRoomOfficeModel();
+  it("keeps district area overlays while compacting the physical solver footprint", () => {
+    const { model, leftProject, rightProject } = createTwoProjectRoomOfficeModel();
     const classic = toOfficeData(model, {
       ...createOfficeSettings(),
       layoutStrategy: "legacy",
@@ -2115,33 +2204,24 @@ describe("office-data-provider team synthesis", () => {
       ...createOfficeSettings(),
       layoutStrategy: "activity_treemap",
     });
-    const leftArea = districts.officeAreas.find(
-      (area) => area.projectId === leftProject.id,
-    );
-    const rightArea = districts.officeAreas.find(
-      (area) => area.projectId === rightProject.id,
-    );
+    const leftArea = districts.officeAreas.find((area) => area.projectId === leftProject.id);
+    const rightArea = districts.officeAreas.find((area) => area.projectId === rightProject.id);
     const classicArea =
-      classic.officeSettings.officeFootprint.width *
-      classic.officeSettings.officeFootprint.depth;
+      classic.officeSettings.officeFootprint.width * classic.officeSettings.officeFootprint.depth;
     const districtArea =
       districts.officeSettings.officeFootprint.width *
       districts.officeSettings.officeFootprint.depth;
 
     expect(districtArea).toBeGreaterThan(classicArea);
-    expect(
-      districts.officeSettings.officeFootprint.width,
-    ).toBeGreaterThanOrEqual(20);
-    expect(
-      districts.officeSettings.officeFootprint.depth,
-    ).toBeGreaterThanOrEqual(13);
+    expect(districts.officeSettings.officeFootprint.width).toBeGreaterThanOrEqual(16);
+    expect(districts.officeSettings.officeFootprint.depth).toBeGreaterThanOrEqual(13);
     expect(leftArea?.rect.width).toBeGreaterThanOrEqual(6);
     expect(leftArea?.rect.depth).toBeGreaterThanOrEqual(5);
     expect(rightArea?.rect.width).toBeGreaterThanOrEqual(6);
     expect(rightArea?.rect.depth).toBeGreaterThanOrEqual(5);
   });
 
-  it("keeps command districts more compact than full project-room planning", () => {
+  it("keeps command districts compact while preserving packed objects", () => {
     const { model } = createTwoProjectRoomOfficeModel();
     const projectDistricts = toOfficeData(model, {
       ...createOfficeSettings(),
@@ -2157,9 +2237,157 @@ describe("office-data-provider team synthesis", () => {
     const commandArea =
       commandDistricts.officeSettings.officeFootprint.width *
       commandDistricts.officeSettings.officeFootprint.depth;
+    const generatedWalls = commandDistricts.officeObjects.filter(
+      (object) => object.meshType === "office-divider" && object.metadata?.generated === true,
+    );
 
-    expect(commandArea).toBeLessThan(projectArea);
+    expect(commandArea).toBeLessThanOrEqual(Math.ceil(projectArea * 1.05));
     expect(commandDistricts.officeAreas.length).toBeGreaterThan(0);
+    expect(generatedWalls).toHaveLength(0);
+  });
+
+  it("uses team neighborhoods as the default no-wall office layout", () => {
+    const { model, leftProject, rightProject } = createTwoProjectRoomOfficeModel();
+    const result = toOfficeData(model, createOfficeSettings());
+    const generatedWalls = result.officeObjects.filter(
+      (object) => object.meshType === "office-divider" && object.metadata?.generated === true,
+    );
+
+    expect(result.officeSettings.layoutStrategy).toBeUndefined();
+    expect(result.officeAreas.length).toBeGreaterThan(0);
+    expect(result.officeAreas.map((area) => area.projectId).filter(Boolean)).toEqual(
+      expect.arrayContaining([leftProject.id, rightProject.id]),
+    );
+    expect(generatedWalls).toHaveLength(0);
+  });
+
+  it("solves team neighborhoods as a compact connected no-wall layout", () => {
+    const { model, leftProject, rightProject } = createTwoProjectRoomOfficeModel();
+    const result = toOfficeData(model, {
+      ...createOfficeSettings(),
+      layoutStrategy: "team_neighborhoods",
+    });
+    const graph = evaluateOfficePoiGraph({
+      layout: result.officeSettings.officeLayout,
+      objects: result.officeObjects,
+    });
+    const generatedWalls = result.officeObjects.filter(
+      (object) => object.meshType === "office-divider" && object.metadata?.generated === true,
+    );
+    const leftCluster = result.officeObjects.find(
+      (object) => object.metadata?.teamId === `team-${leftProject.id}`,
+    );
+    const rightCluster = result.officeObjects.find(
+      (object) => object.metadata?.teamId === `team-${rightProject.id}`,
+    );
+
+    expect(graph.disconnectedCount).toBe(0);
+    expect(generatedWalls).toHaveLength(0);
+    expect(leftCluster).toBeDefined();
+    expect(rightCluster).toBeDefined();
+    expect(result.officeSettings.officeLayout.tiles.length).toBeLessThan(1_000);
+  });
+
+  it("routes every automatic layout strategy through the canonical solver", () => {
+    const { model } = createTwoProjectRoomOfficeModel();
+    const strategies = [
+      "legacy",
+      "team_neighborhoods",
+      "activity_treemap",
+      "command_districts",
+    ] as const;
+
+    for (const layoutStrategy of strategies) {
+      const result = toOfficeData(
+        {
+          ...model,
+          officeObjects: [
+            {
+              id: `solver-probe-plant-${layoutStrategy}`,
+              identifier: `solver-probe-plant-${layoutStrategy}`,
+              meshType: "plant",
+              position: [18, 0, -3],
+              rotation: [0, 0, 0],
+              metadata: {},
+            },
+          ],
+        },
+        {
+          ...createOfficeSettings(),
+          layoutStrategy,
+        },
+      );
+      const graph = evaluateOfficePoiGraph({
+        layout: result.officeSettings.officeLayout,
+        objects: result.officeObjects,
+      });
+      const probe = result.officeObjects.find(
+        (object) => object._id === `solver-probe-plant-${layoutStrategy}`,
+      );
+      const generatedWalls = result.officeObjects.filter(
+        (object) => object.meshType === "office-divider" && object.metadata?.generated === true,
+      );
+
+      expect(probe?.position).not.toEqual([18, 0, -3]);
+      expect(graph.disconnectedCount).toBe(0);
+      expect(generatedWalls).toHaveLength(0);
+      expect(countInteriorLayoutHoles(result.officeSettings.officeLayout)).toBe(0);
+    }
+  });
+
+  it("keeps manual builder layout from auto-fitting or repacking saved objects", () => {
+    const { model, leftProject } = createTwoProjectRoomOfficeModel();
+    const manualTiles = Array.from({ length: 9 }, (_x, xIndex) =>
+      Array.from({ length: 7 }, (_z, zIndex) => officeLayoutTileKey(xIndex - 4, zIndex - 3)),
+    ).flat();
+    const clusterPosition: [number, number, number] = [2, 0, 1];
+    const plantPosition: [number, number, number] = [-3, 0, 2];
+
+    const result = toOfficeData(
+      {
+        ...model,
+        officeObjects: [
+          {
+            id: `team-cluster-team-${leftProject.id}`,
+            identifier: `team-cluster-team-${leftProject.id}`,
+            meshType: "team-cluster",
+            position: clusterPosition,
+            metadata: { teamId: `team-${leftProject.id}` },
+          },
+          {
+            id: "plant-entry-right",
+            identifier: "plant-entry-right",
+            meshType: "plant",
+            position: plantPosition,
+            rotation: [0, 0, 0],
+            metadata: {},
+          },
+        ],
+      },
+      {
+        ...createOfficeSettings(),
+        layoutStrategy: "manual",
+        officeLayout: {
+          version: 1,
+          tileSize: 1,
+          tiles: manualTiles,
+        },
+      },
+    );
+
+    const cluster = result.officeObjects.find(
+      (object) => object.metadata?.teamId === `team-${leftProject.id}`,
+    );
+    const plant = result.officeObjects.find((object) => object._id === "plant-entry-right");
+    const generatedWalls = result.officeObjects.filter(
+      (object) => object.meshType === "office-divider" && object.metadata?.generated === true,
+    );
+
+    expect(result.officeSettings.layoutStrategy).toBe("manual");
+    expect(result.officeSettings.officeLayout.tiles).toEqual(manualTiles);
+    expect(cluster?.position).toEqual(clusterPosition);
+    expect(plant?.position).toEqual(plantPosition);
+    expect(generatedWalls).toHaveLength(0);
   });
 
   it("keeps project district geometry stable when only thread status changes", () => {
@@ -2271,12 +2499,8 @@ describe("office-data-provider team synthesis", () => {
       createOfficeSettings(),
     );
 
-    const smallTeam = result.teams.find(
-      (team) => team._id === `team-${smallProject.id}`,
-    );
-    const largeTeam = result.teams.find(
-      (team) => team._id === `team-${largeProject.id}`,
-    );
+    const smallTeam = result.teams.find((team) => team._id === `team-${smallProject.id}`);
+    const largeTeam = result.teams.find((team) => team._id === `team-${largeProject.id}`);
 
     expect(result.teams.map((team) => team._id)).toEqual([
       "team-management",
@@ -2285,9 +2509,7 @@ describe("office-data-provider team synthesis", () => {
     ]);
     expect(smallTeam?.clusterPosition).toBeDefined();
     expect(largeTeam?.clusterPosition).toBeDefined();
-    expect(largeTeam!.clusterPosition![0]).toBeLessThan(
-      smallTeam!.clusterPosition![0],
-    );
+    expect(largeTeam!.clusterPosition![0]).toBeLessThan(smallTeam!.clusterPosition![0]);
   });
 
   it("does not synthesize a Farplane fallback cluster when all projects are archived", () => {
@@ -2352,13 +2574,9 @@ describe("office-data-provider team synthesis", () => {
 
     expect(result.teams.map((team) => team._id)).toEqual(["team-management"]);
     expect(
-      result.officeObjects.every(
-        (object) => object.metadata?.teamId !== "team-farplane",
-      ),
+      result.officeObjects.every((object) => object.metadata?.teamId !== "team-farplane"),
     ).toBe(true);
-    expect(
-      result.employees.every((employee) => employee.team !== "Farplane"),
-    ).toBe(true);
+    expect(result.employees.every((employee) => employee.team !== "Farplane")).toBe(true);
   });
 
   it("keeps the explicit Farplane fallback when no agents are discovered", () => {
@@ -2370,11 +2588,9 @@ describe("office-data-provider team synthesis", () => {
     const result = toOfficeData(unified, createOfficeSettings());
 
     expect(result.teams.map((team) => team._id)).toContain("team-farplane");
-    expect(
-      result.officeObjects.some(
-        (object) => object.metadata?.teamId === "team-farplane",
-      ),
-    ).toBe(true);
+    expect(result.officeObjects.some((object) => object.metadata?.teamId === "team-farplane")).toBe(
+      true,
+    );
   });
 
   it("repairs grown team clusters into non-overlapping persisted placements with an annex fallback", () => {
@@ -2391,14 +2607,7 @@ describe("office-data-provider team synthesis", () => {
       resources: [],
       resourceEvents: [],
     };
-    const agentRoles = [
-      "pm",
-      "builder",
-      "builder",
-      "builder",
-      "biz_pm",
-      "biz_executor",
-    ] as const;
+    const agentRoles = ["pm", "builder", "builder", "builder", "biz_pm", "biz_executor"] as const;
     const company = createCompanyModel({
       projects: [
         {
@@ -2442,10 +2651,7 @@ describe("office-data-provider team synthesis", () => {
         version: 1 as const,
         tileSize: 1 as const,
         tiles: Array.from({ length: 11 }, (_, xIndex) =>
-          Array.from(
-            { length: 9 },
-            (_z, zIndex) => `${xIndex - 5}:${zIndex - 4}`,
-          ),
+          Array.from({ length: 9 }, (_z, zIndex) => `${xIndex - 5}:${zIndex - 4}`),
         ).flat(),
       },
     };

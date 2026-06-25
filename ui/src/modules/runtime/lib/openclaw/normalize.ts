@@ -1282,9 +1282,11 @@ export function toOfficeSettings(entry: unknown): OfficeSettingsModel {
   const layoutStrategy =
     row.layoutStrategy === "manual" ||
     row.layoutStrategy === "legacy" ||
+    row.layoutStrategy === "team_neighborhoods" ||
+    row.layoutStrategy === "activity_treemap" ||
     row.layoutStrategy === "command_districts"
       ? row.layoutStrategy
-      : "activity_treemap";
+      : "team_neighborhoods";
   const viewProfile =
     row.viewProfile === "fixed_2_5d" ? "fixed_2_5d" : "free_orbit_3d";
   const orbitControlsEnabled = row.orbitControlsEnabled !== false;

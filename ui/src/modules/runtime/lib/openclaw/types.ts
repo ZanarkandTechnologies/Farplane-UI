@@ -232,37 +232,20 @@ export interface OpenClawConfigPreview {
   diffText?: string;
 }
 
-export type AgentRole =
-  | "ceo"
-  | "builder"
-  | "growth_marketer"
-  | "pm"
-  | "biz_pm"
-  | "biz_executor";
+export type AgentRole = "ceo" | "builder" | "growth_marketer" | "pm" | "biz_pm" | "biz_executor";
 export type TaskStatus = "todo" | "in_progress" | "review" | "blocked" | "done";
 export type FederatedTaskProvider = "internal" | "notion" | "vibe" | "linear";
 export type TaskSyncState = "healthy" | "pending" | "conflict" | "error";
 export type FederationConflictPolicy = "canonical_wins" | "newest_wins";
 export type ProjectStatus = "active" | "paused" | "archived";
-export type AgentLifecycleState =
-  | "active"
-  | "idle"
-  | "pending_spawn"
-  | "retired";
+export type AgentLifecycleState = "active" | "idle" | "pending_spawn" | "retired";
 export type CapabilityCategory = "measure" | "execute" | "distribute";
 export type LedgerEntryType = "revenue" | "cost";
 export type AccountEventType = "credit" | "debit";
 export type ExperimentStatus = "running" | "completed" | "failed";
-export type ResourceType =
-  | "cash_budget"
-  | "api_quota"
-  | "distribution_slots"
-  | "custom";
+export type ResourceType = "cash_budget" | "api_quota" | "distribution_slots" | "custom";
 export type ResourceHealth = "healthy" | "warning" | "depleted";
-export type ResourceLowBehavior =
-  | "warn"
-  | "deprioritize_expensive_tasks"
-  | "ask_pm_review";
+export type ResourceLowBehavior = "warn" | "deprioritize_expensive_tasks" | "ask_pm_review";
 export type ResourceEventKind = "refresh" | "consumption" | "adjustment";
 
 export interface CapabilitySlotModel {
@@ -467,6 +450,7 @@ export interface OfficeObjectSidecarModel {
 export type OfficeLayoutStrategyId =
   | "manual"
   | "legacy"
+  | "team_neighborhoods"
   | "activity_treemap"
   | "command_districts";
 
@@ -1005,22 +989,12 @@ export interface SkillStudioCatalogEntry {
   hasTests: boolean;
   hasDiagram: boolean;
   hasSkillMemory: boolean;
-  runtimeStatus?: Pick<
-    SkillStatusEntry,
-    "eligible" | "blockedByAllowlist" | "disabled" | "source"
-  >;
+  runtimeStatus?: Pick<SkillStatusEntry, "eligible" | "blockedByAllowlist" | "disabled" | "source">;
 }
 
 export interface SkillStudioFileEntry {
   path: string;
-  kind:
-    | "skill"
-    | "config"
-    | "test"
-    | "memory"
-    | "fixture"
-    | "asset"
-    | "reference";
+  kind: "skill" | "config" | "test" | "memory" | "fixture" | "asset" | "reference";
   isText: boolean;
 }
 

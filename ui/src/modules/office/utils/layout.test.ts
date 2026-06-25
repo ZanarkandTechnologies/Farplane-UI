@@ -6,6 +6,7 @@ import {
   ROUND_TEAM_TABLE_MIN_STATIONS,
   getClusterOccupancyFootprint,
   getEmployeePositionAtRoundTableStation,
+  resolveTeamStationLayout,
   shouldUseRoundTeamTable,
   solveRoundTeamTableLayout,
 } from "./layout";
@@ -76,5 +77,13 @@ describe("office cluster layout", () => {
 
     expect(employeePosition[0]).toBeCloseTo(0);
     expect(employeePosition[2]).toBeGreaterThan(station.z);
+  });
+
+  it("uses employee count when resolving shared team station topology", () => {
+    const layout = resolveTeamStationLayout({ deskCount: 1, employeeCount: 6 });
+
+    expect(layout.stationCount).toBe(6);
+    expect(layout.usesRoundTable).toBe(true);
+    expect(layout.visibleGridDeskCount).toBe(0);
   });
 });

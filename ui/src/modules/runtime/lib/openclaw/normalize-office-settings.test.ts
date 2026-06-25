@@ -50,9 +50,16 @@ describe("office settings normalization", () => {
   });
 
   it("normalizes the office layout strategy", () => {
+    expect(toOfficeSettings({}).layoutStrategy).toBe("team_neighborhoods");
+    expect(
+      toOfficeSettings({ layoutStrategy: "team_neighborhoods" }).layoutStrategy,
+    ).toBe("team_neighborhoods");
     expect(
       toOfficeSettings({ layoutStrategy: "activity_treemap" }).layoutStrategy,
     ).toBe("activity_treemap");
+    expect(toOfficeSettings({ layoutStrategy: "manual" }).layoutStrategy).toBe(
+      "manual",
+    );
     expect(toOfficeSettings({ layoutStrategy: "legacy" }).layoutStrategy).toBe(
       "legacy",
     );
@@ -60,7 +67,7 @@ describe("office settings normalization", () => {
       toOfficeSettings({ layoutStrategy: "command_districts" }).layoutStrategy,
     ).toBe("command_districts");
     expect(toOfficeSettings({ layoutStrategy: "unknown" }).layoutStrategy).toBe(
-      "activity_treemap",
+      "team_neighborhoods",
     );
   });
 

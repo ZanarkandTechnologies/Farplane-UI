@@ -7,7 +7,7 @@
  *
  * KEY CONCEPTS:
  * - Keeps the operator menu focused on current Farplane workflows.
- * - Routes board-native human review through the shared CEO Workbench review view.
+ * - Global launcher entries are registry-driven so HUD, palette, and QA hooks stay aligned.
  *
  * USAGE:
  * - Mounted from `office-simulation.tsx`.
@@ -20,14 +20,13 @@
 
 import { Menu } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { SpeedDial, type SpeedDialItem } from "@/components/ui/speed-dial";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import { useAppStore } from "@/store";
 import { FurnitureShop } from "./furniture-shop";
 import { OfficeCommandPalette } from "./office-command-palette";
 import {
-  createOfficeLauncherGroups,
+  createOfficeLauncherActions,
   createOfficePanelActions,
   eventMatchesShortcut,
   isEditableEventTarget,
@@ -42,7 +41,6 @@ interface SpeedDialProps {
 }
 
 export function OfficeMenu({ className }: SpeedDialProps) {
-  const navigate = useNavigate();
   const { isReadOnly } = useOfficeAccessMode();
   // Use selectors to prevent unnecessary re-renders
   const isBuilderMode = useAppStore((state) => state.isBuilderMode);
@@ -65,8 +63,6 @@ export function OfficeMenu({ className }: SpeedDialProps) {
   const setKanbanFocusAgentId = useAppStore((state) => state.setKanbanFocusAgentId);
   const setIsSettingsModalOpen = useAppStore((state) => state.setIsSettingsModalOpen);
   const placementMode = useAppStore((state) => state.placementMode);
-  const setIsCeoWorkbenchOpen = useAppStore((state) => state.setIsCeoWorkbenchOpen);
-  const setCeoWorkbenchView = useAppStore((state) => state.setCeoWorkbenchView);
   const setIsUserTasksModalOpen = useAppStore((state) => state.setIsUserTasksModalOpen);
   const isFurnitureShopOpen = useAppStore((state) => state.isFurnitureShopOpen);
   const setIsFurnitureShopOpen = useAppStore((state) => state.setIsFurnitureShopOpen);
@@ -115,11 +111,6 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         highlightedMenuActionId,
         isAnimatingCamera,
         isBuilderMode,
-        navigateToLanding: () => navigate("/"),
-        openCeoWorkbench: (view) => {
-          setCeoWorkbenchView(view);
-          setIsCeoWorkbenchOpen(true);
-        },
         openUserCommunications: () => setIsUserTasksModalOpen(true),
         openDecoration: () => setIsFurnitureShopOpen(true),
         openSkillOs: () => {
@@ -140,10 +131,16 @@ export function OfficeMenu({ className }: SpeedDialProps) {
           setSkillStudioSurface("harness");
           setIsSkillsPanelOpen(true);
         },
-        openTemplateRollout: () => {
+        openRollout: () => {
           setSelectedSkillStudioSkillId(null);
           setSkillStudioFocusAgentId(null);
-          setSkillStudioSurface("template-rollout");
+          setSkillStudioSurface("rollout");
+          setIsSkillsPanelOpen(true);
+        },
+        openTemplateTracking: () => {
+          setSelectedSkillStudioSkillId(null);
+          setSkillStudioFocusAgentId(null);
+          setSkillStudioSurface("template-tracking");
           setIsSkillsPanelOpen(true);
         },
         openGlobalTeamWorkspace,
@@ -160,8 +157,6 @@ export function OfficeMenu({ className }: SpeedDialProps) {
       highlightedMenuActionId,
       isAnimatingCamera,
       isBuilderMode,
-      navigate,
-      setIsCeoWorkbenchOpen,
       setIsUserTasksModalOpen,
       setIsFurnitureShopOpen,
       setSelectedSkillStudioSkillId,
@@ -177,48 +172,21 @@ export function OfficeMenu({ className }: SpeedDialProps) {
       setIsRawTelemetryPanelOpen,
       handleBuilderModeToggle,
       isReadOnly,
-      setCeoWorkbenchView,
     ],
   );
 
   const speedDialItems: SpeedDialItem[] = useMemo(
     () =>
-      createOfficeLauncherGroups(officeActions).map((group) => {
-        if (group.actions.length === 1) {
-          const [action] = group.actions;
-          if (!action) {
-            throw new Error(`Office launcher group ${group.id} has no action to render.`);
-          }
-          return {
-            id: action.id,
-            icon: action.icon,
-            label: action.label,
-            onClick: action.perform,
-            badge: action.badge,
-            color: action.color,
-            disabled: action.disabled,
-            buttonClassName: action.buttonClassName,
-          };
-        }
-
-        return {
-          id: group.id,
-          icon: group.icon,
-          label: group.label,
-          color: group.color,
-          buttonClassName: group.buttonClassName,
-          children: group.actions.map((action) => ({
-            id: action.id,
-            icon: action.icon,
-            label: action.label,
-            onClick: action.perform,
-            badge: action.badge,
-            color: action.color,
-            disabled: action.disabled,
-            buttonClassName: action.buttonClassName,
-          })),
-        };
-      }),
+      createOfficeLauncherActions(officeActions).map((action) => ({
+        id: action.id,
+        icon: action.icon,
+        label: action.label,
+        onClick: action.perform,
+        badge: action.badge,
+        color: action.color,
+        disabled: action.disabled,
+        buttonClassName: action.buttonClassName,
+      })),
     [officeActions],
   );
   useEffect(() => {

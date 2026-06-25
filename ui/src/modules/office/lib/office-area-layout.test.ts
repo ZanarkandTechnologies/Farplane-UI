@@ -384,4 +384,34 @@ describe("office area layout", () => {
     );
     expect(leafArea.parentId).toContain("farplane");
   });
+
+  it("creates a central shared plaza with project neighborhoods around it", () => {
+    const layout = buildOfficeAreaLayout({
+      company: company(),
+      officeLayout: createRectangularOfficeLayout({ width: 40, depth: 28 }),
+      layoutStrategy: "team_neighborhoods",
+    });
+    const sharedPlaza = layout.areas.find(
+      (area) => area.id === "office/shared-plaza",
+    );
+    const projectAreas = Object.values(layout.projectAreaByProjectId);
+
+    expect(sharedPlaza?.label).toBe("Shared Plaza");
+    expect(sharedPlaza?.projectId).toBeUndefined();
+    expect(sharedPlaza?.rect.centerX).toBeCloseTo(0);
+    expect(sharedPlaza?.rect.centerZ).toBeCloseTo(0);
+    expect(projectAreas.length).toBeGreaterThan(0);
+    expect(
+      projectAreas.some((area) => {
+        if (!sharedPlaza) return false;
+        const xOverlap =
+          Math.min(area.rect.maxX, sharedPlaza.rect.maxX) -
+          Math.max(area.rect.minX, sharedPlaza.rect.minX);
+        const zOverlap =
+          Math.min(area.rect.maxZ, sharedPlaza.rect.maxZ) -
+          Math.max(area.rect.minZ, sharedPlaza.rect.minZ);
+        return xOverlap > 0 && zOverlap > 0;
+      }),
+    ).toBe(false);
+  });
 });

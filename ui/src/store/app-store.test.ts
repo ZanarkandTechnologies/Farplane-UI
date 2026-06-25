@@ -37,10 +37,10 @@ describe("app store perf guards", () => {
   it("stores Skill Studio selection context", () => {
     useAppStore.getState().setSelectedSkillStudioSkillId("create-team");
     useAppStore.getState().setSkillStudioFocusAgentId("main");
-    useAppStore.getState().setSkillStudioSurface("template-rollout");
+    useAppStore.getState().setSkillStudioSurface("template-tracking");
     expect(useAppStore.getState().selectedSkillStudioSkillId).toBe("create-team");
     expect(useAppStore.getState().skillStudioFocusAgentId).toBe("main");
-    expect(useAppStore.getState().skillStudioSurface).toBe("template-rollout");
+    expect(useAppStore.getState().skillStudioSurface).toBe("template-tracking");
   });
 
   it("stores telemetry panel open state", () => {

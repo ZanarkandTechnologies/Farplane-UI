@@ -90,6 +90,181 @@ const PROJECT_MEMORY_FILES = [
   { path: "docs/TROUBLES.md", title: "Troubles", kind: "troubles" },
   { path: "docs/HISTORY.md", title: "History", kind: "history" },
 ] as const;
+type TemplateTrackingFamilyConfig = {
+  familyId: string;
+  label: string;
+  scope: string;
+  source: "manifest" | "frontmatter" | "template-file" | "derived" | "scanner-gap";
+  description: string;
+  manifestKey?: string;
+  paths?: string[];
+  notes?: string;
+  owner?: string;
+};
+const TEMPLATE_TRACKING_FAMILIES: TemplateTrackingFamilyConfig[] = [
+  {
+    familyId: "farplane-framework",
+    label: "Farplane Framework",
+    scope: "project",
+    source: "manifest",
+    description: "Project-level Farplane framework/template version pinned in farplane/manifest.json.",
+    manifestKey: "farplane-framework",
+    paths: ["farplane/manifest.json"],
+    owner: "harness",
+  },
+  {
+    familyId: "farplane-config-index",
+    label: "Config Index",
+    scope: "project-config",
+    source: "frontmatter",
+    description: "The farplane/ directory index and tracked config map.",
+    paths: ["farplane/README.md"],
+    owner: "harness",
+  },
+  {
+    familyId: "project-harness",
+    label: "Project Harness",
+    scope: "project-config",
+    source: "frontmatter",
+    description: "Project mission, values, modes, systems, and feedback loops.",
+    paths: ["farplane/harness.md"],
+    owner: "harness",
+  },
+  {
+    familyId: "goal-portfolio",
+    label: "Goal Portfolio",
+    scope: "project-config",
+    source: "frontmatter",
+    description: "North star, KPI axes, milestones, and holds.",
+    paths: ["farplane/goals.md"],
+    owner: "project-pm-automation",
+  },
+  {
+    familyId: "project-automations",
+    label: "Automations",
+    scope: "project-config",
+    source: "frontmatter",
+    description: "Recurring jobs, schedules, reports, and ticket source policy.",
+    paths: ["farplane/automations.md"],
+    owner: "project-pm-automation",
+  },
+  {
+    familyId: "project-bindings",
+    label: "Bindings",
+    scope: "project-config",
+    source: "frontmatter",
+    description: "Non-secret project IDs, URLs, labels, and aliases.",
+    paths: ["farplane/bindings.md"],
+    owner: "project-pm-automation",
+  },
+  {
+    familyId: "project-evals",
+    label: "Project Evals",
+    scope: "project-config",
+    source: "frontmatter",
+    description: "Project-level proof and eval policy.",
+    paths: ["farplane/evals.md"],
+    owner: "harness",
+  },
+  {
+    familyId: "ticket-template",
+    label: "Ticket Template",
+    scope: "ticketing",
+    source: "template-file",
+    description: "Tracked implementation ticket contract.",
+    paths: ["tickets/templates/ticket.md"],
+    owner: "ticket-loop",
+  },
+  {
+    familyId: "goal-packet",
+    label: "Goal Packet",
+    scope: "goal-runtime",
+    source: "scanner-gap",
+    description: "Ticket/program/progress/generated-goal-prompt shape used by native Goal work.",
+    paths: ["tickets/TASK-*/program.md", "tickets/TASK-*/progress.md", "tickets/TASK-*/generated-goal-prompt.md"],
+    notes: "No central versioned template file is exposed yet.",
+    owner: "goal-advisor",
+  },
+  {
+    familyId: "skill-template",
+    label: "Skill Template",
+    scope: "skills",
+    source: "derived",
+    description: "Skill package template versions read from skill frontmatter; Skill OS owns per-skill detail.",
+    notes: "Detailed skill-template rollout lives in Skill OS.",
+    owner: "skill-maintenance",
+  },
+  {
+    familyId: "skill-qa-checklist",
+    label: "Skill QA Checklist",
+    scope: "skills",
+    source: "scanner-gap",
+    description: "Reusable skill QA checklist/template versions referenced by skill packages.",
+    notes: "Needs a dedicated skill-package manifest scan before counts are authoritative here.",
+    owner: "skill-maintenance",
+  },
+  {
+    familyId: "eval-task-template",
+    label: "Eval Task Template",
+    scope: "evals",
+    source: "scanner-gap",
+    description: "Reusable eval task and hardcase shapes.",
+    paths: ["farplane/evals.md", ".farplane/evals/"],
+    notes: "Project eval policy is tracked; eval task manifests need their own scanner.",
+    owner: "evals",
+  },
+  {
+    familyId: "workspace-agent-template",
+    label: "Workspace Agent",
+    scope: "workspace",
+    source: "template-file",
+    description: "Business PM/executor AGENTS templates.",
+    paths: ["templates/workspace/AGENTS-biz-pm.md", "templates/workspace/AGENTS-biz-executor.md"],
+    owner: "business-runtime",
+  },
+  {
+    familyId: "workspace-heartbeat-template",
+    label: "Workspace Heartbeat",
+    scope: "workspace",
+    source: "template-file",
+    description: "Business PM/executor HEARTBEAT prompt templates.",
+    paths: ["templates/workspace/HEARTBEAT-biz-pm.md", "templates/workspace/HEARTBEAT-biz-executor.md"],
+    owner: "business-runtime",
+  },
+  {
+    familyId: "workspace-soul-template",
+    label: "Workspace Soul",
+    scope: "workspace",
+    source: "template-file",
+    description: "Business PM/executor SOUL templates.",
+    paths: ["templates/workspace/SOUL-biz-pm.md", "templates/workspace/SOUL-biz-executor.md"],
+    owner: "business-runtime",
+  },
+  {
+    familyId: "sidecar-template",
+    label: "Sidecar State",
+    scope: "sidecar",
+    source: "template-file",
+    description: "Company, office, object, Codex office, and pending approval seed files.",
+    paths: [
+      "templates/sidecar/company.template.json",
+      "templates/sidecar/office.template.json",
+      "templates/sidecar/office-objects.template.json",
+      "templates/sidecar/codex-office.template.json",
+      "templates/sidecar/pending-approvals.template.json",
+    ],
+    owner: "office-runtime",
+  },
+  {
+    familyId: "openclaw-template",
+    label: "OpenClaw Config",
+    scope: "runtime-adapter",
+    source: "template-file",
+    description: "Optional OpenClaw runtime and agent list templates.",
+    paths: ["templates/openclaw/openclaw.template.json", "templates/openclaw/agents.list.template.json"],
+    owner: "runtime-adapter",
+  },
+];
 const PROJECT_DOCUMENT_LIBRARY_MAX_FILES = 80;
 const PROJECT_DOCUMENT_LIBRARY_MAX_BYTES = 240_000;
 const PROJECT_DOCUMENT_LIBRARY_EXTENSIONS = new Set([".md", ".mdx", ".txt"]);
@@ -829,6 +1004,159 @@ async function runFarplaneFrameworkCli(args: string[], timeoutMs = 20_000): Prom
       frameworkRoot: FARPLANE_FRAMEWORK_ROOT,
     };
   }
+}
+
+function isConcreteTemplatePath(relativePath: string): boolean {
+  return !relativePath.includes("*") && !relativePath.endsWith("/");
+}
+
+function resolveProjectRelativePath(projectRoot: string, relativePath: string): string | null {
+  const root = path.resolve(projectRoot);
+  const resolved = path.resolve(root, relativePath);
+  if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) return null;
+  return resolved;
+}
+
+function readTemplateUses(manifest: JsonObject): Record<string, string> {
+  const rawUses = manifest.template_uses;
+  if (!rawUses || typeof rawUses !== "object" || Array.isArray(rawUses)) return {};
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(rawUses as JsonObject)) {
+    if (typeof value === "string" && value.trim()) result[key] = value.trim();
+  }
+  return result;
+}
+
+function frontMatterTemplateVersion(frontMatter: Record<string, string>): string | undefined {
+  return (
+    frontMatter.framework_template_version ||
+    frontMatter.template_version ||
+    frontMatter.skill_template_version ||
+    undefined
+  );
+}
+
+async function readTemplatePathVersion(filePath: string): Promise<string | undefined> {
+  if (!filePath.endsWith(".md") && !filePath.endsWith(".mdx")) return undefined;
+  const raw = await readFile(filePath, "utf-8").catch(() => "");
+  if (!raw) return undefined;
+  return frontMatterTemplateVersion(parseSimpleFrontMatter(raw));
+}
+
+async function buildTemplateTrackingFamily(
+  projectRoot: string,
+  manifest: JsonObject,
+  config: TemplateTrackingFamilyConfig,
+): Promise<JsonObject> {
+  const templateUses = readTemplateUses(manifest);
+  const paths = config.paths ?? [];
+  const concretePaths = paths.filter(isConcreteTemplatePath);
+  const existingPaths: string[] = [];
+  let observedVersion: string | undefined;
+
+  for (const relativePath of concretePaths) {
+    const resolvedPath = resolveProjectRelativePath(projectRoot, relativePath);
+    if (!resolvedPath || !(await pathExists(resolvedPath))) continue;
+    existingPaths.push(relativePath);
+    if (!observedVersion) {
+      observedVersion = await readTemplatePathVersion(resolvedPath);
+    }
+  }
+
+  if (config.source === "manifest") {
+    const currentVersion = config.manifestKey ? templateUses[config.manifestKey] : undefined;
+    return {
+      consumerCount: currentVersion ? 1 : 0,
+      currentVersion,
+      description: config.description,
+      familyId: config.familyId,
+      label: config.label,
+      notes: config.notes,
+      observedVersion: currentVersion,
+      owner: config.owner,
+      paths,
+      scope: config.scope,
+      source: config.source,
+      status: currentVersion ? "tracked" : "missing",
+    };
+  }
+
+  if (config.source === "scanner-gap") {
+    return {
+      consumerCount: 0,
+      description: config.description,
+      familyId: config.familyId,
+      label: config.label,
+      notes: config.notes,
+      owner: config.owner,
+      paths,
+      scope: config.scope,
+      source: config.source,
+      status: "scanner-gap",
+    };
+  }
+
+  if (config.source === "derived") {
+    return {
+      consumerCount: 0,
+      description: config.description,
+      familyId: config.familyId,
+      label: config.label,
+      notes: config.notes,
+      owner: config.owner,
+      paths,
+      scope: config.scope,
+      source: config.source,
+      status: "scanner-gap",
+    };
+  }
+
+  const status = existingPaths.length === 0
+    ? "missing"
+    : observedVersion
+      ? "tracked"
+      : "unversioned";
+  return {
+    consumerCount: existingPaths.length,
+    currentVersion: observedVersion,
+    description: config.description,
+    familyId: config.familyId,
+    label: config.label,
+    notes: config.notes,
+    observedVersion,
+    owner: config.owner,
+    paths: existingPaths.length ? existingPaths : paths,
+    scope: config.scope,
+    source: config.source,
+    status,
+  };
+}
+
+async function buildTemplateTrackingScan(projectRoot: string): Promise<JsonObject> {
+  const root = path.resolve(projectRoot);
+  const manifest = await readJsonFile<JsonObject>(path.join(root, "farplane", "manifest.json"), {});
+  const families = await Promise.all(
+    TEMPLATE_TRACKING_FAMILIES.map((config) => buildTemplateTrackingFamily(root, manifest, config)),
+  );
+  const counts = families.reduce(
+    (acc, family) => {
+      const status = String(family.status ?? "missing");
+      if (status === "tracked") acc.tracked += 1;
+      if (status === "unversioned") acc.unversioned += 1;
+      if (status === "missing") acc.missing += 1;
+      if (status === "scanner-gap") acc.scannerGaps += 1;
+      return acc;
+    },
+    { families: families.length, missing: 0, scannerGaps: 0, tracked: 0, unversioned: 0 },
+  );
+  return {
+    counts,
+    families,
+    generatedAt: new Date().toISOString(),
+    projectRoot: root,
+    schema: "farplane_template_tracking",
+    schemaVersion: "1.0.0",
+  };
 }
 
 async function pathExists(filePath: string): Promise<boolean> {
@@ -2937,6 +3265,17 @@ function farplaneStateBridge() {
         if (method === "GET" && pathname === "/farplane/harness/skills-rollout-scan") {
           const result = await runFarplaneFrameworkCli(["skills", "rollout", "scan", "--json"]);
           writeJson(res, result.ok ? 200 : 502, result);
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/harness/template-tracking-scan") {
+          const projectRoot = url.searchParams.get("projectRoot")?.trim() || REPO_ROOT;
+          if (!isSafeProjectPath(projectRoot)) {
+            writeJson(res, 400, { ok: false, error: "project_root_required" });
+            return;
+          }
+          const payload = await buildTemplateTrackingScan(projectRoot);
+          writeJson(res, 200, { ok: true, payload });
           return;
         }
 

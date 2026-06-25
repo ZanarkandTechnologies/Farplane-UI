@@ -150,7 +150,7 @@ function buildOfficeAreaSignature(officeAreas: OfficeAreaNode[]): string {
 function buildOfficeSettingsSignature(settings: OfficeSettingsModel): string {
   return [
     settings.meshAssetDir,
-    settings.layoutStrategy ?? "activity_treemap",
+    settings.layoutStrategy ?? "team_neighborhoods",
     settings.officeFootprint.width,
     settings.officeFootprint.depth,
     settings.officeLayout.version,

@@ -21,13 +21,23 @@ describe("office settings bridge normalization", () => {
     expect(normalized.officeFootprint).toEqual({ width: 2, depth: 2 });
   });
 
-  it("preserves the activity treemap layout strategy", () => {
+  it("preserves supported layout strategies", () => {
+    expect(
+      normalizeBridgeOfficeSettings(
+        { layoutStrategy: "team_neighborhoods" },
+        "/tmp/meshes",
+      ).layoutStrategy,
+    ).toBe("team_neighborhoods");
     expect(
       normalizeBridgeOfficeSettings(
         { layoutStrategy: "activity_treemap" },
         "/tmp/meshes",
       ).layoutStrategy,
     ).toBe("activity_treemap");
+    expect(
+      normalizeBridgeOfficeSettings({ layoutStrategy: "manual" }, "/tmp/meshes")
+        .layoutStrategy,
+    ).toBe("manual");
     expect(
       normalizeBridgeOfficeSettings(
         { layoutStrategy: "command_districts" },
@@ -39,6 +49,6 @@ describe("office settings bridge normalization", () => {
         { layoutStrategy: "unknown" },
         "/tmp/meshes",
       ).layoutStrategy,
-    ).toBe("legacy");
+    ).toBe("team_neighborhoods");
   });
 });

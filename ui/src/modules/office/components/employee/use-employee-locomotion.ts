@@ -38,6 +38,12 @@ import {
   type EmployeeAnimationMode,
   type EmployeeMovementDirection,
 } from "./employee-motion";
+import {
+  hasEmployeeDeskTargetChanged,
+  shouldEmployeeRouteToDesk,
+  shouldSnapEmployeeToUpdatedDeskTarget,
+  toEmployeeDeskTarget,
+} from "./employee-locomotion-targets";
 
 const IDLE_DESTINATION_ATTEMPTS = Math.max(8, IDLE_DESTINATIONS.length * 2);
 const PATH_RETRY_COOLDOWN_MS = 2500;
@@ -92,7 +98,7 @@ export function useEmployeeLocomotion({
 }: UseEmployeeLocomotionOptions): UseEmployeeLocomotionResult {
   const groupRef = useRef<Group>(null);
   const initialPositionRef = useRef<THREE.Vector3>(
-    new THREE.Vector3(position[0], TOTAL_HEIGHT / 2, position[2]),
+    new THREE.Vector3(...toEmployeeDeskTarget(position)),
   );
 
   const [path, setPath] = useState<THREE.Vector3[] | null>(null);
@@ -127,6 +133,47 @@ export function useEmployeeLocomotion({
       groupRef.current.position.copy(initialPositionRef.current);
     }
   }, []);
+
+  useEffect(() => {
+    const previousTarget = initialPositionRef.current;
+    const nextTargetTuple = toEmployeeDeskTarget(position);
+    const previousTargetTuple: [number, number, number] = [
+      previousTarget.x,
+      previousTarget.y,
+      previousTarget.z,
+    ];
+    if (!hasEmployeeDeskTargetChanged(previousTargetTuple, nextTargetTuple)) {
+      return;
+    }
+
+    const group = groupRef.current;
+    const shouldSnap =
+      group &&
+      shouldSnapEmployeeToUpdatedDeskTarget({
+        currentPosition: [group.position.x, group.position.y, group.position.z],
+        previousDeskTarget: previousTargetTuple,
+        nextDeskTarget: nextTargetTuple,
+      });
+
+    initialPositionRef.current = new THREE.Vector3(...nextTargetTuple);
+
+    if (activityTargetRef.current) {
+      return;
+    }
+
+    setPath(null);
+    setPathIndex(0);
+    setCurrentDestination(null);
+    setIsGoingToDesk(false);
+    failedPathRef.current = null;
+    releaseEmployeeReservations(id);
+
+    if (shouldSnap) {
+      group.position.copy(initialPositionRef.current);
+      setIdleState("wandering");
+      idleTimerRef.current = 0;
+    }
+  }, [id, position[0], position[1], position[2]]);
 
   useEffect(() => {
     const shouldSnapToTarget =
@@ -230,19 +277,14 @@ export function useEmployeeLocomotion({
     const desiredY = TOTAL_HEIGHT / 2;
     currentPos.y = desiredY;
 
-    const hasHeartbeatState = typeof heartbeatState === "string";
     const hasActivityTarget = Boolean(activityTargetRef.current);
-    const heartbeatRequiresDesk =
-      heartbeatState === "running" ||
-      heartbeatState === "planning" ||
-      heartbeatState === "executing" ||
-      heartbeatState === "blocked" ||
-      heartbeatState === "error";
-    const shouldBeAtDesk =
-      hasActivityTarget ||
-      Boolean(isCEO) ||
-      !wantsToWander ||
-      (hasHeartbeatState ? heartbeatRequiresDesk : Boolean(isBusy));
+    const shouldBeAtDesk = shouldEmployeeRouteToDesk({
+      hasActivityTarget,
+      heartbeatState,
+      isBusy,
+      isCEO,
+      wantsToWander,
+    });
     const deskPosition = activityTargetRef.current ?? initialPositionRef.current;
     const isAlreadyAtAssignedDesk =
       shouldBeAtDesk && currentPos.distanceTo(deskPosition) <= arrivalThreshold;

@@ -27,18 +27,19 @@ import { useSkillsPanelController } from "@/modules/office/components/use-skills
 import { SkillOsMiniApp } from "@/modules/skills-studio/components/skill-os";
 
 function panelTitle(
-  surface: "skill-os" | "template-rollout" | "evals" | "harness",
+  surface: "skill-os" | "template-tracking" | "evals" | "harness" | "rollout",
   focusAgentId: string | null,
 ): string {
   if (focusAgentId) return "Agent Skills";
-  if (surface === "template-rollout") return "Template Rollout";
+  if (surface === "template-tracking") return "Harness OS";
   if (surface === "evals") return "Evals";
+  if (surface === "rollout") return "Harness OS";
   if (surface === "harness") return "Harness OS";
   return "Skill OS";
 }
 
 function panelDescription(
-  surface: "skill-os" | "template-rollout" | "evals" | "harness",
+  surface: "skill-os" | "template-tracking" | "evals" | "harness" | "rollout",
   focusAgentId: string | null,
 ): string {
   if (focusAgentId) {
@@ -47,11 +48,12 @@ function panelDescription(
   if (surface === "evals") {
     return "Eval OS mini app for latest runs, health, history, task drilldown, and report artifacts.";
   }
-  if (surface === "template-rollout") {
-    return "Harness rollout view focused on project adoption, reusable templates, skill templates, and drift.";
+  if (surface === "template-tracking") {
+    return "Harness OS template tracking for framework, project, ticket, workspace, sidecar, runtime, skill, and eval templates.";
   }
+  if (surface === "rollout") return "Harness OS project rollout and manifest adoption.";
   if (surface === "harness") {
-    return "Repo-wide Harness OS: skills, docs, specs, features, agents, templates, validators, and policies.";
+    return "Semantic graph, lifecycle, and feature registry for the Farplane Harness OS.";
   }
   return "Graph-first Skill OS: skill backlinks, Markdown-ref edges, common chains, and overlay skill docs.";
 }
@@ -77,7 +79,8 @@ export function SkillsPanel(): ReactElement {
           {surface === "skill-os" ? <SkillOsMiniApp /> : null}
           {surface === "evals" ? <EvalOsPanel /> : null}
           {surface === "harness" ? <HarnessOsPanel /> : null}
-          {surface === "template-rollout" ? <HarnessOsPanel initialTab="rollout" /> : null}
+          {surface === "rollout" ? <HarnessOsPanel initialView="rollout" /> : null}
+          {surface === "template-tracking" ? <HarnessOsPanel initialView="templates" /> : null}
         </div>
       </DialogContent>
     </Dialog>

@@ -27,10 +27,7 @@ type OfficeStructuralSignatureInput = {
 };
 
 type PlacementRepairPersistenceInput = {
-  adapter: Pick<
-    OfficeRuntimeAdapter,
-    "saveOfficeObjects" | "saveOfficeSettings"
-  >;
+  adapter: Pick<OfficeRuntimeAdapter, "saveOfficeObjects" | "saveOfficeSettings">;
   changed: boolean;
   expandedLayout: boolean;
   officeObjects: UnifiedOfficeModel["officeObjects"];
@@ -44,12 +41,8 @@ type PlacementRepairPersistenceResult =
     }
   | {
       skipped: false;
-      objectsResult: Awaited<
-        ReturnType<OfficeRuntimeAdapter["saveOfficeObjects"]>
-      >;
-      settingsResult: Awaited<
-        ReturnType<OfficeRuntimeAdapter["saveOfficeSettings"]>
-      >;
+      objectsResult: Awaited<ReturnType<OfficeRuntimeAdapter["saveOfficeObjects"]>>;
+      settingsResult: Awaited<ReturnType<OfficeRuntimeAdapter["saveOfficeSettings"]>>;
     };
 
 export const OBSERVED_CODEX_PRESENCE_RANGE_MS = 15 * 60 * 1000;
@@ -59,24 +52,64 @@ function isCodexAgentId(agentId: string): boolean {
 }
 
 function stableJson(value: unknown): string {
-  return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return `[${value.map(stableJson).join(",")}]`;
+  }
+  if (!value || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  const entries = Object.entries(value as Record<string, unknown>).sort(
+    ([left], [right]) => left.localeCompare(right),
+  );
+  return `{${entries
+    .map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`)
+    .join(",")}}`;
 }
+
+const VOLATILE_STRUCTURAL_KEYS = new Set([
+  "stateVersion",
+  "updatedAt",
+  "lastUpdatedAt",
+  "lastSeenAt",
+  "presenceExpiresAt",
+  "statusText",
+  "status",
+  "state",
+  "sessionCount",
+  "heartbeatAt",
+  "observedAt",
+]);
 
 function structuralConfigSnapshot(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(structuralConfigSnapshot);
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const snapshot = value as Record<string, unknown>;
-  const volatileKeys = new Set([
-    "stateVersion",
-    "updatedAt",
-    "lastUpdatedAt",
-    "presenceExpiresAt",
-  ]);
   return Object.fromEntries(
     Object.entries(snapshot)
-      .filter(([key]) => !volatileKeys.has(key))
+      .filter(([key]) => !VOLATILE_STRUCTURAL_KEYS.has(key))
       .map(([key, entry]) => [key, structuralConfigSnapshot(entry)]),
   );
+}
+
+function structuralRuntimeMetadata(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(structuralRuntimeMetadata);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => !VOLATILE_STRUCTURAL_KEYS.has(key))
+      .map(([key, entry]) => [key, structuralRuntimeMetadata(entry)]),
+  );
+}
+
+function structuralOfficeSettings(settings: OfficeSettingsModel): unknown {
+  return {
+    ...settings,
+    layoutStrategy: settings.layoutStrategy ?? "team_neighborhoods",
+    officeLayout: {
+      ...settings.officeLayout,
+      tiles: [...settings.officeLayout.tiles].sort(),
+    },
+  };
 }
 
 function observedWorkerStructuralKey(worker: ObservedCodexWorkerRow): string {
@@ -108,7 +141,7 @@ export function buildOfficeStructuralRefreshSignature(
         heartbeatProfileId: agent.heartbeatProfileId,
         isCeo: agent.isCeo,
         lifecycleState: agent.lifecycleState,
-        runtimeMetadata: agent.runtimeMetadata,
+        runtimeMetadata: structuralRuntimeMetadata(agent.runtimeMetadata),
       })),
       roleSlots: input.unified.company.roleSlots,
       tasks: input.unified.company.tasks,
@@ -125,7 +158,7 @@ export function buildOfficeStructuralRefreshSignature(
       agentDir: agent.agentDir,
       sandboxMode: agent.sandboxMode,
       toolPolicy: agent.toolPolicy,
-      runtimeMetadata: agent.runtimeMetadata,
+      runtimeMetadata: structuralRuntimeMetadata(agent.runtimeMetadata),
     })),
     configuredAgents: input.unified.configuredAgents.map((agent) => ({
       agentId: agent.agentId,
@@ -134,18 +167,22 @@ export function buildOfficeStructuralRefreshSignature(
       agentDir: agent.agentDir,
       sandboxMode: agent.sandboxMode,
       toolPolicy: agent.toolPolicy,
-      runtimeMetadata: agent.runtimeMetadata,
+      runtimeMetadata: structuralRuntimeMetadata(agent.runtimeMetadata),
     })),
     officeObjects: input.unified.officeObjects,
     workload: input.unified.workload,
     warnings: input.unified.warnings,
-    officeSettings: input.officeSettings,
+    officeSettings: structuralOfficeSettings(input.officeSettings),
     pendingApprovals: input.pendingApprovals,
     configSnapshot: structuralConfigSnapshot(input.configSnapshot),
-    observedWorkers: input.observedWorkers
-      .map(observedWorkerStructuralKey)
-      .sort(),
+    observedWorkers: input.observedWorkers.map(observedWorkerStructuralKey).sort(),
   });
+}
+
+export function buildAgentLiveStatusSignature(
+  statuses: Record<string, AgentLiveStatus>,
+): string {
+  return stableJson(statuses);
 }
 
 export function mergeObservedCodexWorkerRows(
@@ -160,8 +197,7 @@ export function mergeObservedCodexWorkerRows(
   }
   return [...byWorkerId.values()].sort(
     (left, right) =>
-      right.lastSeenAt - left.lastSeenAt ||
-      left.workerId.localeCompare(right.workerId),
+      right.lastSeenAt - left.lastSeenAt || left.workerId.localeCompare(right.workerId),
   );
 }
 
@@ -169,10 +205,7 @@ function overlayConvexLiveStatus(
   adapterStatus: AgentLiveStatus,
   convexStatus?: AgentLiveStatus,
 ): AgentLiveStatus {
-  if (
-    !convexStatus?.bubbleMessages?.length &&
-    !convexStatus?.officeTravelIntent
-  ) {
+  if (!convexStatus?.bubbleMessages?.length && !convexStatus?.officeTravelIntent) {
     return adapterStatus;
   }
   return {
@@ -181,10 +214,7 @@ function overlayConvexLiveStatus(
     updatedAt:
       Math.max(adapterStatus.updatedAt ?? 0, convexStatus.updatedAt ?? 0) ||
       adapterStatus.updatedAt,
-    bubbles:
-      convexStatus.bubbles.length > 0
-        ? convexStatus.bubbles
-        : adapterStatus.bubbles,
+    bubbles: convexStatus.bubbles.length > 0 ? convexStatus.bubbles : adapterStatus.bubbles,
     currentSkillId: convexStatus.currentSkillId ?? adapterStatus.currentSkillId,
     bubbleMessages: convexStatus.bubbleMessages,
     officeTravelIntent: convexStatus.officeTravelIntent,
@@ -201,9 +231,7 @@ export async function persistPlacementRepairIfAllowed(
   const [objectsResult, settingsResult] = await Promise.all([
     input.adapter.saveOfficeObjects(input.officeObjects),
     !input.expandedLayout
-      ? Promise.resolve<
-          Awaited<ReturnType<OfficeRuntimeAdapter["saveOfficeSettings"]>>
-        >({
+      ? Promise.resolve<Awaited<ReturnType<OfficeRuntimeAdapter["saveOfficeSettings"]>>>({
           ok: true,
           settings: input.officeSettings,
         })
@@ -237,10 +265,7 @@ export function mergeAgentLiveStatuses(input: {
       if (!isCodexAgentId(agentId)) continue;
       const adapterStatus = adapterStatuses[agentId];
       if (adapterStatus)
-        merged[agentId] = overlayConvexLiveStatus(
-          adapterStatus,
-          convexStatuses[agentId],
-        );
+        merged[agentId] = overlayConvexLiveStatus(adapterStatus, convexStatuses[agentId]);
     }
     return merged;
   }
@@ -252,10 +277,7 @@ export function mergeAgentLiveStatuses(input: {
 function projectNameFromObservedWorker(worker: ObservedCodexWorkerRow): string {
   const path = worker.projectPath?.trim();
   if (path) return path.split("/").filter(Boolean).at(-1) ?? path;
-  return (
-    worker.projectId.replace(/^codex-proj-/, "").replace(/[-_]+/g, " ") ||
-    "Observed Codex"
-  );
+  return worker.projectId.replace(/^codex-proj-/, "").replace(/[-_]+/g, " ") || "Observed Codex";
 }
 
 function createObservedCodexProject(
@@ -308,12 +330,7 @@ export function observedCodexWorkersToLiveStatuses(
       {
         agentId: worker.workerId,
         sessionKey: worker.sessionKey,
-        state:
-          worker.state === "done"
-            ? "done"
-            : worker.state === "running"
-              ? "running"
-              : "idle",
+        state: worker.state === "done" ? "done" : worker.state === "running" ? "running" : "idle",
         statusText: worker.statusText,
         updatedAt: worker.lastSeenAt,
         bubbles: [
@@ -343,8 +360,7 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
   now = Date.now(),
 ): UnifiedOfficeModel {
   const activeWorkers = workers.filter(
-    (worker) =>
-      worker.workerId.trim() && worker.projectId.trim() && !worker.parentThreadId?.trim(),
+    (worker) => worker.workerId.trim() && worker.projectId.trim() && !worker.parentThreadId?.trim(),
   );
   if (activeWorkers.length === 0) return unified;
 
@@ -372,9 +388,7 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
   );
   if (uniqueObservedWorkers.length === 0) return unified;
 
-  const projectIds = new Set(
-    unified.company.projects.map((project) => project.id),
-  );
+  const projectIds = new Set(unified.company.projects.map((project) => project.id));
   const observedProjects = uniqueObservedWorkers
     .filter((worker) => {
       if (projectIds.has(worker.projectId)) return false;
@@ -394,8 +408,7 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
           role: "builder" as const,
           cadenceMinutes: 15,
           teamDescription: "Telemetry-observed Codex workers",
-          productDetails:
-            "Read-only office presence derived from hook telemetry",
+          productDetails: "Read-only office presence derived from hook telemetry",
           goal: "Show recent Codex work without requiring an app-server control bridge",
         },
       ];
@@ -430,10 +443,7 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
     heartbeatProfiles,
   };
   const runtimeAgents = [...unified.runtimeAgents, ...observedRuntimeAgents];
-  const configuredAgents = [
-    ...unified.configuredAgents,
-    ...observedRuntimeAgents,
-  ];
+  const configuredAgents = [...unified.configuredAgents, ...observedRuntimeAgents];
 
   return {
     ...unified,

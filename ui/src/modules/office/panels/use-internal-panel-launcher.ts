@@ -56,12 +56,31 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
           setIsDocumentLibraryPanelOpen(true);
           break;
         case "skill-os":
-        case "template-rollout":
         case "evals":
         case "harness":
+        case "rollout":
+        case "template-tracking":
           setSelectedSkillStudioSkillId(null);
           setSkillStudioFocusAgentId(null);
           setSkillStudioSurface(panelId);
+          setIsSkillsPanelOpen(true);
+          break;
+        case "harness-graph":
+          setSelectedSkillStudioSkillId(null);
+          setSkillStudioFocusAgentId(null);
+          setSkillStudioSurface("harness");
+          setIsSkillsPanelOpen(true);
+          break;
+        case "harness-rollout":
+          setSelectedSkillStudioSkillId(null);
+          setSkillStudioFocusAgentId(null);
+          setSkillStudioSurface("rollout");
+          setIsSkillsPanelOpen(true);
+          break;
+        case "template-rollout":
+          setSelectedSkillStudioSkillId(null);
+          setSkillStudioFocusAgentId(null);
+          setSkillStudioSurface("template-tracking");
           setIsSkillsPanelOpen(true);
           break;
         case "ceo-workbench":

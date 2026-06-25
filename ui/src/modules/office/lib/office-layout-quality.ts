@@ -224,7 +224,7 @@ function shortestPathLength(
 function isPoiObject(object: OfficeObject): boolean {
   if (object.meshType === "wall-art") return false;
   if (object.meshType === "glass-wall") return false;
-  if (object.meshType === "office-divider") return object.metadata?.generated === true;
+  if (object.meshType === "office-divider") return false;
   return (
     object.meshType === "team-cluster" ||
     object.meshType === "plant" ||

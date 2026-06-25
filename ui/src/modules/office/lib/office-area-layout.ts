@@ -89,6 +89,13 @@ const COMMAND_HUB_MIN_WIDTH = 6;
 const COMMAND_HUB_MIN_DEPTH = 5;
 const COMMAND_MIN_RING_WIDTH = 3;
 const COMMAND_MIN_RING_DEPTH = 3;
+const NEIGHBORHOOD_CORE_WIDTH_RATIO = 0.24;
+const NEIGHBORHOOD_CORE_DEPTH_RATIO = 0.24;
+const NEIGHBORHOOD_CORE_MIN_WIDTH = 7;
+const NEIGHBORHOOD_CORE_MIN_DEPTH = 5;
+const NEIGHBORHOOD_MIN_RING_WIDTH = 4;
+const NEIGHBORHOOD_MIN_RING_DEPTH = 4;
+const NEIGHBORHOOD_SHARED_AREA_COLOR = "#fbbf24";
 
 function emptyRect(): OfficeAreaRect {
   return {
@@ -671,6 +678,174 @@ function flattenCommandTree(input: {
   }
 }
 
+function getNeighborhoodCoreRect(rect: OfficeAreaRect): OfficeAreaRect | null {
+  if (
+    rect.width <
+      NEIGHBORHOOD_CORE_MIN_WIDTH + NEIGHBORHOOD_MIN_RING_WIDTH * 2 ||
+    rect.depth < NEIGHBORHOOD_CORE_MIN_DEPTH + NEIGHBORHOOD_MIN_RING_DEPTH * 2
+  ) {
+    return null;
+  }
+  const width = Math.min(
+    rect.width - NEIGHBORHOOD_MIN_RING_WIDTH * 2,
+    Math.max(
+      NEIGHBORHOOD_CORE_MIN_WIDTH,
+      rect.width * NEIGHBORHOOD_CORE_WIDTH_RATIO,
+    ),
+  );
+  const depth = Math.min(
+    rect.depth - NEIGHBORHOOD_MIN_RING_DEPTH * 2,
+    Math.max(
+      NEIGHBORHOOD_CORE_MIN_DEPTH,
+      rect.depth * NEIGHBORHOOD_CORE_DEPTH_RATIO,
+    ),
+  );
+  return toRect({
+    minX: rect.centerX - width / 2,
+    maxX: rect.centerX + width / 2,
+    minZ: rect.centerZ - depth / 2,
+    maxZ: rect.centerZ + depth / 2,
+  });
+}
+
+function neighborhoodRingRects(
+  outer: OfficeAreaRect,
+  core: OfficeAreaRect,
+): OfficeAreaRect[] {
+  return [
+    toRect({
+      minX: outer.minX,
+      maxX: outer.maxX,
+      minZ: outer.minZ,
+      maxZ: core.minZ,
+    }),
+    toRect({
+      minX: outer.minX,
+      maxX: core.minX,
+      minZ: core.minZ,
+      maxZ: core.maxZ,
+    }),
+    toRect({
+      minX: core.maxX,
+      maxX: outer.maxX,
+      minZ: core.minZ,
+      maxZ: core.maxZ,
+    }),
+    toRect({
+      minX: outer.minX,
+      maxX: outer.maxX,
+      minZ: core.maxZ,
+      maxZ: outer.maxZ,
+    }),
+  ]
+    .filter(
+      (rect) =>
+        rect.width >= NEIGHBORHOOD_MIN_RING_WIDTH &&
+        rect.depth >= NEIGHBORHOOD_MIN_RING_DEPTH,
+    )
+    .sort((left, right) => right.width * right.depth - left.width * left.depth);
+}
+
+function splitNeighborhoodChildren(
+  children: AreaTreeNode[],
+  outer: OfficeAreaRect,
+  core: OfficeAreaRect,
+): Array<{ node: AreaTreeNode; rect: OfficeAreaRect }> {
+  const regions = neighborhoodRingRects(outer, core);
+  if (regions.length === 0) return splitChildren(children, outer);
+
+  const buckets = regions.map((rect) => ({
+    rect,
+    children: [] as AreaTreeNode[],
+    weight: 0,
+  }));
+  for (const child of children) {
+    const bucket = buckets.slice().sort((left, right) => {
+      const leftLoad =
+        left.weight / Math.max(1, left.rect.width * left.rect.depth);
+      const rightLoad =
+        right.weight / Math.max(1, right.rect.width * right.rect.depth);
+      return leftLoad === rightLoad
+        ? right.rect.width * right.rect.depth -
+            left.rect.width * left.rect.depth
+        : leftLoad - rightLoad;
+    })[0];
+    bucket.children.push(child);
+    bucket.weight += child.weight;
+  }
+
+  return buckets.flatMap((bucket) =>
+    splitChildren(bucket.children, bucket.rect),
+  );
+}
+
+function addSharedNeighborhoodArea(input: {
+  rect: OfficeAreaRect;
+  output: OfficeAreaNode[];
+}): void {
+  input.output.push({
+    id: "office/shared-plaza",
+    label: "Shared Plaza",
+    depth: 1,
+    parentId: "office",
+    weight: 1,
+    rect: input.rect,
+    color: NEIGHBORHOOD_SHARED_AREA_COLOR,
+  });
+}
+
+function flattenNeighborhoodTree(input: {
+  node: AreaTreeNode;
+  rect: OfficeAreaRect;
+  output: OfficeAreaNode[];
+  projectAreaByProjectId: Record<string, OfficeAreaNode>;
+  colorIndex: number;
+}): void {
+  if (input.node.id === "office") {
+    const coreRect = getNeighborhoodCoreRect(input.rect);
+    if (coreRect && input.node.children.length > 1) {
+      addSharedNeighborhoodArea({
+        rect: coreRect,
+        output: input.output,
+      });
+      for (const [index, entry] of splitNeighborhoodChildren(
+        input.node.children,
+        input.rect,
+        coreRect,
+      ).entries()) {
+        flattenNeighborhoodTree({
+          node: entry.node,
+          rect: entry.rect,
+          output: input.output,
+          projectAreaByProjectId: input.projectAreaByProjectId,
+          colorIndex: input.colorIndex + index + 1,
+        });
+      }
+      return;
+    }
+  }
+
+  addAreaForNode(input);
+  if (input.node.children.length === 0) return;
+
+  const childBaseRect =
+    input.node.id === "office"
+      ? input.rect
+      : insetRect(input.rect, input.node.depth <= 1 ? 1.1 : 0.65);
+  for (const [index, entry] of splitChildren(
+    input.node.children,
+    childBaseRect,
+  ).entries()) {
+    flattenNeighborhoodTree({
+      node: entry.node,
+      rect: entry.rect,
+      output: input.output,
+      projectAreaByProjectId: input.projectAreaByProjectId,
+      colorIndex: input.colorIndex + index + 1,
+    });
+  }
+}
+
 export function buildOfficeAreaLayout(input: AreaBuildInput): OfficeAreaLayout {
   const root = buildAreaTree({
     company: input.company,
@@ -689,7 +864,9 @@ export function buildOfficeAreaLayout(input: AreaBuildInput): OfficeAreaLayout {
   const flatten =
     input.layoutStrategy === "command_districts"
       ? flattenCommandTree
-      : flattenTree;
+      : input.layoutStrategy === "team_neighborhoods"
+        ? flattenNeighborhoodTree
+        : flattenTree;
   flatten({
     node: root,
     rect: rootRect.width > 0 && rootRect.depth > 0 ? rootRect : emptyRect(),

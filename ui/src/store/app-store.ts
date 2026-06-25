@@ -14,7 +14,12 @@ type PlacementMode = {
 export type BuilderTool = "paint-floor" | "remove-floor" | null;
 export type OfficeOverlayKey = "grid" | "occupancy" | "paths" | "destinations" | "areas" | "layout";
 export type OfficeOverlaySettings = Record<OfficeOverlayKey, boolean>;
-export type SkillStudioSurface = "evals" | "harness" | "skill-os" | "template-rollout";
+export type SkillStudioSurface =
+  | "evals"
+  | "harness"
+  | "rollout"
+  | "skill-os"
+  | "template-tracking";
 
 type ObjectPanelAspectRatio = "wide" | "square" | "tall";
 export type CeoWorkbenchView = "board" | "review";

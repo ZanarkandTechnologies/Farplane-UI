@@ -244,8 +244,14 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
             onClick={() => onLayoutStrategyChange("legacy")}
           />
           <ModeOptionButton
+            label="Team Neighborhoods"
+            description="Group project teams into readable zones around a shared office core."
+            selected={layoutStrategy === "team_neighborhoods"}
+            onClick={() => onLayoutStrategyChange("team_neighborhoods")}
+          />
+          <ModeOptionButton
             label="Project Districts"
-            description="Give projects readable areas and draw walls on shared edges."
+            description="Give projects larger nested areas with clear overlay boundaries."
             selected={layoutStrategy === "activity_treemap"}
             onClick={() => onLayoutStrategyChange("activity_treemap")}
           />

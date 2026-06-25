@@ -26,7 +26,7 @@ import {
   getClusterOccupancyFootprint,
   getDeskPosition,
   getDeskRotation,
-  shouldUseRoundTeamTable,
+  resolveTeamStationLayout,
   solveRoundTeamTableLayout,
 } from "@/modules/office/utils/layout";
 import { useAppStore } from "@/store";
@@ -107,8 +107,12 @@ export default function TeamCluster({
 
   // Capacity tracking
   const currentDeskCount = desks.length;
-  const stationCount = Math.max(currentDeskCount, team.employees.length, 1);
-  const usesRoundTable = shouldUseRoundTeamTable(stationCount);
+  const stationLayout = resolveTeamStationLayout({
+    deskCount: currentDeskCount,
+    employeeCount: team.employees.length,
+  });
+  const stationCount = stationLayout.stationCount;
+  const usesRoundTable = stationLayout.usesRoundTable;
 
   // Handle cluster click
   const handleClusterClick = (event: ThreeEvent<MouseEvent>) => {
@@ -173,13 +177,13 @@ export default function TeamCluster({
           : a.persistedIndex - b.persistedIndex,
       );
     return orderedDesks
-      .slice(0, MAX_GRID_DESKS_PER_TEAM)
+      .slice(0, stationLayout.visibleGridDeskCount)
       .map(({ desk }, layoutIndex, visibleDesks) => ({
         id: desk.id,
         position: getDeskPosition(clusterPos, layoutIndex, visibleDesks.length),
         rotationY: getDeskRotation(layoutIndex, visibleDesks.length),
       }));
-  }, [desks]);
+  }, [desks, stationLayout.visibleGridDeskCount]);
 
   const tableHitTarget = useMemo(() => {
     const footprint = getClusterOccupancyFootprint(

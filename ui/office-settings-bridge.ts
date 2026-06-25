@@ -19,7 +19,12 @@ import path from "node:path";
 
 export interface BridgeOfficeSettings {
   meshAssetDir?: string;
-  layoutStrategy?: "manual" | "legacy" | "activity_treemap" | "command_districts";
+  layoutStrategy?:
+    | "manual"
+    | "legacy"
+    | "team_neighborhoods"
+    | "activity_treemap"
+    | "command_districts";
   officeFootprint?: {
     width?: number;
     depth?: number;
@@ -164,10 +169,12 @@ export function normalizeBridgeOfficeSettings(
     row.decor && typeof row.decor === "object" ? (row.decor as JsonObject) : {};
   const layoutStrategy =
     row.layoutStrategy === "manual" ||
+    row.layoutStrategy === "legacy" ||
+    row.layoutStrategy === "team_neighborhoods" ||
     row.layoutStrategy === "activity_treemap" ||
     row.layoutStrategy === "command_districts"
       ? row.layoutStrategy
-      : "legacy";
+      : "team_neighborhoods";
   const viewProfile =
     row.viewProfile === "fixed_2_5d" ? "fixed_2_5d" : "free_orbit_3d";
   const officeLayout = normalizeOfficeLayout(

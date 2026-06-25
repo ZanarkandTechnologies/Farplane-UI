@@ -90,7 +90,7 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   >(officeSettings.viewProfile);
   const [layoutStrategyInput, setLayoutStrategyInput] = useState<
     NonNullable<OfficeSettingsModel["layoutStrategy"]>
-  >(officeSettings.layoutStrategy ?? "activity_treemap");
+  >(officeSettings.layoutStrategy ?? "team_neighborhoods");
   const [cameraOrientationInput, setCameraOrientationInput] = useState<
     OfficeSettingsModel["cameraOrientation"]
   >(officeSettings.cameraOrientation);
@@ -130,7 +130,9 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     setRuntimeStatusText("");
     setRuntimeConfigStatusText("");
     setViewProfileInput(officeSettings.viewProfile);
-    setLayoutStrategyInput(officeSettings.layoutStrategy ?? "activity_treemap");
+    setLayoutStrategyInput(
+      officeSettings.layoutStrategy ?? "team_neighborhoods",
+    );
     setCameraOrientationInput(officeSettings.cameraOrientation);
     setOrbitControlsEnabled(officeSettings.orbitControlsEnabled);
     setViewStatusText("");

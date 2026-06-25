@@ -18,6 +18,10 @@ export type OfficeInternalPanelId =
   | "resource-bank"
   | "document-library"
   | "skill-os"
+  | "harness-graph"
+  | "harness-rollout"
+  | "rollout"
+  | "template-tracking"
   | "template-rollout"
   | "evals"
   | "harness"
@@ -68,14 +72,20 @@ export const OFFICE_INTERNAL_PANEL_CATALOG: OfficeInternalPanelCatalogEntry[] = 
   {
     id: "skill-os",
     label: "Skill OS",
-    description: "Open the global skill registry, graph, rollout, and template control plane.",
+    description: "Open the global skill registry, graph, standards, and skill-template control plane.",
     keywords: ["skills", "skill os", "registry", "templates", "rollout"],
   },
   {
+    id: "template-tracking",
+    label: "Template Tracking",
+    description: "Open the Harness OS Template Tracking tab for template version adoption.",
+    keywords: ["template", "templates", "tracking", "versions", "manifest", "standards"],
+  },
+  {
     id: "template-rollout",
-    label: "Template Rollout",
-    description: "Open the rollout tracker for reusable Farplane template families.",
-    keywords: ["template", "templates", "rollout", "tracking", "drift"],
+    label: "Template Tracking",
+    description: "Legacy alias for template version tracking.",
+    keywords: ["template", "templates", "tracking", "versions", "legacy"],
   },
   {
     id: "evals",
@@ -86,8 +96,26 @@ export const OFFICE_INTERNAL_PANEL_CATALOG: OfficeInternalPanelCatalogEntry[] = 
   {
     id: "harness",
     label: "Harness OS",
-    description: "Open the repo-wide Harness OS map.",
-    keywords: ["harness", "harness os", "map", "graph", "docs", "features"],
+    description: "Open the Harness OS semantic graph, lifecycle, and feature registry.",
+    keywords: ["harness", "harness os", "map", "graph", "lifecycle", "features", "registry"],
+  },
+  {
+    id: "harness-graph",
+    label: "Harness Map",
+    description: "Legacy alias for the generated Harness map.",
+    keywords: ["harness", "graph", "map", "docs", "features", "skills", "legacy"],
+  },
+  {
+    id: "rollout",
+    label: "Project Rollout",
+    description: "Open the Harness OS Project Rollout tab for project manifest adoption.",
+    keywords: ["harness", "rollout", "projects", "framework", "versions"],
+  },
+  {
+    id: "harness-rollout",
+    label: "Rollout",
+    description: "Legacy alias for project-level rollout.",
+    keywords: ["harness", "rollout", "projects", "templates", "versions", "legacy"],
   },
   {
     id: "ceo-workbench",

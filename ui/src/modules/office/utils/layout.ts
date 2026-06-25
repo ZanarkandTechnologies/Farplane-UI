@@ -69,6 +69,12 @@ export interface ClusterOccupancyFootprint {
   clearance: number;
 }
 
+export interface TeamStationLayout {
+  stationCount: number;
+  usesRoundTable: boolean;
+  visibleGridDeskCount: number;
+}
+
 export interface RoundTableStationTransform {
   stationId: string;
   x: number;
@@ -125,6 +131,23 @@ function getRoundTeamTableRadius(count: number): number {
 
 export function shouldUseRoundTeamTable(count: number): boolean {
   return clampCount(count) >= ROUND_TEAM_TABLE_MIN_STATIONS;
+}
+
+export function resolveTeamStationLayout(input: {
+  deskCount: number;
+  employeeCount: number;
+}): TeamStationLayout {
+  const stationCount = clampCount(
+    Math.max(input.deskCount, input.employeeCount, 1),
+  );
+  const usesRoundTable = shouldUseRoundTeamTable(stationCount);
+  return {
+    stationCount,
+    usesRoundTable,
+    visibleGridDeskCount: usesRoundTable
+      ? 0
+      : Math.min(Math.max(1, input.deskCount), MAX_GRID_DESKS_PER_TEAM),
+  };
 }
 
 export function solveRoundTeamTableLayout(count: number): RoundTeamTableLayout {
