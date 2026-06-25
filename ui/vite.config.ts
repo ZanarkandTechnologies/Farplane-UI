@@ -3393,6 +3393,24 @@ function farplaneStateBridge() {
         const skillMaintenanceGraphMatch = pathname.match(
           /^\/codex\/skill-maintenance-graph\/?(.*)$/,
         );
+        const farplaneFrameworkGraphMatch = pathname.match(
+          /^\/farplane\/framework-graph\/?(.*)$/,
+        );
+        if (method === "GET" && farplaneFrameworkGraphMatch) {
+          const requestedGraphPath = farplaneFrameworkGraphMatch[1] || "index.html";
+          const served = await writeStaticFile(
+            res as unknown as {
+              setHeader: (k: string, v: string) => void;
+              end: (body: Buffer) => void;
+            },
+            FARPLANE_FRAMEWORK_GRAPH_ROOT,
+            requestedGraphPath,
+          );
+          if (!served) {
+            writeJson(res, 404, { ok: false, error: "farplane_framework_graph_asset_not_found" });
+          }
+          return;
+        }
         if (method === "GET" && skillMaintenanceGraphMatch) {
           const requestedGraphPath = skillMaintenanceGraphMatch[1] || "index.html";
           let served = await writeStaticFile(

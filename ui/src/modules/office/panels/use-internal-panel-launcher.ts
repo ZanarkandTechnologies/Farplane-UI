@@ -59,6 +59,7 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
         case "evals":
         case "harness":
         case "rollout":
+        case "skill-rollout":
         case "template-tracking":
           setSelectedSkillStudioSkillId(null);
           setSkillStudioFocusAgentId(null);

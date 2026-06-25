@@ -71,9 +71,9 @@ import { useAppStore } from "@/store";
 type ControllerResult = {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
-  surface: "skill-os" | "template-tracking" | "evals" | "harness" | "rollout";
+  surface: "skill-os" | "template-tracking" | "evals" | "harness" | "rollout" | "skill-rollout";
   setSurface: (
-    surface: "skill-os" | "template-tracking" | "evals" | "harness" | "rollout",
+    surface: "skill-os" | "template-tracking" | "evals" | "harness" | "rollout" | "skill-rollout",
   ) => void;
   focusAgentId: string | null;
   selectedSkillId: string | null;

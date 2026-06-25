@@ -4,6 +4,22 @@ export type SkillGraphNode = {
   description?: string;
   group?: string;
   has_checklist?: boolean;
+  heat?: {
+    distinct_threads_30d?: number;
+    distinct_threads_window?: number;
+    distinct_tickets_30d?: number;
+    distinct_tickets_window?: number;
+    heat_score?: number;
+    invocation_count_30d?: number;
+    invocation_count_7d?: number;
+    invocation_count_all?: number;
+    invocation_count_recent?: number;
+    invocation_count_window?: number;
+    last_invoked_at?: string;
+    observed_event_count_all?: number;
+    recent_days?: number;
+    window_days?: number;
+  };
   id: string;
   label?: string;
   methods?: string[];
@@ -31,6 +47,19 @@ export type SkillGraphPayload = {
   };
   edges: SkillGraphEdge[];
   nodes: SkillGraphNode[];
+};
+
+export type SkillFrameworkCoreGraphNode = SkillGraphNode & {
+  framework_role?: string;
+  kind?: "file" | "skill" | "workflow" | string;
+  source_match?: boolean;
+  source_path?: string;
+  tags?: string[];
+};
+
+export type SkillFrameworkCoreGraphPayload = {
+  edges: SkillGraphEdge[];
+  nodes: SkillFrameworkCoreGraphNode[];
 };
 
 export type SkillDoc = {
@@ -72,6 +101,12 @@ export type SkillTemplateVersionSummary = {
   }>;
   source_commit?: string;
   summary?: string;
+  template_metadata?: {
+    feature_refs?: string[];
+    surface_fields?: Record<string, string>;
+    template_id?: string;
+    template_version?: string;
+  };
   version: string;
 };
 

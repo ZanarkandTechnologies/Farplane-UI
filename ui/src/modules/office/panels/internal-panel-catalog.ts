@@ -18,6 +18,7 @@ export type OfficeInternalPanelId =
   | "resource-bank"
   | "document-library"
   | "skill-os"
+  | "skill-rollout"
   | "harness-graph"
   | "harness-rollout"
   | "rollout"
@@ -74,6 +75,12 @@ export const OFFICE_INTERNAL_PANEL_CATALOG: OfficeInternalPanelCatalogEntry[] = 
     label: "Skill OS",
     description: "Open the global skill registry, graph, standards, and skill-template control plane.",
     keywords: ["skills", "skill os", "registry", "templates", "rollout"],
+  },
+  {
+    id: "skill-rollout",
+    label: "Skill Rollout",
+    description: "Open Skill OS Rollout for template adoption, weighted health, and feature coverage.",
+    keywords: ["skills", "skill rollout", "skill heat", "tier", "compounding", "lifecycle"],
   },
   {
     id: "template-tracking",

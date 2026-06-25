@@ -14,6 +14,9 @@ contracts, runtime adapters, sidecars, workflow state, or UI behavior.
 - `FP02-harness-product-model.md` - canonical product model: Farplane as the
   cloneable harness substrate, Farplane UI as the cockpit, global modules for
   harness operation, and project modules as autonomous company views.
+- `FP03-taste-bank-and-tasty-packs.md` - product doctrine for turning explicit
+  operator taste captures into Resource Bank records, Tasty Packs, and
+  generation briefs.
 
 ### Legacy SC Specs
 

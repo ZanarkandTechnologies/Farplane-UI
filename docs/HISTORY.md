@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-06-26 | docs | MEM-0240 | docs,resource-bank,taste-bank | Added FP03 Taste Bank And Tasty Packs as the product doctrine for turning explicit operator taste captures into Resource Bank records, creative ingredients, time-window Tasty Packs, and generation briefs.
+
 2026-06-25 | feature | MEM-0239 | ui,office,layout | Promoted the office auto-layout path to the operator's three-phase solver contract: automatic strategies now route through strategy-aware ordering, compact graph-node placement, shortest-walk-path reservation, gap-aware optional-object packing, and empty-edge pruning; manual remains the only bypass, generated walls remain absent, and Team Neighborhoods plus Activity Treemap both render through the same compact solver proof at roughly 26% empty space with 100% walkability.
 
 2026-06-25 | feature | MEM-0238 | ui,office,layout | Added the first deterministic Team Neighborhoods office layout solver: required team clusters and locked furniture are treated as hard constraints, walk paths are reserved before optional furniture packing, movable sidecar/default objects are repacked into legal leftover cells, the final floor mask is rebuilt from placed objects plus reserved routes, empty/disconnected edge pockets are pruned, and generated wall behavior stays out of the strategy.

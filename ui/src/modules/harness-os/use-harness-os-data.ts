@@ -6,7 +6,6 @@ import {
   isHarnessAdoptionPayload,
   isHarnessBridgePayload,
   isHarnessLifecyclePayload,
-  isHarnessSkillRolloutPayload,
   isHarnessTemplateTrackingPayload,
   isHarnessTemplateIntelligencePayload,
 } from "./harness-os-model";
@@ -14,7 +13,6 @@ import type {
   HarnessAdoptionPayload,
   HarnessGraphPayload,
   HarnessLifecyclePayload,
-  HarnessSkillRolloutPayload,
   HarnessTemplateTrackingPayload,
   HarnessTemplateIntelligencePayload,
 } from "./harness-os-types";
@@ -25,8 +23,6 @@ export function useHarnessOsData(): {
   error: string | null;
   graph: HarnessGraphPayload | null;
   lifecycle: HarnessLifecyclePayload | null;
-  skillRollout: HarnessSkillRolloutPayload | null;
-  skillRolloutError: string | null;
   templateTracking: HarnessTemplateTrackingPayload | null;
   templateTrackingError: string | null;
   templateIntelligence: HarnessTemplateIntelligencePayload | null;
@@ -35,8 +31,6 @@ export function useHarnessOsData(): {
   const [adoptionError, setAdoptionError] = useState<string | null>(null);
   const [graph, setGraph] = useState<HarnessGraphPayload | null>(null);
   const [lifecycle, setLifecycle] = useState<HarnessLifecyclePayload | null>(null);
-  const [skillRollout, setSkillRollout] = useState<HarnessSkillRolloutPayload | null>(null);
-  const [skillRolloutError, setSkillRolloutError] = useState<string | null>(null);
   const [templateTracking, setTemplateTracking] = useState<HarnessTemplateTrackingPayload | null>(null);
   const [templateTrackingError, setTemplateTrackingError] = useState<string | null>(null);
   const [templateIntelligence, setTemplateIntelligence] =
@@ -52,14 +46,12 @@ export function useHarnessOsData(): {
           lifecycleResponse,
           templateResponse,
           adoptionResponse,
-          skillRolloutResponse,
           templateTrackingResponse,
         ] = await Promise.all([
-          fetch("/codex/skill-maintenance-graph/farplane-framework-core-graph.json"),
+          fetch("/farplane/framework-graph/farplane-framework-core-graph.json"),
           fetch("/codex/skill-maintenance-graph/farplane-lifecycle-graph.json"),
           fetch("/codex/skill-maintenance-graph/skill-template-intelligence.json"),
           fetch("/farplane/harness/adoption-scan"),
-          fetch("/farplane/harness/skills-rollout-scan"),
           fetch("/farplane/harness/template-tracking-scan"),
         ]);
         let nextGraphError: string | null = null;
@@ -103,24 +95,6 @@ export function useHarnessOsData(): {
           setAdoption(null);
           setAdoptionError(bridgePayload.error ?? "adoption_scan_unavailable");
         }
-        if (skillRolloutResponse.ok) {
-          const bridgePayload = (await skillRolloutResponse.json()) as unknown;
-          if (isHarnessBridgePayload(bridgePayload, isHarnessSkillRolloutPayload)) {
-            setSkillRollout(bridgePayload.payload ?? null);
-            setSkillRolloutError(
-              bridgePayload.ok ? null : bridgePayload.error ?? "skills_rollout_scan_failed",
-            );
-          } else {
-            setSkillRollout(null);
-            setSkillRolloutError("skills_rollout_payload_invalid");
-          }
-        } else {
-          const bridgePayload = (await skillRolloutResponse.json().catch(() => ({}))) as {
-            error?: string;
-          };
-          setSkillRollout(null);
-          setSkillRolloutError(bridgePayload.error ?? "skills_rollout_scan_unavailable");
-        }
         if (templateTrackingResponse.ok) {
           const bridgePayload = (await templateTrackingResponse.json()) as unknown;
           if (isHarnessBridgePayload(bridgePayload, isHarnessTemplateTrackingPayload)) {
@@ -158,8 +132,6 @@ export function useHarnessOsData(): {
     error,
     graph,
     lifecycle,
-    skillRollout,
-    skillRolloutError,
     templateTracking,
     templateTrackingError,
     templateIntelligence,

@@ -18,6 +18,7 @@ export type SkillStudioSurface =
   | "evals"
   | "harness"
   | "rollout"
+  | "skill-rollout"
   | "skill-os"
   | "template-tracking";
 

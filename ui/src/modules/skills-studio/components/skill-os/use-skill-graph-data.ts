@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type {
   SkillDocsPayload,
+  SkillFrameworkCoreGraphPayload,
   SkillGraphPayload,
   SkillTemplateIntelligencePayload,
 } from "./skill-os-types";
@@ -30,11 +31,14 @@ function isSkillTemplateIntelligencePayload(
 export function useSkillGraphData(): {
   docs: SkillDocsPayload | null;
   error: string | null;
+  frameworkCoreGraph: SkillFrameworkCoreGraphPayload | null;
   graph: SkillGraphPayload | null;
   templateIntelligence: SkillTemplateIntelligencePayload | null;
   templateIntelligenceError: string | null;
 } {
   const [graph, setGraph] = useState<SkillGraphPayload | null>(null);
+  const [frameworkCoreGraph, setFrameworkCoreGraph] =
+    useState<SkillFrameworkCoreGraphPayload | null>(null);
   const [docs, setDocs] = useState<SkillDocsPayload | null>(null);
   const [templateIntelligence, setTemplateIntelligence] =
     useState<SkillTemplateIntelligencePayload | null>(null);
@@ -45,14 +49,19 @@ export function useSkillGraphData(): {
     let cancelled = false;
     async function load(): Promise<void> {
       try {
-        const [graphResponse, docsResponse, templateResponse] = await Promise.all([
-          fetch("/codex/skill-maintenance-graph/skill-graph.json"),
-          fetch("/codex/skill-maintenance-graph/skill-docs.json"),
-          fetch("/codex/skill-maintenance-graph/skill-template-intelligence.json"),
-        ]);
-        const [graphPayload, docsPayload] = await Promise.all([
+        const [graphResponse, docsResponse, templateResponse, frameworkCoreResponse] =
+          await Promise.all([
+            fetch("/farplane/framework-graph/skill-graph.json"),
+            fetch("/farplane/framework-graph/skill-docs.json"),
+            fetch("/farplane/framework-graph/skill-template-intelligence.json"),
+            fetch("/farplane/framework-graph/farplane-framework-core-graph.json"),
+          ]);
+        const [graphPayload, docsPayload, frameworkCorePayload] = await Promise.all([
           graphResponse.json() as Promise<unknown>,
           docsResponse.json() as Promise<unknown>,
+          frameworkCoreResponse.ok
+            ? (frameworkCoreResponse.json() as Promise<unknown>)
+            : Promise.resolve(null),
         ]);
         if (cancelled) return;
         if (!isSkillGraphPayload(graphPayload) || !isSkillDocsPayload(docsPayload)) {
@@ -61,6 +70,11 @@ export function useSkillGraphData(): {
         }
         setGraph(graphPayload);
         setDocs(docsPayload);
+        setFrameworkCoreGraph(
+          isSkillGraphPayload(frameworkCorePayload)
+            ? (frameworkCorePayload as SkillFrameworkCoreGraphPayload)
+            : null,
+        );
         if (templateResponse.ok) {
           const templatePayload = (await templateResponse.json()) as unknown;
           if (isSkillTemplateIntelligencePayload(templatePayload)) {
@@ -87,5 +101,5 @@ export function useSkillGraphData(): {
     };
   }, []);
 
-  return { docs, error, graph, templateIntelligence, templateIntelligenceError };
+  return { docs, error, frameworkCoreGraph, graph, templateIntelligence, templateIntelligenceError };
 }

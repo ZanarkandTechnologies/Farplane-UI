@@ -27,10 +27,11 @@ import { useSkillsPanelController } from "@/modules/office/components/use-skills
 import { SkillOsMiniApp } from "@/modules/skills-studio/components/skill-os";
 
 function panelTitle(
-  surface: "skill-os" | "template-tracking" | "evals" | "harness" | "rollout",
+  surface: "skill-os" | "template-tracking" | "evals" | "harness" | "rollout" | "skill-rollout",
   focusAgentId: string | null,
 ): string {
   if (focusAgentId) return "Agent Skills";
+  if (surface === "skill-rollout") return "Skill OS";
   if (surface === "template-tracking") return "Harness OS";
   if (surface === "evals") return "Evals";
   if (surface === "rollout") return "Harness OS";
@@ -39,7 +40,7 @@ function panelTitle(
 }
 
 function panelDescription(
-  surface: "skill-os" | "template-tracking" | "evals" | "harness" | "rollout",
+  surface: "skill-os" | "template-tracking" | "evals" | "harness" | "rollout" | "skill-rollout",
   focusAgentId: string | null,
 ): string {
   if (focusAgentId) {
@@ -50,6 +51,9 @@ function panelDescription(
   }
   if (surface === "template-tracking") {
     return "Harness OS Templates for registry-backed structural parameters and install policy.";
+  }
+  if (surface === "skill-rollout") {
+    return "Skill OS Rollout for template-version adoption, weighted skill health, and feature coverage.";
   }
   if (surface === "rollout") return "Harness OS Projects for active project framework adoption.";
   if (surface === "harness") {
@@ -79,6 +83,7 @@ export function SkillsPanel(): ReactElement {
           {surface === "skill-os" ? <SkillOsMiniApp /> : null}
           {surface === "evals" ? <EvalOsPanel /> : null}
           {surface === "harness" ? <HarnessOsPanel /> : null}
+          {surface === "skill-rollout" ? <SkillOsMiniApp initialTab="rollout" /> : null}
           {surface === "rollout" ? <HarnessOsPanel initialView="rollout" /> : null}
           {surface === "template-tracking" ? <HarnessOsPanel initialView="templates" /> : null}
         </div>
