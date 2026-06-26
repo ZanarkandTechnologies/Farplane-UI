@@ -2,8 +2,8 @@
 kind: farplane-config-index
 status: draft
 created_at: 2026-06-17
-updated_at: 2026-06-17
-framework_template_version: "0.1.0"
+updated_at: 2026-06-26
+framework_template_version: "0.2.0"
 ---
 
 # Farplane Config
@@ -17,11 +17,12 @@ summarize as one autonomous company inside the broader harness cockpit.
 farplane/
   README.md        # this index
   manifest.json    # versioned Farplane project spec for this project
-  harness.md       # mission, values, modes, systems, feedback loops
+  harness.md       # static human charter and authority boundaries
   goals.md         # north star, KPIs, current milestone, holds
-  automations.md   # recurring jobs, schedules, reports, ticket source policy
+  products.md      # team/product/work-lane catalog
+  automations.md   # reviewable Codex automation prompt source
   bindings.md      # non-secret project IDs, URLs, labels, aliases
-  evals.md         # project-level proof and eval policy
+  hooks.json       # declarative Farplane-native hook config
   pm.json          # optional UI thread manifest for one visual project PM
 ```
 

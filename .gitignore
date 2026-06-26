@@ -17,6 +17,9 @@ skills/external/
 .*/
 !.githooks/
 !.githooks/*
+!.agents/
+!.agents/skills/
+!.agents/skills/README.md
 
 /docs/research/*/*
 

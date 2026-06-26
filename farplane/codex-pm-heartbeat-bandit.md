@@ -1,3 +1,13 @@
+---
+kind: project-automation-reference
+status: reference
+project: Farplane UI
+created_at: 2026-06-17
+updated_at: 2026-06-26
+framework_template_version: "0.1.0"
+owner: project-pm-automation
+---
+
 # Codex PM Heartbeat Bandit
 
 ## Summary

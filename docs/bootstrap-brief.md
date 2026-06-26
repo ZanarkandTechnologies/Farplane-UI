@@ -75,10 +75,36 @@ customization, channels, and isolated workspaces.
 Canonical product model:
 `docs/specs/FP02-harness-product-model.md`.
 
+## Goal Intake Status
+
+- Current state: PM operating-model reinit completed from local PRD/specs,
+  active ticket workflow, and current agent-control-plane grounding.
+- Team archetype: `founder_control_ai_office`.
+- PM identity: founder-operator chief of staff for the local office.
+- PM optimization target: one bounded useful action, split, refill proposal, or
+  approval request per beat, backed by visible evidence.
+- Next honest feedback gap: operator usefulness labels for PM beats are not yet
+  instrumented.
+- Next route: use `goal-advisor` only after selecting a concrete execution
+  target such as a Pulse dry-read, ticket-lane reconciliation, or feedback-loop
+  ticket.
+
+## Initialization Readiness
+
+- Status: filesystem ready; PM operating model clarified; live automation
+  activation still requires explicit operator approval.
+- Substrate: `farplane/manifest.json` records spec `1.6.1`.
+- PM files: `farplane/harness.md`, `farplane/products.md`,
+  `farplane/goals.md`, `farplane/automations.md`, `farplane/hooks.json`, and
+  `farplane/pm.json` are present.
+- Approval gates: charter changes, product-boundary changes, live automation
+  activation, external mutation, credentials, deploys, spend, publishing, and
+  destructive cleanup remain human-gated.
+
 ## Runtime And State Decisions
 
 - Tracked Farplane project config lives under `farplane/`, with
-  `farplane/manifest.json` recording spec version `1.1.0`.
+  `farplane/manifest.json` recording spec version `1.6.1`.
 - Ignored Farplane runtime state lives under `.farplane/`, including run
   ledgers, reports, eval runs, logs, and review packets.
 - The active tracked Farplane ticket queue uses `tickets/TASK-*/ticket.md`.

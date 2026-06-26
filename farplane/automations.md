@@ -1,232 +1,169 @@
 ---
 kind: project-automations
-status: draft
+status: active
 project: Farplane UI
 created_at: 2026-06-17
-updated_at: 2026-06-17
-framework_template_version: "0.1.0"
-owner: project-pm-automation
-ledger: .farplane/state/run-ledger.json
-bindings: farplane/bindings.md
+updated_at: 2026-06-26
+framework_template_version: "0.4.0"
+owner: automation-advisor
+source_of_truth:
+  - farplane/harness.md
+  - farplane/products.md
+  - farplane/pm.json
 ---
 
-# Project Automations
+# Farplane UI Automations
 
-This file defines the project's recurring automation program.
-Live Codex automation prompts should be compiled from this file, but each live
-prompt should still carry its exact program and todo list.
+This file stores the exact Codex automation prompt blocks for the project.
+Prompts configure cadence, project root, thread IDs, and project-specific
+extensions only. Reusable loop behavior lives in `pulse-update` and
+`interval-update`.
 
-```project-automation
-project {
-  id: farplane-ui
-  root: "."
-  mission: "Build and maintain the local founder-control office for AI work."
-  default_board_policy: local_first
-  ledger: ".farplane/state/run-ledger.json"
-  bindings: "farplane/bindings.md"
-  ticket_sources {
-    local {
-      enabled: true
-      path: "tickets/"
-      priority: first
-    }
-    notion {
-      enabled: false
-      binding_ref: "notion"
-      project_id: null
-      project_name: "Farplane UI"
-      statuses: ["Not started", "In Progress"]
-      use_when: "local has no proceedable ticket and notion.enabled is true"
-    }
-  }
-  gates: [
-    no_push,
-    no_deploy,
-    no_publish,
-    no_spend,
-    no_account_changes,
-    no_destructive_cleanup
-  ]
-}
+## Pulse
 
-settings {
-  founder_heartbeat {
-    automation_id: farplane-ui-founder-heartbeat
-    kind: heartbeat
-    schedule: "FREQ=MINUTELY;INTERVAL=30"
-    runner: "Codex native heartbeat"
-    command: "npx tsx scripts/codex-automation-heartbeat.ts run --project-root . --automation-id farplane-ui-founder-heartbeat"
-    dry_run_command: "npx tsx scripts/codex-automation-heartbeat.ts run --project-root . --automation-id farplane-ui-founder-heartbeat --dry-run --json"
-    max_spawned_threads_per_beat: 1
-  }
-}
+| Field | Value |
+| --- | --- |
+| Automation id | `farplane-ui-pulse` |
+| Name | `Farplane UI Pulse` |
+| Kind | `heartbeat` |
+| RRULE | `FREQ=MINUTELY;INTERVAL=30` |
+| Target thread | `019ef4a0-5f28-7f51-b682-a44114bf2b0b` |
 
-reports {
-  update_external_context.latest: ".farplane/reports/external-context/latest.md"
-  update_external_context.runs: ".farplane/reports/external-context/runs/"
-  update_memory.latest: ".farplane/reports/memory/latest.md"
-  update_memory.runs: ".farplane/reports/memory/runs/"
-  skill_hardening.latest: ".farplane/reports/skill-maintenance/harden-latest.md"
-  skill_hardening.runs: ".farplane/reports/skill-maintenance/runs/"
-  skill_refinement.latest: ".farplane/reports/skill-maintenance/refine-latest.md"
-  skill_refinement.runs: ".farplane/reports/skill-maintenance/runs/"
-  registry_drift.latest: ".farplane/reports/registry-drift/latest.md"
-  registry_drift.runs: ".farplane/reports/registry-drift/runs/"
-  update_strategy.latest: ".farplane/reports/strategy/latest.md"
-  update_strategy.runs: ".farplane/reports/strategy/runs/"
-  ticket_update.latest: ".farplane/reports/ticket-update/latest.md"
-  ticket_update.runs: ".farplane/reports/ticket-update/runs/"
-  weekly_pm.latest: ".farplane/reports/weekly-pm/latest.md"
-  weekly_pm.runs: ".farplane/reports/weekly-pm/runs/"
-}
+```text
+Run one Farplane UI Pulse beat.
 
-state automation_heartbeat {
-  policy: ".farplane/automation/heartbeat-policy.json"
-  action_arms: ".farplane/automation/action-arms.json"
-  bandit_state: ".farplane/automation/bandit-state.json"
-  decisions: ".farplane/automation/decisions.jsonl"
-  spawned_threads: ".farplane/automation/spawned-threads.jsonl"
-  action_outcomes: ".farplane/automation/action-outcomes.jsonl"
-  rewards: ".farplane/automation/rewards.jsonl"
-  metric_snapshots: ".farplane/automation/metric-snapshots.jsonl"
-  reflection_latest: ".farplane/automation/reflections/latest.md"
-}
+Call:
+- `pulse_update(project_root="/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI")`
 
-job update_external_context {
-  intent: "ground project planning in fresh external context"
-  skill: feed-scout
-  freshness: 24h
-  writes: [
-    ".farplane/reports/external-context/latest.md",
-    ".farplane/reports/external-context/runs/YYYY-MM-DD.md"
-  ]
-}
+Project context:
+- read `farplane/harness.md` to preserve the static human thesis and authority
+  boundaries.
+- read `farplane/products.md` when shaping product refill tickets.
 
-job update_memory {
-  intent: "consolidate durable project context and docs without mixing in skill hardening"
-  skill: update-memory
-  freshness: 7d
-  reads: [
-    "docs/HISTORY.md",
-    "docs/MEMORY.md",
-    "docs/LESSONS.md",
-    "docs/TROUBLES.md",
-    "relevant docs/**/*.md",
-    "README.md",
-    "recent tickets and artifacts"
-  ]
-  writes: [
-    ".farplane/reports/memory/latest.md",
-    ".farplane/reports/memory/runs/YYYY-MM-DD.md",
-    "proposed README/docs/MEMORY/HISTORY/LESSONS/TROUBLES deltas when justified",
-    "docs consolidation tickets when justified"
-  ]
-  output: "context report with accepted deltas, proposed doc deltas, docs consolidation plan, stale context, and blockers"
-}
+Project extensions:
+- product refill tickets should name the project type, baseline or comparison
+  point, expected artifact, and proof signal.
+- distribution/content tickets are allowed when they showcase a real Farplane
+  UI product row or feature and name a feedback signal.
+- favor local ready/unblocked tickets before creating new work.
 
-job skill_hardening {
-  intent: "turn fresh lessons and troubles into evals, gotchas, guardrails, or tickets"
-  skill: "skill-maintenance(mode: harden_skill)"
-  freshness: 7d
-  writes: [
-    ".farplane/reports/skill-maintenance/harden-latest.md",
-    ".farplane/reports/skill-maintenance/runs/YYYY-MM-DD-harden.md"
-  ]
-}
+Project gates:
+- select at most one bounded action per beat.
+- no separate ticket-drainer automation is required.
+- substantial implementation routes through `harness-creator` first when the
+  operating model is missing, then `goal-advisor` only after a concrete
+  milestone exists.
+- no push, deploy, publish, spend, account changes, external mutation, or
+  destructive cleanup.
+- no shady growth, fake engagement, privacy-invasive analytics, or content that
+  misrepresents what agents or Farplane did.
+- no drift review, broad strategy replanning, or unbounded worker spawning.
 
-job skill_refinement {
-  intent: "compact older evals and gotchas after hardening exists"
-  skill: "skill-maintenance(mode: refine_skill)"
-  freshness: 7d
-  writes: [
-    ".farplane/reports/skill-maintenance/refine-latest.md",
-    ".farplane/reports/skill-maintenance/runs/YYYY-MM-DD-refine.md"
-  ]
-}
-
-job registry_drift {
-  intent: "keep skill/source/feature registries aligned with current repo state"
-  skill: skill-maintenance
-  freshness: 7d
-  reads: [
-    "docs/skills/registry.jsonl",
-    "docs/features/registry.jsonl",
-    "docs/sources/registry.jsonl",
-    "skills/*/SKILL.md"
-  ]
-  writes: [
-    ".farplane/reports/registry-drift/latest.md",
-    ".farplane/reports/registry-drift/runs/YYYY-MM-DD.md",
-    "registry patches or follow-up tickets"
-  ]
-}
-
-job update_strategy {
-  intent: "refresh strategy, current milestone, tickets, and system gaps"
-  skill: update-strategy
-  freshness: 7d
-  depends_on: [
-    "update_external_context:max_age=24h",
-    "update_memory:max_age=7d",
-    "skill_hardening:max_age=7d",
-    "registry_drift:max_age=7d"
-  ]
-  writes: [
-    ".farplane/reports/strategy/latest.md",
-    ".farplane/reports/strategy/runs/YYYY-MM-DD.md",
-    "local ticket deltas"
-  ]
-}
-
-job ticket_update {
-  intent: "pick and advance the highest-value autonomous ticket"
-  skills: [impl-plan, goal-advisor]
-  freshness: none
-  reads: [
-    "tickets/README.md",
-    "tickets/TASK-*/ticket.md",
-    "notion tasks only when ticket_sources.notion.enabled is true, local has no proceedable ticket, and farplane/bindings.md has a usable notion binding"
-  ]
-  writes: [
-    ".farplane/reports/ticket-update/latest.md",
-    ".farplane/reports/ticket-update/runs/YYYY-MM-DD-HHMM.md",
-    "selected ticket progress/evidence/blockers"
-  ]
-}
-
-cadence founder_heartbeat {
-  automation_id: farplane-ui-founder-heartbeat
-  config_ref: settings.founder_heartbeat
-  todo: [
-    "load heartbeat policy and local automation ledgers",
-    "reconcile prior spawned child threads using expected output paths",
-    "apply unrewarded metric snapshots to bandit rewards",
-    "write a compact reflection from recent outcomes and project pressure",
-    "choose one forced maintenance action or one bandit action",
-    "build a named child Codex prompt with context refs, gates, expected outputs, and stop condition",
-    "spawn one child Codex thread through the Codex app-server bridge unless dry-run",
-    "record decision, spawned thread, outcomes, rewards, and reflection under .farplane/automation"
-  ]
-}
-
-legacy cadence daily_ticket_drainer {
-  replaced_by: founder_heartbeat
-  note: "Ticket draining is now one possible action selected by the 30-minute parent heartbeat. Child threads do not rename themselves."
-}
-
-legacy cadence weekly_pm_update {
-  replaced_by: founder_heartbeat
-  note: "Weekly strategy reflection is now a forced or bandit-selected action lane with weekly reward weighting."
-}
+Final output:
+- execution mode
+- reward updates
+- child thread IDs or planning request
+- report/state paths
+- evidence that will decide the next reward update
 ```
 
-## Compiled Prompt Rule
+## Daily Interval
 
-Each live automation prompt should include:
+| Field | Value |
+| --- | --- |
+| Automation id | `farplane-ui-daily-interval` |
+| Name | `Farplane UI Daily Interval` |
+| Kind | `cron` |
+| RRULE | `FREQ=DAILY;BYHOUR=5;BYMINUTE=33;BYSECOND=0` |
+| Workspace | `/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI` |
 
-- `Program:` fenced as `automation-program`
-- `Todo:` exact ordered steps
-- explicit side-effect gates
-- required final output fields
+```text
+Run the Farplane UI Daily Interval.
 
-Do not leave the live prompt as only "read `farplane/automations.md` and decide."
+Call:
+- `interval_update(project_root="/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI", interval_id="daily_interval", review_window="last_24h", planning_window="next_24h", timezone="Asia/Kuala_Lumpur")`
+
+Project context:
+- read the latest `weekly_interval` report when it exists.
+- read `farplane/harness.md`, `farplane/products.md`, `farplane/goals.md`, and
+  active `tickets/TASK-*/ticket.md` files.
+
+Project workflows:
+- `plan_progress`: light.
+- `goal_drift`: light.
+- `ticket_board_drift`: light.
+- `product_refill`: when local ready work is thin.
+- `distribution_refill`: when there are no current content/demo tickets tied to
+  viral agent-office or feature-showcase products.
+
+Project gates:
+- report before mutation.
+- source gaps instead of guessed refs.
+- no scheduler state writes.
+- no push, deploy, publish, spend, external mutation, commit, unbounded worker
+  spawning, or destructive cleanup.
+
+Final output:
+- dated report path
+- next-24-hour plan
+- Pulse guidance
+- proposed ticket deltas or Goal Advisor handoffs
+- approval-required goals delta, if any
+```
+
+## Weekly Interval
+
+| Field | Value |
+| --- | --- |
+| Automation id | `farplane-ui-weekly-interval` |
+| Name | `Farplane UI Weekly Interval` |
+| Kind | `cron` |
+| RRULE | `FREQ=WEEKLY;BYDAY=MO;BYHOUR=5;BYMINUTE=45;BYSECOND=0` |
+| Workspace | `/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI` |
+
+```text
+Run the Farplane UI Weekly Interval.
+
+Call:
+- `interval_update(project_root="/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI", interval_id="weekly_interval", review_window="last_week", planning_window="next_week", timezone="Asia/Kuala_Lumpur")`
+
+Project context:
+- read all `daily_interval` reports inside `last_week`.
+- read `farplane/harness.md`, `farplane/products.md`, `farplane/goals.md`,
+  `docs/bootstrap-brief.md`, and active tickets.
+
+Project workflows:
+- `plan_progress`: true.
+- `codex_attention_drift`: true.
+- `ticket_board_drift`: true.
+- `feedback_obligations`: when sources exist.
+- `opportunity_signals`: when sources exist.
+- `goal_drift`: true.
+- `metric_snapshot`: when sources exist.
+- `compounding_leverage_review`: true.
+- `docs_consolidation`: when sources exist.
+- `priority_planning`: true.
+- `distribution_planning`: true.
+
+Project gates:
+- report before mutation.
+- approval required for static charter, north-star, KPI, strategy-axis,
+  quarterly/yearly, durable milestone, and hold changes.
+- urgent leverage escalation requires high confidence, explicit loss term,
+  evidence refs, review-by date, and owner route.
+- source gaps instead of guessed refs.
+- no scheduler state writes.
+- no shady growth, fake engagement, privacy-invasive analytics, or content that
+  misrepresents what agents or Farplane did.
+- no push, deploy, publish, spend, external mutation, commit, unbounded worker
+  spawning, or destructive cleanup.
+
+Final output:
+- dated report path
+- next-week plan
+- lane distribution and ticket budget
+- Pulse guidance
+- proposed ticket deltas or Goal Advisor handoffs
+- approval-required goals delta, if any
+- leverage decisions and reward closure
+```
