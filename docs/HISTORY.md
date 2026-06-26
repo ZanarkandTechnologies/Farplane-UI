@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-06-26 | skills | MEM-0242 | skills,ingest-content,resource-bank | Promoted the upgraded ingest-content skill into the Farplane project skill tree so Resource Bank/Tasty Pack ingestion behavior is repo-owned instead of only living in the installed Codex skill copy.
+
 2026-06-26 | feature | MEM-0241 | convex,resource-bank,taste-bank | Added Resource Bank Tasty Pack retrieval with timeframe-first saved-reference packs, audience/customer/output facets on assets, and freeform hook/retention analysis reuse instead of a managed performance-tag taxonomy.
 
 2026-06-26 | docs | MEM-0240 | docs,resource-bank,taste-bank | Added FP03 Taste Bank And Tasty Packs as the product doctrine for turning explicit operator taste captures into Resource Bank records, creative ingredients, time-window Tasty Packs, and generation briefs.

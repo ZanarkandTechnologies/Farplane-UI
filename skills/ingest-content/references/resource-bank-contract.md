@@ -1,0 +1,237 @@
+# Resource Bank Contract
+
+## Source Of Truth
+
+Use the Farplane UI Resource Bank module as the backing store unless the
+operator supplies another vault:
+
+- `/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI/convex/modules/resourceBank/AGENTS.md`
+- `/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI/convex/modules/resourceBank/schema.ts`
+- `/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI/convex/modules/resourceBank/validators.ts`
+- `/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI/docs/specs/FP03-taste-bank-and-tasty-packs.md`
+
+## Current Tables
+
+- `resourceBankIngestionJobs`: one explicit capture request, source, note,
+  scope, tags, status, and project/task links.
+- `resourceBankAssets`: retained source references and derived evidence assets.
+  Primary assets carry retrieval facets for Tasty Packs.
+- `resourceBankAnalyses`: source-backed and inferred breakdowns, including
+  why-it-works, hook/retention notes, takeaways, prompt guesses, remix
+  constraints, confidence, and embedding text.
+- `resourceBankSkillFindings`: reusable techniques, existing-skill matches,
+  skill updates, and skill candidates extracted from a source.
+
+## Retrieval Fields
+
+Use first-class asset fields only for things the operator will filter, group, or
+pack by:
+
+- `outputTypes`: examples `reel`, `short-video`, `landing-page`, `thumbnail`.
+- `audiences`: examples `founders`, `operators`, `students`, `creators`.
+- `ageRanges`: examples `18-24`, `25-34`, `35-44`.
+- `industries`: examples `ai`, `saas`, `education`, `finance`.
+- `customerRoles`: examples `founder`, `marketer`, `engineer`, `buyer`.
+- `tastinessScore`: optional 0-1-ish operator or agent confidence that this is
+  a high-value reference.
+
+Keep `tags` lightweight and freeform for style, subject, project, and recall.
+Do not create managed tag families for hook/open-loop/pacing/retention unless a
+later UI or query path proves the need.
+
+## Analysis Shape
+
+For video/social content, write the attention game into analysis text:
+
+```text
+First 0-3s hook:
+- What happens immediately?
+- Why would the target viewer keep watching for three seconds?
+- What reusable move can be remixed?
+
+Retention beats:
+- What changes after the hook?
+- What curiosity, visual change, story beat, proof, or escalation earns the
+  next few seconds?
+- What should a future creator borrow at the pattern level?
+```
+
+Store these details in `whyItWorks`, `takeaways`, `frameNotes`, `promptGuess`,
+`remixConstraints`, and `embeddingText`.
+
+## Write Sequence
+
+1. Create the capture job:
+   `modules/resourceBank/jobs:createIngestionJob`.
+2. Add the primary retained asset:
+   `modules/resourceBank/assets:addResourceAsset`.
+3. Add one or more analyses:
+   `modules/resourceBank/analyses:addResourceAnalysis`.
+4. Add optional skill findings:
+   `modules/resourceBank/skillFindings:addSkillFinding`.
+5. Query `modules/resourceBank/assets:getResourceAsset` to verify the asset and
+   attached records.
+6. Query `modules/resourceBank/retrieval:createTastyPack` with the likely
+   timeframe and facets to verify future pack retrieval.
+
+## Convex Function Map
+
+```text
+createIngestionJob({
+  sourceKind,
+  sourceRef,
+  originalInstruction?,
+  note?,
+  requestedFocus?,
+  sourceScope?,
+  tags?,
+  projectId?,
+  taskId?,
+  externalTaskRef?,
+  requestedBy?,
+  sourcePrivacy?
+}) -> jobId
+
+addResourceAsset({
+  jobId,
+  parentAssetId?,
+  assetRole,
+  assetKind,
+  title,
+  sourceUrl?,
+  canonicalUrl?,
+  storageId?,
+  localPath?,
+  mimeType?,
+  width?,
+  height?,
+  durationMs?,
+  startMs?,
+  endMs?,
+  platform?,
+  author?,
+  attributionStatus?,
+  outputTypes?,
+  audiences?,
+  ageRanges?,
+  industries?,
+  customerRoles?,
+  tastinessScore?,
+  tags?,
+  searchableText?,
+  retentionNote?
+}) -> assetId
+
+addResourceAnalysis({
+  jobId,
+  assetId,
+  analysisType,
+  sourceSkill: "ingest-content",
+  facts?,
+  interpretation?,
+  userIntent?,
+  whyItWorks?,
+  takeaways?,
+  transcriptText?,
+  frameNotes?,
+  promptGuess?,
+  remixConstraints?,
+  confidence?,
+  embeddingText?,
+  embeddingModel?,
+  embedding?,
+  tags?
+}) -> analysisId
+
+addSkillFinding({
+  jobId,
+  assetId,
+  analysisId,
+  findingKind,
+  skillId?,
+  skillPath?,
+  label,
+  capability,
+  evidenceAnchor,
+  howToReuse,
+  suggestedSkillChange?,
+  tags?,
+  confidence?,
+  embeddingText?,
+  embeddingModel?,
+  embedding?
+}) -> findingId
+
+createTastyPack({
+  idea?,
+  timeframe?,
+  startAtMs?,
+  endAtMs?,
+  tags?,
+  outputType?,
+  outputTypes?,
+  audience?,
+  audiences?,
+  ageRanges?,
+  industry?,
+  industries?,
+  customerRole?,
+  customerRoles?,
+  projectId?,
+  taskId?,
+  limit?
+}) -> TastyPack
+```
+
+## Source Kind Mapping
+
+- `url`: generic link, webpage, profile, or social URL.
+- `image`: photo, design still, visual reference.
+- `video`: video file or video URL.
+- `audio`: audio source.
+- `file`: PDF, document, deck, downloaded file, unknown attachment.
+- `note`: idea with no external source.
+- `screenshot`: screenshot supplied as the source.
+- `clip`: selected segment from a longer video/audio source.
+
+## Asset Kind Mapping
+
+- `url`: retained source URL.
+- `image`: uploaded image or image URL.
+- `video`: retained video source or upload.
+- `audio`: retained audio source or upload.
+- `file`: generic retained file.
+- `note`: note-only asset.
+- `screenshot`: screenshot evidence.
+- `clip`: selected video/audio range.
+- `frame`: selected video frame.
+- `transcript`: transcript text or transcript file.
+
+## Segment And Element Mapping
+
+For notes like "the first few seconds are nice" or "I like the image used at
+the start," save:
+
+- the whole source as the primary asset;
+- the highlighted range through `sourceScope`, asset `startMs`/`endMs`, or a
+  derived `clip`/`frame`/`screenshot` asset when available;
+- the reusable idea as analysis `takeaways`;
+- the hook/retention logic in `whyItWorks`, `frameNotes`, and `embeddingText`;
+- the generation recipe as `promptGuess`;
+- attribution and remix boundaries as `remixConstraints`;
+- retrieval facets for audience/output/industry/customer filters.
+
+## Verification Standard
+
+Storage is not done until Resource Bank returns:
+
+- the job and primary asset with expected source, title, status, tags, and
+  retrieval facets;
+- at least one retained asset or an explicit note-only reason;
+- at least one analysis from `ingest-content`;
+- optional skill findings only when evidence supports them;
+- a Tasty Pack query that can find the asset by timeframe and supplied facets.
+
+If the Convex deployment cannot be found, a function is missing, upload fails,
+or the query does not return the expected row, report the exact blocker and
+keep the analysis packet in chat or a ticket-scoped artifact.
