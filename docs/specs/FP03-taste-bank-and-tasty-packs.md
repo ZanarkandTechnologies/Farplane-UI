@@ -177,6 +177,21 @@ Timeframe is product-critical. The operator should be able to ask for:
 - custom range
 - "latest tasty things for this project"
 
+Audience and customer segmentation should be retrieval-first fields, not a
+large tag taxonomy. The v1 facet set is:
+
+- `outputTypes`
+- `audiences`
+- `ageRanges`
+- `industries`
+- `customerRoles`
+- optional `tastinessScore`
+
+Tags remain lightweight and freeform. Hook, open-loop, pacing, retention, and
+similar creative mechanics should stay inside analysis text for v1 because the
+main retrieval job is "what did I save recently for this audience or idea,"
+not "show me every asset tagged with a specific retention tactic."
+
 ### Tasty Packs
 
 A Tasty Pack is not just search results. It is a creative brief generated from
@@ -218,6 +233,11 @@ Expected output:
 - visual style recommendations
 - sound/editing ideas
 - prompt/storyboard for the next generation step
+
+The 0-3s hook and middle-retention structures can be synthesized from
+`whyItWorks`, `takeaways`, `frameNotes`, `transcriptText`, and `embeddingText`
+on attached analyses. Add a structured timeline only when the UI needs
+segment-level rendering or editing.
 
 ### Mix And Match
 

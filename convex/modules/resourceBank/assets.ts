@@ -9,7 +9,13 @@
 
 import { v } from "convex/values";
 import { action, mutation, query } from "../../_generated/server";
-import { buildAssetSearchableText, clampLimit, cleanText, mergeTags } from "./resourceBank";
+import {
+  buildAssetSearchableText,
+  clampLimit,
+  cleanText,
+  mergeTags,
+  normalizeFacetValues,
+} from "./resourceBank";
 import {
   getAssetOrThrow,
   getJobOrThrow,
@@ -33,6 +39,11 @@ export const addResourceAsset = mutation({
     const job = await getJobOrThrow(ctx, args.jobId);
     const timestamp = nowMs();
     const tags = mergeTags(job.tags, args.tags);
+    const outputTypes = normalizeFacetValues(args.outputTypes);
+    const audiences = normalizeFacetValues(args.audiences);
+    const ageRanges = normalizeFacetValues(args.ageRanges);
+    const industries = normalizeFacetValues(args.industries);
+    const customerRoles = normalizeFacetValues(args.customerRoles);
     const title = cleanText(args.title, 240) ?? "Untitled resource";
     return await ctx.db.insert("resourceBankAssets", {
       ingestionJobId: args.jobId,
@@ -53,6 +64,12 @@ export const addResourceAsset = mutation({
       platform: cleanText(args.platform, 120),
       author: cleanText(args.author, 240),
       attributionStatus: args.attributionStatus ?? "unknown",
+      outputTypes,
+      audiences,
+      ageRanges,
+      industries,
+      customerRoles,
+      tastinessScore: args.tastinessScore,
       tags,
       searchableText:
         cleanText(args.searchableText, 6_000) ??
@@ -61,7 +78,7 @@ export const addResourceAsset = mutation({
           note: job.note,
           requestedFocus: job.requestedFocus,
           sourceRef: job.sourceRef,
-          tags,
+          tags: mergeTags(tags, outputTypes, audiences, ageRanges, industries, customerRoles),
         }),
       projectId: rowProjectId(job),
       taskId: rowTaskId(job),

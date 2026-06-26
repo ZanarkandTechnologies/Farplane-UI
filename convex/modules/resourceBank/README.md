@@ -14,6 +14,14 @@ The gallery search lane searches assets and analyses. The skill search lane
 searches extracted skill findings, such as existing skills to reuse, candidate
 skills to create, or specific techniques to apply later.
 
+Tasty Pack retrieval is the operator-facing pack lane. It filters primary
+assets by timeframe plus retrieval facets (`audiences`, `industries`,
+`ageRanges`, `customerRoles`, `outputTypes`, and optional `tastinessScore`),
+then uses attached analyses for hook, retention, remix, and prompt reasoning.
+Do not model hook/retention mechanics as a managed performance-tag taxonomy in
+v1; keep those as rich analysis text unless a later UI needs timeline-specific
+fields.
+
 Embeddings live on `resourceBankAnalyses` and `resourceBankSkillFindings` for
 v1. That keeps retrieval close to the record it explains. Move to
 `@convex-dev/rag` only when the vault needs chunking, namespaces, importance

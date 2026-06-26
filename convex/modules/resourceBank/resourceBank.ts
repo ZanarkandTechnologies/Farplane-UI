@@ -10,6 +10,19 @@ export type ResourceBankAssetRow = {
   title: string;
   assetKind: string;
   assetRole: string;
+  platform?: string;
+  sourceUrl?: string;
+  canonicalUrl?: string;
+  storageId?: string;
+  localPath?: string;
+  author?: string;
+  attributionStatus?: string;
+  outputTypes: string[];
+  audiences: string[];
+  ageRanges: string[];
+  industries: string[];
+  customerRoles: string[];
+  tastinessScore?: number;
   tags: string[];
   searchableText: string;
   projectId?: string;
@@ -69,6 +82,81 @@ export type ResourceBankDashboard = {
   }>;
 };
 
+export type TastyPackTimeframe = "past_day" | "past_week" | "past_month" | "past_90_days" | "all";
+
+export type TastyPackFilters = {
+  idea?: string;
+  timeframe?: TastyPackTimeframe;
+  startAtMs?: number;
+  endAtMs?: number;
+  tags?: readonly string[];
+  outputType?: string;
+  outputTypes?: readonly string[];
+  audience?: string;
+  audiences?: readonly string[];
+  ageRanges?: readonly string[];
+  industry?: string;
+  industries?: readonly string[];
+  customerRole?: string;
+  customerRoles?: readonly string[];
+  projectId?: string;
+  taskId?: string;
+};
+
+export type ResolvedTastyPackFilters = {
+  timeframe: TastyPackTimeframe;
+  startAtMs?: number;
+  endAtMs?: number;
+  tags: string[];
+  outputTypes: string[];
+  audiences: string[];
+  ageRanges: string[];
+  industries: string[];
+  customerRoles: string[];
+  projectId?: string;
+  taskId?: string;
+};
+
+export type TastyPackAsset = {
+  assetId?: string;
+  title: string;
+  savedAtMs: number;
+  assetKind: string;
+  platform?: string;
+  tastinessScore?: number;
+  tags: string[];
+  outputTypes: string[];
+  audiences: string[];
+  ageRanges: string[];
+  industries: string[];
+  customerRoles: string[];
+  whyRelevant: string[];
+  retentionNotes: string[];
+  takeaways: string[];
+  promptGuess?: string;
+  remixConstraints: string[];
+  sourceHandle?: string;
+  attribution: {
+    author?: string;
+    status?: string;
+    sourceUrl?: string;
+    canonicalUrl?: string;
+  };
+};
+
+export type TastyPack = {
+  query: {
+    idea?: string;
+    timeframe: TastyPackTimeframe;
+    startAtMs?: number;
+    endAtMs?: number;
+  };
+  filters: Omit<ResolvedTastyPackFilters, "timeframe" | "startAtMs" | "endAtMs">;
+  assets: TastyPackAsset[];
+  packSummary: string[];
+  retrievalNotes: string[];
+};
+
 export function cleanText(value: string | undefined, limit = 240): string | undefined {
   const trimmed = value?.trim();
   if (!trimmed) return undefined;
@@ -99,6 +187,10 @@ export function mergeTags(...groups: Array<readonly string[] | undefined>): stri
   return normalizeTags(groups.flatMap((group) => [...(group ?? [])]));
 }
 
+export function normalizeFacetValues(...groups: Array<readonly string[] | undefined>): string[] {
+  return normalizeTags(groups.flatMap((group) => [...(group ?? [])]));
+}
+
 export function buildRetrievalTagPlan(input: {
   tags?: readonly string[];
   outputType?: string;
@@ -119,6 +211,147 @@ export function includesAllTags(rowTags: readonly string[], requiredTags: readon
   if (requiredTags.length === 0) return true;
   const rowTagSet = new Set(rowTags.map((tag) => tag.toLowerCase()));
   return requiredTags.every((tag) => rowTagSet.has(tag.toLowerCase()));
+}
+
+export function intersectsFacet(rowValues: readonly string[], requiredValues: readonly string[]): boolean {
+  if (requiredValues.length === 0) return true;
+  const rowSet = new Set(rowValues.map((value) => value.toLowerCase()));
+  return requiredValues.some((value) => rowSet.has(value.toLowerCase()));
+}
+
+export function resolveTastyPackFilters(
+  input: TastyPackFilters,
+  nowMs: number,
+): ResolvedTastyPackFilters {
+  const timeframe = input.timeframe ?? "past_week";
+  const explicitStartAtMs = input.startAtMs;
+  const timeframeStartAtMs =
+    timeframe === "all"
+      ? undefined
+      : nowMs -
+        ({
+          past_day: 1,
+          past_week: 7,
+          past_month: 30,
+          past_90_days: 90,
+        } satisfies Record<Exclude<TastyPackTimeframe, "all">, number>)[timeframe] *
+          24 *
+          60 *
+          60 *
+          1000;
+
+  return {
+    timeframe,
+    startAtMs: explicitStartAtMs ?? timeframeStartAtMs,
+    endAtMs: input.endAtMs,
+    tags: normalizeTags(input.tags),
+    outputTypes: normalizeFacetValues(
+      input.outputTypes,
+      input.outputType ? [input.outputType] : undefined,
+    ),
+    audiences: normalizeFacetValues(input.audiences, input.audience ? [input.audience] : undefined),
+    ageRanges: normalizeFacetValues(input.ageRanges),
+    industries: normalizeFacetValues(input.industries, input.industry ? [input.industry] : undefined),
+    customerRoles: normalizeFacetValues(
+      input.customerRoles,
+      input.customerRole ? [input.customerRole] : undefined,
+    ),
+    projectId: cleanText(input.projectId, 120),
+    taskId: cleanText(input.taskId, 120),
+  };
+}
+
+export function matchesTastyPackFilters(
+  asset: ResourceBankAssetRow,
+  filters: ResolvedTastyPackFilters,
+): boolean {
+  if (asset.assetRole !== "primary") return false;
+  if (filters.startAtMs !== undefined && asset.createdAtMs < filters.startAtMs) return false;
+  if (filters.endAtMs !== undefined && asset.createdAtMs > filters.endAtMs) return false;
+  if (filters.projectId && asset.projectId !== filters.projectId) return false;
+  if (filters.taskId && asset.taskId !== filters.taskId) return false;
+  if (!includesAllTags(asset.tags, filters.tags)) return false;
+  if (!intersectsFacet(asset.outputTypes, filters.outputTypes)) return false;
+  if (!intersectsFacet(asset.audiences, filters.audiences)) return false;
+  if (!intersectsFacet(asset.ageRanges, filters.ageRanges)) return false;
+  if (!intersectsFacet(asset.industries, filters.industries)) return false;
+  if (!intersectsFacet(asset.customerRoles, filters.customerRoles)) return false;
+  return true;
+}
+
+export function buildTastyPack(input: {
+  idea?: string;
+  filters: ResolvedTastyPackFilters;
+  assets: ResourceBankAssetRow[];
+  analyses: ResourceBankAnalysisRow[];
+}): TastyPack {
+  const analysesByAsset = groupBy(input.analyses, (analysis) => analysis.assetId);
+  const packAssets = input.assets.map((asset) => {
+    const analyses = analysesByAsset.get(asset._id ?? "") ?? [];
+    return {
+      assetId: asset._id,
+      title: asset.title,
+      savedAtMs: asset.createdAtMs,
+      assetKind: asset.assetKind,
+      platform: asset.platform,
+      tastinessScore: asset.tastinessScore,
+      tags: asset.tags,
+      outputTypes: asset.outputTypes,
+      audiences: asset.audiences,
+      ageRanges: asset.ageRanges,
+      industries: asset.industries,
+      customerRoles: asset.customerRoles,
+      whyRelevant: analyses.flatMap((analysis) => analysis.whyItWorks).slice(0, 8),
+      retentionNotes: analyses
+        .flatMap((analysis) => [analysis.embeddingText, ...analysis.takeaways])
+        .filter((note) => /hook|first|3 seconds|three seconds|retention|watch|stay/i.test(note))
+        .slice(0, 6),
+      takeaways: analyses.flatMap((analysis) => analysis.takeaways).slice(0, 8),
+      promptGuess: analyses.find((analysis) => analysis.promptGuess)?.promptGuess,
+      remixConstraints: analyses.flatMap((analysis) => analysis.remixConstraints).slice(0, 8),
+      sourceHandle: asset.storageId ?? asset.canonicalUrl ?? asset.sourceUrl ?? asset.localPath,
+      attribution: {
+        author: asset.author,
+        status: asset.attributionStatus,
+        sourceUrl: asset.sourceUrl,
+        canonicalUrl: asset.canonicalUrl,
+      },
+    };
+  });
+
+  return {
+    query: {
+      idea: cleanText(input.idea, 500),
+      timeframe: input.filters.timeframe,
+      startAtMs: input.filters.startAtMs,
+      endAtMs: input.filters.endAtMs,
+    },
+    filters: {
+      tags: input.filters.tags,
+      outputTypes: input.filters.outputTypes,
+      audiences: input.filters.audiences,
+      ageRanges: input.filters.ageRanges,
+      industries: input.filters.industries,
+      customerRoles: input.filters.customerRoles,
+      projectId: input.filters.projectId,
+      taskId: input.filters.taskId,
+    },
+    assets: packAssets,
+    packSummary: [
+      `Selected ${packAssets.length} saved references from ${input.filters.timeframe}.`,
+      ...(input.filters.audiences.length > 0
+        ? [`Audience filter: ${input.filters.audiences.join(", ")}.`]
+        : []),
+      ...(input.filters.industries.length > 0
+        ? [`Industry filter: ${input.filters.industries.join(", ")}.`]
+        : []),
+      ...(input.idea ? [`Idea lens: ${input.idea}.`] : []),
+    ],
+    retrievalNotes: [
+      "Tasty Packs prioritize timeframe and audience/customer facets, then use analysis text for hook and retention reasoning.",
+      "Hook and retention mechanics stay in freeform analysis for v1 instead of becoming managed performance tags.",
+    ],
+  };
 }
 
 export function buildAssetSearchableText(input: {

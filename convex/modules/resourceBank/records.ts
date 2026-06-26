@@ -1,7 +1,7 @@
 // Shared Resource Bank record helpers for domain function files.
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../../_generated/server";
-import { cleanText, includesAllTags, normalizeTags } from "./resourceBank";
+import { cleanText, includesAllTags, intersectsFacet, normalizeTags } from "./resourceBank";
 
 export type ResourceBankDbCtx = Pick<MutationCtx | QueryCtx, "db">;
 export type ResourceBankJob = Doc<"resourceBankIngestionJobs">;
@@ -55,6 +55,19 @@ export function toAssetRow(row: ResourceBankAsset) {
     title: row.title,
     assetKind: row.assetKind,
     assetRole: row.assetRole,
+    platform: row.platform,
+    sourceUrl: row.sourceUrl,
+    canonicalUrl: row.canonicalUrl,
+    storageId: row.storageId,
+    localPath: row.localPath,
+    author: row.author,
+    attributionStatus: row.attributionStatus,
+    outputTypes: row.outputTypes ?? [],
+    audiences: row.audiences ?? [],
+    ageRanges: row.ageRanges ?? [],
+    industries: row.industries ?? [],
+    customerRoles: row.customerRoles ?? [],
+    tastinessScore: row.tastinessScore,
     tags: row.tags,
     searchableText: row.searchableText,
     projectId: row.projectId,
@@ -103,6 +116,11 @@ export function matchesFilters(
     findingKind?: string;
     projectId?: string;
     taskId?: string;
+    outputTypes?: string[];
+    audiences?: string[];
+    ageRanges?: string[];
+    industries?: string[];
+    customerRoles?: string[];
     tags: string[];
   },
   args: {
@@ -111,6 +129,11 @@ export function matchesFilters(
     findingKind?: string;
     projectId?: string;
     taskId?: string;
+    outputTypes?: string[];
+    audiences?: string[];
+    ageRanges?: string[];
+    industries?: string[];
+    customerRoles?: string[];
     tags?: string[];
   },
 ): boolean {
@@ -119,5 +142,10 @@ export function matchesFilters(
   if (args.findingKind && row.findingKind !== args.findingKind) return false;
   if (args.projectId && row.projectId !== args.projectId) return false;
   if (args.taskId && row.taskId !== args.taskId) return false;
+  if (!intersectsFacet(row.outputTypes ?? [], normalizeTags(args.outputTypes))) return false;
+  if (!intersectsFacet(row.audiences ?? [], normalizeTags(args.audiences))) return false;
+  if (!intersectsFacet(row.ageRanges ?? [], normalizeTags(args.ageRanges))) return false;
+  if (!intersectsFacet(row.industries ?? [], normalizeTags(args.industries))) return false;
+  if (!intersectsFacet(row.customerRoles ?? [], normalizeTags(args.customerRoles))) return false;
   return includesAllTags(row.tags, normalizeTags(args.tags));
 }

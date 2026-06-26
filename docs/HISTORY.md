@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-06-26 | feature | MEM-0241 | convex,resource-bank,taste-bank | Added Resource Bank Tasty Pack retrieval with timeframe-first saved-reference packs, audience/customer/output facets on assets, and freeform hook/retention analysis reuse instead of a managed performance-tag taxonomy.
+
 2026-06-26 | docs | MEM-0240 | docs,resource-bank,taste-bank | Added FP03 Taste Bank And Tasty Packs as the product doctrine for turning explicit operator taste captures into Resource Bank records, creative ingredients, time-window Tasty Packs, and generation briefs.
 
 2026-06-25 | feature | MEM-0239 | ui,office,layout | Promoted the office auto-layout path to the operator's three-phase solver contract: automatic strategies now route through strategy-aware ordering, compact graph-node placement, shortest-walk-path reservation, gap-aware optional-object packing, and empty-edge pruning; manual remains the only bypass, generated walls remain absent, and Team Neighborhoods plus Activity Treemap both render through the same compact solver proof at roughly 26% empty space with 100% walkability.

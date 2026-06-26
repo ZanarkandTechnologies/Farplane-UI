@@ -2,13 +2,20 @@
 import { query } from "../../_generated/server";
 import {
   buildResourceBankDashboard,
+  buildTastyPack,
   buildRetrievalTagPlan,
   clampLimit,
   cleanText,
+  matchesTastyPackFilters,
   RESOURCE_BANK_QUERY_LIMIT,
+  resolveTastyPackFilters,
 } from "./resourceBank";
 import { matchesFilters, toAnalysisRow, toAssetRow, toSkillFindingRow } from "./records";
-import { dashboardArgsValidator, retrieveForCreationArgsValidator } from "./validators";
+import {
+  createTastyPackArgsValidator,
+  dashboardArgsValidator,
+  retrieveForCreationArgsValidator,
+} from "./validators";
 
 export const getResourceBankDashboard = query({
   args: dashboardArgsValidator,
@@ -100,5 +107,50 @@ export const retrieveForCreation = query({
             ]
           : ["Embedding was supplied but this query path is full-text; use findSimilarAssets for vector search."],
     };
+  },
+});
+
+export const createTastyPack = query({
+  args: createTastyPackArgsValidator,
+  handler: async (ctx, args) => {
+    const limit = clampLimit(args.limit, 5, 20);
+    const queryText = cleanText(args.idea, 500);
+    const filters = resolveTastyPackFilters(args, Date.now());
+    const rawAssets = queryText
+      ? await ctx.db
+          .query("resourceBankAssets")
+          .withSearchIndex("search_assets", (q) => q.search("searchableText", queryText))
+          .take(limit * 8)
+      : await ctx.db
+          .query("resourceBankAssets")
+          .withIndex("by_createdAtMs")
+          .order("desc")
+          .take(limit * 8);
+
+    const assets = rawAssets.map(toAssetRow).filter((asset) => matchesTastyPackFilters(asset, filters));
+    const selectedAssets = assets
+      .sort(
+        (left, right) =>
+          (right.tastinessScore ?? 0) - (left.tastinessScore ?? 0) ||
+          right.createdAtMs - left.createdAtMs,
+      )
+      .slice(0, limit);
+    const analyses = await Promise.all(
+      selectedAssets.map((asset) =>
+        asset._id
+          ? ctx.db
+              .query("resourceBankAnalyses")
+              .withIndex("by_asset", (q) => q.eq("assetId", asset._id))
+              .take(6)
+          : [],
+      ),
+    );
+
+    return buildTastyPack({
+      idea: args.idea,
+      filters,
+      assets: selectedAssets,
+      analyses: analyses.flat().map(toAnalysisRow),
+    });
   },
 });

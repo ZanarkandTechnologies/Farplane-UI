@@ -92,6 +92,12 @@ export const addResourceAssetArgsValidator = {
   platform: v.optional(v.string()),
   author: v.optional(v.string()),
   attributionStatus: v.optional(attributionStatusValidator),
+  outputTypes: v.optional(v.array(v.string())),
+  audiences: v.optional(v.array(v.string())),
+  ageRanges: v.optional(v.array(v.string())),
+  industries: v.optional(v.array(v.string())),
+  customerRoles: v.optional(v.array(v.string())),
+  tastinessScore: v.optional(v.number()),
   tags: v.optional(v.array(v.string())),
   searchableText: v.optional(v.string()),
   retentionNote: v.optional(v.string()),
@@ -166,6 +172,11 @@ export const searchGalleryArgsValidator = {
   tags: v.optional(v.array(v.string())),
   assetKind: v.optional(assetKindValidator),
   assetRole: v.optional(assetRoleValidator),
+  outputTypes: v.optional(v.array(v.string())),
+  audiences: v.optional(v.array(v.string())),
+  ageRanges: v.optional(v.array(v.string())),
+  industries: v.optional(v.array(v.string())),
+  customerRoles: v.optional(v.array(v.string())),
   projectId: v.optional(v.string()),
   taskId: v.optional(v.string()),
   limit: v.optional(v.number()),
@@ -216,6 +227,34 @@ export const retrieveForCreationArgsValidator = {
   projectId: v.optional(v.string()),
   taskId: v.optional(v.string()),
   count: v.optional(v.number()),
+};
+
+export const tastyPackTimeframeValidator = v.union(
+  v.literal("past_day"),
+  v.literal("past_week"),
+  v.literal("past_month"),
+  v.literal("past_90_days"),
+  v.literal("all"),
+);
+
+export const createTastyPackArgsValidator = {
+  idea: v.optional(v.string()),
+  timeframe: v.optional(tastyPackTimeframeValidator),
+  startAtMs: v.optional(v.number()),
+  endAtMs: v.optional(v.number()),
+  tags: v.optional(v.array(v.string())),
+  outputType: v.optional(v.string()),
+  outputTypes: v.optional(v.array(v.string())),
+  audience: v.optional(v.string()),
+  audiences: v.optional(v.array(v.string())),
+  ageRanges: v.optional(v.array(v.string())),
+  industry: v.optional(v.string()),
+  industries: v.optional(v.array(v.string())),
+  customerRole: v.optional(v.string()),
+  customerRoles: v.optional(v.array(v.string())),
+  projectId: v.optional(v.string()),
+  taskId: v.optional(v.string()),
+  limit: v.optional(v.number()),
 };
 
 export const seedDemoArgsValidator = {
