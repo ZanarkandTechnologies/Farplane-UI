@@ -10,6 +10,7 @@ export {
   buildOfficeObjectMetadata,
   hasOfficeObjectRuntimeUi,
   normalizeHttpUrl,
+  parseOfficeObjectIdleInteraction,
   parseOfficeObjectInteractionConfig,
   parseOfficeObjectSkillBinding,
   parseOfficeObjectUiBinding,
@@ -20,6 +21,7 @@ export {
   type OfficeObjectRuntimeLaunch,
 } from "./runtime-panel";
 export type {
+  OfficeObjectIdleInteraction,
   OfficeObjectInteractionConfig,
   OfficeObjectPanelAspectRatio,
   OfficeObjectPanelKind,

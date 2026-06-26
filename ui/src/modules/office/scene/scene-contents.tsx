@@ -414,6 +414,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
             bubbleMessages={employee.bubbleMessages}
             heartbeatState={employee.heartbeatState}
             heartbeatBubbles={employee.heartbeatBubbles}
+            idleInteractionTargets={employee.idleInteractionTargets}
             presencePersistent={employee.presencePersistent}
             presenceExpiresAt={employee.presenceExpiresAt}
             profileImageUrl={employee.profileImageUrl}

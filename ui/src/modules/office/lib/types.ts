@@ -13,6 +13,14 @@ export interface EmployeeCharacterRendererConfig {
   source?: EmployeeCharacterRendererSource;
 }
 
+export type EmployeeIdleInteractionTarget = {
+  objectId: OfficeId<"officeObjects">;
+  label: string;
+  position: [number, number, number];
+  objectPosition: [number, number, number];
+  phrases: string[];
+};
+
 export interface Company {
   _id: OfficeId<"companies">;
   name: string;
@@ -116,6 +124,7 @@ export interface EmployeeData extends Employee {
   bubbleMessages?: Array<{ threadId: string; message: string; eventAt: number }>;
   heartbeatState?: AgentState;
   heartbeatBubbles?: Array<{ label: string; weight: number }>;
+  idleInteractionTargets?: EmployeeIdleInteractionTarget[];
   presencePersistent?: boolean;
   presenceExpiresAt?: number;
   observedRuntime?: {

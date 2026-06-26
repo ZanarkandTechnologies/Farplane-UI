@@ -15,14 +15,17 @@
  * - MEM-0188
  */
 import { Edges } from "@react-three/drei";
-import { type ThreeEvent } from "@react-three/fiber";
+import type { ThreeEvent } from "@react-three/fiber";
 import { memo, useCallback, useState } from "react";
 import { TOTAL_HEIGHT } from "@/constants";
 import type { Id } from "@/lib/entity-types";
 import PathVisualizer from "@/modules/navigation/components/path-visualizer";
 import type { StatusType } from "@/modules/navigation/components/status-indicator";
-import type { EmployeeActivityState } from "@/modules/office/lib/types";
-import { type AgentState } from "@/modules/runtime";
+import type {
+  EmployeeActivityState,
+  EmployeeIdleInteractionTarget,
+} from "@/modules/office/lib/types";
+import type { AgentState } from "@/modules/runtime";
 import { useAppStore } from "@/store";
 import { ContextMenu } from "../context-menu";
 import { EmployeePresenceAura, resolveEmployeePresenceVisual } from "./presence-visuals";
@@ -66,6 +69,7 @@ export interface EmployeeProps {
   bubbleMessages?: Array<{ threadId: string; message: string; eventAt: number }>;
   heartbeatState?: AgentState;
   heartbeatBubbles?: Array<{ label: string; weight?: number }>;
+  idleInteractionTargets?: EmployeeIdleInteractionTarget[];
   presencePersistent?: boolean;
   presenceExpiresAt?: number;
   profileImageUrl?: string;
@@ -104,6 +108,7 @@ const Employee = memo(function Employee({
   activityUpdatedAt,
   bubbleMessages,
   heartbeatState,
+  idleInteractionTargets,
   presencePersistent,
   presenceExpiresAt,
   useCompactOverlayMode = false,
@@ -132,19 +137,27 @@ const Employee = memo(function Employee({
     activityUpdatedAt,
   });
 
-  const { groupRef, debugDeskDecision, debugPathData, isGoingToDesk, animationMode, movementDirection } =
-    useEmployeeLocomotion({
-      id,
-      position,
-      activityTargetPosition,
-      activityTargetSkillId,
-      activityEffectVariant,
-      isBusy,
-      isCEO,
-      wantsToWander,
-      heartbeatState,
-      debugMode,
-    });
+  const {
+    groupRef,
+    debugDeskDecision,
+    debugPathData,
+    isGoingToDesk,
+    animationMode,
+    movementDirection,
+    idleInteractionMessage,
+  } = useEmployeeLocomotion({
+    id,
+    position,
+    activityTargetPosition,
+    activityTargetSkillId,
+    activityEffectVariant,
+    isBusy,
+    isCEO,
+    wantsToWander,
+    heartbeatState,
+    idleInteractionTargets,
+    debugMode,
+  });
   const finalColors = useEmployeeAvatarPalette({ isCEO, appearance });
   const employeeActions = useEmployeeActions({ id, isCEO, onClick });
   const presenceVisual = resolveEmployeePresenceVisual({ presencePersistent, heartbeatState });
@@ -165,18 +178,21 @@ const Employee = memo(function Employee({
     Array.isArray(activityTargetObjectPosition);
   const isBlinkEffectActive =
     activityEffectVariant === "blink" && Array.isArray(activityTargetPosition);
-  const { CharacterRenderer, config: characterRendererConfig, runtime: characterRuntime } =
-    useEmployeeCharacterRenderer({
-      employeeId: String(id),
-      name,
-      characterRenderer: appearance?.characterRenderer,
-      animationMode,
-      movementDirection,
-      activityState: visibleActivityState,
-      isSelected,
-      isHovered,
-      isHighlighted,
-    });
+  const {
+    CharacterRenderer,
+    config: characterRendererConfig,
+    runtime: characterRuntime,
+  } = useEmployeeCharacterRenderer({
+    employeeId: String(id),
+    name,
+    characterRenderer: appearance?.characterRenderer,
+    animationMode,
+    movementDirection,
+    activityState: visibleActivityState,
+    isSelected,
+    isHovered,
+    isHighlighted,
+  });
   const {
     avatarRef,
     projectionRef,
@@ -205,6 +221,9 @@ const Employee = memo(function Employee({
           : null
       : null;
   const skillInvocationLabel = formatSkillInvocationLabel(activityTargetSkillId);
+  const presentedBubbleMessages = idleInteractionMessage
+    ? [idleInteractionMessage, ...(bubbleMessages ?? [])]
+    : bubbleMessages;
 
   return (
     <>
@@ -291,7 +310,7 @@ const Employee = memo(function Employee({
           useCompactOverlayMode={useCompactOverlayMode}
           pinReadyActivity={isCodexThreadEmployee}
           skillInvocationLabel={isGhostProjectionActive ? undefined : skillInvocationLabel}
-          bubbleMessages={isGhostProjectionActive ? undefined : bubbleMessages}
+          bubbleMessages={isGhostProjectionActive ? undefined : presentedBubbleMessages}
           presenceExpiresAt={presenceExpiresAt}
         />
 
@@ -350,7 +369,7 @@ const Employee = memo(function Employee({
             useCompactOverlayMode={useCompactOverlayMode}
             pinReadyActivity={false}
             skillInvocationLabel={skillInvocationLabel}
-            bubbleMessages={bubbleMessages}
+            bubbleMessages={presentedBubbleMessages}
             presenceExpiresAt={presenceExpiresAt}
           />
         </group>

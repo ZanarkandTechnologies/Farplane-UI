@@ -3,15 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { AgentLiveStatus } from "@/modules/runtime";
 import type { DeskLayoutData, EmployeeData, OfficeObject } from "../lib/types";
 import { assignRandomStatuses, buildDesksByTeamId } from "./derived-data-utils";
-import {
-  applyLiveStatusToSceneEmployees,
-  buildCeoDeskData,
-} from "./use-office-scene-derived-data";
+import { applyLiveStatusToSceneEmployees, buildCeoDeskData } from "./use-office-scene-derived-data";
 import { getOfficePresentationRotationY } from "./view-profile";
 
-function createEmployeeData(
-  overrides: Partial<EmployeeData> = {},
-): EmployeeData {
+function createEmployeeData(overrides: Partial<EmployeeData> = {}): EmployeeData {
   return {
     _id: "emp-1",
     teamId: "team-a",
@@ -88,18 +83,12 @@ describe("office scene derived data", () => {
       "desk-team-alpha-0",
       "desk-team-alpha-1",
     ]);
-    expect(desksByTeamId.get("team-beta")?.map((desk) => desk.id)).toEqual([
-      "desk-team-beta-0",
-    ]);
+    expect(desksByTeamId.get("team-beta")?.map((desk) => desk.id)).toEqual(["desk-team-beta-0"]);
   });
 
   it("resolves deterministic presentation yaw for fixed 2.5D orientations", () => {
-    expect(getOfficePresentationRotationY("south_east")).toBeCloseTo(
-      Math.PI / 4,
-    );
-    expect(getOfficePresentationRotationY("north_west")).toBeCloseTo(
-      (-3 * Math.PI) / 4,
-    );
+    expect(getOfficePresentationRotationY("south_east")).toBeCloseTo(Math.PI / 4);
+    expect(getOfficePresentationRotationY("north_west")).toBeCloseTo((-3 * Math.PI) / 4);
   });
 
   it("keeps CEO desk placement derived from the management anchor", () => {
@@ -113,9 +102,7 @@ describe("office scene derived data", () => {
           employees: [],
         },
       ],
-      desks: [
-        { id: "desk-team-management-0", deskIndex: 0, team: "Management" },
-      ],
+      desks: [{ id: "desk-team-management-0", deskIndex: 0, team: "Management" }],
       officeViewSettings: {
         viewProfile: "free_orbit_3d",
         orbitControlsEnabled: true,
@@ -177,9 +164,55 @@ describe("office scene derived data", () => {
     expect(presented?.activityTargetSkillId).toBe("openai-docs");
     expect(presented?.activityTargetObjectPosition).toEqual([6, 0, 7]);
     expect(presented?.activityEffectVariant).toBe("blink");
-    expect(presented?.heartbeatBubbles).toEqual([
-      { label: "Working", weight: 80 },
-    ]);
+    expect(presented?.heartbeatBubbles).toEqual([{ label: "Working", weight: 80 }]);
     expect(presented?.bubbleMessages).toEqual(liveStatus.bubbleMessages);
+  });
+
+  it("attaches idle interaction targets only when employees have no active thread", () => {
+    const employee = createEmployeeData({
+      _id: "employee-agent-1",
+      wantsToWander: false,
+      heartbeatState: "idle",
+    });
+    const shelf: OfficeObject = {
+      _id: "object-shelf",
+      meshType: "bookshelf",
+      position: [4, 0, 5],
+      rotation: [0, 0, 0],
+      metadata: {
+        displayName: "Research Shelf",
+        idleInteraction: {
+          phrases: ["Checking docs"],
+        },
+      },
+    };
+
+    const [idlePresented] = applyLiveStatusToSceneEmployees({
+      employees: [employee],
+      liveStatusByAgentId: {},
+      officeObjects: [shelf],
+    });
+    const [activePresented] = applyLiveStatusToSceneEmployees({
+      employees: [employee],
+      liveStatusByAgentId: {
+        "agent-1": {
+          agentId: "agent-1",
+          state: "executing",
+          statusText: "Working",
+          bubbles: [],
+          updatedAt: 1770000000000,
+        },
+      },
+      officeObjects: [shelf],
+    });
+
+    expect(idlePresented?.idleInteractionTargets).toEqual([
+      expect.objectContaining({
+        objectId: "object-shelf",
+        label: "Research Shelf",
+        phrases: ["Checking docs"],
+      }),
+    ]);
+    expect(activePresented?.idleInteractionTargets).toBeUndefined();
   });
 });

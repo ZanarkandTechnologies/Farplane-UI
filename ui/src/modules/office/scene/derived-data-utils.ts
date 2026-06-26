@@ -18,6 +18,7 @@
 
 import { SAMPLE_MESSAGES } from "../../../constants/idle-messages";
 import type { StatusType } from "../../../modules/navigation/components/status-indicator";
+import type { AgentState } from "../../../modules/runtime";
 import type { DeskLayoutData, EmployeeData, TeamData } from "../lib/types";
 
 function hashString(str: string): number {
@@ -37,6 +38,24 @@ function seededRandom(seed: string, offset: number = 0): number {
   return (hash % 1000) / 1000;
 }
 
+export function hasEmployeeActiveThread(input: {
+  heartbeatState?: AgentState;
+  isBusy?: boolean;
+}): boolean {
+  if (typeof input.heartbeatState === "string") {
+    return (
+      input.heartbeatState === "running" ||
+      input.heartbeatState === "planning" ||
+      input.heartbeatState === "executing" ||
+      input.heartbeatState === "blocked" ||
+      input.heartbeatState === "error" ||
+      input.heartbeatState === "ok" ||
+      input.heartbeatState === "done"
+    );
+  }
+  return Boolean(input.isBusy);
+}
+
 export function assignRandomStatuses(
   employees: EmployeeData[],
   teamWanderLocks: Map<string, number | undefined>,
@@ -46,9 +65,10 @@ export function assignRandomStatuses(
 
   return employees.map((employee) => {
     const hasActiveHeartbeatState = Boolean(
-      employee.heartbeatState &&
-        employee.heartbeatState !== "idle" &&
-        employee.heartbeatState !== "no_work",
+      hasEmployeeActiveThread({
+        heartbeatState: employee.heartbeatState,
+        isBusy: employee.isBusy,
+      }),
     );
     const isIdleHeartbeatState =
       employee.heartbeatState === "idle" || employee.heartbeatState === "no_work";

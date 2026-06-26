@@ -62,8 +62,16 @@ export type OfficeObjectSkillBinding = {
   effectPool?: OfficeObjectSkillEffectVariant[];
 } | null;
 
+export type OfficeObjectIdleInteraction = {
+  enabled: boolean;
+  label?: string;
+  phrases?: string[];
+  weight?: number;
+} | null;
+
 export interface OfficeObjectInteractionConfig {
   displayName?: string;
   uiBinding: OfficeObjectUiBinding;
   skillBinding: OfficeObjectSkillBinding;
+  idleInteraction?: OfficeObjectIdleInteraction;
 }

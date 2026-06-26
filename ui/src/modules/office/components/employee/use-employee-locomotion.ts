@@ -20,6 +20,8 @@ import type { Group } from "three";
 import * as THREE from "three";
 
 import { IDLE_DESTINATIONS, TOTAL_HEIGHT } from "@/constants";
+import type { Id } from "@/lib/entity-types";
+import { getRandomItem } from "@/lib/utils";
 import {
   findPathAStar,
   getNearestValidPlacement,
@@ -30,24 +32,25 @@ import {
   findAvailableDestination,
   releaseEmployeeReservations,
 } from "@/modules/navigation/pathfinding/destination-registry";
-import type { Id } from "@/lib/entity-types";
+import type { EmployeeIdleInteractionTarget } from "@/modules/office/lib/types";
 import type { AgentState } from "@/modules/runtime";
-import { getRandomItem } from "@/lib/utils";
-import {
-  getEmployeeMovementDirection,
-  type EmployeeAnimationMode,
-  type EmployeeMovementDirection,
-} from "./employee-motion";
 import {
   hasEmployeeDeskTargetChanged,
   shouldEmployeeRouteToDesk,
   shouldSnapEmployeeToUpdatedDeskTarget,
   toEmployeeDeskTarget,
 } from "./employee-locomotion-targets";
+import {
+  type EmployeeAnimationMode,
+  type EmployeeMovementDirection,
+  getEmployeeMovementDirection,
+} from "./employee-motion";
 
 const IDLE_DESTINATION_ATTEMPTS = Math.max(8, IDLE_DESTINATIONS.length * 2);
 const PATH_RETRY_COOLDOWN_MS = 2500;
 const DESTINATION_KEY_PRECISION = 2;
+const IDLE_INTERACTION_PHRASE_SECONDS = 3.5;
+const IDLE_INTERACTION_MAX_PHRASES = 3;
 
 type DebugPathData = {
   originalPath: THREE.Vector3[] | null;
@@ -64,6 +67,7 @@ type UseEmployeeLocomotionOptions = {
   isCEO?: boolean;
   wantsToWander: boolean;
   heartbeatState?: AgentState;
+  idleInteractionTargets?: EmployeeIdleInteractionTarget[];
   debugMode: boolean;
 };
 
@@ -74,6 +78,7 @@ type UseEmployeeLocomotionResult = {
   isGoingToDesk: boolean;
   animationMode: EmployeeAnimationMode;
   movementDirection: EmployeeMovementDirection;
+  idleInteractionMessage?: { threadId: string; message: string; eventAt: number };
 };
 
 function getDestinationKey(destination: THREE.Vector3, mode: "desk" | "idle"): string {
@@ -94,6 +99,7 @@ export function useEmployeeLocomotion({
   isCEO,
   wantsToWander,
   heartbeatState,
+  idleInteractionTargets,
   debugMode,
 }: UseEmployeeLocomotionOptions): UseEmployeeLocomotionResult {
   const groupRef = useRef<Group>(null);
@@ -118,9 +124,21 @@ export function useEmployeeLocomotion({
   const debugPathUpdateRef = useRef(0);
   const activityTargetRef = useRef<THREE.Vector3 | null>(null);
   const failedPathRef = useRef<{ key: string; retryAfter: number } | null>(null);
+  const idleInteractionPhraseTimerRef = useRef(0);
+  const idleInteractionPhraseIndexRef = useRef(0);
+  const idleInteractionStartedAtRef = useRef(0);
+  const idleInteractionTargetRef = useRef<EmployeeIdleInteractionTarget | null>(null);
+  const idleInteractionTargetSignatureRef = useRef("");
+  const [idleInteractionMessage, setIdleInteractionMessage] = useState<
+    { threadId: string; message: string; eventAt: number } | undefined
+  >(undefined);
 
   const movementSpeed = 1.5;
   const arrivalThreshold = 0.1;
+  const idleInteractionTargetSignature =
+    idleInteractionTargets
+      ?.map((target) => `${target.objectId}:${target.phrases.join("|")}`)
+      .join("::") ?? "";
 
   useEffect(() => {
     return () => {
@@ -210,6 +228,39 @@ export function useEmployeeLocomotion({
   }, []);
 
   const getRandomWaitTime = useCallback(() => Math.random() * 4 + 4, []);
+
+  const chooseIdleInteractionTarget = useCallback(
+    (currentPos: THREE.Vector3): EmployeeIdleInteractionTarget | null => {
+      const targets = idleInteractionTargets?.filter((target) => target.phrases.length > 0) ?? [];
+      if (targets.length === 0) return null;
+      const previousObjectId = idleInteractionTargetRef.current?.objectId;
+      const candidates =
+        targets.length > 1
+          ? targets.filter((target) => target.objectId !== previousObjectId)
+          : targets;
+      const sorted = [...candidates].sort((left, right) => {
+        const leftDistance = currentPos.distanceTo(new THREE.Vector3(...left.position));
+        const rightDistance = currentPos.distanceTo(new THREE.Vector3(...right.position));
+        return leftDistance - rightDistance;
+      });
+      return getRandomItem(sorted.slice(0, Math.min(3, sorted.length)));
+    },
+    [idleInteractionTargets],
+  );
+
+  const clearIdleInteraction = useCallback(() => {
+    idleInteractionPhraseTimerRef.current = 0;
+    idleInteractionPhraseIndexRef.current = 0;
+    idleInteractionStartedAtRef.current = 0;
+    idleInteractionTargetRef.current = null;
+    setIdleInteractionMessage(undefined);
+  }, []);
+
+  useEffect(() => {
+    if (idleInteractionTargetSignatureRef.current === idleInteractionTargetSignature) return;
+    idleInteractionTargetSignatureRef.current = idleInteractionTargetSignature;
+    clearIdleInteraction();
+  }, [clearIdleInteraction, idleInteractionTargetSignature]);
 
   const findAndSetPath = useCallback(
     (startPos: THREE.Vector3, endPos: THREE.Vector3, goingToDesk = false) => {
@@ -324,6 +375,9 @@ export function useEmployeeLocomotion({
     }
 
     if (shouldBeAtDesk) {
+      if (idleInteractionTargetRef.current) {
+        clearIdleInteraction();
+      }
       if (idleState !== "wandering") {
         setIdleState("wandering");
       }
@@ -376,10 +430,45 @@ export function useEmployeeLocomotion({
           currentPos.lerp(deskPosition, 0.1);
         }
       }
+    } else if (idleInteractionMessage && idleInteractionTargetRef.current) {
+      idleInteractionPhraseTimerRef.current = Math.max(
+        0,
+        idleInteractionPhraseTimerRef.current - delta,
+      );
+      if (idleInteractionPhraseTimerRef.current <= 0) {
+        const target = idleInteractionTargetRef.current;
+        const nextPhraseIndex = idleInteractionPhraseIndexRef.current + 1;
+        if (
+          nextPhraseIndex >= target.phrases.length ||
+          nextPhraseIndex >= IDLE_INTERACTION_MAX_PHRASES
+        ) {
+          clearIdleInteraction();
+          setIdleState("waiting");
+          idleTimerRef.current = getRandomWaitTime();
+        } else {
+          idleInteractionPhraseIndexRef.current = nextPhraseIndex;
+          idleInteractionPhraseTimerRef.current = IDLE_INTERACTION_PHRASE_SECONDS;
+          setIdleInteractionMessage({
+            threadId: `idle:${id}:${target.objectId}`,
+            message: target.phrases[nextPhraseIndex] ?? target.label,
+            eventAt: idleInteractionStartedAtRef.current + nextPhraseIndex,
+          });
+        }
+      }
     } else if (idleState === "wandering") {
       if (!path) {
-        const newDest = findAndSetIdlePath(currentPos);
+        const interactionTarget = chooseIdleInteractionTarget(currentPos);
+        const interactionDestination = interactionTarget
+          ? new THREE.Vector3(...interactionTarget.position)
+          : null;
+        const newDest =
+          interactionTarget && interactionDestination
+            ? findAndSetPath(currentPos.clone(), interactionDestination, false)
+              ? interactionDestination
+              : null
+            : findAndSetIdlePath(currentPos);
         if (newDest) {
+          idleInteractionTargetRef.current = interactionTarget;
           if (isGoingToDesk) {
             setIsGoingToDesk(false);
           }
@@ -393,10 +482,24 @@ export function useEmployeeLocomotion({
         targetPathNode = path[pathIndex];
         isMoving = true;
       } else {
+        if (idleInteractionTargetRef.current) {
+          const target = idleInteractionTargetRef.current;
+          const startedAt = Date.now();
+          idleInteractionStartedAtRef.current = startedAt;
+          idleInteractionPhraseIndexRef.current = 0;
+          idleInteractionPhraseTimerRef.current = IDLE_INTERACTION_PHRASE_SECONDS;
+          setIdleInteractionMessage({
+            threadId: `idle:${id}:${target.objectId}`,
+            message: target.phrases[0] ?? target.label,
+            eventAt: startedAt,
+          });
+        }
         setPath(null);
         setCurrentDestination(null);
-        setIdleState("waiting");
-        idleTimerRef.current = getRandomWaitTime();
+        if (!idleInteractionTargetRef.current) {
+          setIdleState("waiting");
+          idleTimerRef.current = getRandomWaitTime();
+        }
       }
     } else if (idleState === "waiting") {
       idleTimerRef.current = Math.max(0, idleTimerRef.current - delta);
@@ -465,5 +568,6 @@ export function useEmployeeLocomotion({
     isGoingToDesk,
     animationMode,
     movementDirection,
+    idleInteractionMessage,
   };
 }

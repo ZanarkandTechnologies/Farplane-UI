@@ -20,6 +20,7 @@ import {
   isOfficeInternalPanelId,
 } from "../panels/internal-panel-catalog";
 import type {
+  OfficeObjectIdleInteraction,
   OfficeObjectInteractionConfig,
   OfficeObjectPanelAspectRatio,
   OfficeObjectSkillBinding,
@@ -52,6 +53,21 @@ function normalizeSkillIds(value: unknown): string[] | undefined {
     .map((item) => item.trim())
     .filter(Boolean);
   return normalized.length > 0 ? [...new Set(normalized)] : undefined;
+}
+
+function normalizePhrases(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const normalized = value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 8);
+  return normalized.length > 0 ? [...new Set(normalized)] : undefined;
+}
+
+function normalizeOptionalWeight(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  return Math.max(0, value);
 }
 
 export function normalizeHttpUrl(value: string): string | null {
@@ -145,14 +161,46 @@ export function parseOfficeObjectSkillBinding(
   };
 }
 
+export function parseOfficeObjectIdleInteraction(
+  metadata: Record<string, unknown> | undefined,
+): OfficeObjectIdleInteraction {
+  const raw = metadata?.idleInteraction;
+  if (!isPlainObject(raw)) {
+    const phrases = normalizePhrases(metadata?.commonPhrases);
+    return phrases ? { enabled: true, phrases } : null;
+  }
+  if (raw.enabled === false) {
+    return { enabled: false };
+  }
+
+  const phrases =
+    normalizePhrases(raw.phrases) ??
+    normalizePhrases(raw.commonPhrases) ??
+    normalizePhrases(metadata?.commonPhrases);
+  const label = normalizeOptionalText(raw.label);
+  const weight = normalizeOptionalWeight(raw.weight);
+  if (raw.enabled !== true && !phrases && !label) {
+    return null;
+  }
+
+  return {
+    enabled: true,
+    label,
+    phrases,
+    weight,
+  };
+}
+
 export function parseOfficeObjectInteractionConfig(
   metadata: Record<string, unknown> | undefined,
 ): OfficeObjectInteractionConfig {
   const displayName = normalizeOptionalText(metadata?.displayName);
+  const idleInteraction = parseOfficeObjectIdleInteraction(metadata);
   return {
     displayName,
     uiBinding: parseOfficeObjectUiBinding(metadata),
     skillBinding: parseOfficeObjectSkillBinding(metadata),
+    ...(idleInteraction ? { idleInteraction } : {}),
   };
 }
 
@@ -175,6 +223,13 @@ export function buildOfficeObjectMetadata(
     base.skillBinding = next.skillBinding;
   } else {
     delete base.skillBinding;
+  }
+  if ("idleInteraction" in next) {
+    if (next.idleInteraction) {
+      base.idleInteraction = next.idleInteraction;
+    } else {
+      delete base.idleInteraction;
+    }
   }
   return base;
 }

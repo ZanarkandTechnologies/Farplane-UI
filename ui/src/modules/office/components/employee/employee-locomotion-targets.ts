@@ -13,9 +13,7 @@ export type EmployeeTargetPosition = [number, number, number];
 export const DESK_TARGET_CHANGE_EPSILON = 0.001;
 export const DESK_REPOSITION_SNAP_THRESHOLD = 0.35;
 
-export function toEmployeeDeskTarget(
-  position: EmployeeTargetPosition,
-): EmployeeTargetPosition {
+export function toEmployeeDeskTarget(position: EmployeeTargetPosition): EmployeeTargetPosition {
   return [position[0], TOTAL_HEIGHT / 2, position[2]];
 }
 
@@ -34,16 +32,26 @@ export function hasEmployeeDeskTargetChanged(
   return getEmployeeTargetDistance(previousTarget, nextTarget) > epsilon;
 }
 
-export function shouldHeartbeatRouteToDesk(
-  heartbeatState?: AgentState,
-): boolean {
+export function shouldHeartbeatRouteToDesk(heartbeatState?: AgentState): boolean {
   return (
     heartbeatState === "running" ||
     heartbeatState === "planning" ||
     heartbeatState === "executing" ||
     heartbeatState === "blocked" ||
-    heartbeatState === "error"
+    heartbeatState === "error" ||
+    heartbeatState === "ok" ||
+    heartbeatState === "done"
   );
+}
+
+export function hasActiveEmployeeThread(input: {
+  heartbeatState?: AgentState;
+  isBusy?: boolean;
+}): boolean {
+  const hasHeartbeatState = typeof input.heartbeatState === "string";
+  return hasHeartbeatState
+    ? shouldHeartbeatRouteToDesk(input.heartbeatState)
+    : Boolean(input.isBusy);
 }
 
 export function shouldEmployeeRouteToDesk(input: {
@@ -53,14 +61,13 @@ export function shouldEmployeeRouteToDesk(input: {
   isCEO?: boolean;
   wantsToWander: boolean;
 }): boolean {
-  const hasHeartbeatState = typeof input.heartbeatState === "string";
   return (
     input.hasActivityTarget ||
     Boolean(input.isCEO) ||
-    !input.wantsToWander ||
-    (hasHeartbeatState
-      ? shouldHeartbeatRouteToDesk(input.heartbeatState)
-      : Boolean(input.isBusy))
+    hasActiveEmployeeThread({
+      heartbeatState: input.heartbeatState,
+      isBusy: input.isBusy,
+    })
   );
 }
 

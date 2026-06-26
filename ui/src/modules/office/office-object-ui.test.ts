@@ -8,6 +8,7 @@ import {
   getObjectBindingHealthLabel,
   hasOfficeObjectRuntimeUi,
   normalizeHttpUrl,
+  parseOfficeObjectIdleInteraction,
   parseOfficeObjectInteractionConfig,
   parseOfficeObjectUiBinding,
   summarizeOfficeObjectUiBinding,
@@ -70,6 +71,29 @@ describe("office object ui helpers", () => {
       category: "docs",
       skillIds: ["openai-docs", "reference-grounding"],
     });
+  });
+
+  it("parses idle interaction phrases from object metadata", () => {
+    expect(
+      parseOfficeObjectIdleInteraction({
+        idleInteraction: {
+          enabled: true,
+          label: "Research Shelf",
+          phrases: ["Checking docs", "  ", "Checking docs", "Found a pattern"],
+          weight: 2,
+        },
+      }),
+    ).toEqual({
+      enabled: true,
+      label: "Research Shelf",
+      phrases: ["Checking docs", "Found a pattern"],
+      weight: 2,
+    });
+    expect(
+      parseOfficeObjectIdleInteraction({
+        idleInteraction: { enabled: false, phrases: ["ignored"] },
+      }),
+    ).toEqual({ enabled: false });
   });
 
   it("falls back to none for empty skill shelves", () => {
