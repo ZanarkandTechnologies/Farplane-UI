@@ -1,5 +1,5 @@
-import { Navigate, Route, Routes } from "react-router-dom";
 import type React from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
 
 import { EvalOsPanel } from "@/modules/evals";
 import {
@@ -7,11 +7,12 @@ import {
   HarnessOsPanel,
   HarnessRolloutSurface,
   RolloutSurface,
-  TemplateTrackingSurface,
   TemplateRolloutSurface,
+  TemplateTrackingSurface,
 } from "@/modules/harness-os";
 import { RawTelemetryRoute } from "@/modules/hook-telemetry";
 import { SkillOsMiniApp } from "@/modules/skills-studio/components/skill-os";
+import { ThreadDataPanel } from "@/modules/thread-data";
 import { LandingPage } from "@/pages/LandingPage";
 import { OfficePage } from "@/pages/OfficePage";
 
@@ -92,6 +93,14 @@ export function AppRouter(): React.JSX.Element {
         }
       />
       <Route path="/hook-telemetry" element={<RawTelemetryRoute />} />
+      <Route
+        path="/thread-data"
+        element={
+          <main className="h-[100dvh] w-[100dvw] overflow-auto bg-background p-4 text-foreground">
+            <ThreadDataPanel />
+          </main>
+        }
+      />
       <Route path="/office" element={<OfficePage />} />
       <Route path="/office/public" element={<OfficePage accessMode="public" />} />
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -28,8 +28,15 @@ export const moduleRegistry = {
   "resource-bank": {
     id: "resource-bank",
     label: "Resource Bank",
-    description: "Saved media references, analysis, extracted skill findings, and retrieval handles.",
+    description:
+      "Saved media references, analysis, extracted skill findings, and retrieval handles.",
     surfaces: ["nav", "panel", "hud", "office-object"],
+  },
+  "thread-data": {
+    id: "thread-data",
+    label: "Thread Data",
+    description: "Historical Codex thread mining programs, backfill jobs, and output review.",
+    surfaces: ["nav", "panel", "hud"],
   },
   "review-board": {
     id: "review-board",
