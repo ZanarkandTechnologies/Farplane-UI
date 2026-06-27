@@ -24,16 +24,21 @@ export function isEvalTaskDetail(value: unknown): value is EvalTaskDetail {
 export function resolveEvalArtifactsRoot({
   envRoot,
   frameworkRoot,
+  globalRoot,
   projectRoot,
   hasFrameworkIndex,
+  hasGlobalIndex,
 }: {
   envRoot?: string;
   frameworkRoot: string;
+  globalRoot: string;
   projectRoot: string;
   hasFrameworkIndex: boolean;
+  hasGlobalIndex: boolean;
 }): string {
   const explicitRoot = envRoot?.trim();
   if (explicitRoot) return explicitRoot;
+  if (hasGlobalIndex) return globalRoot;
   return hasFrameworkIndex ? frameworkRoot : projectRoot;
 }
 
@@ -83,6 +88,13 @@ export function getTaskScope(task: EvalTaskSummary, detail?: EvalTaskDetail): Ev
   return "task";
 }
 
+function stringifySearchValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(stringifySearchValue).join(" ");
+  if (value && typeof value === "object") return Object.values(value).map(stringifySearchValue).join(" ");
+  return "";
+}
+
 export function formatPercent(value: number | undefined): string {
   if (typeof value !== "number" || Number.isNaN(value)) return "--";
   return `${Math.round(value * 100)}%`;
@@ -120,9 +132,20 @@ export function filterEvalTasks(
       task.task_id,
       task.title,
       task.reason,
+      task.detail_path,
+      detail?.task?.id,
+      detail?.task?.title,
       detail?.task?.prompt,
       detail?.task?.query,
+      stringifySearchValue(detail?.task?.expected),
+      stringifySearchValue(detail?.task?.rubric),
+      stringifySearchValue(detail?.task?.context),
+      stringifySearchValue(detail?.task?.notes),
+      stringifySearchValue(detail?.task?.reference_points),
       detail?.judge?.reason,
+      stringifySearchValue(detail?.judge?.reference_points),
+      stringifySearchValue(detail?.judge?.reference_point_results),
+      stringifySearchValue(detail?.artifacts),
       ...getTaskTags(task, detail),
     ]
       .filter(Boolean)

@@ -26,10 +26,13 @@ export type EvalSummary = {
 };
 
 export type EvalTask = {
+  context?: string;
   id?: string;
+  notes?: string;
   title?: string;
   prompt?: string;
   query?: string;
+  reference_points?: unknown[];
   input?: unknown;
   expected?: unknown;
   rubric?: string;

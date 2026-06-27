@@ -1,19 +1,33 @@
 "use client";
 
-import { ArrowLeft, FileCode2, GitBranch, ListChecks } from "lucide-react";
+import { ArrowLeft, ExternalLink, FileCode2, GitBranch, ListChecks } from "lucide-react";
 import { type ReactElement, useMemo, useState } from "react";
 import { Response } from "@/components/ai-elements/response";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatPercent, formatRunDate } from "@/modules/evals/lib/eval-artifacts";
+import {
+  buildSkillDetailScorecard,
+  type SkillDetailScorecard,
+  type SkillMaintenanceGap,
+  type SkillScoreSignal,
+} from "./skill-detail-scorecard-model";
 import { TIER_LABELS, tierColor } from "./skill-os-constants";
-import type { SkillDoc, SkillGraphEdge, SkillGraphNode } from "./skill-os-types";
+import type {
+  SkillDoc,
+  SkillGraphEdge,
+  SkillGraphNode,
+  SkillTemplateIntelligencePayload,
+} from "./skill-os-types";
 import {
   buildSkillWorkbenchModel,
   type SkillArtifactKind,
   type SkillWorkbenchModel,
 } from "./skill-workbench-model";
+import { type SkillEvalHistoryRow, useSkillEvalHistory } from "./use-skill-eval-history";
 
 function EmptyRenderer({ label }: { label: string }): ReactElement {
   return (
@@ -29,6 +43,166 @@ function MarkdownBlock({ children, label }: { children: string; label: string })
     <div className="overflow-hidden rounded-md border bg-muted/10 p-4">
       <Response className="prose prose-invert max-w-none text-sm">{children}</Response>
     </div>
+  );
+}
+
+function scoreTone(score: number): string {
+  if (score >= 85) return "text-emerald-500";
+  if (score >= 70) return "text-sky-500";
+  if (score >= 50) return "text-amber-500";
+  return "text-destructive";
+}
+
+function gapVariant(status: SkillMaintenanceGap["status"]): "default" | "secondary" | "destructive" | "outline" {
+  if (status === "good") return "secondary";
+  if (status === "risk") return "default";
+  if (status === "missing") return "destructive";
+  return "outline";
+}
+
+function SignalRow({ signal }: { signal: SkillScoreSignal }): ReactElement {
+  return (
+    <div className="grid gap-2">
+      <div className="grid grid-cols-[minmax(8rem,1fr)_3rem] items-center gap-3 text-sm">
+        <div className="min-w-0">
+          <p className="truncate font-medium">{signal.label}</p>
+          <p className="truncate text-xs text-muted-foreground">{signal.detail}</p>
+        </div>
+        <span className="text-right font-mono text-sm tabular-nums">{signal.score}</span>
+      </div>
+      <Progress value={signal.score} className="h-1.5 bg-muted" />
+    </div>
+  );
+}
+
+function ScorecardPanel({ scorecard }: { scorecard: SkillDetailScorecard }): ReactElement {
+  return (
+    <div className="grid gap-3 xl:grid-cols-[17rem_minmax(0,1fr)]">
+      <section className="rounded-md border bg-card p-4">
+        <p className="text-xs font-semibold uppercase text-muted-foreground">Skill Score</p>
+        <div className="mt-4 flex items-end gap-2">
+          <span className={`text-6xl font-semibold leading-none tabular-nums ${scoreTone(scorecard.score)}`}>
+            {scorecard.score}
+          </span>
+          <span className="pb-1 text-sm text-muted-foreground">/100</span>
+        </div>
+        <p className="mt-4 text-sm leading-6 text-muted-foreground">{scorecard.action}</p>
+      </section>
+
+      <section className="rounded-md border bg-card p-4">
+        <p className="text-xs font-semibold uppercase text-muted-foreground">Signal Breakdown</p>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {scorecard.signals.map((signal) => (
+            <SignalRow key={signal.id} signal={signal} />
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function MaintenanceGapsPanel({ gaps }: { gaps: SkillMaintenanceGap[] }): ReactElement {
+  return (
+    <section className="rounded-md border bg-card p-4">
+      <p className="text-xs font-semibold uppercase text-muted-foreground">Maintenance Gaps</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 2xl:grid-cols-5">
+        {gaps.map((gap) => (
+          <div key={gap.label} className="min-w-0 rounded-md border px-3 py-2">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">{gap.label}</p>
+              <Badge variant={gapVariant(gap.status)}>{gap.status}</Badge>
+            </div>
+            <p className="mt-2 truncate font-mono text-sm">{gap.value}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function openEvalOsForSkill(skillId: string, runId?: string): void {
+  const params = new URLSearchParams({ skill: skillId });
+  if (runId) params.set("run", runId);
+  window.location.assign(`/evals?${params.toString()}`);
+}
+
+function EvalHistoryPanel({
+  rows,
+  skillId,
+  status,
+}: {
+  rows: SkillEvalHistoryRow[];
+  skillId: string;
+  status: "idle" | "loading" | "ready" | "error";
+}): ReactElement {
+  const latest = rows[0] ?? null;
+  return (
+    <section className="rounded-md border bg-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Eval History</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {latest
+              ? `${rows.length} matched run${rows.length === 1 ? "" : "s"} / latest ${formatRunDate(latest.runDate)} / ${formatPercent(latest.passRate ?? undefined)}`
+              : status === "loading"
+                ? "Loading eval runs..."
+                : "No eval runs matched this skill yet."}
+          </p>
+        </div>
+        <Button type="button" size="sm" variant="outline" onClick={() => openEvalOsForSkill(skillId)}>
+          <ExternalLink className="size-4" />
+          View all
+        </Button>
+      </div>
+
+      <div className="mt-3 max-h-[24rem] overflow-auto rounded-md border">
+        <div className="grid grid-cols-[minmax(12rem,1fr)_8rem_6rem_6rem_minmax(8rem,0.7fr)] gap-3 border-b px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
+          <span>Run</span>
+          <span>Date</span>
+          <span>Result</span>
+          <span>Tasks</span>
+          <span>Open</span>
+        </div>
+        {rows.map((row) => {
+          const result = row.failedTasks > 0 ? "fail" : row.passedTasks > 0 ? "pass" : "unknown";
+          return (
+            <div
+              key={row.jobId}
+              className="grid grid-cols-[minmax(12rem,1fr)_8rem_6rem_6rem_minmax(8rem,0.7fr)] gap-3 border-b px-3 py-2 text-sm last:border-b-0"
+            >
+              <span className="min-w-0 truncate font-medium">{row.label}</span>
+              <span className="truncate text-xs text-muted-foreground">{formatRunDate(row.runDate)}</span>
+              <span>
+                <Badge variant={result === "fail" ? "destructive" : result === "pass" ? "secondary" : "outline"}>
+                  {result}
+                </Badge>
+              </span>
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                {row.passedTasks}/{row.totalTasks}
+              </span>
+              <span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2"
+                  onClick={() => openEvalOsForSkill(skillId, row.jobId)}
+                >
+                  Detail
+                </Button>
+              </span>
+            </div>
+          );
+        })}
+        {rows.length === 0 ? (
+          <div className="px-3 py-6 text-sm text-muted-foreground">
+            {status === "error"
+              ? "Eval artifacts are unavailable."
+              : "No past runs reference this skill by id, title, reason, or tags."}
+          </div>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -137,6 +311,7 @@ export function SkillWorkbench({
   node,
   onBack,
   onSelectSkill,
+  templateIntelligence,
 }: {
   doc: SkillDoc | null;
   edges: SkillGraphEdge[];
@@ -144,10 +319,29 @@ export function SkillWorkbench({
   node: SkillGraphNode;
   onBack: () => void;
   onSelectSkill: (skillId: string) => void;
+  templateIntelligence: SkillTemplateIntelligencePayload | null;
 }): ReactElement {
   const model = useMemo(
     () => buildSkillWorkbenchModel({ doc, edges, invocationCount, node }),
     [doc, edges, invocationCount, node],
+  );
+  const evalHistory = useSkillEvalHistory(node.id);
+  const evalTaskCount = useMemo(
+    () => new Set(evalHistory.rows.flatMap((row) => row.tasks.map((task) => task.task_id))).size,
+    [evalHistory.rows],
+  );
+  const scorecard = useMemo(
+    () =>
+      buildSkillDetailScorecard({
+        doc,
+        edges,
+        evalTaskCount,
+        invocationCount,
+        model,
+        node,
+        templateIntelligence,
+      }),
+    [doc, edges, evalTaskCount, invocationCount, model, node, templateIntelligence],
   );
   const [activeArtifact, setActiveArtifact] = useState<SkillArtifactKind>("skill");
 
@@ -187,26 +381,13 @@ export function SkillWorkbench({
 
           <ScrollArea className="mt-4 min-h-0 flex-1">
             <TabsContent value="overview" className="m-0 space-y-4">
-              <div className="grid gap-3 md:grid-cols-4">
-                <div className="rounded-md border p-3">
-                  <p className="text-[10px] uppercase text-muted-foreground">Incoming</p>
-                  <p className="text-2xl font-semibold">{model.incoming.length}</p>
-                </div>
-                <div className="rounded-md border p-3">
-                  <p className="text-[10px] uppercase text-muted-foreground">Outgoing</p>
-                  <p className="text-2xl font-semibold">{model.outgoing.length}</p>
-                </div>
-                <div className="rounded-md border p-3">
-                  <p className="text-[10px] uppercase text-muted-foreground">Invocations</p>
-                  <p className="text-2xl font-semibold">{model.invocationCount}</p>
-                </div>
-                <div className="rounded-md border p-3">
-                  <p className="text-[10px] uppercase text-muted-foreground">Artifacts</p>
-                  <p className="text-2xl font-semibold">
-                    {model.artifacts.filter((artifact) => artifact.available).length}
-                  </p>
-                </div>
-              </div>
+              <ScorecardPanel scorecard={scorecard} />
+              <MaintenanceGapsPanel gaps={scorecard.gaps} />
+              <EvalHistoryPanel
+                rows={evalHistory.rows}
+                skillId={node.id}
+                status={evalHistory.status}
+              />
               <section className="rounded-md border bg-muted/10 p-4">
                 <h4 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
                   Summary

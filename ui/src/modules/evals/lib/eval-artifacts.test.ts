@@ -63,15 +63,37 @@ describe("Eval OS artifact helpers", () => {
   it("resolves eval artifacts root with explicit and framework-first precedence", () => {
     const roots = {
       frameworkRoot: "/framework/.farplane/evals",
+      globalRoot: "/home/user/.farplane/evals",
       projectRoot: "/project/.farplane/evals",
     };
 
-    expect(resolveEvalArtifactsRoot({ ...roots, envRoot: "/custom/evals", hasFrameworkIndex: true })).toBe(
-      "/custom/evals",
-    );
-    expect(resolveEvalArtifactsRoot({ ...roots, envRoot: "   ", hasFrameworkIndex: true })).toBe(
+    expect(
+      resolveEvalArtifactsRoot({
+        ...roots,
+        envRoot: "/custom/evals",
+        hasFrameworkIndex: true,
+        hasGlobalIndex: true,
+      }),
+    ).toBe("/custom/evals");
+    expect(
+      resolveEvalArtifactsRoot({
+        ...roots,
+        envRoot: "   ",
+        hasFrameworkIndex: true,
+        hasGlobalIndex: true,
+      }),
+    ).toBe(roots.globalRoot);
+    expect(
+      resolveEvalArtifactsRoot({
+        ...roots,
+        hasFrameworkIndex: true,
+        hasGlobalIndex: false,
+      }),
+    ).toBe(
       roots.frameworkRoot,
     );
-    expect(resolveEvalArtifactsRoot({ ...roots, hasFrameworkIndex: false })).toBe(roots.projectRoot);
+    expect(resolveEvalArtifactsRoot({ ...roots, hasFrameworkIndex: false, hasGlobalIndex: false })).toBe(
+      roots.projectRoot,
+    );
   });
 });

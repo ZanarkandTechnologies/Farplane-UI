@@ -9,6 +9,7 @@
 
 import { FileJson2, RefreshCw, Upload } from "lucide-react";
 import { type ChangeEvent, type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,16 @@ import type {
   EvalTaskScopeFilter,
 } from "@/modules/evals/lib/eval-types";
 
+type SkillEvalRunRow = {
+  jobId: string;
+};
+
+type SkillEvalRunsResponse = {
+  ok: boolean;
+  rows?: SkillEvalRunRow[];
+  error?: string;
+};
+
 async function readJsonFileInput(file: File): Promise<unknown> {
   return JSON.parse(await file.text()) as unknown;
 }
@@ -60,13 +71,16 @@ function upsertManualRun(runs: EvalRunIndexEntry[], summary: EvalSummary): EvalR
 }
 
 export function EvalOsPanel(): ReactElement {
+  const [searchParams] = useSearchParams();
+  const skillQuery = searchParams.get("skill") ?? "";
+  const requestedRunId = searchParams.get("run");
   const [runs, setRuns] = useState<EvalRunIndexEntry[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [summary, setSummary] = useState<EvalSummary | null>(null);
   const [detailsByTaskId, setDetailsByTaskId] = useState<Record<string, EvalTaskDetail>>({});
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(skillQuery);
   const [filter, setFilter] = useState<EvalTaskFilter>("all");
   const [scopeFilter, setScopeFilter] = useState<EvalTaskScopeFilter>("all");
   const [activeEvalTab, setActiveEvalTab] = useState("tasks");
@@ -102,8 +116,18 @@ export function EvalOsPanel(): ReactElement {
       }
       const nextRuns = sortRunIndex(payload.runs ?? []);
       setRuns(nextRuns);
-      if (payload.latest?.job_id) {
-        await loadRun(payload.latest.job_id);
+      const matchingSkillRunId = skillQuery
+        ? await fetch(`/farplane/evals/skill-runs?skill=${encodeURIComponent(skillQuery)}`)
+            .then((skillResponse) => skillResponse.json() as Promise<SkillEvalRunsResponse>)
+            .then((skillPayload) => skillPayload.rows?.[0]?.jobId ?? null)
+            .catch(() => null)
+        : null;
+      const requestedRun = requestedRunId
+        ? nextRuns.find((run) => run.job_id === requestedRunId)
+        : null;
+      const runToLoad = requestedRun?.job_id ?? matchingSkillRunId ?? payload.latest?.job_id;
+      if (runToLoad) {
+        await loadRun(runToLoad);
       } else {
         setSelectedRunId(null);
         setSummary(null);
@@ -116,11 +140,17 @@ export function EvalOsPanel(): ReactElement {
       setError(nextError instanceof Error ? nextError.message : "eval_os_refresh_failed");
       setStatus("Eval artifacts unavailable.");
     }
-  }, [loadRun]);
+  }, [loadRun, requestedRunId, skillQuery]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!skillQuery) return;
+    setQuery(skillQuery);
+    setActiveEvalTab("tasks");
+  }, [skillQuery]);
 
   const health = useMemo(() => computeEvalHealth(summary, detailsByTaskId), [summary, detailsByTaskId]);
   const selectedTask =

@@ -78,13 +78,17 @@ const OFFICE_SETTINGS_PATH = path.join(FARPLANE_HOME, "office.json");
 const CODEX_OFFICE_CONFIG_PATH = path.join(FARPLANE_HOME, "codex-office.json");
 const PROJECT_MANAGERS_PATH = path.join(FARPLANE_HOME, "project-managers.json");
 const TELEGRAM_GATEWAY_STATE_PATH = path.join(FARPLANE_HOME, "telegram-gateway", "state.json");
+const GLOBAL_EVALS_ROOT = path.join(FARPLANE_HOME, "evals");
 const PROJECT_EVALS_ROOT = path.join(REPO_ROOT, ".farplane", "evals");
 const FRAMEWORK_EVALS_ROOT = path.join(FARPLANE_FRAMEWORK_ROOT, ".farplane", "evals");
+const MAX_SKILL_EVAL_QUERY_LENGTH = 160;
 const FARPLANE_EVALS_ROOT = resolveEvalArtifactsRoot({
   envRoot: process.env.FARPLANE_EVALS_ROOT,
   frameworkRoot: FRAMEWORK_EVALS_ROOT,
+  globalRoot: GLOBAL_EVALS_ROOT,
   projectRoot: PROJECT_EVALS_ROOT,
   hasFrameworkIndex: existsSync(path.join(FRAMEWORK_EVALS_ROOT, "runs", "index.json")),
+  hasGlobalIndex: existsSync(path.join(GLOBAL_EVALS_ROOT, "runs", "index.json")),
 });
 const OFFICE_OBJECTS_TEMPLATE_PATH = path.resolve(
   __dirname,
@@ -3379,6 +3383,77 @@ async function readEvalRun(
   return { summary, detailsByTaskId };
 }
 
+function stringifyEvalSearchValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(stringifyEvalSearchValue).join(" ");
+  if (value && typeof value === "object") return Object.values(value).map(stringifyEvalSearchValue).join(" ");
+  return "";
+}
+
+function evalTaskMatchesSkill({
+  detail,
+  skillId,
+  task,
+}: {
+  detail?: JsonObject;
+  skillId: string;
+  task: EvalTaskSummary;
+}): boolean {
+  const normalizedSkill = skillId.toLowerCase();
+  const detailTask = detail?.task && typeof detail.task === "object" ? (detail.task as JsonObject) : {};
+  const detailJudge = detail?.judge && typeof detail.judge === "object" ? (detail.judge as JsonObject) : {};
+  return [
+    task.task_id,
+    task.title,
+    task.reason,
+    ...(task.tags ?? []),
+    detailTask.id,
+    detailTask.title,
+    detailTask.query,
+    detailTask.prompt,
+    stringifyEvalSearchValue(detailTask.tags),
+    stringifyEvalSearchValue(detailTask.expected),
+    stringifyEvalSearchValue(detailJudge.reason),
+    stringifyEvalSearchValue(detailJudge.reference_points),
+    stringifyEvalSearchValue(detailJudge.reference_point_results),
+    stringifyEvalSearchValue(detail?.artifacts),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(normalizedSkill);
+}
+
+async function readEvalRunsForSkill(skillId: string): Promise<JsonObject[]> {
+  const runs = await readEvalRunIndex();
+  const rows: JsonObject[] = [];
+  for (const runIndexEntry of runs) {
+    const run = await readEvalRun(runIndexEntry.job_id);
+    if (!run.summary) continue;
+    const tasks = run.summary.tasks.filter((task) =>
+      evalTaskMatchesSkill({
+        detail: run.detailsByTaskId[task.task_id],
+        skillId,
+        task,
+      }),
+    );
+    if (!tasks.length) continue;
+    const passedTasks = tasks.filter((task) => task.pass === true).length;
+    const failedTasks = tasks.filter((task) => task.pass === false).length;
+    rows.push({
+      failedTasks,
+      jobId: runIndexEntry.job_id,
+      label: runIndexEntry.label ?? run.summary.label ?? runIndexEntry.job_id,
+      passRate: tasks.length ? passedTasks / tasks.length : null,
+      passedTasks,
+      runDate: runIndexEntry.created_at ?? runIndexEntry.completed_at,
+      tasks,
+      totalTasks: tasks.length,
+    });
+  }
+  return rows;
+}
+
 function farplaneStateBridge() {
   return {
     name: "farplane-openclaw-state-bridge",
@@ -3649,6 +3724,27 @@ function farplaneStateBridge() {
             summary: run.summary,
             detailsByTaskId: run.detailsByTaskId,
             error: run.summary ? undefined : "eval_run_not_found",
+          });
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/evals/skill-runs") {
+          const skillId = url.searchParams.get("skill")?.trim() ?? "";
+          if (!skillId) {
+            writeJson(res, 400, { ok: false, error: "skill_required", rows: [] });
+            return;
+          }
+          if (skillId.length > MAX_SKILL_EVAL_QUERY_LENGTH) {
+            writeJson(res, 400, { ok: false, error: "skill_query_too_long", rows: [] });
+            return;
+          }
+          const exists = await isDirectory(FARPLANE_EVALS_ROOT);
+          const rows = exists ? await readEvalRunsForSkill(skillId) : [];
+          writeJson(res, 200, {
+            ok: true,
+            evalsRoot: FARPLANE_EVALS_ROOT,
+            exists,
+            rows,
           });
           return;
         }

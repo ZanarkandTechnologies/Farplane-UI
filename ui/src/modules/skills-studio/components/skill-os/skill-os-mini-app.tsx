@@ -186,6 +186,7 @@ export function SkillOsMiniApp({
                 node={selectedNode}
                 onBack={() => setFullPage(false)}
                 onSelectSkill={selectSkill}
+                templateIntelligence={templateIntelligence}
               />
             ) : null}
 
