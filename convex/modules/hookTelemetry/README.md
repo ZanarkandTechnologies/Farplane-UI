@@ -35,6 +35,10 @@ these opt-in Codex hooks:
 - `thread-lineage-listener`: `PostToolUse`; records `create_thread` and
   `fork_thread` results as `thread.created` and `thread.forked` lineage
   metadata.
+- `codex-event-miner`: `Stop`; keeps local miner window state, launches
+  detached Codex event-mining agents on cadence, records miner lifecycle events,
+  and flushes completed miner-agent report summaries as `learning.*` /
+  `decision.observed` fallback metadata.
 
 The managed hooks must remain compact and diagnostics-oriented. They may write
 bounded metadata to `/telemetry/hooks`, queue failed sends in

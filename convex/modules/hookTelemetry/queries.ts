@@ -2,6 +2,7 @@ import { query, type QueryCtx } from "../../_generated/server";
 import { buildTelemetrySummary } from "../runtimeTelemetry/runtimeTelemetry";
 import { telemetryDashboardArgsValidator } from "../runtimeTelemetry/validators";
 import { buildSkillInvocationDashboard } from "../skillInvocations/contracts";
+import { hookTelemetryRowsToLearningTimelineRows } from "./learningTimeline";
 import {
   hookTelemetryRowsToAgentBubbleMessages,
   hookTelemetryRowsToActivityPingRows,
@@ -14,6 +15,7 @@ import {
 import {
   hookTelemetryBubbleArgsValidator,
   hookTelemetryWindowArgsValidator,
+  learningTimelineArgsValidator,
   observedCodexWorkersArgsValidator,
   threadLineageGraphArgsValidator,
 } from "./validators";
@@ -80,9 +82,9 @@ function toExplorerEvent(row: HookTelemetryRow): HookTelemetryExplorerEvent {
   };
 }
 
-function buildDistribution(
-  rows: HookTelemetryExplorerEvent[],
-  getKey: (row: HookTelemetryExplorerEvent) => string | undefined,
+function buildDistribution<Row>(
+  rows: Row[],
+  getKey: (row: Row) => string | undefined,
 ): HookTelemetryDistributionRow[] {
   const counts = new Map<string, number>();
   for (const row of rows) {
@@ -262,6 +264,35 @@ export const getThreadLineageGraph = query({
             ])
           ).flat();
     return hookTelemetryRowsToThreadLineageGraph(rows.map(toHookTelemetryRow));
+  },
+});
+
+export const getLearningTimelineFromHookTelemetry = query({
+  args: learningTimelineArgsValidator,
+  handler: async (ctx, args) => {
+    const rows = await fetchHookTelemetryRows(ctx, {
+      projectId: args.projectId,
+      sessionId: args.sessionId,
+      eventName: args.eventName,
+      rangeDays: args.rangeDays,
+      limit: args.limit,
+    });
+    const timeline = hookTelemetryRowsToLearningTimelineRows(rows.map(toHookTelemetryRow))
+      .filter((row) => !args.ticketId?.trim() || row.ticketId === args.ticketId.trim())
+      .filter((row) => !args.eventName?.trim() || row.eventName === args.eventName.trim())
+      .filter((row) => !args.sourceProgram?.trim() || row.sourceProgram === args.sourceProgram.trim())
+      .slice(0, normalizeLimit(args.limit));
+
+    return {
+      rows: timeline,
+      total: timeline.length,
+      distributions: {
+        eventNames: buildDistribution(timeline, (row) => row.eventName),
+        tickets: buildDistribution(timeline, (row) => row.ticketId),
+        sessions: buildDistribution(timeline, (row) => row.sessionId),
+        sourcePrograms: buildDistribution(timeline, (row) => row.sourceProgram),
+      },
+    };
   },
 });
 

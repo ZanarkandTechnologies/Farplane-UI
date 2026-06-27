@@ -71,3 +71,13 @@ export const threadLineageGraphArgsValidator = {
   rangeDays: v.optional(v.number()),
   limit: v.optional(v.number()),
 };
+
+export const learningTimelineArgsValidator = {
+  projectId: v.optional(v.string()),
+  sessionId: v.optional(v.string()),
+  ticketId: v.optional(v.string()),
+  eventName: v.optional(v.string()),
+  sourceProgram: v.optional(v.string()),
+  rangeDays: v.optional(v.number()),
+  limit: v.optional(v.number()),
+};

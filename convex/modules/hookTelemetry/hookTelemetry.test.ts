@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { hookTelemetryRowsToLearningTimelineRows } from "./learningTimeline";
 import {
   hookTelemetryRowsToAgentBubbleMessages,
   hookTelemetryRowsToActivityPingRows,
@@ -37,6 +38,69 @@ describe("hook telemetry projections", () => {
         occurredAt: 1_000,
       }),
     ]);
+  });
+
+  it("projects Codex event miner rows into a learning timeline", () => {
+    const rows = hookTelemetryRowsToLearningTimelineRows([
+      {
+        hookName: "codex-event-miner",
+        hookType: "Stop",
+        projectId: "codex-proj-farplane-ui",
+        sessionId: "session-1",
+        eventAt: 2_000,
+        eventKey: "decision-key",
+        payload: {
+          eventName: "decision.observed",
+          ticketId: "TASK-0019",
+          threadId: "session-1",
+          turnId: "turn-2",
+          source: "stop_payload",
+          sourceProgram: "decision-v1",
+          status: "accepted",
+          summary: "Use codex-event-miner as the Stop hook abstraction.",
+          decisionKind: "architecture",
+          prompt: "should not leak",
+        },
+      },
+      {
+        hookName: "codex-event-miner",
+        hookType: "Stop",
+        projectId: "codex-proj-farplane-ui",
+        sessionId: "session-1",
+        eventAt: 1_000,
+        eventKey: "lesson-key",
+        payload: {
+          eventName: "learning.lesson.observed",
+          ticketId: "TASK-0019",
+          source: "learning_review_report",
+          sourceProgram: "learning-docs-v1",
+          status: "observed",
+          severity: "low",
+          summary: "Prefer event projections over raw self event logs.",
+          docsDelta: { target: "docs/LESSONS.md", rowsAdded: 1 },
+          transcript: "should not leak",
+        },
+      },
+    ]);
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        id: "decision-key",
+        eventName: "decision.observed",
+        ticketId: "TASK-0019",
+        sourceProgram: "decision-v1",
+        decisionKind: "architecture",
+        eventAt: 2_000,
+      }),
+      expect.objectContaining({
+        id: "lesson-key",
+        eventName: "learning.lesson.observed",
+        docsTarget: "docs/LESSONS.md",
+        rowsAdded: 1,
+        eventAt: 1_000,
+      }),
+    ]);
+    expect(JSON.stringify(rows)).not.toContain("should not leak");
   });
 
   it("projects runtime pings from turn hook telemetry", () => {

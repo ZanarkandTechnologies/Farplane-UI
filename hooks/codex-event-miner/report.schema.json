@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CodexEventMinerReport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "status",
+    "published",
+    "queued",
+    "summary",
+    "reason",
+    "sessionId",
+    "turnId",
+    "ticketId",
+    "events"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["published", "queued", "skipped", "blocked", "failed", "completed"]
+    },
+    "published": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "queued": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 360
+    },
+    "reason": {
+      "type": ["string", "null"],
+      "maxLength": 360
+    },
+    "sessionId": {
+      "type": ["string", "null"],
+      "maxLength": 200
+    },
+    "turnId": {
+      "type": ["string", "null"],
+      "maxLength": 200
+    },
+    "ticketId": {
+      "type": ["string", "null"],
+      "maxLength": 120
+    },
+    "events": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventName",
+          "sourceProgram",
+          "ticketId",
+          "turnId",
+          "decisionKind",
+          "status",
+          "severity",
+          "summary",
+          "docsDelta"
+        ],
+        "properties": {
+          "eventName": {
+            "type": "string",
+            "enum": [
+              "decision.observed",
+              "learning.lesson.observed",
+              "learning.trouble.observed"
+            ]
+          },
+          "sourceProgram": {
+            "type": "string",
+            "enum": ["decision-v1", "learning-docs-v1"]
+          },
+          "ticketId": {
+            "type": ["string", "null"],
+            "maxLength": 120
+          },
+          "turnId": {
+            "type": ["string", "null"],
+            "maxLength": 200
+          },
+          "decisionKind": {
+            "type": ["string", "null"],
+            "enum": ["architecture", "scope", "implementation", "product", "workflow", null]
+          },
+          "status": {
+            "type": ["string", "null"],
+            "maxLength": 80
+          },
+          "severity": {
+            "type": ["string", "null"],
+            "enum": ["low", "medium", "high", null]
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 360
+          },
+          "docsDelta": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": ["target", "rowsAdded"],
+            "properties": {
+              "target": {
+                "type": ["string", "null"],
+                "maxLength": 180
+              },
+              "rowsAdded": {
+                "type": ["integer", "null"],
+                "minimum": 0
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
