@@ -11,7 +11,7 @@ import {
 import { buildMinerAgentInput, buildMinerAgentPrompt, launchMinerAgent } from "./launcher";
 
 describe("codex-event-miner", () => {
-  it("emits window/cadence telemetry and returns a launch request instead of mining inline", () => {
+  it("emits queued telemetry and returns a launch request instead of mining inline", () => {
     const parsed = parseCodexEventMinerFromPayload(
       {
         hook_event_name: "Stop",
@@ -28,15 +28,37 @@ describe("codex-event-miner", () => {
       },
     );
 
-    expect(parsed.candidates.map((candidate) => candidate.eventName)).toEqual([
-      "miner.window.updated",
-      "miner.agent.queued",
-    ]);
+    expect(parsed.candidates.map((candidate) => candidate.eventName)).toEqual(["miner.agent.queued"]);
     expect(parsed.launchRequest).toEqual(
       expect.objectContaining({ sessionId: "session-1", turnId: "turn-1", ticketId: "TASK-0019" }),
     );
     expect(JSON.stringify(parsed.candidates)).not.toContain("last_assistant_message");
     expect(JSON.stringify(parsed.candidates)).not.toContain("use hookTelemetryEvents projections");
+  });
+
+  it("keeps not-due cadence telemetry quiet unless verbose telemetry is enabled", () => {
+    const payload = {
+      hook_event_name: "Stop",
+      session_id: "session-1",
+      turn_id: "turn-1",
+      cwd: "/repo",
+    };
+    const quiet = parseCodexEventMinerFromPayload(payload, 1_000, {
+      cadenceTurns: 5,
+      includeReviewReports: false,
+    });
+    const verbose = parseCodexEventMinerFromPayload(payload, 1_000, {
+      cadenceTurns: 5,
+      includeCadenceTelemetry: true,
+      includeReviewReports: false,
+    });
+
+    expect(quiet.candidates).toEqual([]);
+    expect(quiet.windowState).toEqual(expect.objectContaining({ turnCount: 1 }));
+    expect(verbose.candidates.map((candidate) => candidate.eventName)).toEqual([
+      "miner.window.updated",
+      "miner.agent.skipped",
+    ]);
   });
 
   it("queues miner agent every configured cadence without recounting duplicate turns", () => {
@@ -249,7 +271,7 @@ describe("codex-event-miner", () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
-    expect(result).toMatchObject({ attempted: 3, published: 3, skipped: false });
+    expect(result).toMatchObject({ attempted: 2, published: 2, skipped: false });
     expect(fetchImpl).toHaveBeenCalledWith(
       "http://127.0.0.1:3211/telemetry/hooks",
       expect.objectContaining({ method: "POST" }),

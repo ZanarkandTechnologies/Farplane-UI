@@ -167,12 +167,16 @@ export function parseCodexEventMinerFromPayload(
     occurredAt,
   );
   let window = advancedWindow;
-  const candidates = [
-    windowCandidate(metadata, ticketId, window, cadenceTurns, occurredAt),
-    cadenceCandidate(metadata, ticketId, window, cadenceTurns, occurredAt),
-  ];
+  const candidates: MinerEventCandidate[] = [];
+  if (options.includeCadenceTelemetry) {
+    candidates.push(windowCandidate(metadata, ticketId, window, cadenceTurns, occurredAt));
+  }
+  const cadence = cadenceCandidate(metadata, ticketId, window, cadenceTurns, occurredAt);
+  if (cadence.eventName === "miner.agent.queued" || options.includeCadenceTelemetry) {
+    candidates.push(cadence);
+  }
 
-  const due = candidates.some((candidate) => candidate.eventName === "miner.agent.queued");
+  const due = cadence.eventName === "miner.agent.queued";
   const launchRequest =
     due && metadata.projectPath
       ? {

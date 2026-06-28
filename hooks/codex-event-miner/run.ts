@@ -50,9 +50,11 @@ async function main(): Promise<void> {
   const windowState = cwd && sessionId ? readMinerWindowState(cwd, sessionId) : undefined;
   const parsed = parseCodexEventMinerFromPayload(payload, Date.now(), {
     cadenceTurns: numberFromConfig("FARPLANE_EVENT_MINER_CADENCE_TURNS", 5),
+    includeCadenceTelemetry: readFarplaneConfigValue("FARPLANE_EVENT_MINER_VERBOSE_TELEMETRY") === "1",
     windowState,
   });
   if (parsed.candidates.length === 0) {
+    if (parsed.windowState && cwd) writeMinerWindowState(cwd, parsed.windowState);
     if (debugEnabled) console.error("[codex-event-miner] no miner events detected");
     return;
   }

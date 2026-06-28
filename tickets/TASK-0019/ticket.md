@@ -43,8 +43,6 @@ miner window state, and completed learning-review reports already present under
   - Define the miner event contract using the existing `hookTelemetryEvents`
     raw table and `/telemetry/hooks` ingest route.
   - Add producer events for:
-    - `miner.window.updated`
-    - `miner.agent.skipped`
     - `miner.agent.queued`
     - `miner.agent.launched`
     - `miner.agent.failed`
@@ -52,11 +50,13 @@ miner window state, and completed learning-review reports already present under
     - `learning.lesson.observed`
     - `learning.trouble.observed`
     - `decision.observed`
+  - Keep `miner.window.updated` and `miner.agent.skipped` as opt-in verbose
+    debugging events, not default per-Stop telemetry.
   - Include `ticketId`, `sessionId`, `turnId`, `projectId`, `cwd`,
     `reviewRunPath`, `source`, `eventName`, `eventAt`, and a stable `eventKey`
     wherever the source can infer them safely.
   - Keep the Stop-hook fast path bounded:
-    - every Stop emits cheap miner lifecycle metadata
+    - every Stop updates local miner window state
     - every 5 turns by default launches a detached miner agent with
       `decision-v1` and `learning-docs-v1` program instructions
     - completed miner-agent reports may flush fallback
@@ -91,8 +91,6 @@ producer:
 payload:
   schemaVersion: 1
   eventName:
-    - miner.window.updated
-    - miner.agent.skipped
     - miner.agent.queued
     - miner.agent.launched
     - miner.agent.failed
@@ -100,6 +98,8 @@ payload:
     - learning.lesson.observed
     - learning.trouble.observed
     - decision.observed
+    - miner.window.updated (verbose debugging only)
+    - miner.agent.skipped (verbose debugging only)
   ticketId: optional TASK-* id inferred from active ticket/cwd/message window
   turnId: optional Codex turn id
   cwd: optional repo cwd

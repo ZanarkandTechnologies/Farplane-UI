@@ -137,6 +137,57 @@ describe("hook telemetry projections", () => {
     ]);
   });
 
+  it("does not project Codex event miner bookkeeping rows as runtime pings", () => {
+    const rows: HookTelemetryRow[] = [
+      {
+        hookName: "codex-event-miner",
+        hookType: "Stop",
+        projectId: "codex-proj-farplane-ui",
+        sessionId: "thread-1",
+        eventAt: 2_000,
+        eventKey: "miner-window",
+        payload: {
+          schemaVersion: 1,
+          eventName: "miner.window.updated",
+          threadId: "thread-1",
+          turnId: "turn-1",
+          cwd: "/work/farplane",
+          source: "stop_payload",
+          sourceProgram: "codex-event-miner",
+          status: "updated",
+          summary: "Captured Stop turn 1; miner cadence is 5.",
+          turnCount: 1,
+          cadenceTurns: 5,
+          nextReviewInTurns: 4,
+        },
+      },
+      {
+        hookName: "codex-event-miner",
+        hookType: "Stop",
+        projectId: "codex-proj-farplane-ui",
+        sessionId: "thread-1",
+        eventAt: 2_000,
+        eventKey: "miner-skipped",
+        payload: {
+          schemaVersion: 1,
+          eventName: "miner.agent.skipped",
+          threadId: "thread-1",
+          turnId: "turn-1",
+          cwd: "/work/farplane",
+          source: "window_cadence",
+          sourceProgram: "codex-event-miner",
+          status: "not_due",
+          summary: "Learning review not due; 4 turns remaining.",
+          turnCount: 1,
+          cadenceTurns: 5,
+          nextReviewInTurns: 4,
+        },
+      },
+    ];
+
+    expect(hookTelemetryRowsToActivityPingRows(rows)).toEqual([]);
+  });
+
   it("separates observed Codex workers by machine, project, and thread identity", () => {
     const rows: HookTelemetryRow[] = [
       {

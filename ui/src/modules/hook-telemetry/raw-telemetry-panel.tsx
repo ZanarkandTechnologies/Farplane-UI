@@ -580,7 +580,7 @@ function HooksSetup(): ReactElement {
           <div>
             <CardTitle className="text-sm">Hook Setup</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
-              Project-local Codex hooks and watched file events.
+              Global Codex hooks with project-specific watched file events.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -600,7 +600,7 @@ function HooksSetup(): ReactElement {
               <div>
                 <h3 className="font-medium text-sm">Install command</h3>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  The UI runs this through the local bridge when you install.
+                  The UI runs this through the local bridge and installs global Codex hooks.
                 </p>
               </div>
               <div className="flex items-center gap-2">

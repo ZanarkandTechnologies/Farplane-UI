@@ -96,6 +96,7 @@ export type MinerWindowState = {
 export type MinerParseOptions = {
   cadenceTurns?: number;
   windowState?: MinerWindowState;
+  includeCadenceTelemetry?: boolean;
   includeReviewReports?: boolean;
   maxReviewReports?: number;
   programs?: MinerProgramSpec[];

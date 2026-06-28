@@ -401,6 +401,7 @@ export function hookTelemetryRowsToActivityPingRows(rows: HookTelemetryRow[]): A
   return rows
     .map((row): ActivityPingRow | null => {
       const payload = asRecord(row.payload);
+      if (row.hookName === "codex-event-miner") return null;
       const eventType =
         row.hookType === "UserPromptSubmit" || row.hookType === "TurnStart"
           ? "turn_start"
