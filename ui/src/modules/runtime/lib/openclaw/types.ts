@@ -452,6 +452,7 @@ export type OfficeLayoutStrategyId =
   | "legacy"
   | "team_neighborhoods"
   | "activity_treemap"
+  | "hierarchical_treemap"
   | "command_districts";
 
 export interface OfficeSettingsModel {

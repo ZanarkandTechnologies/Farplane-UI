@@ -187,6 +187,14 @@ function threadSearchText(thread: CodexThread): string {
   return [safeText(thread.name), safeText(thread.preview)].filter(Boolean).join("\n");
 }
 
+function threadTurnText(thread: CodexThread): string {
+  return (thread.turns ?? [])
+    .flatMap((turn) => turn.items ?? [])
+    .map(itemText)
+    .filter(Boolean)
+    .join("\n");
+}
+
 function inferredDelegationParentThreadId(thread: CodexThread): string | undefined {
   const explicit = safeText(thread.parentThreadId);
   if (explicit) return explicit;
@@ -205,15 +213,22 @@ function isHeadlessCodexExecThread(thread: CodexThread): boolean {
   if (
     sourceText &&
     /\b(codex[-_\s]?exec|exec)\b/.test(sourceText) &&
-    /\b(ephemeral|headless|eval|evaluation)\b/.test(sourceText)
+    (/\b(ephemeral|headless|eval|evaluation)\b/.test(sourceText) ||
+      /\.farplane\/evals\b/.test(sourceText) ||
+      /\brun_evals\.py\b/.test(sourceText))
   ) {
     return true;
   }
 
-  const haystack = threadSearchText(thread);
+  const haystack = `${threadSearchText(thread)}\n${threadTurnText(thread)}`;
   return (
-    /(^|\n)\s*You are judging an agent answer\b/i.test(haystack) ||
+    /(^|\n)\s*You are judging an agent answer(?:\s+for\s+(?:a\s+)?harness eval)?\b/i.test(
+      haystack,
+    ) ||
     /(^|\n)\s*Context:\s+.+\bis a clean-room toy app\b/i.test(haystack) ||
+    /(^|\n)\s*User request:\s*\n[\s\S]*\b(reference_points|verdict|rubric|harness eval)\b/i.test(
+      haystack,
+    ) ||
     /\bclean eval coverage\b/i.test(haystack)
   );
 }

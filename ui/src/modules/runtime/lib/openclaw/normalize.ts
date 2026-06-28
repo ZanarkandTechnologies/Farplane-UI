@@ -1284,6 +1284,7 @@ export function toOfficeSettings(entry: unknown): OfficeSettingsModel {
     row.layoutStrategy === "legacy" ||
     row.layoutStrategy === "team_neighborhoods" ||
     row.layoutStrategy === "activity_treemap" ||
+    row.layoutStrategy === "hierarchical_treemap" ||
     row.layoutStrategy === "command_districts"
       ? row.layoutStrategy
       : "team_neighborhoods";

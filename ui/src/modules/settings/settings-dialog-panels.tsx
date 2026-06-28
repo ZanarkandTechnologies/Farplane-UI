@@ -71,7 +71,6 @@ export function GeneralSettingsPanel(props: GeneralSettingsPanelProps) {
     onBuilderModeChange,
     onReplayOnboarding,
   } = props;
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -216,6 +215,11 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
     onCharacterSpriteEmployeeIdChange,
     onApplyCharacterGraphics,
   } = props;
+  const usesProjectAreas =
+    layoutStrategy === "team_neighborhoods" ||
+    layoutStrategy === "activity_treemap" ||
+    layoutStrategy === "hierarchical_treemap" ||
+    layoutStrategy === "command_districts";
 
   return (
     <div className="space-y-3">
@@ -244,22 +248,10 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
             onClick={() => onLayoutStrategyChange("legacy")}
           />
           <ModeOptionButton
-            label="Team Neighborhoods"
-            description="Group project teams into readable zones around a shared office core."
-            selected={layoutStrategy === "team_neighborhoods"}
-            onClick={() => onLayoutStrategyChange("team_neighborhoods")}
-          />
-          <ModeOptionButton
-            label="Project Districts"
-            description="Give projects larger nested areas with clear overlay boundaries."
-            selected={layoutStrategy === "activity_treemap"}
-            onClick={() => onLayoutStrategyChange("activity_treemap")}
-          />
-          <ModeOptionButton
-            label="Command Districts"
-            description="Put parent projects near the center and arrange children around them."
-            selected={layoutStrategy === "command_districts"}
-            onClick={() => onLayoutStrategyChange("command_districts")}
+            label="Project Areas"
+            description="Center the heaviest project district, spread root peers around it, and keep nested project tables compact."
+            selected={usesProjectAreas}
+            onClick={() => onLayoutStrategyChange("hierarchical_treemap")}
           />
         </div>
       </div>

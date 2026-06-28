@@ -85,6 +85,7 @@ Work flows through:
 - The public landing page is a direct office handoff: explain the founder-control workflow there and keep entry to `/office` one click, with no invite/password gate. See `MEM-0193`.
 - Office onboarding and other first-run office behavior must read the live sidecar-backed company model through the state bridge, not static public seed JSON; missing `company.json` should be seeded from `templates/sidecar/company.template.json`. See `MEM-0223`.
 - Farplane UI-owned sidecars live under `~/.farplane`; Codex is the default office runtime adapter, and OpenClaw runtime files enter only through the optional OpenClaw adapter.
+- Do not add new browser `localStorage` keys, root env vars, or ad hoc fallback config for durable Farplane settings. Persist local operator/project configuration through the canonical Farplane config/sidecar files and state bridge, preferring `~/.farplane/config.toml` or the owning sidecar over env/localStorage fallbacks. See `MEM-0161`, `MEM-0226`.
 - Global office launchers should stay registry-driven so speed-dial items, shortcuts, command-palette entries, and QA helper ids do not drift. See `MEM-0220`.
 - If the same failure or user correction happens more than once, append a short raw entry to `docs/TROUBLES.md`; distill reusable prevention into `docs/LESSONS.md`.
 

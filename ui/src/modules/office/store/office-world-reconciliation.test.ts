@@ -71,6 +71,7 @@ function createArea(): OfficeAreaNode {
   return {
     id: "area-main",
     label: "Main Area",
+    kind: "district",
     depth: 0,
     weight: 1,
     color: "#ffffff",

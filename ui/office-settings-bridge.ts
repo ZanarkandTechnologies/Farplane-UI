@@ -24,6 +24,7 @@ export interface BridgeOfficeSettings {
     | "legacy"
     | "team_neighborhoods"
     | "activity_treemap"
+    | "hierarchical_treemap"
     | "command_districts";
   officeFootprint?: {
     width?: number;
@@ -172,6 +173,7 @@ export function normalizeBridgeOfficeSettings(
     row.layoutStrategy === "legacy" ||
     row.layoutStrategy === "team_neighborhoods" ||
     row.layoutStrategy === "activity_treemap" ||
+    row.layoutStrategy === "hierarchical_treemap" ||
     row.layoutStrategy === "command_districts"
       ? row.layoutStrategy
       : "team_neighborhoods";

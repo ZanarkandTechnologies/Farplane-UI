@@ -12,7 +12,10 @@ import {
   canReserveOfficeObject,
   createOfficePlacementReservation,
 } from "@/modules/office/systems/placement-engine";
-import { getObjectFootprintCells } from "@/modules/office/systems/occupancy-system";
+import {
+  getObjectFootprintAabb,
+  getObjectFootprintCells,
+} from "@/modules/office/systems/occupancy-system";
 import {
   getAbsoluteDeskPosition,
   getDeskRotation,
@@ -90,6 +93,19 @@ function expectPositionCloseTo(
   expect(received[0]).toBeCloseTo(expected[0], 4);
   expect(received[1]).toBeCloseTo(expected[1], 4);
   expect(received[2]).toBeCloseTo(expected[2], 4);
+}
+
+function objectOverlapsArea(
+  object: OfficeObject,
+  area: { rect: { minX: number; maxX: number; minZ: number; maxZ: number } },
+): boolean {
+  const bounds = getObjectFootprintAabb(object);
+  return (
+    bounds.minX < area.rect.maxX &&
+    bounds.maxX > area.rect.minX &&
+    bounds.minZ < area.rect.maxZ &&
+    bounds.maxZ > area.rect.minZ
+  );
 }
 
 function countInteriorLayoutHoles(layout: OfficeLayoutModel): number {
@@ -1716,13 +1732,89 @@ describe("office-data-provider team synthesis", () => {
     const uiCluster = result.officeObjects.find(
       (object) => object.metadata?.teamId === "team-proj-farplane-ui",
     );
+    const uiArea = result.officeAreas.find((area) => area.projectId === "proj-farplane-ui");
     if (!uiCluster) throw new Error("missing_farplane_ui_cluster");
+    if (!uiArea) throw new Error("missing_farplane_ui_area");
 
     expect(result.officeSettings.officeLayout.tiles).toContain(
       `${uiCluster.position[0]}:${uiCluster.position[2]}`,
     );
+    expect(uiCluster.position[0]).toBeGreaterThanOrEqual(uiArea.rect.minX - 1);
+    expect(uiCluster.position[0]).toBeLessThanOrEqual(uiArea.rect.maxX + 1);
+    expect(uiCluster.position[2]).toBeGreaterThanOrEqual(uiArea.rect.minZ - 1);
+    expect(uiCluster.position[2]).toBeLessThanOrEqual(uiArea.rect.maxZ + 1);
+    expect(uiCluster.position[0]).toBe(Math.round(uiArea.rect.centerX));
+    expect(uiCluster.position[2]).toBe(Math.round(uiArea.rect.centerZ));
     expect(Math.abs(uiCluster.position[0])).toBeLessThanOrEqual(8);
     expect(Math.abs(uiCluster.position[2])).toBeLessThanOrEqual(8);
+  });
+
+  it("keeps generated project tables out of locked large furniture inside project areas", () => {
+    const company = createCompanyModel({
+      departments: [
+        {
+          id: "dept-codex-projects",
+          name: "Codex Projects",
+          description: "",
+          goal: "",
+        },
+      ],
+      projects: [
+        {
+          id: "proj-furniture-aware",
+          departmentId: "dept-codex-projects",
+          name: "Furniture Aware",
+          githubUrl: "",
+          status: "active",
+          goal: "",
+          kpis: [],
+          trackingContext: "/Users/kenjipcx/furniture-aware",
+          accountEvents: [],
+          ledger: [],
+          experiments: [],
+          metricEvents: [],
+          resources: [],
+          resourceEvents: [],
+        },
+      ],
+    });
+    const result = toOfficeData(
+      createUnifiedOfficeModel({
+        company,
+        officeObjects: [
+          {
+            id: "bookshelf-project-center",
+            identifier: "bookshelf-project-center",
+            meshType: "bookshelf",
+            position: [0, 0, 0],
+            metadata: { layoutLocked: true },
+          },
+        ],
+      }),
+      {
+        ...createOfficeSettings(),
+        layoutStrategy: "hierarchical_treemap",
+        officeLayout: {
+          version: 1 as const,
+          tileSize: 1 as const,
+          tiles: Array.from({ length: 31 }, (_, xIndex) =>
+            Array.from({ length: 25 }, (_z, zIndex) => `${xIndex - 15}:${zIndex - 12}`),
+          ).flat(),
+        },
+      },
+    );
+    const cluster = result.officeObjects.find(
+      (object) => object.metadata?.teamId === "team-proj-furniture-aware",
+    );
+    const bookshelf = result.officeObjects.find(
+      (object) => object._id === "bookshelf-project-center",
+    );
+    if (!cluster) throw new Error("missing_furniture_aware_cluster");
+    if (!bookshelf) throw new Error("missing_locked_bookshelf");
+    const bookshelfCells = new Set(getObjectFootprintCells(bookshelf).map((cell) => cell.key));
+    const clusterCells = getObjectFootprintCells(cluster).map((cell) => cell.key);
+
+    expect(clusterCells.some((cell) => bookshelfCells.has(cell))).toBe(false);
   });
 
   it("preserves locked persisted team cluster positions over area-derived anchors", () => {
@@ -2248,12 +2340,44 @@ describe("office-data-provider team synthesis", () => {
       districts.officeSettings.officeFootprint.depth;
 
     expect(districtArea).toBeGreaterThan(classicArea);
-    expect(districts.officeSettings.officeFootprint.width).toBeGreaterThanOrEqual(16);
+    expect(districts.officeSettings.officeFootprint.width).toBeGreaterThanOrEqual(15);
     expect(districts.officeSettings.officeFootprint.depth).toBeGreaterThanOrEqual(13);
-    expect(leftArea?.rect.width).toBeGreaterThanOrEqual(6);
+    expect(leftArea?.rect.width).toBeGreaterThanOrEqual(5);
     expect(leftArea?.rect.depth).toBeGreaterThanOrEqual(5);
-    expect(rightArea?.rect.width).toBeGreaterThanOrEqual(6);
+    expect(rightArea?.rect.width).toBeGreaterThanOrEqual(5);
     expect(rightArea?.rect.depth).toBeGreaterThanOrEqual(5);
+  });
+
+  it("places large default furniture into project-district slack instead of project cores", () => {
+    const { model } = createTwoProjectRoomOfficeModel();
+    const result = toOfficeData(model, {
+      ...createOfficeSettings(),
+      layoutStrategy: "hierarchical_treemap",
+    });
+    const largeFurniture = result.officeObjects.filter((object) =>
+      ["bookshelf", "couch", "pantry"].includes(object.meshType),
+    );
+    const projectCoreAreas = result.officeAreas.filter((area) => area.projectId);
+    const bounds = getOfficeLayoutBounds(result.officeSettings.officeLayout);
+    const layoutRadius = Math.hypot(bounds.width, bounds.depth) / 2;
+    const averageCenterDistance =
+      largeFurniture.reduce(
+        (sum, object) =>
+          sum +
+          Math.hypot(
+            object.position[0] - bounds.centerX,
+            object.position[2] - bounds.centerZ,
+          ),
+        0,
+      ) / Math.max(1, largeFurniture.length);
+
+    expect(largeFurniture.length).toBeGreaterThan(0);
+    expect(averageCenterDistance).toBeLessThanOrEqual(layoutRadius * 0.62);
+    for (const object of largeFurniture) {
+      expect(
+        projectCoreAreas.some((area) => objectOverlapsArea(object, area)),
+      ).toBe(false);
+    }
   });
 
   it("keeps command districts compact while preserving packed objects", () => {
@@ -2329,6 +2453,7 @@ describe("office-data-provider team synthesis", () => {
       "legacy",
       "team_neighborhoods",
       "activity_treemap",
+      "hierarchical_treemap",
       "command_districts",
     ] as const;
 

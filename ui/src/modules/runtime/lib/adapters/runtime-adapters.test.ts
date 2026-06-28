@@ -961,6 +961,50 @@ describe("runtime adapters", () => {
           updatedAt: 1769999995,
           source: { command: "codex exec", mode: "ephemeral", purpose: "evaluation" },
         },
+        {
+          id: "eval-runner-source-thread",
+          name: "Goal advisor material goal packet",
+          preview: "Context: AGI Toy Shop\n\nUser request:\nCreate a Goal Packet for this eval.",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769999995,
+          source: {
+            argv: [
+              "codex",
+              "exec",
+              "--json",
+              "-o",
+              "/workspace/farplane-ui/.farplane/evals/runs/run/tasks/task/agent_answer.txt",
+            ],
+            runner: ".farplane/evals/run_evals.py",
+          },
+        },
+        {
+          id: "harness-judge-turn-thread",
+          name: "Judge eval response",
+          preview: "Evaluate task result.",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: 1769999995,
+          turns: [
+            {
+              id: "turn-judge",
+              startedAt: 1769999994,
+              items: [
+                {
+                  type: "userMessage",
+                  id: "item-judge",
+                  content: [
+                    {
+                      type: "input_text",
+                      text:
+                        "You are judging an agent answer for a harness eval.\n\n" +
+                        "Task:\n{\"reference_points\":[\"Uses the right skill\"]}",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
       ],
       nowMs,
       ["/workspace/farplane-ui"],
@@ -976,6 +1020,12 @@ describe("runtime adapters", () => {
     );
     expect(
       company.agents.some((agent) => agent.agentId === "codex-thread:ephemeral-exec-thread"),
+    ).toBe(false);
+    expect(
+      company.agents.some((agent) => agent.agentId === "codex-thread:eval-runner-source-thread"),
+    ).toBe(false);
+    expect(
+      company.agents.some((agent) => agent.agentId === "codex-thread:harness-judge-turn-thread"),
     ).toBe(false);
   });
 

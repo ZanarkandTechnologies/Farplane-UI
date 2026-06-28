@@ -28,6 +28,13 @@ export type OfficeStylePreset = "default" | "pixel" | "brutalist" | "cozy";
 export type OfficeFloorPatternId = "sandstone_tiles" | "graphite_grid" | "walnut_parquet";
 export type OfficeWallColorId = "gallery_cream" | "sage_mist" | "harbor_blue" | "clay_rose";
 export type OfficeBackgroundId = "shell_haze" | "midnight_tide" | "kelp_fog" | "estuary_glow";
+export type OfficeLayoutStrategyId =
+  | "manual"
+  | "legacy"
+  | "team_neighborhoods"
+  | "activity_treemap"
+  | "hierarchical_treemap"
+  | "command_districts";
 export type CapabilityCategory = "measure" | "execute" | "distribute";
 export type LedgerEntryType = "revenue" | "cost";
 export type AccountEventType = "credit" | "debit";
@@ -216,6 +223,7 @@ export interface OfficeObjectModel {
 
 export interface OfficeSettingsModel {
   meshAssetDir?: string;
+  layoutStrategy?: OfficeLayoutStrategyId;
   officeFootprint: {
     width: number;
     depth: number;
@@ -811,6 +819,7 @@ function normalizeOfficeSettings(input: unknown): OfficeSettingsModel {
     return bounded % 2 === 0 ? bounded + 1 : bounded;
   };
   const viewProfile = asString(row.viewProfile, "free_orbit_3d");
+  const layoutStrategy = asString(row.layoutStrategy, "team_neighborhoods");
   const cameraOrientation = asString(row.cameraOrientation, "south_east");
   const normalizedFootprint = {
     width: normalizeAxis(footprint.width, 35),
@@ -821,6 +830,15 @@ function normalizeOfficeSettings(input: unknown): OfficeSettingsModel {
     ...(asString(row.meshAssetDir).trim()
       ? { meshAssetDir: asString(row.meshAssetDir).trim() }
       : {}),
+    layoutStrategy:
+      layoutStrategy === "manual" ||
+      layoutStrategy === "legacy" ||
+      layoutStrategy === "team_neighborhoods" ||
+      layoutStrategy === "activity_treemap" ||
+      layoutStrategy === "hierarchical_treemap" ||
+      layoutStrategy === "command_districts"
+        ? layoutStrategy
+        : "team_neighborhoods",
     officeFootprint: deriveOfficeFootprintFromLayout(officeLayout),
     officeLayout,
     decor: {

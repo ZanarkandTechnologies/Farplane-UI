@@ -43,10 +43,20 @@ type SettingsDialogProps = {
   onOpenChange?: (open: boolean) => void;
 };
 
+type LayoutStrategyInput = NonNullable<OfficeSettingsModel["layoutStrategy"]>;
+
+function normalizeLayoutStrategyInput(
+  value: OfficeSettingsModel["layoutStrategy"],
+): LayoutStrategyInput {
+  if (value === "manual" || value === "legacy") return value;
+  return "hierarchical_treemap";
+}
+
 export default function SettingsDialog(props: SettingsDialogProps) {
   const { open, onOpenChange } = props;
   const adapter = useOfficeRuntimeAdapter();
-  const { officeObjects, officeSettings, refresh } = useOfficeDataContext();
+  const { officeObjects, officeSettings, refresh, applyOfficeSettings } =
+    useOfficeDataContext();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const dialogOpen = typeof open === "boolean" ? open : uncontrolledOpen;
   const setDialogOpen = onOpenChange ?? setUncontrolledOpen;
@@ -89,8 +99,8 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     OfficeSettingsModel["viewProfile"]
   >(officeSettings.viewProfile);
   const [layoutStrategyInput, setLayoutStrategyInput] = useState<
-    NonNullable<OfficeSettingsModel["layoutStrategy"]>
-  >(officeSettings.layoutStrategy ?? "team_neighborhoods");
+    LayoutStrategyInput
+  >(normalizeLayoutStrategyInput(officeSettings.layoutStrategy));
   const [cameraOrientationInput, setCameraOrientationInput] = useState<
     OfficeSettingsModel["cameraOrientation"]
   >(officeSettings.cameraOrientation);
@@ -130,9 +140,7 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     setRuntimeStatusText("");
     setRuntimeConfigStatusText("");
     setViewProfileInput(officeSettings.viewProfile);
-    setLayoutStrategyInput(
-      officeSettings.layoutStrategy ?? "team_neighborhoods",
-    );
+    setLayoutStrategyInput(normalizeLayoutStrategyInput(officeSettings.layoutStrategy));
     setCameraOrientationInput(officeSettings.cameraOrientation);
     setOrbitControlsEnabled(officeSettings.orbitControlsEnabled);
     setViewStatusText("");
@@ -219,18 +227,25 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   async function handleSaveViewSettings(): Promise<void> {
     setIsSavingViewSettings(true);
     setViewStatusText("");
-    const result = await adapter.saveOfficeSettings({
+    const nextSettings: OfficeSettingsModel = {
       ...officeSettings,
       layoutStrategy: layoutStrategyInput,
       viewProfile: viewProfileInput,
       cameraOrientation: cameraOrientationInput,
       orbitControlsEnabled,
-    });
+    };
+    applyOfficeSettings(nextSettings);
+    const result = await adapter.saveOfficeSettings(nextSettings);
     setIsSavingViewSettings(false);
     if (!result.ok) {
-      setViewStatusText(result.error ?? "Failed to save office view settings.");
+      setViewStatusText(
+        result.error
+          ? `Preview applied locally; save failed: ${result.error}`
+          : "Preview applied locally; failed to save office view settings.",
+      );
       return;
     }
+    applyOfficeSettings(result.settings);
     await refresh();
     setViewStatusText("Office view settings saved.");
   }

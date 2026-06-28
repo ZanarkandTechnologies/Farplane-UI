@@ -57,6 +57,10 @@ describe("office settings normalization", () => {
     expect(
       toOfficeSettings({ layoutStrategy: "activity_treemap" }).layoutStrategy,
     ).toBe("activity_treemap");
+    expect(
+      toOfficeSettings({ layoutStrategy: "hierarchical_treemap" })
+        .layoutStrategy,
+    ).toBe("hierarchical_treemap");
     expect(toOfficeSettings({ layoutStrategy: "manual" }).layoutStrategy).toBe(
       "manual",
     );
