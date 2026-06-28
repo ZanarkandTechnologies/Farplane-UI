@@ -1,18 +1,39 @@
-import { describe, expect, it, vi } from "vitest";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { EventEmitter } from "node:events";
+import os from "node:os";
+import path from "node:path";
+import { PassThrough } from "node:stream";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   appendHistory,
+  defaultStatePath,
   emptyGatewayState,
   fetchTelegramUpdates,
+  formatTelegramGatewayMessage,
   mergeGatewayState,
   processTelegramUpdate,
   recordOutboundMapping,
+  saveGatewayState,
   resolveTelegramRoute,
   sendCodexMessage,
+  sendTelegramDocument,
   sendTelegramNotification,
+  isRetryableCodexDeliveryError,
+  isTerminalCodexDeliveryError,
+  processPendingMessages,
+  queuePendingMessage,
+  validateTelegramArtifactPath,
 } from "./telegram-gateway";
+import { runTelegramGatewayCli } from "./telegram-gateway/cli";
 
 describe("telegram gateway routing", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
   it("routes direct replies back to the mapped source thread", () => {
     const state = recordOutboundMapping(emptyGatewayState(), {
       telegramMessageId: 42,
@@ -64,6 +85,39 @@ describe("telegram gateway routing", () => {
     );
   });
 
+  it("recovers direct replies from the gateway identity footer when local mapping is missing", () => {
+    const threadId = "019ec6ed-504d-7ca2-83c2-a438f15248c5";
+    const route = resolveTelegramRoute(
+      {
+        update_id: 1,
+        message: {
+          message_id: 44,
+          chat: { id: 100 },
+          text: "Approved",
+          reply_to_message: {
+            message_id: 43,
+            text: `Done\n\n---\nCodex: Smoke\nThread: ${threadId}`,
+          },
+        },
+      },
+      emptyGatewayState(),
+      { allowedChatIds: ["100"], coordinatorThreadId: "thread-coordinator" },
+    );
+
+    expect(route).toEqual(expect.objectContaining({ kind: "source_thread", threadId }));
+  });
+
+  it("formats Telegram gateway messages with a stable source footer", () => {
+    expect(
+      formatTelegramGatewayMessage({
+        text: "Answer",
+        title: "Gateway Smoke",
+        threadId: "thread-source",
+        sessionId: "session-source",
+      }).text,
+    ).toBe("Answer\n\n---\nCodex: Gateway Smoke\nThread: thread-source\nSession: session-source");
+  });
+
   it("routes standalone owner messages to the coordinator with recent context", () => {
     const state = appendHistory(
       recordOutboundMapping(emptyGatewayState(), {
@@ -91,64 +145,113 @@ describe("telegram gateway routing", () => {
     expect(route.kind === "coordinator" ? route.prompt : "").toContain("Question A");
   });
 
-  it("queues instead of steering active Codex turns", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { thread: { id: "thread-a" } } })))
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            ok: true,
-            result: { thread: { turns: [{ id: "turn-active", status: "running" }] } },
-          }),
-        ),
-      );
+  it("delivers Codex messages through codex exec resume", async () => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: PassThrough;
+      stderr: PassThrough;
+      stdin: PassThrough;
+    };
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.stdin = new PassThrough();
+    const stdinWrite = vi.spyOn(child.stdin, "write");
+    const stdinEnd = vi.spyOn(child.stdin, "end");
+    const spawnImpl = vi.fn().mockReturnValueOnce(child);
 
-    const result = await sendCodexMessage({
-      stateBase: "http://localhost:5173",
+    const promise = sendCodexMessage({
       threadId: "thread-a",
       text: "hello",
-      responseTimeoutMs: 0,
-      fetchImpl,
+      responseTimeoutMs: 1000,
+      codexExecSpawnImpl: spawnImpl as never,
     });
+    child.stdout.write(`${JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "done" } })}\n`);
+    child.stdout.write(`${JSON.stringify({ type: "turn.completed", usage: {} })}\n`);
+    child.emit("close", 0, null);
+    const result = await promise;
 
-    expect(result).toEqual({
-      ok: false,
-      threadActive: true,
-      turnId: "turn-active",
-      error: "codex_thread_active:turn-active",
-    });
-    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual(
-      expect.objectContaining({ method: "thread/resume" }),
+    expect(result).toEqual({ ok: true, turnId: "thread-a", responseText: "done" });
+    expect(spawnImpl).toHaveBeenCalledWith(
+      "codex",
+      [
+        "exec",
+        "--experimental-json",
+        "--sandbox",
+        "danger-full-access",
+        "--config",
+        'approval_policy="never"',
+        "resume",
+        "thread-a",
+      ],
+      expect.objectContaining({ env: expect.any(Object), signal: expect.any(AbortSignal) }),
     );
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(stdinWrite).toHaveBeenCalledWith("hello");
+    expect(stdinEnd).toHaveBeenCalled();
   });
 
-  it("starts idle Codex threads", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { thread: { id: "thread-a" } } })))
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            ok: true,
-            result: { thread: { turns: [{ id: "turn-old", status: "completed", completedAt: 1 }] } },
-          }),
-        ),
-      )
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { turn: { id: "turn-new" } } })));
-
+  it("surfaces injected delivery failures as send errors", async () => {
     const result = await sendCodexMessage({
-      stateBase: "http://localhost:5173",
       threadId: "thread-a",
       text: "hello",
-      responseTimeoutMs: 0,
-      fetchImpl,
+      codexImpl: vi.fn().mockRejectedValueOnce(new Error("Codex Exec exited with code 1: auth failed")),
     });
 
-    expect(result).toEqual({ ok: true, turnId: "turn-new" });
-    expect(JSON.parse(String(fetchImpl.mock.calls[2]?.[1]?.body))).toEqual(
-      expect.objectContaining({ method: "turn/start" }),
+    expect(result).toEqual({ ok: false, error: "Codex Exec exited with code 1: auth failed" });
+  });
+
+  it("surfaces codex exec turn failures as send errors", async () => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: PassThrough;
+      stderr: PassThrough;
+      stdin: PassThrough;
+    };
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.stdin = new PassThrough();
+    const spawnImpl = vi.fn().mockReturnValueOnce(child);
+
+    const promise = sendCodexMessage({
+      threadId: "thread-a",
+      text: "hello",
+      codexExecSpawnImpl: spawnImpl as never,
+    });
+    child.stdout.write(
+      `${JSON.stringify({
+        type: "turn.failed",
+        error: { message: "Codex ran out of room in the model's context window." },
+      })}\n`,
+    );
+    child.emit("close", 1, null);
+
+    await expect(promise).resolves.toEqual({
+      ok: false,
+      error: "Codex ran out of room in the model's context window.",
+    });
+  });
+
+  it("surfaces malformed codex exec JSON as send errors", async () => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: PassThrough;
+      stderr: PassThrough;
+      stdin: PassThrough;
+    };
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.stdin = new PassThrough();
+    const spawnImpl = vi.fn().mockReturnValueOnce(child);
+
+    const promise = sendCodexMessage({
+      threadId: "thread-a",
+      text: "hello",
+      codexExecSpawnImpl: spawnImpl as never,
+    });
+    child.stdout.write("not json\n");
+    child.emit("close", 0, null);
+
+    await expect(promise).resolves.toEqual(
+      expect.objectContaining({
+        ok: false,
+        error: expect.stringContaining("codex_exec_invalid_json:not json"),
+      }),
     );
   });
 
@@ -177,7 +280,89 @@ describe("telegram gateway routing", () => {
     expect(result.state.mappings[0]).toEqual(
       expect.objectContaining({ telegramMessageId: 77, threadId: "thread-source" }),
     );
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)).text).toContain("Thread: thread-source");
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("merges disk state before persisting outbound Telegram mappings", async () => {
+    const stateDir = await mkdtemp(path.join(os.tmpdir(), "telegram-send-merge-"));
+    const statePath = path.join(stateDir, "state.json");
+    await saveGatewayState(
+      recordOutboundMapping(emptyGatewayState(), {
+        telegramMessageId: 76,
+        chatId: "100",
+        threadId: "thread-existing",
+        title: "Existing",
+      }),
+      statePath,
+    );
+    const fetchImpl = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: { message_id: 77, chat: { id: "100" }, text: "Approve?" },
+        }),
+      ),
+    );
+
+    const result = await sendTelegramNotification({
+      token: "token",
+      chatId: "100",
+      text: "Approve?",
+      threadId: "thread-source",
+      title: "Approve plan",
+      state: emptyGatewayState(),
+      statePath,
+      fetchImpl,
+    });
+
+    expect(result.ok).toBe(true);
+    const saved = JSON.parse(await readFile(statePath, "utf8"));
+    expect(saved.mappings.map((mapping: { telegramMessageId: number }) => mapping.telegramMessageId)).toEqual([77, 76]);
+  });
+
+  it("sends explicit local artifacts as Telegram documents with identity captions", async () => {
+    const stateDir = await mkdtemp(path.join(os.tmpdir(), "telegram-document-"));
+    const filePath = path.join(stateDir, "plan.md");
+    await writeFile(filePath, "# Plan\n");
+    const fetchImpl = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: { message_id: 88, document: { file_name: "plan.md" } },
+        }),
+      ),
+    );
+
+    const result = await sendTelegramDocument({
+      token: "token",
+      chatId: "100",
+      filePath,
+      caption: "Implementation plan",
+      threadId: "thread-source",
+      sessionId: "session-source",
+      title: "Artifact Test",
+      state: emptyGatewayState(),
+      allowedRoots: [stateDir],
+      fetchImpl,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.messageId).toBe(88);
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe("https://api.telegram.org/bottoken/sendDocument");
+    const body = fetchImpl.mock.calls[0]?.[1]?.body as FormData;
+    expect(body.get("chat_id")).toBe("100");
+    expect(body.get("caption")).toContain("Thread: thread-source");
+    expect(body.get("document")).toBeInstanceOf(Blob);
+    expect(result.state.mappings[0]).toEqual(
+      expect.objectContaining({ telegramMessageId: 88, threadId: "thread-source", sessionId: "session-source" }),
+    );
+  });
+
+  it("rejects Telegram artifact paths outside allowed roots", async () => {
+    await expect(validateTelegramArtifactPath("/tmp/outside.txt", ["/definitely/not/tmp"])).rejects.toThrow(
+      /telegram_artifact_outside_allowed_roots/,
+    );
   });
 
   it("merges gateway state without dropping mappings added while the listener is running", () => {
@@ -239,6 +424,30 @@ describe("telegram gateway routing", () => {
     expect(merged.pending).toEqual([]);
   });
 
+  it("does not resurrect terminally failed pending messages during state merges", () => {
+    const pendingState = queuePendingMessage(emptyGatewayState(), {
+      telegramMessageId: 2249,
+      chatId: "100",
+      text: "Question",
+      route: "source_thread",
+      threadId: "thread-source",
+    });
+    const terminalState = appendHistory(emptyGatewayState(), {
+      telegramMessageId: 2249,
+      chatId: "100",
+      direction: "inbound",
+      text: "Question",
+      route: "source_thread",
+      threadId: "thread-source",
+      status: "failed",
+      error: "Codex ran out of room in the model's context window. Start a new thread or clear earlier history before retrying.",
+    });
+
+    const merged = mergeGatewayState(terminalState, pendingState);
+
+    expect(merged.pending).toEqual([]);
+  });
+
   it("polls Telegram and processes a mapped reply into Codex", async () => {
     const fetchUpdates = vi.fn().mockResolvedValueOnce(
       new Response(
@@ -271,26 +480,108 @@ describe("telegram gateway routing", () => {
       chatId: "100",
       threadId: "thread-source",
     });
-    const sendFetch = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { thread: { id: "thread-source" } } })))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { thread: { turns: [] } } })))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { turn: { id: "turn-new" } } })));
+    const codexImpl = vi.fn().mockResolvedValueOnce({ turnId: "thread-source" });
 
     const processed = await processTelegramUpdate({
       update: updates[0]!,
       state,
       config: { allowedChatIds: ["100"], coordinatorThreadId: "thread-coordinator", responseTimeoutMs: 0 },
-      stateBase: "http://localhost:5173",
-      fetchImpl: sendFetch,
+      codexImpl,
     });
 
     expect(processed.delivered).toBe(true);
     expect(processed.state.updateOffset).toBe(11);
-    const turnStartBody = JSON.parse(String(sendFetch.mock.calls[2]?.[1]?.body));
-    expect(turnStartBody).toEqual(expect.objectContaining({ method: "turn/start" }));
-    expect(turnStartBody.params.input[0].text).toContain("Kenji is messaging from Telegram.");
-    expect(turnStartBody.params.input[0].text).toContain("The local Telegram gateway will send your assistant response back");
+    expect(codexImpl.mock.calls[0]?.[0].threadId).toBe("thread-source");
+    expect(codexImpl.mock.calls[0]?.[0].text).toContain("Kenji is messaging from Telegram.");
+    expect(codexImpl.mock.calls[0]?.[0].text).toContain("The local Telegram gateway will send your assistant response back");
+  });
+
+  it("does not persist offsets or history during dry-run polling", async () => {
+    const stateDir = await mkdtemp(path.join(os.tmpdir(), "telegram-gateway-dry-run-"));
+    vi.stubEnv("FARPLANE_STATE_DIR", stateDir);
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "token");
+    vi.stubEnv("TELEGRAM_ALLOW_FROM", "100");
+    const statePath = defaultStatePath();
+    await saveGatewayState(
+      recordOutboundMapping(emptyGatewayState(), {
+        telegramMessageId: 77,
+        chatId: "100",
+        threadId: "thread-source",
+      }),
+      statePath,
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            result: [
+              {
+                update_id: 10,
+                message: {
+                  message_id: 78,
+                  chat: { id: "100" },
+                  text: "Question",
+                  reply_to_message: { message_id: 77 },
+                },
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+
+    await runTelegramGatewayCli(["--once", "--dry-run"]);
+
+    const state = JSON.parse(await readFile(statePath, "utf8"));
+    expect(state.updateOffset).toBe(0);
+    expect(state.history).toEqual([]);
+    expect(state.pending).toEqual([]);
+  });
+
+  it("merges route rows added while polling before routing returned updates", async () => {
+    const stateDir = await mkdtemp(path.join(os.tmpdir(), "telegram-gateway-poll-race-"));
+    vi.stubEnv("FARPLANE_STATE_DIR", stateDir);
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "token");
+    vi.stubEnv("TELEGRAM_ALLOW_FROM", "100");
+    const statePath = defaultStatePath();
+    await saveGatewayState(emptyGatewayState(), statePath);
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementationOnce(async () => {
+        await saveGatewayState(
+          recordOutboundMapping(emptyGatewayState(), {
+            telegramMessageId: 77,
+            chatId: "100",
+            threadId: "thread-source",
+          }),
+          statePath,
+        );
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            result: [
+              {
+                update_id: 10,
+                message: {
+                  message_id: 78,
+                  chat: { id: "100" },
+                  text: "Question",
+                  reply_to_message: { message_id: 77 },
+                },
+              },
+            ],
+          }),
+        );
+      }),
+    );
+
+    await runTelegramGatewayCli(["--once", "--dry-run"]);
+
+    const summary = JSON.parse(String(consoleSpy.mock.calls.at(-1)?.[0]));
+    expect(summary.results[0]).toEqual(expect.objectContaining({ route: "source_thread", delivered: true }));
   });
 
   it("queues mapped replies when the Codex bridge is temporarily unreachable", async () => {
@@ -311,8 +602,7 @@ describe("telegram gateway routing", () => {
       },
       state,
       config: { allowedChatIds: ["100"], coordinatorThreadId: "thread-coordinator", responseTimeoutMs: 0 },
-      stateBase: "http://localhost:5173",
-      fetchImpl: vi.fn().mockRejectedValueOnce(new TypeError("fetch failed")),
+      codexImpl: vi.fn().mockRejectedValueOnce(new TypeError("fetch failed")),
     });
 
     expect(processed.delivered).toBe(false);
@@ -337,37 +627,79 @@ describe("telegram gateway routing", () => {
     );
   });
 
+  it("treats transient thread-store read errors as retryable delivery failures", async () => {
+    expect(
+      isRetryableCodexDeliveryError(
+        "failed to read thread: thread-store internal error: failed to read thread /tmp/session.jsonl",
+      ),
+    ).toBe(true);
+  });
+
+  it("treats aborted codex exec turns as retryable delivery failures", async () => {
+    expect(isRetryableCodexDeliveryError("The operation was aborted")).toBe(true);
+    expect(isRetryableCodexDeliveryError("AbortError: This operation was aborted")).toBe(true);
+  });
+
+  it("treats context-window exhaustion as terminal delivery failure", async () => {
+    expect(
+      isTerminalCodexDeliveryError(
+        "Codex ran out of room in the model's context window. Start a new thread or clear earlier history before retrying.",
+      ),
+    ).toBe(true);
+  });
+
+  it("treats archived Codex sessions as terminal delivery failures", async () => {
+    expect(
+      isTerminalCodexDeliveryError(
+        "Error: thread/resume: thread/resume failed: session 019ec6ed-504d-7ca2-83c2-a438f15248c5 is archived. Run `codex unarchive 019ec6ed-504d-7ca2-83c2-a438f15248c5` to unarchive it first. (code -32600)",
+      ),
+    ).toBe(true);
+  });
+
+  it("removes terminal pending failures and replies to Telegram with the failure reason", async () => {
+    const state = queuePendingMessage(emptyGatewayState(), {
+      telegramMessageId: 2249,
+      chatId: "100",
+      text: "Question",
+      promptText: "Prompt",
+      route: "source_thread",
+      threadId: "thread-source",
+    });
+    const fetchImpl = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true, result: { message_id: 2250 } })),
+    );
+    const error =
+      "Codex ran out of room in the model's context window. Start a new thread or clear earlier history before retrying.";
+
+    const result = await processPendingMessages({
+      state,
+      config: { allowedChatIds: ["100"], coordinatorThreadId: "thread-coordinator", botToken: "token" },
+      fetchImpl,
+      codexImpl: vi.fn().mockRejectedValueOnce(new Error(error)),
+    });
+
+    expect(result.failed).toBe(1);
+    expect(result.state.pending).toEqual([]);
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe("https://api.telegram.org/bottoken/sendMessage");
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual(
+      expect.objectContaining({
+        chat_id: "100",
+        reply_parameters: { message_id: 2249 },
+      }),
+    );
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)).text).toContain("could not accept the turn");
+  });
+
   it("replies back to Telegram with the Codex agent response", async () => {
     const state = recordOutboundMapping(emptyGatewayState(), {
       telegramMessageId: 77,
       chatId: "100",
       threadId: "thread-source",
     });
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { thread: { id: "thread-source" } } })))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { thread: { turns: [] } } })))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { turn: { id: "turn-new" } } })))
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            ok: true,
-            result: {
-              thread: {
-                turns: [
-                  {
-                    id: "turn-new",
-                    status: "completed",
-                    completedAt: 123,
-                    items: [{ type: "agentMessage", text: "Agent answer" }],
-                  },
-                ],
-              },
-            },
-          }),
-        ),
-      )
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { message_id: 99 } })));
+    const fetchImpl = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true, result: { message_id: 99 } })),
+    );
+    const codexImpl = vi.fn().mockResolvedValueOnce({ turnId: "thread-source", responseText: "Agent answer" });
 
     const processed = await processTelegramUpdate({
       update: {
@@ -386,19 +718,27 @@ describe("telegram gateway routing", () => {
         botToken: "token",
         responseTimeoutMs: 1000,
       },
-      stateBase: "http://localhost:5173",
       fetchImpl,
+      codexImpl,
     });
 
     expect(processed.delivered).toBe(true);
     expect(processed.telegramReplied).toBe(true);
-    expect(fetchImpl.mock.calls[4]?.[0]).toBe("https://api.telegram.org/bottoken/sendMessage");
-    expect(JSON.parse(String(fetchImpl.mock.calls[4]?.[1]?.body))).toEqual(
+    expect(processed.state.mappings[0]).toEqual(
+      expect.objectContaining({
+        telegramMessageId: 99,
+        chatId: "100",
+        threadId: "thread-source",
+      }),
+    );
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe("https://api.telegram.org/bottoken/sendMessage");
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual(
       expect.objectContaining({
         chat_id: "100",
-        text: "Agent answer",
+        text: expect.stringContaining("Agent answer"),
         reply_parameters: { message_id: 78 },
       }),
     );
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)).text).toContain("Thread: thread-source");
   });
 });

@@ -30,6 +30,16 @@ function resolveRepoRoot(): string {
 
 export type StartTelegramGatewayOptions = {
   cwd?: string;
+  send?: {
+    artifact?: string;
+    document?: string;
+    file?: string;
+    parseMode?: string;
+    sessionId?: string;
+    text?: string;
+    threadId?: string;
+    title?: string;
+  };
   once?: boolean;
   dryRun?: boolean;
   checkConfig?: boolean;
@@ -39,6 +49,17 @@ export type StartTelegramGatewayOptions = {
 export async function startTelegramGateway(options: StartTelegramGatewayOptions = {}): Promise<void> {
   const cwd = options.cwd ?? resolveRepoRoot();
   const args = ["scripts/telegram-gateway.ts"];
+  if (options.send) {
+    args.push("--send");
+    if (options.send.threadId) args.push("--thread-id", options.send.threadId);
+    if (options.send.sessionId) args.push("--session-id", options.send.sessionId);
+    if (options.send.text) args.push("--text", options.send.text);
+    if (options.send.file) args.push("--file", options.send.file);
+    if (options.send.document) args.push("--document", options.send.document);
+    if (options.send.artifact) args.push("--artifact", options.send.artifact);
+    if (options.send.title) args.push("--title", options.send.title);
+    if (options.send.parseMode) args.push("--parse-mode", options.send.parseMode);
+  }
   if (options.once) args.push("--once");
   if (options.dryRun) args.push("--dry-run");
   if (options.checkConfig) args.push("--check-config");
@@ -73,7 +94,7 @@ export async function startTelegramGateway(options: StartTelegramGatewayOptions 
 export function registerGatewayCommands(program: Command): void {
   const gateway = program.command("gateway").description("Run local Farplane gateway adapters");
 
-  gateway
+  const telegram = gateway
     .command("telegram")
     .description("Run the local Telegram reply gateway")
     .option("--once", "Poll once and exit", false)
@@ -89,5 +110,20 @@ export function registerGatewayCommands(program: Command): void {
         dryRun: Boolean(opts.dryRun),
         checkConfig: Boolean(opts.checkConfig),
       });
+    });
+
+  telegram
+    .command("send")
+    .description("Send a replyable Telegram notification and persist its gateway route")
+    .option("--thread-id <threadId>", "Codex thread id to route Telegram replies to")
+    .option("--session-id <sessionId>", "Codex session/thread id to route replies to")
+    .option("--text <text>", "Telegram message text")
+    .option("--file <path>", "Path to a file containing Telegram message text")
+    .option("--document <path>", "Path to a local file to send as a Telegram document")
+    .option("--artifact <path>", "Alias for --document")
+    .option("--title <title>", "Short local mapping title")
+    .option("--parse-mode <mode>", "Telegram parse mode: none, Markdown, MarkdownV2, or HTML", "none")
+    .action(async (opts: NonNullable<StartTelegramGatewayOptions["send"]>) => {
+      await startTelegramGateway({ send: opts });
     });
 }

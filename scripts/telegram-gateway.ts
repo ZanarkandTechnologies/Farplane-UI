@@ -11,13 +11,14 @@ import { fileURLToPath } from "node:url";
 
 import { runTelegramGatewayCli } from "./telegram-gateway/cli";
 
-export { requestCodexAppServerRpc, sendCodexMessage } from "./telegram-gateway/codex-app-server";
+export { sendCodexMessage } from "./telegram-gateway/codex-exec";
 export { defaultConfigPath, loadGatewayFileConfig, resolveGatewayConfig } from "./telegram-gateway/config";
 export { processPendingMessages, processTelegramUpdate } from "./telegram-gateway/processor";
 export {
   buildCoordinatorPrompt,
   buildSourceThreadPrompt,
   isRetryableCodexDeliveryError,
+  isTerminalCodexDeliveryError,
   resolveTelegramRoute,
 } from "./telegram-gateway/routing";
 export {
@@ -34,14 +35,15 @@ export {
 } from "./telegram-gateway/state";
 export {
   fetchTelegramUpdates,
+  formatTelegramGatewayMessage,
+  sendTelegramDocument,
   sendTelegramNotification,
   sendTelegramReply,
   telegramApi,
+  validateTelegramArtifactPath,
 } from "./telegram-gateway/telegram-api";
 export type {
-  CodexTurn,
   CodexTurnItem,
-  JsonRpcMessage,
   ResolvedTelegramGatewayConfig,
   TelegramApiResponse,
   TelegramGatewayConfig,

@@ -117,11 +117,24 @@ export function isRetryableCodexDeliveryError(error: string | undefined): boolea
     error === "codex_app_server_unreachable" ||
     error === "codex_app_server_open_timeout" ||
     error === "codex_app_server_url_missing" ||
+    Boolean(error?.startsWith("failed to read thread:")) ||
+    Boolean(error?.includes("thread-store internal error")) ||
+    Boolean(error?.toLowerCase().includes("operation was aborted")) ||
+    Boolean(error?.toLowerCase().includes("aborterror")) ||
     Boolean(error?.startsWith("codex_rpc_timeout:"))
   );
 }
 
+export function isTerminalCodexDeliveryError(error: string | undefined): boolean {
+  const normalized = error?.toLowerCase() ?? "";
+  return (
+    normalized.includes("ran out of room in the model's context window") ||
+    normalized.includes("is archived") ||
+    normalized.includes("thread/resume failed")
+  );
+}
+
 function parseSourceThreadId(text: string): string | undefined {
-  const match = text.match(/Source thread:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  const match = text.match(/(?:Source thread|Thread):\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
   return match?.[1];
 }

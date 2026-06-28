@@ -7,29 +7,42 @@
  * Side effects: sends Codex turns and Telegram replies through edge helpers.
  */
 
-import { sendCodexMessage } from "./codex-app-server";
-import { buildSourceThreadPrompt, isRetryableCodexDeliveryError, resolveTelegramRoute } from "./routing";
+import { sendCodexMessage } from "./codex-exec";
+import {
+  buildSourceThreadPrompt,
+  isRetryableCodexDeliveryError,
+  isTerminalCodexDeliveryError,
+  resolveTelegramRoute,
+} from "./routing";
 import {
   appendHistory,
   queuePendingMessage,
+  recordOutboundMapping,
   removePendingMessage,
   updatePendingMessage,
 } from "./state";
-import { sendTelegramReply } from "./telegram-api";
+import { formatTelegramGatewayMessage, sendTelegramReply } from "./telegram-api";
 import type {
   TelegramGatewayConfig,
   TelegramGatewayState,
   TelegramRouteDecision,
+  TelegramSourceContext,
   TelegramUpdate,
 } from "./types";
+
+type CodexDeliveryImpl = (input: {
+  threadId: string;
+  text: string;
+  responseTimeoutMs?: number;
+}) => Promise<{ turnId?: string; responseText?: string }>;
 
 export async function processTelegramUpdate(input: {
   update: TelegramUpdate;
   state: TelegramGatewayState;
   config: TelegramGatewayConfig;
-  stateBase: string;
   dryRun?: boolean;
   fetchImpl?: typeof fetch;
+  codexImpl?: CodexDeliveryImpl;
 }): Promise<{ state: TelegramGatewayState; route: TelegramRouteDecision; delivered: boolean; telegramReplied?: boolean; error?: string }> {
   const route = resolveTelegramRoute(input.update, input.state, input.config);
   const message = input.update.message;
@@ -57,15 +70,14 @@ export async function processTelegramUpdate(input: {
       });
   if (!input.dryRun) {
     const sent = await sendCodexMessage({
-      codexAppServerUrl: input.config.codexAppServerUrl,
-      stateBase: input.stateBase,
       threadId: route.threadId,
       text: promptText,
       responseTimeoutMs: input.config.responseTimeoutMs,
-      fetchImpl: input.fetchImpl,
+      codexImpl: input.codexImpl,
     });
     if (!sent.ok) {
-      if (sent.threadActive || isRetryableCodexDeliveryError(sent.error)) {
+      if (isRetryableCodexDeliveryError(sent.error)) {
+        const source = sourceContextForRoute(route);
         nextState = queuePendingMessage(nextState, {
           telegramMessageId: historyBase.telegramMessageId,
           chatId: historyBase.chatId,
@@ -73,6 +85,8 @@ export async function processTelegramUpdate(input: {
           promptText,
           route: route.kind,
           threadId: route.threadId,
+          sessionId: source.sessionId,
+          title: source.title,
           lastError: sent.error,
           lastAttemptAt: Date.now(),
         });
@@ -89,9 +103,10 @@ export async function processTelegramUpdate(input: {
           route,
           delivered: false,
           telegramReplied: false,
-          error: sent.threadActive ? "queued_thread_active" : "queued_delivery_retry",
+          error: "queued_delivery_retry",
         };
       }
+      const source = sourceContextForRoute(route);
       nextState = appendHistory(nextState, {
         ...historyBase,
         route: route.kind,
@@ -99,22 +114,42 @@ export async function processTelegramUpdate(input: {
         status: "failed",
         error: sent.error,
       });
+      if (isTerminalCodexDeliveryError(sent.error) && input.config.botToken && message?.message_id) {
+        await sendTelegramReply({
+          token: input.config.botToken,
+          chatId: historyBase.chatId,
+          replyToMessageId: message.message_id,
+          text: buildDeliveryFailureReply(sent.error),
+          source,
+          fetchImpl: input.fetchImpl,
+        });
+      }
       return { state: nextState, route, delivered: false, error: sent.error };
     }
     if (sent.responseText && input.config.botToken && message?.message_id) {
+      const source = sourceContextForRoute(route);
+      const formatted = formatTelegramGatewayMessage({ text: sent.responseText, ...source }).text;
       const telegramReply = await sendTelegramReply({
         token: input.config.botToken,
         chatId: historyBase.chatId,
         replyToMessageId: message.message_id,
         text: sent.responseText,
+        source,
         fetchImpl: input.fetchImpl,
       });
       if (telegramReply.ok && telegramReply.messageId) {
+        nextState = recordOutboundMapping(nextState, {
+          telegramMessageId: telegramReply.messageId,
+          chatId: historyBase.chatId,
+          threadId: route.threadId,
+          sessionId: source.sessionId,
+          title: source.title,
+        });
         nextState = appendHistory(nextState, {
           telegramMessageId: telegramReply.messageId,
           chatId: historyBase.chatId,
           direction: "outbound",
-          text: sent.responseText,
+          text: formatted,
           route: route.kind,
           threadId: route.threadId,
           status: "delivered",
@@ -155,9 +190,9 @@ export async function processTelegramUpdate(input: {
 export async function processPendingMessages(input: {
   state: TelegramGatewayState;
   config: TelegramGatewayConfig;
-  stateBase: string;
   dryRun?: boolean;
   fetchImpl?: typeof fetch;
+  codexImpl?: CodexDeliveryImpl;
 }): Promise<{ state: TelegramGatewayState; processed: number; replied: number; queued: number; failed: number }> {
   let nextState = input.state;
   let processed = 0;
@@ -170,14 +205,12 @@ export async function processPendingMessages(input: {
       continue;
     }
     const sent = await sendCodexMessage({
-      codexAppServerUrl: input.config.codexAppServerUrl,
-      stateBase: input.stateBase,
       threadId: pending.threadId,
       text: pending.promptText ?? pending.text,
       responseTimeoutMs: input.config.responseTimeoutMs,
-      fetchImpl: input.fetchImpl,
+      codexImpl: input.codexImpl,
     });
-    if (!sent.ok && (sent.threadActive || isRetryableCodexDeliveryError(sent.error))) {
+    if (!sent.ok && isRetryableCodexDeliveryError(sent.error)) {
       queued += 1;
       nextState = updatePendingMessage(nextState, pending, {
         attempts: pending.attempts + 1,
@@ -188,11 +221,13 @@ export async function processPendingMessages(input: {
     }
     if (!sent.ok) {
       failed += 1;
-      nextState = updatePendingMessage(nextState, pending, {
-        attempts: pending.attempts + 1,
-        lastAttemptAt: Date.now(),
-        lastError: sent.error,
-      });
+      nextState = isTerminalCodexDeliveryError(sent.error)
+        ? removePendingMessage(nextState, pending)
+        : updatePendingMessage(nextState, pending, {
+            attempts: pending.attempts + 1,
+            lastAttemptAt: Date.now(),
+            lastError: sent.error,
+          });
       nextState = appendHistory(nextState, {
         telegramMessageId: pending.telegramMessageId,
         chatId: pending.chatId,
@@ -203,26 +238,46 @@ export async function processPendingMessages(input: {
         status: "failed",
         error: sent.error,
       });
+      if (isTerminalCodexDeliveryError(sent.error) && input.config.botToken) {
+        await sendTelegramReply({
+          token: input.config.botToken,
+          chatId: pending.chatId,
+          replyToMessageId: pending.telegramMessageId,
+          text: buildDeliveryFailureReply(sent.error),
+          source: sourceContextForPending(pending),
+          fetchImpl: input.fetchImpl,
+        });
+      }
       continue;
     }
 
     processed += 1;
     nextState = removePendingMessage(nextState, pending);
     if (sent.responseText && input.config.botToken) {
+      const source = sourceContextForPending(pending);
+      const formatted = formatTelegramGatewayMessage({ text: sent.responseText, ...source }).text;
       const telegramReply = await sendTelegramReply({
         token: input.config.botToken,
         chatId: pending.chatId,
         replyToMessageId: pending.telegramMessageId,
         text: sent.responseText,
+        source,
         fetchImpl: input.fetchImpl,
       });
       if (telegramReply.ok && telegramReply.messageId) {
         replied += 1;
+        nextState = recordOutboundMapping(nextState, {
+          telegramMessageId: telegramReply.messageId,
+          chatId: pending.chatId,
+          threadId: pending.threadId,
+          sessionId: source.sessionId,
+          title: source.title,
+        });
         nextState = appendHistory(nextState, {
           telegramMessageId: telegramReply.messageId,
           chatId: pending.chatId,
           direction: "outbound",
-          text: sent.responseText,
+          text: formatted,
           route: pending.route,
           threadId: pending.threadId,
           status: "delivered",
@@ -256,4 +311,38 @@ export async function processPendingMessages(input: {
     });
   }
   return { state: nextState, processed, replied, queued, failed };
+}
+
+function buildDeliveryFailureReply(error: string | undefined): string {
+  return [
+    "Telegram reached the mapped Codex thread, but Codex could not accept the turn.",
+    "",
+    `Reason: ${error ?? "unknown Codex delivery failure"}`,
+  ].join("\n");
+}
+
+function sourceContextForRoute(route: Exclude<TelegramRouteDecision, { kind: "ignore" | "unknown_reply" }>): TelegramSourceContext {
+  if (route.kind === "source_thread") {
+    return {
+      threadId: route.threadId,
+      sessionId: route.mapping.sessionId,
+      title: route.mapping.title ?? "Telegram gateway response",
+    };
+  }
+  return {
+    threadId: route.threadId,
+    title: "Telegram coordinator",
+  };
+}
+
+function sourceContextForPending(pending: {
+  threadId: string;
+  sessionId?: string;
+  title?: string;
+}): TelegramSourceContext {
+  return {
+    threadId: pending.threadId,
+    sessionId: pending.sessionId,
+    title: pending.title ?? "Telegram gateway response",
+  };
 }

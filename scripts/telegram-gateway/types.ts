@@ -1,8 +1,8 @@
 /**
  * Shared contracts for the local Telegram gateway.
  *
- * Inputs: Telegram Bot API updates, Codex app-server RPC payloads, and local
- * gateway config/state JSON.
+ * Inputs: Telegram Bot API updates, Codex exec JSONL payloads, and local gateway
+ * config/state JSON.
  * Outputs: typed routing decisions, state records, and delivery results.
  * Side effects: none.
  */
@@ -37,6 +37,8 @@ export type TelegramGatewayPendingMessage = {
   promptText?: string;
   route: "source_thread" | "coordinator";
   threadId: string;
+  sessionId?: string;
+  title?: string;
   createdAt: number;
   attempts: number;
   lastAttemptAt?: number;
@@ -53,7 +55,6 @@ export type TelegramGatewayState = {
 export type TelegramGatewayConfig = {
   allowedChatIds: string[];
   coordinatorThreadId?: string;
-  codexAppServerUrl?: string;
   botToken?: string;
   responseTimeoutMs?: number;
 };
@@ -61,12 +62,6 @@ export type TelegramGatewayConfig = {
 export type TelegramGatewayFileConfig = {
   version?: number;
   mainThreadId?: string;
-  stateBase?: string;
-  runtime?: {
-    aiOfficeUrl?: string;
-    stateBase?: string;
-    codexAppServerUrl?: string;
-  };
   telegram?: {
     enabled?: boolean;
     dmPolicy?: "allowlist";
@@ -83,21 +78,12 @@ export type TelegramGatewayFileConfig = {
 export type ResolvedTelegramGatewayConfig = TelegramGatewayConfig & {
   botToken: string;
   enabled: boolean;
-  stateBase: string;
 };
 
 export type TelegramApiResponse<T> = {
   ok: boolean;
   result?: T;
   description?: string;
-};
-
-export type JsonRpcMessage = {
-  id?: string | number;
-  method?: string;
-  params?: unknown;
-  result?: unknown;
-  error?: { code?: number; message?: string; data?: unknown };
 };
 
 export type TelegramUpdate = {
@@ -122,17 +108,20 @@ export type TelegramSendMessageResult = {
   text?: string;
 };
 
+export type TelegramDocumentResult = TelegramSendMessageResult & {
+  document?: { file_id?: string; file_name?: string };
+};
+
+export type TelegramSourceContext = {
+  threadId: string;
+  sessionId?: string;
+  title?: string;
+};
+
 export type CodexTurnItem = {
   type?: string;
   text?: string;
   content?: Array<{ type?: string; text?: string }>;
-};
-
-export type CodexTurn = {
-  id: string;
-  status?: string;
-  completedAt?: number | null;
-  items?: CodexTurnItem[];
 };
 
 export type TelegramRouteDecision =

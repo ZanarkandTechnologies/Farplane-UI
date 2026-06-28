@@ -41,6 +41,9 @@ export function mergeGatewayState(
     if (entry.direction === "inbound" && entry.status === "delivered") {
       pendingRows.delete(`${entry.chatId}:${entry.telegramMessageId}`);
     }
+    if (entry.direction === "inbound" && entry.status === "failed" && isTerminalPendingFailure(entry.error)) {
+      pendingRows.delete(`${entry.chatId}:${entry.telegramMessageId}`);
+    }
   }
   return {
     updateOffset: Math.max(base.updateOffset, incoming.updateOffset),
@@ -48,6 +51,10 @@ export function mergeGatewayState(
     history: [...historyRows.values()].sort((left, right) => right.occurredAt - left.occurredAt).slice(0, 200),
     pending: [...pendingRows.values()].sort((left, right) => left.createdAt - right.createdAt).slice(0, 200),
   };
+}
+
+function isTerminalPendingFailure(error: string | undefined): boolean {
+  return Boolean(error?.toLowerCase().includes("ran out of room in the model's context window"));
 }
 
 export function recordOutboundMapping(

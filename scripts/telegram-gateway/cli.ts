@@ -18,7 +18,7 @@ import {
   mergeGatewayState,
   saveGatewayState,
 } from "./state";
-import { fetchTelegramUpdates } from "./telegram-api";
+import { fetchTelegramUpdates, sendTelegramDocument, sendTelegramNotification } from "./telegram-api";
 import type { TelegramUpdate } from "./types";
 
 function sleep(ms: number): Promise<void> {
@@ -37,6 +37,39 @@ function isProcessAlive(pid: number): boolean {
 
 function defaultLockPath(statePath = defaultStatePath()): string {
   return path.join(path.dirname(statePath), "gateway.pid");
+}
+
+function argValue(rawArgs: string[], flag: string): string | undefined {
+  const index = rawArgs.indexOf(flag);
+  if (index === -1) return undefined;
+  const value = rawArgs[index + 1]?.trim();
+  return value || undefined;
+}
+
+function required(value: string | undefined, label: string): string {
+  if (!value?.trim()) throw new Error(`missing_${label}`);
+  return value.trim();
+}
+
+function parseMode(value: string | undefined): "Markdown" | "MarkdownV2" | "HTML" | "none" {
+  if (!value || value === "none" || value === "Markdown" || value === "MarkdownV2" || value === "HTML") {
+    return value ?? "none";
+  }
+  throw new Error(`invalid_telegram_parse_mode:${value}`);
+}
+
+async function readSendBody(rawArgs: string[]): Promise<string> {
+  const text = argValue(rawArgs, "--text");
+  const file = argValue(rawArgs, "--file");
+  if (text && file) throw new Error("telegram_send_use_text_or_file");
+  if (text) return text;
+  if (file) return readFile(path.resolve(file), "utf8");
+  throw new Error("missing_telegram_message_body");
+}
+
+async function readOptionalSendBody(rawArgs: string[]): Promise<string | undefined> {
+  if (!argValue(rawArgs, "--text") && !argValue(rawArgs, "--file")) return undefined;
+  return readSendBody(rawArgs);
 }
 
 async function acquireGatewayLock(lockPath: string): Promise<() => Promise<void>> {
@@ -62,9 +95,12 @@ async function acquireGatewayLock(lockPath: string): Promise<() => Promise<void>
   };
 }
 
-export async function runTelegramGatewayCli(args = new Set(process.argv.slice(2))): Promise<void> {
+export async function runTelegramGatewayCli(rawArgs = process.argv.slice(2)): Promise<void> {
+  const args = new Set(rawArgs);
   if (args.has("--help")) {
     console.log("Usage: npm run cli -- gateway telegram [--once] [--dry-run] [--check-config]");
+    console.log("       npm run cli -- gateway telegram send --thread-id <id> --text <message>");
+    console.log("       npm run cli -- gateway telegram send --thread-id <id> --document <path> [--text <caption>]");
     return;
   }
   const statePath = defaultStatePath();
@@ -75,13 +111,11 @@ export async function runTelegramGatewayCli(args = new Set(process.argv.slice(2)
   if (args.has("--check-config")) {
     console.log(
       JSON.stringify({
-        ok: config.enabled && Boolean(config.botToken) && config.allowedChatIds.length > 0 && Boolean(config.codexAppServerUrl),
+        ok: config.enabled && Boolean(config.botToken) && config.allowedChatIds.length > 0,
         enabled: config.enabled,
         hasBotToken: Boolean(config.botToken),
         allowedChatIds: config.allowedChatIds.length,
         hasCoordinatorThread: Boolean(config.coordinatorThreadId),
-        codexAppServerUrl: config.codexAppServerUrl,
-        stateBase: config.stateBase,
         configPath: defaultConfigPath(),
         statePath,
       }),
@@ -98,11 +132,58 @@ export async function runTelegramGatewayCli(args = new Set(process.argv.slice(2)
     );
     return;
   }
-  if (!config.botToken || config.allowedChatIds.length === 0 || !config.codexAppServerUrl) {
+  if (args.has("--send")) {
+    try {
+      const threadId = required(argValue(rawArgs, "--thread-id") ?? argValue(rawArgs, "--session-id"), "thread_id");
+      const documentPath = argValue(rawArgs, "--document") ?? argValue(rawArgs, "--artifact");
+      const body = (await (documentPath ? readOptionalSendBody(rawArgs) : readSendBody(rawArgs)))?.trim();
+      if (!documentPath && !body) throw new Error("empty_telegram_message_body");
+      const common = {
+        token: required(config.botToken, "telegram_bot_token"),
+        chatId: required(config.allowedChatIds[0], "telegram_chat_id"),
+        threadId,
+        sessionId: argValue(rawArgs, "--session-id"),
+        state,
+        statePath,
+        title: argValue(rawArgs, "--title"),
+      };
+      const result = documentPath
+        ? await sendTelegramDocument({
+            ...common,
+            filePath: documentPath,
+            caption: body,
+          })
+        : await sendTelegramNotification({
+            ...common,
+            text: body ?? "",
+            parseMode: parseMode(argValue(rawArgs, "--parse-mode")),
+          });
+      if (!result.ok) throw new Error(result.error ?? "telegram_gateway_send_failed");
+      console.log(
+        JSON.stringify({
+          ok: true,
+          messageId: result.messageId,
+          threadId,
+          sent: documentPath ? "document" : "message",
+          statePath,
+        }),
+      );
+    } catch (error) {
+      console.log(
+        JSON.stringify({
+          ok: false,
+          error: error instanceof Error ? error.message : "telegram_gateway_send_failed",
+          statePath,
+        }),
+      );
+      process.exitCode = 1;
+    }
+    return;
+  }
+  if (!config.botToken || config.allowedChatIds.length === 0) {
     const needs = [];
     if (!config.botToken) needs.push("telegram.botToken");
     if (config.allowedChatIds.length === 0) needs.push("telegram.allowFrom");
-    if (!config.codexAppServerUrl) needs.push("runtime.codexAppServerUrl");
     console.log(
       JSON.stringify({
         ok: false,
@@ -123,10 +204,10 @@ export async function runTelegramGatewayCli(args = new Set(process.argv.slice(2)
       const pendingResult = await processPendingMessages({
         state,
         config,
-        stateBase: config.stateBase,
         dryRun,
       });
       state = pendingResult.state;
+      if (!dryRun) await saveGatewayState(state, statePath);
       const pendingSummary = {
         processed: pendingResult.processed,
         replied: pendingResult.replied,
@@ -156,10 +237,11 @@ export async function runTelegramGatewayCli(args = new Set(process.argv.slice(2)
         await sleep(isPollConflict ? 5000 : 1500);
         continue;
       }
+      state = mergeGatewayState(state, await loadGatewayState(statePath));
       const results = [];
       for (const update of updates) {
-        const result = await processTelegramUpdate({ update, state, config, stateBase: config.stateBase, dryRun });
-        state = result.state;
+        const result = await processTelegramUpdate({ update, state, config, dryRun });
+        if (!dryRun) state = result.state;
         results.push({
           updateId: update.update_id,
           route: result.route.kind,
@@ -168,8 +250,10 @@ export async function runTelegramGatewayCli(args = new Set(process.argv.slice(2)
           error: result.error,
         });
       }
-      state = mergeGatewayState(state, await loadGatewayState(statePath));
-      await saveGatewayState(state, statePath);
+      if (!dryRun) {
+        state = mergeGatewayState(state, await loadGatewayState(statePath));
+        await saveGatewayState(state, statePath);
+      }
       console.log(
         JSON.stringify({
           ok: true,

@@ -43,32 +43,17 @@ export async function resolveGatewayConfig(): Promise<ResolvedTelegramGatewayCon
         ? [legacyChatId]
         : (fileConfig.telegram?.allowFrom ?? []).map(String).map((entry) => entry.trim()).filter(Boolean);
   const envToken = await readTelegramToken();
-  const responseTimeoutMs = Number(readFarplaneConfigValue("TELEGRAM_RESPONSE_TIMEOUT_MS") || "120000");
-  const codexAppServerUrl = (
-    fileConfig.runtime?.codexAppServerUrl?.trim() ||
-    readFarplaneConfigValue("CODEX_APP_SERVER_URL") ||
-    readFarplaneConfigValue("FARPLANE_CODEX_APP_SERVER_URL") ||
-    readFarplaneConfigValue("VITE_CODEX_APP_SERVER_URL") ||
-    ""
-  );
+  const responseTimeoutMs = Number(readFarplaneConfigValue("TELEGRAM_RESPONSE_TIMEOUT_MS") || "300000");
   return {
     enabled: fileConfig.telegram?.enabled !== false,
     botToken: envToken ?? fileConfig.telegram?.botToken?.trim() ?? "",
-    responseTimeoutMs: Number.isFinite(responseTimeoutMs) && responseTimeoutMs >= 0 ? responseTimeoutMs : 120000,
+    responseTimeoutMs: Number.isFinite(responseTimeoutMs) && responseTimeoutMs >= 0 ? responseTimeoutMs : 300000,
     allowedChatIds,
-    codexAppServerUrl,
     coordinatorThreadId:
       process.env.TELEGRAM_COORDINATOR_THREAD_ID?.trim() ||
       fileConfig.telegram?.mainThreadId?.trim() ||
       fileConfig.mainThreadId?.trim() ||
       undefined,
-    stateBase:
-      fileConfig.runtime?.aiOfficeUrl?.trim() ||
-      fileConfig.runtime?.stateBase?.trim() ||
-      fileConfig.stateBase?.trim() ||
-      readFarplaneConfigValue("FARPLANE_STATE_BASE") ||
-      readFarplaneConfigValue("VITE_STATE_URL") ||
-      "http://127.0.0.1:5173",
   };
 }
 
