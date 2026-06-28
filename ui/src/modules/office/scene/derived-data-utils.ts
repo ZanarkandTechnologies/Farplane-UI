@@ -96,7 +96,7 @@ export function assignRandomStatuses(
     if (hasActiveHeartbeatState) {
       return {
         ...employee,
-        wantsToWander,
+        wantsToWander: false,
       };
     }
 

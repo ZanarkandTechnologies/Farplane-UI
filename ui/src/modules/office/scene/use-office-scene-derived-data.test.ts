@@ -69,6 +69,20 @@ describe("office scene derived data", () => {
     expect(result[0]?.wantsToWander).toBe(false);
   });
 
+  it("pins active employees to their desks during status assignment", () => {
+    const employees = [
+      createEmployeeData({
+        _id: "emp-running",
+        heartbeatState: "running",
+        wantsToWander: true,
+      }),
+    ];
+
+    const result = assignRandomStatuses([...employees], new Map());
+
+    expect(result[0]?.wantsToWander).toBe(false);
+  });
+
   it("indexes desks by team id from persisted desk ids", () => {
     const desks: DeskLayoutData[] = [
       { id: "desk-team-alpha-0", deskIndex: 0, team: "Alpha" },
@@ -164,6 +178,7 @@ describe("office scene derived data", () => {
     expect(presented?.activityTargetSkillId).toBe("openai-docs");
     expect(presented?.activityTargetObjectPosition).toEqual([6, 0, 7]);
     expect(presented?.activityEffectVariant).toBe("blink");
+    expect(presented?.wantsToWander).toBe(false);
     expect(presented?.heartbeatBubbles).toEqual([{ label: "Working", weight: 80 }]);
     expect(presented?.bubbleMessages).toEqual(liveStatus.bubbleMessages);
   });

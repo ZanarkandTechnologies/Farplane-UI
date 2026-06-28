@@ -333,6 +333,7 @@ export function observedCodexWorkersToLiveStatuses(
         state: worker.state === "done" ? "done" : worker.state === "running" ? "running" : "idle",
         statusText: worker.statusText,
         updatedAt: worker.lastSeenAt,
+        currentSkillId: worker.currentSkillId,
         bubbles: [
           {
             id: `observed:${worker.workerId}:${worker.lastSeenAt}`,
@@ -360,7 +361,10 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
   now = Date.now(),
 ): UnifiedOfficeModel {
   const activeWorkers = workers.filter(
-    (worker) => worker.workerId.trim() && worker.projectId.trim() && !worker.parentThreadId?.trim(),
+    (worker) =>
+      worker.workerId.trim() &&
+      worker.projectId.trim() &&
+      (!worker.parentThreadId?.trim() || worker.isEphemeral === true),
   );
   if (activeWorkers.length === 0) return unified;
 

@@ -39,6 +39,8 @@ export type ObservedCodexWorker = {
   displayName: string;
   state: "running" | "idle" | "done";
   statusText: string;
+  currentSkillId?: string;
+  isEphemeral?: boolean;
   lastSeenAt: number;
   controllable: false;
 };
@@ -211,6 +213,8 @@ function observedStatusText(row: HookTelemetryRow, payload: JsonRecord): string 
   if (row.hookType === "UserPromptSubmit" || row.hookType === "TurnStart")
     return "Codex turn running";
   if (row.hookType === "Stop" || row.hookType === "TurnEnd") return "Codex turn completed";
+  if (row.hookType === "SubagentStart") return "Delegated Codex worker running";
+  if (row.hookType === "SubagentStop") return "Delegated Codex worker completed";
   if (row.hookType === "PostToolUse") {
     const skillId = cleanText(payload.skillId, 120);
     if (skillId) return `Calling ${compactLabel(skillId)}`;
@@ -220,7 +224,8 @@ function observedStatusText(row: HookTelemetryRow, payload: JsonRecord): string 
 }
 
 function observedState(row: HookTelemetryRow): ObservedCodexWorker["state"] {
-  if (row.hookType === "Stop" || row.hookType === "TurnEnd") return "done";
+  if (row.hookType === "Stop" || row.hookType === "TurnEnd" || row.hookType === "SubagentStop")
+    return "done";
   if (
     row.hookType === "SessionStart" ||
     row.hookType === "UserPromptSubmit" ||
@@ -235,16 +240,35 @@ function observedState(row: HookTelemetryRow): ObservedCodexWorker["state"] {
   return "idle";
 }
 
+function isObservedStartHook(row: HookTelemetryRow): boolean {
+  return (
+    row.hookType === "SessionStart" ||
+    row.hookType === "UserPromptSubmit" ||
+    row.hookType === "TurnStart" ||
+    row.hookType === "SubagentStart"
+  );
+}
+
+function isObservedStopHook(row: HookTelemetryRow): boolean {
+  return row.hookType === "Stop" || row.hookType === "TurnEnd" || row.hookType === "SubagentStop";
+}
+
+function observedCurrentSkillId(payload: JsonRecord): string | undefined {
+  return cleanText(payload.skillId, 160) ?? cleanText(payload.skill_id, 160);
+}
+
 function observedDisplayName(input: {
   payload: JsonRecord;
   machineName?: string;
   threadId?: string;
   projectId: string;
+  currentDisplayName?: string;
 }): string {
   return (
     cleanText(input.payload.agentName, 80) ??
     cleanText(input.payload.threadTitle, 80) ??
     cleanText(input.payload.title, 80) ??
+    input.currentDisplayName ??
     (input.machineName ? `Codex on ${input.machineName}` : undefined) ??
     (input.threadId ? `Codex ${input.threadId.slice(0, 8)}` : undefined) ??
     `Codex ${input.projectId.slice(0, 8)}`
@@ -414,8 +438,8 @@ export function hookTelemetryRowsToObservedCodexWorkers(
   rows: HookTelemetryRow[],
 ): ObservedCodexWorker[] {
   const byWorkerId = new Map<string, ObservedCodexWorker>();
+  const lifecycleByWorkerId = new Map<string, { latestStartAt?: number; latestStopAt?: number }>();
   for (const row of rows) {
-    if (row.hookType === "SubagentStart" || row.hookType === "SubagentStop") continue;
     const payload = asRecord(row.payload);
     const projectId = projectIdFromRow(row, payload);
     if (!projectId) continue;
@@ -435,6 +459,19 @@ export function hookTelemetryRowsToObservedCodexWorkers(
       safeIdPart(sessionKey),
     ].join(":");
     const current = byWorkerId.get(workerId);
+    const lifecycle = lifecycleByWorkerId.get(workerId) ?? {};
+    if (isObservedStartHook(row)) {
+      lifecycle.latestStartAt = Math.max(lifecycle.latestStartAt ?? -Infinity, row.eventAt);
+    }
+    if (isObservedStopHook(row)) {
+      lifecycle.latestStopAt = Math.max(lifecycle.latestStopAt ?? -Infinity, row.eventAt);
+    }
+    lifecycleByWorkerId.set(workerId, lifecycle);
+    const state = observedState(row);
+    const currentSkillId =
+      observedCurrentSkillId(payload) ??
+      (state === "running" ? current?.currentSkillId : undefined);
+    const isEphemeral = row.hookType === "SubagentStart" || row.hookType === "SubagentStop";
     if (current && current.lastSeenAt >= row.eventAt) {
       if (!current.parentThreadId && parentThreadId) {
         byWorkerId.set(workerId, { ...current, parentThreadId });
@@ -452,17 +489,52 @@ export function hookTelemetryRowsToObservedCodexWorkers(
       parentThreadId: parentThreadId ?? current?.parentThreadId,
       projectId,
       projectPath: projectPathFromPayload(payload),
-      displayName: observedDisplayName({ payload, machineName, threadId, projectId }),
-      state: observedState(row),
+      displayName: observedDisplayName({
+        payload,
+        machineName,
+        threadId,
+        projectId,
+        currentDisplayName: current?.displayName,
+      }),
+      state,
       statusText: observedStatusText(row, payload),
+      currentSkillId,
+      isEphemeral: isEphemeral ? true : current?.isEphemeral,
       lastSeenAt: row.eventAt,
       controllable: false,
     });
   }
-  return [...byWorkerId.values()].sort(
-    (left, right) =>
-      right.lastSeenAt - left.lastSeenAt || left.workerId.localeCompare(right.workerId),
-  );
+  return [...byWorkerId.values()]
+    .map((worker) => {
+      const lifecycle = lifecycleByWorkerId.get(worker.workerId);
+      if (
+        lifecycle?.latestStartAt !== undefined &&
+        (lifecycle.latestStopAt === undefined || lifecycle.latestStartAt > lifecycle.latestStopAt)
+      ) {
+        return {
+          ...worker,
+          state: "running",
+          statusText:
+            worker.statusText === "Codex activity observed"
+              ? "Codex turn running"
+              : worker.statusText,
+        };
+      }
+      if (
+        lifecycle?.latestStopAt !== undefined &&
+        (lifecycle.latestStartAt === undefined || lifecycle.latestStopAt >= lifecycle.latestStartAt)
+      ) {
+        return {
+          ...worker,
+          state: "done",
+        };
+      }
+      return worker;
+    })
+    .sort(
+      (left, right) =>
+        right.lastSeenAt - left.lastSeenAt || left.workerId.localeCompare(right.workerId),
+    );
 }
 
 export function hookTelemetryRowsToAgentBubbleMessages(

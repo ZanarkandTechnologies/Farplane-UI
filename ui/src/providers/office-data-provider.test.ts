@@ -458,6 +458,23 @@ describe("office-data-provider stabilization", () => {
         lastSeenAt: 1770000000100,
         controllable: false,
       },
+      {
+        workerId: "codex-observed:machine-a:codex-proj-farplane:subagent-thread",
+        sourceInstanceId: "machine-a",
+        machineId: "machine-a",
+        sessionKey: "subagent-thread",
+        threadId: "subagent-thread",
+        parentThreadId: "thread-1",
+        projectId: "codex-proj-farplane",
+        projectPath: "/work/farplane",
+        displayName: "Ephemeral review lane",
+        state: "running",
+        statusText: "Delegated Codex worker running",
+        currentSkillId: "code-review",
+        isEphemeral: true,
+        lastSeenAt: 1770000000200,
+        controllable: false,
+      },
     ];
     const unified = mergeObservedCodexWorkersIntoUnifiedOfficeModel(
       createUnifiedOfficeModel({
@@ -491,6 +508,10 @@ describe("office-data-provider stabilization", () => {
     const delegatedEmployee = result.employees.find(
       (entry) => entry._id === "employee-codex-observed:machine-a:codex-proj-farplane:child-thread",
     );
+    const ephemeralEmployee = result.employees.find(
+      (entry) =>
+        entry._id === "employee-codex-observed:machine-a:codex-proj-farplane:subagent-thread",
+    );
 
     expect(unified.company.projects.map((project) => project.id)).toContain("codex-proj-farplane");
     expect(employee).toEqual(
@@ -512,6 +533,20 @@ describe("office-data-provider stabilization", () => {
       }),
     );
     expect(delegatedEmployee).toBeUndefined();
+    expect(ephemeralEmployee).toEqual(
+      expect.objectContaining({
+        name: "Ephemeral review lane",
+        presencePersistent: false,
+        activityState: "review",
+        activityTargetSkillId: "code-review",
+        wantsToWander: false,
+        observedRuntime: expect.objectContaining({
+          parentThreadId: "thread-1",
+          threadId: "subagent-thread",
+          controllable: false,
+        }),
+      }),
+    );
   });
 
   it("does not duplicate observed telemetry when an app-server thread agent already owns the same thread", () => {

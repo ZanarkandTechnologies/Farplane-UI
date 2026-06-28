@@ -99,6 +99,10 @@ export function applyLiveStatusToSceneEmployees(input: {
       activeSkillId && skillOccupantIds.length > 0 ? skillOccupantIds.indexOf(agentId) : -1;
     const skillTargetObject = activeSkillId ? skillTargetObjects.get(activeSkillId) : undefined;
     const activity = deriveEmployeeActivity(liveStatus);
+    const hasActiveThread = hasEmployeeActiveThread({
+      heartbeatState: liveStatus.state,
+      isBusy: employee.isBusy,
+    });
     const activityEffectVariant =
       activeSkillId && skillTargetObject
         ? resolveSkillEffectVariant(
@@ -126,6 +130,7 @@ export function applyLiveStatusToSceneEmployees(input: {
       activityTargetSkillId: activeSkillId,
       activityEffectVariant,
       statusMessage: liveStatus.statusText ?? employee.statusMessage,
+      wantsToWander: hasActiveThread ? false : employee.wantsToWander,
       activityState: activity.state,
       activityLabel: activity.label,
       activityDetail: activity.detail,

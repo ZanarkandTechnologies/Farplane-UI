@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { hookTelemetryRowsToLearningTimelineRows } from "./learningTimeline";
 import {
-  hookTelemetryRowsToAgentBubbleMessages,
+  type HookTelemetryRow,
   hookTelemetryRowsToActivityPingRows,
+  hookTelemetryRowsToAgentBubbleMessages,
   hookTelemetryRowsToObservedCodexWorkers,
   hookTelemetryRowsToOfficeTravelIntents,
   hookTelemetryRowsToSkillInvocationRows,
   hookTelemetryRowsToThreadLineageGraph,
-  type HookTelemetryRow,
 } from "./projections";
 
 describe("hook telemetry projections", () => {
@@ -198,6 +198,7 @@ describe("hook telemetry projections", () => {
         sessionKey: "thread-1",
         state: "running",
         statusText: "Calling goal advisor",
+        currentSkillId: "goal-advisor",
         controllable: false,
       }),
     );
@@ -242,7 +243,74 @@ describe("hook telemetry projections", () => {
     ]);
   });
 
-  it("does not promote subagent lifecycle hooks into observed workers", () => {
+  it("keeps sessions with a latest start hook and no later stop hook running", () => {
+    const workers = hookTelemetryRowsToObservedCodexWorkers([
+      {
+        hookName: "codex-runtime",
+        hookType: "Heartbeat",
+        projectId: "codex-proj-farplane",
+        sessionId: "thread-open",
+        eventAt: 3_000,
+        payload: {
+          machineId: "machine-a",
+          threadId: "thread-open",
+          cwd: "/work/farplane",
+        },
+      },
+      {
+        hookName: "codex-runtime",
+        hookType: "TurnStart",
+        projectId: "codex-proj-farplane",
+        sessionId: "thread-open",
+        eventAt: 2_000,
+        payload: {
+          machineId: "machine-a",
+          threadId: "thread-open",
+          cwd: "/work/farplane",
+        },
+      },
+      {
+        hookName: "codex-runtime",
+        hookType: "Stop",
+        projectId: "codex-proj-farplane",
+        sessionId: "thread-closed",
+        eventAt: 5_000,
+        payload: {
+          machineId: "machine-a",
+          threadId: "thread-closed",
+          cwd: "/work/farplane",
+        },
+      },
+      {
+        hookName: "codex-runtime",
+        hookType: "TurnStart",
+        projectId: "codex-proj-farplane",
+        sessionId: "thread-closed",
+        eventAt: 4_000,
+        payload: {
+          machineId: "machine-a",
+          threadId: "thread-closed",
+          cwd: "/work/farplane",
+        },
+      },
+    ]);
+
+    expect(workers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          workerId: "codex-observed:machine-a:codex-proj-farplane:thread-open",
+          state: "running",
+          statusText: "Codex turn running",
+        }),
+        expect.objectContaining({
+          workerId: "codex-observed:machine-a:codex-proj-farplane:thread-closed",
+          state: "done",
+        }),
+      ]),
+    );
+  });
+
+  it("projects subagent lifecycle hooks into ephemeral observed workers", () => {
     const workers = hookTelemetryRowsToObservedCodexWorkers([
       {
         hookName: "codex-runtime",
@@ -271,7 +339,15 @@ describe("hook telemetry projections", () => {
       },
     ]);
 
-    expect(workers).toEqual([]);
+    expect(workers).toEqual([
+      expect.objectContaining({
+        workerId: "codex-observed:machine-a:codex-proj-farplane:subagent-thread",
+        displayName: "Review lane",
+        state: "done",
+        isEphemeral: true,
+        controllable: false,
+      }),
+    ]);
   });
 
   it("projects file change summaries into observed Codex workers from cwd", () => {

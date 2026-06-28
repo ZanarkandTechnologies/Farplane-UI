@@ -2461,6 +2461,9 @@ export function toOfficeData(
                     : undefined;
 
     const activity = deriveEmployeeActivity(liveStatus);
+    const hasActiveThread = liveStatus
+      ? activity.state !== "idle"
+      : (runtimeAgent?.sessionCount ?? 0) > 0;
     const appearance = appearanceByAgentId.get(agent.agentId);
 
     return {
@@ -2526,7 +2529,7 @@ export function toOfficeData(
             controllable: false,
           }
         : undefined,
-      wantsToWander: roundTableStation ? false : undefined,
+      wantsToWander: roundTableStation || hasActiveThread ? false : undefined,
       appearance,
     };
   });
