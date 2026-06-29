@@ -25,22 +25,23 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useChatActions } from "@/modules/chat/chat-store";
-import { useAppStore } from "@/store";
 import { UI_Z } from "@/lib/z-index";
+import { useChatActions } from "@/modules/chat/chat-store";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
+import { ThreadDataPanel } from "@/modules/thread-data";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { type CompanyModel, useOfficeRuntimeAdapter } from "@/modules/runtime";
+import { useAppStore } from "@/store";
+import { KanbanTab } from "./kanban-tab";
+import { OverviewTab } from "./tabs/overview";
 import {
   ProjectCadenceTab,
   ProjectGoalsTab,
   ProjectProductsTab,
   useFarplaneProjectConfig,
-} from "./farplane-project-config";
-import { KanbanTab } from "./kanban-tab";
-import { OverviewTab } from "./overview-tab";
+} from "./tabs/project-config";
+import { deriveProjectId, type TabKey } from "./team-panel-types";
 import { TelemetryTab } from "./telemetry-tab";
 import { TimelineTab } from "./timeline-tab";
-import { deriveProjectId, type TabKey } from "./team-panel-types";
 import { useProjectKanban } from "./use-project-kanban";
 import { useTeamPanelBoardState } from "./use-team-panel-board";
 import { useTeamPanelBusinessState } from "./use-team-panel-business";
@@ -56,8 +57,6 @@ interface TeamPanelProps {
   globalMode?: boolean;
 }
 
-type ProjectModel = CompanyModel["projects"][number];
-
 export function TeamPanel({
   teamId,
   isOpen,
@@ -72,6 +71,7 @@ export function TeamPanel({
   const selectedProjectId = useAppStore((state) => state.selectedProjectId);
   const setSelectedProjectId = useAppStore((state) => state.setSelectedProjectId);
   const setIsAgentSessionPanelOpen = useAppStore((state) => state.setIsAgentSessionPanelOpen);
+  const setIsRawTelemetryPanelOpen = useAppStore((state) => state.setIsRawTelemetryPanelOpen);
   const setSelectedAgentId = useAppStore((state) => state.setSelectedAgentId);
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
@@ -167,16 +167,6 @@ export function TeamPanel({
     refresh,
     project,
   });
-  const activityFeedCandidates = useMemo(
-    () =>
-      visibleRoster.map((employee) => {
-        const rawId = String(employee._id ?? "").trim();
-        const agentId = rawId.startsWith("employee-") ? rawId.slice("employee-".length) : rawId;
-        return { agentId, name: employee.name };
-      }),
-    [visibleRoster],
-  );
-
   const panelTitle = globalMode ? "All Teams" : (team?.name ?? "Team");
 
   useEffect(() => {
@@ -237,6 +227,9 @@ export function TeamPanel({
               </TabsTrigger>
               <TabsTrigger className="flex-none" value="cadence">
                 Cadence
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="thread-data">
+                Thread Data
               </TabsTrigger>
               <TabsTrigger className="flex-none" value="timeline">
                 Timeline
@@ -305,13 +298,17 @@ export function TeamPanel({
             <ProjectCadenceTab config={projectConfigState.config} />
           </TabsContent>
 
+          <TabsContent value="thread-data" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <ThreadDataPanel />
+          </TabsContent>
+
           <TabsContent value="timeline" className="mt-4 min-h-0 flex-1 overflow-hidden">
             <TimelineTab
               convexEnabled={convexEnabled}
               teamScopeId={teamScopeId}
               memoryRows={memoryRows}
-              activityFeedCandidates={activityFeedCandidates}
               communicationRows={communicationRows}
+              onConfigureHooks={() => setIsRawTelemetryPanelOpen(true)}
             />
           </TabsContent>
 

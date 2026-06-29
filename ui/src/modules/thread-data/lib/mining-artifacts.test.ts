@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  artifactPreview,
+  defaultOutputViewMode,
   displayEvidenceSource,
   filterOutputs,
   filterThreads,
   outputEvidenceRows,
+  scorecardSummary,
   selectedThreadIds,
   sortMiningRuns,
 } from "@/modules/thread-data/lib/mining-artifacts";
@@ -123,5 +126,53 @@ describe("mining artifact helpers", () => {
         source: "~/project/thread.json/messages/0",
       },
     ]);
+  });
+
+  it("chooses ticket-completion scorecard summaries before raw evidence", () => {
+    expect(
+      defaultOutputViewMode(
+        {
+          createdAt: "2026-06-01T00:00:00.000Z",
+          label: "ticket",
+          miningMode: "ticket_completion",
+          outputCount: 1,
+          programId: "ticket-completion-audit-v1",
+          programVersion: "0.1.0",
+          promotedCount: 0,
+          rejectedCount: 0,
+          reviewedCount: 0,
+          runId: "run-1",
+          sourceCount: 1,
+          status: "complete",
+        },
+        outputs[0],
+      ),
+    ).toBe("summary");
+  });
+
+  it("extracts tolerant scorecard summaries and artifact previews", () => {
+    expect(
+      scorecardSummary({
+        scorecard: {
+          overall: "good",
+          proof_quality: "medium",
+          scope_followed: "high",
+          skipped_steps: "visual qa",
+        },
+      }),
+    ).toEqual({
+      overall: "good",
+      proofQuality: "medium",
+      scopeFollowed: "high",
+      skippedSteps: "visual qa",
+    });
+    expect(
+      artifactPreview({
+        id: "input",
+        kind: "json",
+        label: "input.json",
+        path: "/tmp/input.json",
+      }),
+    ).toBe("input.json\n/tmp/input.json");
   });
 });

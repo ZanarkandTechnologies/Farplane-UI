@@ -132,6 +132,8 @@ describe("mining local API", () => {
 
     const replayed = await api.replayRun(runId);
     const replayedOutputs = replayed?.outputs as TestJson[] | undefined;
+    const replayedAttempts = replayed?.attempts as TestJson[] | undefined;
+    const replayedArtifacts = replayed?.artifacts as TestJson[] | undefined;
     expect(replayed?.run).toEqual(
       expect.objectContaining({
         outputCount: 1,
@@ -140,6 +142,10 @@ describe("mining local API", () => {
       }),
     );
     expect(replayedOutputs?.[0]).toEqual(expect.objectContaining({ verdict: "promoted" }));
+    expect(replayedAttempts).toHaveLength(2);
+    expect(replayedArtifacts?.map((artifact) => artifact.label)).toEqual(
+      expect.arrayContaining(["input.json", "sources.json", "attempts.json", "report.md"]),
+    );
 
     const attempts = JSON.parse(await readFile(path.join(mineRoot, "runs", runId, "attempts.json"), "utf-8"));
     expect(attempts).toHaveLength(2);

@@ -46,8 +46,10 @@ describe("app store perf guards", () => {
   it("stores telemetry panel open state", () => {
     useAppStore.getState().setIsTelemetryPanelOpen(true);
     useAppStore.getState().setIsRawTelemetryPanelOpen(true);
+    useAppStore.getState().setIsThreadDataPanelOpen(true);
     expect(useAppStore.getState().isTelemetryPanelOpen).toBe(true);
     expect(useAppStore.getState().isRawTelemetryPanelOpen).toBe(true);
+    expect(useAppStore.getState().isThreadDataPanelOpen).toBe(true);
   });
 
   it("stores builder transform target", () => {

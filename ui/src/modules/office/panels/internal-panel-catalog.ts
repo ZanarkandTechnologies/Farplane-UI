@@ -15,6 +15,7 @@ export type OfficeInternalPanelId =
   | "team-workspace"
   | "telemetry"
   | "raw-telemetry"
+  | "thread-data"
   | "resource-bank"
   | "document-library"
   | "skill-os"
@@ -59,6 +60,12 @@ export const OFFICE_INTERNAL_PANEL_CATALOG: OfficeInternalPanelCatalogEntry[] = 
     keywords: ["telemetry", "hooks", "events", "raw", "kibana"],
   },
   {
+    id: "thread-data",
+    label: "Thread Data",
+    description: "Open mining runs, backfill programs, artifacts, and output review.",
+    keywords: ["thread", "data", "mining", "runs", "backfill", "tickets", "eval"],
+  },
+  {
     id: "resource-bank",
     label: "Resource Bank",
     description: "Open saved media references, analysis, and extracted skill findings.",
@@ -73,13 +80,15 @@ export const OFFICE_INTERNAL_PANEL_CATALOG: OfficeInternalPanelCatalogEntry[] = 
   {
     id: "skill-os",
     label: "Skill OS",
-    description: "Open the global skill registry, graph, standards, and skill-template control plane.",
+    description:
+      "Open the global skill registry, graph, standards, and skill-template control plane.",
     keywords: ["skills", "skill os", "registry", "templates", "rollout"],
   },
   {
     id: "skill-rollout",
     label: "Skill Rollout",
-    description: "Open Skill OS Rollout for template adoption, weighted health, and feature coverage.",
+    description:
+      "Open Skill OS Rollout for template adoption, weighted health, and feature coverage.",
     keywords: ["skills", "skill rollout", "skill heat", "tier", "compounding", "lifecycle"],
   },
   {

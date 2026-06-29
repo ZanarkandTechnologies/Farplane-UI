@@ -63,6 +63,23 @@ export type ThreadDataRunOutput = {
   telemetryEvents?: Array<Record<string, unknown>>;
 };
 
+export type ThreadDataAttempt = {
+  attemptId: string;
+  executorKind?: string;
+  startedAt?: string;
+  completedAt?: string;
+  status?: string;
+  reason?: string;
+};
+
+export type ThreadDataArtifact = {
+  id: string;
+  label: string;
+  kind: "json" | "markdown" | "output" | "folder";
+  path: string;
+  content?: string;
+};
+
 export type ThreadDataRunDetail = {
   run: ThreadDataRunIndexEntry & {
     root: string;
@@ -72,6 +89,10 @@ export type ThreadDataRunDetail = {
   program: ThreadDataProgram | null;
   sources: ThreadDataSource[];
   outputs: ThreadDataRunOutput[];
+  attempts?: ThreadDataAttempt[];
+  artifacts?: ThreadDataArtifact[];
+  inputJson?: unknown;
+  sourcesJson?: unknown;
   reportMarkdown: string;
   parentPrompt: string;
 };

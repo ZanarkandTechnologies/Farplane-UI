@@ -22,6 +22,7 @@ import {
   BarChart3,
   BookOpen,
   Building2,
+  Database,
   FileCode2,
   GitPullRequestArrow,
   Hammer,
@@ -60,6 +61,7 @@ export type OfficePanelActionId =
   | "team-workspace"
   | "telemetry"
   | "raw-telemetry"
+  | "thread-data"
   | "resource-bank"
   | "document-library"
   | "skill-os"
@@ -111,6 +113,7 @@ export type OfficePanelRegistryDependencies = {
   openDocumentLibrary: () => void;
   openTelemetry: () => void;
   openRawTelemetry: () => void;
+  openThreadData: () => void;
   toggleBuilderMode: () => void;
 };
 
@@ -130,6 +133,7 @@ const OFFICE_LAUNCHER_ACTION_ORDER: OfficePanelActionId[] = [
   "document-library",
   "telemetry",
   "raw-telemetry",
+  "thread-data",
   "builder-mode",
   "office-shop",
   "settings",
@@ -201,6 +205,7 @@ export function createOfficePanelActions(
   const teamWorkspacePanel = getOfficeInternalPanelEntry("team-workspace");
   const telemetryPanel = getOfficeInternalPanelEntry("telemetry");
   const rawTelemetryPanel = getOfficeInternalPanelEntry("raw-telemetry");
+  const threadDataPanel = getOfficeInternalPanelEntry("thread-data");
   const resourceBankPanel = getOfficeInternalPanelEntry("resource-bank");
   const documentLibraryPanel = getOfficeInternalPanelEntry("document-library");
   const skillOsPanel = getOfficeInternalPanelEntry("skill-os");
@@ -259,6 +264,20 @@ export function createOfficePanelActions(
       keywords: [...rawTelemetryPanel.keywords, "hooks"],
       color: SECONDARY_BUTTON_COLOR,
       perform: readOnly ? noop : deps.openRawTelemetry,
+      disabled: readOnly,
+      showInMenu: !readOnly,
+      showInPalette: !readOnly,
+    },
+    {
+      id: "thread-data",
+      label: threadDataPanel.label,
+      description: threadDataPanel.description,
+      group: "panel",
+      icon: Database,
+      keywords: [...threadDataPanel.keywords, "mining", "runs"],
+      shortcut: { key: "i", label: "Alt+Shift+I", altKey: true, shiftKey: true },
+      color: SECONDARY_BUTTON_COLOR,
+      perform: readOnly ? noop : deps.openThreadData,
       disabled: readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,

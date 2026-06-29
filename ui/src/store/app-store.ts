@@ -152,6 +152,8 @@ interface AppState {
   setIsTelemetryPanelOpen: (isOpen: boolean) => void;
   isRawTelemetryPanelOpen: boolean;
   setIsRawTelemetryPanelOpen: (isOpen: boolean) => void;
+  isThreadDataPanelOpen: boolean;
+  setIsThreadDataPanelOpen: (isOpen: boolean) => void;
   isSkillInvocationsPanelOpen: boolean;
   setIsSkillInvocationsPanelOpen: (isOpen: boolean) => void;
   isResourceBankPanelOpen: boolean;
@@ -278,6 +280,8 @@ export const useAppStore = create<AppState>()(
     setIsTelemetryPanelOpen: (isOpen) => set({ isTelemetryPanelOpen: isOpen }),
     isRawTelemetryPanelOpen: false,
     setIsRawTelemetryPanelOpen: (isOpen) => set({ isRawTelemetryPanelOpen: isOpen }),
+    isThreadDataPanelOpen: false,
+    setIsThreadDataPanelOpen: (isOpen) => set({ isThreadDataPanelOpen: isOpen }),
     isSkillInvocationsPanelOpen: false,
     setIsSkillInvocationsPanelOpen: (isOpen) => set({ isSkillInvocationsPanelOpen: isOpen }),
     isResourceBankPanelOpen: false,

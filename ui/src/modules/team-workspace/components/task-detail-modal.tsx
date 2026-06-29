@@ -17,14 +17,20 @@
  * - Open from KanbanTaskCard click; driven by selectedTask state in KanbanTab.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { type ReactElement, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { useAppStore } from "@/store";
 import { UI_Z } from "@/lib/z-index";
+import { useAppStore } from "@/store";
+import {
+  formatDate,
+  frontMatterEntries,
+  parseAgentIdFromSessionKey,
+  stripYamlFrontMatter,
+} from "./task-detail-modal.helpers";
+import { TaskLinkedContextPanel, TaskReviewPanel } from "./task-detail-sections";
 import { TaskMemoryView } from "./task-memory-view";
 import {
   isTaskInReviewLane,
@@ -34,6 +40,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "./team-panel-types";
+import { TicketMarkdownDialog } from "./ticket-markdown-dialog";
 
 type EmployeeOption = {
   id: string;
@@ -68,30 +75,6 @@ const PRIORITIES: { value: TaskPriority; label: string }[] = [
   { value: "low", label: "Low" },
 ];
 
-function formatDate(ts: number | undefined): string {
-  if (!ts) return "—";
-  return new Date(ts).toLocaleString();
-}
-
-function parseAgentIdFromSessionKey(sessionKey: string | undefined): string | null {
-  const value = sessionKey?.trim() ?? "";
-  if (!value) return null;
-  const parts = value.split(":");
-  return parts[1]?.trim() || null;
-}
-
-function frontMatterEntries(task: PanelTask): Array<{ label: string; value: string }> {
-  const frontMatter = task.frontMatter ?? {};
-  return Object.entries(frontMatter)
-    .filter(([, value]) => value.trim().length > 0)
-    .slice(0, 12)
-    .map(([label, value]) => ({ label: label.replace(/_/g, " "), value }));
-}
-
-function stripYamlFrontMatter(markdown: string): string {
-  return markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trimStart();
-}
-
 export function TaskDetailModal({
   task,
   isOpen,
@@ -101,7 +84,7 @@ export function TaskDetailModal({
   convexEnabled,
   isPending,
   onCommand,
-}: TaskDetailModalProps): JSX.Element {
+}: TaskDetailModalProps): ReactElement | null {
   const setSelectedAgentId = useAppStore((state) => state.setSelectedAgentId);
   const setSelectedSessionKey = useAppStore((state) => state.setSelectedSessionKey);
   const setIsAgentSessionPanelOpen = useAppStore((state) => state.setIsAgentSessionPanelOpen);
@@ -239,67 +222,14 @@ export function TaskDetailModal({
 
   if (ticketMarkdown) {
     return (
-      <Dialog
-        open={isOpen}
-        onOpenChange={(open) => {
-          if (!open) onClose();
-        }}
-      >
-        <DialogContent
-          className="flex h-[min(92vh,940px)] w-[min(calc(100vw-2rem),700px)] max-w-[min(calc(100vw-2rem),700px)] flex-col gap-0 overflow-hidden border border-border bg-background p-0 sm:max-w-[min(calc(100vw-2rem),700px)] lg:w-[min(50vw,700px)] lg:max-w-[min(50vw,700px)]"
-          style={{ zIndex: UI_Z.panelModal }}
-          overlayStyle={{ zIndex: UI_Z.panelModal - 1 }}
-        >
-          <DialogHeader className="border-b border-border bg-card px-6 py-5">
-            <DialogTitle className="min-w-0 break-words text-left text-lg [overflow-wrap:anywhere]">
-              {task.title}
-            </DialogTitle>
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="outline" className="rounded-none">
-                {task.status.replace(/_/g, " ")}
-              </Badge>
-              <Badge
-                variant="outline"
-                className={`rounded-none shadow-none ${PRIORITY_COLORS[task.priority]}`}
-              >
-                {task.priority}
-              </Badge>
-              {task.artefactPath ? (
-                <span className="break-words [overflow-wrap:anywhere]">{task.artefactPath}</span>
-              ) : null}
-            </div>
-          </DialogHeader>
-
-          <ScrollArea className="min-h-0 flex-1 overflow-x-hidden">
-            <div className="max-w-full space-y-4 p-6">
-              <details className="rounded-md border bg-muted/10">
-                <summary className="cursor-pointer px-4 py-3 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                  Frontmatter ({ticketFrontMatterEntries.length})
-                </summary>
-                <div className="grid grid-cols-1 gap-2 border-t border-border p-3 md:grid-cols-2 xl:grid-cols-4">
-                  {ticketFrontMatterEntries.map((entry) => (
-                    <div key={entry.label} className="rounded-md border bg-background p-2">
-                      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                        {entry.label}
-                      </p>
-                      <p className="mt-1 break-words text-xs text-foreground [overflow-wrap:anywhere]">
-                        {entry.value}
-                      </p>
-                    </div>
-                  ))}
-                  {ticketFrontMatterEntries.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No frontmatter found.</p>
-                  ) : null}
-                </div>
-              </details>
-
-              <pre className="max-w-full whitespace-pre-wrap break-words text-[13px] leading-6 text-foreground [overflow-wrap:anywhere] [word-break:break-word]">
-                {ticketBodyMarkdown || ticketMarkdown}
-              </pre>
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
+      <TicketMarkdownDialog
+        isOpen={isOpen}
+        onClose={onClose}
+        task={task}
+        ticketBodyMarkdown={ticketBodyMarkdown}
+        ticketFrontMatterEntries={ticketFrontMatterEntries}
+        ticketMarkdown={ticketMarkdown}
+      />
     );
   }
 
@@ -431,89 +361,25 @@ export function TaskDetailModal({
           </div>
 
           {showReviewActions ? (
-            <div className="space-y-3 border border-border bg-card p-4">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                Review
-              </p>
-              <Textarea
-                value={reviewNote}
-                onChange={(event) => setReviewNote(event.target.value)}
-                placeholder="Write review guidance directly on the shared task."
-                className="min-h-24 rounded-none border-border bg-background text-sm"
-                disabled={isPending}
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  disabled={isPending}
-                  onClick={() => void handleReviewDecision("approved")}
-                >
-                  Approve
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-none border-border bg-background shadow-none"
-                  disabled={isPending}
-                  onClick={() => void handleReviewDecision("changes_requested")}
-                >
-                  Request Changes
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-none border-border bg-background shadow-none"
-                  disabled={isPending}
-                  onClick={() => void handleReviewDecision("rejected")}
-                >
-                  Reject
-                </Button>
-              </div>
-              {reviewStatusText ? (
-                <div className="border border-border bg-background p-3 text-sm text-muted-foreground">
-                  {reviewStatusText}
-                </div>
-              ) : null}
-            </div>
+            <TaskReviewPanel
+              isPending={isPending}
+              onReviewDecision={handleReviewDecision}
+              reviewNote={reviewNote}
+              reviewStatusText={reviewStatusText}
+              setReviewNote={setReviewNote}
+            />
           ) : null}
 
-          {task.linkedSessionKey || task.createdTeamId || task.createdProjectId ? (
-            <div className="space-y-2 rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
-              {task.linkedSessionKey ? (
-                <div className="space-y-2">
-                  <p>
-                    <span className="font-medium text-foreground">Linked session:</span>{" "}
-                    {task.linkedSessionKey}
-                  </p>
-                  {linkedAgentId ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedAgentId(linkedAgentId);
-                        setSelectedSessionKey(task.linkedSessionKey ?? null);
-                        setIsAgentSessionPanelOpen(true);
-                      }}
-                    >
-                      Open linked session
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
-              {task.createdTeamId ? (
-                <p>
-                  <span className="font-medium text-foreground">Created team:</span>{" "}
-                  {task.createdTeamId}
-                </p>
-              ) : null}
-              {task.createdProjectId ? (
-                <p>
-                  <span className="font-medium text-foreground">Created project:</span>{" "}
-                  {task.createdProjectId}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
+          <TaskLinkedContextPanel
+            linkedAgentId={linkedAgentId}
+            onOpenLinkedSession={() => {
+              if (!linkedAgentId) return;
+              setSelectedAgentId(linkedAgentId);
+              setSelectedSessionKey(task.linkedSessionKey ?? null);
+              setIsAgentSessionPanelOpen(true);
+            }}
+            task={task}
+          />
 
           {/* Notes */}
           <div className="space-y-2">

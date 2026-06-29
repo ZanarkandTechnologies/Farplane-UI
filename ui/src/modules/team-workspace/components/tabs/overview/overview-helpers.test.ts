@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatRelativeTime, resolvePreviewPalette } from "./overview-tab.helpers";
+import { formatRelativeTime, resolvePreviewPalette } from "./overview-helpers";
 
 describe("overview tab helpers", () => {
   it("keeps preview palettes deterministic for the same employee seed", () => {

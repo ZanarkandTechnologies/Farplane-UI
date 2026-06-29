@@ -1,29 +1,34 @@
 "use client";
 
 /**
- * Thread Data panel
+ * Thread Data mining cockpit
  * Inputs: local Codex thread summaries plus .farplane/mine program and run artifacts.
- * Outputs: selectable source threads, program CRUD, mining run creation, and output browsing.
- * Side effects: writes mining artifacts through the Vite state bridge.
+ * Outputs: run-first mining cockpit, source setup drawer, artifact inspection, and output review.
+ * Side effects: writes mining artifacts and verdicts through the Vite state bridge.
  */
 
 import {
+  CheckCircle2,
   CheckSquare,
   Database,
   FileText,
+  FolderOpen,
   GitFork,
   ListChecks,
   Play,
   RefreshCw,
   Save,
   Search,
+  ShieldAlert,
 } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -43,17 +48,29 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { UI_Z } from "@/lib/z-index";
+import type {
+  GraphWorkbenchEdge,
+  GraphWorkbenchKind,
+  GraphWorkbenchNode,
+} from "@/modules/graph-workbench";
+import { GraphWorkbench } from "@/modules/graph-workbench";
 import type { MiningEvidenceRow } from "@/modules/thread-data/lib/mining-artifacts";
 import {
+  artifactPreview,
+  artifactTone,
+  defaultOutputViewMode,
   filterOutputs,
   filterThreads,
   formatMiningDate,
   outputEvidenceRows,
   runStatusTone,
+  scorecardSummary,
   selectedThreadIds,
   sortMiningRuns,
 } from "@/modules/thread-data/lib/mining-artifacts";
 import type {
+  ThreadDataArtifact,
   ThreadDataProgram,
   ThreadDataProgramsResponse,
   ThreadDataRunDetail,
@@ -67,6 +84,11 @@ import type {
 
 const DEFAULT_THREAD_LIMIT = 80;
 
+type ThreadDataDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
 type ProgramDraft = {
   id: string;
   name: string;
@@ -75,7 +97,9 @@ type ProgramDraft = {
   prompt: string;
 };
 
-type OutputViewMode = "markdown" | "decisions" | "evidence" | "json" | "redaction";
+type OutputViewMode = "summary" | "markdown" | "decisions" | "evidence" | "json" | "redaction";
+type RunTab = "outputs" | "artifacts" | "attempts" | "program" | "sources";
+type ThreadDataTab = "review" | "programs" | "sources" | "forking";
 
 function draftFromProgram(program: ThreadDataProgram | null): ProgramDraft {
   return {
@@ -105,15 +129,20 @@ export function ThreadDataPanel(): ReactElement {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [runDetail, setRunDetail] = useState<ThreadDataRunDetail | null>(null);
   const [threadQuery, setThreadQuery] = useState("");
+  const [runQuery, setRunQuery] = useState("");
   const [outputQuery, setOutputQuery] = useState("");
   const [lastDays, setLastDays] = useState("30");
   const [sourceLimit, setSourceLimit] = useState("20");
-  const [status, setStatus] = useState("Loading thread data...");
+  const [status, setStatus] = useState("Loading mining runs...");
   const [error, setError] = useState<string | null>(null);
   const [programDraft, setProgramDraft] = useState<ProgramDraft>(draftFromProgram(null));
   const [isOutputOpen, setIsOutputOpen] = useState(false);
+  const [isNewRunOpen, setIsNewRunOpen] = useState(false);
   const [selectedOutputId, setSelectedOutputId] = useState<string | null>(null);
-  const [outputViewMode, setOutputViewMode] = useState<OutputViewMode>("markdown");
+  const [selectedArtifactId, setSelectedArtifactId] = useState("report");
+  const [runTab, setRunTab] = useState<RunTab>("outputs");
+  const [threadDataTab, setThreadDataTab] = useState<ThreadDataTab>("review");
+  const [outputViewMode, setOutputViewMode] = useState<OutputViewMode>("summary");
 
   const selectedProgram = useMemo(
     () => programs.find((program) => program.id === selectedProgramId) ?? null,
@@ -127,9 +156,29 @@ export function ThreadDataPanel(): ReactElement {
 
   const visibleThreads = useMemo(() => filterThreads(threads, threadQuery), [threads, threadQuery]);
 
+  const visibleRuns = useMemo(() => {
+    const query = runQuery.trim().toLowerCase();
+    if (!query) return runs;
+    return runs.filter((run) =>
+      [run.runId, run.label, run.programId, run.miningMode, run.source, run.status, run.createdAt]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [runQuery, runs]);
+
   const visibleOutputs = useMemo(
     () => filterOutputs(runDetail?.outputs ?? [], outputQuery),
     [outputQuery, runDetail?.outputs],
+  );
+
+  const selectedArtifact = useMemo(
+    () =>
+      runDetail?.artifacts?.find((artifact) => artifact.id === selectedArtifactId) ??
+      runDetail?.artifacts?.[0] ??
+      null,
+    [runDetail?.artifacts, selectedArtifactId],
   );
 
   const selectedOutputJsonText = useMemo(() => {
@@ -152,6 +201,11 @@ export function ThreadDataPanel(): ReactElement {
     [selectedOutput?.outputJson],
   );
 
+  const selectedScorecard = useMemo(
+    () => scorecardSummary(selectedOutput?.outputJson),
+    [selectedOutput?.outputJson],
+  );
+
   const runProgress = useMemo(() => {
     if (!runDetail?.run.sourceCount) return 0;
     return Math.round((runDetail.run.outputCount / runDetail.run.sourceCount) * 100);
@@ -163,12 +217,14 @@ export function ThreadDataPanel(): ReactElement {
     );
     setSelectedRunId(runId);
     setRunDetail(payload.detail);
+    setSelectedArtifactId(payload.detail?.artifacts?.[0]?.id ?? "report");
+    setRunTab("outputs");
     setStatus(`Loaded run ${runId}`);
   }, []);
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
-    setStatus("Refreshing thread data...");
+    setStatus("Refreshing mining runs...");
     try {
       const [programPayload, threadPayload, runPayload] = await Promise.all([
         fetchJson<ThreadDataProgramsResponse>("/farplane/mine/programs"),
@@ -196,7 +252,7 @@ export function ThreadDataPanel(): ReactElement {
       }
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "thread_data_refresh_failed");
-      setStatus("Thread data unavailable.");
+      setStatus("Mining runs unavailable.");
     }
   }, [loadRun, selectedProgramId, selectedRunId]);
 
@@ -277,6 +333,8 @@ export function ThreadDataPanel(): ReactElement {
         setRuns((current) =>
           sortMiningRuns([detail.run, ...current.filter((run) => run.runId !== detail.run.runId)]),
         );
+        setIsNewRunOpen(false);
+        setRunTab("outputs");
         setStatus(`Created run ${detail.run.runId}`);
       }
     } catch (nextError) {
@@ -285,9 +343,37 @@ export function ThreadDataPanel(): ReactElement {
     }
   };
 
+  const replayRun = async (): Promise<void> => {
+    if (!selectedRunId) return;
+    setStatus(`Replaying ${selectedRunId}...`);
+    setError(null);
+    try {
+      const payload = await fetchJson<ThreadDataRunResponse>(
+        `/farplane/mine/runs/${encodeURIComponent(selectedRunId)}/replay`,
+        {
+          method: "POST",
+          headers: { "x-farplane-actor-role": "operator" },
+        },
+      );
+      if (payload.detail) {
+        const detail = payload.detail;
+        setRunDetail(detail);
+        setRuns((current) =>
+          sortMiningRuns([detail.run, ...current.filter((run) => run.runId !== detail.run.runId)]),
+        );
+        setRunTab("attempts");
+        setStatus(`Replayed ${selectedRunId}`);
+      }
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "mining_replay_failed");
+      setStatus("Replay failed.");
+    }
+  };
+
   const openOutput = (outputId: string): void => {
+    const nextOutput = runDetail?.outputs.find((output) => output.id === outputId) ?? null;
     setSelectedOutputId(outputId);
-    setOutputViewMode("decisions");
+    setOutputViewMode(defaultOutputViewMode(runDetail?.run, nextOutput));
     setIsOutputOpen(true);
   };
 
@@ -321,86 +407,175 @@ export function ThreadDataPanel(): ReactElement {
     }
   };
 
+  const selectRun = (runId: string): void => {
+    setThreadDataTab("review");
+    void loadRun(runId);
+  };
+
   return (
     <div
-      className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3"
+      className="grid h-full min-w-0 min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden"
       data-testid="thread-data-panel"
     >
-      <header className="grid gap-3 rounded-md border bg-background/80 p-3 md:grid-cols-[1fr_auto]">
+      <header className="grid min-w-0 gap-3 rounded-md border bg-background/80 p-3 md:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-lg font-semibold tracking-normal">Thread Data</h1>
+            <h1 className="text-lg font-semibold tracking-normal">Mining Runs</h1>
             <Badge variant="outline">{programs.length} programs</Badge>
-            <Badge variant="outline">{threads.length} threads</Badge>
             <Badge variant="outline">{runs.length} runs</Badge>
+            <Badge variant="outline">
+              {runs.reduce((sum, run) => sum + run.outputCount, 0)} outputs
+            </Badge>
           </div>
           <p className="mt-1 truncate text-xs text-muted-foreground">{status}</p>
           {error ? <p className="mt-1 text-xs text-destructive">{error}</p> : null}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <RunSelectorPopover
+            query={runQuery}
+            rows={visibleRuns}
+            selectedId={selectedRunId}
+            totalRuns={runs.length}
+            triggerLabel={runDetail?.run.runId ?? "Select run"}
+            onQueryChange={setRunQuery}
+            onSelect={selectRun}
+          />
           <Button size="sm" variant="outline" onClick={() => void refresh()}>
             <RefreshCw className="size-4" />
             Refresh
           </Button>
-          <Button size="sm" onClick={() => void startRun()} disabled={!selectedProgramId}>
+          <Button size="sm" variant="outline" onClick={() => setIsNewRunOpen(true)}>
+            <Database className="size-4" />
+            New run
+          </Button>
+          <Button size="sm" onClick={() => void replayRun()} disabled={!selectedRunId}>
             <Play className="size-4" />
-            Run mining
+            Replay
           </Button>
         </div>
       </header>
 
-      <Tabs defaultValue="threads" className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)]">
-        <TabsList className="w-fit">
-          <TabsTrigger value="threads">
-            <Database className="mr-2 size-4" />
-            Threads
-          </TabsTrigger>
-          <TabsTrigger value="forking">
-            <GitFork className="mr-2 size-4" />
-            Forking
+      <Tabs
+        value={threadDataTab}
+        onValueChange={(value) => setThreadDataTab(value as ThreadDataTab)}
+        className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden"
+      >
+        <TabsList className="max-w-full overflow-x-auto">
+          <TabsTrigger value="review">
+            <ListChecks className="mr-2 size-4" />
+            Review
           </TabsTrigger>
           <TabsTrigger value="programs">
             <FileText className="mr-2 size-4" />
             Programs
           </TabsTrigger>
-          <TabsTrigger value="mine">
-            <Play className="mr-2 size-4" />
-            Mine
+          <TabsTrigger value="sources">
+            <Database className="mr-2 size-4" />
+            Sources
           </TabsTrigger>
-          <TabsTrigger value="runs">
-            <CheckSquare className="mr-2 size-4" />
-            Runs
+          <TabsTrigger value="forking">
+            <GitFork className="mr-2 size-4" />
+            Forking
           </TabsTrigger>
-          <TabsTrigger value="outputs">Outputs</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="threads" className="min-h-0">
+        <TabsContent value="review" className="min-h-0">
+          <div className="grid h-full min-w-0 min-h-0 gap-3 overflow-hidden">
+            {runDetail ? (
+              <section className="grid min-w-0 min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden">
+                <RunHeader detail={runDetail} progress={runProgress} />
+                <Tabs
+                  value={runTab}
+                  onValueChange={(value) => setRunTab(value as RunTab)}
+                  className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)]"
+                >
+                  <TabsList className="max-w-full overflow-x-auto">
+                    <TabsTrigger value="outputs">Outputs</TabsTrigger>
+                    <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
+                    <TabsTrigger value="attempts">Attempts</TabsTrigger>
+                    <TabsTrigger value="program">Program</TabsTrigger>
+                    <TabsTrigger value="sources">Sources</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="outputs" className="min-h-0">
+                    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-2.5 size-4 text-muted-foreground" />
+                        <Input
+                          className="pl-8"
+                          value={outputQuery}
+                          onChange={(event) => setOutputQuery(event.target.value)}
+                          placeholder="Filter outputs, tickets, verdicts"
+                        />
+                      </div>
+                      <OutputTable rows={visibleOutputs} onOpen={openOutput} />
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="artifacts" className="min-h-0">
+                    <ArtifactInspector
+                      artifacts={runDetail.artifacts ?? []}
+                      selectedArtifact={selectedArtifact}
+                      selectedArtifactId={selectedArtifactId}
+                      onSelect={setSelectedArtifactId}
+                    />
+                  </TabsContent>
+                  <TabsContent value="attempts" className="min-h-0">
+                    <AttemptTimeline attempts={runDetail.attempts ?? []} />
+                  </TabsContent>
+                  <TabsContent value="program" className="min-h-0">
+                    <ProgramEditor
+                      draft={programDraft}
+                      programs={programs}
+                      selectedId={selectedProgramId}
+                      onDraftChange={setProgramDraft}
+                      onSave={() => void saveProgram()}
+                      onSelect={setSelectedProgramId}
+                    />
+                  </TabsContent>
+                  <TabsContent value="sources" className="min-h-0">
+                    <SourceTable rows={runDetail.sources} selected={new Set()} readonly />
+                  </TabsContent>
+                </Tabs>
+              </section>
+            ) : (
+              <EmptyRunState onCreate={() => setIsNewRunOpen(true)} />
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="programs" className="min-h-0">
+          <ProgramEditor
+            draft={programDraft}
+            programs={programs}
+            selectedId={selectedProgramId}
+            onDraftChange={setProgramDraft}
+            onSave={() => void saveProgram()}
+            onSelect={setSelectedProgramId}
+          />
+        </TabsContent>
+
+        <TabsContent value="sources" className="min-h-0">
           <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
-            <div className="grid gap-2 rounded-md border bg-muted/20 p-3 md:grid-cols-[1fr_120px_120px_auto]">
+            <div className="grid gap-2 md:grid-cols-[1fr_100px_100px_auto_auto]">
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 size-4 text-muted-foreground" />
                 <Input
                   className="pl-8"
                   value={threadQuery}
                   onChange={(event) => setThreadQuery(event.target.value)}
-                  placeholder="Search threads, tickets, paths"
+                  placeholder="Search threads, tickets, workspaces"
                 />
               </div>
-              <Input
-                value={lastDays}
-                onChange={(event) => setLastDays(event.target.value)}
-                aria-label="Last days"
-              />
-              <Input
-                value={sourceLimit}
-                onChange={(event) => setSourceLimit(event.target.value)}
-                aria-label="Source limit"
-              />
+              <Input value={lastDays} onChange={(event) => setLastDays(event.target.value)} />
+              <Input value={sourceLimit} onChange={(event) => setSourceLimit(event.target.value)} />
               <Button variant="outline" onClick={selectVisibleThreads}>
                 Select visible
               </Button>
+              <Button onClick={() => setIsNewRunOpen(true)}>
+                <Play className="size-4" />
+                New run
+              </Button>
             </div>
-            <ThreadTable
+            <SourceTable
               rows={visibleThreads}
               selected={selectedThreadSet}
               onToggle={toggleThread}
@@ -409,276 +584,705 @@ export function ThreadDataPanel(): ReactElement {
         </TabsContent>
 
         <TabsContent value="forking" className="min-h-0">
-          <div className="grid h-full min-h-0 gap-3 md:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="rounded-md border">
-              <ScrollArea className="h-full max-h-[calc(100dvh-220px)]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Thread</TableHead>
-                      <TableHead>Session</TableHead>
-                      <TableHead>Workspace</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {threads.slice(0, 80).map((thread) => (
-                      <TableRow key={thread.id}>
-                        <TableCell className="max-w-[360px] truncate">{thread.name}</TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {thread.sessionId ?? thread.id}
-                        </TableCell>
-                        <TableCell className="max-w-[300px] truncate text-xs text-muted-foreground">
-                          {thread.cwd ?? "-"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-            </div>
-            <div className="rounded-md border bg-muted/20 p-3">
-              <h2 className="text-sm font-semibold">Forking contract</h2>
-              <p className="mt-2 text-xs text-muted-foreground">
-                A mining run writes `parent-prompt.md` so a Codex parent job can fan out one worker
-                per selected session.
-              </p>
-              <pre className="mt-3 max-h-[360px] overflow-auto rounded-md border bg-background p-3 text-xs">
-                {runDetail?.parentPrompt ?? "Create a run to generate the parent prompt."}
-              </pre>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="programs" className="min-h-0">
-          <div className="grid h-full min-h-0 gap-3 md:grid-cols-[280px_minmax(0,1fr)]">
-            <ProgramList
-              rows={programs}
-              selectedId={selectedProgramId}
-              onSelect={setSelectedProgramId}
-            />
-            <div className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto] gap-3 rounded-md border bg-background p-3">
-              <div className="grid gap-2 md:grid-cols-3">
-                <Field
-                  label="ID"
-                  value={programDraft.id}
-                  onChange={(value) => setProgramDraft((draft) => ({ ...draft, id: value }))}
-                />
-                <Field
-                  label="Name"
-                  value={programDraft.name}
-                  onChange={(value) => setProgramDraft((draft) => ({ ...draft, name: value }))}
-                />
-                <Field
-                  label="Version"
-                  value={programDraft.version}
-                  onChange={(value) => setProgramDraft((draft) => ({ ...draft, version: value }))}
-                />
-              </div>
-              <Field
-                label="Objective"
-                value={programDraft.objective}
-                onChange={(value) => setProgramDraft((draft) => ({ ...draft, objective: value }))}
-              />
-              <Textarea
-                className="min-h-[320px] resize-none font-mono text-xs"
-                value={programDraft.prompt}
-                onChange={(event) =>
-                  setProgramDraft((draft) => ({ ...draft, prompt: event.target.value }))
-                }
-              />
-              <Button className="w-fit" onClick={() => void saveProgram()}>
-                <Save className="size-4" />
-                Save program
-              </Button>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="mine" className="min-h-0">
-          <div className="grid h-full min-h-0 gap-3 md:grid-cols-[minmax(0,1fr)_360px]">
-            <ThreadTable
-              rows={visibleThreads}
-              selected={selectedThreadSet}
-              onToggle={toggleThread}
-            />
-            <div className="grid content-start gap-3 rounded-md border bg-background p-3">
-              <div>
-                <h2 className="text-sm font-semibold">Dry-run mining</h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Creates source-span-backed outputs, redaction reports, and reviewable verdict
-                  gates under `.farplane/mine`.
-                </p>
-              </div>
-              <Field label="Last days" value={lastDays} onChange={setLastDays} />
-              <Field label="Source limit" value={sourceLimit} onChange={setSourceLimit} />
-              <div className="grid gap-1">
-                <Label className="text-xs">Program</Label>
-                <div className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
-                  {selectedProgram?.name ?? "No program selected"}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Metric
-                  label="selected"
-                  value={selectedThreadSet.size || Math.min(10, threads.length)}
-                />
-                <Metric label="privacy issues" value={runDetail?.run.privacyIssueCount ?? 0} />
-              </div>
-              <Button onClick={() => void startRun()} disabled={!selectedProgramId}>
-                <Play className="size-4" />
-                Run dry-run
-              </Button>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="runs" className="min-h-0">
-          <div className="grid h-full min-h-0 gap-3 md:grid-cols-[360px_minmax(0,1fr)]">
-            <RunList
-              rows={runs}
-              selectedId={selectedRunId}
-              onSelect={(runId) => void loadRun(runId)}
-            />
-            <div className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-3 rounded-md border bg-background p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h2 className="text-sm font-semibold">
-                    {runDetail?.run.label ?? "No run selected"}
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    {runDetail?.run.runId ?? "Create or select a run."}
-                  </p>
-                </div>
-                {runDetail ? (
-                  <Badge variant={runStatusTone(runDetail.run.status)}>
-                    {runDetail.run.status}
-                  </Badge>
-                ) : null}
-              </div>
-              <div className="grid gap-2 md:grid-cols-7">
-                <Metric label="sources" value={runDetail?.run.sourceCount ?? 0} />
-                <Metric label="outputs" value={runDetail?.run.outputCount ?? 0} />
-                <Metric label="reviewed" value={runDetail?.run.reviewedCount ?? 0} />
-                <Metric label="promoted" value={runDetail?.run.promotedCount ?? 0} />
-                <Metric label="rejected" value={runDetail?.run.rejectedCount ?? 0} />
-                <Metric label="privacy" value={runDetail?.run.privacyIssueCount ?? 0} />
-                <Metric label="duplicates" value={runDetail?.run.duplicateCount ?? 0} />
-              </div>
-              <div className="min-h-0">
-                <Progress value={runProgress} />
-                <pre className="mt-3 h-[calc(100%-20px)] overflow-auto rounded-md border bg-muted/20 p-3 text-xs">
-                  {runDetail?.reportMarkdown ?? "No report loaded."}
-                </pre>
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="outputs" className="min-h-0">
-          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
-            <Input
-              value={outputQuery}
-              onChange={(event) => setOutputQuery(event.target.value)}
-              placeholder="Filter outputs"
-            />
-            <OutputTable rows={visibleOutputs} onOpen={openOutput} />
-          </div>
+          <ForkingPanel runDetail={runDetail} threads={threads} />
         </TabsContent>
       </Tabs>
 
-      <Sheet open={isOutputOpen} onOpenChange={setIsOutputOpen}>
-        <SheetContent className="w-[min(920px,92vw)] sm:max-w-none">
-          <SheetHeader>
-            <SheetTitle>{selectedOutput?.sourceTitle ?? "Output"}</SheetTitle>
-            <SheetDescription>
-              Mined output artifact for the selected source thread.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="flex flex-wrap items-center gap-2 px-4">
-            <Badge variant="outline">{selectedOutput?.verdict ?? "unreviewed"}</Badge>
-            <Badge variant={selectedOutput?.redactionStatus === "clean" ? "secondary" : "outline"}>
-              {selectedOutput?.redactionStatus ?? "unknown"}
+      <NewRunSheet
+        isOpen={isNewRunOpen}
+        lastDays={lastDays}
+        programs={programs}
+        selectedProgram={selectedProgram}
+        selectedProgramId={selectedProgramId}
+        selectedThreadSet={selectedThreadSet}
+        sourceLimit={sourceLimit}
+        threadQuery={threadQuery}
+        threads={visibleThreads}
+        totalThreads={threads.length}
+        onLastDaysChange={setLastDays}
+        onOpenChange={setIsNewRunOpen}
+        onProgramSelect={setSelectedProgramId}
+        onRun={() => void startRun()}
+        onSelectVisible={selectVisibleThreads}
+        onSourceLimitChange={setSourceLimit}
+        onThreadQueryChange={setThreadQuery}
+        onToggleThread={toggleThread}
+      />
+
+      <OutputReviewSheet
+        isOpen={isOutputOpen}
+        mode={outputViewMode}
+        output={selectedOutput}
+        redactionMarkdown={selectedOutput?.redactionMarkdown}
+        scorecard={selectedScorecard}
+        selectedOutputDecisionsText={selectedOutputDecisionsText}
+        selectedOutputEvidenceRows={selectedOutputEvidenceRows}
+        selectedOutputJsonText={selectedOutputJsonText}
+        onModeChange={setOutputViewMode}
+        onOpenChange={setIsOutputOpen}
+        onVerdict={setOutputVerdict}
+      />
+    </div>
+  );
+}
+
+export function ThreadDataDialog({ open, onOpenChange }: ThreadDataDialogProps): ReactElement {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="flex h-[90vh] min-w-[92vw] max-w-none flex-col overflow-hidden p-0"
+        style={{ zIndex: UI_Z.panelElevated }}
+      >
+        <DialogHeader className="border-b px-6 py-4">
+          <DialogTitle>Thread Data</DialogTitle>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 p-4">
+          <ThreadDataPanel />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RunSelectorPopover({
+  onQueryChange,
+  onSelect,
+  query,
+  rows,
+  selectedId,
+  triggerLabel,
+  totalRuns,
+}: {
+  onQueryChange: (value: string) => void;
+  onSelect: (id: string) => void;
+  query: string;
+  rows: ThreadDataRunIndexEntry[];
+  selectedId: string | null;
+  triggerLabel: string;
+  totalRuns: number;
+}): ReactElement {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button size="sm" variant="outline">
+          <Database className="size-4" />
+          {triggerLabel}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="grid w-[min(420px,88vw)] gap-3 p-3">
+        <div>
+          <h3 className="text-sm font-semibold">Select Run</h3>
+          <p className="text-xs text-muted-foreground">
+            {rows.length} shown from {totalRuns} mining runs.
+          </p>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-2 top-2.5 size-4 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="Search runs"
+          />
+        </div>
+        <ScrollArea className="max-h-[320px]">
+          <div className="overflow-hidden rounded-md border">
+            {rows.length ? (
+              rows.map((run) => (
+                <button
+                  key={run.runId}
+                  type="button"
+                  className={`block w-full border-b px-3 py-2 text-left last:border-b-0 hover:bg-muted/50 ${run.runId === selectedId ? "bg-muted" : ""}`}
+                  onClick={() => onSelect(run.runId)}
+                >
+                  <span className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="min-w-0 break-words text-sm font-medium">{run.label}</span>
+                    <Badge className="shrink-0" variant={runStatusTone(run.status)}>
+                      {run.status}
+                    </Badge>
+                  </span>
+                  <span className="mt-1 block break-all font-mono text-[11px] text-muted-foreground">
+                    {run.runId}
+                  </span>
+                  <span className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                    <span>{run.miningMode ?? "historical_backfill"}</span>
+                    <span>
+                      {run.outputCount}/{run.sourceCount} outputs
+                    </span>
+                    {run.privacyIssueCount ? <span>{run.privacyIssueCount} privacy</span> : null}
+                  </span>
+                </button>
+              ))
+            ) : (
+              <p className="p-3 text-sm text-muted-foreground">No matching runs.</p>
+            )}
+          </div>
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+const THREAD_LINEAGE_KINDS: GraphWorkbenchKind[] = [
+  { id: "run", label: "Run", color: "#B45309" },
+  { id: "thread", label: "Thread", color: "#2563EB" },
+  { id: "workspace", label: "Workspace", color: "#059669" },
+  { id: "source-kind", label: "Source Kind", color: "#7C3AED" },
+  { id: "session", label: "Session", color: "#64748B" },
+];
+
+function safeGraphId(prefix: string, value: string): string {
+  return `${prefix}:${value.trim() || "unknown"}`;
+}
+
+function compactWorkspaceLabel(cwd: string | undefined): string {
+  if (!cwd) return "Unknown workspace";
+  const parts = cwd.split("/").filter(Boolean);
+  return parts.slice(-2).join("/") || cwd;
+}
+
+function buildThreadLineageGraph(input: {
+  runDetail: ThreadDataRunDetail | null;
+  threads: ThreadDataSource[];
+}): { edges: GraphWorkbenchEdge[]; nodes: GraphWorkbenchNode[] } {
+  const nodes = new Map<string, GraphWorkbenchNode>();
+  const edges = new Map<string, GraphWorkbenchEdge>();
+
+  function upsertNode(node: GraphWorkbenchNode): void {
+    const current = nodes.get(node.id);
+    nodes.set(node.id, {
+      ...current,
+      ...node,
+      weight: Math.max(current?.weight ?? 0, node.weight ?? 0),
+    });
+  }
+
+  function addEdge(edge: GraphWorkbenchEdge): void {
+    const key = `${edge.source}->${edge.target}:${edge.type ?? "edge"}`;
+    if (!edges.has(key)) edges.set(key, edge);
+  }
+
+  const runSources = new Set(input.runDetail?.sources.map((source) => source.id) ?? []);
+  if (input.runDetail) {
+    const run = input.runDetail.run;
+    upsertNode({
+      id: safeGraphId("run", run.runId),
+      kind: "run",
+      label: run.label,
+      path: run.runId,
+      description: `${run.miningMode ?? "historical_backfill"} / ${run.source ?? "backfill"} / ${run.status}`,
+      weight: Math.max(1, run.outputCount),
+    });
+  }
+
+  for (const thread of input.threads) {
+    const threadId = safeGraphId("thread", thread.id);
+    const workspaceId = safeGraphId("workspace", thread.cwd ?? "unknown");
+    const sourceKind = thread.sourceKind ?? "codex_thread";
+    const sourceKindId = safeGraphId("source-kind", sourceKind);
+
+    upsertNode({
+      id: threadId,
+      kind: "thread",
+      label: thread.name,
+      path: thread.sessionId ?? thread.id,
+      description: thread.preview,
+      weight: runSources.has(thread.id) ? 3 : 1,
+    });
+    upsertNode({
+      id: workspaceId,
+      kind: "workspace",
+      label: compactWorkspaceLabel(thread.cwd),
+      path: thread.cwd,
+      description: "Workspace or project folder associated with the source thread.",
+      weight: 1,
+    });
+    upsertNode({
+      id: sourceKindId,
+      kind: "source-kind",
+      label: sourceKind.replaceAll("_", " "),
+      description: "Source adapter that produced this Thread Data row.",
+      weight: 1,
+    });
+
+    addEdge({
+      source: workspaceId,
+      target: threadId,
+      type: "workspace-thread",
+      label: "workspace",
+    });
+    addEdge({
+      source: sourceKindId,
+      target: threadId,
+      type: "source-kind-thread",
+      label: "source kind",
+    });
+
+    if (thread.sessionId && thread.sessionId !== thread.id) {
+      const sessionId = safeGraphId("session", thread.sessionId);
+      upsertNode({
+        id: sessionId,
+        kind: "session",
+        label: thread.sessionId,
+        path: thread.sessionId,
+        description: "Runtime session id attached to this source row.",
+        weight: 1,
+      });
+      addEdge({
+        source: sessionId,
+        target: threadId,
+        type: "session-thread",
+        label: "session",
+      });
+    }
+
+    if (input.runDetail && runSources.has(thread.id)) {
+      addEdge({
+        source: safeGraphId("run", input.runDetail.run.runId),
+        target: threadId,
+        type: "mined-by-run",
+        label: "mined source",
+      });
+    }
+  }
+
+  return { edges: [...edges.values()], nodes: [...nodes.values()] };
+}
+
+function ForkingPanel({
+  runDetail,
+  threads,
+}: {
+  runDetail: ThreadDataRunDetail | null;
+  threads: ThreadDataSource[];
+}): ReactElement {
+  const graph = useMemo(
+    () => buildThreadLineageGraph({ runDetail, threads }),
+    [runDetail, threads],
+  );
+
+  if (!graph.nodes.length) {
+    return (
+      <section className="grid place-items-center rounded-md border bg-background p-8 text-center">
+        <div className="max-w-md">
+          <GitFork className="mx-auto size-10 text-muted-foreground" />
+          <h2 className="mt-3 text-base font-semibold">No thread lineage sources yet</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Refresh Thread Data or create a mining run to populate source threads and graph edges.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">
+        <Badge variant="outline">{graph.nodes.length} nodes</Badge>
+        <Badge variant="outline">{graph.edges.length} edges</Badge>
+        <span>
+          Current edges show workspace, source-kind, session, and selected-run source links. True
+          created/forked telemetry can attach to this graph next.
+        </span>
+      </div>
+      <GraphWorkbench
+        edges={graph.edges}
+        kinds={THREAD_LINEAGE_KINDS}
+        nodes={graph.nodes}
+        searchPlaceholder="Search threads, sessions, workspaces"
+        telemetryLabel="Thread Lineage"
+      />
+    </div>
+  );
+}
+
+function RunHeader({
+  detail,
+  progress,
+}: {
+  detail: ThreadDataRunDetail;
+  progress: number;
+}): ReactElement {
+  const run = detail.run;
+  return (
+    <section className="grid gap-3 rounded-md border bg-background p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="min-w-0 max-w-full break-words text-base font-semibold">{run.label}</h2>
+            <Badge className="shrink-0" variant={runStatusTone(run.status)}>
+              {run.status}
             </Badge>
-            <div className="ml-2 flex items-center gap-1 border-l pl-3">
-              <Button
-                size="sm"
-                variant={outputViewMode === "markdown" ? "default" : "outline"}
-                onClick={() => setOutputViewMode("markdown")}
-              >
-                Markdown
-              </Button>
-              <Button
-                size="sm"
-                variant={outputViewMode === "decisions" ? "default" : "outline"}
-                onClick={() => setOutputViewMode("decisions")}
-              >
-                Decisions
-              </Button>
-              <Button
-                size="sm"
-                variant={outputViewMode === "evidence" ? "default" : "outline"}
-                onClick={() => setOutputViewMode("evidence")}
-              >
-                Evidence
-              </Button>
-              <Button
-                size="sm"
-                variant={outputViewMode === "json" ? "default" : "outline"}
-                onClick={() => setOutputViewMode("json")}
-              >
-                JSON
-              </Button>
-              <Button
-                size="sm"
-                variant={outputViewMode === "redaction" ? "default" : "outline"}
-                onClick={() => setOutputViewMode("redaction")}
-              >
-                Redaction
+            <Badge className="shrink-0" variant="outline">
+              {run.miningMode ?? "historical_backfill"}
+            </Badge>
+            <Badge className="shrink-0" variant="outline">
+              {run.source ?? "backfill"}
+            </Badge>
+          </div>
+          <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{run.runId}</p>
+        </div>
+        <div className="grid gap-1 text-xs text-muted-foreground sm:flex sm:flex-wrap sm:gap-2">
+          <span className="break-words">{formatMiningDate(run.createdAt)}</span>
+          {run.completedAt ? (
+            <span className="break-words">completed {formatMiningDate(run.completedAt)}</span>
+          ) : null}
+        </div>
+      </div>
+      <div className="grid gap-2 md:grid-cols-6">
+        <Metric label="sources" value={run.sourceCount} />
+        <Metric label="outputs" value={run.outputCount} />
+        <Metric label="reviewed" value={run.reviewedCount} />
+        <Metric label="promoted" value={run.promotedCount} />
+        <Metric label="rejected" value={run.rejectedCount} />
+        <Metric label="privacy" value={run.privacyIssueCount ?? 0} />
+      </div>
+      <Progress value={progress} />
+    </section>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }): ReactElement {
+  return (
+    <div className="rounded-md border bg-muted/20 px-3 py-2">
+      <p className="text-[10px] uppercase text-muted-foreground">{label}</p>
+      <p className="font-mono text-lg font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function EmptyRunState({ onCreate }: { onCreate: () => void }): ReactElement {
+  return (
+    <section className="grid place-items-center rounded-md border bg-background p-8 text-center">
+      <div className="max-w-md">
+        <FolderOpen className="mx-auto size-10 text-muted-foreground" />
+        <h2 className="mt-3 text-base font-semibold">No mining runs yet</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Create a run to write input, sources, attempts, reports, and outputs under
+          `.farplane/mine/runs/&lt;run-id&gt;`.
+        </p>
+        <Button className="mt-4" onClick={onCreate}>
+          <Database className="size-4" />
+          Create first run
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function NewRunSheet({
+  isOpen,
+  lastDays,
+  onLastDaysChange,
+  onOpenChange,
+  onProgramSelect,
+  onRun,
+  onSelectVisible,
+  onSourceLimitChange,
+  onThreadQueryChange,
+  onToggleThread,
+  programs,
+  selectedProgram,
+  selectedProgramId,
+  selectedThreadSet,
+  sourceLimit,
+  threadQuery,
+  threads,
+  totalThreads,
+}: {
+  isOpen: boolean;
+  lastDays: string;
+  onLastDaysChange: (value: string) => void;
+  onOpenChange: (open: boolean) => void;
+  onProgramSelect: (id: string) => void;
+  onRun: () => void;
+  onSelectVisible: () => void;
+  onSourceLimitChange: (value: string) => void;
+  onThreadQueryChange: (value: string) => void;
+  onToggleThread: (id: string) => void;
+  programs: ThreadDataProgram[];
+  selectedProgram: ThreadDataProgram | null;
+  selectedProgramId: string;
+  selectedThreadSet: Set<string>;
+  sourceLimit: string;
+  threadQuery: string;
+  threads: ThreadDataSource[];
+  totalThreads: number;
+}): ReactElement {
+  return (
+    <Sheet open={isOpen} onOpenChange={onOpenChange}>
+      <SheetContent className="grid w-[min(980px,94vw)] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-none">
+        <SheetHeader>
+          <SheetTitle>New Mining Run</SheetTitle>
+          <SheetDescription>
+            Select a program and sources. The run will become a replayable folder under
+            `.farplane/mine`.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="grid min-h-0 gap-3 px-4 md:grid-cols-[260px_minmax(0,1fr)]">
+          <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
+            <div>
+              <Label className="text-xs">Program</Label>
+              <p className="mt-1 truncate text-sm font-medium">
+                {selectedProgram?.name ?? "No program"}
+              </p>
+            </div>
+            <ScrollArea className="rounded-md border">
+              {programs.map((program) => (
+                <button
+                  key={program.id}
+                  type="button"
+                  className={`block w-full border-b px-3 py-2 text-left text-sm hover:bg-muted/50 ${program.id === selectedProgramId ? "bg-muted" : ""}`}
+                  onClick={() => onProgramSelect(program.id)}
+                >
+                  <span className="block font-medium">{program.name}</span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {program.id} v{program.version}
+                  </span>
+                </button>
+              ))}
+            </ScrollArea>
+          </div>
+          <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+            <div className="grid gap-2 md:grid-cols-[1fr_100px_100px_auto]">
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 size-4 text-muted-foreground" />
+                <Input
+                  className="pl-8"
+                  value={threadQuery}
+                  onChange={(event) => onThreadQueryChange(event.target.value)}
+                  placeholder="Search sources, tickets, workspaces"
+                />
+              </div>
+              <Input value={lastDays} onChange={(event) => onLastDaysChange(event.target.value)} />
+              <Input
+                value={sourceLimit}
+                onChange={(event) => onSourceLimitChange(event.target.value)}
+              />
+              <Button variant="outline" onClick={onSelectVisible}>
+                Select visible
               </Button>
             </div>
-            <Button size="sm" variant="outline" onClick={() => void setOutputVerdict("unreviewed")}>
-              <ListChecks className="size-4" />
-              Unreview
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => void setOutputVerdict("rejected")}>
-              Reject
-            </Button>
-            <Button
-              size="sm"
-              variant={selectedOutput?.redactionStatus === "clean" ? "default" : "outline"}
-              onClick={() => void setOutputVerdict("promoted")}
-              disabled={selectedOutput?.redactionStatus !== "clean"}
-            >
-              Promote
-            </Button>
+            <SourceTable rows={threads} selected={selectedThreadSet} onToggle={onToggleThread} />
           </div>
-          <ScrollArea className="mt-2 h-[calc(100dvh-150px)] rounded-md border bg-muted/20 p-3">
-            {outputViewMode === "markdown" ? (
-              <pre className="whitespace-pre-wrap break-words text-xs [overflow-wrap:anywhere]">
-                {selectedOutput?.outputMarkdown ?? "No output selected."}
-              </pre>
-            ) : null}
-            {outputViewMode === "json" ? (
-              <pre className="whitespace-pre-wrap break-words text-xs [overflow-wrap:anywhere]">
-                {selectedOutputJsonText}
-              </pre>
-            ) : null}
-            {outputViewMode === "decisions" ? (
-              <pre className="whitespace-pre-wrap break-words text-xs [overflow-wrap:anywhere]">
-                {selectedOutputDecisionsText}
-              </pre>
-            ) : null}
-            {outputViewMode === "evidence" ? (
-              <EvidenceList rows={selectedOutputEvidenceRows} />
-            ) : null}
-            {outputViewMode === "redaction" ? (
-              <pre className="mt-4 whitespace-pre-wrap break-words border-t pt-4 text-xs [overflow-wrap:anywhere]">
-                {selectedOutput?.redactionMarkdown ?? "No redaction report selected."}
-              </pre>
-            ) : null}
-          </ScrollArea>
-        </SheetContent>
-      </Sheet>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
+          <p className="text-xs text-muted-foreground">
+            {selectedThreadSet.size || Math.min(10, totalThreads)} selected by default from{" "}
+            {totalThreads} sources.
+          </p>
+          <Button onClick={onRun} disabled={!selectedProgramId}>
+            <Play className="size-4" />
+            Start run
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function SourceTable({
+  onToggle,
+  readonly,
+  rows,
+  selected,
+}: {
+  onToggle?: (id: string) => void;
+  readonly?: boolean;
+  rows: ThreadDataSource[];
+  selected: Set<string>;
+}): ReactElement {
+  const keyCounts = new Map<string, number>();
+  return (
+    <div className="rounded-md border">
+      <ScrollArea className="h-full max-h-[calc(100dvh-260px)]">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {!readonly ? <TableHead className="w-[44px]" /> : null}
+              <TableHead>Source</TableHead>
+              <TableHead>Updated</TableHead>
+              <TableHead>Workspace</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((thread) => (
+              <TableRow
+                key={occurrenceKey(
+                  `${thread.id}:${thread.updatedAt ?? "unknown"}:${thread.cwd ?? ""}`,
+                  keyCounts,
+                )}
+              >
+                {!readonly ? (
+                  <TableCell>
+                    <Checkbox
+                      checked={selected.has(thread.id)}
+                      onCheckedChange={() => onToggle?.(thread.id)}
+                    />
+                  </TableCell>
+                ) : null}
+                <TableCell className="max-w-[420px]">
+                  <div className="truncate font-medium">{thread.name}</div>
+                  <div className="truncate text-xs text-muted-foreground">{thread.preview}</div>
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-xs">
+                  {formatMiningDate(thread.updatedAt)}
+                </TableCell>
+                <TableCell className="max-w-[320px] truncate text-xs text-muted-foreground">
+                  {thread.cwd ?? "-"}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </ScrollArea>
+    </div>
+  );
+}
+
+function ArtifactInspector({
+  artifacts,
+  onSelect,
+  selectedArtifact,
+  selectedArtifactId,
+}: {
+  artifacts: ThreadDataArtifact[];
+  onSelect: (id: string) => void;
+  selectedArtifact: ThreadDataArtifact | null;
+  selectedArtifactId: string;
+}): ReactElement {
+  return (
+    <div className="grid h-full min-h-0 gap-3 md:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="rounded-md border">
+        <ScrollArea className="h-full max-h-[calc(100dvh-260px)]">
+          {artifacts.map((artifact) => (
+            <button
+              key={artifact.id}
+              type="button"
+              className={`block w-full border-b px-3 py-2 text-left text-sm hover:bg-muted/50 ${artifact.id === selectedArtifactId ? "bg-muted" : ""}`}
+              onClick={() => onSelect(artifact.id)}
+            >
+              <span className="flex items-center gap-2">
+                <Badge variant={artifactTone(artifact.kind)}>{artifact.kind}</Badge>
+                <span className="truncate">{artifact.label}</span>
+              </span>
+            </button>
+          ))}
+        </ScrollArea>
+      </div>
+      <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-md border bg-background">
+        <div className="border-b p-3">
+          <h3 className="text-sm font-semibold">{selectedArtifact?.label ?? "Artifact"}</h3>
+          <p className="truncate font-mono text-xs text-muted-foreground">
+            {selectedArtifact?.path ?? "No path"}
+          </p>
+        </div>
+        <ScrollArea className="min-h-0 p-3">
+          <pre className="whitespace-pre-wrap break-words text-xs [overflow-wrap:anywhere]">
+            {artifactPreview(selectedArtifact)}
+          </pre>
+        </ScrollArea>
+      </div>
+    </div>
+  );
+}
+
+function AttemptTimeline({ attempts }: { attempts: Array<Record<string, unknown>> }): ReactElement {
+  if (!attempts.length)
+    return <p className="text-sm text-muted-foreground">No attempts recorded.</p>;
+  return (
+    <div className="grid gap-2">
+      {attempts.map((attempt, index) => (
+        <div
+          key={String(attempt.attemptId ?? index)}
+          className="rounded-md border bg-background p-3"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-mono text-sm">
+              {String(attempt.attemptId ?? `attempt-${index + 1}`)}
+            </span>
+            <Badge variant={String(attempt.status) === "complete" ? "default" : "outline"}>
+              {String(attempt.status ?? "unknown")}
+            </Badge>
+          </div>
+          <div className="mt-2 grid gap-1 text-xs text-muted-foreground md:grid-cols-3">
+            <span>{String(attempt.executorKind ?? "local_worker")}</span>
+            <span>{String(attempt.startedAt ?? "unknown")}</span>
+            <span>{String(attempt.reason ?? "initial_run")}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ProgramEditor({
+  draft,
+  onDraftChange,
+  onSave,
+  onSelect,
+  programs,
+  selectedId,
+}: {
+  draft: ProgramDraft;
+  onDraftChange: (draft: ProgramDraft) => void;
+  onSave: () => void;
+  onSelect: (id: string) => void;
+  programs: ThreadDataProgram[];
+  selectedId: string;
+}): ReactElement {
+  return (
+    <div className="grid h-full min-h-0 gap-3 md:grid-cols-[280px_minmax(0,1fr)]">
+      <div className="rounded-md border">
+        <ScrollArea className="h-full max-h-[calc(100dvh-260px)]">
+          {programs.map((program) => (
+            <button
+              key={program.id}
+              type="button"
+              className={`block w-full border-b px-3 py-2 text-left text-sm hover:bg-muted/50 ${program.id === selectedId ? "bg-muted" : ""}`}
+              onClick={() => onSelect(program.id)}
+            >
+              <span className="block font-medium">{program.name}</span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {program.id} v{program.version}
+              </span>
+            </button>
+          ))}
+        </ScrollArea>
+      </div>
+      <div className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto] gap-3 rounded-md border bg-background p-3">
+        <div className="grid gap-2 md:grid-cols-3">
+          <Field
+            label="ID"
+            value={draft.id}
+            onChange={(value) => onDraftChange({ ...draft, id: value })}
+          />
+          <Field
+            label="Name"
+            value={draft.name}
+            onChange={(value) => onDraftChange({ ...draft, name: value })}
+          />
+          <Field
+            label="Version"
+            value={draft.version}
+            onChange={(value) => onDraftChange({ ...draft, version: value })}
+          />
+        </div>
+        <Field
+          label="Objective"
+          value={draft.objective}
+          onChange={(value) => onDraftChange({ ...draft, objective: value })}
+        />
+        <Textarea
+          className="min-h-[280px] resize-none font-mono text-xs"
+          value={draft.prompt}
+          onChange={(event) => onDraftChange({ ...draft, prompt: event.target.value })}
+        />
+        <Button className="w-fit" onClick={onSave}>
+          <Save className="size-4" />
+          Save program
+        </Button>
+      </div>
     </div>
   );
 }
@@ -700,11 +1304,219 @@ function Field({
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }): ReactElement {
+function OutputTable({
+  onOpen,
+  rows,
+}: {
+  onOpen: (id: string) => void;
+  rows: ThreadDataRunDetail["outputs"];
+}): ReactElement {
+  const keyCounts = new Map<string, number>();
   return (
-    <div className="rounded-md border bg-muted/20 px-3 py-2">
-      <p className="text-[10px] uppercase text-muted-foreground">{label}</p>
-      <p className="font-mono text-lg font-semibold">{value}</p>
+    <div className="rounded-md border">
+      <ScrollArea className="h-full max-h-[calc(100dvh-300px)]">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Source</TableHead>
+              <TableHead>Ticket</TableHead>
+              <TableHead>Verdict</TableHead>
+              <TableHead>Redaction</TableHead>
+              <TableHead>Summary</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((output) => (
+              <TableRow
+                key={occurrenceKey(
+                  `${output.id}:${output.outputJsonPath}:${output.sessionId}`,
+                  keyCounts,
+                )}
+                className="cursor-pointer"
+                onClick={() => onOpen(output.id)}
+              >
+                <TableCell className="max-w-[260px] truncate">{output.sourceTitle}</TableCell>
+                <TableCell className="font-mono text-xs">{output.ticketId ?? "-"}</TableCell>
+                <TableCell>
+                  <Badge variant="outline">{output.verdict}</Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={output.redactionStatus === "clean" ? "secondary" : "outline"}>
+                    {output.redactionStatus}
+                  </Badge>
+                </TableCell>
+                <TableCell className="max-w-[560px] truncate text-xs text-muted-foreground">
+                  {output.summary}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </ScrollArea>
+    </div>
+  );
+}
+
+function OutputReviewSheet({
+  isOpen,
+  mode,
+  onModeChange,
+  onOpenChange,
+  onVerdict,
+  output,
+  redactionMarkdown,
+  scorecard,
+  selectedOutputDecisionsText,
+  selectedOutputEvidenceRows,
+  selectedOutputJsonText,
+}: {
+  isOpen: boolean;
+  mode: OutputViewMode;
+  onModeChange: (mode: OutputViewMode) => void;
+  onOpenChange: (open: boolean) => void;
+  onVerdict: (verdict: ThreadDataRunOutput["verdict"]) => Promise<void>;
+  output: ThreadDataRunOutput | null;
+  redactionMarkdown?: string;
+  scorecard: ReturnType<typeof scorecardSummary>;
+  selectedOutputDecisionsText: string;
+  selectedOutputEvidenceRows: MiningEvidenceRow[];
+  selectedOutputJsonText: string;
+}): ReactElement {
+  return (
+    <Sheet open={isOpen} onOpenChange={onOpenChange}>
+      <SheetContent className="w-[min(960px,94vw)] sm:max-w-none">
+        <SheetHeader>
+          <SheetTitle>{output?.sourceTitle ?? "Output"}</SheetTitle>
+          <SheetDescription>
+            Review mined output, evidence, redaction, and verdict.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex flex-wrap items-center gap-2 px-4">
+          <Badge variant="outline">{output?.verdict ?? "unreviewed"}</Badge>
+          <Badge variant={output?.redactionStatus === "clean" ? "secondary" : "outline"}>
+            {output?.redactionStatus ?? "unknown"}
+          </Badge>
+          <div className="ml-2 flex flex-wrap items-center gap-1 border-l pl-3">
+            <ModeButton active={mode === "summary"} onClick={() => onModeChange("summary")}>
+              Summary
+            </ModeButton>
+            <ModeButton active={mode === "evidence"} onClick={() => onModeChange("evidence")}>
+              Evidence
+            </ModeButton>
+            <ModeButton active={mode === "decisions"} onClick={() => onModeChange("decisions")}>
+              Decisions
+            </ModeButton>
+            <ModeButton active={mode === "markdown"} onClick={() => onModeChange("markdown")}>
+              Markdown
+            </ModeButton>
+            <ModeButton active={mode === "json"} onClick={() => onModeChange("json")}>
+              JSON
+            </ModeButton>
+            <ModeButton active={mode === "redaction"} onClick={() => onModeChange("redaction")}>
+              Redaction
+            </ModeButton>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => void onVerdict("unreviewed")}>
+            <ListChecks className="size-4" />
+            Unreview
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => void onVerdict("rejected")}>
+            Reject
+          </Button>
+          <Button
+            size="sm"
+            variant={output?.redactionStatus === "clean" ? "default" : "outline"}
+            onClick={() => void onVerdict("promoted")}
+            disabled={output?.redactionStatus !== "clean"}
+          >
+            Promote
+          </Button>
+        </div>
+        <ScrollArea className="mt-2 h-[calc(100dvh-155px)] rounded-md border bg-muted/20 p-3">
+          {mode === "summary" ? <ScorecardView output={output} scorecard={scorecard} /> : null}
+          {mode === "markdown" ? (
+            <PreBlock text={output?.outputMarkdown ?? "No output selected."} />
+          ) : null}
+          {mode === "json" ? <PreBlock text={selectedOutputJsonText} /> : null}
+          {mode === "decisions" ? <PreBlock text={selectedOutputDecisionsText} /> : null}
+          {mode === "evidence" ? <EvidenceList rows={selectedOutputEvidenceRows} /> : null}
+          {mode === "redaction" ? (
+            <PreBlock text={redactionMarkdown ?? "No redaction report selected."} />
+          ) : null}
+        </ScrollArea>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function ModeButton({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}): ReactElement {
+  return (
+    <Button size="sm" variant={active ? "default" : "outline"} onClick={onClick}>
+      {children}
+    </Button>
+  );
+}
+
+function ScorecardView({
+  output,
+  scorecard,
+}: {
+  output: ThreadDataRunOutput | null;
+  scorecard: ReturnType<typeof scorecardSummary>;
+}): ReactElement {
+  return (
+    <div className="grid gap-3">
+      <div className="grid gap-2 md:grid-cols-3">
+        <ScoreMetric
+          icon={<CheckCircle2 className="size-4" />}
+          label="Scope"
+          value={scorecard?.scopeFollowed ?? "unknown"}
+        />
+        <ScoreMetric
+          icon={<CheckSquare className="size-4" />}
+          label="Proof"
+          value={scorecard?.proofQuality ?? "unknown"}
+        />
+        <ScoreMetric
+          icon={<ShieldAlert className="size-4" />}
+          label="Skipped"
+          value={scorecard?.skippedSteps ?? "none"}
+        />
+      </div>
+      <div className="rounded-md border bg-background p-3">
+        <h3 className="text-sm font-semibold">Summary</h3>
+        <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+          {scorecard?.overall ?? output?.summary ?? "No scorecard summary available."}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ScoreMetric({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}): ReactElement {
+  return (
+    <div className="rounded-md border bg-background p-3">
+      <div className="flex items-center gap-2 text-xs uppercase text-muted-foreground">
+        {icon}
+        {label}
+      </div>
+      <p className="mt-2 break-words text-sm font-medium">{value}</p>
     </div>
   );
 }
@@ -733,183 +1545,14 @@ function EvidenceList({ rows }: { rows: MiningEvidenceRow[] }): ReactElement {
   );
 }
 
+function PreBlock({ text }: { text: string }): ReactElement {
+  return (
+    <pre className="whitespace-pre-wrap break-words text-xs [overflow-wrap:anywhere]">{text}</pre>
+  );
+}
+
 function occurrenceKey(base: string, counts: Map<string, number>): string {
   const nextCount = (counts.get(base) ?? 0) + 1;
   counts.set(base, nextCount);
   return nextCount === 1 ? base : `${base}:${nextCount}`;
-}
-
-function ProgramList({
-  onSelect,
-  rows,
-  selectedId,
-}: {
-  onSelect: (id: string) => void;
-  rows: ThreadDataProgram[];
-  selectedId: string;
-}): ReactElement {
-  return (
-    <div className="rounded-md border">
-      <ScrollArea className="h-full max-h-[calc(100dvh-180px)]">
-        {rows.map((program) => (
-          <button
-            key={program.id}
-            type="button"
-            className={`block w-full border-b px-3 py-2 text-left text-sm hover:bg-muted/50 ${program.id === selectedId ? "bg-muted" : ""}`}
-            onClick={() => onSelect(program.id)}
-          >
-            <span className="block font-medium">{program.name}</span>
-            <span className="block truncate text-xs text-muted-foreground">
-              {program.id} v{program.version}
-            </span>
-          </button>
-        ))}
-      </ScrollArea>
-    </div>
-  );
-}
-
-function ThreadTable({
-  onToggle,
-  rows,
-  selected,
-}: {
-  onToggle: (id: string) => void;
-  rows: ThreadDataSource[];
-  selected: Set<string>;
-}): ReactElement {
-  const keyCounts = new Map<string, number>();
-  return (
-    <div className="rounded-md border">
-      <ScrollArea className="h-full max-h-[calc(100dvh-235px)]">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[44px]" />
-              <TableHead>Thread</TableHead>
-              <TableHead>Updated</TableHead>
-              <TableHead>Workspace</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((thread) => (
-              <TableRow
-                key={occurrenceKey(
-                  `${thread.id}:${thread.updatedAt ?? "unknown"}:${thread.cwd ?? ""}`,
-                  keyCounts,
-                )}
-              >
-                <TableCell>
-                  <Checkbox
-                    checked={selected.has(thread.id)}
-                    onCheckedChange={() => onToggle(thread.id)}
-                  />
-                </TableCell>
-                <TableCell className="max-w-[520px]">
-                  <div className="truncate font-medium">{thread.name}</div>
-                  <div className="truncate text-xs text-muted-foreground">{thread.preview}</div>
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-xs">
-                  {formatMiningDate(thread.updatedAt)}
-                </TableCell>
-                <TableCell className="max-w-[320px] truncate text-xs text-muted-foreground">
-                  {thread.cwd ?? "-"}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </ScrollArea>
-    </div>
-  );
-}
-
-function RunList({
-  onSelect,
-  rows,
-  selectedId,
-}: {
-  onSelect: (id: string) => void;
-  rows: ThreadDataRunIndexEntry[];
-  selectedId: string | null;
-}): ReactElement {
-  return (
-    <div className="rounded-md border">
-      <ScrollArea className="h-full max-h-[calc(100dvh-180px)]">
-        {rows.map((run) => (
-          <button
-            key={run.runId}
-            type="button"
-            className={`block w-full border-b px-3 py-2 text-left hover:bg-muted/50 ${run.runId === selectedId ? "bg-muted" : ""}`}
-            onClick={() => onSelect(run.runId)}
-          >
-            <span className="flex items-center justify-between gap-2">
-              <span className="truncate text-sm font-medium">{run.label}</span>
-              <Badge variant={runStatusTone(run.status)}>{run.status}</Badge>
-            </span>
-            <span className="mt-1 block truncate text-xs text-muted-foreground">
-              {formatMiningDate(run.createdAt)} | {run.outputCount}/{run.sourceCount} outputs
-            </span>
-          </button>
-        ))}
-      </ScrollArea>
-    </div>
-  );
-}
-
-function OutputTable({
-  onOpen,
-  rows,
-}: {
-  onOpen: (id: string) => void;
-  rows: ThreadDataRunDetail["outputs"];
-}): ReactElement {
-  const keyCounts = new Map<string, number>();
-  return (
-    <div className="rounded-md border">
-      <ScrollArea className="h-full max-h-[calc(100dvh-220px)]">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Source</TableHead>
-              <TableHead>Ticket</TableHead>
-              <TableHead>Session</TableHead>
-              <TableHead>Verdict</TableHead>
-              <TableHead>Redaction</TableHead>
-              <TableHead>Summary</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((output) => (
-              <TableRow
-                key={occurrenceKey(
-                  `${output.id}:${output.outputJsonPath}:${output.sessionId}`,
-                  keyCounts,
-                )}
-                className="cursor-pointer"
-                onClick={() => onOpen(output.id)}
-              >
-                <TableCell className="max-w-[260px] truncate">{output.sourceTitle}</TableCell>
-                <TableCell className="font-mono text-xs">{output.ticketId ?? "-"}</TableCell>
-                <TableCell className="max-w-[150px] truncate font-mono text-xs">
-                  {output.sessionId}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">{output.verdict}</Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={output.redactionStatus === "clean" ? "secondary" : "outline"}>
-                    {output.redactionStatus}
-                  </Badge>
-                </TableCell>
-                <TableCell className="max-w-[560px] truncate text-xs text-muted-foreground">
-                  {output.summary}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </ScrollArea>
-    </div>
-  );
 }

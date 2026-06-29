@@ -9,13 +9,13 @@ priority: high
 depends_on:
   - TASK-0018
 blocked_by: []
-ready: false
+ready: true
 approval_required: true
 requires_qa: true
 requires_demo: false
 created_at: 2026-06-26
 updated_at: 2026-06-26
-next_action: trust the updated repo hooks with Codex /hooks, then exercise one real Stop event against the local telemetry endpoint
+next_action: run the TASK-0019 closeout proof plan: installer dry-run, event-miner dry-run Stop payload, telemetry/projection checks, then reviewer gate
 last_verification: focused tests and root typecheck passed after refactoring codex-event-miner into focused modules
 ---
 
@@ -77,6 +77,160 @@ miner window state, and completed learning-review reports already present under
   - No UI scoring of business outcomes beyond rendering observed learning and
     decision events.
 
+## Delta
+
+- `Before:` Farplane had PostToolUse hook telemetry and file-change summaries,
+  but no repo-managed Stop hook that could launch a bounded event miner for
+  current Codex sessions.
+- `After:` `codex-event-miner` is the live rolling-window Stop hook: it keeps
+  per-session window state, queues a detached miner after cadence, launches
+  `codex exec --disable codex_hooks`, publishes compact lifecycle/report events
+  through existing hook telemetry, and projects learning/decision rows without
+  raw transcript payloads.
+- `Why now:` the system needs current-session learning/decision telemetry before
+  the broader Thread Data/backfill and replayable-job layers are treated as
+  canonical. This ticket proves the live hook path only; TASK-0020 owns
+  historical mining and stays out of scope here.
+- `First-principles basis:` the Stop hook should be a dispatcher, not the
+  miner. Shutdown paths must stay bounded, telemetry must stay compact, and
+  detached agents own transcript inspection.
+
+## Change Plan
+
+### Change 1: close the Stop-hook launcher path
+
+```text
+fixes:
+  - Prove the live Stop hook can parse a Stop payload, update cadence state,
+    launch a detached miner, and publish compact lifecycle telemetry.
+before:
+  - Implementation exists, but ticket closeout still depends on installer trust
+    and representative Stop-event proof.
+after:
+  - TASK-0019 has concrete proof for parse -> cadence -> launch/dry-run ->
+    telemetry/outbox.
+read:
+  - path: hooks/codex-event-miner/run.ts
+    reason: entrypoint for Stop payload parsing, window state, launch, publish,
+      and debug logging.
+  - path: hooks/codex-event-miner/handler.ts
+    reason: parse/dedupe/cadence behavior and launch request generation.
+  - path: hooks/codex-event-miner/launcher.ts
+    reason: detached Codex exec input/prompt/report behavior.
+  - path: hooks/codex-event-miner/state.ts
+    reason: per-session cadence state persistence.
+write:
+  - path: tickets/TASK-0019/ticket.md
+    change: record closeout evidence paths and reviewer result.
+operation:
+  - Run focused event-miner tests.
+  - Run `node scripts/install-farplane-hooks.mjs --json` to prove Stop hook
+    install config.
+  - Run a controlled Stop payload with `FARPLANE_EVENT_MINER_DRY_RUN=1` and
+    `FARPLANE_EVENT_MINER_CADENCE_TURNS=1` so it writes a run packet without
+    requiring real transcript processing.
+  - Inspect `.farplane/event-miner/runs/<run>/input.json`, `prompt.md`, and
+    `report.json`.
+signature_or_type_impact:
+  - none expected; this is closeout/proof unless tests expose a real bug.
+routes:
+  docs: update_docs
+  qa: tests
+  review: reviewer
+qa:
+  - `npm run test:once -- hooks/codex-event-miner scripts/install-farplane-hooks.test.ts`
+  - dry-run Stop payload produces `miner.agent.queued` and
+    `miner.agent.launched` or queued outbox telemetry.
+failure_modes:
+  - Hook config not trusted in Codex app; document as manual blocker rather than
+    claiming live Stop proof.
+  - Missing endpoint config queues telemetry; acceptable if outbox evidence is
+    present and clearly stated.
+```
+
+### Change 2: prove report flush and learning timeline projection
+
+```text
+fixes:
+  - Prove detached miner reports can become compact timeline rows without raw
+    prompt/transcript leakage.
+before:
+  - report flushing and projection tests exist, but ticket needs explicit
+    closeout evidence.
+after:
+  - TASK-0019 links focused Convex projection proof for decision, lesson,
+    trouble, and miner lifecycle rows.
+read:
+  - path: hooks/codex-event-miner/reports.ts
+    reason: completed report scanning and fallback event candidates.
+  - path: hooks/codex-event-miner/report.schema.json
+    reason: compact detached miner report contract.
+  - path: convex/modules/hookTelemetry/learningTimeline.ts
+    reason: projection from raw hook telemetry rows to timeline rows.
+  - path: convex/modules/hookTelemetry/hookTelemetry.test.ts
+    reason: existing privacy/projection tests.
+write:
+  - path: tickets/TASK-0019/ticket.md
+    change: record projection test output and any residual risk.
+operation:
+  - Run `npm run test:once -- convex/modules/hookTelemetry`.
+  - Confirm projected rows include `ticketId`, `sessionId`, `sourceProgram`,
+    `reviewRunPath`, and doc delta counts when present.
+  - Confirm raw `prompt` / `transcript` test fields do not appear in projected
+    rows.
+signature_or_type_impact:
+  - none expected.
+routes:
+  docs: update_docs
+  qa: tests
+  review: reviewer
+qa:
+  - projection tests pass and show no raw prompt/transcript leakage.
+failure_modes:
+  - Existing tests may prove fixtures but not live Convex ingest; live ingest is
+    separate manual proof and should be stated honestly if unavailable.
+```
+
+### Change 3: document scope boundary against TASK-0020
+
+```text
+fixes:
+  - Prevent TASK-0019 from absorbing historical mining, replayable jobs, or
+    ticket-completion scoring work.
+before:
+  - Ticket already says it is not historical backfill, but recent architecture
+    discussion could blur the boundary.
+after:
+  - TASK-0019 remains the live Stop-hook rolling-window hook only.
+read:
+  - path: tickets/TASK-0020/ticket.md
+    reason: confirm historical Thread Data/backfill remains separate.
+  - path: tickets/TASK-0027/ticket.md
+    reason: file-event capture is a later/sibling system, not this ticket.
+  - path: tickets/TASK-0028/ticket.md
+    reason: replayable jobs are a later/sibling system, not this ticket.
+write:
+  - path: hooks/codex-event-miner/HOOK.md
+    change: update only if closeout finds scope wording is stale.
+  - path: tickets/TASK-0019/ticket.md
+    change: keep links and non-goals explicit.
+operation:
+  - Keep code changes out unless proof reveals a mismatch.
+  - Record that Stop miner events are provisional/current-session learning, not
+    canonical ticket-completion scorecards.
+signature_or_type_impact:
+  - none.
+routes:
+  docs: update_docs
+  qa: review
+  review: reviewer
+qa:
+  - reviewer checks scope boundary and privacy language.
+failure_modes:
+  - If TASK-0019 is judged strategically obsolete, close it as implemented
+    foundation/superseded by TASK-0027/TASK-0028 rather than expanding it.
+```
+
 ## Event Contract
 
 ```text
@@ -129,7 +283,7 @@ payload:
 - The hook should publish through the shared telemetry outbox, so missing
   network/config queues events instead of blocking Codex shutdown.
 
-## Done / Proof
+## Done
 
 ```text
 done_when:
@@ -157,6 +311,54 @@ proof:
     - projection fixture/test output
     - installer proof
     - hook docs
+```
+
+## QA Strategy
+
+```text
+qa_strategy:
+  proof_weight: review
+  checks:
+    - npm run test:once -- hooks/codex-event-miner scripts/install-farplane-hooks.test.ts
+    - npm run test:once -- convex/modules/hookTelemetry
+    - npm run typecheck:root
+  manual:
+    - node scripts/install-farplane-hooks.mjs --json
+    - FARPLANE_EVENT_MINER_DRY_RUN=1 FARPLANE_EVENT_MINER_CADENCE_TURNS=1 hooks/codex-event-miner/run.ts < representative Stop payload
+    - inspect generated `.farplane/event-miner/runs/<run>/input.json`, `prompt.md`, and `report.json`
+    - inspect hook telemetry outbox or local endpoint evidence for miner lifecycle events
+  delegated_lanes:
+    - reviewer lane for telemetry privacy, Stop-hook latency, event dedupe, and scope boundary
+  review:
+    - rubric: telemetry privacy, Stop-hook latency, event dedupe, projection correctness, Core/UI ownership boundary, TASK-0020 separation
+      required_tas: TAS-B
+  evidence:
+    - focused test output
+    - installer JSON proof
+    - dry-run run path
+    - sample compact telemetry payload or outbox row
+    - projection test output
+  goal_advisor_inputs:
+    proof_route: focused hook tests + projection tests + dry-run Stop payload + reviewer gate
+    final_evidence: installer proof, dry-run run path, telemetry/outbox sample, and reviewer receipt
+    final_checkpoint: reviewer verifies no raw prompts/transcripts/full assistant messages/tool output are published
+  residual_risk:
+    - live Codex `/hooks` trust and real Stop execution may require operator action in the Codex app
+    - endpoint config may queue telemetry locally instead of proving live Convex ingest
+```
+
+## Docs Strategy
+
+```text
+docs_strategy:
+  outcome: update_docs
+  doc_targets:
+    - hooks/codex-event-miner/HOOK.md
+    - docs/HISTORY.md
+  no_docs_reason:
+  validation:
+    - hook docs describe config, dry-run mode, privacy rules, and live-vs-historical scope
+    - history records material closeout only after proof succeeds
 ```
 
 ## State
@@ -196,3 +398,28 @@ proof:
   - `/Users/kenjipcx/Zanarkand Technologies/projects/Farplane/bin/runtime/stop_hook.py`
   - `/Users/kenjipcx/Zanarkand Technologies/projects/Farplane/bin/runtime/user_turn.py`
   - `/Users/kenjipcx/Zanarkand Technologies/projects/Farplane/agents/skill-opportunity-applier.toml`
+
+## Notes
+
+- `plan_qa:`
+  - `minimal_required_version:` pass; closeout is proof and small doc updates,
+    not new architecture.
+  - `reuse_before_new_surface:` pass; uses existing hook, outbox, launcher, and
+    projection surfaces.
+  - `least_parameters:` pass; no new config keys planned.
+  - `new_files_functions_justified:` pass; no new code files planned unless
+    proof reveals a bug.
+  - `minimal_impl_plan_claim:` pass.
+  - `existing_service_fit:` pass.
+  - `goal_advisor_ready:` pass after approval; the ticket has concrete proof
+    route and final checkpoint.
+  - `clarifying_questions:` pass; no blocking input for closeout planning.
+  - `change_plan_locality:` pass.
+  - `qa_strategy_explicit:` pass.
+  - `docs_strategy:` pass.
+  - `grounding_evidence:` local_only; this closeout concerns repo-local hook
+    and projection code.
+  - `highest_risk:` claiming live telemetry ingest when only local dry-run or
+    outbox proof exists.
+  - `fix_or_deferral:` final report must distinguish dry-run/outbox proof from
+    live Convex ingest.

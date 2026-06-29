@@ -9,7 +9,8 @@ operator intelligence, and ledger workflows.
 
 - `index.ts`
 - `components/team-panel.tsx`
-- Tab components under `components/`
+- Tab shell compatibility exports under `components/`
+- Focused tab implementations under `components/tabs/`
 - Shared types in `components/team-panel-types.ts`
 
 ## Minimal Example

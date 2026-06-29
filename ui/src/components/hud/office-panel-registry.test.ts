@@ -59,6 +59,7 @@ describe("office panel registry", () => {
     const openSkillInvocations = vi.fn();
     const openSkillOs = vi.fn();
     const openRawTelemetry = vi.fn();
+    const openThreadData = vi.fn();
     const openTemplateTracking = vi.fn();
     const openUserCommunications = vi.fn();
     const toggleBuilderMode = vi.fn();
@@ -80,6 +81,7 @@ describe("office panel registry", () => {
       openSkillOs,
       openTemplateTracking,
       openRawTelemetry,
+      openThreadData,
       openTelemetry: vi.fn(),
       openUserCommunications,
       toggleBuilderMode,
@@ -95,6 +97,7 @@ describe("office panel registry", () => {
     actions.find((action) => action.id === "rollout")?.perform();
     actions.find((action) => action.id === "user-communications")?.perform();
     actions.find((action) => action.id === "raw-telemetry")?.perform();
+    actions.find((action) => action.id === "thread-data")?.perform();
     actions.find((action) => action.id === "builder-mode")?.perform();
 
     expect(openGlobalTeamWorkspace).toHaveBeenCalledTimes(1);
@@ -109,6 +112,7 @@ describe("office panel registry", () => {
     expect(openRollout).toHaveBeenCalledTimes(1);
     expect(openUserCommunications).toHaveBeenCalledTimes(1);
     expect(openRawTelemetry).toHaveBeenCalledTimes(1);
+    expect(openThreadData).toHaveBeenCalledTimes(1);
     expect(toggleBuilderMode).toHaveBeenCalledTimes(1);
   });
 
@@ -130,6 +134,7 @@ describe("office panel registry", () => {
       openSkillOs: vi.fn(),
       openTemplateTracking: vi.fn(),
       openRawTelemetry: vi.fn(),
+      openThreadData: vi.fn(),
       openTelemetry: vi.fn(),
       openUserCommunications: vi.fn(),
       toggleBuilderMode: vi.fn(),
@@ -150,12 +155,14 @@ describe("office panel registry", () => {
       "document-library",
       "telemetry",
       "raw-telemetry",
+      "thread-data",
       "builder-mode",
       "office-shop",
       "settings",
     ]);
     expect(paletteIds).toContain("settings");
     expect(paletteIds).toContain("raw-telemetry");
+    expect(paletteIds).toContain("thread-data");
     expect(paletteIds).toContain("evals");
     expect(paletteIds).toContain("harness");
     expect(paletteIds).not.toContain("template-tracking");
@@ -188,6 +195,7 @@ describe("office panel registry", () => {
       openSkillOs: vi.fn(),
       openTemplateTracking: vi.fn(),
       openRawTelemetry: vi.fn(),
+      openThreadData: vi.fn(),
       openTelemetry: vi.fn(),
       openUserCommunications: vi.fn(),
       toggleBuilderMode: vi.fn(),
@@ -204,6 +212,7 @@ describe("office panel registry", () => {
     const openSettings = vi.fn();
     const openDecoration = vi.fn();
     const toggleBuilderMode = vi.fn();
+    const openThreadData = vi.fn();
 
     const actions = createOfficePanelActions({
       accessPolicy: "read-only",
@@ -223,6 +232,7 @@ describe("office panel registry", () => {
       openSkillOs: vi.fn(),
       openTemplateTracking: vi.fn(),
       openRawTelemetry: vi.fn(),
+      openThreadData,
       openTelemetry: vi.fn(),
       openUserCommunications: vi.fn(),
       toggleBuilderMode,
@@ -231,6 +241,7 @@ describe("office panel registry", () => {
     for (const id of [
       "team-workspace",
       "user-communications",
+      "thread-data",
       "builder-mode",
       "office-shop",
       "settings",
@@ -244,6 +255,7 @@ describe("office panel registry", () => {
 
     expect(openGlobalTeamWorkspace).not.toHaveBeenCalled();
     expect(openSettings).not.toHaveBeenCalled();
+    expect(openThreadData).not.toHaveBeenCalled();
     expect(openDecoration).not.toHaveBeenCalled();
     expect(toggleBuilderMode).not.toHaveBeenCalled();
   });

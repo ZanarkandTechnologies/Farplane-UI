@@ -305,8 +305,10 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
     const run = normalizeRunIndexEntry(await readJsonFile<unknown>(path.join(runRoot, "run.json"), null));
     if (!run) return null;
     const programs = await listPrograms();
-    const rawSources = await readJsonFile<unknown[]>(path.join(runRoot, "sources.json"), []);
-    const sources = rawSources
+    const inputJson = await readJsonFile<unknown>(path.join(runRoot, "input.json"), null);
+    const sourcesJson = await readJsonFile<unknown[]>(path.join(runRoot, "sources.json"), []);
+    const attempts = await readJsonFile<JsonObject[]>(path.join(runRoot, "attempts.json"), []);
+    const sources = sourcesJson
       .map(normalizeStoredMiningSource)
       .filter((source): source is MiningThreadSource => Boolean(source));
     const outputIndex = await readJsonFile<JsonObject[]>(path.join(runRoot, "outputs", "index.json"), []);
@@ -323,6 +325,59 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
         redactionMarkdown: await readFile(path.join(outputRoot, "redaction.md"), "utf-8").catch(() => ""),
       });
     }
+    const reportMarkdown = await readFile(path.join(runRoot, "report.md"), "utf-8").catch(() => "");
+    const parentPrompt = await readFile(path.join(runRoot, "parent-prompt.md"), "utf-8").catch(() => "");
+    const artifacts = [
+      {
+        id: "input",
+        label: "input.json",
+        kind: "json",
+        path: path.join(runRoot, "input.json"),
+        content: JSON.stringify(inputJson, null, 2),
+      },
+      {
+        id: "sources",
+        label: "sources.json",
+        kind: "json",
+        path: path.join(runRoot, "sources.json"),
+        content: JSON.stringify(sourcesJson, null, 2),
+      },
+      {
+        id: "attempts",
+        label: "attempts.json",
+        kind: "json",
+        path: path.join(runRoot, "attempts.json"),
+        content: JSON.stringify(attempts, null, 2),
+      },
+      {
+        id: "report",
+        label: "report.md",
+        kind: "markdown",
+        path: path.join(runRoot, "report.md"),
+        content: reportMarkdown,
+      },
+      {
+        id: "parent-prompt",
+        label: "parent-prompt.md",
+        kind: "markdown",
+        path: path.join(runRoot, "parent-prompt.md"),
+        content: parentPrompt,
+      },
+      {
+        id: "outputs-index",
+        label: "outputs/index.json",
+        kind: "json",
+        path: path.join(runRoot, "outputs", "index.json"),
+        content: JSON.stringify(outputIndex, null, 2),
+      },
+      ...outputs.map((output) => ({
+        id: `output-${String(output.id)}`,
+        label: `outputs/${String(output.id)}/output.json`,
+        kind: "output",
+        path: String(output.outputJsonPath ?? ""),
+        content: JSON.stringify(output.outputJson ?? null, null, 2),
+      })),
+    ];
     return {
       run: {
         ...run,
@@ -333,8 +388,12 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
       program: programs.find((program) => program.id === run.programId) ?? null,
       sources,
       outputs,
-      reportMarkdown: await readFile(path.join(runRoot, "report.md"), "utf-8").catch(() => ""),
-      parentPrompt: await readFile(path.join(runRoot, "parent-prompt.md"), "utf-8").catch(() => ""),
+      attempts,
+      artifacts,
+      inputJson,
+      sourcesJson,
+      reportMarkdown,
+      parentPrompt,
     };
   }
 

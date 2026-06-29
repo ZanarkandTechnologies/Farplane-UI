@@ -9,9 +9,8 @@
  * Side effects: none; read-only Convex query.
  */
 
-import { useMemo, type ReactElement } from "react";
 import { useQuery } from "convex/react";
-import { api } from "../../../../../convex/_generated/api";
+import { type ReactElement, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -29,6 +28,7 @@ import {
   type GraphWorkbenchNode,
 } from "@/modules/graph-workbench";
 import { isConvexEnabled } from "@/providers/convex-provider";
+import { api } from "../../../../../convex/_generated/api";
 
 type ThreadLineageGraph = {
   nodes: Array<{

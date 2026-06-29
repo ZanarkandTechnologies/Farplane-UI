@@ -20,6 +20,7 @@ export type TabKey =
   | "products"
   | "kanban"
   | "cadence"
+  | "thread-data"
   | "timeline"
   | "telemetry";
 

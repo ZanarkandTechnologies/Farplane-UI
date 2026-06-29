@@ -19,6 +19,7 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
   const setIsGlobalTeamPanelOpen = useAppStore((state) => state.setIsGlobalTeamPanelOpen);
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
   const setIsRawTelemetryPanelOpen = useAppStore((state) => state.setIsRawTelemetryPanelOpen);
+  const setIsThreadDataPanelOpen = useAppStore((state) => state.setIsThreadDataPanelOpen);
   const setIsResourceBankPanelOpen = useAppStore((state) => state.setIsResourceBankPanelOpen);
   const setIsDocumentLibraryPanelOpen = useAppStore((state) => state.setIsDocumentLibraryPanelOpen);
   const setIsSkillsPanelOpen = useAppStore((state) => state.setIsSkillsPanelOpen);
@@ -48,6 +49,9 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
           break;
         case "raw-telemetry":
           setIsRawTelemetryPanelOpen(true);
+          break;
+        case "thread-data":
+          setIsThreadDataPanelOpen(true);
           break;
         case "resource-bank":
           setIsResourceBankPanelOpen(true);
@@ -115,6 +119,7 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
       setIsSettingsModalOpen,
       setIsSkillsPanelOpen,
       setIsTelemetryPanelOpen,
+      setIsThreadDataPanelOpen,
       setIsUserTasksModalOpen,
       setKanbanFocusAgentId,
       setSelectedSkillStudioSkillId,

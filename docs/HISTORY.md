@@ -1,5 +1,11 @@
 # HISTORY
 
+2026-06-30 | ui | MEM-0249 | ui,team-workspace,thread-data,mining | Added Thread Data directly to Team Panel as the single thread/mining entrypoint, mounting the mining cockpit in-panel with Review, Programs, Sources, and Forking sub-tabs instead of splitting lineage and mining across duplicate top-level tabs.
+
+2026-06-29 | ui | MEM-0247 | ui,thread-data,mining | Reworked the Thread Data mining cockpit from a persistent run sidebar to a compact header run selector with a searchable run-history drawer, giving the selected run workspace the full panel width while keeping run switching, artifacts, attempts, outputs, and replay review in one context.
+
+2026-06-29 | ui | MEM-0248 | ui,office,thread-data,mining | Added Thread Data as a first-class office panel: the office speed dial, command palette, internal panel catalog, and object-panel launcher now open the mining run cockpit in a large office modal while the direct `/thread-data` route remains available.
+
 2026-06-29 | feature | MEM-0244 | ui,thread-data,mining,tickets | Migrated Thread Data's historical backfill runtime onto the shared `.farplane/mine` mining-run contract: programs now live under `.farplane/mine/programs`, runs under `.farplane/mine/runs`, new runs write `run.json`, `input.json`, `sources.json`, `attempts.json`, output telemetry, and replay metadata, and the browser bridge now exposes `/farplane/mine/*` without retaining old `/farplane/backfill/*` product routes.
 
 2026-06-29 | feature | MEM-0243 | hooks,telemetry,timeline,tickets | Evolved the file-change listener into a typed Farplane file-event capture layer: tracked ticket, program/progress, farplane docs, memory docs, and config edits now emit compact `farplane.*` telemetry with sanitized diffs and terminal ticket completion signals while preserving legacy status-bubble summaries.
@@ -228,3 +234,4 @@
 2026-06-25 | migration | MEM-0161 | ui,settings,runtime,config | Switched Runtime Project Config persistence from split JSON files to canonical ~/.farplane/config.toml, keeping legacy JSON readable as a migration fallback while Core renders Codex config from the Farplane-owned file.
 2026-06-25 | bugfix | MEM-0242 | ui,office,layout,refresh | Hardened office auto-layout refresh stability by coalescing in-flight provider loads, ignoring volatile runtime metadata/status ordering in signatures, clamping solver tuning inputs, deduping reserved-walk blockers, and sharing team station topology between rendered tables and employee desk targets.
 2026-06-29 | refactor | MEM-0245 | ui,thread-data,mining,vite | Extracted `.farplane/mine` local API behavior from `ui/vite.config.ts` into server-owned mining modules, leaving Vite as a thin route shim while adding source-id hardening, event/ticket source support, honest replay regeneration, and focused mining tests.
+2026-06-29 | feature | MEM-0246 | ui,thread-data,mining | Redesigned Thread Data as a run-first mining cockpit with run rail, selected-run metrics, artifact inspection, replay attempt timeline, setup drawer, and ticket-completion-aware output review over the `.farplane/mine` run folder contract.

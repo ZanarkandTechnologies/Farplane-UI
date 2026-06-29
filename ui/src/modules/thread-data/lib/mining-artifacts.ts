@@ -1,4 +1,5 @@
 import type {
+  ThreadDataArtifact,
   ThreadDataRunIndexEntry,
   ThreadDataRunOutput,
   ThreadDataRunStatus,
@@ -12,6 +13,13 @@ export type MiningEvidenceRow = {
   role: string;
   text: string;
   source: string;
+};
+
+export type ScorecardSummary = {
+  scopeFollowed?: string;
+  proofQuality?: string;
+  skippedSteps?: string;
+  overall?: string;
 };
 
 export function isRecord(value: unknown): value is UnknownRecord {
@@ -103,4 +111,42 @@ export function outputEvidenceRows(outputJson: unknown): MiningEvidenceRow[] {
       ),
     }))
     .filter((span) => span.text);
+}
+
+export function defaultOutputViewMode(
+  run: ThreadDataRunIndexEntry | undefined,
+  output: ThreadDataRunOutput | null | undefined,
+): "summary" | "decisions" | "evidence" {
+  if (run?.programId === "ticket-completion-audit-v1" || run?.miningMode === "ticket_completion") {
+    return "summary";
+  }
+  if (output?.outputDecisions) return "decisions";
+  return "evidence";
+}
+
+export function artifactPreview(artifact: ThreadDataArtifact | null | undefined): string {
+  if (!artifact) return "No artifact selected.";
+  return artifact.content ?? `${artifact.label}\n${artifact.path}`;
+}
+
+export function artifactTone(
+  kind: ThreadDataArtifact["kind"],
+): "default" | "secondary" | "outline" {
+  if (kind === "json") return "secondary";
+  if (kind === "markdown") return "default";
+  return "outline";
+}
+
+export function scorecardSummary(outputJson: unknown): ScorecardSummary | null {
+  if (!isRecord(outputJson)) return null;
+  const rawScorecard = isRecord(outputJson.scorecard) ? outputJson.scorecard : outputJson;
+  const scopeFollowed =
+    String(rawScorecard.scopeFollowed ?? rawScorecard.scope_followed ?? "").trim() || undefined;
+  const proofQuality =
+    String(rawScorecard.proofQuality ?? rawScorecard.proof_quality ?? "").trim() || undefined;
+  const skippedSteps =
+    String(rawScorecard.skippedSteps ?? rawScorecard.skipped_steps ?? "").trim() || undefined;
+  const overall = String(rawScorecard.overall ?? rawScorecard.summary ?? "").trim() || undefined;
+  if (!scopeFollowed && !proofQuality && !skippedSteps && !overall) return null;
+  return { overall, proofQuality, scopeFollowed, skippedSteps };
 }
