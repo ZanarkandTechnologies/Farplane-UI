@@ -25,6 +25,7 @@ import {
   mergeFilesystemThreadsIntoThreadList,
   readFilesystemObservedCodexThreads,
 } from "./codex-thread-summaries";
+import { createMiningLocalApi } from "./server/mining-local-api";
 import { normalizeBridgeOfficeSettings, type BridgeOfficeSettings as OfficeSettings } from "./office-settings-bridge";
 import {
   LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS,
@@ -81,8 +82,8 @@ const TELEGRAM_GATEWAY_STATE_PATH = path.join(FARPLANE_HOME, "telegram-gateway",
 const GLOBAL_EVALS_ROOT = path.join(FARPLANE_HOME, "evals");
 const PROJECT_EVALS_ROOT = path.join(REPO_ROOT, ".farplane", "evals");
 const FRAMEWORK_EVALS_ROOT = path.join(FARPLANE_FRAMEWORK_ROOT, ".farplane", "evals");
-const FARPLANE_BACKFILL_ROOT =
-  process.env.FARPLANE_BACKFILL_ROOT || path.join(REPO_ROOT, ".farplane", "backfill");
+const FARPLANE_MINE_ROOT =
+  process.env.FARPLANE_MINE_ROOT || path.join(REPO_ROOT, ".farplane", "mine");
 const MAX_SKILL_EVAL_QUERY_LENGTH = 160;
 const FARPLANE_EVALS_ROOT = resolveEvalArtifactsRoot({
   envRoot: process.env.FARPLANE_EVALS_ROOT,
@@ -3707,967 +3708,13 @@ async function readEvalRunsForSkill(skillId: string): Promise<JsonObject[]> {
   return rows;
 }
 
-type BackfillProgram = {
-  id: string;
-  name: string;
-  version: string;
-  objective: string;
-  outputMode: "markdown-json" | "json" | "markdown";
-  prompt: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type BackfillThreadSource = {
-  id: string;
-  sessionId?: string;
-  name: string;
-  preview: string;
-  cwd?: string;
-  updatedAt?: number;
-  sourceKind?: string;
-};
-
-type BackfillRunIndexEntry = {
-  runId: string;
-  programId: string;
-  programVersion: string;
-  label: string;
-  mode?: "dry-run" | "worker";
-  status: "queued" | "running" | "complete" | "failed";
-  createdAt: string;
-  completedAt?: string;
-  sourceCount: number;
-  outputCount: number;
-  reviewedCount: number;
-  promotedCount: number;
-  rejectedCount: number;
-  privacyIssueCount?: number;
-  duplicateCount?: number;
-  rejectedSourceCount?: number;
-};
-
-const DEFAULT_BACKFILL_PROGRAMS: BackfillProgram[] = [
-  {
-    id: "decision-v1",
-    name: "Decision extractor",
-    version: "1.1.0",
-    objective: "Extract key product, architecture, and workflow decisions from a Codex thread.",
-    outputMode: "markdown-json",
-    prompt:
-      "Read the source Codex thread and return only a JSON array of decision objects. Each object must use this minimal schema: { title: string, problem: string, options: string[], recommendation: string, ticketId?: string, sessionId: string, decisionKind: \"product\"|\"architecture\"|\"workflow\"|\"implementation\", confidence: \"low\"|\"medium\"|\"high\" }. Exclude automation prompts, routing wrappers, and routine status chatter. If no real decision is present, return [].",
-    createdAt: "2026-06-28T00:00:00.000Z",
-    updatedAt: "2026-06-27T00:00:00.000Z",
-  },
-  {
-    id: "trajectory-v1",
-    name: "Trajectory miner",
-    version: "1.0.0",
-    objective: "Find high-value trajectories across a thread: intent, pivots, completed work, and next leverage.",
-    outputMode: "markdown-json",
-    prompt:
-      "Read the source Codex thread. Return a compact trajectory with original intent, pivots, final state, high-value artifacts, missed opportunities, and reusable follow-up actions.",
-    createdAt: "2026-06-28T00:00:00.000Z",
-    updatedAt: "2026-06-28T00:00:00.000Z",
-  },
-  {
-    id: "learning-v1",
-    name: "Learning miner",
-    version: "1.0.0",
-    objective: "Extract durable lessons, troubles, and prevention rules from old work.",
-    outputMode: "markdown-json",
-    prompt:
-      "Read the source Codex thread. Return lessons, repeated troubles, corrected assumptions, prevention rules, and candidate docs or skills that should receive the learning.",
-    createdAt: "2026-06-28T00:00:00.000Z",
-    updatedAt: "2026-06-28T00:00:00.000Z",
-  },
-];
-
-function isSafeBackfillId(value: string): boolean {
-  return /^[A-Za-z0-9._-]+$/.test(value) && !value.includes("..");
-}
-
-function safeBackfillId(value: string, fallback: string): string {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 96);
-  return normalized && isSafeBackfillId(normalized) ? normalized : fallback;
-}
-
-async function writeJsonFile(filePath: string, payload: unknown): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
-}
-
-function normalizeBackfillProgram(value: unknown): BackfillProgram | null {
-  if (!value || typeof value !== "object") return null;
-  const row = value as JsonObject;
-  const id = safeBackfillId(String(row.id ?? ""), "");
-  const name = String(row.name ?? "").trim();
-  const prompt = String(row.prompt ?? "").trim();
-  if (!id || !name || !prompt) return null;
-  const now = new Date().toISOString();
-  const outputMode = String(row.outputMode ?? row.output_mode ?? "markdown-json");
-  return {
-    id,
-    name,
-    version: String(row.version ?? "1.0.0").trim() || "1.0.0",
-    objective: String(row.objective ?? "").trim() || "Mine useful outputs from a Codex thread.",
-    outputMode:
-      outputMode === "json" || outputMode === "markdown"
-        ? outputMode
-        : "markdown-json",
-    prompt,
-    createdAt: typeof row.createdAt === "string" ? row.createdAt : now,
-    updatedAt: typeof row.updatedAt === "string" ? row.updatedAt : now,
-  };
-}
-
-async function ensureBackfillProgramDefaults(): Promise<void> {
-  const indexPath = path.join(FARPLANE_BACKFILL_ROOT, "programs", "index.json");
-  if (await pathExists(indexPath)) return;
-  await Promise.all(
-    DEFAULT_BACKFILL_PROGRAMS.map((program) =>
-      writeJsonFile(
-        path.join(FARPLANE_BACKFILL_ROOT, "programs", program.id, "program.json"),
-        program,
-      ),
-    ),
-  );
-  await writeJsonFile(indexPath, DEFAULT_BACKFILL_PROGRAMS.map((program) => program.id));
-}
-
-async function readBackfillPrograms(): Promise<BackfillProgram[]> {
-  await ensureBackfillProgramDefaults();
-  const indexPath = path.join(FARPLANE_BACKFILL_ROOT, "programs", "index.json");
-  const raw = await readJsonFile<unknown>(indexPath, []);
-  const ids = Array.isArray(raw)
-    ? raw.map((entry) => String(entry ?? "").trim())
-    : raw && typeof raw === "object" && Array.isArray((raw as JsonObject).programs)
-      ? ((raw as JsonObject).programs as unknown[]).map((entry) => String(entry ?? "").trim())
-      : [];
-  const programs: BackfillProgram[] = [];
-  for (const id of ids) {
-    if (!isSafeBackfillId(id)) continue;
-    const program = normalizeBackfillProgram(
-      await readJsonFile<unknown>(
-        path.join(FARPLANE_BACKFILL_ROOT, "programs", id, "program.json"),
-        null,
-      ),
-    );
-    if (program) programs.push(program);
-  }
-  return programs.sort((left, right) => left.name.localeCompare(right.name));
-}
-
-async function saveBackfillProgram(input: unknown): Promise<BackfillProgram[]> {
-  const program = normalizeBackfillProgram({
-    ...(input && typeof input === "object" ? (input as JsonObject) : {}),
-    updatedAt: new Date().toISOString(),
-  });
-  if (!program) throw new Error("backfill_program_invalid");
-  const existing = await readBackfillPrograms();
-  const createdAt = existing.find((row) => row.id === program.id)?.createdAt ?? program.createdAt;
-  const nextProgram = { ...program, createdAt };
-  await writeJsonFile(
-    path.join(FARPLANE_BACKFILL_ROOT, "programs", nextProgram.id, "program.json"),
-    nextProgram,
-  );
-  const ids = [...new Set([nextProgram.id, ...existing.map((row) => row.id)])].sort();
-  await writeJsonFile(path.join(FARPLANE_BACKFILL_ROOT, "programs", "index.json"), ids);
-  return readBackfillPrograms();
-}
-
-function normalizeBackfillThreadSource(value: unknown): BackfillThreadSource | null {
-  if (!value || typeof value !== "object") return null;
-  const row = value as JsonObject;
-  const id = String(row.id ?? row.threadId ?? row.sessionId ?? "").trim();
-  if (!id) return null;
-  const source = row.source && typeof row.source === "object" ? (row.source as JsonObject) : {};
-  const name = String(row.name ?? row.title ?? row.preview ?? id).trim();
-  const preview = String(row.preview ?? row.summary ?? name).replace(/\s+/g, " ").trim();
-  const rawUpdatedAt = typeof row.updatedAt === "number" ? row.updatedAt : Number(row.updatedAt ?? 0);
-  const updatedAt = Number.isFinite(rawUpdatedAt)
-    ? rawUpdatedAt > 1_000_000_000_000
-      ? Math.floor(rawUpdatedAt / 1000)
-      : rawUpdatedAt
-    : undefined;
-  return {
-    id,
-    sessionId: typeof row.sessionId === "string" ? row.sessionId : undefined,
-    name: name || `Codex thread ${id.slice(0, 8)}`,
-    preview: preview || `Codex thread ${id}`,
-    cwd: typeof row.cwd === "string" ? row.cwd : undefined,
-    updatedAt,
-    sourceKind: typeof source.kind === "string" ? source.kind : undefined,
-  };
-}
-
-async function readBackfillThreadSources(input: {
-  limit: number;
-  lastDays?: number;
-}): Promise<BackfillThreadSource[]> {
-  let result: unknown = null;
-  try {
-    result = await requestCodexAppServerRpc("thread/list", { limit: input.limit });
-  } catch {
-    result = { data: await readFilesystemObservedCodexThreadsForUiState(input.limit) };
-  }
-  const merged = await mergeCodexThreadListWithFilesystem(result, input.limit);
-  const rows = Array.isArray(merged.data)
-    ? merged.data
-        .map(normalizeBackfillThreadSource)
-        .filter((row): row is BackfillThreadSource => Boolean(row))
-    : [];
-  const lastDays = typeof input.lastDays === "number" && input.lastDays > 0 ? input.lastDays : 0;
-  const cutoff = lastDays ? Math.floor(Date.now() / 1000) - lastDays * 86_400 : 0;
-  const sortedRows = rows
-    .filter((row) => !cutoff || !row.updatedAt || row.updatedAt >= cutoff)
-    .sort((left, right) => Number(right.updatedAt ?? 0) - Number(left.updatedAt ?? 0));
-  const uniqueRows: BackfillThreadSource[] = [];
-  const seenIds = new Set<string>();
-  for (const row of sortedRows) {
-    if (seenIds.has(row.id)) continue;
-    seenIds.add(row.id);
-    uniqueRows.push(row);
-  }
-  return uniqueRows.slice(0, input.limit);
-}
-
-function normalizeBackfillRunIndexEntry(value: unknown): BackfillRunIndexEntry | null {
-  if (!value || typeof value !== "object") return null;
-  const row = value as JsonObject;
-  const runId = String(row.runId ?? row.run_id ?? "").trim();
-  const programId = String(row.programId ?? row.program_id ?? "").trim();
-  if (!runId || !programId) return null;
-  const status = String(row.status ?? "queued");
-  return {
-    runId,
-    programId,
-    programVersion: String(row.programVersion ?? row.program_version ?? "1.0.0"),
-    label: String(row.label ?? runId),
-    mode: row.mode === "worker" ? "worker" : "dry-run",
-    status:
-      status === "running" || status === "complete" || status === "failed"
-        ? status
-        : "queued",
-    createdAt: typeof row.createdAt === "string" ? row.createdAt : new Date().toISOString(),
-    completedAt: typeof row.completedAt === "string" ? row.completedAt : undefined,
-    sourceCount: Number(row.sourceCount ?? row.source_count ?? 0),
-    outputCount: Number(row.outputCount ?? row.output_count ?? 0),
-    reviewedCount: Number(row.reviewedCount ?? row.reviewed_count ?? 0),
-    promotedCount: Number(row.promotedCount ?? row.promoted_count ?? 0),
-    rejectedCount: Number(row.rejectedCount ?? row.rejected_count ?? 0),
-    privacyIssueCount: Number(row.privacyIssueCount ?? row.privacy_issue_count ?? 0),
-    duplicateCount: Number(row.duplicateCount ?? row.duplicate_count ?? 0),
-    rejectedSourceCount: Number(row.rejectedSourceCount ?? row.rejected_source_count ?? 0),
-  };
-}
-
-function sortBackfillRunIndex(entries: BackfillRunIndexEntry[]): BackfillRunIndexEntry[] {
-  return [...entries].sort((left, right) => {
-    const leftTime = Date.parse(left.createdAt);
-    const rightTime = Date.parse(right.createdAt);
-    return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
-  });
-}
-
-async function readBackfillRunIndex(): Promise<BackfillRunIndexEntry[]> {
-  const raw = await readJsonFile<unknown>(
-    path.join(FARPLANE_BACKFILL_ROOT, "jobs", "index.json"),
-    [],
-  );
-  const rawEntries = Array.isArray(raw)
-    ? raw
-    : raw && typeof raw === "object" && Array.isArray((raw as JsonObject).runs)
-      ? ((raw as JsonObject).runs as unknown[])
-      : [];
-  return sortBackfillRunIndex(
-    rawEntries
-      .map(normalizeBackfillRunIndexEntry)
-      .filter((entry): entry is BackfillRunIndexEntry => Boolean(entry)),
-  );
-}
-
-async function writeBackfillRunIndex(entry: BackfillRunIndexEntry): Promise<void> {
-  const current = await readBackfillRunIndex();
-  await writeJsonFile(
-    path.join(FARPLANE_BACKFILL_ROOT, "jobs", "index.json"),
-    sortBackfillRunIndex([entry, ...current.filter((row) => row.runId !== entry.runId)]),
-  );
-}
-
-function buildBackfillParentPrompt(input: {
-  program: BackfillProgram;
-  runId: string;
-  runRoot: string;
-  sources: BackfillThreadSource[];
-  mode: "dry-run" | "worker";
-}): string {
-  const sourceLines = input.sources
-    .map((source, index) => `${index + 1}. ${source.id} (${source.sessionId ?? "no-session"}) - ${source.name}`)
-    .join("\n");
-  return [
-    `# Backfill Job ${input.runId}`,
-    "",
-    `Program: ${input.program.id} v${input.program.version}`,
-    `Objective: ${input.program.objective}`,
-    `Mode: ${input.mode}`,
-    `Run root: ${input.runRoot}`,
-    "",
-    "For each source thread, spawn or assign one worker. Each worker must read the thread transcript/session, run the program prompt, and write:",
-    "- `outputs/<thread-id>/output.md`",
-    "- `outputs/<thread-id>/output.json`",
-    "",
-    "Each output must include source session id, thread id, program id/version, run id, redaction status, extracted findings, and evidence spans.",
-    "",
-    "## Program Prompt",
-    input.program.prompt,
-    "",
-    "## Sources",
-    sourceLines || "No sources selected.",
-    "",
-  ].join("\n");
-}
-
-function buildBackfillReport(input: {
-  entry: BackfillRunIndexEntry;
-  program: BackfillProgram | null;
-}): string {
-  const entry = input.entry;
-  return [
-    `# ${entry.label}`,
-    "",
-    `Status: ${entry.status}`,
-    `Mode: ${entry.mode ?? "dry-run"}`,
-    `Created: ${entry.createdAt}`,
-    `Completed: ${entry.completedAt ?? "n/a"}`,
-    `Program: ${entry.programId} v${entry.programVersion}`,
-    "",
-    "## Counts",
-    `- Sources: ${entry.sourceCount}`,
-    `- Outputs: ${entry.outputCount}`,
-    `- Reviewed: ${entry.reviewedCount}`,
-    `- Promoted: ${entry.promotedCount}`,
-    `- Rejected: ${entry.rejectedCount}`,
-    `- Rejected sources: ${entry.rejectedSourceCount ?? 0}`,
-    `- Privacy issues: ${entry.privacyIssueCount ?? 0}`,
-    `- Duplicates: ${entry.duplicateCount ?? 0}`,
-    "",
-    "## Provenance",
-    "Each output.json includes evidenceSpans with sourcePath and jsonPointer fields. User signals and AI reconstructions are separated in findings.",
-    "",
-    "## Review Gate",
-    "Outputs start as unreviewed. Promotion requires an explicit reviewer verdict from the UI.",
-    "",
-    input.program
-      ? `## Program Objective\n${input.program.objective}\n`
-      : "",
-  ].join("\n");
-}
-
-type BackfillEvidenceSpan = {
-  id: string;
-  sourcePath: string;
-  jsonPointer: string;
-  role: "user" | "assistant" | "summary" | "unknown";
-  capturedAt?: string;
-  text: string;
-};
-
-function inferTicketIdFromBackfillSpans(spans: BackfillEvidenceSpan[]): string | undefined {
-  for (const span of spans) {
-    const match = span.text.match(/\bTASK-\d{4}\b/i);
-    if (match) return match[0].toUpperCase();
-  }
-  return undefined;
-}
-
-function inferDecisionKindFromText(text: string): string {
-  const normalized = text.toLowerCase();
-  if (/\b(ui|tab|panel|dashboard|frontend|screen|view)\b/.test(normalized)) return "product";
-  if (/\b(hook|telemetry|projection|schema|service|api|storage|convex)\b/.test(normalized)) {
-    return "architecture";
-  }
-  if (/\b(ticket|workflow|process|review|qa|goal|backfill)\b/.test(normalized)) return "workflow";
-  return "implementation";
-}
-
-function decisionCandidateFromSpans(spans: BackfillEvidenceSpan[]): string | undefined {
-  return spans
-    .filter((span) => span.role === "user")
-    .map((span) => span.text)
-    .find((text) => {
-      if (/^# Telegram Message\b/i.test(text)) return false;
-      if (/^Automation:/i.test(text)) return false;
-      if (/^<codex_delegation>/i.test(text)) return false;
-      if (/\b(what is your name|answer normally|response routing|try again)\b/i.test(text)) {
-        return false;
-      }
-      return /\b(should|use|build|remove|split|keep|make|create|implement|deprecate|promote|publish|store|project|projection)\b/i.test(
-        text,
-      ) || /\blet'?s\s+(use|build|remove|split|keep|make|create|implement|deprecate|promote|publish|store|project)\b/i.test(text);
-    });
-}
-
-function clipDecisionField(value: string | undefined, max = 320): string {
-  const text = (value ?? "").replace(/\s+/g, " ").trim();
-  if (!text) return "";
-  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}...` : text;
-}
-
-function titleFromDecisionText(value: string): string {
-  const text = clipDecisionField(value, 96)
-    .replace(/^okay\s+/i, "")
-    .replace(/^please\s+/i, "")
-    .trim();
-  if (!text) return "Decision";
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-function extractDecisionOptions(spans: BackfillEvidenceSpan[]): string[] {
-  const assistantText = spans
-    .filter((span) => span.role === "assistant")
-    .map((span) => span.text)
-    .join("\n");
-  if (!assistantText) return [];
-  return assistantText
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => /^([-*]|\d+[.)])\s+/.test(line))
-    .map((line) => clipDecisionField(line.replace(/^([-*]|\d+[.)])\s+/, ""), 220))
-    .filter(Boolean)
-    .slice(0, 5);
-}
-
-function problemFromDecisionSource(source: BackfillThreadSource, spans: BackfillEvidenceSpan[]): string {
-  const firstUser = spans.find((span) => span.role === "user")?.text;
-  return clipDecisionField(firstUser || source.preview || source.name, 260);
-}
-
-function recommendationFromDecisionSource(spans: BackfillEvidenceSpan[]): string {
-  const assistantText = spans.find((span) => span.role === "assistant")?.text ?? "";
-  const recommendationMatch = assistantText.match(/recommendation\s*:\s*([^\n]+)/i);
-  return clipDecisionField(recommendationMatch?.[1] ?? decisionCandidateFromSpans(spans), 320);
-}
-
-function buildBackfillTelemetryEvents(input: {
-  outputId: string;
-  program: BackfillProgram;
-  runId: string;
-  source: BackfillThreadSource;
-  spans: BackfillEvidenceSpan[];
-  summary: string;
-}): JsonObject[] {
-  if (input.program.id === "decision-v1" && !decisionCandidateFromSpans(input.spans)) {
-    return [];
-  }
-  const ticketId = inferTicketIdFromBackfillSpans(input.spans);
-  const sessionId = input.source.sessionId ?? input.source.id;
-  const eventAt = new Date(
-    Number(input.source.updatedAt ?? 0) > 0 ? Number(input.source.updatedAt) * 1000 : Date.now(),
-  ).toISOString();
-  const decisionSummary = clipDecisionField(decisionCandidateFromSpans(input.spans), 180);
-  return [
-    {
-      schemaVersion: 1,
-      eventName: "decision.observed",
-      eventAt,
-      eventKey: `chat-history-mining:v1:decision.observed:${input.runId}:${input.outputId}`,
-      source: "chat_history_mining",
-      sourceProgram: input.program.id,
-      status: "observed",
-      severity: "medium",
-      ticketId,
-      sessionId,
-      threadId: input.source.id,
-      cwd: input.source.cwd,
-      decisionKind: inferDecisionKindFromText(
-        `${input.program.objective} ${input.source.name} ${input.source.preview}`,
-      ),
-      summary: decisionSummary || input.summary,
-      reviewRunPath: `.farplane/backfill/jobs/${input.runId}/outputs/${input.outputId}/output.json`,
-      evidenceSpanIds: input.spans.map((span) => span.id),
-    },
-  ];
-}
-
-function buildDecisionRows(input: {
-  program: BackfillProgram;
-  runId: string;
-  source: BackfillThreadSource;
-  spans: BackfillEvidenceSpan[];
-}): JsonObject[] {
-  const userSignals = input.spans.filter((span) => span.role === "user");
-  const ticketId = inferTicketIdFromBackfillSpans(input.spans);
-  const decisionText = decisionCandidateFromSpans(input.spans);
-  if (!decisionText) return [];
-  return [
-    {
-      title: titleFromDecisionText(decisionText),
-      problem: problemFromDecisionSource(input.source, input.spans),
-      options: extractDecisionOptions(input.spans),
-      recommendation: recommendationFromDecisionSource(input.spans) || clipDecisionField(decisionText),
-      ticketId,
-      sessionId: input.source.sessionId ?? input.source.id,
-      decisionKind: inferDecisionKindFromText(
-        `${input.program.objective} ${input.source.name} ${input.source.preview}`,
-      ),
-      confidence: userSignals.length ? "medium" : "low",
-    },
-  ];
-}
-
-function sourceMessageWindowPath(source: BackfillThreadSource): string | null {
-  if (!source.cwd || source.sourceKind !== "farplane-message-window") return null;
-  return path.join(source.cwd, ".farplane", "state", "message-windows", `${source.id}.json`);
-}
-
-function clippedEvidenceText(value: unknown, max = 520): string {
-  if (typeof value !== "string") return "";
-  const text = value.replace(/\s+/g, " ").trim();
-  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}...` : text;
-}
-
-function pushEvidenceSpan(
-  spans: BackfillEvidenceSpan[],
-  input: {
-    capturedAt?: unknown;
-    jsonPointer: string;
-    role: BackfillEvidenceSpan["role"];
-    sourcePath: string;
-    text: unknown;
-  },
-): void {
-  const text = clippedEvidenceText(input.text);
-  if (!text) return;
-  spans.push({
-    id: `span-${spans.length + 1}`,
-    sourcePath: input.sourcePath,
-    jsonPointer: input.jsonPointer,
-    role: input.role,
-    capturedAt: typeof input.capturedAt === "string" ? input.capturedAt : undefined,
-    text,
-  });
-}
-
-async function readBackfillEvidenceSpans(source: BackfillThreadSource): Promise<BackfillEvidenceSpan[]> {
-  const sourcePath = sourceMessageWindowPath(source);
-  if (!sourcePath || !(await pathExists(sourcePath))) {
-    return [
-      {
-        id: "span-1",
-        sourcePath: source.cwd ?? "codex-thread-list",
-        jsonPointer: "/preview",
-        role: "summary",
-        text: source.preview,
-      },
-    ];
-  }
-  const summary = await readJsonFile<JsonObject>(sourcePath, {});
-  const spans: BackfillEvidenceSpan[] = [];
-  const pending =
-    summary.pending_user_turn && typeof summary.pending_user_turn === "object"
-      ? (summary.pending_user_turn as JsonObject)
-      : {};
-  pushEvidenceSpan(spans, {
-    capturedAt: pending.user_captured_at,
-    jsonPointer: "/pending_user_turn/user_text",
-    role: "user",
-    sourcePath,
-    text: pending.user_text,
-  });
-  const exchanges = Array.isArray(summary.rolling_exchanges) ? summary.rolling_exchanges : [];
-  exchanges.slice(-4).forEach((entry, index) => {
-    if (!entry || typeof entry !== "object") return;
-    const row = entry as JsonObject;
-    const exchangeIndex = Math.max(0, exchanges.length - 4) + index;
-    pushEvidenceSpan(spans, {
-      capturedAt: row.user_captured_at,
-      jsonPointer: `/rolling_exchanges/${exchangeIndex}/user_text`,
-      role: "user",
-      sourcePath,
-      text: row.user_text,
-    });
-    pushEvidenceSpan(spans, {
-      capturedAt: row.assistant_captured_at,
-      jsonPointer: `/rolling_exchanges/${exchangeIndex}/assistant_text`,
-      role: "assistant",
-      sourcePath,
-      text: row.assistant_text,
-    });
-  });
-  if (!spans.length) {
-    pushEvidenceSpan(spans, {
-      jsonPointer: "/preview",
-      role: "summary",
-      sourcePath,
-      text: source.preview,
-    });
-  }
-  return spans.slice(0, 6);
-}
-
-function redactionFlagsForText(text: string): string[] {
-  const flags: string[] = [];
-  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(text)) flags.push("email");
-  if (/\/Users\/[A-Za-z0-9._-]+/.test(text)) flags.push("local-user-path");
-  if (/(api[_-]?key|secret|token|password)\s*[:=]/i.test(text)) flags.push("secret-like-token");
-  return flags;
-}
-
-function buildRedactionReport(input: {
-  spans: BackfillEvidenceSpan[];
-  source: BackfillThreadSource;
-}): { flags: string[]; markdown: string; status: "clean" | "needs_review" } {
-  const flags = Array.from(
-    new Set(input.spans.flatMap((span) => redactionFlagsForText(span.text))),
-  );
-  const status = flags.length ? "needs_review" : "clean";
-  const markdown = [
-    `# Redaction Report: ${input.source.name}`,
-    "",
-    `Status: ${status}`,
-    `Flags: ${flags.length ? flags.join(", ") : "none"}`,
-    `Source thread: ${input.source.id}`,
-    "",
-    "## Scanned Source Spans",
-    ...input.spans.map(
-      (span) => `- ${span.id}: ${span.sourcePath}${span.jsonPointer} (${span.role})`,
-    ),
-    "",
-  ].join("\n");
-  return { flags, markdown, status };
-}
-
-async function buildDryRunOutput(input: {
-  outputId: string;
-  program: BackfillProgram;
-  runId: string;
-  source: BackfillThreadSource;
-}): Promise<{ json: JsonObject; markdown: string; redaction: { flags: string[]; markdown: string; status: "clean" | "needs_review" } }> {
-  const spans = await readBackfillEvidenceSpans(input.source);
-  const redaction = buildRedactionReport({ source: input.source, spans });
-  const userSignals = spans.filter((span) => span.role === "user").slice(0, 3);
-  const reconstructionSpans = spans.filter((span) => span.role === "assistant").slice(0, 2);
-  const summary = `${input.program.name} dry-run mined ${input.source.name} from ${spans.length} cited source span${spans.length === 1 ? "" : "s"}.`;
-  const telemetryEvents = buildBackfillTelemetryEvents({
-    outputId: input.outputId,
-    program: input.program,
-    runId: input.runId,
-    source: input.source,
-    spans,
-    summary,
-  });
-  const decisions =
-    input.program.id === "decision-v1"
-      ? buildDecisionRows({
-          program: input.program,
-          runId: input.runId,
-          source: input.source,
-          spans,
-        })
-      : [];
-  const json: JsonObject = {
-    runId: input.runId,
-    programId: input.program.id,
-    programVersion: input.program.version,
-    mode: "dry-run",
-    sessionId: input.source.sessionId ?? input.source.id,
-    threadId: input.source.id,
-    ticketId: inferTicketIdFromBackfillSpans(spans),
-    sourceTitle: input.source.name,
-    status: "complete",
-    verdict: "unreviewed",
-    redactionStatus: redaction.status,
-    summary,
-    decisions,
-    findings: [
-      {
-        type: "dry-run-mined-signal",
-        signalType: "user_signal",
-        title: userSignals[0]?.text.slice(0, 96) || input.program.objective,
-        body: userSignals.map((span) => span.text).join("\n\n") || input.source.preview,
-        evidenceSpanIds: userSignals.map((span) => span.id),
-        confidence: userSignals.length ? "medium" : "low",
-      },
-      {
-        type: "dry-run-ai-reconstruction",
-        signalType: "ai_reconstruction",
-        title: "Assistant-side reconstruction",
-        body: reconstructionSpans.map((span) => span.text).join("\n\n") || "No assistant reconstruction span available.",
-        evidenceSpanIds: reconstructionSpans.map((span) => span.id),
-        confidence: reconstructionSpans.length ? "medium" : "low",
-      },
-    ],
-    evidenceSpans: spans,
-    telemetryEvents,
-  };
-  const markdown =
-    input.program.id === "decision-v1"
-      ? [
-          `# Decisions: ${input.source.name}`,
-          "",
-          `Run: ${input.runId}`,
-          `Session: ${input.source.sessionId ?? input.source.id}`,
-          `Thread: ${input.source.id}`,
-          `Ticket: ${inferTicketIdFromBackfillSpans(spans) ?? "unknown"}`,
-          `Redaction: ${redaction.status}`,
-          "",
-          ...(decisions.length
-            ? decisions.flatMap((decision, index) => [
-                `## Decision ${index + 1}`,
-                "",
-                `- Kind: ${String(decision.decisionKind ?? "unknown")}`,
-                `- Confidence: ${String(decision.confidence ?? "low")}`,
-                "",
-                "### Title",
-                String(decision.title ?? ""),
-                "",
-                "### Problem",
-                String(decision.problem ?? ""),
-                "",
-                "### Options",
-                ...((decision.options as string[] | undefined)?.length
-                  ? (decision.options as string[]).map((option) => `- ${option}`)
-                  : ["- none extracted"]),
-                "",
-                "### Recommendation",
-                String(decision.recommendation ?? ""),
-                "",
-              ])
-            : [
-                "## Decisions",
-                "",
-                "No decisions extracted from this bounded source window.",
-                "",
-              ]),
-          "## JSON Contract",
-          "`output.json.decisions` is the canonical decision array for this program.",
-          "",
-          "## Redaction",
-          `See redaction.md. Flags: ${redaction.flags.length ? redaction.flags.join(", ") : "none"}.`,
-          "",
-        ].join("\n")
-      : [
-          `# ${input.source.name}`,
-          "",
-          `Program: ${input.program.id} v${input.program.version}`,
-          `Run: ${input.runId}`,
-          `Session: ${input.source.sessionId ?? input.source.id}`,
-          `Thread: ${input.source.id}`,
-          "Mode: dry-run",
-          "Verdict: unreviewed",
-          `Redaction: ${redaction.status}`,
-          "",
-          "## Summary",
-          summary,
-          "",
-          "## User Signal",
-          userSignals.map((span) => `- ${span.id}: ${span.text}`).join("\n") || `- ${input.source.preview}`,
-          "",
-          "## AI Reconstruction",
-          reconstructionSpans.map((span) => `- ${span.id}: ${span.text}`).join("\n") || "- No assistant reconstruction span available.",
-          "",
-          "## Evidence Spans",
-          ...spans.map(
-            (span) =>
-              `- ${span.id}: ${span.sourcePath}${span.jsonPointer} (${span.role}${span.capturedAt ? `, ${span.capturedAt}` : ""})`,
-          ),
-          "",
-          "## Telemetry Projection",
-          ...telemetryEvents.map(
-            (event) =>
-              `- ${String(event.eventName)}: ${String(event.summary)} (${String(event.source)}, ${String(event.sourceProgram)})`,
-          ),
-          "",
-          "## Redaction",
-          `See redaction.md. Flags: ${redaction.flags.length ? redaction.flags.join(", ") : "none"}.`,
-          "",
-        ].join("\n");
-  return { markdown, json, redaction };
-}
-
-async function createBackfillRun(input: unknown): Promise<JsonObject> {
-  const body = input && typeof input === "object" ? (input as JsonObject) : {};
-  const programId = safeBackfillId(String(body.programId ?? body.program_id ?? ""), "");
-  const programs = await readBackfillPrograms();
-  const program = programs.find((row) => row.id === programId);
-  if (!program) throw new Error("backfill_program_not_found");
-  const filters = body.filters && typeof body.filters === "object" ? (body.filters as JsonObject) : {};
-  const mode = body.mode === "worker" ? "worker" : "dry-run";
-  const limit = Math.min(Math.max(Math.floor(Number(filters.limit ?? 20) || 20), 1), 200);
-  const lastDays = Math.max(Math.floor(Number(filters.lastDays ?? 30) || 30), 0);
-  const requestedIds = new Set(normalizeStringList(body.threadIds));
-  const candidates = await readBackfillThreadSources({ limit: Math.max(limit, requestedIds.size, 20), lastDays });
-  const sources = requestedIds.size
-    ? candidates.filter((source) => requestedIds.has(source.id))
-    : candidates.slice(0, limit);
-  if (!sources.length) throw new Error("backfill_sources_empty");
-  const createdAt = new Date().toISOString();
-  const runId = `backfill-${Date.now().toString(36)}`;
-  const runRoot = path.join(FARPLANE_BACKFILL_ROOT, "jobs", runId);
-  const parentPrompt = buildBackfillParentPrompt({ mode, program, runId, runRoot, sources });
-  const outputs = [];
-  let privacyIssueCount = 0;
-  for (const source of sources) {
-    const outputId = safeBackfillId(source.id, `thread-${outputs.length + 1}`);
-    const outputRoot = path.join(runRoot, "outputs", outputId);
-    const output = await buildDryRunOutput({ outputId, program, runId, source });
-    if (output.redaction.status !== "clean") privacyIssueCount += 1;
-    await mkdir(outputRoot, { recursive: true });
-    await writeFile(path.join(outputRoot, "output.md"), output.markdown, "utf-8");
-    await writeJsonFile(path.join(outputRoot, "output.json"), output.json);
-    const decisionsJsonPath =
-      program.id === "decision-v1" ? path.join(outputRoot, "decisions.json") : undefined;
-    if (decisionsJsonPath) {
-      await writeJsonFile(decisionsJsonPath, output.json.decisions ?? []);
-    }
-    await writeFile(path.join(outputRoot, "redaction.md"), output.redaction.markdown, "utf-8");
-    outputs.push({
-      id: outputId,
-      ...output.json,
-      outputMarkdownPath: path.join(outputRoot, "output.md"),
-      outputJsonPath: path.join(outputRoot, "output.json"),
-      decisionsJsonPath,
-      redactionMarkdownPath: path.join(outputRoot, "redaction.md"),
-    });
-  }
-  const completedAt = new Date().toISOString();
-  const entry: BackfillRunIndexEntry = {
-    runId,
-    programId: program.id,
-    programVersion: program.version,
-    label: `${program.name} (${sources.length} thread${sources.length === 1 ? "" : "s"})`,
-    mode,
-    status: "complete",
-    createdAt,
-    completedAt,
-    sourceCount: sources.length,
-    outputCount: outputs.length,
-    reviewedCount: 0,
-    promotedCount: 0,
-    rejectedCount: 0,
-    privacyIssueCount,
-    duplicateCount: 0,
-    rejectedSourceCount: 0,
-  };
-  const reportMarkdown = buildBackfillReport({ entry, program });
-  await writeJsonFile(path.join(runRoot, "job.json"), {
-    ...entry,
-    root: runRoot,
-    reportPath: path.join(runRoot, "report.md"),
-    promptPath: path.join(runRoot, "parent-prompt.md"),
-  });
-  await writeJsonFile(path.join(runRoot, "sources.json"), sources);
-  await writeJsonFile(path.join(runRoot, "outputs", "index.json"), outputs);
-  await writeFile(path.join(runRoot, "parent-prompt.md"), parentPrompt, "utf-8");
-  await writeFile(path.join(runRoot, "report.md"), reportMarkdown, "utf-8");
-  await writeBackfillRunIndex(entry);
-  return readBackfillRun(runId);
-}
-
-async function readBackfillRun(runId: string): Promise<JsonObject | null> {
-  if (!isSafeBackfillId(runId)) return null;
-  const runRoot = path.join(FARPLANE_BACKFILL_ROOT, "jobs", runId);
-  const job = normalizeBackfillRunIndexEntry(
-    await readJsonFile<unknown>(path.join(runRoot, "job.json"), null),
-  );
-  if (!job) return null;
-  const programs = await readBackfillPrograms();
-  const sources = await readJsonFile<BackfillThreadSource[]>(path.join(runRoot, "sources.json"), []);
-  const outputIndex = await readJsonFile<JsonObject[]>(path.join(runRoot, "outputs", "index.json"), []);
-  const outputs = [];
-  for (const output of outputIndex) {
-    const outputId = String(output.id ?? output.threadId ?? "").trim();
-    if (!outputId || !isSafeBackfillId(outputId)) continue;
-    const outputRoot = path.join(runRoot, "outputs", outputId);
-    outputs.push({
-      ...output,
-      outputMarkdown: await readFile(path.join(outputRoot, "output.md"), "utf-8").catch(() => ""),
-      outputJson: await readJsonFile<unknown>(path.join(outputRoot, "output.json"), null),
-      outputDecisions: await readJsonFile<unknown>(path.join(outputRoot, "decisions.json"), null),
-      redactionMarkdown: await readFile(path.join(outputRoot, "redaction.md"), "utf-8").catch(() => ""),
-    });
-  }
-  return {
-    run: {
-      ...job,
-      root: runRoot,
-      reportPath: path.join(runRoot, "report.md"),
-      promptPath: path.join(runRoot, "parent-prompt.md"),
-    },
-    program: programs.find((program) => program.id === job.programId) ?? null,
-    sources,
-    outputs,
-    reportMarkdown: await readFile(path.join(runRoot, "report.md"), "utf-8").catch(() => ""),
-    parentPrompt: await readFile(path.join(runRoot, "parent-prompt.md"), "utf-8").catch(() => ""),
-  };
-}
-
-async function updateBackfillOutputVerdict(input: {
-  runId: string;
-  outputId: string;
-  verdict: "unreviewed" | "promoted" | "rejected";
-}): Promise<JsonObject | null> {
-  if (!isSafeBackfillId(input.runId) || !isSafeBackfillId(input.outputId)) return null;
-  const runRoot = path.join(FARPLANE_BACKFILL_ROOT, "jobs", input.runId);
-  const jobPath = path.join(runRoot, "job.json");
-  const jobRaw = await readJsonFile<JsonObject>(jobPath, {});
-  const job = normalizeBackfillRunIndexEntry(jobRaw);
-  if (!job) return null;
-  const outputIndexPath = path.join(runRoot, "outputs", "index.json");
-  const outputIndex = await readJsonFile<JsonObject[]>(outputIndexPath, []);
-  const targetOutput = outputIndex.find(
-    (output) => String(output.id ?? output.threadId ?? "").trim() === input.outputId,
-  );
-  if (!targetOutput) return null;
-  if (input.verdict === "promoted" && targetOutput.redactionStatus !== "clean") {
-    throw new Error("backfill_privacy_review_required");
-  }
-  const nextOutputs = outputIndex.map((output) => {
-    const outputId = String(output.id ?? output.threadId ?? "").trim();
-    return outputId === input.outputId ? { ...output, verdict: input.verdict } : output;
-  });
-  const outputJsonPath = path.join(runRoot, "outputs", input.outputId, "output.json");
-  const outputJson = await readJsonFile<JsonObject>(outputJsonPath, {});
-  await writeJsonFile(outputJsonPath, { ...outputJson, verdict: input.verdict });
-  await writeJsonFile(outputIndexPath, nextOutputs);
-  const reviewedCount = nextOutputs.filter((output) => String(output.verdict ?? "unreviewed") !== "unreviewed").length;
-  const promotedCount = nextOutputs.filter((output) => output.verdict === "promoted").length;
-  const rejectedCount = nextOutputs.filter((output) => output.verdict === "rejected").length;
-  const privacyIssueCount = nextOutputs.filter((output) => output.redactionStatus === "needs_review").length;
-  const nextJob: BackfillRunIndexEntry = {
-    ...job,
-    reviewedCount,
-    promotedCount,
-    rejectedCount,
-    privacyIssueCount,
-  };
-  const programs = await readBackfillPrograms();
-  await writeJsonFile(jobPath, {
-    ...jobRaw,
-    ...nextJob,
-    root: runRoot,
-    reportPath: path.join(runRoot, "report.md"),
-    promptPath: path.join(runRoot, "parent-prompt.md"),
-  });
-  await writeFile(
-    path.join(runRoot, "report.md"),
-    buildBackfillReport({
-      entry: nextJob,
-      program: programs.find((program) => program.id === nextJob.programId) ?? null,
-    }),
-    "utf-8",
-  );
-  await writeBackfillRunIndex(nextJob);
-  return readBackfillRun(input.runId);
-}
-
 function farplaneStateBridge() {
+  const miningApi = createMiningLocalApi({
+    mineRoot: FARPLANE_MINE_ROOT,
+    readFilesystemThreads: readFilesystemObservedCodexThreadsForUiState,
+    requestCodexThreads: (limit) => requestCodexAppServerRpc("thread/list", { limit }),
+  });
+
   return {
     name: "farplane-openclaw-state-bridge",
     configureServer(server: {
@@ -4930,16 +3977,16 @@ function farplaneStateBridge() {
           return;
         }
 
-        if (method === "GET" && pathname === "/farplane/backfill/programs") {
+        if (method === "GET" && pathname === "/farplane/mine/programs") {
           writeJson(res, 200, {
             ok: true,
-            backfillRoot: FARPLANE_BACKFILL_ROOT,
-            programs: await readBackfillPrograms(),
+            mineRoot: FARPLANE_MINE_ROOT,
+            programs: await miningApi.listPrograms(),
           });
           return;
         }
 
-        if (method === "POST" && pathname === "/farplane/backfill/programs") {
+        if (method === "POST" && pathname === "/farplane/mine/programs") {
           if (!hasBridgeWriteAccess(req)) {
             writeJson(res, 403, { ok: false, error: "forbidden", programs: [] });
             return;
@@ -4948,35 +3995,35 @@ function farplaneStateBridge() {
             const body = await readBody(req);
             writeJson(res, 200, {
               ok: true,
-              backfillRoot: FARPLANE_BACKFILL_ROOT,
-              programs: await saveBackfillProgram(body),
+              mineRoot: FARPLANE_MINE_ROOT,
+              programs: await miningApi.saveProgram(body),
             });
           } catch (error) {
             writeJson(res, 400, {
               ok: false,
-              error: error instanceof Error ? error.message : "backfill_program_save_failed",
+              error: error instanceof Error ? error.message : "mining_program_save_failed",
               programs: [],
             });
           }
           return;
         }
 
-        if (method === "GET" && pathname === "/farplane/backfill/threads") {
+        if (method === "GET" && pathname === "/farplane/mine/threads") {
           const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 80) || 80, 1), 500);
           const lastDays = Number(url.searchParams.get("lastDays") ?? 0) || undefined;
           writeJson(res, 200, {
             ok: true,
-            threads: await readBackfillThreadSources({ limit, lastDays }),
+            threads: await miningApi.listThreadSources({ limit, lastDays }),
           });
           return;
         }
 
-        if (method === "GET" && pathname === "/farplane/backfill/runs") {
-          const exists = await isDirectory(path.join(FARPLANE_BACKFILL_ROOT, "jobs"));
-          const runs = exists ? await readBackfillRunIndex() : [];
+        if (method === "GET" && pathname === "/farplane/mine/runs") {
+          const exists = await miningApi.runsExist();
+          const runs = exists ? await miningApi.listRuns() : [];
           writeJson(res, 200, {
             ok: true,
-            backfillRoot: FARPLANE_BACKFILL_ROOT,
+            mineRoot: FARPLANE_MINE_ROOT,
             exists,
             runs,
             latest: runs[0] ?? null,
@@ -4984,68 +4031,85 @@ function farplaneStateBridge() {
           return;
         }
 
-        if (method === "POST" && pathname === "/farplane/backfill/runs") {
+        if (method === "POST" && pathname === "/farplane/mine/runs") {
           if (!hasBridgeWriteAccess(req)) {
             writeJson(res, 403, { ok: false, error: "forbidden", detail: null });
             return;
           }
           try {
-            const detail = await createBackfillRun(await readBody(req));
+            const detail = await miningApi.createRun(await readBody(req));
             writeJson(res, 200, {
               ok: true,
-              backfillRoot: FARPLANE_BACKFILL_ROOT,
+              mineRoot: FARPLANE_MINE_ROOT,
               detail,
             });
           } catch (error) {
             writeJson(res, 400, {
               ok: false,
-              error: error instanceof Error ? error.message : "backfill_run_create_failed",
+              error: error instanceof Error ? error.message : "mining_run_create_failed",
               detail: null,
             });
           }
           return;
         }
 
-        const backfillRunMatch = pathname.match(/^\/farplane\/backfill\/runs\/([^/]+)$/);
-        if (method === "GET" && backfillRunMatch) {
-          const [, runId] = backfillRunMatch;
-          const detail = await readBackfillRun(runId);
+        const mineRunMatch = pathname.match(/^\/farplane\/mine\/runs\/([^/]+)$/);
+        if (method === "GET" && mineRunMatch) {
+          const [, runId] = mineRunMatch;
+          const detail = await miningApi.readRun(runId);
           writeJson(res, detail ? 200 : 404, {
             ok: Boolean(detail),
-            backfillRoot: FARPLANE_BACKFILL_ROOT,
+            mineRoot: FARPLANE_MINE_ROOT,
             detail,
-            error: detail ? undefined : "backfill_run_not_found",
+            error: detail ? undefined : "mining_run_not_found",
           });
           return;
         }
 
-        const backfillOutputVerdictMatch = pathname.match(
-          /^\/farplane\/backfill\/runs\/([^/]+)\/outputs\/([^/]+)\/verdict$/,
-        );
-        if (method === "POST" && backfillOutputVerdictMatch) {
+        const mineReplayMatch = pathname.match(/^\/farplane\/mine\/runs\/([^/]+)\/replay$/);
+        if (method === "POST" && mineReplayMatch) {
           if (!hasBridgeWriteAccess(req)) {
             writeJson(res, 403, { ok: false, error: "forbidden", detail: null });
             return;
           }
-          const [, runId, outputId] = backfillOutputVerdictMatch;
+          const [, runId] = mineReplayMatch;
+          const detail = await miningApi.replayRun(runId);
+          writeJson(res, detail ? 200 : 404, {
+            ok: Boolean(detail),
+            mineRoot: FARPLANE_MINE_ROOT,
+            detail,
+            error: detail ? undefined : "mining_run_not_found",
+          });
+          return;
+        }
+
+        const mineOutputVerdictMatch = pathname.match(
+          /^\/farplane\/mine\/runs\/([^/]+)\/outputs\/([^/]+)\/verdict$/,
+        );
+        if (method === "POST" && mineOutputVerdictMatch) {
+          if (!hasBridgeWriteAccess(req)) {
+            writeJson(res, 403, { ok: false, error: "forbidden", detail: null });
+            return;
+          }
+          const [, runId, outputId] = mineOutputVerdictMatch;
           const body = (await readBody(req)) as JsonObject;
           const verdict = String(body.verdict ?? "");
           if (verdict !== "unreviewed" && verdict !== "promoted" && verdict !== "rejected") {
-            writeJson(res, 400, { ok: false, error: "backfill_verdict_invalid", detail: null });
+            writeJson(res, 400, { ok: false, error: "mining_verdict_invalid", detail: null });
             return;
           }
           try {
-            const detail = await updateBackfillOutputVerdict({ outputId, runId, verdict });
+            const detail = await miningApi.updateOutputVerdict({ outputId, runId, verdict });
             writeJson(res, detail ? 200 : 404, {
               ok: Boolean(detail),
-              backfillRoot: FARPLANE_BACKFILL_ROOT,
+              mineRoot: FARPLANE_MINE_ROOT,
               detail,
-              error: detail ? undefined : "backfill_output_not_found",
+              error: detail ? undefined : "mining_output_not_found",
             });
           } catch (error) {
             writeJson(res, 400, {
               ok: false,
-              error: error instanceof Error ? error.message : "backfill_verdict_update_failed",
+              error: error instanceof Error ? error.message : "mining_verdict_update_failed",
               detail: null,
             });
           }

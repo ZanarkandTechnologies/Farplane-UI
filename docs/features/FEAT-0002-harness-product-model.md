@@ -118,6 +118,24 @@ It does not include raw file bodies, transcripts, or job-routing decisions.
 Future Kanban or document providers should publish the same normalized event
 shape with provider metadata instead of inventing separate timeline contracts.
 
+## Mining Run Layer
+
+Farplane should process flexible signals through replayable mining runs instead
+of one-off hook workers or provider-specific job stores. A mining run is the
+artifact-first unit that owns its input, sources, attempts, outputs, redaction
+state, verdicts, telemetry, and replay metadata.
+
+Historical chat backfills, hook-triggered event processing, manual selected
+threads, and ticket-completion scoring should use the same `.farplane/mine`
+runtime contract. Events remain factual inputs; mining programs interpret those
+inputs into reviewable outputs. Codex threads, `codex exec`, and local workers
+are executors attached to a run, not the durable record of truth.
+
+The local browser route for mining is `/farplane/mine/*`, but route transport is
+not the mining owner. Vite delegates those routes to server-owned mining modules
+so source normalization, replay, verdicts, and filesystem safety can be tested
+without starting the frontend dev server.
+
 ## Clone And Rollout Implication
 
 Because every serious operator may clone and customize Farplane, version

@@ -2,9 +2,9 @@
 
 /**
  * Thread Data panel
- * Inputs: local Codex thread summaries plus .farplane/backfill program and job artifacts.
- * Outputs: selectable source threads, program CRUD, backfill run creation, and output browsing.
- * Side effects: writes backfill artifacts through the Vite state bridge.
+ * Inputs: local Codex thread summaries plus .farplane/mine program and run artifacts.
+ * Outputs: selectable source threads, program CRUD, mining run creation, and output browsing.
+ * Side effects: writes mining artifacts through the Vite state bridge.
  */
 
 import {
@@ -43,16 +43,16 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import type { BackfillEvidenceRow } from "@/modules/thread-data/lib/backfill-artifacts";
+import type { MiningEvidenceRow } from "@/modules/thread-data/lib/mining-artifacts";
 import {
   filterOutputs,
   filterThreads,
-  formatBackfillDate,
+  formatMiningDate,
   outputEvidenceRows,
   runStatusTone,
   selectedThreadIds,
-  sortBackfillRuns,
-} from "@/modules/thread-data/lib/backfill-artifacts";
+  sortMiningRuns,
+} from "@/modules/thread-data/lib/mining-artifacts";
 import type {
   ThreadDataProgram,
   ThreadDataProgramsResponse,
@@ -159,7 +159,7 @@ export function ThreadDataPanel(): ReactElement {
 
   const loadRun = useCallback(async (runId: string): Promise<void> => {
     const payload = await fetchJson<ThreadDataRunResponse>(
-      `/farplane/backfill/runs/${encodeURIComponent(runId)}`,
+      `/farplane/mine/runs/${encodeURIComponent(runId)}`,
     );
     setSelectedRunId(runId);
     setRunDetail(payload.detail);
@@ -171,14 +171,14 @@ export function ThreadDataPanel(): ReactElement {
     setStatus("Refreshing thread data...");
     try {
       const [programPayload, threadPayload, runPayload] = await Promise.all([
-        fetchJson<ThreadDataProgramsResponse>("/farplane/backfill/programs"),
+        fetchJson<ThreadDataProgramsResponse>("/farplane/mine/programs"),
         fetchJson<ThreadDataThreadsResponse>(
-          `/farplane/backfill/threads?limit=${DEFAULT_THREAD_LIMIT}`,
+          `/farplane/mine/threads?limit=${DEFAULT_THREAD_LIMIT}`,
         ),
-        fetchJson<ThreadDataRunsResponse>("/farplane/backfill/runs"),
+        fetchJson<ThreadDataRunsResponse>("/farplane/mine/runs"),
       ]);
       const nextPrograms = programPayload.programs;
-      const nextRuns = sortBackfillRuns(runPayload.runs ?? []);
+      const nextRuns = sortMiningRuns(runPayload.runs ?? []);
       setPrograms(nextPrograms);
       setThreads(threadPayload.threads ?? []);
       setRuns(nextRuns);
@@ -192,7 +192,7 @@ export function ThreadDataPanel(): ReactElement {
         await loadRun(runToLoad);
       } else {
         setRunDetail(null);
-        setStatus("No backfill runs yet.");
+        setStatus("No mining runs yet.");
       }
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "thread_data_refresh_failed");
@@ -230,7 +230,7 @@ export function ThreadDataPanel(): ReactElement {
     setStatus(`Saving ${programDraft.id}...`);
     setError(null);
     try {
-      const payload = await fetchJson<ThreadDataProgramsResponse>("/farplane/backfill/programs", {
+      const payload = await fetchJson<ThreadDataProgramsResponse>("/farplane/mine/programs", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -252,10 +252,10 @@ export function ThreadDataPanel(): ReactElement {
 
   const startRun = async (): Promise<void> => {
     if (!selectedProgramId) return;
-    setStatus("Creating backfill run...");
+    setStatus("Creating mining run...");
     setError(null);
     try {
-      const payload = await fetchJson<ThreadDataRunResponse>("/farplane/backfill/runs", {
+      const payload = await fetchJson<ThreadDataRunResponse>("/farplane/mine/runs", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -275,16 +275,13 @@ export function ThreadDataPanel(): ReactElement {
         setRunDetail(detail);
         setSelectedRunId(detail.run.runId);
         setRuns((current) =>
-          sortBackfillRuns([
-            detail.run,
-            ...current.filter((run) => run.runId !== detail.run.runId),
-          ]),
+          sortMiningRuns([detail.run, ...current.filter((run) => run.runId !== detail.run.runId)]),
         );
         setStatus(`Created run ${detail.run.runId}`);
       }
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "backfill_run_failed");
-      setStatus("Backfill run creation failed.");
+      setError(nextError instanceof Error ? nextError.message : "mining_run_failed");
+      setStatus("Mining run creation failed.");
     }
   };
 
@@ -300,7 +297,7 @@ export function ThreadDataPanel(): ReactElement {
     setError(null);
     try {
       const payload = await fetchJson<ThreadDataRunResponse>(
-        `/farplane/backfill/runs/${encodeURIComponent(selectedRunId)}/outputs/${encodeURIComponent(selectedOutputId)}/verdict`,
+        `/farplane/mine/runs/${encodeURIComponent(selectedRunId)}/outputs/${encodeURIComponent(selectedOutputId)}/verdict`,
         {
           method: "POST",
           headers: {
@@ -314,15 +311,12 @@ export function ThreadDataPanel(): ReactElement {
         const detail = payload.detail;
         setRunDetail(detail);
         setRuns((current) =>
-          sortBackfillRuns([
-            detail.run,
-            ...current.filter((run) => run.runId !== detail.run.runId),
-          ]),
+          sortMiningRuns([detail.run, ...current.filter((run) => run.runId !== detail.run.runId)]),
         );
         setStatus(`Marked ${selectedOutputId} ${verdict}`);
       }
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "backfill_verdict_update_failed");
+      setError(nextError instanceof Error ? nextError.message : "mining_verdict_update_failed");
       setStatus("Verdict update failed.");
     }
   };
@@ -350,7 +344,7 @@ export function ThreadDataPanel(): ReactElement {
           </Button>
           <Button size="sm" onClick={() => void startRun()} disabled={!selectedProgramId}>
             <Play className="size-4" />
-            Run backfill
+            Run mining
           </Button>
         </div>
       </header>
@@ -369,9 +363,9 @@ export function ThreadDataPanel(): ReactElement {
             <FileText className="mr-2 size-4" />
             Programs
           </TabsTrigger>
-          <TabsTrigger value="backfill">
+          <TabsTrigger value="mine">
             <Play className="mr-2 size-4" />
-            Backfill
+            Mine
           </TabsTrigger>
           <TabsTrigger value="runs">
             <CheckSquare className="mr-2 size-4" />
@@ -445,8 +439,8 @@ export function ThreadDataPanel(): ReactElement {
             <div className="rounded-md border bg-muted/20 p-3">
               <h2 className="text-sm font-semibold">Forking contract</h2>
               <p className="mt-2 text-xs text-muted-foreground">
-                A backfill run writes `parent-prompt.md` so a Codex parent job can fan out one
-                worker per selected session.
+                A mining run writes `parent-prompt.md` so a Codex parent job can fan out one worker
+                per selected session.
               </p>
               <pre className="mt-3 max-h-[360px] overflow-auto rounded-md border bg-background p-3 text-xs">
                 {runDetail?.parentPrompt ?? "Create a run to generate the parent prompt."}
@@ -500,7 +494,7 @@ export function ThreadDataPanel(): ReactElement {
           </div>
         </TabsContent>
 
-        <TabsContent value="backfill" className="min-h-0">
+        <TabsContent value="mine" className="min-h-0">
           <div className="grid h-full min-h-0 gap-3 md:grid-cols-[minmax(0,1fr)_360px]">
             <ThreadTable
               rows={visibleThreads}
@@ -509,10 +503,10 @@ export function ThreadDataPanel(): ReactElement {
             />
             <div className="grid content-start gap-3 rounded-md border bg-background p-3">
               <div>
-                <h2 className="text-sm font-semibold">Dry-run backfill</h2>
+                <h2 className="text-sm font-semibold">Dry-run mining</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Creates source-span-backed outputs, redaction reports, and reviewable verdict
-                  gates under `.farplane/backfill`.
+                  gates under `.farplane/mine`.
                 </p>
               </div>
               <Field label="Last days" value={lastDays} onChange={setLastDays} />
@@ -715,7 +709,7 @@ function Metric({ label, value }: { label: string; value: number }): ReactElemen
   );
 }
 
-function EvidenceList({ rows }: { rows: BackfillEvidenceRow[] }): ReactElement {
+function EvidenceList({ rows }: { rows: MiningEvidenceRow[] }): ReactElement {
   if (!rows.length) {
     return <p className="text-sm text-muted-foreground">No evidence spans recorded.</p>;
   }
@@ -816,7 +810,7 @@ function ThreadTable({
                   <div className="truncate text-xs text-muted-foreground">{thread.preview}</div>
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-xs">
-                  {formatBackfillDate(thread.updatedAt)}
+                  {formatMiningDate(thread.updatedAt)}
                 </TableCell>
                 <TableCell className="max-w-[320px] truncate text-xs text-muted-foreground">
                   {thread.cwd ?? "-"}
@@ -854,7 +848,7 @@ function RunList({
               <Badge variant={runStatusTone(run.status)}>{run.status}</Badge>
             </span>
             <span className="mt-1 block truncate text-xs text-muted-foreground">
-              {formatBackfillDate(run.createdAt)} | {run.outputCount}/{run.sourceCount} outputs
+              {formatMiningDate(run.createdAt)} | {run.outputCount}/{run.sourceCount} outputs
             </span>
           </button>
         ))}

@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-06-29 | feature | MEM-0244 | ui,thread-data,mining,tickets | Migrated Thread Data's historical backfill runtime onto the shared `.farplane/mine` mining-run contract: programs now live under `.farplane/mine/programs`, runs under `.farplane/mine/runs`, new runs write `run.json`, `input.json`, `sources.json`, `attempts.json`, output telemetry, and replay metadata, and the browser bridge now exposes `/farplane/mine/*` without retaining old `/farplane/backfill/*` product routes.
+
 2026-06-29 | feature | MEM-0243 | hooks,telemetry,timeline,tickets | Evolved the file-change listener into a typed Farplane file-event capture layer: tracked ticket, program/progress, farplane docs, memory docs, and config edits now emit compact `farplane.*` telemetry with sanitized diffs and terminal ticket completion signals while preserving legacy status-bubble summaries.
 
 2026-06-26 | skills | MEM-0242 | skills,ingest-content,resource-bank | Promoted the upgraded ingest-content skill into the Farplane project skill tree so Resource Bank/Tasty Pack ingestion behavior is repo-owned instead of only living in the installed Codex skill copy.
@@ -225,3 +227,4 @@
 2026-06-25 | feature | MEM-0241 | ui,office,layout,packing | Changed automatic office optional-object placement into an inside-first packing pass with bounded overflow annex expansion, preserving compact pruning while keeping furniture from being dropped just because the current floor mask is full.
 2026-06-25 | migration | MEM-0161 | ui,settings,runtime,config | Switched Runtime Project Config persistence from split JSON files to canonical ~/.farplane/config.toml, keeping legacy JSON readable as a migration fallback while Core renders Codex config from the Farplane-owned file.
 2026-06-25 | bugfix | MEM-0242 | ui,office,layout,refresh | Hardened office auto-layout refresh stability by coalescing in-flight provider loads, ignoring volatile runtime metadata/status ordering in signatures, clamping solver tuning inputs, deduping reserved-walk blockers, and sharing team station topology between rendered tables and employee desk targets.
+2026-06-29 | refactor | MEM-0245 | ui,thread-data,mining,vite | Extracted `.farplane/mine` local API behavior from `ui/vite.config.ts` into server-owned mining modules, leaving Vite as a thin route shim while adding source-id hardening, event/ticket source support, honest replay regeneration, and focused mining tests.

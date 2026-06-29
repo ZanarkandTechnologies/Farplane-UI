@@ -23,6 +23,8 @@ export type ThreadDataRunStatus = "queued" | "running" | "complete" | "failed";
 
 export type ThreadDataRunIndexEntry = {
   runId: string;
+  miningMode?: "historical_backfill" | "event_triggered" | "ticket_completion" | "manual_selected";
+  source?: "hook" | "backfill" | "manual" | "provider" | "automation";
   programId: string;
   programVersion: string;
   label: string;
@@ -76,7 +78,7 @@ export type ThreadDataRunDetail = {
 
 export type ThreadDataProgramsResponse = {
   ok: boolean;
-  backfillRoot?: string;
+  mineRoot?: string;
   programs: ThreadDataProgram[];
   error?: string;
 };
@@ -89,7 +91,7 @@ export type ThreadDataThreadsResponse = {
 
 export type ThreadDataRunsResponse = {
   ok: boolean;
-  backfillRoot?: string;
+  mineRoot?: string;
   exists?: boolean;
   runs: ThreadDataRunIndexEntry[];
   latest: ThreadDataRunIndexEntry | null;
@@ -98,7 +100,7 @@ export type ThreadDataRunsResponse = {
 
 export type ThreadDataRunResponse = {
   ok: boolean;
-  backfillRoot?: string;
+  mineRoot?: string;
   detail: ThreadDataRunDetail | null;
   error?: string;
 };

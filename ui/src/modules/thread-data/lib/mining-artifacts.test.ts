@@ -5,8 +5,8 @@ import {
   filterThreads,
   outputEvidenceRows,
   selectedThreadIds,
-  sortBackfillRuns,
-} from "@/modules/thread-data/lib/backfill-artifacts";
+  sortMiningRuns,
+} from "@/modules/thread-data/lib/mining-artifacts";
 import type {
   ThreadDataRunIndexEntry,
   ThreadDataRunOutput,
@@ -22,7 +22,7 @@ const threads: ThreadDataSource[] = [
   },
   {
     id: "thread-b",
-    name: "Backfill mining",
+    name: "Historical mining",
     preview: "programs over old sessions",
     updatedAt: 20,
   },
@@ -43,7 +43,7 @@ const outputs: ThreadDataRunOutput[] = [
   },
 ];
 
-describe("backfill artifact helpers", () => {
+describe("mining artifact helpers", () => {
   it("sorts runs newest first", () => {
     const runs: ThreadDataRunIndexEntry[] = [
       {
@@ -74,7 +74,7 @@ describe("backfill artifact helpers", () => {
       },
     ];
 
-    expect(sortBackfillRuns(runs).map((run) => run.runId)).toEqual(["new", "old"]);
+    expect(sortMiningRuns(runs).map((run) => run.runId)).toEqual(["new", "old"]);
   });
 
   it("filters thread and output search text", () => {

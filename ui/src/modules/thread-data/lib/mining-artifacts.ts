@@ -7,7 +7,7 @@ import type {
 
 type UnknownRecord = Record<string, unknown>;
 
-export type BackfillEvidenceRow = {
+export type MiningEvidenceRow = {
   id: string;
   role: string;
   text: string;
@@ -18,7 +18,7 @@ export function isRecord(value: unknown): value is UnknownRecord {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-export function formatBackfillDate(value: string | number | undefined): string {
+export function formatMiningDate(value: string | number | undefined): string {
   if (value === undefined) return "unknown";
   const timestamp = typeof value === "number" ? value * 1000 : Date.parse(value);
   if (!Number.isFinite(timestamp)) return String(value);
@@ -28,7 +28,7 @@ export function formatBackfillDate(value: string | number | undefined): string {
   }).format(timestamp);
 }
 
-export function sortBackfillRuns(entries: ThreadDataRunIndexEntry[]): ThreadDataRunIndexEntry[] {
+export function sortMiningRuns(entries: ThreadDataRunIndexEntry[]): ThreadDataRunIndexEntry[] {
   return [...entries].sort((left, right) => {
     const leftTime = Date.parse(left.createdAt);
     const rightTime = Date.parse(right.createdAt);
@@ -88,7 +88,7 @@ export function displayEvidenceSource(value: string): string {
   return value.replace(/^\/Users\/[^/]+/, "~");
 }
 
-export function outputEvidenceRows(outputJson: unknown): BackfillEvidenceRow[] {
+export function outputEvidenceRows(outputJson: unknown): MiningEvidenceRow[] {
   if (!isRecord(outputJson)) return [];
   const rawSpans = outputJson.evidenceSpans;
   if (!Array.isArray(rawSpans)) return [];
