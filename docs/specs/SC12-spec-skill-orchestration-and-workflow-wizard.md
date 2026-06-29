@@ -1,6 +1,6 @@
 # SC12: CEO Team Generation Workflow
 
-> Deprecated. The active replacement spec is [SC12-spec-board-native-task-planning-review.md](/home/kenjipcx/Zanarkand/Farplane/docs/specs/SC12-spec-board-native-task-planning-review.md).
+> Deprecated. The active replacement spec is [SC12-spec-board-native-task-planning-review.md](/home/kenjipcx/Zanarkand/Farplane/docs/features/FEAT-0112-board-native-task-planning-review.md).
 
 ## Status
 

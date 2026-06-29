@@ -21,7 +21,7 @@ At each heartbeat, an agent/team loop optimizes toward project goals:
    - research to unblock future execution
 4. Emit auditable outcome and update next-step context.
 
-Heartbeat governance expectations are defined in `docs/specs/SC10-spec-heartbeat-autonomy-loop.md`.
+Heartbeat governance expectations are defined in `docs/features/FEAT-0110-heartbeat-autonomy-loop.md`.
 
 ## Advisory Resource Layer
 
@@ -85,7 +85,7 @@ Farplane uses canonical-provider-per-project policy:
 
 Reference:
 
-- `docs/specs/SC06-spec-kanban-federation-sync.md`
+- `docs/features/FEAT-0106-kanban-federation-sync.md`
 
 ## Ticket And Session Coupling
 
@@ -96,7 +96,7 @@ Planned contract direction:
 
 Reference:
 
-- `docs/specs/SC07-spec-ticket-session-lifecycle.md`
+- `docs/features/FEAT-0107-ticket-session-lifecycle.md`
 
 ## Observability Surfaces
 

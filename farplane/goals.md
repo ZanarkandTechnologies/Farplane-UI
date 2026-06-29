@@ -10,7 +10,7 @@ source_of_truth:
   - farplane/harness.md
   - farplane/products.md
   - docs/prd.md
-  - docs/specs/FP02-harness-product-model.md
+  - docs/features/FEAT-0002-harness-product-model.md
 ---
 
 # Farplane UI Goals
@@ -149,7 +149,7 @@ The PM must request approval before:
 ## Current Milestone
 
 Reinitialize the Farplane UI PM around the viral feature-showcase loop:
-manifest `1.6.1`, static charter, product catalog, goals, distribution/content
+manifest `1.6.4`, static charter, product catalog, goals, distribution/content
 ticket authority, Pulse, Daily Interval, Weekly Interval, and explicit approval
 gates.
 

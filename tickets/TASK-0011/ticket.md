@@ -434,4 +434,4 @@ proof:
   `.farplane/proof/TASK-0011-mobile-overview.png`,
   `.farplane/proof/TASK-0011-mobile-kanban.png`
 - `review:` `tickets/TASK-0011/artifacts/review-evidence-2026-06-25.md`
-- `refs:` `ui/src/modules/team-workspace/`, `docs/specs/FP01-operator-intelligence-modules-roadmap.md`, `farplane/manifest.json`, `farplane/automations.md`, `.farplane/evals/runs/`, `.farplane/automation/`
+- `refs:` `ui/src/modules/team-workspace/`, `docs/features/FEAT-0001-operator-intelligence-modules-roadmap.md`, `farplane/manifest.json`, `farplane/automations.md`, `.farplane/evals/runs/`, `.farplane/automation/`

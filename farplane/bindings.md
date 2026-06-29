@@ -38,6 +38,14 @@ notion {
   write_policy: local_first
 }
 
+kanban {
+  provider: filesystem_tickets
+  tickets_dir: "tickets"
+  archive_dir: "tickets/archive"
+  write_policy: read_only_ui
+  poll_seconds: 60
+}
+
 posthog {
   enabled: false
   project_id: null

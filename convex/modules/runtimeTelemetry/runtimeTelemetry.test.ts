@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRuntimeTurns, buildTelemetrySummary, type ActivityPingRow } from "./runtimeTelemetry";
+import { type ActivityPingRow, buildRuntimeTurns, buildTelemetrySummary } from "./runtimeTelemetry";
 
 const base = {
   source: "test",
@@ -48,6 +48,85 @@ describe("runtime telemetry reducers", () => {
     expect(summary.stats.inProgressTurnCount).toBe(1);
     expect(summary.stats.unmatchedTurnCount).toBe(1);
     expect(summary.stats.agentHours).toBeCloseTo(1);
+  });
+
+  it("rolls duplicated project display names into source drilldowns", () => {
+    const rows = [
+      row({
+        eventType: "turn_start",
+        turnId: "turn-1",
+        receivedAt: 1_000,
+        projectName: "Farplane",
+        projectId: "proj-farplane",
+        sessionId: "session-1",
+      }),
+      row({
+        eventType: "turn_end",
+        turnId: "turn-1",
+        receivedAt: 3_601_000,
+        projectName: "Farplane",
+        projectId: "proj-farplane",
+        sessionId: "session-1",
+      }),
+      row({
+        eventType: "turn_start",
+        turnId: "turn-2",
+        receivedAt: 4_000_000,
+        projectDirectory: "/Users/kenji/Farplane",
+        projectId: undefined,
+        projectName: "Farplane",
+        sessionId: "session-2",
+        teamId: undefined,
+      }),
+      row({
+        eventType: "turn_end",
+        turnId: "turn-2",
+        receivedAt: 5_800_000,
+        projectDirectory: "/Users/kenji/Farplane",
+        projectId: undefined,
+        projectName: "Farplane",
+        sessionId: "session-2",
+        teamId: undefined,
+      }),
+      row({
+        eventType: "turn_end",
+        turnId: "missing-start",
+        receivedAt: 6_000_000,
+        projectDirectory: "/Users/kenji/Farplane",
+        projectId: undefined,
+        projectName: "Farplane",
+        sessionId: "session-2",
+        teamId: undefined,
+      }),
+    ];
+
+    const summary = buildTelemetrySummary(rows, {
+      now: 7_000_000,
+      days: 1,
+      timezone: "UTC",
+    });
+
+    expect(summary.stats.projectCount).toBe(2);
+    expect(summary.projectBreakdown).toHaveLength(1);
+    expect(summary.projectBreakdown[0]).toEqual(
+      expect.objectContaining({
+        displayName: "Farplane",
+        agentHours: 1.5,
+        completedTurnCount: 2,
+        unmatchedTurnCount: 1,
+      }),
+    );
+    expect(summary.projectBreakdown[0].sourceBreakdowns).toEqual([
+      expect.objectContaining({
+        completedTurnCount: 1,
+        sourceLabel: "project id: proj-farplane",
+      }),
+      expect.objectContaining({
+        completedTurnCount: 1,
+        sourceLabel: "directory: Farplane",
+        unmatchedTurnCount: 1,
+      }),
+    ]);
   });
 
   it("infers a missed turn end from the next start in the same session", () => {
@@ -118,7 +197,11 @@ describe("runtime telemetry reducers", () => {
       const startedAt = turnNumber * 100_000;
       return [
         row({ eventType: "turn_start", turnId: `turn-${turnNumber}`, receivedAt: startedAt }),
-        row({ eventType: "turn_end", turnId: `turn-${turnNumber}`, receivedAt: startedAt + 60_000 }),
+        row({
+          eventType: "turn_end",
+          turnId: `turn-${turnNumber}`,
+          receivedAt: startedAt + 60_000,
+        }),
       ];
     }).flat();
 
@@ -156,7 +239,9 @@ describe("runtime telemetry reducers", () => {
       timezone: "UTC",
     });
     const today = summary.dailyBuckets[summary.dailyBuckets.length - 1];
-    const stopHour = summary.hourlyBuckets.find((bucket) => bucket.hourKey === String(Date.UTC(2026, 0, 2, 10, 0)));
+    const stopHour = summary.hourlyBuckets.find(
+      (bucket) => bucket.hourKey === String(Date.UTC(2026, 0, 2, 10, 0)),
+    );
 
     expect(summary.agentHourSummary.todayHours).toBeCloseTo(1.5);
     expect(today).toEqual(
@@ -265,10 +350,9 @@ describe("runtime telemetry reducers", () => {
         peakConcurrentSessions: 2,
       }),
     );
-    expect(summary.parallelCapacity.today.peakProjects.map((project) => project.displayName).sort()).toEqual([
-      "Farplane",
-      "Valefor",
-    ]);
+    expect(
+      summary.parallelCapacity.today.peakProjects.map((project) => project.displayName).sort(),
+    ).toEqual(["Farplane", "Valefor"]);
   });
 
   it("does not infer missed turn ends across different sessions", () => {

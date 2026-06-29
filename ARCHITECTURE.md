@@ -22,7 +22,7 @@ The top-level split is:
 The repo owns the UI, CLI, local state bridge, sidecar templates,
 Convex-backed realtime surfaces, and in-repo extensions/skills that make the
 harness and office useful. The product model is defined in
-`docs/specs/FP02-harness-product-model.md`.
+`docs/features/FEAT-0002-harness-product-model.md`.
 
 ## Canonical Surfaces
 
@@ -32,7 +32,8 @@ harness and office useful. The product model is defined in
 - `README.md`: product story, setup, runtime model, and quickstart.
 - `docs/bootstrap-brief.md`: existing-project migration decisions and current
   lifecycle route.
-- `docs/specs/README.md`: index of deeper behavior specs.
+- `docs/features/README.md`: feature/capability spec index.
+- `docs/systems/README.md`: system/product-layer grouping index.
 - `tickets/README.md`: execution contract and ticket lifecycle.
 - `qa/README.md`: durable QA and evidence-capture policy.
 

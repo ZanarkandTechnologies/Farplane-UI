@@ -68,7 +68,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
     "@edge-runtime/vm": "^5.0.0",
-    "@openai/codex-sdk": "^0.139.0",
+    "@openai/codex-sdk": "^0.142.3",
     "@types/node": "latest",
     "@types/qrcode-terminal": "^0.12.2",
     "concurrently": "^9.2.1",

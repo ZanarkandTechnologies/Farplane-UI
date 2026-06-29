@@ -64,6 +64,18 @@ export type TelemetryBreakdown = {
   inProgressTurnCount: number;
   unmatchedTurnCount: number;
   lastSeenAt: number | null;
+  sourceBreakdowns?: TelemetryBreakdownSource[];
+};
+
+export type TelemetryBreakdownSource = {
+  key: string;
+  displayName: string;
+  sourceLabel: string;
+  agentHours: number;
+  completedTurnCount: number;
+  inProgressTurnCount: number;
+  unmatchedTurnCount: number;
+  lastSeenAt: number | null;
 };
 
 export type TelemetryDayBucket = {
@@ -178,7 +190,7 @@ type RuntimeTurnAccumulator = Omit<
   hasEnd: boolean;
 };
 
-type BreakdownAccumulator = TelemetryBreakdown & {
+type BreakdownAccumulator = TelemetryBreakdownSource & {
   completedTurnKeys: Set<string>;
 };
 
@@ -330,7 +342,10 @@ export function buildTelemetrySummary(
       dayBucket.totalPings += 1;
       const hourBucketStart = Math.floor(row.receivedAt / MS_PER_HOUR) * MS_PER_HOUR;
       dayBucket.coveredHourBuckets.add(hourBucketStart);
-      availabilityHourCounts.set(hourBucketStart, (availabilityHourCounts.get(hourBucketStart) ?? 0) + 1);
+      availabilityHourCounts.set(
+        hourBucketStart,
+        (availabilityHourCounts.get(hourBucketStart) ?? 0) + 1,
+      );
     }
     if (lastSeenAt === null || row.receivedAt > lastSeenAt) {
       lastSeenAt = row.receivedAt;
@@ -357,6 +372,7 @@ export function buildTelemetrySummary(
         getProjectDisplayName(turn),
         "in_progress",
         sortTime,
+        getProjectSourceLabel(turn),
       );
       addDiagnostic(teamBreakdown, teamKey, getTeamDisplayName(turn), "in_progress", sortTime);
       continue;
@@ -370,6 +386,7 @@ export function buildTelemetrySummary(
         getProjectDisplayName(turn),
         "unmatched",
         sortTime,
+        getProjectSourceLabel(turn),
       );
       addDiagnostic(teamBreakdown, teamKey, getTeamDisplayName(turn), "unmatched", sortTime);
       continue;
@@ -384,6 +401,7 @@ export function buildTelemetrySummary(
         getProjectDisplayName(turn),
         "filtered",
         sortTime,
+        getProjectSourceLabel(turn),
       );
       addDiagnostic(teamBreakdown, teamKey, getTeamDisplayName(turn), "filtered", sortTime);
       continue;
@@ -393,7 +411,14 @@ export function buildTelemetrySummary(
     const turnHours = durationMs / MS_PER_HOUR;
     agentHours += turnHours;
     completedTurnCount += 1;
-    addCompleted(projectBreakdown, projectKey, getProjectDisplayName(turn), turn, turnHours);
+    addCompleted(
+      projectBreakdown,
+      projectKey,
+      getProjectDisplayName(turn),
+      turn,
+      turnHours,
+      getProjectSourceLabel(turn),
+    );
     addCompleted(teamBreakdown, teamKey, getTeamDisplayName(turn), turn, turnHours);
 
     if (turn.endedAt !== null) {
@@ -405,14 +430,30 @@ export function buildTelemetrySummary(
         dayBucket.projectKeys.add(projectKey);
         dayBucket.teamKeys.add(teamKey);
         dayBucket.machineKeys.add(machineKey);
-        if (dayBucket.longestTurnDurationMs === null || durationMs > dayBucket.longestTurnDurationMs) {
+        if (
+          dayBucket.longestTurnDurationMs === null ||
+          durationMs > dayBucket.longestTurnDurationMs
+        ) {
           dayBucket.longestTurnDurationMs = durationMs;
           dayBucket.longestTurnEndedAt = turn.endedAt;
           dayBucket.longestTurnProjectDisplayName = getProjectDisplayName(turn);
         }
       }
-      addCompleted(getOrCreateBreakdownMap(projectBreakdownByDay, dayKey), projectKey, getProjectDisplayName(turn), turn, turnHours);
-      addCompleted(getOrCreateBreakdownMap(teamBreakdownByDay, dayKey), teamKey, getTeamDisplayName(turn), turn, turnHours);
+      addCompleted(
+        getOrCreateBreakdownMap(projectBreakdownByDay, dayKey),
+        projectKey,
+        getProjectDisplayName(turn),
+        turn,
+        turnHours,
+        getProjectSourceLabel(turn),
+      );
+      addCompleted(
+        getOrCreateBreakdownMap(teamBreakdownByDay, dayKey),
+        teamKey,
+        getTeamDisplayName(turn),
+        turn,
+        turnHours,
+      );
     }
   }
 
@@ -421,7 +462,9 @@ export function buildTelemetrySummary(
   const dailyBucketValues = Array.from(dailyBuckets.values());
   const parallelCapacity = buildDailyParallelCapacity(turns, dailyBucketValues);
   const finalDailyBuckets = dailyBucketValues.map((bucket) => {
-    const parallelBucket = parallelCapacity.dailyBuckets.find((item) => item.dayKey === bucket.dayKey);
+    const parallelBucket = parallelCapacity.dailyBuckets.find(
+      (item) => item.dayKey === bucket.dayKey,
+    );
     return {
       dayKey: bucket.dayKey,
       label: bucket.label,
@@ -444,9 +487,14 @@ export function buildTelemetrySummary(
   });
   const todayKey = buildDayKey(now, timezone);
   const todayIndex = finalDailyBuckets.findIndex((bucket) => bucket.dayKey === todayKey);
-  const todayBucket = todayIndex >= 0 ? finalDailyBuckets[todayIndex] : finalDailyBuckets[finalDailyBuckets.length - 1];
+  const todayBucket =
+    todayIndex >= 0
+      ? finalDailyBuckets[todayIndex]
+      : finalDailyBuckets[finalDailyBuckets.length - 1];
   const yesterdayBucket =
-    todayIndex > 0 ? finalDailyBuckets[todayIndex - 1] : finalDailyBuckets[finalDailyBuckets.length - 2];
+    todayIndex > 0
+      ? finalDailyBuckets[todayIndex - 1]
+      : finalDailyBuckets[finalDailyBuckets.length - 2];
 
   return {
     stats: {
@@ -470,7 +518,7 @@ export function buildTelemetrySummary(
       completedTurnCount,
       lastSeenAt,
     },
-    projectBreakdown: sortBreakdown(projectBreakdown),
+    projectBreakdown: rollUpProjectBreakdowns(sortBreakdown(projectBreakdown)),
     teamBreakdown: sortBreakdown(teamBreakdown),
     projectBreakdownByDay: buildBreakdownByDay(projectBreakdownByDay, dailyBucketValues),
     teamBreakdownByDay: buildBreakdownByDay(teamBreakdownByDay, dailyBucketValues),
@@ -510,7 +558,11 @@ function finalizeTurn(turn: RuntimeTurnAccumulator): RuntimeTurn {
 function applyTurnFilters(turns: RuntimeTurn[], maxTurnDurationMs: number | null): RuntimeTurn[] {
   if (maxTurnDurationMs === null) return turns;
   return turns.map((turn) => {
-    if (turn.status !== "completed" || turn.durationMs === null || turn.durationMs <= maxTurnDurationMs) {
+    if (
+      turn.status !== "completed" ||
+      turn.durationMs === null ||
+      turn.durationMs <= maxTurnDurationMs
+    ) {
       return turn;
     }
     return {
@@ -591,16 +643,32 @@ function getProjectDisplayName(turn: RuntimeTurn): string {
   return "Unlabeled project";
 }
 
+function getProjectSourceLabel(turn: RuntimeTurn): string {
+  if (turn.projectId?.trim()) return `project id: ${turn.projectId.trim()}`;
+  if (turn.projectDirectory?.trim()) {
+    const parts = turn.projectDirectory.trim().split("/").filter(Boolean);
+    const directoryName = parts[parts.length - 1] ?? "directory";
+    return `directory: ${directoryName}`;
+  }
+  if (turn.projectName?.trim()) return `project name: ${turn.projectName.trim()}`;
+  return "unlabeled source";
+}
+
 function getTeamDisplayName(turn: RuntimeTurn): string {
   if (turn.teamId?.trim()) return turn.teamId.trim();
   if (turn.projectId?.trim()) return `team-${turn.projectId.trim()}`;
   return "Unlabeled team";
 }
 
-function createBreakdown(key: string, displayName: string): BreakdownAccumulator {
+function createBreakdown(
+  key: string,
+  displayName: string,
+  sourceLabel = key,
+): BreakdownAccumulator {
   return {
     key,
     displayName,
+    sourceLabel,
     agentHours: 0,
     completedTurnCount: 0,
     inProgressTurnCount: 0,
@@ -616,8 +684,10 @@ function addCompleted(
   displayName: string,
   turn: RuntimeTurn,
   turnHours: number,
+  sourceLabel = key,
 ): void {
-  const entry = map.get(key) ?? createBreakdown(key, displayName);
+  const entry = map.get(key) ?? createBreakdown(key, displayName, sourceLabel);
+  entry.sourceLabel = sourceLabel;
   entry.agentHours += turnHours;
   entry.completedTurnCount += 1;
   entry.completedTurnKeys.add(turn.id);
@@ -632,8 +702,10 @@ function addDiagnostic(
   displayName: string,
   status: Exclude<ActivityTurnStatus, "completed">,
   sortTime: number,
+  sourceLabel = key,
 ): void {
-  const entry = map.get(key) ?? createBreakdown(key, displayName);
+  const entry = map.get(key) ?? createBreakdown(key, displayName, sourceLabel);
+  entry.sourceLabel = sourceLabel;
   if (status === "in_progress") {
     entry.inProgressTurnCount += 1;
   } else if (status === "unmatched") {
@@ -643,13 +715,64 @@ function addDiagnostic(
   map.set(key, entry);
 }
 
-function sortBreakdown(map: Map<string, BreakdownAccumulator>): TelemetryBreakdown[] {
+function sortBreakdown(map: Map<string, BreakdownAccumulator>): TelemetryBreakdownSource[] {
   return Array.from(map.values())
     .sort(
       (left, right) =>
         right.agentHours - left.agentHours || right.completedTurnCount - left.completedTurnCount,
     )
     .map(({ completedTurnKeys: _completedTurnKeys, ...entry }) => entry);
+}
+
+function rollUpProjectBreakdowns(rows: TelemetryBreakdownSource[]): TelemetryBreakdown[] {
+  const groups = new Map<
+    string,
+    Omit<TelemetryBreakdown, "sourceBreakdowns"> & { sourceBreakdowns: TelemetryBreakdownSource[] }
+  >();
+
+  for (const row of rows) {
+    const displayName = row.displayName.trim() || "Unlabeled project";
+    const groupKey = `project-display:${hashKey(displayName.toLowerCase())}`;
+    const group = groups.get(groupKey) ?? {
+      key: groupKey,
+      displayName,
+      agentHours: 0,
+      completedTurnCount: 0,
+      inProgressTurnCount: 0,
+      unmatchedTurnCount: 0,
+      lastSeenAt: null,
+      sourceBreakdowns: [],
+    };
+
+    group.agentHours += row.agentHours;
+    group.completedTurnCount += row.completedTurnCount;
+    group.inProgressTurnCount += row.inProgressTurnCount;
+    group.unmatchedTurnCount += row.unmatchedTurnCount;
+    group.lastSeenAt =
+      group.lastSeenAt === null
+        ? row.lastSeenAt
+        : row.lastSeenAt === null
+          ? group.lastSeenAt
+          : Math.max(group.lastSeenAt, row.lastSeenAt);
+    group.sourceBreakdowns.push(row);
+    groups.set(groupKey, group);
+  }
+
+  return Array.from(groups.values())
+    .map((group) => {
+      const sources = group.sourceBreakdowns.sort(
+        (left, right) =>
+          right.agentHours - left.agentHours || right.completedTurnCount - left.completedTurnCount,
+      );
+      return {
+        ...group,
+        sourceBreakdowns: sources.length > 1 ? sources : undefined,
+      };
+    })
+    .sort(
+      (left, right) =>
+        right.agentHours - left.agentHours || right.completedTurnCount - left.completedTurnCount,
+    );
 }
 
 function getOrCreateBreakdownMap(
@@ -724,7 +847,12 @@ function buildHourlyBuckets(
     bucket.machineKeys.add(machineKey);
     addHourlyTotal(bucket.projectHours, projectKey, getProjectDisplayName(turn), turnHours);
     addHourlyTotal(bucket.teamHours, teamKey, getTeamDisplayName(turn), turnHours);
-    addHourlyTotal(bucket.machineHours, machineKey, getMachineDisplayName(turn.machineName), turnHours);
+    addHourlyTotal(
+      bucket.machineHours,
+      machineKey,
+      getMachineDisplayName(turn.machineName),
+      turnHours,
+    );
   }
 
   return Array.from(buckets.values()).map((bucket) => ({
@@ -753,7 +881,9 @@ function addHourlyTotal(
   map.set(key, current);
 }
 
-function getTopHourlyLabel(map: Map<string, { displayName: string; agentHours: number }>): string | null {
+function getTopHourlyLabel(
+  map: Map<string, { displayName: string; agentHours: number }>,
+): string | null {
   const top = Array.from(map.values()).sort((left, right) => right.agentHours - left.agentHours)[0];
   return top?.displayName ?? null;
 }
@@ -796,7 +926,9 @@ function buildDailyParallelCapacity(
   buckets: DayBucketAccumulator[],
 ): ParallelCapacityBoard {
   const dailyBuckets = buckets.map<ParallelCapacityDayBucket>((bucket) => {
-    const peak = findPeakOverlap(buildIntervalsForWindow(turns, bucket.bucketStartMs, bucket.bucketEndMs));
+    const peak = findPeakOverlap(
+      buildIntervalsForWindow(turns, bucket.bucketStartMs, bucket.bucketEndMs),
+    );
     return {
       dayKey: bucket.dayKey,
       label: bucket.label,
@@ -818,8 +950,14 @@ function buildDailyParallelCapacity(
   return {
     today,
     dailyBuckets,
-    maxConcurrentSessions30d: Math.max(0, ...dailyBuckets.map((bucket) => bucket.peakConcurrentSessions)),
-    maxConcurrentProjects30d: Math.max(0, ...dailyBuckets.map((bucket) => bucket.peakConcurrentProjects)),
+    maxConcurrentSessions30d: Math.max(
+      0,
+      ...dailyBuckets.map((bucket) => bucket.peakConcurrentSessions),
+    ),
+    maxConcurrentProjects30d: Math.max(
+      0,
+      ...dailyBuckets.map((bucket) => bucket.peakConcurrentProjects),
+    ),
   };
 }
 
@@ -849,7 +987,9 @@ function buildIntervalsForWindow(
         id: `${turn.id}:${startedAt}:${endedAt}`,
         startedAt,
         endedAt,
-        sessionKey: turn.sessionId?.trim() ? `session:${turn.sessionId.trim()}` : `turn:${turn.turnId}`,
+        sessionKey: turn.sessionId?.trim()
+          ? `session:${turn.sessionId.trim()}`
+          : `turn:${turn.turnId}`,
         projectKey: buildProjectKey(turn.projectId, turn.projectName, turn.projectDirectory),
         projectDisplayName: getProjectDisplayName(turn),
         machineKey: buildMachineKey(turn.machineName),
@@ -934,7 +1074,10 @@ function buildPeakProjects(intervals: ParallelInterval[]): ParallelCapacityProje
       machineCount: project.machineKeys.size,
       sessionCount: project.sessionKeys.size,
     }))
-    .sort((left, right) => right.sessionCount - left.sessionCount || left.displayName.localeCompare(right.displayName));
+    .sort(
+      (left, right) =>
+        right.sessionCount - left.sessionCount || left.displayName.localeCompare(right.displayName),
+    );
 }
 
 function initializeDayBuckets(

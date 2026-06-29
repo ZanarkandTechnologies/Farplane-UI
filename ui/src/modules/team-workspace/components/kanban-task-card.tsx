@@ -15,13 +15,24 @@
  */
 
 import { Badge } from "@/components/ui/badge";
-import { TaskMemoryView } from "./task-memory-view";
 import { type PanelTask, PRIORITY_COLORS } from "./team-panel-types";
 
 interface KanbanTaskCardProps {
   task: PanelTask;
   ownerLabel: string;
   onOpen: (task: PanelTask) => void;
+}
+
+const FRONTMATTER_FIELDS = ["ticket_id", "phase", "status", "owner", "priority"] as const;
+
+function frontMatterRows(task: PanelTask): Array<{ label: string; value: string }> {
+  const frontMatter = task.frontMatter ?? {};
+  const rows = FRONTMATTER_FIELDS.map((field) => ({
+    label: field.replace(/_/g, " "),
+    value: frontMatter[field]?.trim() ?? "",
+  })).filter((row) => row.value.length > 0);
+  if (task.artefactPath) rows.push({ label: "file", value: task.artefactPath });
+  return rows.slice(0, 6);
 }
 
 export function KanbanTaskCard({ task, ownerLabel, onOpen }: KanbanTaskCardProps): JSX.Element {
@@ -47,14 +58,24 @@ export function KanbanTaskCard({ task, ownerLabel, onOpen }: KanbanTaskCardProps
           <p className="line-clamp-2 text-base font-semibold leading-6 tracking-tight text-foreground">
             {task.title}
           </p>
-          <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-            {ownerLabel}
+          <p className="mt-1 break-words text-[11px] uppercase tracking-[0.18em] text-muted-foreground [overflow-wrap:anywhere]">
+            {task.frontMatter?.claimed_by ?? ownerLabel}
           </p>
         </div>
       </div>
 
-      <div className="mt-4">
-        <TaskMemoryView notes={task.notes} variant="compact" />
+      <div className="mt-4 space-y-1.5">
+        {frontMatterRows(task).map((row) => (
+          <div
+            key={`${task.id}-${row.label}`}
+            className="grid grid-cols-[5rem_minmax(0,1fr)] gap-2 text-[11px] leading-5"
+          >
+            <span className="uppercase tracking-[0.14em] text-muted-foreground">{row.label}</span>
+            <span className="min-w-0 break-words text-foreground/85 [overflow-wrap:anywhere]">
+              {row.value}
+            </span>
+          </div>
+        ))}
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2">

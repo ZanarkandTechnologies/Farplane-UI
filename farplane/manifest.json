@@ -1,8 +1,8 @@
 {
   "schema": "farplane_project",
-  "spec_version": "1.6.1",
+  "spec_version": "1.6.4",
   "template_uses": {
-    "farplane-framework": "1.6.1"
+    "farplane-framework": "1.6.4"
   },
   "project": {
     "name": "Farplane UI",
@@ -12,6 +12,7 @@
   "standard": {
     "tracked": [
       "AGENTS.md",
+      ".gitignore",
       "PROJECT_RULES.md",
       "ARCHITECTURE.md",
       "farplane/README.md",
@@ -25,7 +26,8 @@
       ".agents/skills/README.md",
       "docs/bootstrap-brief.md",
       "docs/prd.md",
-      "docs/specs/README.md",
+      "docs/features/README.md",
+      "docs/systems/README.md",
       "docs/HISTORY.md",
       "docs/MEMORY.md",
       "docs/TASTE.md",
@@ -73,8 +75,9 @@
         "ARCHITECTURE.md",
         "docs/bootstrap-brief.md",
         "docs/prd.md",
-        "docs/specs/README.md",
-        "docs/specs/FP02-harness-product-model.md",
+        "docs/features/README.md",
+        "docs/systems/README.md",
+        "docs/features/FEAT-0002-harness-product-model.md",
         "farplane/README.md",
         "farplane/harness.md",
         "farplane/goals.md",

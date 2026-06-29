@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useAppStore } from "@/store";
 import { UI_Z } from "@/lib/z-index";
@@ -77,6 +78,18 @@ function parseAgentIdFromSessionKey(sessionKey: string | undefined): string | nu
   if (!value) return null;
   const parts = value.split(":");
   return parts[1]?.trim() || null;
+}
+
+function frontMatterEntries(task: PanelTask): Array<{ label: string; value: string }> {
+  const frontMatter = task.frontMatter ?? {};
+  return Object.entries(frontMatter)
+    .filter(([, value]) => value.trim().length > 0)
+    .slice(0, 12)
+    .map(([label, value]) => ({ label: label.replace(/_/g, " "), value }));
+}
+
+function stripYamlFrontMatter(markdown: string): string {
+  return markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trimStart();
 }
 
 export function TaskDetailModal({
@@ -220,6 +233,75 @@ export function TaskDetailModal({
     : "unassigned";
   const linkedAgentId = parseAgentIdFromSessionKey(task.linkedSessionKey);
   const showReviewActions = convexEnabled && isTaskInReviewLane(task);
+  const ticketMarkdown = task.markdown?.trim();
+  const ticketFrontMatterEntries = frontMatterEntries(task);
+  const ticketBodyMarkdown = ticketMarkdown ? stripYamlFrontMatter(ticketMarkdown) : "";
+
+  if (ticketMarkdown) {
+    return (
+      <Dialog
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+      >
+        <DialogContent
+          className="flex max-h-[92vh] max-w-[min(96vw,1180px)] flex-col border border-border bg-background p-0"
+          style={{ zIndex: UI_Z.panelModal }}
+          overlayStyle={{ zIndex: UI_Z.panelModal - 1 }}
+        >
+          <DialogHeader className="border-b border-border bg-card px-6 py-5">
+            <DialogTitle className="min-w-0 break-words text-left text-lg [overflow-wrap:anywhere]">
+              {task.title}
+            </DialogTitle>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <Badge variant="outline" className="rounded-none">
+                {task.status.replace(/_/g, " ")}
+              </Badge>
+              <Badge
+                variant="outline"
+                className={`rounded-none shadow-none ${PRIORITY_COLORS[task.priority]}`}
+              >
+                {task.priority}
+              </Badge>
+              {task.artefactPath ? (
+                <span className="break-words [overflow-wrap:anywhere]">{task.artefactPath}</span>
+              ) : null}
+            </div>
+          </DialogHeader>
+
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="space-y-4 p-5">
+              <details className="rounded-md border bg-muted/10">
+                <summary className="cursor-pointer px-4 py-3 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                  Frontmatter ({ticketFrontMatterEntries.length})
+                </summary>
+                <div className="grid grid-cols-1 gap-2 border-t border-border p-3 md:grid-cols-2 xl:grid-cols-3">
+                  {ticketFrontMatterEntries.map((entry) => (
+                    <div key={entry.label} className="rounded-md border bg-background p-2">
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                        {entry.label}
+                      </p>
+                      <p className="mt-1 break-words text-xs text-foreground [overflow-wrap:anywhere]">
+                        {entry.value}
+                      </p>
+                    </div>
+                  ))}
+                  {ticketFrontMatterEntries.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No frontmatter found.</p>
+                  ) : null}
+                </div>
+              </details>
+
+              <pre className="whitespace-pre-wrap break-words text-xs leading-6 text-foreground [overflow-wrap:anywhere]">
+                {ticketBodyMarkdown || ticketMarkdown}
+              </pre>
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog

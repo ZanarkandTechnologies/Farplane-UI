@@ -138,4 +138,4 @@ Task lifecycle updates, explicit status reports, activity logs, and heartbeat ca
 - [feature-mvp-team-config.md](./feature-mvp-team-config.md)
 - [feature-business-logic.md](./feature-business-logic.md)
 - [architecture.md](./architecture.md)
-- [SC10-spec-heartbeat-autonomy-loop.md](../specs/SC10-spec-heartbeat-autonomy-loop.md)
+- [SC10-spec-heartbeat-autonomy-loop.md](../features/FEAT-0110-heartbeat-autonomy-loop.md)

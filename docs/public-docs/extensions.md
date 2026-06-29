@@ -24,7 +24,7 @@ Related durable constraints:
 
 ## Extension Surface Ownership
 
-- Extension contracts/specs: `docs/specs/**`
+- Extension contracts/specs: `docs/features/FEAT-*.md`
 - Operational runbooks: `docs/how-to/**`
 - Product-level value framing: `docs/public-docs/features-overview.md`
 
@@ -32,7 +32,7 @@ Related durable constraints:
 
 When adding a new extension:
 
-1. Add or update a spec in `docs/specs/`.
+1. Add or update a spec in `docs/features/`.
 2. Add a focused how-to runbook in `docs/how-to/`.
 3. Add a short entry in this page with:
    - extension name

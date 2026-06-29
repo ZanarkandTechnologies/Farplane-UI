@@ -10,7 +10,9 @@
  * Invariants: views render derived metadata only; no raw transcripts are shown.
  */
 
-import type { ReactElement } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { Fragment, type ReactElement, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -32,8 +34,15 @@ type BreakdownTableProps = {
 export { TelemetryDashboardView } from "./telemetry-dashboard-recharts";
 
 export function BreakdownTable({ rows, emptyLabel }: BreakdownTableProps): ReactElement {
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+
   if (rows.length === 0) {
-    return <TelemetryStateCard title={emptyLabel} detail="Lifecycle rows will appear here after hooks report activity." />;
+    return (
+      <TelemetryStateCard
+        title={emptyLabel}
+        detail="Lifecycle rows will appear here after hooks report activity."
+      />
+    );
   }
 
   return (
@@ -50,23 +59,113 @@ export function BreakdownTable({ rows, emptyLabel }: BreakdownTableProps): React
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((row) => (
-            <TableRow key={row.key}>
-              <TableCell className="max-w-[240px] truncate font-medium">{row.displayName}</TableCell>
-              <TableCell className="text-right tabular-nums">{formatHours(row.agentHours)}</TableCell>
-              <TableCell className="text-right tabular-nums">{row.completedTurnCount}</TableCell>
-              <TableCell className="text-right tabular-nums">{row.inProgressTurnCount}</TableCell>
-              <TableCell className="text-right tabular-nums">{row.unmatchedTurnCount}</TableCell>
-              <TableCell>{row.lastSeenAt ? formatRelativeTime(row.lastSeenAt) : "never"}</TableCell>
-            </TableRow>
-          ))}
+          {rows.map((row) => {
+            const sources = row.sourceBreakdowns ?? [];
+            const isExpanded = Boolean(expandedRows[row.key]);
+            return (
+              <Fragment key={row.key}>
+                <TableRow>
+                  <TableCell className="max-w-[240px] font-medium">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      {sources.length > 1 ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-6 shrink-0"
+                          aria-expanded={isExpanded}
+                          aria-label={`${isExpanded ? "Hide" : "Show"} source identities for ${row.displayName}`}
+                          onClick={() =>
+                            setExpandedRows((current) => ({
+                              ...current,
+                              [row.key]: !current[row.key],
+                            }))
+                          }
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="size-4" />
+                          ) : (
+                            <ChevronRight className="size-4" />
+                          )}
+                        </Button>
+                      ) : (
+                        <span className="size-6 shrink-0" aria-hidden="true" />
+                      )}
+                      <span className="min-w-0 truncate">{row.displayName}</span>
+                      {sources.length > 1 ? (
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {sources.length}
+                        </span>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatHours(row.agentHours)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {row.completedTurnCount}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {row.inProgressTurnCount}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {row.unmatchedTurnCount}
+                  </TableCell>
+                  <TableCell>
+                    {row.lastSeenAt ? formatRelativeTime(row.lastSeenAt) : "never"}
+                  </TableCell>
+                </TableRow>
+                {isExpanded ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="bg-muted/20 py-2">
+                      <div className="space-y-1 pl-8">
+                        {sources.map((source) => (
+                          <div
+                            key={source.key}
+                            className="grid grid-cols-[minmax(0,1fr)_72px_56px_56px_72px_96px] items-center gap-3 rounded-sm px-2 py-1 text-xs"
+                            title={source.key}
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate font-medium">{source.sourceLabel}</div>
+                              <div className="truncate text-muted-foreground">{source.key}</div>
+                            </div>
+                            <div className="text-right tabular-nums">
+                              {formatHours(source.agentHours)}
+                            </div>
+                            <div className="text-right tabular-nums">
+                              {source.completedTurnCount}
+                            </div>
+                            <div className="text-right tabular-nums">
+                              {source.inProgressTurnCount}
+                            </div>
+                            <div className="text-right tabular-nums">
+                              {source.unmatchedTurnCount}
+                            </div>
+                            <div className="tabular-nums text-muted-foreground">
+                              {source.lastSeenAt ? formatRelativeTime(source.lastSeenAt) : "never"}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </Fragment>
+            );
+          })}
         </TableBody>
       </Table>
     </ScrollArea>
   );
 }
 
-export function TelemetryStateCard({ detail, title }: { detail: string; title: string }): ReactElement {
+export function TelemetryStateCard({
+  detail,
+  title,
+}: {
+  detail: string;
+  title: string;
+}): ReactElement {
   return (
     <Card className="rounded-md">
       <CardContent className="py-8">

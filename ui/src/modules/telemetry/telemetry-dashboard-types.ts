@@ -11,11 +11,28 @@
 export type RangeDays = 7 | 30 | 90;
 export type DurationCapValue = "2h" | "4h" | "8h" | "none";
 export type RawStatusFilter = "all" | "completed" | "filtered" | "in_progress" | "unmatched";
-export type RawSourceFilter = "all" | "explicit_end" | "next_start_recovery" | "duration_cap" | "diagnostic";
+export type RawSourceFilter =
+  | "all"
+  | "explicit_end"
+  | "next_start_recovery"
+  | "duration_cap"
+  | "diagnostic";
 
 export type TelemetryBreakdown = {
   key: string;
   displayName: string;
+  agentHours: number;
+  completedTurnCount: number;
+  inProgressTurnCount: number;
+  unmatchedTurnCount: number;
+  lastSeenAt: number | null;
+  sourceBreakdowns?: TelemetryBreakdownSource[];
+};
+
+export type TelemetryBreakdownSource = {
+  key: string;
+  displayName: string;
+  sourceLabel: string;
   agentHours: number;
   completedTurnCount: number;
   inProgressTurnCount: number;

@@ -5,7 +5,7 @@ Copy and paste this into a new session to start a planning pass.
 ---
 
 0a. Study `@docs/prd.md` to understand audience, outcomes, and constraints.
-0b. Study `@docs/specs/*` to learn the application specifications.
+0b. Study `@docs/features/FEAT-*.md` to learn the application specifications.
 0c. Study the active ticket in `@tickets/review/*` first; if none exists, inspect `@tickets/todo/*`.
 0d. Study `@docs/MEMORY.md` for durable technical constraints.
 0e. Study `@docs/TROUBLES.md` for repeated failure patterns that should be avoided in this slice.

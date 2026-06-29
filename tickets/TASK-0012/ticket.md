@@ -186,7 +186,7 @@ docs_closeout:
 - `artifacts:` tickets/TASK-0012/artifacts/
 - `review:` local pass
 - `refs:`
-  - docs/specs/FP02-harness-product-model.md
+  - docs/features/FEAT-0002-harness-product-model.md
   - ui/src/modules/harness-os/README.md
   - /Users/kenjipcx/Zanarkand Technologies/projects/Farplane/docs/farplane-framework/harness-maintenance.md
 

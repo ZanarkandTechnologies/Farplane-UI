@@ -50,7 +50,7 @@ create_tasty_pack(goal, timeframe, filters?) -> references + ingredient_map + ge
 
 ## Existing Source Of Truth
 
-There was no durable `docs/specs/*` product spec for this tastiness system
+There was no durable `docs/features/FEAT-*.md` product spec for this tastiness system
 before this file.
 
 Existing related artifacts:

@@ -14,7 +14,14 @@
  * - MEM-0196
  */
 
-export type TabKey = "overview" | "kanban" | "goals" | "pulse" | "proof" | "memory" | "config";
+export type TabKey =
+  | "overview"
+  | "goals"
+  | "products"
+  | "kanban"
+  | "cadence"
+  | "timeline"
+  | "telemetry";
 
 export type TaskStatus = "todo" | "in_progress" | "review" | "blocked" | "done";
 export type KanbanLaneKey = TaskStatus;
@@ -54,6 +61,8 @@ export type PanelTask = {
   artefactPath?: string;
   syncState: TaskSyncState;
   syncError?: string;
+  frontMatter?: Record<string, string>;
+  markdown?: string;
   notes?: string;
   taskType?: string;
   approvalState?: TaskApprovalState;

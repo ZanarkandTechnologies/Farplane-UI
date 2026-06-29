@@ -110,6 +110,18 @@ const PROJECT_MEMORY_FILES = [
   { path: "docs/TROUBLES.md", title: "Troubles", kind: "troubles" },
   { path: "docs/HISTORY.md", title: "History", kind: "history" },
 ] as const;
+const FARPLANE_PROJECT_CONFIG_FILES = [
+  { path: "farplane/manifest.json", title: "Manifest", kind: "manifest", format: "json" },
+  { path: "farplane/README.md", title: "Config Index", kind: "config-index", format: "markdown" },
+  { path: "farplane/harness.md", title: "Harness", kind: "harness", format: "markdown" },
+  { path: "farplane/goals.md", title: "Goals", kind: "goals", format: "markdown" },
+  { path: "farplane/products.md", title: "Products", kind: "products", format: "markdown" },
+  { path: "farplane/automations.md", title: "Automations", kind: "automations", format: "markdown" },
+  { path: "farplane/bindings.md", title: "Bindings", kind: "bindings", format: "markdown" },
+  { path: "farplane/evals.md", title: "Evals", kind: "evals", format: "markdown" },
+  { path: "farplane/hooks.json", title: "Hooks", kind: "hooks", format: "json" },
+  { path: "farplane/pm.json", title: "Project PM", kind: "pm", format: "json" },
+] as const;
 type TemplateTrackingFamilyConfig = {
   familyId: string;
   label: string;
@@ -2497,8 +2509,10 @@ async function listTicketMarkdownFiles(
 async function readProjectTicketTasks(project: {
   projectId: string;
   projectPath: string;
+  ticketsDir?: string;
 }): Promise<JsonObject[]> {
-  const ticketsDir = path.join(project.projectPath, "tickets");
+  const configuredTicketsDir = normalizeRelativeConfigPath(project.ticketsDir, "tickets");
+  const ticketsDir = path.join(project.projectPath, configuredTicketsDir);
   if (!(await isDirectory(ticketsDir))) return [];
   const files = await listTicketMarkdownFiles(ticketsDir);
   const tasks: JsonObject[] = [];
@@ -2524,10 +2538,131 @@ async function readProjectTicketTasks(project: {
       providerUrl: `file://${filePath}`,
       artefactPath: relativePath,
       syncState: "healthy",
+      frontMatter,
+      markdown,
       updatedAt: fileStat?.mtimeMs ?? Date.now(),
     });
   }
   return tasks;
+}
+
+function normalizeKanbanProvider(value: unknown): "filesystem_tickets" | "notion" | "linear" {
+  const provider = String(value ?? "").trim();
+  if (provider === "notion" || provider === "linear") return provider;
+  return "filesystem_tickets";
+}
+
+function normalizeKanbanWritePolicy(
+  value: unknown,
+): "read_only_ui" | "local_first" | "provider_first" {
+  const policy = String(value ?? "").trim();
+  if (policy === "local_first" || policy === "provider_first") return policy;
+  return "read_only_ui";
+}
+
+function normalizeRelativeConfigPath(value: unknown, fallback: string): string {
+  const raw = String(value ?? "").trim().replace(/^["']|["']$/g, "");
+  if (!raw || raw.includes("\0") || path.isAbsolute(raw)) return fallback;
+  const normalized = path.posix.normalize(raw.replace(/\\/g, "/"));
+  if (normalized === "." || normalized.startsWith("../") || normalized === "..") return fallback;
+  return normalized;
+}
+
+function parseSimpleConfigBlock(markdown: string, blockName: string): Record<string, string> {
+  const match = markdown.match(new RegExp(`(?:^|\\n)${blockName}\\s*\\{([\\s\\S]*?)\\n\\}`, "m"));
+  if (!match) return {};
+  const parsed: Record<string, string> = {};
+  for (const line of match[1].split(/\r?\n/g)) {
+    const row = line.trim();
+    if (!row || row.startsWith("#")) continue;
+    const field = row.match(/^([A-Za-z0-9_-]+):\s*(.+)$/);
+    if (!field) continue;
+    parsed[field[1].trim()] = field[2].trim().replace(/^["']|["']$/g, "");
+  }
+  return parsed;
+}
+
+async function readProjectKanbanProviderConfig(projectPath: string): Promise<JsonObject> {
+  const bindingsPath = path.join(path.resolve(projectPath), "farplane", "bindings.md");
+  const markdown = await readFile(bindingsPath, "utf-8").catch(() => "");
+  const block = parseSimpleConfigBlock(markdown, "kanban");
+  const pollSeconds = Number(block.poll_seconds ?? Number.NaN);
+  return {
+    provider: normalizeKanbanProvider(block.provider),
+    ticketsDir: normalizeRelativeConfigPath(block.tickets_dir, "tickets"),
+    archiveDir: normalizeRelativeConfigPath(block.archive_dir, "tickets/archive"),
+    writePolicy: normalizeKanbanWritePolicy(block.write_policy),
+    pollSeconds: Number.isFinite(pollSeconds)
+      ? Math.max(10, Math.min(300, Math.floor(pollSeconds)))
+      : 60,
+    configPath: "farplane/bindings.md",
+    exists: markdown.trim().length > 0,
+  };
+}
+
+function kanbanSourceVersion(tasks: JsonObject[], providerConfig: JsonObject): string {
+  return [
+    providerConfig.provider,
+    providerConfig.ticketsDir,
+    providerConfig.writePolicy,
+    ...tasks
+      .map((task) => `${String(task.id ?? "")}:${String(task.updatedAt ?? "")}`)
+      .sort(),
+  ].join("|");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isTrackedTicketArtifactPath(artefactPath: string, ticketsDir: string): boolean {
+  return new RegExp(`^${escapeRegExp(ticketsDir)}/TASK-[^/]+/ticket\\.md$`).test(artefactPath);
+}
+
+async function readProjectKanbanSnapshot(input: {
+  projectPath: string;
+  projectId?: string;
+}): Promise<JsonObject> {
+  const projectPath = path.resolve(input.projectPath);
+  const projectId =
+    input.projectId?.trim() ||
+    `project:${path.basename(projectPath).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  const providerConfig = await readProjectKanbanProviderConfig(projectPath);
+  const provider = normalizeKanbanProvider(providerConfig.provider);
+  const readAtMs = Date.now();
+  if (provider !== "filesystem_tickets") {
+    return {
+      ok: false,
+      error: "kanban_provider_not_implemented",
+      provider,
+      providerConfig,
+      projectId,
+      projectPath,
+      tasks: [],
+      readAtMs,
+      sourceVersion: kanbanSourceVersion([], providerConfig),
+    };
+  }
+  const ticketsDir = normalizeRelativeConfigPath(providerConfig.ticketsDir, "tickets");
+  const ticketRoot = path.join(projectPath, ticketsDir);
+  const tasks = (await readProjectTicketTasks({ projectId, projectPath, ticketsDir })).filter((task) => {
+    const artefactPath = String(task.artefactPath ?? "");
+    return isTrackedTicketArtifactPath(artefactPath, ticketsDir);
+  });
+  return {
+    ok: true,
+    provider,
+    providerConfig,
+    projectId,
+    projectPath,
+    ticketsDir,
+    ticketRoot,
+    tasks,
+    taskCount: tasks.length,
+    readAtMs,
+    sourceVersion: kanbanSourceVersion(tasks, providerConfig),
+    readOnly: providerConfig.writePolicy === "read_only_ui",
+  };
 }
 
 async function readProjectMemoryFiles(projectPath: string): Promise<JsonObject[]> {
@@ -2602,6 +2737,122 @@ async function readProjectMemoryFiles(projectPath: string): Promise<JsonObject[]
     }
   }
   return rows;
+}
+
+function markdownWithoutFrontMatter(markdown: string): string {
+  if (!markdown.startsWith("---")) return markdown;
+  const end = markdown.indexOf("\n---", 3);
+  if (end === -1) return markdown;
+  return markdown.slice(end + 4).replace(/^\s+/, "");
+}
+
+function parseMarkdownSections(markdown: string): JsonObject[] {
+  const body = markdownWithoutFrontMatter(markdown);
+  const sections: JsonObject[] = [];
+  let current: { level: number; title: string; body: string[] } | null = null;
+  for (const line of body.split(/\r?\n/g)) {
+    const heading = line.match(/^(#{1,4})\s+(.+)$/);
+    if (heading) {
+      if (current) {
+        sections.push({
+          level: current.level,
+          title: current.title,
+          body: current.body.join("\n").trim(),
+        });
+      }
+      current = {
+        level: heading[1].length,
+        title: heading[2].trim(),
+        body: [],
+      };
+      continue;
+    }
+    if (current) current.body.push(line);
+  }
+  if (current) {
+    sections.push({
+      level: current.level,
+      title: current.title,
+      body: current.body.join("\n").trim(),
+    });
+  }
+  return sections;
+}
+
+async function readFarplaneProjectConfig(projectPath: string): Promise<JsonObject> {
+  const rootPath = path.resolve(projectPath);
+  const files: JsonObject[] = [];
+  for (const file of FARPLANE_PROJECT_CONFIG_FILES) {
+    const absolutePath = path.join(rootPath, file.path);
+    const fileStat = await stat(absolutePath).catch(() => null);
+    let content = "";
+    let error: string | undefined;
+    if (fileStat?.isFile()) {
+      try {
+        content = await readFile(absolutePath, "utf-8");
+      } catch {
+        error = "read_failed";
+      }
+    }
+    let parsedJson: JsonObject | JsonObject[] | null = null;
+    if (file.format === "json" && content.trim()) {
+      try {
+        const parsed = JSON.parse(content) as unknown;
+        if (parsed && typeof parsed === "object") parsedJson = parsed as JsonObject | JsonObject[];
+      } catch {
+        error = "json_parse_failed";
+      }
+    }
+    const frontMatter = file.format === "markdown" ? parseSimpleFrontMatter(content) : {};
+    files.push({
+      id: file.path,
+      path: file.path,
+      absolutePath,
+      title: file.title,
+      kind: file.kind,
+      format: file.format,
+      projectPath: rootPath,
+      exists: Boolean(fileStat?.isFile()),
+      content,
+      updatedAtMs: fileStat?.mtimeMs ?? null,
+      frontMatter,
+      sections: file.format === "markdown" ? parseMarkdownSections(content) : [],
+      parsedJson,
+      error,
+    });
+  }
+
+  const runtimeCandidates = [
+    { id: "reports", label: "Reports", path: ".farplane/reports", kind: "directory" },
+    { id: "eval-runs", label: "Eval runs", path: ".farplane/evals/runs", kind: "directory" },
+    { id: "run-ledger", label: "Run ledger", path: ".farplane/state/run-ledger.json", kind: "file" },
+    { id: "logs", label: "Logs", path: ".farplane/logs", kind: "directory" },
+  ];
+  const runtimeSources = await Promise.all(
+    runtimeCandidates.map(async (candidate) => {
+      const absolutePath = path.join(rootPath, candidate.path);
+      const fileStat = await stat(absolutePath).catch(() => null);
+      let childCount: number | null = null;
+      if (fileStat?.isDirectory()) {
+        childCount = (await readdir(absolutePath).catch(() => [])).length;
+      }
+      return {
+        ...candidate,
+        absolutePath,
+        exists: Boolean(fileStat),
+        updatedAtMs: fileStat?.mtimeMs ?? null,
+        childCount,
+      };
+    }),
+  );
+
+  return {
+    ok: true,
+    projectPath: rootPath,
+    generatedAtMs: Date.now(),
+    files,
+    runtimeSources,
+  };
 }
 
 function normalizeProjectManagers(
@@ -4600,6 +4851,33 @@ function farplaneStateBridge() {
             return;
           }
           writeJson(res, 200, await readProjectHookConfig(projectPath));
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/project-config") {
+          const projectPath = url.searchParams.get("projectPath")?.trim() || REPO_ROOT;
+          if (!isSafeProjectPath(projectPath)) {
+            writeJson(res, 400, { ok: false, error: "project_path_required" });
+            return;
+          }
+          writeJson(res, 200, await readFarplaneProjectConfig(projectPath));
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/kanban/read") {
+          const projectPath = url.searchParams.get("projectPath")?.trim() || REPO_ROOT;
+          if (!isSafeProjectPath(projectPath)) {
+            writeJson(res, 400, { ok: false, error: "project_path_required", tasks: [] });
+            return;
+          }
+          writeJson(
+            res,
+            200,
+            await readProjectKanbanSnapshot({
+              projectPath,
+              projectId: url.searchParams.get("projectId")?.trim() || undefined,
+            }),
+          );
           return;
         }
 

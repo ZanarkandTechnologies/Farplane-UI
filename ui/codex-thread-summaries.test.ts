@@ -114,6 +114,83 @@ describe("codex thread summaries", () => {
     );
   });
 
+  it("does not promote hook-captured eval message windows into filesystem thread rows", async () => {
+    const projectPath = await createProjectWithMessageWindow({
+      updated_at: "2026-06-24T14:23:15.000Z",
+      rolling_exchanges: [
+        {
+          user_text:
+            "You are judging an agent answer for a harness eval.\n\n" +
+            "Task:\n{\"reference_points\":[\"Uses the right skill\"]}",
+          user_captured_at: "2026-06-24T14:00:00.000Z",
+          source: "user_prompt_submit_hook",
+          assistant_text: "{\"verdict\":\"A\",\"pass\":true}",
+          assistant_source: "stop_hook",
+        },
+      ],
+    });
+
+    const rows = await readFilesystemObservedCodexThreads({
+      projectPaths: [projectPath],
+      limit: 10,
+      readProjectPmConfig: async () => null,
+      codexHome: await createCodexHomeWithSessionIndex([]),
+    });
+
+    expect(rows).toEqual([]);
+  });
+
+  it("does not promote runtime-tagged ephemeral message windows into filesystem thread rows", async () => {
+    const projectPath = await createProjectWithMessageWindow({
+      updated_at: "2026-06-24T14:23:15.000Z",
+      runtime: { kind: "ephemeral", purpose: "eval", source: "env" },
+      rolling_exchanges: [
+        {
+          user_text: "Check the behavior and report the result.",
+          user_captured_at: "2026-06-24T14:00:00.000Z",
+          source: "user_prompt_submit_hook",
+          assistant_text: "Done.",
+          assistant_source: "stop_hook",
+        },
+      ],
+    });
+
+    const rows = await readFilesystemObservedCodexThreads({
+      projectPaths: [projectPath],
+      limit: 10,
+      readProjectPmConfig: async () => null,
+      codexHome: await createCodexHomeWithSessionIndex([]),
+    });
+
+    expect(rows).toEqual([]);
+  });
+
+  it("does not promote hook-captured file-change summary helpers into filesystem thread rows", async () => {
+    const projectPath = await createProjectWithMessageWindow({
+      updated_at: "2026-06-24T14:23:15.000Z",
+      rolling_exchanges: [
+        {
+          user_text:
+            "Summarize this project file change as one tiny employee status bubble label.\n" +
+            "File: docs/HISTORY.md\nRules:\n- Return 2 to 4 words only.",
+          user_captured_at: "2026-06-24T14:00:00.000Z",
+          source: "user_prompt_submit_hook",
+          assistant_text: "History updated",
+          assistant_source: "stop_hook",
+        },
+      ],
+    });
+
+    const rows = await readFilesystemObservedCodexThreads({
+      projectPaths: [projectPath],
+      limit: 10,
+      readProjectPmConfig: async () => null,
+      codexHome: await createCodexHomeWithSessionIndex([]),
+    });
+
+    expect(rows).toEqual([]);
+  });
+
   it("enriches app-server rows with filesystem names without replacing preview", () => {
     const result = mergeFilesystemThreadsIntoThreadList({
       result: {

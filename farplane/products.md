@@ -10,7 +10,7 @@ source_of_truth:
   - farplane/harness.md
   - farplane/goals.md
   - docs/prd.md
-  - docs/specs/FP02-harness-product-model.md
+  - docs/features/FEAT-0002-harness-product-model.md
 ---
 
 # Farplane UI Products

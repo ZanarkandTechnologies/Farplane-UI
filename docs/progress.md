@@ -25,7 +25,7 @@ UI-first OpenClaw mapping pivot:
 
 ## Notes
 
-- SC11 is now formalized in `docs/specs/SC11-spec-affiliate-marketing-mvp.md` and defines the canonical PM/executor affiliate loop plus concrete measure/execute/distribute skill contracts.
+- SC11 is now formalized in `docs/features/FEAT-0111-affiliate-marketing-mvp.md` and defines the canonical PM/executor affiliate loop plus concrete measure/execute/distribute skill contracts.
 - Legacy custom gateway/config runtime has been intentionally removed from active scope.
 - The product direction is now Office UI + OpenClaw state adapters.
 - Office workspace HUD now includes Team (communication handoff, kanban, business/KPI), Agent Session, Skills, and Settings tabs with shared app-store navigation and scene click routing.

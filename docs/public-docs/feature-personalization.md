@@ -15,7 +15,7 @@ Personalization in the current phase is split into two layers:
 - `decor`: floor, wall, background, paintings, and office objects managed through the Farplane CLI and office UI
 - `custom meshes`: operator-provided `.glb` / `.gltf` files that can be imported, previewed, and placed as office objects
 
-Agent appearance and mesh-wrapper flows are part of the broader direction, but the fully generalized operator-facing appearance system is still governed by [SC09](../specs/SC09-spec-agent-personalization-and-mesh-wrapper.md).
+Agent appearance and mesh-wrapper flows are part of the broader direction, but the fully generalized operator-facing appearance system is still governed by [SC09](../features/FEAT-0109-agent-personalization-and-mesh-wrapper.md).
 
 ## Custom Mesh Asset Flow
 
@@ -103,5 +103,5 @@ This means skill activity is bound to a semantic skill id, not to a hardcoded ob
 - [feature-decorations.md](./feature-decorations.md)
 - [feature-cli.md](./feature-cli.md)
 - [architecture.md](./architecture.md)
-- [SC09-spec-agent-personalization-and-mesh-wrapper.md](../specs/SC09-spec-agent-personalization-and-mesh-wrapper.md)
+- [SC09-spec-agent-personalization-and-mesh-wrapper.md](../features/FEAT-0109-agent-personalization-and-mesh-wrapper.md)
 

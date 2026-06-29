@@ -73,7 +73,7 @@ OpenClaw remains an optional adapter/gateway path for persistent agent
 customization, channels, and isolated workspaces.
 
 Canonical product model:
-`docs/specs/FP02-harness-product-model.md`.
+`docs/features/FEAT-0002-harness-product-model.md`.
 
 ## Goal Intake Status
 
@@ -93,7 +93,7 @@ Canonical product model:
 
 - Status: filesystem ready; PM operating model clarified; live automation
   activation still requires explicit operator approval.
-- Substrate: `farplane/manifest.json` records spec `1.6.1`.
+- Substrate: `farplane/manifest.json` records spec `1.6.4`.
 - PM files: `farplane/harness.md`, `farplane/products.md`,
   `farplane/goals.md`, `farplane/automations.md`, `farplane/hooks.json`, and
   `farplane/pm.json` are present.
@@ -104,7 +104,7 @@ Canonical product model:
 ## Runtime And State Decisions
 
 - Tracked Farplane project config lives under `farplane/`, with
-  `farplane/manifest.json` recording spec version `1.6.1`.
+  `farplane/manifest.json` recording spec version `1.6.4`.
 - Ignored Farplane runtime state lives under `.farplane/`, including run
   ledgers, reports, eval runs, logs, and review packets.
 - The active tracked Farplane ticket queue uses `tickets/TASK-*/ticket.md`.

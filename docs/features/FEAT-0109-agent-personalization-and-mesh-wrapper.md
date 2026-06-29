@@ -9,7 +9,7 @@ Define contracts and UI surfaces for agent visual personalization (profile, appe
 - OpenClaw Multi-Agent Routing: https://docs.openclaw.ai/concepts/multi-agent#multi-agent-routing
 - OpenClaw Plugins: https://docs.openclaw.ai/tools/plugin#plugins
 - `ST01`: `docs/specs/studies/ST01-founder-direction-openclaw-personalization.md`
-- `SC01`: `docs/specs/SC01-spec-openclaw-state-mapping.md`
+- `SC01`: `docs/features/FEAT-0101-openclaw-state-mapping.md`
 
 ## Product Rule
 

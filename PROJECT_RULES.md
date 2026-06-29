@@ -20,7 +20,7 @@ This file defines project-specific technical rules, stack details, and execution
 - `extensions/`: in-repo OpenClaw plugins and adapters
 - `skills/`: repo-local skill source packages for sync/install flows
 - `ui/`: Vite/React office UI workspace
-- `docs/`: canonical project state (`bootstrap-brief.md`, `prd.md`, `specs/*`, `HISTORY.md`, `MEMORY.md`, `TROUBLES.md`, `LESSONS.md`, `TASTE.md`)
+- `docs/`: canonical project state (`bootstrap-brief.md`, `prd.md`, `features/FEAT-*.md`, `systems/*.md`, `HISTORY.md`, `MEMORY.md`, `TROUBLES.md`, `LESSONS.md`, `TASTE.md`)
 - `qa/`: reusable browser QA runbooks, cookbook pages, shortcuts, probes, and evidence expectations
 - `farplane/`: tracked Farplane project config (`manifest.json`, harness, goals, automations, bindings, evals, PM thread manifest)
 - `.farplane/`: ignored local runtime state, reports, eval runs, logs, review packets, and run ledgers

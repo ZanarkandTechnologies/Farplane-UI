@@ -11,8 +11,8 @@ Define the end-to-end autonomous affiliate marketing business operated by a PM +
 - Amazon Associates UK: https://affiliate-program.amazon.co.uk/home
 - Amazon Affiliate Product Discovery: https://www.amazon.co.uk/b?node=59321051031
 - inference.sh CLI: https://inference.sh/docs/apps/running
-- `SC10`: `docs/specs/SC10-spec-heartbeat-autonomy-loop.md`
-- `SC06`: `docs/specs/SC06-spec-kanban-federation-sync.md`
+- `SC10`: `docs/features/FEAT-0110-heartbeat-autonomy-loop.md`
+- `SC06`: `docs/features/FEAT-0106-kanban-federation-sync.md`
 - Decisions log: `docs/autonomous-business-mvp-decisions.md`
 
 ## Product Rules

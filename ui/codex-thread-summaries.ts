@@ -138,6 +138,56 @@ function messageWindowPreview(summary: JsonObject): string {
   );
 }
 
+function messageWindowText(summary: JsonObject): string {
+  const parts: string[] = [];
+  const pending =
+    summary.pending_user_turn && typeof summary.pending_user_turn === "object"
+      ? (summary.pending_user_turn as JsonObject)
+      : {};
+  parts.push(String(pending.user_text ?? ""), String(pending.user_summary ?? ""));
+  const exchanges = Array.isArray(summary.rolling_exchanges)
+    ? summary.rolling_exchanges
+    : Array.isArray(summary.rollingExchangeWindow)
+      ? summary.rollingExchangeWindow
+      : [];
+  for (const entry of exchanges) {
+    if (!entry || typeof entry !== "object") continue;
+    const row = entry as JsonObject;
+    parts.push(String(row.user_text ?? ""), String(row.user_summary ?? ""));
+  }
+  return parts.filter(Boolean).join("\n");
+}
+
+function isInternalAuxiliaryMessageWindow(summary: JsonObject): boolean {
+  const runtime =
+    summary.runtime && typeof summary.runtime === "object" ? (summary.runtime as JsonObject) : {};
+  const runtimeKind = String(runtime.kind ?? "").trim().toLowerCase();
+  const runtimePurpose = String(runtime.purpose ?? "").trim().toLowerCase();
+  if (
+    runtimeKind === "ephemeral" ||
+    runtimeKind === "headless" ||
+    runtimePurpose === "eval" ||
+    runtimePurpose === "evaluation"
+  ) {
+    return true;
+  }
+  const text = messageWindowText(summary);
+  return (
+    /(^|\n)\s*You are judging an agent answer(?:\s+for\s+(?:a\s+)?harness eval)?\b/i.test(
+      text,
+    ) ||
+    /\b(codex[-_\s]?exec|headless|ephemeral|harness eval|run_evals\.py|\.farplane\/evals)\b/i.test(
+      text,
+    ) ||
+    /(^|\n)\s*Summarize this project file change as one (tiny employee status bubble label|concise employee status bubble)\b/i.test(
+      text,
+    ) ||
+    /(^|\n)# Overview\s+Generate 0 to 3 hyperpersonalized suggestions for what this user can do with Codex\b/i.test(
+      text,
+    )
+  );
+}
+
 function messageWindowUpdatedMs(summary: JsonObject, fallbackMs: number): number {
   const pending =
     summary.pending_user_turn && typeof summary.pending_user_turn === "object"
@@ -199,6 +249,7 @@ async function readMessageWindowThreadSummaries(
     const filePath = path.join(messageWindowDir, entry.name);
     const fileStat = await stat(filePath).catch(() => null);
     const summary = await readJsonFile<JsonObject>(filePath, {});
+    if (isInternalAuxiliaryMessageWindow(summary)) continue;
     const updatedMs = messageWindowUpdatedMs(summary, fileStat?.mtimeMs ?? Date.now());
     const preview = messageWindowPreview(summary) || `Codex thread ${threadId.slice(0, 8)}`;
     const name = sessionIndexThreadNames.get(threadId) || messageWindowTitle(summary) || preview;

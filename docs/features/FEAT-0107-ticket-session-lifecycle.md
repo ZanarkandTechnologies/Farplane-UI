@@ -8,8 +8,8 @@ Define ticket lifecycle semantics in Farplane UI where one active ticket maps to
 
 - OpenClaw Multi-Agent Routing: https://docs.openclaw.ai/concepts/multi-agent#multi-agent-routing
 - OpenClaw Plugins: https://docs.openclaw.ai/tools/plugin#plugins
-- `SC04`: `docs/specs/SC04-spec-chat-bridge-openclaw.md`
-- `SC06`: `docs/specs/SC06-spec-kanban-federation-sync.md`
+- `SC04`: `docs/features/FEAT-0104-chat-bridge-openclaw.md`
+- `SC06`: `docs/features/FEAT-0106-kanban-federation-sync.md`
 
 ## Product Rule
 

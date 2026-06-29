@@ -22,8 +22,8 @@ This file is loaded every loop. Keep it operational and concise.
 - Architecture: `ARCHITECTURE.md`
 - Bootstrap brief: `docs/bootstrap-brief.md`
 - PRD: `docs/prd.md`
-- Specs index: `docs/specs/README.md`
-- Specs: `docs/specs/*`
+- Feature specs: `docs/features/README.md`, then `docs/features/FEAT-*.md`
+- Systems: `docs/systems/README.md`, then `docs/systems/*.md`
 - History: `docs/HISTORY.md`
 - Memory: `docs/MEMORY.md`
 - Troubles: `docs/TROUBLES.md`
@@ -38,7 +38,8 @@ This file is loaded every loop. Keep it operational and concise.
 - `AGENTS.md`: loaded operating router, read gates, lifecycle, and high-signal invariants only.
 - `PROJECT_RULES.md`: technical stack, commands, runtime/QA paths, source-file standards, shared utilities, review policy, and frontend standards.
 - `ARCHITECTURE.md`: top-level system map and major ownership boundaries.
-- `docs/specs/*`: durable behavior contracts and cross-surface product/runtime decisions.
+- `docs/features/FEAT-*.md`: durable feature behavior contracts, surfaces, evidence, limits, and metadata.
+- `docs/systems/*.md`: durable system/product-layer groupings, boundaries, and feature ownership maps.
 - `ui/src/modules/*/README.md` and `AGENTS.md`: nearest module ownership and proof rules.
 - `README.md`: human/product quickstart, not agent policy.
 

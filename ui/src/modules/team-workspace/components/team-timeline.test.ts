@@ -14,6 +14,7 @@ describe("team timeline helpers", () => {
           label: "Started",
         },
       ],
+      memoryRows: [],
       communicationRows: [],
       projectId: "proj-a",
     });
@@ -24,6 +25,7 @@ describe("team timeline helpers", () => {
   it("falls back to communication rows for timeline rendering", () => {
     const rows = buildTeamTimelineRows({
       convexTimeline: undefined,
+      memoryRows: [],
       communicationRows: [
         {
           id: "comm-1",
@@ -45,6 +47,7 @@ describe("team timeline helpers", () => {
   it("falls back to communication rows when convex returns empty array", () => {
     const rows = buildTeamTimelineRows({
       convexTimeline: [],
+      memoryRows: [],
       communicationRows: [
         {
           id: "comm-2",
@@ -58,5 +61,40 @@ describe("team timeline helpers", () => {
     });
     expect(rows).toHaveLength(1);
     expect(rows[0]?.label).toBe("Queue built");
+  });
+
+  it("prefers project memory history rows over live activity", () => {
+    const rows = buildTeamTimelineRows({
+      convexTimeline: [
+        {
+          _id: "row-1",
+          sourceType: "agent_event",
+          occurredAt: 10,
+          projectId: "proj-a",
+          agentId: "agent-a",
+          label: "Started",
+        },
+      ],
+      memoryRows: [
+        {
+          id: "docs/HISTORY.md",
+          projectId: "proj-a",
+          authorType: "system",
+          kind: "document",
+          sourcePath: "docs/HISTORY.md",
+          title: "History",
+          createdAt: 100,
+          body: "2026-06-26 | feature | MEM-0241 | ui,timeline | Rendered decisions.",
+        },
+      ],
+      communicationRows: [],
+      projectId: "proj-a",
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.sourceType).toBe("memory_event");
+    expect(rows[0]?.eventType).toBe("feature");
+    expect(rows[0]?.memoryId).toBe("MEM-0241");
+    expect(rows[0]?.label).toBe("Rendered decisions.");
   });
 });

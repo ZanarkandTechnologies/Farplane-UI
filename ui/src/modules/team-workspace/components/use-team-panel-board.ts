@@ -58,6 +58,8 @@ interface UseTeamPanelBoardStateInput {
   project: ProjectLike;
   activeProjectId: string | undefined;
   teamScopeId: string | null;
+  providerTasks?: PanelTask[];
+  providerReady?: boolean;
 }
 
 interface BoardActionState {
@@ -72,6 +74,8 @@ export function useTeamPanelBoardState({
   project,
   activeProjectId,
   teamScopeId,
+  providerTasks = [],
+  providerReady = false,
 }: UseTeamPanelBoardStateInput): {
   convexEnabled: boolean;
   projectTasks: PanelTask[];
@@ -101,6 +105,7 @@ export function useTeamPanelBoardState({
   );
 
   const projectTasks = useMemo((): PanelTask[] => {
+    if (providerReady) return providerTasks;
     if (convexEnabled && convexBoard?.tasks) {
       return convexBoard.tasks.map((task) => ({
         id: task.taskId,
@@ -141,7 +146,15 @@ export function useTeamPanelBoardState({
         syncState: (task.syncState as PanelTask["syncState"]) ?? "healthy",
         syncError: task.syncError,
       }));
-  }, [companyModel, convexBoard?.tasks, convexEnabled, globalMode, project]);
+  }, [
+    companyModel,
+    convexBoard?.tasks,
+    convexEnabled,
+    globalMode,
+    project,
+    providerReady,
+    providerTasks,
+  ]);
 
   const activityRows = useMemo((): ActivityRow[] => {
     if (!Array.isArray(convexActivity)) return [];

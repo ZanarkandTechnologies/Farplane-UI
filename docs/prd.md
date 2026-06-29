@@ -37,7 +37,7 @@ Farplane UI is the cockpit for that harness. It has two levels of utility:
   loops.
 
 Canonical doctrine:
-[`docs/specs/FP02-harness-product-model.md`](./specs/FP02-harness-product-model.md).
+[`docs/features/FEAT-0002-harness-product-model.md`](./features/FEAT-0002-harness-product-model.md).
 
 ## Problem
 

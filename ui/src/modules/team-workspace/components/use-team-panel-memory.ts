@@ -74,12 +74,18 @@ export function useTeamPanelMemoryState({
   useEffect(() => {
     if (!activeProjectId || !activeProjectPath) {
       setMemoryRows([]);
-      setComposeState({ pending: false, error: activeProjectId ? "project_path_missing" : undefined });
+      setComposeState({
+        pending: false,
+        error: activeProjectId ? "project_path_missing" : undefined,
+      });
       return;
     }
     let cancelled = false;
     setComposeState({ pending: true });
-    const params = new URLSearchParams({ projectPath: activeProjectPath });
+    const params = new URLSearchParams({
+      projectPath: activeProjectPath,
+      reload: String(reloadToken),
+    });
     fetch(`/farplane/memory-files?${params.toString()}`)
       .then((response) => {
         if (!response.ok) throw new Error(`memory_files_failed:${response.status}`);
@@ -88,7 +94,10 @@ export function useTeamPanelMemoryState({
       .then((payload) => {
         if (cancelled) return;
         const rows = Array.isArray(payload.files)
-          ? payload.files.map(toMemoryRow).filter((row): row is TeamMemoryRow => row !== null)
+          ? payload.files
+              .map(toMemoryRow)
+              .filter((row): row is TeamMemoryRow => row !== null)
+              .map((row) => ({ ...row, projectId: activeProjectId }))
           : [];
         setMemoryRows(rows);
         setComposeState({ pending: false });

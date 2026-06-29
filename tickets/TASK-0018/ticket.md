@@ -127,7 +127,7 @@ proof:
 - `blocked:` approval required before implementation
 - `latest_verification:` scoped against existing `convex/modules/hookTelemetry`,
   `/telemetry/hooks`, `ui/src/modules/telemetry`, `ui/src/modules/hook-telemetry`,
-  `docs/specs/FP01-operator-intelligence-modules-roadmap.md`, and Core
+  `docs/features/FEAT-0001-operator-intelligence-modules-roadmap.md`, and Core
   `TASK-0233`
 - `result:` pending
 
@@ -145,5 +145,5 @@ proof:
   - `convex/modules/hookTelemetry/queries.ts`
   - `ui/src/modules/telemetry/README.md`
   - `ui/src/modules/hook-telemetry/README.md`
-  - `docs/specs/FP01-operator-intelligence-modules-roadmap.md`
+  - `docs/features/FEAT-0001-operator-intelligence-modules-roadmap.md`
   - `Farplane Core tickets/TASK-0233/ticket.md`

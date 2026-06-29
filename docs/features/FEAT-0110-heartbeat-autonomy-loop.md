@@ -8,9 +8,9 @@ Define heartbeat-driven autonomous execution loops and the operator governance c
 
 - OpenClaw Multi-Agent Routing: https://docs.openclaw.ai/concepts/multi-agent#multi-agent-routing
 - OpenClaw Plugins: https://docs.openclaw.ai/tools/plugin#plugins
-- `SC01`: `docs/specs/SC01-spec-openclaw-state-mapping.md`
-- `SC04`: `docs/specs/SC04-spec-chat-bridge-openclaw.md`
-- `SC07`: `docs/specs/SC07-spec-ticket-session-lifecycle.md`
+- `SC01`: `docs/features/FEAT-0101-openclaw-state-mapping.md`
+- `SC04`: `docs/features/FEAT-0104-chat-bridge-openclaw.md`
+- `SC07`: `docs/features/FEAT-0107-ticket-session-lifecycle.md`
 
 ## Product Rules
 
