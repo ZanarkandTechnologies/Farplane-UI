@@ -96,6 +96,18 @@ export type FrontmatterDiff = Infer<typeof frontmatterDiffValidator>;
 export type FarplaneFileEventPayload = Infer<typeof farplaneFileEventPayloadValidator>;
 
 const FARPLANE_FILE_EVENT_NAME_SET = new Set<string>(FARPLANE_FILE_EVENT_NAMES);
+const FORBIDDEN_PAYLOAD_KEYS = new Set([
+  "body",
+  "rawBody",
+  "rawFile",
+  "rawDiff",
+  "content",
+  "transcript",
+  "toolOutput",
+  "toolResponse",
+  "stdout",
+  "stderr",
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -142,6 +154,7 @@ export function isFarplaneFileEventName(value: unknown): value is FarplaneFileEv
 
 export function isFarplaneFileEventPayload(value: unknown): value is FarplaneFileEventPayload {
   if (!isRecord(value)) return false;
+  if (Object.keys(value).some((key) => FORBIDDEN_PAYLOAD_KEYS.has(key))) return false;
   if (value.schemaVersion !== 1 || !isFarplaneFileEventName(value.eventName)) return false;
   if (value.source !== "local_file_post_tool_use" && value.source !== "provider_webhook") return false;
   if (!isString(value.entityKind) || !isString(value.contentHash) || !isNumber(value.eventAt) || !isString(value.eventKey)) return false;

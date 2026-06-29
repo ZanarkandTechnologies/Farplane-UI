@@ -122,10 +122,10 @@ describe("hook telemetry projections", () => {
         { path: "status", before: { hash: "hash-review", preview: "review" }, after: { hash: "hash-done", preview: "done" } },
         { path: "next_action", before: { hash: "hash-proof", preview: "finish proof" }, after: { hash: "hash-done", preview: "done" } },
       ],
-      body: "should not leak",
     } as const;
     expect(isFarplaneFileEventPayload(validFarplanePayload)).toBe(true);
     expect(isFarplaneFileEventPayload({ ...validFarplanePayload, eventName: "farplane.ticket.nope" })).toBe(false);
+    expect(isFarplaneFileEventPayload({ ...validFarplanePayload, body: "should not leak" })).toBe(false);
 
     const rows = hookTelemetryRowsToLearningTimelineRows([
       {

@@ -25,26 +25,6 @@ export type FarplaneFileKind =
   | "doc"
   | "unknown";
 
-export const FARPLANE_FILE_EVENT_NAMES = [
-  "farplane.ticket.changed",
-  "farplane.ticket.completed",
-  "farplane.ticket.program.changed",
-  "farplane.ticket.progress.changed",
-  "farplane.goals.changed",
-  "farplane.products.changed",
-  "farplane.harness.changed",
-  "farplane.automations.changed",
-  "farplane.bindings.changed",
-  "farplane.config.changed",
-  "farplane.memory.changed",
-  "farplane.learning.changed",
-  "farplane.history.changed",
-  "farplane.taste.changed",
-  "farplane.file.changed",
-] as const;
-
-export type FarplaneFileEventName = (typeof FARPLANE_FILE_EVENT_NAMES)[number];
-
 export type FieldPreview = {
   hash: string;
   preview?: string;
@@ -110,6 +90,122 @@ export type FarplaneFileEventInput = {
   threadId?: string;
 };
 
+type FarplaneFileDefinition = {
+  kind: Exclude<FarplaneFileKind, "unknown">;
+  entityKind: string;
+  changedEventName: FarplaneFileEventName;
+  match: RegExp;
+};
+
+type ParsedFrontmatter = {
+  previews: Record<string, FieldPreview>;
+  raw: Record<string, string>;
+};
+
+const FARPLANE_FILE_DEFINITIONS = [
+  {
+    kind: "ticket",
+    entityKind: "ticket",
+    changedEventName: "farplane.ticket.changed",
+    match: /^tickets\/TASK-\d+\/ticket\.md$/i,
+  },
+  {
+    kind: "ticket_program",
+    entityKind: "ticket",
+    changedEventName: "farplane.ticket.program.changed",
+    match: /^tickets\/TASK-\d+\/program\.md$/i,
+  },
+  {
+    kind: "ticket_progress",
+    entityKind: "ticket",
+    changedEventName: "farplane.ticket.progress.changed",
+    match: /^tickets\/TASK-\d+\/progress\.md$/i,
+  },
+  {
+    kind: "goal",
+    entityKind: "goal",
+    changedEventName: "farplane.goals.changed",
+    match: /^(?:farplane\/)?goals\.md$/i,
+  },
+  {
+    kind: "product",
+    entityKind: "product",
+    changedEventName: "farplane.products.changed",
+    match: /^farplane\/products\.md$/i,
+  },
+  {
+    kind: "harness",
+    entityKind: "harness",
+    changedEventName: "farplane.harness.changed",
+    match: /^farplane\/harness\.md$/i,
+  },
+  {
+    kind: "automation",
+    entityKind: "automation",
+    changedEventName: "farplane.automations.changed",
+    match: /^farplane\/automations\.md$/i,
+  },
+  {
+    kind: "binding",
+    entityKind: "binding",
+    changedEventName: "farplane.bindings.changed",
+    match: /^farplane\/bindings\.md$/i,
+  },
+  {
+    kind: "config",
+    entityKind: "config",
+    changedEventName: "farplane.config.changed",
+    match: /^farplane\/(?:manifest|hooks|pm)\.json$/i,
+  },
+  {
+    kind: "memory",
+    entityKind: "memory",
+    changedEventName: "farplane.memory.changed",
+    match: /^docs\/MEMORY\.md$/i,
+  },
+  {
+    kind: "learning",
+    entityKind: "learning",
+    changedEventName: "farplane.learning.changed",
+    match: /^docs\/(?:LESSONS|TROUBLES)\.md$/i,
+  },
+  {
+    kind: "history",
+    entityKind: "history",
+    changedEventName: "farplane.history.changed",
+    match: /^docs\/HISTORY\.md$/i,
+  },
+  {
+    kind: "taste",
+    entityKind: "taste",
+    changedEventName: "farplane.taste.changed",
+    match: /^docs\/TASTE\.md$/i,
+  },
+  {
+    kind: "doc",
+    entityKind: "doc",
+    changedEventName: "farplane.file.changed",
+    match: /^docs\/.*\.md$/i,
+  },
+  {
+    kind: "ticket_progress",
+    entityKind: "ticket",
+    changedEventName: "farplane.ticket.progress.changed",
+    match: /^progress\.md$/i,
+  },
+] as const satisfies readonly FarplaneFileDefinition[];
+
+export type FarplaneFileEventName =
+  | "farplane.ticket.completed"
+  | (typeof FARPLANE_FILE_DEFINITIONS)[number]["changedEventName"];
+
+export const FARPLANE_FILE_EVENT_NAMES: readonly FarplaneFileEventName[] = [
+  ...new Set<FarplaneFileEventName>([
+    "farplane.ticket.completed",
+    ...FARPLANE_FILE_DEFINITIONS.map((definition) => definition.changedEventName),
+  ]),
+];
+
 const PREVIEW_LIMIT = 120;
 const MAX_CHANGED_FIELDS = 12;
 const MAX_SECTION_HINTS = 8;
@@ -137,88 +233,37 @@ function ticketIdFromPath(filePath: string): string | undefined {
 
 export function classifyFarplaneFile(filePath: string): FarplaneFileKind {
   const normalized = normalizePath(filePath);
-  if (/^tickets\/TASK-\d+\/ticket\.md$/i.test(normalized)) return "ticket";
-  if (/^tickets\/TASK-\d+\/program\.md$/i.test(normalized)) return "ticket_program";
-  if (/^tickets\/TASK-\d+\/progress\.md$/i.test(normalized)) return "ticket_progress";
-  if (/^(?:farplane\/)?goals\.md$/i.test(normalized)) return "goal";
-  if (/^farplane\/products\.md$/i.test(normalized)) return "product";
-  if (/^farplane\/harness\.md$/i.test(normalized)) return "harness";
-  if (/^farplane\/automations\.md$/i.test(normalized)) return "automation";
-  if (/^farplane\/bindings\.md$/i.test(normalized)) return "binding";
-  if (/^farplane\/(?:manifest|hooks|pm)\.json$/i.test(normalized)) return "config";
-  if (/^docs\/MEMORY\.md$/i.test(normalized)) return "memory";
-  if (/^docs\/(?:LESSONS|TROUBLES)\.md$/i.test(normalized)) return "learning";
-  if (/^docs\/HISTORY\.md$/i.test(normalized)) return "history";
-  if (/^docs\/TASTE\.md$/i.test(normalized)) return "taste";
-  if (/^docs\/.*\.md$/i.test(normalized)) return "doc";
-  if (/^progress\.md$/i.test(normalized)) return "ticket_progress";
-  return "unknown";
+  return FARPLANE_FILE_DEFINITIONS.find((definition) => definition.match.test(normalized))?.kind ?? "unknown";
 }
 
-function entityKindForFile(kind: FarplaneFileKind): string {
-  if (kind === "ticket" || kind === "ticket_program" || kind === "ticket_progress") return "ticket";
-  if (kind === "goal") return "goal";
-  if (kind === "product") return "product";
-  if (kind === "harness") return "harness";
-  if (kind === "automation") return "automation";
-  if (kind === "binding") return "binding";
-  if (kind === "config") return "config";
-  if (kind === "memory") return "memory";
-  if (kind === "learning") return "learning";
-  if (kind === "history") return "history";
-  if (kind === "taste") return "taste";
-  return "doc";
+function definitionForKind(kind: FarplaneFileKind): FarplaneFileDefinition | undefined {
+  return FARPLANE_FILE_DEFINITIONS.find((definition) => definition.kind === kind);
 }
 
 function eventNameForKind(kind: FarplaneFileKind, input: { terminal?: boolean; completed?: boolean }): FarplaneFileEventName {
   if (input.completed) return "farplane.ticket.completed";
-  if (kind === "ticket") return "farplane.ticket.changed";
-  if (kind === "ticket_program") return "farplane.ticket.program.changed";
-  if (kind === "ticket_progress") return "farplane.ticket.progress.changed";
-  if (kind === "goal") return "farplane.goals.changed";
-  if (kind === "product") return "farplane.products.changed";
-  if (kind === "harness") return "farplane.harness.changed";
-  if (kind === "automation") return "farplane.automations.changed";
-  if (kind === "binding") return "farplane.bindings.changed";
-  if (kind === "config") return "farplane.config.changed";
-  if (kind === "memory") return "farplane.memory.changed";
-  if (kind === "learning") return "farplane.learning.changed";
-  if (kind === "history") return "farplane.history.changed";
-  if (kind === "taste") return "farplane.taste.changed";
-  return "farplane.file.changed";
+  return definitionForKind(kind)?.changedEventName ?? "farplane.file.changed";
 }
 
-function parseFrontmatter(text: string): Record<string, FieldPreview> {
-  if (!text.startsWith("---\n") && !text.startsWith("---\r\n")) return {};
+function parseFrontmatter(text: string): ParsedFrontmatter {
+  const empty = { previews: {}, raw: {} };
+  if (!text.startsWith("---\n") && !text.startsWith("---\r\n")) return empty;
   const end = text.indexOf("\n---", 4);
-  if (end < 0) return {};
+  if (end < 0) return empty;
   const frontmatter = text.slice(3, end).split(/\r?\n/g);
-  const values: Record<string, FieldPreview> = {};
+  const previews: Record<string, FieldPreview> = {};
+  const raw: Record<string, string> = {};
   for (const line of frontmatter) {
     if (!line.trim() || /^\s/.test(line)) continue;
     const match = line.match(/^([A-Za-z0-9_.-]+):\s*(.*)$/);
     if (!match) continue;
     const key = match[1]?.trim();
     if (!key) continue;
-    const value = (match[2] ?? "").replace(/^['"]|['"]$/g, "");
-    values[key] = previewValue(value);
+    const value = (match[2] ?? "").replace(/^['"]|['"]$/g, "").trim();
+    raw[key] = value;
+    previews[key] = previewValue(value);
   }
-  return values;
-}
-
-function parseRawFrontmatter(text: string): Record<string, string> {
-  if (!text.startsWith("---\n") && !text.startsWith("---\r\n")) return {};
-  const end = text.indexOf("\n---", 4);
-  if (end < 0) return {};
-  const frontmatter = text.slice(3, end).split(/\r?\n/g);
-  const values: Record<string, string> = {};
-  for (const line of frontmatter) {
-    if (!line.trim() || /^\s/.test(line)) continue;
-    const match = line.match(/^([A-Za-z0-9_.-]+):\s*(.*)$/);
-    if (!match?.[1]) continue;
-    values[match[1].trim()] = (match[2] ?? "").replace(/^['"]|['"]$/g, "").trim();
-  }
-  return values;
+  return { previews, raw };
 }
 
 function parseHeadings(text: string): string[] {
@@ -288,9 +333,8 @@ function buildSnapshot(input: {
   eventAt: number;
 }): FarplaneFileSnapshot {
   const contentHash = hashText(input.text);
-  const entityKind = entityKindForFile(input.kind);
+  const entityKind = definitionForKind(input.kind)?.entityKind ?? "doc";
   const frontmatter = parseFrontmatter(input.text);
-  const rawFrontmatter = parseRawFrontmatter(input.text);
   const jsonFields = input.path.endsWith(".json") ? parseJsonFields(input.text) : undefined;
   return {
     schemaVersion: 1,
@@ -299,11 +343,11 @@ function buildSnapshot(input: {
     entityKind,
     entityId: ticketIdFromPath(input.path) ?? (entityKind === "config" ? input.path : undefined),
     contentHash,
-    frontmatter: Object.keys(frontmatter).length ? frontmatter : undefined,
+    frontmatter: Object.keys(frontmatter.previews).length ? frontmatter.previews : undefined,
     jsonFields: jsonFields && Object.keys(jsonFields).length ? jsonFields : undefined,
     headings: parseHeadings(input.text),
     lineCount: input.text.split(/\r?\n/g).length,
-    terminal: input.kind === "ticket" ? isTerminalTicket(rawFrontmatter) : undefined,
+    terminal: input.kind === "ticket" ? isTerminalTicket(frontmatter.raw) : undefined,
     updatedAt: input.eventAt,
   };
 }

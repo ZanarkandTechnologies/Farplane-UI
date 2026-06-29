@@ -6,19 +6,17 @@
  * - Publish typed `farplane.*` file events plus compact legacy status-bubble summaries.
  */
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import {
-  parseFarplaneFileEvent,
-  type FarplaneFileEvent,
-  type FarplaneFileSnapshot,
-} from "./file-event-registry";
+import { parseFarplaneFileEvent, type FarplaneFileEvent } from "./file-event-registry";
+import { readFileEventSnapshot, writeFileEventSnapshot } from "./file-event-snapshot-store";
 import {
   resolveCodexSummaryOptions,
   summarizeTrackedFileChangeWithCodex,
   type CodexSummaryOptions,
 } from "../shared/codex-summary";
 import { publishHookTelemetryWithOutbox } from "../shared/telemetry-outbox";
+import { defaultTrackedPathPatterns } from "../shared/project-hook-config";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -48,19 +46,6 @@ export type FileChangeParseOptions = {
 const WRITE_TOOL_PATTERN = /(?:bash|apply_patch|edit|write|create|delete|multi_tool_use)/i;
 const MAX_CHANGED_FILES = 12;
 const MAX_FILE_BYTES = 24_000;
-export const DEFAULT_TRACKED_PATH_PATTERNS = [
-  "progress.md",
-  "goals.md",
-  "tickets/*/ticket.md",
-  "tickets/*/progress.md",
-  "tickets/*/program.md",
-  "farplane/*.md",
-  "farplane/*.json",
-  "docs/*.md",
-  "docs/**/*.md",
-  "evals/**",
-  "skills/*/memory.md",
-] as const;
 
 function isRecord(value: unknown): value is JsonRecord {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -153,7 +138,7 @@ function globToRegExp(pattern: string): RegExp {
   return new RegExp(`^${source}$`, "i");
 }
 
-function trackedPathMatchers(patterns: readonly string[] = DEFAULT_TRACKED_PATH_PATTERNS): RegExp[] {
+function trackedPathMatchers(patterns: readonly string[] = defaultTrackedPathPatterns()): RegExp[] {
   return patterns.map((pattern) => globToRegExp(pattern));
 }
 
@@ -314,43 +299,6 @@ function stableEventKey(input: {
   ]
     .join(":")
     .slice(0, 500);
-}
-
-function defaultFileEventStateDir(projectPath: string): string {
-  return path.join(projectPath, ".farplane", "file-events", "state");
-}
-
-function stateFilePath(input: { projectPath: string; filePath: string; stateDir?: string }): string {
-  const stateRoot = input.stateDir ?? defaultFileEventStateDir(input.projectPath);
-  const hash = createHash("sha1").update(input.filePath).digest("hex").slice(0, 20);
-  return path.join(stateRoot, `${hash}.json`);
-}
-
-function readFileEventSnapshot(input: {
-  projectPath: string;
-  filePath: string;
-  stateDir?: string;
-}): FarplaneFileSnapshot | undefined {
-  const filePath = stateFilePath(input);
-  if (!existsSync(filePath)) return undefined;
-  try {
-    const parsed = JSON.parse(readFileSync(filePath, "utf8")) as unknown;
-    if (!isRecord(parsed) || parsed.schemaVersion !== 1) return undefined;
-    return parsed as FarplaneFileSnapshot;
-  } catch {
-    return undefined;
-  }
-}
-
-function writeFileEventSnapshot(input: {
-  projectPath: string;
-  filePath: string;
-  stateDir?: string;
-  snapshot: FarplaneFileSnapshot;
-}): void {
-  const filePath = stateFilePath(input);
-  mkdirSync(path.dirname(filePath), { recursive: true });
-  writeFileSync(filePath, `${JSON.stringify(input.snapshot, null, 2)}\n`, "utf8");
 }
 
 function parseFileChangeCandidatePathsFromPayload(
