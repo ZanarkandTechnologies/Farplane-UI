@@ -50,4 +50,34 @@ describe("project-hook-config", () => {
       rmSync(repo, { recursive: true, force: true });
     }
   });
+
+  it("keeps built-in hook patterns when manifest paths are selected", () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "farplane-hook-config-"));
+    try {
+      mkdirSync(path.join(repo, "farplane"), { recursive: true });
+      mkdirSync(path.join(repo, ".farplane", "hooks"), { recursive: true });
+      writeFileSync(
+        path.join(repo, "farplane", "manifest.json"),
+        JSON.stringify({ standard: { tracked: ["docs/MEMORY.md"] } }),
+      );
+      writeFileSync(
+        path.join(repo, ".farplane", "hooks", "config.json"),
+        JSON.stringify({ selectedManifestPaths: ["docs/MEMORY.md"], customPatterns: ["custom/*.md"] }),
+      );
+
+      const config = resolveProjectHookConfig(repo, {} as NodeJS.ProcessEnv);
+
+      expect(config.patterns).toEqual(
+        expect.arrayContaining([
+          "tickets/*/ticket.md",
+          "tickets/*/progress.md",
+          "farplane/*.md",
+          "docs/MEMORY.md",
+          "custom/*.md",
+        ]),
+      );
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
 });

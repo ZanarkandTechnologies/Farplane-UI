@@ -107,7 +107,7 @@ export function resolveProjectHookConfig(
   const config = normalizeConfig(existsSync(configPath) ? readJsonFile(configPath) : undefined, manifestTracked);
   const envPatterns = parsePatternList(readFarplaneConfigValue("FARPLANE_FILE_CHANGE_PATTERNS", { env }));
   const manifestPatterns = config.includeManifestTracked ? config.selectedManifestPaths : [];
-  const patterns = envPatterns ?? uniquePatterns([...manifestPatterns, ...config.customPatterns]);
+  const patterns = envPatterns ?? uniquePatterns([...defaultTrackedPathPatterns(), ...manifestPatterns, ...config.customPatterns]);
   return {
     ...config,
     projectPath: root,
