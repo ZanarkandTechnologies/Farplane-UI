@@ -33,6 +33,7 @@ describe("codex-summary", () => {
         runner: async (request) => {
           expect(request.args).toContain("exec");
           expect(request.args).toContain("--ephemeral");
+          expect(request.args).toEqual(expect.arrayContaining(["--disable", "hooks"]));
           expect(request.args).toContain("--output-last-message");
           expect(request.args).toContain("--model");
           expect(request.prompt).toContain("progress.md");

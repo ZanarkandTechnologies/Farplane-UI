@@ -101,7 +101,16 @@ function buildCodexExecArgs(input: {
   outputPath: string;
   model?: string;
 }): string[] {
-  const args = ["exec", "--ephemeral", "--cd", input.projectPath, "--output-last-message", input.outputPath];
+  const args = [
+    "exec",
+    "--ephemeral",
+    "--disable",
+    "hooks",
+    "--cd",
+    input.projectPath,
+    "--output-last-message",
+    input.outputPath,
+  ];
   if (input.model) args.push("--model", input.model);
   return args;
 }

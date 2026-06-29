@@ -236,7 +236,7 @@ describe("codex-event-miner", () => {
       expect(runner).toHaveBeenCalledWith(
         expect.objectContaining({
           command: "codex",
-          args: expect.arrayContaining(["exec", "--output-last-message", "--output-schema"]),
+          args: expect.arrayContaining(["exec", "--disable", "hooks", "--output-last-message", "--output-schema"]),
           prompt: expect.stringContaining("Codex event miner agent"),
         }),
       );

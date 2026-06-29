@@ -214,7 +214,7 @@ export async function launchMinerAgent(
     "--sandbox",
     "workspace-write",
     "--disable",
-    "codex_hooks",
+    "hooks",
     "--color",
     "never",
     "-c",
