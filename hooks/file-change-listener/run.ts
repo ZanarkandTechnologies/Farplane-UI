@@ -1,4 +1,11 @@
 #!/usr/bin/env tsx
+import { readFarplaneConfigValue } from "../../cli/runtime-config";
+import { resolveCodexSummaryOptions } from "../shared/codex-summary";
+import { resolveProjectHookConfig } from "../shared/project-hook-config";
+import {
+  resolveDefaultEndpointBaseUrl,
+  resolveDefaultTelemetryToken,
+} from "../skill-invocation-listener/handler";
 /**
  * Entrypoint for the Codex PostToolUse tracked file-change listener.
  */
@@ -8,13 +15,6 @@ import {
   publishFarplaneFileEventCandidates,
   publishFileChangeBubbleCandidates,
 } from "./handler";
-import { resolveCodexSummaryOptions } from "../shared/codex-summary";
-import {
-  resolveDefaultEndpointBaseUrl,
-  resolveDefaultTelemetryToken,
-} from "../skill-invocation-listener/handler";
-import { resolveProjectHookConfig } from "../shared/project-hook-config";
-import { readFarplaneConfigValue } from "../../cli/runtime-config";
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -30,7 +30,9 @@ async function main(): Promise<void> {
   const projectPath = (() => {
     try {
       const parsed = JSON.parse(stdin) as Record<string, unknown>;
-      return String(parsed.cwd ?? parsed.projectPath ?? parsed.project_path ?? process.cwd()).trim();
+      return String(
+        parsed.cwd ?? parsed.projectPath ?? parsed.project_path ?? process.cwd(),
+      ).trim();
     } catch {
       return process.cwd();
     }
@@ -44,8 +46,14 @@ async function main(): Promise<void> {
     trackedPathPatterns: hookConfig.patterns,
     codexSummary: resolveCodexSummaryOptions(process.env),
   };
-  const fileEventCandidates = parseFarplaneFileEventCandidatesFromStdin(stdin, Date.now(), parseOptions);
-  const candidates = await parseFileChangeBubbleCandidatesFromStdin(stdin, Date.now(), parseOptions);
+  const fileEventCandidates = parseFarplaneFileEventCandidatesFromStdin(
+    stdin,
+    Date.now(),
+    parseOptions,
+  );
+  const candidates = hookConfig.summaryEnabled
+    ? await parseFileChangeBubbleCandidatesFromStdin(stdin, Date.now(), parseOptions)
+    : [];
   if (candidates.length === 0 && fileEventCandidates.length === 0) {
     if (debugEnabled) console.error("[file-change-listener] no tracked file changes detected");
     return;

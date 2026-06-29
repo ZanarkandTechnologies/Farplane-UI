@@ -929,6 +929,7 @@ async function saveRuntimeConfigFromUi(input: unknown): Promise<JsonObject> {
 
 type FarplaneHookConfig = {
   enabled: boolean;
+  summaryEnabled: boolean;
   includeManifestTracked: boolean;
   selectedManifestPaths: string[];
   customPatterns: string[];
@@ -936,6 +937,7 @@ type FarplaneHookConfig = {
 
 const DEFAULT_HOOK_CONFIG: FarplaneHookConfig = {
   enabled: true,
+  summaryEnabled: true,
   includeManifestTracked: true,
   selectedManifestPaths: [],
   customPatterns: [],
@@ -965,6 +967,10 @@ function normalizeHookConfig(input: unknown, manifestTracked: string[]): Farplan
   const custom = uniqueHookPatterns(Array.isArray(record.customPatterns) ? record.customPatterns : []);
   return {
     enabled: typeof record.enabled === "boolean" ? record.enabled : DEFAULT_HOOK_CONFIG.enabled,
+    summaryEnabled:
+      typeof record.summaryEnabled === "boolean"
+        ? record.summaryEnabled
+        : DEFAULT_HOOK_CONFIG.summaryEnabled,
     includeManifestTracked:
       typeof record.includeManifestTracked === "boolean"
         ? record.includeManifestTracked

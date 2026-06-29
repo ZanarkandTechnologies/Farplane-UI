@@ -10,16 +10,14 @@
  */
 
 import { useQuery } from "convex/react";
-import { Copy, Search } from "lucide-react";
-import { type ReactElement, useEffect, useMemo, useState } from "react";
+import { Search } from "lucide-react";
+import { type ReactElement, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -37,18 +35,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { UI_Z } from "@/lib/z-index";
 import { isConvexEnabled } from "@/providers/convex-provider";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import { api } from "../../../../convex/_generated/api";
+import { EventProgramsPanel } from "./event-programs-panel";
+import { TimelineHooksPanel } from "./timeline-hook-panels";
 
 type RawTelemetryPanelProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
 
-type HookTelemetryEvent = {
+export type HookTelemetryEvent = {
   _id?: string;
   hookName: string;
   hookType: string;
@@ -78,26 +77,6 @@ type HookTelemetryExplorer = {
   };
 };
 
-type HookConfigState = {
-  enabled: boolean;
-  includeManifestTracked: boolean;
-  selectedManifestPaths: string[];
-  customPatterns: string[];
-};
-
-type HookConfigResponse = {
-  ok?: boolean;
-  projectPath?: string;
-  configPath?: string;
-  manifestPath?: string;
-  manifestExists?: boolean;
-  manifestTracked?: string[];
-  config?: HookConfigState;
-  activePatterns?: string[];
-  installCommand?: string;
-  error?: string;
-};
-
 const RANGE_OPTIONS = [
   { label: "1 day", value: 1 },
   { label: "7 days", value: 7 },
@@ -113,19 +92,10 @@ const EVENT_FILTERS = [
   "thread.stopped",
   "thread.created",
   "thread.forked",
+  "farplane.ticket.changed",
+  "farplane.ticket.completed",
+  "farplane.ticket.progress.changed",
 ] as const;
-const HOOK_INSTALL_COMMAND = "npm run hooks:install";
-const DEFAULT_FILE_PATTERNS = [
-  "progress.md",
-  "goals.md",
-  "tickets/*/ticket.md",
-  "tickets/*/progress.md",
-  "tickets/*/program.md",
-  "docs/*.md",
-  "docs/**/*.md",
-  "evals/**",
-  "skills/*/memory.md",
-].join("\n");
 
 export function RawTelemetryPanel({ open, onOpenChange }: RawTelemetryPanelProps): ReactElement {
   return (
@@ -135,7 +105,7 @@ export function RawTelemetryPanel({ open, onOpenChange }: RawTelemetryPanelProps
         style={{ zIndex: UI_Z.panelElevated }}
       >
         <DialogHeader className="border-b px-6 py-4">
-          <DialogTitle>Raw Telemetry</DialogTitle>
+          <DialogTitle>Project Timeline</DialogTitle>
         </DialogHeader>
         <RawTelemetryContent />
       </DialogContent>
@@ -147,7 +117,7 @@ export function RawTelemetryRoute(): ReactElement {
   return (
     <main className="flex h-[100dvh] w-[100dvw] flex-col overflow-hidden bg-background text-foreground">
       <div className="border-b px-6 py-4">
-        <h1 className="text-lg font-semibold">Raw Telemetry</h1>
+        <h1 className="text-lg font-semibold">Project Timeline</h1>
       </div>
       <RawTelemetryContent />
     </main>
@@ -203,8 +173,10 @@ function RawTelemetryContent(): ReactElement {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <TabsList>
           <TabsTrigger value="events">Events</TabsTrigger>
-          <TabsTrigger value="distribution">Distribution</TabsTrigger>
           <TabsTrigger value="hooks">Hooks</TabsTrigger>
+          <TabsTrigger value="programs">Programs</TabsTrigger>
+          <TabsTrigger value="raw">Raw</TabsTrigger>
+          <TabsTrigger value="distribution">Distribution</TabsTrigger>
         </TabsList>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={String(rangeDays)} onValueChange={(value) => setRangeDays(Number(value))}>
@@ -261,15 +233,25 @@ function RawTelemetryContent(): ReactElement {
           <StateCard title="Loading events" detail="Reading hook telemetry rows..." />
         )}
       </TabsContent>
+      <TabsContent value="hooks" className="mt-3 min-h-0 flex-1">
+        <TimelineHooksPanel events={data?.events ?? []} />
+      </TabsContent>
+      <TabsContent value="programs" className="mt-3 min-h-0 flex-1">
+        <EventProgramsPanel events={data?.events ?? []} />
+      </TabsContent>
+      <TabsContent value="raw" className="mt-3 min-h-0 flex-1">
+        {data ? (
+          <EventTable rows={data.events} total={data.total} />
+        ) : (
+          <StateCard title="Loading raw events" detail="Reading hook telemetry rows..." />
+        )}
+      </TabsContent>
       <TabsContent value="distribution" className="mt-3 min-h-0 flex-1">
         {data ? (
           <DistributionGrid data={data.distributions} total={data.total} />
         ) : (
           <StateCard title="Loading distribution" detail="Aggregating hook telemetry rows..." />
         )}
-      </TabsContent>
-      <TabsContent value="hooks" className="mt-3 min-h-0 flex-1">
-        <HooksSetup />
       </TabsContent>
     </Tabs>
   );
@@ -470,242 +452,6 @@ function DistributionTooltip({ active, payload }: DistributionTooltipProps): Rea
         {row.count ?? 0} events · {row.percent ?? 0}%
       </div>
     </div>
-  );
-}
-
-function HooksSetup(): ReactElement {
-  const [copied, setCopied] = useState(false);
-  const [data, setData] = useState<HookConfigResponse | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [customPatterns, setCustomPatterns] = useState("");
-  const [includeManifestTracked, setIncludeManifestTracked] = useState(true);
-  const [enabled, setEnabled] = useState(true);
-  const [busyState, setBusyState] = useState<"" | "saving" | "installing">("");
-  const [message, setMessage] = useState("");
-
-  async function loadConfig(): Promise<void> {
-    const response = await fetch("/farplane/hooks/config");
-    const payload = (await response.json()) as HookConfigResponse;
-    setData(payload);
-    const config = payload.config;
-    setEnabled(config?.enabled ?? true);
-    setIncludeManifestTracked(config?.includeManifestTracked ?? true);
-    setSelected(new Set(config?.selectedManifestPaths ?? payload.manifestTracked ?? []));
-    setCustomPatterns((config?.customPatterns ?? []).join("\n"));
-  }
-
-  useEffect(() => {
-    void loadConfig().catch((error) => {
-      setMessage(error instanceof Error ? error.message : "Failed to load hook config");
-    });
-  }, []);
-
-  async function copyCommand(): Promise<void> {
-    if (!navigator.clipboard?.writeText) return;
-    await navigator.clipboard.writeText(HOOK_INSTALL_COMMAND);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1_200);
-  }
-
-  async function saveConfig(): Promise<boolean> {
-    setBusyState("saving");
-    setMessage("");
-    try {
-      const response = await fetch("/farplane/hooks/config", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          config: {
-            enabled,
-            includeManifestTracked,
-            selectedManifestPaths: [...selected],
-            customPatterns: customPatterns
-              .split(/\r?\n|,/)
-              .map((entry) => entry.trim())
-              .filter(Boolean),
-          },
-        }),
-      });
-      const payload = (await response.json()) as HookConfigResponse;
-      if (!response.ok || payload.ok === false)
-        throw new Error(payload.error ?? "hook_config_save_failed");
-      setData(payload);
-      setMessage("Saved hook config.");
-      return true;
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to save hook config.");
-      return false;
-    } finally {
-      setBusyState("");
-    }
-  }
-
-  async function installHooks(): Promise<void> {
-    setBusyState("installing");
-    setMessage("");
-    try {
-      const saved = await saveConfig();
-      if (!saved) return;
-      const response = await fetch("/farplane/hooks/install", { method: "POST" });
-      const payload = (await response.json()) as {
-        ok?: boolean;
-        error?: string;
-        hooksPath?: string;
-      };
-      if (!response.ok || payload.ok === false)
-        throw new Error(payload.error ?? "hook_install_failed");
-      setMessage(
-        `Installed hooks at ${payload.hooksPath ?? ".codex/hooks.json"}. Open /hooks to trust.`,
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to install hooks.");
-    } finally {
-      setBusyState("");
-    }
-  }
-
-  function togglePath(filePath: string): void {
-    setSelected((current) => {
-      const next = new Set(current);
-      if (next.has(filePath)) next.delete(filePath);
-      else next.add(filePath);
-      return next;
-    });
-  }
-
-  return (
-    <Card className="flex h-full min-h-0 flex-col rounded-md">
-      <CardHeader className="border-b py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <CardTitle className="text-sm">Hook Setup</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Global Codex hooks with project-specific watched file events.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">{data?.activePatterns?.length ?? 0} active patterns</Badge>
-            {data?.manifestExists === false ? (
-              <Badge variant="destructive">Manifest missing</Badge>
-            ) : null}
-            <Badge variant="outline">Open /hooks to trust</Badge>
-          </div>
-        </div>
-      </CardHeader>
-
-      <CardContent className="min-h-0 flex-1 p-0">
-        <ScrollArea className="h-full">
-          <div className="mx-auto flex max-w-[980px] flex-col gap-5 px-6 py-5">
-            <section className="space-y-3">
-              <div>
-                <h3 className="font-medium text-sm">Install command</h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  The UI runs this through the local bridge and installs global Codex hooks.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <code className="min-w-0 flex-1 truncate rounded border bg-muted px-2 py-1.5 text-xs">
-                  {HOOK_INSTALL_COMMAND}
-                </code>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  aria-label="Copy hook install command"
-                  onClick={() => void copyCommand()}
-                >
-                  <Copy className="size-4" />
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary">{copied ? "Copied" : "CLI install"}</Badge>
-                <Badge variant="outline">Posts to /telemetry/hooks</Badge>
-              </div>
-            </section>
-
-            <section className="space-y-3 border-t pt-5">
-              <div>
-                <h3 className="font-medium text-sm">File change events</h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Only selected paths emit local Codex summary telemetry.
-                </p>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <label className="flex items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-sm">
-                  <Checkbox
-                    checked={enabled}
-                    onCheckedChange={(value) => setEnabled(Boolean(value))}
-                  />
-                  Emit file-change summaries
-                </label>
-                <label className="flex items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-sm">
-                  <Checkbox
-                    checked={includeManifestTracked}
-                    onCheckedChange={(value) => setIncludeManifestTracked(Boolean(value))}
-                  />
-                  Use manifest files
-                </label>
-              </div>
-            </section>
-
-            <section className="space-y-3 border-t pt-5">
-              <div>
-                <h3 className="font-medium text-sm">Farplane manifest files</h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {data?.manifestPath ?? "farplane/manifest.json"}
-                </p>
-              </div>
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {(data?.manifestTracked ?? []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No manifest files found.</p>
-                ) : (
-                  (data?.manifestTracked ?? []).map((filePath) => (
-                    <label
-                      key={filePath}
-                      className="flex min-w-0 items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-xs"
-                    >
-                      <Checkbox
-                        checked={selected.has(filePath)}
-                        onCheckedChange={() => togglePath(filePath)}
-                      />
-                      <span className="min-w-0 truncate font-mono">{filePath}</span>
-                    </label>
-                  ))
-                )}
-              </div>
-            </section>
-
-            <section className="space-y-3 border-t pt-5">
-              <div>
-                <Label htmlFor="file-change-patterns">Custom patterns</Label>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Comma or newline separated project-relative globs.
-                </p>
-              </div>
-              <Textarea
-                id="file-change-patterns"
-                className="h-[120px] resize-none font-mono text-xs"
-                placeholder={DEFAULT_FILE_PATTERNS}
-                value={customPatterns}
-                onChange={(event) => setCustomPatterns(event.target.value)}
-              />
-            </section>
-          </div>
-        </ScrollArea>
-      </CardContent>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-background/95 px-6 py-3">
-        <div className="min-w-0 text-xs text-muted-foreground">
-          {message || "Installs project-local Codex hooks with selected summary matchers."}
-        </div>
-        <Button onClick={() => void installHooks()} disabled={busyState !== ""}>
-          {busyState === "saving"
-            ? "Saving..."
-            : busyState === "installing"
-              ? "Installing..."
-              : "Save And Install Hooks"}
-        </Button>
-      </div>
-    </Card>
   );
 }
 

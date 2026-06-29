@@ -62,7 +62,10 @@ describe("project-hook-config", () => {
       );
       writeFileSync(
         path.join(repo, ".farplane", "hooks", "config.json"),
-        JSON.stringify({ selectedManifestPaths: ["docs/MEMORY.md"], customPatterns: ["custom/*.md"] }),
+        JSON.stringify({
+          selectedManifestPaths: ["docs/MEMORY.md"],
+          customPatterns: ["custom/*.md"],
+        }),
       );
 
       const config = resolveProjectHookConfig(repo, {} as NodeJS.ProcessEnv);
@@ -76,6 +79,26 @@ describe("project-hook-config", () => {
           "custom/*.md",
         ]),
       );
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("reads summary bubble enablement from saved project config", () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "farplane-hook-config-"));
+    try {
+      mkdirSync(path.join(repo, "farplane"), { recursive: true });
+      mkdirSync(path.join(repo, ".farplane", "hooks"), { recursive: true });
+      writeFileSync(
+        path.join(repo, "farplane", "manifest.json"),
+        JSON.stringify({ standard: { tracked: ["docs/MEMORY.md"] } }),
+      );
+      writeFileSync(
+        path.join(repo, ".farplane", "hooks", "config.json"),
+        JSON.stringify({ summaryEnabled: false }),
+      );
+
+      expect(resolveProjectHookConfig(repo, {} as NodeJS.ProcessEnv).summaryEnabled).toBe(false);
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

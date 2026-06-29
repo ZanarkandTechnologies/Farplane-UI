@@ -12,6 +12,7 @@ import { readFarplaneConfigValue } from "../../cli/runtime-config";
 
 export type ProjectHookConfig = {
   enabled: boolean;
+  summaryEnabled: boolean;
   includeManifestTracked: boolean;
   selectedManifestPaths: string[];
   customPatterns: string[];
@@ -44,7 +45,9 @@ export function defaultTrackedPathPatterns(): string[] {
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function uniquePatterns(values: readonly string[]): string[] {
@@ -77,6 +80,7 @@ function normalizeConfig(value: unknown, manifestTracked: string[]): ProjectHook
     : [];
   return {
     enabled: typeof record.enabled === "boolean" ? record.enabled : true,
+    summaryEnabled: typeof record.summaryEnabled === "boolean" ? record.summaryEnabled : true,
     includeManifestTracked:
       typeof record.includeManifestTracked === "boolean" ? record.includeManifestTracked : true,
     selectedManifestPaths: uniquePatterns(selected),
@@ -104,10 +108,21 @@ export function resolveProjectHookConfig(
   const configPath = path.join(root, ".farplane", "hooks", "config.json");
   const manifestPath = path.join(root, "farplane", "manifest.json");
   const manifestTracked = readFarplaneManifestTracked(root);
-  const config = normalizeConfig(existsSync(configPath) ? readJsonFile(configPath) : undefined, manifestTracked);
-  const envPatterns = parsePatternList(readFarplaneConfigValue("FARPLANE_FILE_CHANGE_PATTERNS", { env }));
+  const config = normalizeConfig(
+    existsSync(configPath) ? readJsonFile(configPath) : undefined,
+    manifestTracked,
+  );
+  const envPatterns = parsePatternList(
+    readFarplaneConfigValue("FARPLANE_FILE_CHANGE_PATTERNS", { env }),
+  );
   const manifestPatterns = config.includeManifestTracked ? config.selectedManifestPaths : [];
-  const patterns = envPatterns ?? uniquePatterns([...defaultTrackedPathPatterns(), ...manifestPatterns, ...config.customPatterns]);
+  const patterns =
+    envPatterns ??
+    uniquePatterns([
+      ...defaultTrackedPathPatterns(),
+      ...manifestPatterns,
+      ...config.customPatterns,
+    ]);
   return {
     ...config,
     projectPath: root,

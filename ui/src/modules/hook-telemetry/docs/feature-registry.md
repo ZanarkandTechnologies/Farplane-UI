@@ -8,20 +8,26 @@ updated: 2026-06-25
 
 ## Surface
 
-`RawTelemetryPanel` is the operator-only raw hook telemetry explorer opened from
+`RawTelemetryPanel` is the operator-only Project Timeline explorer opened from
 the office launcher entry `raw-telemetry`.
 
 ## Capabilities
 
-- Event log: reads `hookTelemetryEvents` through
+- Timeline events: reads `hookTelemetryEvents` through
   `api.modules.hookTelemetry.queries.getHookTelemetryExplorer` and renders
   bounded rows with hook name, hook type, event name, session, time, and redacted
   payload preview.
+- Hooks: renders a per-project hook control center with hook package list,
+  file-change listener config, active pattern count, manifest file selection,
+  summary-bubble toggle, install action, and recent event preview.
+- Event Programs: renders non-executing routing previews for event-to-mining
+  program subscriptions such as `farplane.ticket.completed` to
+  `ticket-completion-audit-v1`.
+- Raw: preserves the raw event table escape hatch for operator debugging.
 - Distributions: renders top event names, hook names, hook types, and sessions
   for the current filtered window.
-- Hooks setup: shows the canonical install command, `/hooks` trust reminder,
-  manifest-backed watched file selection, custom patterns, and a local install
-  action through the Vite state bridge.
+- Hooks setup: writes project-local `.farplane/hooks/config.json` through the
+  Vite state bridge and runs the global Codex hook installer on request.
 - Thread telemetry: `thread.created` and `thread.forked` rows remain available
   through Events and Distributions; Raw Telemetry does not expose a separate
   thread lineage tab.
@@ -35,6 +41,7 @@ the office launcher entry `raw-telemetry`.
 
 - Does not calculate runtime agent-hours. That belongs to the Harness Usage
   module under `ui/src/modules/telemetry`.
+- Does not schedule event programs yet.
 - Does not render raw unredacted hook payloads by default.
 - Does not auto-trust Codex hooks. Installation writes repo-local hook config,
   but the operator still reviews and trusts hook changes through `/hooks`.
