@@ -8,6 +8,11 @@
  */
 
 import type { HookTelemetryRow } from "./projections";
+import {
+  isFarplaneFileEventName,
+  isFarplaneFileEventPayload,
+  type FarplaneFileEventName,
+} from "./farplaneFileEvents";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -20,7 +25,8 @@ export type LearningTimelineEventName =
   | "miner.agent.completed"
   | "decision.observed"
   | "learning.lesson.observed"
-  | "learning.trouble.observed";
+  | "learning.trouble.observed"
+  | FarplaneFileEventName;
 
 export type LearningTimelineRow = {
   id: string;
@@ -40,6 +46,11 @@ export type LearningTimelineRow = {
   reviewRunPath?: string;
   docsTarget?: string;
   rowsAdded?: number;
+  sourceEventKey?: string;
+  entityKind?: string;
+  entityId?: string;
+  changedFields?: string[];
+  filePath?: string;
   eventAt: number;
   eventKey?: string;
 };
@@ -68,7 +79,8 @@ function eventNameFromPayload(payload: JsonRecord): LearningTimelineEventName | 
     explicit === "miner.agent.failed" ||
     explicit === "miner.agent.completed" ||
     explicit === "learning.lesson.observed" ||
-    explicit === "learning.trouble.observed"
+    explicit === "learning.trouble.observed" ||
+    isFarplaneFileEventName(explicit)
   ) {
     return explicit;
   }
@@ -103,10 +115,44 @@ function docsDeltaRowsAdded(payload: JsonRecord): number | undefined {
   return number(docsDelta.rowsAdded) ?? number(payload.rowsAdded);
 }
 
+function changedFieldPaths(payload: JsonRecord): string[] | undefined {
+  const rawFields = Array.isArray(payload.changedFields) ? payload.changedFields : [];
+  const fields = rawFields
+    .map((field) => {
+      const record = asRecord(field);
+      return cleanText(record.path, 160);
+    })
+    .filter((field): field is string => Boolean(field))
+    .slice(0, 12);
+  return fields.length ? fields : undefined;
+}
+
 export function hookTelemetryRowsToLearningTimelineRows(rows: HookTelemetryRow[]): LearningTimelineRow[] {
   return rows
     .map((row): LearningTimelineRow | null => {
       const payload = asRecord(row.payload);
+      if (isFarplaneFileEventPayload(row.payload)) {
+        const summary = cleanText(row.payload.summary, 140);
+        if (!summary) return null;
+        return {
+          id: row.eventKey ?? row.payload.eventKey,
+          eventName: row.payload.eventName,
+          projectId: row.projectId ?? row.payload.projectId,
+          projectPath: projectPathFromPayload(payload),
+          sessionId: row.sessionId ?? row.payload.sessionId,
+          threadId: row.payload.threadId ?? row.payload.sessionId ?? row.sessionId,
+          ticketId: row.payload.entityKind === "ticket" ? row.payload.entityId : undefined,
+          source: row.payload.source,
+          summary,
+          sourceEventKey: row.eventKey ?? row.payload.eventKey,
+          entityKind: row.payload.entityKind,
+          entityId: row.payload.entityId,
+          changedFields: row.payload.changedFields?.map((field) => field.path).slice(0, 12),
+          filePath: row.payload.path,
+          eventAt: row.eventAt,
+          eventKey: row.eventKey,
+        };
+      }
       const eventName = eventNameFromPayload(payload);
       if (!eventName) return null;
       const summary =
@@ -133,6 +179,11 @@ export function hookTelemetryRowsToLearningTimelineRows(rows: HookTelemetryRow[]
         reviewRunPath: cleanText(payload.reviewRunPath, 240),
         docsTarget: docsDeltaTarget(payload),
         rowsAdded: docsDeltaRowsAdded(payload),
+        sourceEventKey: cleanText(payload.sourceEventKey, 240) ?? row.eventKey,
+        entityKind: cleanText(payload.entityKind, 80),
+        entityId: cleanText(payload.entityId, 160),
+        changedFields: changedFieldPaths(payload),
+        filePath: cleanText(payload.path, 240),
         eventAt: row.eventAt,
         eventKey: row.eventKey,
       };

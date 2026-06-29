@@ -3,11 +3,16 @@
  * =========================
  * Purpose
  * - Detect tracked project file edits after write-capable tools.
- * - Publish compact local-Codex `file.change.summary` hook telemetry for office head bubbles.
+ * - Publish typed `farplane.*` file events plus compact legacy status-bubble summaries.
  */
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import {
+  parseFarplaneFileEvent,
+  type FarplaneFileEvent,
+  type FarplaneFileSnapshot,
+} from "./file-event-registry";
 import {
   resolveCodexSummaryOptions,
   summarizeTrackedFileChangeWithCodex,
@@ -36,6 +41,8 @@ export type PublishFileChangeOptions = {
 export type FileChangeParseOptions = {
   trackedPathPatterns?: readonly string[];
   codexSummary?: CodexSummaryOptions;
+  fileEventStateDir?: string;
+  updateFileEventState?: boolean;
 };
 
 const WRITE_TOOL_PATTERN = /(?:bash|apply_patch|edit|write|create|delete|multi_tool_use)/i;
@@ -47,6 +54,8 @@ export const DEFAULT_TRACKED_PATH_PATTERNS = [
   "tickets/*/ticket.md",
   "tickets/*/progress.md",
   "tickets/*/program.md",
+  "farplane/*.md",
+  "farplane/*.json",
   "docs/*.md",
   "docs/**/*.md",
   "evals/**",
@@ -265,6 +274,16 @@ function fileContentSnippet(projectPath: string, filePath: string): string {
   }
 }
 
+function readFileContent(projectPath: string, filePath: string): string {
+  const absolutePath = path.resolve(projectPath, filePath);
+  if (!existsSync(absolutePath)) return "";
+  try {
+    return readFileSync(absolutePath, { encoding: "utf8", flag: "r" });
+  } catch {
+    return "";
+  }
+}
+
 function payloadSnippet(payload: JsonRecord): string {
   try {
     return JSON.stringify(payload, (_key, value) => {
@@ -295,6 +314,43 @@ function stableEventKey(input: {
   ]
     .join(":")
     .slice(0, 500);
+}
+
+function defaultFileEventStateDir(projectPath: string): string {
+  return path.join(projectPath, ".farplane", "file-events", "state");
+}
+
+function stateFilePath(input: { projectPath: string; filePath: string; stateDir?: string }): string {
+  const stateRoot = input.stateDir ?? defaultFileEventStateDir(input.projectPath);
+  const hash = createHash("sha1").update(input.filePath).digest("hex").slice(0, 20);
+  return path.join(stateRoot, `${hash}.json`);
+}
+
+function readFileEventSnapshot(input: {
+  projectPath: string;
+  filePath: string;
+  stateDir?: string;
+}): FarplaneFileSnapshot | undefined {
+  const filePath = stateFilePath(input);
+  if (!existsSync(filePath)) return undefined;
+  try {
+    const parsed = JSON.parse(readFileSync(filePath, "utf8")) as unknown;
+    if (!isRecord(parsed) || parsed.schemaVersion !== 1) return undefined;
+    return parsed as FarplaneFileSnapshot;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeFileEventSnapshot(input: {
+  projectPath: string;
+  filePath: string;
+  stateDir?: string;
+  snapshot: FarplaneFileSnapshot;
+}): void {
+  const filePath = stateFilePath(input);
+  mkdirSync(path.dirname(filePath), { recursive: true });
+  writeFileSync(filePath, `${JSON.stringify(input.snapshot, null, 2)}\n`, "utf8");
 }
 
 function parseFileChangeCandidatePathsFromPayload(
@@ -359,6 +415,63 @@ export async function parseFileChangeBubbleCandidatesFromPayload(
   return candidates;
 }
 
+export type FarplaneFileEventCandidate = FarplaneFileEvent & {
+  projectPath: string;
+};
+
+export function parseFarplaneFileEventCandidatesFromPayload(
+  payload: unknown,
+  now = Date.now(),
+  options: FileChangeParseOptions = {},
+): FarplaneFileEventCandidate[] {
+  const paths = parseFileChangeCandidatePathsFromPayload(payload, now, options);
+  const updateState = options.updateFileEventState !== false;
+  const candidates: FarplaneFileEventCandidate[] = [];
+  for (const candidate of paths) {
+    const text = readFileContent(candidate.projectPath, candidate.filePath);
+    if (!text) continue;
+    const previous = readFileEventSnapshot({
+      projectPath: candidate.projectPath,
+      filePath: candidate.filePath,
+      stateDir: options.fileEventStateDir,
+    });
+    const parsed = parseFarplaneFileEvent({
+      path: candidate.filePath,
+      text,
+      previous,
+      eventAt: candidate.eventAt,
+      sessionId: candidate.sessionId,
+      threadId: candidate.threadId,
+    });
+    if (!parsed.event || !parsed.snapshot) continue;
+    candidates.push({
+      ...parsed.event,
+      projectPath: candidate.projectPath,
+    });
+    if (updateState) {
+      writeFileEventSnapshot({
+        projectPath: candidate.projectPath,
+        filePath: candidate.filePath,
+        stateDir: options.fileEventStateDir,
+        snapshot: parsed.snapshot,
+      });
+    }
+  }
+  return candidates;
+}
+
+export function parseFarplaneFileEventCandidatesFromStdin(
+  stdin: string,
+  now = Date.now(),
+  options: FileChangeParseOptions = {},
+): FarplaneFileEventCandidate[] {
+  try {
+    return parseFarplaneFileEventCandidatesFromPayload(JSON.parse(stdin), now, options);
+  } catch {
+    return [];
+  }
+}
+
 export async function parseFileChangeBubbleCandidatesFromStdin(
   stdin: string,
   now = Date.now(),
@@ -392,6 +505,37 @@ export async function publishFileChangeBubbleCandidates(
       eventAt: candidate.eventAt,
       eventKey: candidate.eventKey,
     })),
+    {
+      endpointBaseUrl: options.endpointBaseUrl,
+      telemetryToken: options.telemetryToken,
+      fetchImpl: options.fetchImpl,
+      projectPath: primaryProjectPath,
+    },
+  );
+  return result;
+}
+
+export async function publishFarplaneFileEventCandidates(
+  candidates: FarplaneFileEventCandidate[],
+  options: PublishFileChangeOptions = {},
+): Promise<{ attempted: number; published: number; skipped: boolean; queued?: number; replayed?: number }> {
+  const primaryProjectPath = candidates[0]?.projectPath;
+  const result = await publishHookTelemetryWithOutbox(
+    candidates.map((candidate) => {
+      const { projectPath: _projectPath, ...event } = candidate;
+      return {
+        hookName: "file-change-listener",
+        hookType: "PostToolUse",
+        projectId: candidate.projectId,
+        sessionId: candidate.sessionId,
+        payload: {
+          ...event,
+          cwd: candidate.projectPath,
+        },
+        eventAt: candidate.eventAt,
+        eventKey: candidate.eventKey,
+      };
+    }),
     {
       endpointBaseUrl: options.endpointBaseUrl,
       telemetryToken: options.telemetryToken,

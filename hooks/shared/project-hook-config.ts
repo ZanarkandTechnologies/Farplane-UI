@@ -31,6 +31,8 @@ const DEFAULT_TRACKED_PATH_PATTERNS = [
   "tickets/*/ticket.md",
   "tickets/*/progress.md",
   "tickets/*/program.md",
+  "farplane/*.md",
+  "farplane/*.json",
   "docs/*.md",
   "docs/**/*.md",
   "evals/**",

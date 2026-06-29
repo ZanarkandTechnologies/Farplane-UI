@@ -3,7 +3,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
+  parseFarplaneFileEventCandidatesFromPayload,
   parseFileChangeBubbleCandidatesFromPayload,
+  publishFarplaneFileEventCandidates,
   publishFileChangeBubbleCandidates,
 } from "./handler";
 
@@ -237,5 +239,138 @@ describe("file-change-listener", () => {
         }),
       }),
     );
+  });
+
+  it("emits typed Farplane ticket completion events from frontmatter transitions", () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
+    const stateDir = path.join(repo, ".farplane", "file-events", "state-test");
+    try {
+      const ticketDir = path.join(repo, "tickets", "TASK-0099");
+      mkdirSync(ticketDir, { recursive: true });
+      const ticketPath = path.join(ticketDir, "ticket.md");
+      writeFileSync(
+        ticketPath,
+        [
+          "---",
+          "ticket_id: TASK-0099",
+          "title: Typed file event proof",
+          "status: review",
+          "phase: planning",
+          "next_action: finish proof",
+          "---",
+          "",
+          "# TASK-0099: Typed file event proof",
+          "",
+        ].join("\n"),
+      );
+
+      const basePayload = {
+        event: "PostToolUse",
+        toolName: "apply_patch",
+        cwd: repo,
+        sessionId: "thread-1",
+        toolInput: "*** Begin Patch\n*** Update File: tickets/TASK-0099/ticket.md\n@@\n+status change\n*** End Patch\n",
+      };
+      const first = parseFarplaneFileEventCandidatesFromPayload(basePayload, 1_000, {
+        fileEventStateDir: stateDir,
+      });
+      expect(first).toEqual([
+        expect.objectContaining({
+          eventName: "farplane.ticket.changed",
+          entityKind: "ticket",
+          entityId: "TASK-0099",
+          firstObservation: true,
+          terminal: false,
+        }),
+      ]);
+
+      writeFileSync(
+        ticketPath,
+        [
+          "---",
+          "ticket_id: TASK-0099",
+          "title: Typed file event proof",
+          "status: done",
+          "phase: complete",
+          "next_action: done",
+          "---",
+          "",
+          "# TASK-0099: Typed file event proof",
+          "",
+        ].join("\n"),
+      );
+      const second = parseFarplaneFileEventCandidatesFromPayload(basePayload, 2_000, {
+        fileEventStateDir: stateDir,
+      });
+      expect(second).toEqual([
+        expect.objectContaining({
+          eventName: "farplane.ticket.completed",
+          entityId: "TASK-0099",
+          firstObservation: false,
+          terminal: true,
+          frontmatterDiff: expect.objectContaining({
+            changed: expect.objectContaining({
+              status: expect.objectContaining({
+                before: expect.objectContaining({ preview: "review" }),
+                after: expect.objectContaining({ preview: "done" }),
+              }),
+              next_action: expect.objectContaining({
+                after: expect.objectContaining({ preview: "done" }),
+              }),
+            }),
+          }),
+        }),
+      ]);
+      expect(JSON.stringify(second)).not.toContain("# TASK-0099");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("publishes typed Farplane file events without raw file bodies", async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
+
+    const result = await publishFarplaneFileEventCandidates(
+      [
+        {
+          schemaVersion: 1,
+          eventName: "farplane.goals.changed",
+          source: "local_file_post_tool_use",
+          sessionId: "thread-1",
+          threadId: "thread-1",
+          projectPath: "/repo",
+          path: "farplane/goals.md",
+          entityKind: "goal",
+          contentHash: "hash-1",
+          changedFields: [{ path: "heading:North Star", after: { hash: "hash-2", preview: "North Star" } }],
+          sectionHints: ["North Star"],
+          summary: "goal changed",
+          eventAt: 1_000,
+          eventKey: "farplane-file-event:thread-1:farplane/goals.md:hash",
+        },
+      ],
+      {
+        endpointBaseUrl: "http://127.0.0.1:3211/",
+        telemetryToken: "token-1",
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      },
+    );
+
+    expect(result).toMatchObject({ attempted: 1, published: 1, queued: 0, replayed: 0, skipped: false });
+    const body = JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body));
+    expect(body).toEqual(
+      expect.objectContaining({
+        hookName: "file-change-listener",
+        payload: expect.objectContaining({
+          eventName: "farplane.goals.changed",
+          path: "farplane/goals.md",
+          contentHash: "hash-1",
+          changedFields: [expect.objectContaining({ path: "heading:North Star" })],
+        }),
+      }),
+    );
+    expect(JSON.stringify(body)).not.toContain("# Goals");
   });
 });

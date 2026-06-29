@@ -1,4 +1,5 @@
 import { type Infer, v } from "convex/values";
+import { type FarplaneFileEventPayload } from "./farplaneFileEvents";
 
 export const KNOWN_CODEX_HOOK_TYPES = [
   "SessionStart",
@@ -24,6 +25,7 @@ export const hookTelemetryPayloadValidator = v.object({
 });
 
 export type HookTelemetryPayload = Infer<typeof hookTelemetryPayloadValidator>;
+export type KnownHookTelemetryPayload = FarplaneFileEventPayload;
 
 export const ingestHookTelemetryArgsValidator = {
   hookName: v.string(),

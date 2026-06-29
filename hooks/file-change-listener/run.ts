@@ -3,7 +3,9 @@
  * Entrypoint for the Codex PostToolUse tracked file-change listener.
  */
 import {
+  parseFarplaneFileEventCandidatesFromStdin,
   parseFileChangeBubbleCandidatesFromStdin,
+  publishFarplaneFileEventCandidates,
   publishFileChangeBubbleCandidates,
 } from "./handler";
 import { resolveCodexSummaryOptions } from "../shared/codex-summary";
@@ -38,26 +40,35 @@ async function main(): Promise<void> {
     if (debugEnabled) console.error("[file-change-listener] disabled by project hook config");
     return;
   }
-  const candidates = await parseFileChangeBubbleCandidatesFromStdin(stdin, Date.now(), {
+  const parseOptions = {
     trackedPathPatterns: hookConfig.patterns,
     codexSummary: resolveCodexSummaryOptions(process.env),
-  });
-  if (candidates.length === 0) {
+  };
+  const fileEventCandidates = parseFarplaneFileEventCandidatesFromStdin(stdin, Date.now(), parseOptions);
+  const candidates = await parseFileChangeBubbleCandidatesFromStdin(stdin, Date.now(), parseOptions);
+  if (candidates.length === 0 && fileEventCandidates.length === 0) {
     if (debugEnabled) console.error("[file-change-listener] no tracked file changes detected");
     return;
   }
   try {
     const searchDirs = [
       process.cwd(),
+      ...fileEventCandidates.map((candidate) => candidate.projectPath),
       ...candidates.map((candidate) => candidate.projectPath),
     ];
+    const endpointBaseUrl = resolveDefaultEndpointBaseUrl(process.env, searchDirs);
+    const telemetryToken = resolveDefaultTelemetryToken(process.env, searchDirs);
+    const eventResult = await publishFarplaneFileEventCandidates(fileEventCandidates, {
+      endpointBaseUrl,
+      telemetryToken,
+    });
     const result = await publishFileChangeBubbleCandidates(candidates, {
-      endpointBaseUrl: resolveDefaultEndpointBaseUrl(process.env, searchDirs),
-      telemetryToken: resolveDefaultTelemetryToken(process.env, searchDirs),
+      endpointBaseUrl,
+      telemetryToken,
     });
     if (debugEnabled) {
       console.error(
-        `[file-change-listener] candidates=${result.attempted} published=${result.published} skipped=${result.skipped}`,
+        `[file-change-listener] fileEvents=${eventResult.attempted}/${eventResult.published} summaries=${result.attempted}/${result.published}`,
       );
     }
   } catch (error) {

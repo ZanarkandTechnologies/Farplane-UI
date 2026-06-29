@@ -20,6 +20,7 @@ import type * as modules_agentActivity_events from "../modules/agentActivity/eve
 import type * as modules_agentActivity_httpContracts from "../modules/agentActivity/httpContracts.js";
 import type * as modules_agentActivity_status from "../modules/agentActivity/status.js";
 import type * as modules_hookTelemetry_events from "../modules/hookTelemetry/events.js";
+import type * as modules_hookTelemetry_farplaneFileEvents from "../modules/hookTelemetry/farplaneFileEvents.js";
 import type * as modules_hookTelemetry_httpContracts from "../modules/hookTelemetry/httpContracts.js";
 import type * as modules_hookTelemetry_learningTimeline from "../modules/hookTelemetry/learningTimeline.js";
 import type * as modules_hookTelemetry_projections from "../modules/hookTelemetry/projections.js";
@@ -68,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   "modules/agentActivity/httpContracts": typeof modules_agentActivity_httpContracts;
   "modules/agentActivity/status": typeof modules_agentActivity_status;
   "modules/hookTelemetry/events": typeof modules_hookTelemetry_events;
+  "modules/hookTelemetry/farplaneFileEvents": typeof modules_hookTelemetry_farplaneFileEvents;
   "modules/hookTelemetry/httpContracts": typeof modules_hookTelemetry_httpContracts;
   "modules/hookTelemetry/learningTimeline": typeof modules_hookTelemetry_learningTimeline;
   "modules/hookTelemetry/projections": typeof modules_hookTelemetry_projections;

@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-06-29 | feature | MEM-0243 | hooks,telemetry,timeline,tickets | Evolved the file-change listener into a typed Farplane file-event capture layer: tracked ticket, program/progress, farplane docs, memory docs, and config edits now emit compact `farplane.*` telemetry with sanitized diffs and terminal ticket completion signals while preserving legacy status-bubble summaries.
+
 2026-06-26 | skills | MEM-0242 | skills,ingest-content,resource-bank | Promoted the upgraded ingest-content skill into the Farplane project skill tree so Resource Bank/Tasty Pack ingestion behavior is repo-owned instead of only living in the installed Codex skill copy.
 
 2026-06-26 | feature | MEM-0241 | convex,resource-bank,taste-bank | Added Resource Bank Tasty Pack retrieval with timeframe-first saved-reference packs, audience/customer/output facets on assets, and freeform hook/retention analysis reuse instead of a managed performance-tag taxonomy.

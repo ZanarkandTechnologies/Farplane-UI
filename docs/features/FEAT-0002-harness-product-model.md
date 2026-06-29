@@ -102,6 +102,22 @@ moduleView(module, "global") -> portfolio_rollup;
 moduleView(module, projectId) -> autonomous_company_panel;
 ```
 
+## File Event Layer
+
+Project files are part of the operating loop, not only passive documents.
+Farplane should capture important tracked file changes as typed facts that can
+feed timeline views, audits, and later automation routing.
+
+The local file-change hook is the first capture surface. It emits compact
+`farplane.*` events for ticket lifecycle files, project goals/products/harness
+docs, automation/binding files, selected memory docs, and config JSON. The
+event payload is factual and privacy-bounded: changed field names, short
+previews or hashes, section hints, content hash, entity ids, and terminal flags.
+It does not include raw file bodies, transcripts, or job-routing decisions.
+
+Future Kanban or document providers should publish the same normalized event
+shape with provider metadata instead of inventing separate timeline contracts.
+
 ## Clone And Rollout Implication
 
 Because every serious operator may clone and customize Farplane, version

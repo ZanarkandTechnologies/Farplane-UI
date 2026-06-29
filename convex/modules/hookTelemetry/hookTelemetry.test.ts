@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hookTelemetryRowsToLearningTimelineRows } from "./learningTimeline";
+import { isFarplaneFileEventPayload } from "./farplaneFileEvents";
 import {
   type HookTelemetryRow,
   hookTelemetryRowsToActivityPingRows,
@@ -98,6 +99,81 @@ describe("hook telemetry projections", () => {
         docsTarget: "docs/LESSONS.md",
         rowsAdded: 1,
         eventAt: 1_000,
+      }),
+    ]);
+    expect(JSON.stringify(rows)).not.toContain("should not leak");
+  });
+
+  it("projects typed Farplane file events into the learning timeline", () => {
+    const validFarplanePayload = {
+      schemaVersion: 1,
+      eventName: "farplane.ticket.completed",
+      source: "local_file_post_tool_use",
+      threadId: "thread-1",
+      path: "tickets/TASK-0099/ticket.md",
+      entityKind: "ticket",
+      entityId: "TASK-0099",
+      contentHash: "hash-1",
+      terminal: true,
+      summary: "ticket TASK-0099 changed",
+      eventAt: 3_000,
+      eventKey: "ticket-completed-key",
+      changedFields: [
+        { path: "status", before: { hash: "hash-review", preview: "review" }, after: { hash: "hash-done", preview: "done" } },
+        { path: "next_action", before: { hash: "hash-proof", preview: "finish proof" }, after: { hash: "hash-done", preview: "done" } },
+      ],
+      body: "should not leak",
+    } as const;
+    expect(isFarplaneFileEventPayload(validFarplanePayload)).toBe(true);
+    expect(isFarplaneFileEventPayload({ ...validFarplanePayload, eventName: "farplane.ticket.nope" })).toBe(false);
+
+    const rows = hookTelemetryRowsToLearningTimelineRows([
+      {
+        hookName: "file-change-listener",
+        hookType: "PostToolUse",
+        projectId: "codex-proj-farplane-ui",
+        sessionId: "thread-1",
+        eventAt: 3_000,
+        eventKey: "ticket-completed-key",
+        payload: validFarplanePayload,
+      },
+      {
+        hookName: "file-change-listener",
+        hookType: "PostToolUse",
+        eventAt: 2_000,
+        eventKey: "provider-key",
+        payload: {
+          schemaVersion: 1,
+          eventName: "farplane.bindings.changed",
+          source: "provider_webhook",
+          provider: "linear",
+          externalId: "LIN-1",
+          entityKind: "binding",
+          entityId: "kanban",
+          summary: "binding changed",
+          changedFields: [{ path: "kanban.provider", after: { preview: "linear" } }],
+          rawFile: "should not leak",
+        },
+      },
+    ]);
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        id: "ticket-completed-key",
+        eventName: "farplane.ticket.completed",
+        entityKind: "ticket",
+        entityId: "TASK-0099",
+        filePath: "tickets/TASK-0099/ticket.md",
+        changedFields: ["status", "next_action"],
+        eventAt: 3_000,
+      }),
+      expect.objectContaining({
+        id: "provider-key",
+        eventName: "farplane.bindings.changed",
+        entityKind: "binding",
+        entityId: "kanban",
+        changedFields: ["kanban.provider"],
+        eventAt: 2_000,
       }),
     ]);
     expect(JSON.stringify(rows)).not.toContain("should not leak");

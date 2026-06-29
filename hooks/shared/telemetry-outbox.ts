@@ -9,12 +9,12 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export type HookTelemetryEnvelope = {
+export type HookTelemetryEnvelope<TPayload = unknown> = {
   hookName: string;
   hookType: string;
   projectId?: string;
   sessionId?: string;
-  payload?: unknown;
+  payload?: TPayload;
   eventAt?: number;
   eventKey?: string;
 };
@@ -91,8 +91,8 @@ async function postEnvelope(
   }
 }
 
-export async function publishHookTelemetryWithOutbox(
-  envelopes: readonly HookTelemetryEnvelope[],
+export async function publishHookTelemetryWithOutbox<TPayload = unknown>(
+  envelopes: readonly HookTelemetryEnvelope<TPayload>[],
   options: HookTelemetryPublishOptions = {},
 ): Promise<{ attempted: number; published: number; queued: number; replayed: number; skipped: boolean }> {
   const fetchImpl = options.fetchImpl ?? fetch;
