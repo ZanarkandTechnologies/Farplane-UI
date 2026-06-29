@@ -246,7 +246,7 @@ export function TaskDetailModal({
         }}
       >
         <DialogContent
-          className="flex max-h-[92vh] max-w-[min(96vw,1180px)] flex-col border border-border bg-background p-0"
+          className="flex h-[min(92vh,940px)] w-[min(calc(100vw-2rem),700px)] max-w-[min(calc(100vw-2rem),700px)] flex-col gap-0 overflow-hidden border border-border bg-background p-0 sm:max-w-[min(calc(100vw-2rem),700px)] lg:w-[min(50vw,700px)] lg:max-w-[min(50vw,700px)]"
           style={{ zIndex: UI_Z.panelModal }}
           overlayStyle={{ zIndex: UI_Z.panelModal - 1 }}
         >
@@ -270,13 +270,13 @@ export function TaskDetailModal({
             </div>
           </DialogHeader>
 
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="space-y-4 p-5">
+          <ScrollArea className="min-h-0 flex-1 overflow-x-hidden">
+            <div className="max-w-full space-y-4 p-6">
               <details className="rounded-md border bg-muted/10">
                 <summary className="cursor-pointer px-4 py-3 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                   Frontmatter ({ticketFrontMatterEntries.length})
                 </summary>
-                <div className="grid grid-cols-1 gap-2 border-t border-border p-3 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-1 gap-2 border-t border-border p-3 md:grid-cols-2 xl:grid-cols-4">
                   {ticketFrontMatterEntries.map((entry) => (
                     <div key={entry.label} className="rounded-md border bg-background p-2">
                       <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
@@ -293,7 +293,7 @@ export function TaskDetailModal({
                 </div>
               </details>
 
-              <pre className="whitespace-pre-wrap break-words text-xs leading-6 text-foreground [overflow-wrap:anywhere]">
+              <pre className="max-w-full whitespace-pre-wrap break-words text-[13px] leading-6 text-foreground [overflow-wrap:anywhere] [word-break:break-word]">
                 {ticketBodyMarkdown || ticketMarkdown}
               </pre>
             </div>
