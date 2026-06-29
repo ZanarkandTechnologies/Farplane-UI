@@ -41,6 +41,12 @@ describe("office settings bridge normalization", () => {
       ).layoutStrategy,
     ).toBe("hierarchical_treemap");
     expect(
+      normalizeBridgeOfficeSettings(
+        { layoutStrategy: "area_sorted_pack" },
+        "/tmp/meshes",
+      ).layoutStrategy,
+    ).toBe("area_sorted_pack");
+    expect(
       normalizeBridgeOfficeSettings({ layoutStrategy: "manual" }, "/tmp/meshes")
         .layoutStrategy,
     ).toBe("manual");

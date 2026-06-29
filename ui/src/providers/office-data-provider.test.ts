@@ -2454,6 +2454,7 @@ describe("office-data-provider team synthesis", () => {
       "team_neighborhoods",
       "activity_treemap",
       "hierarchical_treemap",
+      "area_sorted_pack",
       "command_districts",
     ] as const;
 

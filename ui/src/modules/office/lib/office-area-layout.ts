@@ -97,7 +97,7 @@ const CENTER_PACK_COMPACTION_STEP = 0.5;
 const CENTER_PACK_SCORE_EPSILON = 0.001;
 const PROJECT_AREA_TABLE_PADDING = 4;
 
-type AreaPackingMode = "root-cardinal" | "compact-ring";
+type AreaPackingMode = "root-cardinal" | "compact-ring" | "area-sorted-square";
 type CardinalSide =
   | "top"
   | "right"
@@ -146,6 +146,7 @@ function isProjectAreaStrategy(
     layoutStrategy === "team_neighborhoods" ||
     layoutStrategy === "activity_treemap" ||
     layoutStrategy === "hierarchical_treemap" ||
+    layoutStrategy === "area_sorted_pack" ||
     layoutStrategy === "command_districts"
   );
 }
@@ -914,6 +915,172 @@ function chooseCompactPackingRect(input: {
   return best;
 }
 
+function areaSortedSeedRect(child: PackedAreaNode): OfficeAreaRect {
+  return toRect({
+    minX: 0,
+    maxX: child.width,
+    minZ: 0,
+    maxZ: child.depth,
+  });
+}
+
+function areaSortedCandidateRects(input: {
+  placed: OfficeAreaRect[];
+  child: PackedAreaNode;
+}): Array<{ rect: OfficeAreaRect; preference: number }> {
+  const bounds = unionRects(input.placed);
+  const width = input.child.width;
+  const depth = input.child.depth;
+  const gap = CENTER_PACK_GAP;
+  const candidates = new Map<
+    string,
+    { rect: OfficeAreaRect; preference: number }
+  >();
+  const addCandidate = (
+    rectInput: {
+      minX: number;
+      maxX: number;
+      minZ: number;
+      maxZ: number;
+    },
+    preference: number,
+  ) => {
+    const rect = toRect(rectInput);
+    const key = `${rect.minX.toFixed(3)}:${rect.minZ.toFixed(3)}`;
+    const existing = candidates.get(key);
+    if (!existing || preference < existing.preference) {
+      candidates.set(key, { rect, preference });
+    }
+  };
+
+  addCandidate(
+    {
+      minX: bounds.minX,
+      maxX: bounds.minX + width,
+      minZ: bounds.minZ - gap - depth,
+      maxZ: bounds.minZ - gap,
+    },
+    0,
+  );
+  addCandidate(
+    {
+      minX: bounds.maxX + gap,
+      maxX: bounds.maxX + gap + width,
+      minZ: bounds.maxZ - depth,
+      maxZ: bounds.maxZ,
+    },
+    1,
+  );
+  addCandidate(
+    {
+      minX: bounds.maxX + gap,
+      maxX: bounds.maxX + gap + width,
+      minZ: bounds.minZ - gap - depth,
+      maxZ: bounds.minZ - gap,
+    },
+    2,
+  );
+
+  for (const placed of input.placed) {
+    const rightX = placed.maxX + gap;
+    const aboveZ = placed.minZ - gap - depth;
+    for (const minZ of [
+      placed.minZ,
+      placed.centerZ - depth / 2,
+      placed.maxZ - depth,
+      bounds.minZ,
+      bounds.maxZ - depth,
+    ]) {
+      addCandidate(
+        {
+          minX: rightX,
+          maxX: rightX + width,
+          minZ,
+          maxZ: minZ + depth,
+        },
+        3,
+      );
+    }
+    for (const minX of [
+      placed.minX,
+      placed.centerX - width / 2,
+      placed.maxX - width,
+      bounds.minX,
+      bounds.maxX - width,
+    ]) {
+      addCandidate(
+        {
+          minX,
+          maxX: minX + width,
+          minZ: aboveZ,
+          maxZ: aboveZ + depth,
+        },
+        4,
+      );
+    }
+    addCandidate(
+      {
+        minX: rightX,
+        maxX: rightX + width,
+        minZ: aboveZ,
+        maxZ: aboveZ + depth,
+      },
+      5,
+    );
+  }
+
+  return [...candidates.values()];
+}
+
+function chooseAreaSortedSquareRect(input: {
+  placed: OfficeAreaRect[];
+  child: PackedAreaNode;
+}): OfficeAreaRect {
+  const anchor = input.placed[0] ?? centeredPackingRect(1, 1);
+  const candidates = areaSortedCandidateRects(input).filter(
+    (candidate) =>
+      !input.placed.some((placed) =>
+        rectsOverlapWithGap(candidate.rect, placed, CENTER_PACK_GAP),
+      ),
+  );
+  let best =
+    candidates[0]?.rect ??
+    toRect({
+      minX: anchor.maxX + CENTER_PACK_GAP,
+      maxX: anchor.maxX + CENTER_PACK_GAP + input.child.width,
+      minZ: anchor.maxZ - input.child.depth,
+      maxZ: anchor.maxZ,
+    });
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (const candidate of candidates) {
+    const bounds = unionRects([...input.placed, candidate.rect]);
+    const width = bounds.maxX - bounds.minX;
+    const depth = bounds.maxZ - bounds.minZ;
+    const area = width * depth;
+    const aspectPenalty = Math.abs(width - depth) * 80;
+    const anchorDistance = Math.hypot(
+      candidate.rect.centerX - anchor.centerX,
+      candidate.rect.centerZ - anchor.centerZ,
+    );
+    const originPenalty =
+      Math.max(0, anchor.minX - bounds.minX) * 60 +
+      Math.max(0, bounds.maxZ - anchor.maxZ) * 60;
+    const score =
+      area * 10 +
+      aspectPenalty +
+      anchorDistance * 4 +
+      originPenalty +
+      candidate.preference * 6;
+    if (score + CENTER_PACK_SCORE_EPSILON < bestScore) {
+      best = candidate.rect;
+      bestScore = score;
+    }
+  }
+
+  return best;
+}
+
 function scorePackedChildren(children: PackedAreaNode["children"]): number {
   const bounds = unionRects(children.map((child) => child.rect));
   const width = bounds.maxX - bounds.minX;
@@ -1148,7 +1315,10 @@ function packAreaNode(
   const placed: PackedAreaNode["children"] = [
     {
       pack: anchor,
-      rect: centeredPackingRect(anchor.width, anchor.depth),
+      rect:
+        mode === "area-sorted-square"
+          ? areaSortedSeedRect(anchor)
+          : centeredPackingRect(anchor.width, anchor.depth),
     },
   ];
   for (let index = 1; index < ordered.length; index += 1) {
@@ -1156,7 +1326,12 @@ function packAreaNode(
     if (!child) continue;
     const anchorRect = placed[0]?.rect ?? centeredPackingRect(1, 1);
     const rect =
-      mode === "root-cardinal"
+      mode === "area-sorted-square"
+        ? chooseAreaSortedSquareRect({
+            placed: placed.map((entry) => entry.rect),
+            child,
+          })
+        : mode === "root-cardinal"
         ? chooseCardinalPackingRect({
             anchor: anchorRect,
             placed: placed.map((entry) => entry.rect),
@@ -1174,7 +1349,8 @@ function packAreaNode(
 
   const shelved =
     mode === "compact-ring" ? chooseShelvedPackedChildren(placed) : placed;
-  const compacted = compactPackedChildren(shelved);
+  const compacted =
+    mode === "area-sorted-square" ? shelved : compactPackedChildren(shelved);
   const normalized = normalizePackedChildren(compacted);
   const bounds = unionRects(normalized.map((child) => child.rect));
   return {
@@ -1226,8 +1402,9 @@ function flattenCenteredAreaTree(input: {
   output: OfficeAreaNode[];
   projectAreaByProjectId: Record<string, OfficeAreaNode>;
   colorIndex: number;
+  mode: AreaPackingMode;
 }): void {
-  const pack = packAreaNode(input.node, "root-cardinal");
+  const pack = packAreaNode(input.node, input.mode);
   const scale = Math.min(
     1,
     input.rect.width / Math.max(1, pack.width),
@@ -1266,14 +1443,28 @@ export function buildOfficeAreaLayout(input: AreaBuildInput): OfficeAreaLayout {
   });
   const areas: OfficeAreaNode[] = [];
   const projectAreaByProjectId: Record<string, OfficeAreaNode> = {};
-  const flatten = usesProjectAreas ? flattenCenteredAreaTree : flattenTree;
-  flatten({
-    node: root,
-    rect: rootRect.width > 0 && rootRect.depth > 0 ? rootRect : emptyRect(),
-    output: areas,
-    projectAreaByProjectId,
-    colorIndex: 0,
-  });
+  const rect = rootRect.width > 0 && rootRect.depth > 0 ? rootRect : emptyRect();
+  if (usesProjectAreas) {
+    flattenCenteredAreaTree({
+      node: root,
+      rect,
+      output: areas,
+      projectAreaByProjectId,
+      colorIndex: 0,
+      mode:
+        input.layoutStrategy === "area_sorted_pack"
+          ? "area-sorted-square"
+          : "root-cardinal",
+    });
+  } else {
+    flattenTree({
+      node: root,
+      rect,
+      output: areas,
+      projectAreaByProjectId,
+      colorIndex: 0,
+    });
+  }
   return { areas, projectAreaByProjectId };
 }
 

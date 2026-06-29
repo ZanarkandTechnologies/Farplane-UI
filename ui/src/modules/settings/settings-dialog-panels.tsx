@@ -219,7 +219,10 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
     layoutStrategy === "team_neighborhoods" ||
     layoutStrategy === "activity_treemap" ||
     layoutStrategy === "hierarchical_treemap" ||
+    layoutStrategy === "area_sorted_pack" ||
     layoutStrategy === "command_districts";
+  const usesCenteredProjectAreas =
+    usesProjectAreas && layoutStrategy !== "area_sorted_pack";
 
   return (
     <div className="space-y-3">
@@ -250,8 +253,14 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
           <ModeOptionButton
             label="Project Areas"
             description="Center the heaviest project district, spread root peers around it, and keep nested project tables compact."
-            selected={usesProjectAreas}
+            selected={usesCenteredProjectAreas}
             onClick={() => onLayoutStrategyChange("hierarchical_treemap")}
+          />
+          <ModeOptionButton
+            label="Area Sorted Pack"
+            description="Sort project areas by table footprint, seed the largest cluster bottom-left, and grow a compact square-ish district."
+            selected={layoutStrategy === "area_sorted_pack"}
+            onClick={() => onLayoutStrategyChange("area_sorted_pack")}
           />
         </div>
       </div>

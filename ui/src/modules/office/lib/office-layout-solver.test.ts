@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createRectangularOfficeLayout,
   getOfficeLayoutTileSet,
+  officeLayoutTileKey,
 } from "@/modules/office/lib/office-layout";
 import type { OfficeObject } from "@/modules/office/lib/types";
 import { getObjectFootprintCells } from "@/modules/office/systems/occupancy-system";
@@ -61,6 +62,37 @@ describe("office layout solver", () => {
     );
     expect(solution.poiGraph.disconnectedCount).toBe(0);
     expect(solution.quality.reachablePercent).toBe(1);
+  });
+
+  it("does not prune the reserved square around required office tables", () => {
+    const table = object("team", "team-cluster", [0, 0, 0], {
+      deskCount: 4,
+      footprintWidth: 4.3,
+      footprintDepth: 4.65,
+      footprintClearance: 0.15,
+      teamId: "team-project",
+    });
+    const solution = solveOfficeAutoLayout({
+      sourceLayout: createRectangularOfficeLayout({ width: 20, depth: 18 }),
+      requiredObjects: [table, object("nearby-poi", "plant", [8, 0, 0])],
+      optionalObjects: [],
+      targetEmptyPercent: 0.5,
+    });
+    const finalTiles = getOfficeLayoutTileSet(solution.officeLayout);
+    const protectedTableSquare = new Set<string>();
+
+    for (const cell of getObjectFootprintCells(table)) {
+      for (let dx = -1; dx <= 1; dx += 1) {
+        for (let dz = -1; dz <= 1; dz += 1) {
+          protectedTableSquare.add(officeLayoutTileKey(cell.x + dx, cell.z + dz));
+        }
+      }
+    }
+
+    expect(solution.debug.prunedTileCount).toBeGreaterThan(0);
+    expect(
+      [...protectedTableSquare].every((tile) => finalTiles.has(tile)),
+    ).toBe(true);
   });
 
   it("keeps required objects fixed and reports solver debug counts", () => {

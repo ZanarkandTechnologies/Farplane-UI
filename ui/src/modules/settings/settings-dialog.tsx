@@ -49,6 +49,7 @@ function normalizeLayoutStrategyInput(
   value: OfficeSettingsModel["layoutStrategy"],
 ): LayoutStrategyInput {
   if (value === "manual" || value === "legacy") return value;
+  if (value === "area_sorted_pack") return value;
   return "hierarchical_treemap";
 }
 

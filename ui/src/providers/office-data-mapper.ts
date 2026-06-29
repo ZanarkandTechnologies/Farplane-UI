@@ -1664,6 +1664,7 @@ export function toOfficeData(
     layoutStrategy === "team_neighborhoods" ||
     layoutStrategy === "activity_treemap" ||
     layoutStrategy === "hierarchical_treemap" ||
+    layoutStrategy === "area_sorted_pack" ||
     layoutStrategy === "command_districts";
   const agents: AgentCardModel[] = configuredAgents.length > 0 ? configuredAgents : runtimeAgents;
   if (agents.length === 0) return fallbackData();

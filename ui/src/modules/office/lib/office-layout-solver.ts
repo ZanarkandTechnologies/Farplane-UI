@@ -1003,6 +1003,10 @@ function getProtectedTiles(input: {
 }): Set<string> {
   const layoutTiles = getOfficeLayoutTileSet(input.layout);
   const protectedTiles = new Set<string>();
+  const addProtectedTile = (x: number, z: number) => {
+    const key = officeLayoutTileKey(x, z);
+    if (layoutTiles.has(key)) protectedTiles.add(key);
+  };
   for (const tile of input.reservedWalkTiles) {
     if (layoutTiles.has(tile)) protectedTiles.add(tile);
   }
@@ -1010,6 +1014,12 @@ function getProtectedTiles(input: {
     if (object.meshType === "wall-art") continue;
     for (const cell of getObjectFootprintCells(object)) {
       if (layoutTiles.has(cell.key)) protectedTiles.add(cell.key);
+      if (object.meshType !== "team-cluster") continue;
+      for (let dx = -DEFAULT_PADDING_TILES; dx <= DEFAULT_PADDING_TILES; dx += 1) {
+        for (let dz = -DEFAULT_PADDING_TILES; dz <= DEFAULT_PADDING_TILES; dz += 1) {
+          addProtectedTile(cell.x + dx, cell.z + dz);
+        }
+      }
     }
   }
   return protectedTiles;

@@ -129,6 +129,54 @@ function company(overrides: Partial<CompanyModel> = {}): CompanyModel {
   };
 }
 
+function renderOfficeAreaAscii(layout: ReturnType<typeof buildOfficeAreaLayout>): string {
+  const areas = layout.areas.filter((area) => area.depth > 0);
+  if (areas.length === 0) return "";
+  const minX = Math.min(...areas.map((area) => area.rect.minX));
+  const maxX = Math.max(...areas.map((area) => area.rect.maxX));
+  const minZ = Math.min(...areas.map((area) => area.rect.minZ));
+  const maxZ = Math.max(...areas.map((area) => area.rect.maxZ));
+  const width = 72;
+  const depth = 28;
+  const grid = Array.from({ length: depth }, () => Array(width).fill(" "));
+  const toGridX = (value: number) =>
+    Math.max(
+      0,
+      Math.min(width - 1, Math.round(((value - minX) / (maxX - minX || 1)) * (width - 1))),
+    );
+  const toGridZ = (value: number) =>
+    Math.max(
+      0,
+      Math.min(depth - 1, Math.round(((value - minZ) / (maxZ - minZ || 1)) * (depth - 1))),
+    );
+
+  for (const area of areas) {
+    const left = toGridX(area.rect.minX);
+    const right = toGridX(area.rect.maxX);
+    const top = toGridZ(area.rect.minZ);
+    const bottom = toGridZ(area.rect.maxZ);
+    const mark = area.kind === "district" ? "#" : area.kind === "project-tables" ? "=" : "-";
+    for (let x = left; x <= right; x += 1) {
+      grid[top]![x] = mark;
+      grid[bottom]![x] = mark;
+    }
+    for (let z = top; z <= bottom; z += 1) {
+      grid[z]![left] = mark;
+      grid[z]![right] = mark;
+    }
+    const label = area.label.slice(0, Math.max(3, Math.min(18, right - left - 1)));
+    const labelX = Math.min(right - label.length, left + 1);
+    const labelZ = Math.max(top, Math.min(bottom, Math.round((top + bottom) / 2)));
+    if (labelX > left && labelZ >= 0 && labelZ < depth) {
+      for (let index = 0; index < label.length; index += 1) {
+        grid[labelZ]![labelX + index] = label[index]!;
+      }
+    }
+  }
+
+  return grid.map((row) => row.join("").trimEnd()).join("\n");
+}
+
 describe("office area layout", () => {
   it("derives nested Zanarkand project hierarchy from project paths", () => {
     const layout = buildOfficeAreaLayout({
@@ -694,6 +742,148 @@ describe("office area layout", () => {
     );
     expect(largeArea.rect.width).toBeGreaterThanOrEqual(smallArea.rect.width);
     expect(largeArea.rect.depth).toBeGreaterThanOrEqual(smallArea.rect.depth);
+  });
+
+  it("seeds the largest area-sorted child at the bottom-left of its parent hull", () => {
+    const project = (id: string, name: string, path: string) => ({
+      id,
+      departmentId: "dept-codex-projects",
+      name,
+      githubUrl: "",
+      status: "active" as const,
+      goal: "",
+      kpis: [],
+      trackingContext: path,
+      accountEvents: [],
+      ledger: [],
+      experiments: [],
+      metricEvents: [],
+      resources: [],
+      resourceEvents: [],
+    });
+    const agent = (agentId: string, projectId: string) => ({
+      agentId,
+      role: "builder" as const,
+      projectId,
+      heartbeatProfileId: "hb-thread",
+      lifecycleState: "active" as const,
+    });
+    const layout = buildOfficeAreaLayout({
+      company: company({
+        projects: [
+          project(
+            "proj-zanarkand",
+            "Zanarkand Technologies",
+            "/Users/kenjipcx/Zanarkand Technologies",
+          ),
+          project(
+            "proj-farplane",
+            "Farplane",
+            "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane",
+          ),
+          project(
+            "proj-farplane-ui",
+            "Farplane UI",
+            "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI",
+          ),
+          project(
+            "proj-skills",
+            "skills",
+            "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane/skills",
+          ),
+          project(
+            "proj-valefor",
+            "Valefor",
+            "/Users/kenjipcx/Zanarkand Technologies/projects/Valefor",
+          ),
+          project("proj-life", "Life", "/Users/kenjipcx/life"),
+          project("proj-reels", "Reels", "/Users/kenjipcx/reels"),
+          project("proj-ai-brain", "ai-brain", "/Users/kenjipcx/ai-brain"),
+          project("proj-absorcerer", "Absorcerer", "/Users/kenjipcx/absorcerer"),
+        ],
+        agents: [
+          agent("codex-thread:zanarkand", "proj-zanarkand"),
+          agent("codex-thread:farplane-a", "proj-farplane"),
+          agent("codex-thread:farplane-b", "proj-farplane"),
+          agent("codex-thread:farplane-c", "proj-farplane"),
+          agent("codex-thread:farplane-ui-a", "proj-farplane-ui"),
+          agent("codex-thread:farplane-ui-b", "proj-farplane-ui"),
+          agent("codex-thread:skills", "proj-skills"),
+          agent("codex-thread:valefor", "proj-valefor"),
+          agent("codex-thread:life", "proj-life"),
+          agent("codex-thread:reels", "proj-reels"),
+          agent("codex-thread:ai-brain", "proj-ai-brain"),
+          agent("codex-thread:absorcerer", "proj-absorcerer"),
+        ],
+      }),
+      officeLayout: createRectangularOfficeLayout({ width: 72, depth: 48 }),
+      layoutStrategy: "area_sorted_pack",
+    });
+    const ascii = renderOfficeAreaAscii(layout);
+    const zanarkand = layout.areas.find(
+      (area) => area.label === "Zanarkand Technologies",
+    );
+    const farplane = layout.areas.find((area) => area.label === "Farplane");
+    const zanarkandChildren = layout.areas.filter(
+      (area) => area.parentId === zanarkand?.id,
+    );
+    const childMinX = Math.min(...zanarkandChildren.map((area) => area.rect.minX));
+    const childMaxZ = Math.max(...zanarkandChildren.map((area) => area.rect.maxZ));
+
+    expect(ascii).toContain("Farplane");
+    expect(ascii).toContain("Zanark");
+    expect(farplane).toBeDefined();
+    expect(farplane?.rect.minX).toBeCloseTo(childMinX, 5);
+    expect(farplane?.rect.maxZ).toBeCloseTo(childMaxZ, 5);
+    expect(
+      zanarkandChildren.every((area) => {
+        if (area.id === farplane?.id) return true;
+        return (
+          area.rect.minZ < farplane!.rect.minZ ||
+          area.rect.minX > farplane!.rect.minX
+        );
+      }),
+    ).toBe(true);
+  });
+
+  it("packs equal area-sorted siblings into a square-ish shape instead of one line", () => {
+    const layout = buildOfficeAreaLayout({
+      company: company({
+        projects: Array.from({ length: 4 }, (_, index) => ({
+          id: `proj-pack-${index}`,
+          departmentId: "dept-codex-projects",
+          name: `Pack ${index}`,
+          githubUrl: "",
+          status: "active" as const,
+          goal: "",
+          kpis: [],
+          accountEvents: [],
+          ledger: [],
+          experiments: [],
+          metricEvents: [],
+          resources: [],
+          resourceEvents: [],
+        })),
+        agents: [],
+      }),
+      officeLayout: createRectangularOfficeLayout({ width: 48, depth: 36 }),
+      layoutStrategy: "area_sorted_pack",
+    });
+    const projectAreas = Object.values(layout.projectAreaByProjectId);
+    const centerXs = new Set(projectAreas.map((area) => Math.round(area.rect.centerX)));
+    const centerZs = new Set(projectAreas.map((area) => Math.round(area.rect.centerZ)));
+    const bounds = {
+      minX: Math.min(...projectAreas.map((area) => area.rect.minX)),
+      maxX: Math.max(...projectAreas.map((area) => area.rect.maxX)),
+      minZ: Math.min(...projectAreas.map((area) => area.rect.minZ)),
+      maxZ: Math.max(...projectAreas.map((area) => area.rect.maxZ)),
+    };
+    const width = bounds.maxX - bounds.minX;
+    const depth = bounds.maxZ - bounds.minZ;
+
+    expect(centerXs.size).toBeGreaterThan(1);
+    expect(centerZs.size).toBeGreaterThan(1);
+    expect(Math.max(width, depth) / Math.max(1, Math.min(width, depth))).toBeLessThan(2);
   });
 
   it("falls back to department/project hierarchy when no tracking path exists", () => {
