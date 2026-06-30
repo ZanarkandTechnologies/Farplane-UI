@@ -75,6 +75,11 @@ export function TeamPanel({
   const setSelectedAgentId = useAppStore((state) => state.setSelectedAgentId);
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  const [threadDataTarget, setThreadDataTarget] = useState<{
+    outputId?: string;
+    projectPath?: string;
+    runId: string;
+  } | null>(null);
 
   const team = useMemo(() => {
     if (!teamId || globalMode) return null;
@@ -178,6 +183,10 @@ export function TeamPanel({
     if (!isOpen || !globalMode || selectedProjectId || !companyModel?.projects?.length) return;
     setSelectedProjectId(companyModel.projects[0].id);
   }, [companyModel?.projects, globalMode, isOpen, selectedProjectId, setSelectedProjectId]);
+
+  useEffect(() => {
+    setThreadDataTarget(null);
+  }, [activeProjectPath]);
 
   if (!globalMode && !team) return null;
 
@@ -299,15 +308,24 @@ export function TeamPanel({
           </TabsContent>
 
           <TabsContent value="thread-data" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ThreadDataPanel />
+            <ThreadDataPanel
+              initialRunId={threadDataTarget?.runId ?? null}
+              initialOutputId={threadDataTarget?.outputId ?? null}
+              projectPath={threadDataTarget?.projectPath ?? activeProjectPath ?? null}
+            />
           </TabsContent>
 
           <TabsContent value="timeline" className="mt-4 min-h-0 flex-1 overflow-hidden">
             <TimelineTab
               convexEnabled={convexEnabled}
+              projectId={project?.id ?? null}
               teamScopeId={teamScopeId}
               memoryRows={memoryRows}
               communicationRows={communicationRows}
+              onOpenMineRun={(target) => {
+                setThreadDataTarget(target);
+                setActiveTab("thread-data");
+              }}
               onConfigureHooks={() => setIsRawTelemetryPanelOpen(true)}
             />
           </TabsContent>

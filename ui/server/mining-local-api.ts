@@ -37,6 +37,7 @@ export type MiningLocalApi = {
   listRuns: () => Promise<MiningRunIndexEntry[]>;
   createRun: (input: unknown) => Promise<JsonObject | null>;
   readRun: (runId: string) => Promise<JsonObject | null>;
+  readEventMinerReport: (runId: string, projectPath?: string) => Promise<JsonObject | null>;
   replayRun: (runId: string) => Promise<JsonObject | null>;
   updateOutputVerdict: (input: {
     runId: string;
@@ -487,6 +488,22 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
     };
   }
 
+  async function readEventMinerReport(runId: string, projectPath?: string): Promise<JsonObject | null> {
+    if (!isSafeMiningFileId(runId)) return null;
+    const resolvedProjectPath = projectPath ? path.resolve(projectPath) : path.dirname(path.dirname(deps.mineRoot));
+    const runRoot = path.join(resolvedProjectPath, ".farplane", "event-miner", "runs", runId);
+    const report = await readJsonFile<unknown>(path.join(runRoot, "report.json"), null);
+    if (!report || typeof report !== "object" || Array.isArray(report)) return null;
+    return {
+      runId,
+      root: runRoot,
+      reportPath: path.join(runRoot, "report.json"),
+      inputPath: path.join(runRoot, "input.json"),
+      report,
+      inputJson: await readJsonFile<unknown>(path.join(runRoot, "input.json"), null),
+    };
+  }
+
   async function replayRun(runId: string): Promise<JsonObject | null> {
     if (!isSafeMiningFileId(runId)) return null;
     const runRoot = path.join(deps.mineRoot, "runs", runId);
@@ -636,6 +653,7 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
     listPrograms,
     listRuns,
     listThreadSources,
+    readEventMinerReport,
     readRun,
     replayRun,
     runsExist: () => isDirectory(path.join(deps.mineRoot, "runs")),

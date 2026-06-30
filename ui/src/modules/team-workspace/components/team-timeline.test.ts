@@ -63,12 +63,12 @@ describe("team timeline helpers", () => {
     expect(rows[0]?.label).toBe("Queue built");
   });
 
-  it("prefers project memory history rows over live activity", () => {
+  it("merges project memory history rows with live activity", () => {
     const rows = buildTeamTimelineRows({
       convexTimeline: [
         {
           _id: "row-1",
-          sourceType: "agent_event",
+          sourceType: "hook_event",
           occurredAt: 10,
           projectId: "proj-a",
           agentId: "agent-a",
@@ -91,10 +91,8 @@ describe("team timeline helpers", () => {
       projectId: "proj-a",
     });
 
-    expect(rows).toHaveLength(1);
+    expect(rows).toHaveLength(2);
     expect(rows[0]?.sourceType).toBe("memory_event");
-    expect(rows[0]?.eventType).toBe("feature");
-    expect(rows[0]?.memoryId).toBe("MEM-0241");
-    expect(rows[0]?.label).toBe("Rendered decisions.");
+    expect(rows[1]?.sourceType).toBe("hook_event");
   });
 });

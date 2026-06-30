@@ -270,12 +270,13 @@ export const getThreadLineageGraph = query({
 export const getLearningTimelineFromHookTelemetry = query({
   args: learningTimelineArgsValidator,
   handler: async (ctx, args) => {
+    const rawLimit = Math.min(MAX_ROWS, Math.max(1_000, normalizeLimit(args.limit) * 20));
     const rows = await fetchHookTelemetryRows(ctx, {
       projectId: args.projectId,
       sessionId: args.sessionId,
       eventName: args.eventName,
       rangeDays: args.rangeDays,
-      limit: args.limit,
+      limit: rawLimit,
     });
     const timeline = hookTelemetryRowsToLearningTimelineRows(rows.map(toHookTelemetryRow))
       .filter((row) => !args.ticketId?.trim() || row.ticketId === args.ticketId.trim())

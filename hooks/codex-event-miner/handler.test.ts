@@ -126,6 +126,7 @@ describe("codex-event-miner", () => {
             {
               eventName: "decision.observed",
               sourceProgram: "decision-v1",
+              ticketId: "TASK-0250",
               summary: "Use codex-event-miner as the Stop hook abstraction.",
               status: "accepted",
               decisionKind: "architecture",
@@ -150,6 +151,9 @@ describe("codex-event-miner", () => {
       expect(parsed.candidates.map((candidate) => candidate.eventName)).toContain("learning.lesson.observed");
       expect(parsed.candidates.map((candidate) => candidate.eventName)).toContain("learning.trouble.observed");
       expect(parsed.candidates.map((candidate) => candidate.eventName)).toContain("decision.observed");
+      expect(parsed.candidates.find((candidate) => candidate.eventName === "miner.agent.completed")).toEqual(
+        expect.objectContaining({ ticketId: "TASK-0250" }),
+      );
       expect(JSON.stringify(parsed.candidates)).not.toContain("docs_updated\\n");
     } finally {
       rmSync(repo, { recursive: true, force: true });
@@ -194,7 +198,7 @@ describe("codex-event-miner", () => {
     }
   });
 
-  it("builds an agent prompt that instructs Codex to mine and call telemetry APIs", () => {
+  it("builds an artifact-only agent prompt for hookless mining", () => {
     const input = buildMinerAgentInput({
       sessionId: "session-1",
       turnId: "turn-1",
@@ -209,8 +213,9 @@ describe("codex-event-miner", () => {
     const prompt = buildMinerAgentPrompt(input);
 
     expect(prompt).toContain("You are the Farplane Codex event miner agent.");
-    expect(prompt).toContain("/telemetry/hooks");
-    expect(prompt).toContain("The Stop hook is only a launcher.");
+    expect(prompt).not.toContain("/telemetry/hooks");
+    expect(prompt).toContain("Do not publish");
+    expect(prompt).toContain("The Stop hook is the launcher and telemetry publisher.");
     expect(prompt).toContain("/Users/me/.codex/sessions/thread.jsonl");
     expect(prompt).toContain("Do not do a broad repo investigation.");
   });

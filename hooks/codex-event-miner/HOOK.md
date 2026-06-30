@@ -12,13 +12,13 @@ decisions inline. On each Stop payload it does bounded launcher work:
 - when due, spawn a detached `codex exec` miner agent with program instructions
   for `decision-v1` and `learning-docs-v1`
 - the agent reads the referenced Codex transcript/session, extracts schema-shaped
-  events, and publishes to Farplane UI `/telemetry/hooks` or `/telemetry/hooks/batch`
+  events, and writes a local report under `.farplane/event-miner/runs/`
 - flush completed miner-agent `report.json` files from
-  `.farplane/event-miner/runs/` into fallback telemetry rows when needed
+  `.farplane/event-miner/runs/` into telemetry rows through the hook publisher
 - when verbose telemetry is enabled, also emit cadence bookkeeping rows:
   `miner.window.updated` and `miner.agent.skipped`
 
-The hook publishes through `/telemetry/hooks` using the shared telemetry outbox.
+Only the hook publishes through `/telemetry/hooks` using the shared telemetry outbox.
 Payloads must stay compact and must not include raw prompts, transcripts, full
 assistant messages, full docs rows, or tool output.
 

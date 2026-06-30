@@ -17,6 +17,8 @@ import {
 type JsonRecord = Record<string, unknown>;
 
 export type LearningTimelineEventName =
+  | "ticket.audit.created"
+  | "ticket.audit.scored"
   | "miner.window.updated"
   | "miner.agent.skipped"
   | "miner.agent.queued"
@@ -43,6 +45,8 @@ export type LearningTimelineRow = {
   severity?: string;
   summary: string;
   decisionKind?: string;
+  runId?: string;
+  outputId?: string;
   reviewRunPath?: string;
   docsTarget?: string;
   rowsAdded?: number;
@@ -72,6 +76,8 @@ function eventNameFromPayload(payload: JsonRecord): LearningTimelineEventName | 
   const explicit = cleanText(payload.eventName, 120) ?? cleanText(payload.eventType, 120) ?? cleanText(payload.type, 120);
   if (
     explicit === "decision.observed" ||
+    explicit === "ticket.audit.created" ||
+    explicit === "ticket.audit.scored" ||
     explicit === "miner.window.updated" ||
     explicit === "miner.agent.skipped" ||
     explicit === "miner.agent.queued" ||
@@ -128,7 +134,7 @@ function changedFieldPaths(payload: JsonRecord): string[] | undefined {
 }
 
 export function hookTelemetryRowsToLearningTimelineRows(rows: HookTelemetryRow[]): LearningTimelineRow[] {
-  return rows
+  const timeline = rows
     .map((row): LearningTimelineRow | null => {
       const payload = asRecord(row.payload);
       if (isFarplaneFileEventPayload(row.payload)) {
@@ -176,6 +182,8 @@ export function hookTelemetryRowsToLearningTimelineRows(rows: HookTelemetryRow[]
         severity: cleanText(payload.severity, 80),
         summary,
         decisionKind: cleanText(payload.decisionKind, 80),
+        runId: cleanText(payload.runId, 160),
+        outputId: cleanText(payload.outputId, 160),
         reviewRunPath: cleanText(payload.reviewRunPath, 240),
         docsTarget: docsDeltaTarget(payload),
         rowsAdded: docsDeltaRowsAdded(payload),
@@ -188,6 +196,25 @@ export function hookTelemetryRowsToLearningTimelineRows(rows: HookTelemetryRow[]
         eventKey: row.eventKey,
       };
     })
-    .filter((row): row is LearningTimelineRow => row !== null)
+    .filter((row): row is LearningTimelineRow => row !== null);
+  return fillMinerReportTicketIds(timeline)
     .sort((left, right) => right.eventAt - left.eventAt || left.id.localeCompare(right.id));
+}
+
+function fillMinerReportTicketIds(rows: LearningTimelineRow[]): LearningTimelineRow[] {
+  const ticketByReviewRunPath = new Map<string, string>();
+  for (const row of rows) {
+    if (row.reviewRunPath && row.ticketId) ticketByReviewRunPath.set(row.reviewRunPath, row.ticketId);
+  }
+  return rows.map((row) => {
+    if (
+      row.ticketId ||
+      (row.eventName !== "miner.agent.completed" && row.eventName !== "miner.agent.failed") ||
+      !row.reviewRunPath
+    ) {
+      return row;
+    }
+    const ticketId = ticketByReviewRunPath.get(row.reviewRunPath);
+    return ticketId ? { ...row, ticketId } : row;
+  });
 }

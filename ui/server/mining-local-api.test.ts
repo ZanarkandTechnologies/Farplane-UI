@@ -36,6 +36,8 @@ describe("mining local API", () => {
         "",
         "# TASK-0029: Extract Mining API",
         "",
+        "Use $impl-plan and ui/server/mining-local-api.ts as the implementation reference.",
+        "",
         "## Done",
         "- API extracted",
       ].join("\n"),
@@ -43,6 +45,27 @@ describe("mining local API", () => {
     await writeFile(
       path.join(projectRoot, "tickets", "TASK-0029", "progress.md"),
       "# Progress\n\n- Implemented API extraction.\n- Added tests.\n",
+    );
+    await mkdir(path.join(projectRoot, ".farplane", "state", "message-windows"), { recursive: true });
+    await writeFile(
+      path.join(projectRoot, ".farplane", "state", "message-windows", "thread-ticket.json"),
+      JSON.stringify({
+        rolling_exchanges: [
+          {
+            user_text: "Please use $impl-plan here.",
+            user_captured_at: "2026-06-28T01:00:00.000Z",
+            assistant_text: "Using $impl-plan and reading /Users/kenjipcx/.codex/skills/impl-plan/SKILL.md.",
+            assistant_captured_at: "2026-06-28T01:01:00.000Z",
+          },
+          {
+            user_text: "wait, why did the first pass miss the ticket eval default?",
+            user_captured_at: "2026-06-28T01:02:00.000Z",
+            assistant_text: "I will follow the recommended checklist.",
+            assistant_captured_at: "2026-06-28T01:03:00.000Z",
+          },
+        ],
+      }),
+      "utf-8",
     );
     await writeFile(path.join(projectRoot, "tickets", "TASK-0029", "artifacts", "proof.txt"), "ok\n");
     const api = createMiningLocalApi({
@@ -133,12 +156,29 @@ describe("mining local API", () => {
     expect(scorecard).toEqual(
       expect.objectContaining({
         ticketId: "TASK-0029",
+        runId: run?.runId,
         deterministicMetrics: expect.arrayContaining([
           expect.objectContaining({ id: "token_usage", status: "unknown" }),
           expect.objectContaining({ id: "proof_artifact_count", value: 1 }),
+          expect.objectContaining({ id: "skill_loaded_count", value: 1 }),
+          expect.objectContaining({ id: "missed_skill_trigger_count", value: 0 }),
         ]),
+        skillTraceAssessment: expect.objectContaining({
+          skillLoaded: expect.objectContaining({ status: "observed", loadedCount: 1 }),
+          intendedSkills: expect.arrayContaining([expect.objectContaining({ skillId: "impl-plan" })]),
+          loadedSkills: expect.arrayContaining([expect.objectContaining({ skillId: "impl-plan" })]),
+          correctionNeeded: expect.objectContaining({ status: "observed" }),
+        }),
       }),
     );
+    expect(outputIndex[0].telemetryEvents).toEqual([
+      expect.objectContaining({
+        eventName: "ticket.audit.scored",
+        outputId: outputIndex[0].id,
+        runId: run?.runId,
+        ticketId: "TASK-0029",
+      }),
+    ]);
 
     const duplicate = await api.createRun({
       mode: "ticket_completion",
@@ -238,5 +278,41 @@ describe("mining local API", () => {
     const attempts = JSON.parse(await readFile(path.join(mineRoot, "runs", runId, "attempts.json"), "utf-8"));
     expect(attempts).toHaveLength(2);
     expect(attempts[1]).toEqual(expect.objectContaining({ reason: "replayed_from_stored_input" }));
+  });
+
+  it("reads event-miner reports by run id", async () => {
+    const projectRoot = await createTempRoot("farplane-event-miner-project-");
+    const mineRoot = path.join(projectRoot, ".farplane", "mine");
+    await mkdir(path.join(projectRoot, ".farplane", "event-miner", "runs", "run-1"), { recursive: true });
+    await writeFile(
+      path.join(projectRoot, ".farplane", "event-miner", "runs", "run-1", "report.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        status: "completed",
+        observed: 1,
+        summary: "Found a ticket workflow decision.",
+        ticketId: "TASK-0029",
+        events: [{ eventName: "decision.observed", summary: "Use the ticket completion audit." }],
+      }),
+      "utf-8",
+    );
+    const api = createMiningLocalApi({
+      mineRoot,
+      readFilesystemThreads: async () => [],
+      requestCodexThreads: async () => ({ data: [] }),
+    });
+
+    const detail = await api.readEventMinerReport("run-1");
+
+    expect(detail).toEqual(
+      expect.objectContaining({
+        runId: "run-1",
+        report: expect.objectContaining({
+          observed: 1,
+          ticketId: "TASK-0029",
+        }),
+      }),
+    );
+    await expect(api.readEventMinerReport("../unsafe")).resolves.toBeNull();
   });
 });

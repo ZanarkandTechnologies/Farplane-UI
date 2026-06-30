@@ -3715,11 +3715,30 @@ async function readEvalRunsForSkill(skillId: string): Promise<JsonObject[]> {
 }
 
 function farplaneStateBridge() {
-  const miningApi = createMiningLocalApi({
-    mineRoot: FARPLANE_MINE_ROOT,
-    readFilesystemThreads: readFilesystemObservedCodexThreadsForUiState,
-    requestCodexThreads: (limit) => requestCodexAppServerRpc("thread/list", { limit }),
-  });
+  const miningApisByRoot = new Map<string, ReturnType<typeof createMiningLocalApi>>();
+  const miningApiForRoot = (mineRoot: string): ReturnType<typeof createMiningLocalApi> => {
+    const resolvedRoot = path.resolve(mineRoot);
+    const existing = miningApisByRoot.get(resolvedRoot);
+    if (existing) return existing;
+    const api = createMiningLocalApi({
+      mineRoot: resolvedRoot,
+      readFilesystemThreads: readFilesystemObservedCodexThreadsForUiState,
+      requestCodexThreads: (limit) => requestCodexAppServerRpc("thread/list", { limit }),
+    });
+    miningApisByRoot.set(resolvedRoot, api);
+    return api;
+  };
+  const scopedMiningApi = (
+    url: URL,
+  ): { api: ReturnType<typeof createMiningLocalApi>; mineRoot: string } | null => {
+    const projectPath = url.searchParams.get("projectPath")?.trim() ?? "";
+    if (projectPath && !isSafeProjectPath(projectPath)) return null;
+    const mineRoot = projectPath
+      ? path.join(path.resolve(projectPath), ".farplane", "mine")
+      : FARPLANE_MINE_ROOT;
+    return { api: miningApiForRoot(mineRoot), mineRoot: path.resolve(mineRoot) };
+  };
+  const miningApi = miningApiForRoot(FARPLANE_MINE_ROOT);
 
   return {
     name: "farplane-openclaw-state-bridge",
@@ -3984,10 +4003,15 @@ function farplaneStateBridge() {
         }
 
         if (method === "GET" && pathname === "/farplane/mine/programs") {
+          const scoped = scopedMiningApi(url);
+          if (!scoped) {
+            writeJson(res, 400, { ok: false, error: "project_path_invalid", programs: [] });
+            return;
+          }
           writeJson(res, 200, {
             ok: true,
-            mineRoot: FARPLANE_MINE_ROOT,
-            programs: await miningApi.listPrograms(),
+            mineRoot: scoped.mineRoot,
+            programs: await scoped.api.listPrograms(),
           });
           return;
         }
@@ -3997,12 +4021,17 @@ function farplaneStateBridge() {
             writeJson(res, 403, { ok: false, error: "forbidden", programs: [] });
             return;
           }
+          const scoped = scopedMiningApi(url);
+          if (!scoped) {
+            writeJson(res, 400, { ok: false, error: "project_path_invalid", programs: [] });
+            return;
+          }
           try {
             const body = await readBody(req);
             writeJson(res, 200, {
               ok: true,
-              mineRoot: FARPLANE_MINE_ROOT,
-              programs: await miningApi.saveProgram(body),
+              mineRoot: scoped.mineRoot,
+              programs: await scoped.api.saveProgram(body),
             });
           } catch (error) {
             writeJson(res, 400, {
@@ -4015,21 +4044,38 @@ function farplaneStateBridge() {
         }
 
         if (method === "GET" && pathname === "/farplane/mine/threads") {
+          const scoped = scopedMiningApi(url);
+          if (!scoped) {
+            writeJson(res, 400, { ok: false, error: "project_path_invalid", threads: [] });
+            return;
+          }
           const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 80) || 80, 1), 500);
           const lastDays = Number(url.searchParams.get("lastDays") ?? 0) || undefined;
           writeJson(res, 200, {
             ok: true,
-            threads: await miningApi.listThreadSources({ limit, lastDays }),
+            mineRoot: scoped.mineRoot,
+            threads: await scoped.api.listThreadSources({ limit, lastDays }),
           });
           return;
         }
 
         if (method === "GET" && pathname === "/farplane/mine/runs") {
-          const exists = await miningApi.runsExist();
-          const runs = exists ? await miningApi.listRuns() : [];
+          const scoped = scopedMiningApi(url);
+          if (!scoped) {
+            writeJson(res, 400, {
+              ok: false,
+              error: "project_path_invalid",
+              exists: false,
+              runs: [],
+              latest: null,
+            });
+            return;
+          }
+          const exists = await scoped.api.runsExist();
+          const runs = exists ? await scoped.api.listRuns() : [];
           writeJson(res, 200, {
             ok: true,
-            mineRoot: FARPLANE_MINE_ROOT,
+            mineRoot: scoped.mineRoot,
             exists,
             runs,
             latest: runs[0] ?? null,
@@ -4042,11 +4088,16 @@ function farplaneStateBridge() {
             writeJson(res, 403, { ok: false, error: "forbidden", detail: null });
             return;
           }
+          const scoped = scopedMiningApi(url);
+          if (!scoped) {
+            writeJson(res, 400, { ok: false, error: "project_path_invalid", detail: null });
+            return;
+          }
           try {
-            const detail = await miningApi.createRun(await readBody(req));
+            const detail = await scoped.api.createRun(await readBody(req));
             writeJson(res, 200, {
               ok: true,
-              mineRoot: FARPLANE_MINE_ROOT,
+              mineRoot: scoped.mineRoot,
               detail,
             });
           } catch (error) {
@@ -4061,13 +4112,35 @@ function farplaneStateBridge() {
 
         const mineRunMatch = pathname.match(/^\/farplane\/mine\/runs\/([^/]+)$/);
         if (method === "GET" && mineRunMatch) {
+          const scoped = scopedMiningApi(url);
+          if (!scoped) {
+            writeJson(res, 400, { ok: false, error: "project_path_invalid", detail: null });
+            return;
+          }
           const [, runId] = mineRunMatch;
-          const detail = await miningApi.readRun(runId);
+          const detail = await scoped.api.readRun(runId);
           writeJson(res, detail ? 200 : 404, {
             ok: Boolean(detail),
-            mineRoot: FARPLANE_MINE_ROOT,
+            mineRoot: scoped.mineRoot,
             detail,
             error: detail ? undefined : "mining_run_not_found",
+          });
+          return;
+        }
+
+        const eventMinerRunMatch = pathname.match(/^\/farplane\/event-miner\/runs\/([^/]+)$/);
+        if (method === "GET" && eventMinerRunMatch) {
+          const [, runId] = eventMinerRunMatch;
+          const projectPath = url.searchParams.get("projectPath")?.trim() ?? "";
+          if (projectPath && !isSafeProjectPath(projectPath)) {
+            writeJson(res, 400, { ok: false, detail: null, error: "project_path_invalid" });
+            return;
+          }
+          const detail = await miningApi.readEventMinerReport(runId, projectPath || undefined);
+          writeJson(res, detail ? 200 : 404, {
+            ok: Boolean(detail),
+            detail,
+            error: detail ? undefined : "event_miner_report_not_found",
           });
           return;
         }
@@ -4078,11 +4151,16 @@ function farplaneStateBridge() {
             writeJson(res, 403, { ok: false, error: "forbidden", detail: null });
             return;
           }
+          const scoped = scopedMiningApi(url);
+          if (!scoped) {
+            writeJson(res, 400, { ok: false, error: "project_path_invalid", detail: null });
+            return;
+          }
           const [, runId] = mineReplayMatch;
-          const detail = await miningApi.replayRun(runId);
+          const detail = await scoped.api.replayRun(runId);
           writeJson(res, detail ? 200 : 404, {
             ok: Boolean(detail),
-            mineRoot: FARPLANE_MINE_ROOT,
+            mineRoot: scoped.mineRoot,
             detail,
             error: detail ? undefined : "mining_run_not_found",
           });
@@ -4097,6 +4175,11 @@ function farplaneStateBridge() {
             writeJson(res, 403, { ok: false, error: "forbidden", detail: null });
             return;
           }
+          const scoped = scopedMiningApi(url);
+          if (!scoped) {
+            writeJson(res, 400, { ok: false, error: "project_path_invalid", detail: null });
+            return;
+          }
           const [, runId, outputId] = mineOutputVerdictMatch;
           const body = (await readBody(req)) as JsonObject;
           const verdict = String(body.verdict ?? "");
@@ -4105,10 +4188,10 @@ function farplaneStateBridge() {
             return;
           }
           try {
-            const detail = await miningApi.updateOutputVerdict({ outputId, runId, verdict });
+            const detail = await scoped.api.updateOutputVerdict({ outputId, runId, verdict });
             writeJson(res, detail ? 200 : 404, {
               ok: Boolean(detail),
-              mineRoot: FARPLANE_MINE_ROOT,
+              mineRoot: scoped.mineRoot,
               detail,
               error: detail ? undefined : "mining_output_not_found",
             });

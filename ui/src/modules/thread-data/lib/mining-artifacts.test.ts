@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  artifactPreviewText,
   artifactPreview,
   defaultOutputViewMode,
   displayEvidenceSource,
   filterOutputs,
   filterThreads,
   outputEvidenceRows,
+  parseArtifactJson,
+  preferredArtifactId,
   scorecardSummary,
   selectedThreadIds,
   sortMiningRuns,
@@ -155,15 +158,43 @@ describe("mining artifact helpers", () => {
       scorecardSummary({
         scorecard: {
           overall: "good",
+          overallScore: 80,
           proof_quality: "medium",
           scope_followed: "high",
           skipped_steps: "visual qa",
+          skillTraceSummary: "Loaded: none observed.",
+          skillTraceAssessment: {
+            skillLoaded: { status: "not_observed", reason: "No local skill read." },
+            skillLoadTiming: { status: "unknown", value: "unknown" },
+            missedTrigger: { skillIds: ["pulse-update"] },
+            falsePositiveTrigger: { skillIds: [] },
+            wastedSteps: { summary: "No detours." },
+            defaultFollowed: { status: "unknown", reason: "Needs full trace." },
+            referenceLoads: [{ path: "docs/example.md" }],
+            correctionNeeded: { status: "not_observed" },
+            traceToSkillDelta: [],
+            limitations: ["bounded packet only"],
+          },
         },
       }),
     ).toEqual({
       overall: "good",
+      overallScore: 80,
       proofQuality: "medium",
       scopeFollowed: "high",
+      skillTrace: {
+        correctionNeeded: "not_observed",
+        defaultFollowed: "unknown: Needs full trace.",
+        falsePositiveTriggers: [],
+        limitations: ["bounded packet only"],
+        missedTriggers: ["pulse-update"],
+        referenceLoadCount: 1,
+        skillLoadTiming: "unknown",
+        skillLoaded: "not_observed: No local skill read.",
+        traceToSkillDeltaCount: 0,
+        wastedSteps: "No detours.",
+      },
+      skillTraceSummary: "Loaded: none observed.",
       skippedSteps: "visual qa",
     });
     expect(
@@ -174,5 +205,38 @@ describe("mining artifact helpers", () => {
         path: "/tmp/input.json",
       }),
     ).toBe("input.json\n/tmp/input.json");
+    expect(
+      preferredArtifactId([
+        { id: "input", kind: "json", label: "input.json", path: "/tmp/input.json" },
+        { id: "report", kind: "markdown", label: "report.md", path: "/tmp/report.md" },
+      ]),
+    ).toBe("report");
+    expect(
+      parseArtifactJson({
+        content: "{\"ok\":true}",
+        id: "input",
+        kind: "json",
+        label: "input.json",
+        path: "/tmp/input.json",
+      }),
+    ).toEqual({ ok: true });
+    expect(
+      parseArtifactJson({
+        content: "x".repeat(1_000_001),
+        id: "input",
+        kind: "json",
+        label: "input.json",
+        path: "/tmp/input.json",
+      }),
+    ).toBeNull();
+    expect(
+      artifactPreviewText({
+        content: "x".repeat(120_001),
+        id: "input",
+        kind: "json",
+        label: "input.json",
+        path: "/tmp/input.json",
+      }),
+    ).toContain("Preview truncated");
   });
 });

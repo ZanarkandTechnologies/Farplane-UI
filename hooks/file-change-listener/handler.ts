@@ -44,12 +44,17 @@ export type TicketAuditRunResult = {
   skipped: number;
   failed: number;
   events: Array<{
-    eventName: "ticket.audit.created" | "ticket.audit.failed";
+    eventName: "ticket.audit.created" | "ticket.audit.failed" | "ticket.audit.scored";
     eventKey: string;
     projectId?: string;
     sessionId?: string;
     ticketId?: string;
+    outputId?: string;
     summary: string;
+    source?: string;
+    sourceProgram?: string;
+    status?: string;
+    severity?: "low" | "medium" | "high";
     runId?: string;
     reviewRunPath?: string;
     reason?: string;
@@ -75,6 +80,17 @@ function isRecord(value: unknown): value is JsonRecord {
 function cleanString(value: unknown, limit = 500): string | undefined {
   const trimmed = typeof value === "string" ? value.trim() : "";
   return trimmed ? trimmed.slice(0, limit) : undefined;
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function eventAtMs(value: unknown, fallback = Date.now()): number {
+  const numeric = numberValue(value);
+  if (numeric !== undefined) return numeric < 10_000_000_000 ? Math.floor(numeric * 1000) : Math.floor(numeric);
+  const parsed = Date.parse(cleanString(value, 120) ?? "");
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function resolveToolName(payload: JsonRecord): string {
@@ -558,6 +574,7 @@ export async function createTicketAuditRunsForCompletedEvents(
       });
       const run = detail?.run && typeof detail.run === "object" ? (detail.run as JsonRecord) : {};
       const runId = cleanString(run.runId, 160);
+      const outputs = Array.isArray(detail?.outputs) ? detail.outputs.filter(isRecord) : [];
       result.created += 1;
       result.events.push({
         eventName: "ticket.audit.created",
@@ -570,6 +587,37 @@ export async function createTicketAuditRunsForCompletedEvents(
         reviewRunPath: runId ? `.farplane/mine/runs/${runId}` : undefined,
         eventAt: Date.now(),
       });
+      for (const output of outputs) {
+        const outputId = cleanString(output.id, 160);
+        const outputJson = isRecord(output.outputJson) ? output.outputJson : {};
+        const telemetryEvents = Array.isArray(outputJson.telemetryEvents) ? outputJson.telemetryEvents.filter(isRecord) : [];
+        for (const telemetry of telemetryEvents) {
+          const eventName = cleanString(telemetry.eventName, 120);
+          if (eventName !== "ticket.audit.scored") continue;
+          result.events.push({
+            eventName: "ticket.audit.scored",
+            eventKey:
+              cleanString(telemetry.eventKey, 500) ??
+              `ticket-audit:v1:scored:${runId ?? "run"}:${outputId ?? ticketId}`.slice(0, 500),
+            projectId: candidate.projectId,
+            sessionId: cleanString(telemetry.sessionId, 200) ?? candidate.sessionId,
+            ticketId: cleanString(telemetry.ticketId, 80) ?? ticketId,
+            outputId,
+            summary:
+              cleanString(telemetry.summary, 240) ??
+              `Ticket audit scored ${ticketId}${runId ? ` in ${runId}` : ""}.`,
+            source: cleanString(telemetry.source, 120) ?? "ticket_completion_audit",
+            sourceProgram: cleanString(telemetry.sourceProgram, 120) ?? "ticket-completion-audit-v1",
+            status: cleanString(telemetry.status, 80) ?? "observed",
+            severity: cleanString(telemetry.severity, 80) as "low" | "medium" | "high" | undefined,
+            runId: cleanString(telemetry.runId, 160) ?? runId,
+            reviewRunPath:
+              cleanString(telemetry.reviewRunPath, 240) ??
+              (runId && outputId ? `.farplane/mine/runs/${runId}/outputs/${outputId}/scorecard.json` : undefined),
+            eventAt: eventAtMs(telemetry.eventAt),
+          });
+        }
+      }
     } catch (error) {
       const reason =
         error instanceof Error ? error.message.slice(0, 240) : String(error).slice(0, 240);
@@ -607,10 +655,14 @@ export async function publishTicketAuditRunEvents(
       sessionId: event.sessionId,
       payload: {
         schemaVersion: 1,
-        source: "ticket_completion_audit_subscriber",
         eventName: event.eventName,
         ticketId: event.ticketId,
+        outputId: event.outputId,
         summary: event.summary,
+        source: event.source ?? "ticket_completion_audit_subscriber",
+        sourceProgram: event.sourceProgram,
+        status: event.status,
+        severity: event.severity,
         runId: event.runId,
         reviewRunPath: event.reviewRunPath,
         reason: event.reason,

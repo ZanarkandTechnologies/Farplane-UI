@@ -12,6 +12,7 @@ import path from "node:path";
 import {
   cleanString,
   eventBase,
+  inferTicketId,
   isRecord,
   number,
   parseJsonFile,
@@ -58,6 +59,20 @@ function docsDelta(event: JsonRecord): MinerEventCandidate["docsDelta"] {
   return target || rowsAdded ? { target, rowsAdded } : undefined;
 }
 
+function reportTicketId(report: JsonRecord, fallback: string | undefined): string | undefined {
+  if (fallback) return fallback;
+  const events = Array.isArray(report.events) ? report.events.filter(isRecord) : [];
+  for (const event of events) {
+    const ticketId = inferTicketId(
+      cleanString(event.ticketId, 120),
+      cleanString(event.ticket_id, 120),
+      cleanString(event.summary, 360),
+    );
+    if (ticketId) return ticketId;
+  }
+  return undefined;
+}
+
 function reportEventCandidates(input: {
   projectPath: string;
   reportPath: string;
@@ -68,12 +83,13 @@ function reportEventCandidates(input: {
 }): MinerEventCandidate[] {
   const relativeRunPath = relativeReportRunPath(input.projectPath, input.reportPath);
   const status = cleanString(input.report.status, 120) ?? "completed";
+  const ticketId = reportTicketId(input.report, input.ticketId);
   const rows: MinerEventCandidate[] = [
     withEventKey({
       ...eventBase({
         eventName: /fail|error|blocked/i.test(status) ? "miner.agent.failed" : "miner.agent.completed",
         metadata: input.metadata,
-        ticketId: input.ticketId,
+        ticketId,
         sourceProgram: "codex-event-miner",
         source: "miner_agent_report",
         status,
@@ -100,7 +116,7 @@ function reportEventCandidates(input: {
         ...eventBase({
           eventName: name,
           metadata: input.metadata,
-          ticketId: cleanString(event.ticketId, 120) ?? cleanString(event.ticket_id, 120) ?? input.ticketId,
+          ticketId: cleanString(event.ticketId, 120) ?? cleanString(event.ticket_id, 120) ?? ticketId,
           sourceProgram: cleanString(event.sourceProgram, 120) ?? "miner-agent",
           source: "miner_agent_report",
           status: cleanString(event.status, 80) ?? "observed",

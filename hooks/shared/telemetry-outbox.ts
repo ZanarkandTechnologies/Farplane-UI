@@ -99,7 +99,15 @@ export async function publishHookTelemetryWithOutbox<TPayload = unknown>(
   const outboxPath = options.outboxPath ?? defaultOutboxPath(options.projectPath);
   const queuedRows = outboxPath ? await readOutboxRows(outboxPath) : [];
   if (!options.endpointBaseUrl || (envelopes.length === 0 && queuedRows.length === 0)) {
-    return { attempted: envelopes.length, published: 0, queued: queuedRows.length, replayed: 0, skipped: true };
+    const newRows: OutboxRow[] = envelopes.map((envelope) => ({
+      envelope: envelope as HookTelemetryEnvelope,
+      queuedAt: Date.now(),
+      attempts: 0,
+      lastError: "telemetry_endpoint_missing",
+    }));
+    const allRows = [...queuedRows, ...newRows];
+    if (outboxPath && newRows.length > 0) await writeOutboxRows(outboxPath, allRows);
+    return { attempted: envelopes.length, published: 0, queued: allRows.length, replayed: 0, skipped: true };
   }
   const replayLimit = Math.max(0, options.maxReplay ?? DEFAULT_MAX_REPLAY);
   const replayRows = queuedRows.slice(0, replayLimit);

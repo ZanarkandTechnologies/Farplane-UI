@@ -3,6 +3,8 @@
  * Entrypoint for the Codex PostToolUse thread lineage listener.
  */
 
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   parseThreadLineageEventsFromStdin,
   publishThreadLineageEvents,
@@ -20,6 +22,7 @@ async function readStdin(): Promise<string> {
 }
 
 async function main(): Promise<void> {
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
   const debugEnabled = readFarplaneConfigValue("FARPLANE_THREAD_LINEAGE_HOOK_DEBUG") === "1";
   const stdin = await readStdin();
   const candidates = parseThreadLineageEventsFromStdin(stdin);
@@ -29,6 +32,7 @@ async function main(): Promise<void> {
   }
   try {
     const searchDirs = [
+      repoRoot,
       process.cwd(),
       ...candidates
         .map((candidate) => candidate.projectPath)

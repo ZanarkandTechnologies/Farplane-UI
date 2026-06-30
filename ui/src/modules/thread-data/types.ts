@@ -58,6 +58,8 @@ export type ThreadDataRunOutput = {
   redactionMarkdownPath?: string;
   outputMarkdown?: string;
   outputJson?: unknown;
+  outputScorecard?: unknown;
+  scorecardMarkdown?: string;
   outputDecisions?: unknown;
   redactionMarkdown?: string;
   telemetryEvents?: Array<Record<string, unknown>>;

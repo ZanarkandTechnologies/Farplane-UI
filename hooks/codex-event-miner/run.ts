@@ -3,6 +3,8 @@
  * Entrypoint for the Codex Stop event miner hook.
  */
 
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   launchResultCandidate,
   parseCodexEventMinerFromPayload,
@@ -30,6 +32,7 @@ function numberFromConfig(name: string, fallback: number): number {
 }
 
 async function main(): Promise<void> {
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
   const debugEnabled = readFarplaneConfigValue("FARPLANE_EVENT_MINER_HOOK_DEBUG") === "1";
   const stdin = await readStdin();
   let payload: unknown;
@@ -76,7 +79,7 @@ async function main(): Promise<void> {
         };
       }
     }
-    const searchDirs = [process.cwd(), cwd].filter(Boolean);
+    const searchDirs = [repoRoot, process.cwd(), cwd].filter(Boolean);
     const result = await publishMinerEvents(parsed.candidates, {
       endpointBaseUrl: resolveDefaultEndpointBaseUrl(process.env, searchDirs),
       telemetryToken: resolveDefaultTelemetryToken(process.env, searchDirs),

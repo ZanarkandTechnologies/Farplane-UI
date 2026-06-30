@@ -1,4 +1,6 @@
 #!/usr/bin/env tsx
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { readFarplaneConfigValue } from "../../cli/runtime-config";
 import { resolveCodexSummaryOptions } from "../shared/codex-summary";
 import { resolveProjectHookConfig } from "../shared/project-hook-config";
@@ -27,6 +29,7 @@ async function readStdin(): Promise<string> {
 }
 
 async function main(): Promise<void> {
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
   const debugEnabled = readFarplaneConfigValue("FARPLANE_FILE_CHANGE_HOOK_DEBUG") === "1";
   const stdin = await readStdin();
   const projectPath = (() => {
@@ -62,6 +65,7 @@ async function main(): Promise<void> {
   }
   try {
     const searchDirs = [
+      repoRoot,
       process.cwd(),
       ...fileEventCandidates.map((candidate) => candidate.projectPath),
       ...candidates.map((candidate) => candidate.projectPath),

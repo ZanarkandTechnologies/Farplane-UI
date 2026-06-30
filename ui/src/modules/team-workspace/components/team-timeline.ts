@@ -20,9 +20,10 @@ export type CommunicationRow = {
 
 export type TeamTimelineRow = {
   _id: string;
-  sourceType: "board_event" | "agent_event" | "memory_event";
+  sourceType: "board_event" | "agent_event" | "memory_event" | "hook_event";
   occurredAt: number;
   projectId: string;
+  projectPath?: string;
   agentId?: string;
   actorAgentId?: string;
   activityType?: string;
@@ -32,6 +33,12 @@ export type TeamTimelineRow = {
   taskId?: string;
   sourcePath?: string;
   memoryId?: string;
+  reviewRunPath?: string;
+  runId?: string;
+  outputId?: string;
+  sourceProgram?: string;
+  sessionId?: string;
+  changedFields?: string[];
 };
 
 const HISTORY_ROW_PATTERN =
@@ -80,10 +87,8 @@ export function buildTeamTimelineRows(params: {
   projectId: string | undefined;
 }): TeamTimelineRow[] {
   const memoryTimelineRows = buildMemoryTimelineRows(params.memoryRows ?? [], params.projectId);
-  if (memoryTimelineRows.length > 0) return memoryTimelineRows;
-  if (Array.isArray(params.convexTimeline) && params.convexTimeline.length > 0)
-    return params.convexTimeline;
-  return params.communicationRows.map((row) => ({
+  const convexRows = Array.isArray(params.convexTimeline) ? params.convexTimeline : [];
+  const communicationRows: TeamTimelineRow[] = params.communicationRows.map((row) => ({
     _id: row.id,
     sourceType: "agent_event",
     occurredAt: row.occurredAt,
@@ -94,4 +99,7 @@ export function buildTeamTimelineRows(params: {
     detail: row.detail,
     taskId: row.taskId,
   }));
+  return [...convexRows, ...memoryTimelineRows, ...communicationRows]
+    .sort((left, right) => right.occurredAt - left.occurredAt)
+    .slice(0, 120);
 }

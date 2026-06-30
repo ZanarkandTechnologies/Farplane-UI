@@ -506,7 +506,7 @@ export function hookTelemetryRowsToObservedCodexWorkers(
     });
   }
   return [...byWorkerId.values()]
-    .map((worker) => {
+    .map((worker): ObservedCodexWorker => {
       const lifecycle = lifecycleByWorkerId.get(worker.workerId);
       if (
         lifecycle?.latestStartAt !== undefined &&

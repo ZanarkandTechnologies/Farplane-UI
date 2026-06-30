@@ -15,11 +15,28 @@ export type MiningEvidenceRow = {
   source: string;
 };
 
+const ARTIFACT_JSON_PREVIEW_MAX_BYTES = 1_000_000;
+const ARTIFACT_RAW_PREVIEW_MAX_CHARS = 120_000;
+
 export type ScorecardSummary = {
   scopeFollowed?: string;
   proofQuality?: string;
   skippedSteps?: string;
   overall?: string;
+  overallScore?: number;
+  skillTraceSummary?: string;
+  skillTrace?: {
+    skillLoaded?: string;
+    skillLoadTiming?: string;
+    missedTriggers: string[];
+    falsePositiveTriggers: string[];
+    wastedSteps?: string;
+    defaultFollowed?: string;
+    referenceLoadCount: number;
+    correctionNeeded?: string;
+    traceToSkillDeltaCount: number;
+    limitations: string[];
+  };
 };
 
 export function isRecord(value: unknown): value is UnknownRecord {
@@ -137,6 +154,48 @@ export function artifactTone(
   return "outline";
 }
 
+export function artifactGroup(artifact: ThreadDataArtifact): "debug" | "report" {
+  if (
+    artifact.id === "input" ||
+    artifact.id === "sources" ||
+    artifact.id === "attempts" ||
+    artifact.id === "outputs-index" ||
+    artifact.label.endsWith("index.json")
+  ) {
+    return "debug";
+  }
+  return "report";
+}
+
+export function artifactPreviewText(artifact: ThreadDataArtifact | null | undefined): string {
+  const content = artifactPreview(artifact);
+  if (content.length <= ARTIFACT_RAW_PREVIEW_MAX_CHARS) return content;
+  return `${content.slice(0, ARTIFACT_RAW_PREVIEW_MAX_CHARS)}\n\n[Preview truncated at ${ARTIFACT_RAW_PREVIEW_MAX_CHARS.toLocaleString()} characters.]`;
+}
+
+export function parseArtifactJson(artifact: ThreadDataArtifact | null | undefined): unknown {
+  if (!artifact?.content || artifact.kind === "markdown") return null;
+  if (artifact.content.length > ARTIFACT_JSON_PREVIEW_MAX_BYTES) return null;
+  try {
+    return JSON.parse(artifact.content);
+  } catch {
+    return null;
+  }
+}
+
+export function preferredArtifactId(artifacts: ThreadDataArtifact[] | undefined): string {
+  const ids = new Set((artifacts ?? []).map((artifact) => artifact.id));
+  return ["report", "packet-md", "packet", "outputs-index", "input"].find((id) => ids.has(id)) ?? "report";
+}
+
+export function shortJsonValue(value: unknown): string {
+  if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? "" : "s"}`;
+  if (value && typeof value === "object") return `${Object.keys(value).length} fields`;
+  if (typeof value === "string") return value.length > 90 ? `${value.slice(0, 90)}...` : value;
+  if (value === null) return "null";
+  return String(value);
+}
+
 export function scorecardSummary(outputJson: unknown): ScorecardSummary | null {
   if (!isRecord(outputJson)) return null;
   const rawScorecard = isRecord(outputJson.scorecard) ? outputJson.scorecard : outputJson;
@@ -147,6 +206,48 @@ export function scorecardSummary(outputJson: unknown): ScorecardSummary | null {
   const skippedSteps =
     String(rawScorecard.skippedSteps ?? rawScorecard.skipped_steps ?? "").trim() || undefined;
   const overall = String(rawScorecard.overall ?? rawScorecard.summary ?? "").trim() || undefined;
-  if (!scopeFollowed && !proofQuality && !skippedSteps && !overall) return null;
-  return { overall, proofQuality, scopeFollowed, skippedSteps };
+  const overallScore =
+    typeof rawScorecard.overallScore === "number" ? rawScorecard.overallScore : undefined;
+  const skillTraceSummary = String(rawScorecard.skillTraceSummary ?? "").trim() || undefined;
+  const skillTrace = scorecardSkillTrace(rawScorecard.skillTraceAssessment);
+  if (!scopeFollowed && !proofQuality && !skippedSteps && !overall && !skillTraceSummary && overallScore === undefined) {
+    return null;
+  }
+  return { overall, overallScore, proofQuality, scopeFollowed, skillTrace, skillTraceSummary, skippedSteps };
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => String(entry ?? "").trim()).filter(Boolean);
+}
+
+function scorecardStatus(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined;
+  const status = String(value.status ?? "").trim();
+  const reason = String(value.reason ?? "").trim();
+  return reason ? `${status || "unknown"}: ${reason}` : status || undefined;
+}
+
+function scorecardSkillTrace(value: unknown): ScorecardSummary["skillTrace"] | undefined {
+  if (!isRecord(value)) return undefined;
+  const missedTrigger = isRecord(value.missedTrigger) ? value.missedTrigger : {};
+  const falsePositiveTrigger = isRecord(value.falsePositiveTrigger) ? value.falsePositiveTrigger : {};
+  const wastedSteps = isRecord(value.wastedSteps) ? value.wastedSteps : {};
+  const defaultFollowed = isRecord(value.defaultFollowed) ? value.defaultFollowed : {};
+  const correctionNeeded = isRecord(value.correctionNeeded) ? value.correctionNeeded : {};
+  const referenceLoads = Array.isArray(value.referenceLoads) ? value.referenceLoads : [];
+  const traceToSkillDelta = Array.isArray(value.traceToSkillDelta) ? value.traceToSkillDelta : [];
+  const skillLoadTiming = isRecord(value.skillLoadTiming) ? value.skillLoadTiming : {};
+  return {
+    skillLoaded: scorecardStatus(value.skillLoaded),
+    skillLoadTiming: String(skillLoadTiming.value ?? skillLoadTiming.status ?? "").trim() || undefined,
+    missedTriggers: stringList(missedTrigger.skillIds),
+    falsePositiveTriggers: stringList(falsePositiveTrigger.skillIds),
+    wastedSteps: String(wastedSteps.summary ?? wastedSteps.status ?? "").trim() || undefined,
+    defaultFollowed: scorecardStatus(defaultFollowed),
+    referenceLoadCount: referenceLoads.length,
+    correctionNeeded: scorecardStatus(correctionNeeded),
+    traceToSkillDeltaCount: traceToSkillDelta.length,
+    limitations: stringList(value.limitations),
+  };
 }

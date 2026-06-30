@@ -453,6 +453,20 @@ describe("file-change-listener", () => {
 
       expect(first).toMatchObject({ attempted: 1, created: 1, failed: 0 });
       expect(second).toMatchObject({ attempted: 1, created: 1, failed: 0 });
+      expect(first.events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            eventName: "ticket.audit.created",
+            ticketId: "TASK-0099",
+          }),
+          expect.objectContaining({
+            eventName: "ticket.audit.scored",
+            outputId: expect.any(String),
+            runId: expect.any(String),
+            ticketId: "TASK-0099",
+          }),
+        ]),
+      );
       const runsIndexPath = path.join(repo, ".farplane", "mine", "runs", "index.json");
       const runs = JSON.parse(readFileSync(runsIndexPath, "utf8"));
       expect(runs).toHaveLength(1);

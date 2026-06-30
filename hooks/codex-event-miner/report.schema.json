@@ -6,8 +6,7 @@
   "required": [
     "schemaVersion",
     "status",
-    "published",
-    "queued",
+    "observed",
     "summary",
     "reason",
     "sessionId",
@@ -22,13 +21,9 @@
     },
     "status": {
       "type": "string",
-      "enum": ["published", "queued", "skipped", "blocked", "failed", "completed"]
+      "enum": ["completed", "skipped", "blocked", "failed"]
     },
-    "published": {
-      "type": "integer",
-      "minimum": 0
-    },
-    "queued": {
+    "observed": {
       "type": "integer",
       "minimum": 0
     },

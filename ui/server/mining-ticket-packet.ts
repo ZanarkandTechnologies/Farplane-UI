@@ -23,6 +23,70 @@ export type TicketCompletionMetric = {
   reason?: string;
 };
 
+export type TicketSkillTraceAssessment = {
+  schemaVersion: 1;
+  intendedSkills: Array<{
+    skillId: string;
+    evidenceRefs: string[];
+    source: "ticket" | "program" | "progress" | "transcript" | "decision";
+  }>;
+  loadedSkills: Array<{
+    skillId: string;
+    skillPath?: string;
+    timing: "early" | "late" | "unknown";
+    evidenceRefs: string[];
+  }>;
+  skillLoaded: {
+    status: "observed" | "not_observed" | "unknown";
+    loadedCount: number;
+    intendedCount: number;
+    reason?: string;
+  };
+  skillLoadTiming: {
+    status: "observed" | "unknown";
+    value: "early" | "late" | "mixed" | "unknown";
+    reason?: string;
+  };
+  falsePositiveTrigger: {
+    status: "observed" | "not_observed" | "unknown";
+    skillIds: string[];
+    reason?: string;
+  };
+  missedTrigger: {
+    status: "observed" | "not_observed" | "unknown";
+    skillIds: string[];
+    reason?: string;
+  };
+  wastedSteps: {
+    status: "observed" | "not_observed" | "unknown";
+    count?: number;
+    evidenceRefs: string[];
+    summary: string;
+  };
+  defaultFollowed: {
+    status: "observed" | "not_observed" | "unknown";
+    evidenceRefs: string[];
+    reason?: string;
+  };
+  referenceLoads: Array<{
+    path: string;
+    relevance: "likely_relevant" | "unclear";
+    evidenceRefs: string[];
+  }>;
+  correctionNeeded: {
+    status: "observed" | "not_observed" | "unknown";
+    evidenceRefs: string[];
+    reason?: string;
+  };
+  traceToSkillDelta: Array<{
+    skillId?: string;
+    deltaKind: "instruction" | "gotcha" | "example" | "eval_case" | "unknown";
+    summary: string;
+    evidenceRefs: string[];
+  }>;
+  limitations: string[];
+};
+
 export type TicketCompletionPacket = {
   schemaVersion: 1;
   packetKind: "ticket_completion";
@@ -79,6 +143,7 @@ export type TicketCompletionPacket = {
     unavailableReason?: string;
     fullTranscriptPolicy: "reference_only";
   };
+  skillTrace: TicketSkillTraceAssessment;
   metrics: TicketCompletionMetric[];
   warnings: string[];
   createdAt: string;
@@ -88,6 +153,10 @@ const FILE_SNIPPET_LIMIT = 2_000;
 const TRANSCRIPT_SNIPPET_LIMIT = 700;
 const MAX_TRANSCRIPT_ROWS = 8;
 const MAX_DECISION_ROWS = 12;
+const SKILL_MENTION_PATTERN =
+  /(?:\$|\bskill[s]?\s*[:=]?\s*|\/skills\/|\.codex\/skills\/)([A-Za-z0-9][A-Za-z0-9._-]{1,80})(?=\/SKILL\.md|\b|[\]\),.:;])/gi;
+const REFERENCE_PATH_PATTERN =
+  /(?:^|[\s(["'`])((?:\/Users\/[^\s"'`),]+|(?:docs|tickets|skills|hooks|ui|convex|cli|scripts)\/[^\s"'`),]+)\.(?:md|ts|tsx|json|toml|mjs|js|py))/g;
 
 function clip(value: string | undefined, max: number): string {
   const text = (value ?? "").replace(/\s+/g, " ").trim();
@@ -104,6 +173,10 @@ function metric(input: Omit<TicketCompletionMetric, "confidence"> & { confidence
     confidence: input.confidence ?? (input.status === "known" ? "medium" : "low"),
     ...input,
   };
+}
+
+function uniqueStrings(values: Array<string | undefined>): string[] {
+  return [...new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))];
 }
 
 function parseFrontmatter(text: string): Record<string, string> | undefined {
@@ -240,6 +313,191 @@ async function findMinedDecisions(input: {
   return rows;
 }
 
+function collectSkillMentions(text: string | undefined): string[] {
+  if (!text) return [];
+  const rows: string[] = [];
+  for (const match of text.matchAll(SKILL_MENTION_PATTERN)) {
+    const skillId = match[1]?.trim();
+    if (!skillId || skillId.toLowerCase() === "md" || skillId.toLowerCase() === "skill") continue;
+    rows.push(skillId);
+  }
+  return uniqueStrings(rows);
+}
+
+function collectReferencePaths(text: string | undefined): string[] {
+  if (!text) return [];
+  const rows: string[] = [];
+  for (const match of text.matchAll(REFERENCE_PATH_PATTERN)) {
+    const filePath = match[1]?.replace(/[.,;:]+$/, "");
+    if (filePath && !filePath.endsWith("/SKILL.md")) rows.push(filePath);
+  }
+  return uniqueStrings(rows).slice(0, 20);
+}
+
+function textLooksLikeCorrection(text: string): boolean {
+  return /\b(no|nah|wait|wtf|why|wrong|not what|doesnt|doesn't|still cant|still can't|fix|missed|actually|should have|instead)\b/i.test(text);
+}
+
+function textLooksLikeDetour(text: string): boolean {
+  return /\b(detour|wander|wrong path|too much|overcomplicat|should have|instead of|unnecessary|wasted)\b/i.test(text);
+}
+
+function textLooksLikeDefaultFollowed(text: string): boolean {
+  return /\b(default|recommended|recommendation|follow(ed)? the skill|todo list|checklist|program)\b/i.test(text);
+}
+
+function inferSkillTraceAssessment(input: {
+  files: TicketCompletionPacket["files"];
+  decisions: TicketCompletionPacket["decisions"];
+  transcript: TicketCompletionPacket["transcript"];
+}): TicketSkillTraceAssessment {
+  const intended = new Map<string, TicketSkillTraceAssessment["intendedSkills"][number]>();
+  const loaded = new Map<string, TicketSkillTraceAssessment["loadedSkills"][number]>();
+  const referenceLoads = new Map<string, TicketSkillTraceAssessment["referenceLoads"][number]>();
+
+  function rememberIntended(
+    skillId: string,
+    source: TicketSkillTraceAssessment["intendedSkills"][number]["source"],
+    evidenceRef: string,
+  ): void {
+    const existing = intended.get(skillId);
+    intended.set(skillId, {
+      skillId,
+      source,
+      evidenceRefs: uniqueStrings([...(existing?.evidenceRefs ?? []), evidenceRef]),
+    });
+  }
+
+  function rememberLoaded(skillId: string, evidenceRef: string, skillPath?: string): void {
+    const existing = loaded.get(skillId);
+    loaded.set(skillId, {
+      skillId,
+      skillPath: existing?.skillPath ?? skillPath,
+      timing: "unknown",
+      evidenceRefs: uniqueStrings([...(existing?.evidenceRefs ?? []), evidenceRef]),
+    });
+  }
+
+  for (const file of input.files) {
+    if (!file.exists) continue;
+    const source = file.path.endsWith("ticket.md")
+      ? "ticket"
+      : file.path.endsWith("program.md")
+        ? "program"
+        : "progress";
+    for (const skillId of collectSkillMentions(`${file.snippet ?? ""}\n${file.headings?.join("\n") ?? ""}`)) {
+      rememberIntended(skillId, source, file.path);
+    }
+    for (const filePath of collectReferencePaths(file.snippet)) {
+      referenceLoads.set(filePath, { path: filePath, relevance: "likely_relevant", evidenceRefs: [file.path] });
+    }
+  }
+
+  input.decisions.forEach((decision, index) => {
+    const evidenceRef = decision.reviewRunPath ?? `decisions/${index}`;
+    for (const skillId of collectSkillMentions(decision.summary)) rememberIntended(skillId, "decision", evidenceRef);
+  });
+
+  input.transcript.boundedWindow.forEach((row, index) => {
+    const evidenceRef = `transcript.boundedWindow/${index}`;
+    for (const skillId of collectSkillMentions(row.text)) {
+      if (/SKILL\.md|read skill|using [`"]?\$?/i.test(row.text)) {
+        rememberLoaded(skillId, evidenceRef);
+      } else {
+        rememberIntended(skillId, "transcript", evidenceRef);
+      }
+    }
+    for (const filePath of collectReferencePaths(row.text)) {
+      referenceLoads.set(filePath, { path: filePath, relevance: "unclear", evidenceRefs: [evidenceRef] });
+    }
+  });
+
+  const intendedSkills = [...intended.values()].sort((left, right) => left.skillId.localeCompare(right.skillId));
+  const loadedSkills = [...loaded.values()].sort((left, right) => left.skillId.localeCompare(right.skillId));
+  const intendedIds = new Set(intendedSkills.map((row) => row.skillId));
+  const loadedIds = new Set(loadedSkills.map((row) => row.skillId));
+  const missedSkillIds = intendedSkills.map((row) => row.skillId).filter((skillId) => !loadedIds.has(skillId));
+  const falsePositiveSkillIds = loadedSkills.map((row) => row.skillId).filter((skillId) => !intendedIds.has(skillId));
+  const correctionRows = input.transcript.boundedWindow
+    .map((row, index) => ({ index, row }))
+    .filter(({ row }) => row.role === "user" && textLooksLikeCorrection(row.text));
+  const detourRows = input.transcript.boundedWindow
+    .map((row, index) => ({ index, row }))
+    .filter(({ row }) => textLooksLikeDetour(row.text));
+  const defaultEvidence = input.transcript.boundedWindow
+    .map((row, index) => ({ index, row }))
+    .filter(({ row }) => textLooksLikeDefaultFollowed(row.text));
+
+  return {
+    schemaVersion: 1,
+    intendedSkills,
+    loadedSkills,
+    skillLoaded: {
+      status: loadedSkills.length ? "observed" : input.transcript.boundedWindow.length ? "not_observed" : "unknown",
+      loadedCount: loadedSkills.length,
+      intendedCount: intendedSkills.length,
+      reason: loadedSkills.length
+        ? undefined
+        : input.transcript.boundedWindow.length
+          ? "No SKILL.md read or skill-loaded phrase was visible in the bounded transcript window."
+          : "No bounded transcript window was available.",
+    },
+    skillLoadTiming: {
+      status: "unknown",
+      value: "unknown",
+      reason: "Local ticket packet stores bounded transcript snippets but not ordered tool-use timestamps for skill reads.",
+    },
+    falsePositiveTrigger: {
+      status: falsePositiveSkillIds.length ? "observed" : loadedSkills.length ? "not_observed" : "unknown",
+      skillIds: falsePositiveSkillIds,
+      reason: loadedSkills.length ? undefined : "No loaded skill evidence was visible in the local packet.",
+    },
+    missedTrigger: {
+      status: missedSkillIds.length ? "observed" : intendedSkills.length ? "not_observed" : "unknown",
+      skillIds: missedSkillIds,
+      reason: intendedSkills.length ? undefined : "No intended skills were inferable from ticket, program, decisions, or bounded transcript.",
+    },
+    wastedSteps: {
+      status: detourRows.length ? "observed" : input.transcript.boundedWindow.length ? "not_observed" : "unknown",
+      count: detourRows.length || undefined,
+      evidenceRefs: detourRows.map(({ index }) => `transcript.boundedWindow/${index}`),
+      summary: detourRows.length
+        ? `Found ${detourRows.length} bounded transcript row${detourRows.length === 1 ? "" : "s"} with detour language.`
+        : input.transcript.boundedWindow.length
+          ? "No detour language was visible in the bounded transcript window."
+          : "No bounded transcript window was available.",
+    },
+    defaultFollowed: {
+      status: defaultEvidence.length ? "observed" : "unknown",
+      evidenceRefs: defaultEvidence.map(({ index }) => `transcript.boundedWindow/${index}`),
+      reason: defaultEvidence.length
+        ? "Bounded transcript mentions defaults, recommendations, checklist, or program following."
+        : "Requires comparing full skill todos/defaults against the full session trace.",
+    },
+    referenceLoads: [...referenceLoads.values()].sort((left, right) => left.path.localeCompare(right.path)),
+    correctionNeeded: {
+      status: correctionRows.length ? "observed" : input.transcript.boundedWindow.length ? "not_observed" : "unknown",
+      evidenceRefs: correctionRows.map(({ index }) => `transcript.boundedWindow/${index}`),
+      reason: correctionRows.length
+        ? "Operator correction language appears in the bounded transcript window."
+        : input.transcript.boundedWindow.length
+          ? "No operator correction language was visible in the bounded transcript window."
+          : "No bounded transcript window was available.",
+    },
+    traceToSkillDelta: correctionRows.slice(0, 5).map(({ index, row }) => ({
+      skillId: missedSkillIds[0],
+      deltaKind: "unknown",
+      summary: clip(row.text, 220),
+      evidenceRefs: [`transcript.boundedWindow/${index}`],
+    })),
+    limitations: [
+      "Skill invocation telemetry is not joined into the local ticket packet yet; loaded skill detection is bounded-snippet based.",
+      "Full transcript and ordered tool-use timing are referenced but not copied into scorecard artifacts by default.",
+      "False positives, missed triggers, and default following should be upgraded by a full-trace evaluator agent.",
+    ],
+  };
+}
+
 function pushTranscriptRow(
   rows: TicketCompletionPacket["transcript"]["boundedWindow"],
   input: {
@@ -337,6 +595,7 @@ function deriveMetrics(input: {
   files: TicketCompletionPacket["files"];
   artifacts: TicketCompletionPacket["artifacts"];
   decisions: TicketCompletionPacket["decisions"];
+  skillTrace: TicketSkillTraceAssessment;
   transcript: TicketCompletionPacket["transcript"];
   source: MiningThreadSource;
 }): TicketCompletionMetric[] {
@@ -401,6 +660,90 @@ function deriveMetrics(input: {
       evidenceRefs: input.transcript.boundedWindow.length ? ["transcript.boundedWindow"] : [],
       confidence: input.transcript.boundedWindow.length ? "medium" : "low",
     }),
+    metricFromCount({
+      id: "skill_loaded_count",
+      label: "Loaded skill count",
+      value: input.skillTrace.loadedSkills.length,
+      unit: "skills",
+      evidenceRefs: input.skillTrace.loadedSkills.flatMap((skill) => skill.evidenceRefs).slice(0, 8),
+      confidence: input.skillTrace.skillLoaded.status === "observed" ? "medium" : "low",
+    }),
+    metricFromCount({
+      id: "intended_skill_count",
+      label: "Intended skill count",
+      value: input.skillTrace.intendedSkills.length,
+      unit: "skills",
+      evidenceRefs: input.skillTrace.intendedSkills.flatMap((skill) => skill.evidenceRefs).slice(0, 8),
+      confidence: input.skillTrace.intendedSkills.length ? "medium" : "low",
+    }),
+    metricFromCount({
+      id: "missed_skill_trigger_count",
+      label: "Missed skill trigger count",
+      value: input.skillTrace.missedTrigger.skillIds.length,
+      unit: "skills",
+      evidenceRefs: input.skillTrace.intendedSkills.flatMap((skill) => skill.evidenceRefs).slice(0, 8),
+      confidence: input.skillTrace.missedTrigger.status === "unknown" ? "low" : "medium",
+    }),
+    metricFromCount({
+      id: "false_positive_skill_trigger_count",
+      label: "False-positive skill trigger count",
+      value: input.skillTrace.falsePositiveTrigger.skillIds.length,
+      unit: "skills",
+      evidenceRefs: input.skillTrace.loadedSkills.flatMap((skill) => skill.evidenceRefs).slice(0, 8),
+      confidence: input.skillTrace.falsePositiveTrigger.status === "unknown" ? "low" : "medium",
+    }),
+    metric({
+      id: "skill_load_timing",
+      label: "Skill load timing",
+      status: input.skillTrace.skillLoadTiming.status === "observed" ? "known" : "unknown",
+      value: input.skillTrace.skillLoadTiming.status === "observed" ? input.skillTrace.skillLoadTiming.value : undefined,
+      unit: "phase",
+      confidence: "low",
+      evidenceRefs: input.skillTrace.loadedSkills.flatMap((skill) => skill.evidenceRefs).slice(0, 8),
+      reason: input.skillTrace.skillLoadTiming.reason,
+    }),
+    metricFromCount({
+      id: "wasted_step_count",
+      label: "Wasted step count",
+      value: input.skillTrace.wastedSteps.count ?? 0,
+      unit: "signals",
+      evidenceRefs: input.skillTrace.wastedSteps.evidenceRefs,
+      confidence: input.skillTrace.wastedSteps.status === "unknown" ? "low" : "medium",
+    }),
+    metric({
+      id: "default_followed",
+      label: "Default followed",
+      status: input.skillTrace.defaultFollowed.status === "unknown" ? "unknown" : "known",
+      value: input.skillTrace.defaultFollowed.status === "unknown" ? undefined : input.skillTrace.defaultFollowed.status,
+      unit: "status",
+      confidence: input.skillTrace.defaultFollowed.status === "observed" ? "medium" : "low",
+      evidenceRefs: input.skillTrace.defaultFollowed.evidenceRefs,
+      reason: input.skillTrace.defaultFollowed.reason,
+    }),
+    metricFromCount({
+      id: "reference_load_count",
+      label: "Reference load count",
+      value: input.skillTrace.referenceLoads.length,
+      unit: "refs",
+      evidenceRefs: input.skillTrace.referenceLoads.flatMap((ref) => ref.evidenceRefs).slice(0, 8),
+      confidence: input.skillTrace.referenceLoads.length ? "medium" : "low",
+    }),
+    metricFromCount({
+      id: "correction_signal_count",
+      label: "Correction signal count",
+      value: input.skillTrace.correctionNeeded.evidenceRefs.length,
+      unit: "signals",
+      evidenceRefs: input.skillTrace.correctionNeeded.evidenceRefs,
+      confidence: input.skillTrace.correctionNeeded.status === "unknown" ? "low" : "medium",
+    }),
+    metricFromCount({
+      id: "trace_to_skill_delta_count",
+      label: "Trace-to-skill-delta count",
+      value: input.skillTrace.traceToSkillDelta.length,
+      unit: "candidates",
+      evidenceRefs: input.skillTrace.traceToSkillDelta.flatMap((delta) => delta.evidenceRefs).slice(0, 8),
+      confidence: input.skillTrace.traceToSkillDelta.length ? "medium" : "low",
+    }),
     metric({
       id: "turns_taken",
       label: "Turns taken",
@@ -449,6 +792,7 @@ export async function buildTicketCompletionPacket(input: {
     ticketId,
     sessionId: input.source.sessionId,
   });
+  const skillTrace = inferSkillTraceAssessment({ decisions, files, transcript });
   const warnings = [
     ...(ticketId ? [] : ["ticket_id_missing"]),
     ...(transcript.unavailableReason ? [`transcript_${transcript.unavailableReason}`] : []),
@@ -475,7 +819,8 @@ export async function buildTicketCompletionPacket(input: {
     artifacts,
     decisions,
     transcript,
-    metrics: deriveMetrics({ artifacts, decisions, files, source: input.source, transcript }),
+    skillTrace,
+    metrics: deriveMetrics({ artifacts, decisions, files, skillTrace, source: input.source, transcript }),
     warnings,
     createdAt: (input.now ?? (() => new Date()))().toISOString(),
   };

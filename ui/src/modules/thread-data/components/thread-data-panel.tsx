@@ -8,6 +8,7 @@
  */
 
 import {
+  ArrowLeft,
   CheckCircle2,
   CheckSquare,
   Database,
@@ -21,7 +22,7 @@ import {
   Search,
   ShieldAlert,
 } from "lucide-react";
-import { type ReactElement, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -57,16 +58,20 @@ import type {
 import { GraphWorkbench } from "@/modules/graph-workbench";
 import type { MiningEvidenceRow } from "@/modules/thread-data/lib/mining-artifacts";
 import {
-  artifactPreview,
+  artifactGroup,
+  artifactPreviewText,
   artifactTone,
   defaultOutputViewMode,
   filterOutputs,
   filterThreads,
   formatMiningDate,
   outputEvidenceRows,
+  parseArtifactJson,
+  preferredArtifactId,
   runStatusTone,
   scorecardSummary,
   selectedThreadIds,
+  shortJsonValue,
   sortMiningRuns,
 } from "@/modules/thread-data/lib/mining-artifacts";
 import type {
@@ -84,6 +89,12 @@ import type {
 
 const DEFAULT_THREAD_LIMIT = 80;
 
+interface ThreadDataPanelProps {
+  initialRunId?: string | null;
+  initialOutputId?: string | null;
+  projectPath?: string | null;
+}
+
 type ThreadDataDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -98,8 +109,16 @@ type ProgramDraft = {
 };
 
 type OutputViewMode = "summary" | "markdown" | "decisions" | "evidence" | "json" | "redaction";
-type RunTab = "outputs" | "artifacts" | "attempts" | "program" | "sources";
-type ThreadDataTab = "review" | "programs" | "sources" | "forking";
+type ThreadDataTab = "review" | "artifacts" | "attempts" | "programs" | "sources" | "forking";
+
+function scorecardPayload(output: ThreadDataRunOutput | null): unknown {
+  if (output?.outputScorecard) return output.outputScorecard;
+  const outputJson = output?.outputJson;
+  if (outputJson && typeof outputJson === "object" && !Array.isArray(outputJson)) {
+    return (outputJson as Record<string, unknown>).scorecard ?? outputJson;
+  }
+  return outputJson;
+}
 
 function draftFromProgram(program: ThreadDataProgram | null): ProgramDraft {
   return {
@@ -120,7 +139,11 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return payload;
 }
 
-export function ThreadDataPanel(): ReactElement {
+export function ThreadDataPanel({
+  initialRunId = null,
+  initialOutputId = null,
+  projectPath = null,
+}: ThreadDataPanelProps): ReactElement {
   const [programs, setPrograms] = useState<ThreadDataProgram[]>([]);
   const [threads, setThreads] = useState<ThreadDataSource[]>([]);
   const [runs, setRuns] = useState<ThreadDataRunIndexEntry[]>([]);
@@ -136,13 +159,14 @@ export function ThreadDataPanel(): ReactElement {
   const [status, setStatus] = useState("Loading mining runs...");
   const [error, setError] = useState<string | null>(null);
   const [programDraft, setProgramDraft] = useState<ProgramDraft>(draftFromProgram(null));
-  const [isOutputOpen, setIsOutputOpen] = useState(false);
   const [isNewRunOpen, setIsNewRunOpen] = useState(false);
   const [selectedOutputId, setSelectedOutputId] = useState<string | null>(null);
   const [selectedArtifactId, setSelectedArtifactId] = useState("report");
-  const [runTab, setRunTab] = useState<RunTab>("outputs");
   const [threadDataTab, setThreadDataTab] = useState<ThreadDataTab>("review");
   const [outputViewMode, setOutputViewMode] = useState<OutputViewMode>("summary");
+  const selectedOutputIdRef = useRef<string | null>(null);
+  const selectedProgramIdRef = useRef("");
+  const selectedRunIdRef = useRef<string | null>(null);
 
   const selectedProgram = useMemo(
     () => programs.find((program) => program.id === selectedProgramId) ?? null,
@@ -202,8 +226,22 @@ export function ThreadDataPanel(): ReactElement {
   );
 
   const selectedScorecard = useMemo(
-    () => scorecardSummary(selectedOutput?.outputJson),
-    [selectedOutput?.outputJson],
+    () => scorecardSummary(scorecardPayload(selectedOutput)),
+    [selectedOutput],
+  );
+
+  const mineUrl = useCallback(
+    (pathname: string, params: Record<string, number | string | undefined> = {}): string => {
+      const searchParams = new URLSearchParams();
+      const scopedProjectPath = projectPath?.trim();
+      if (scopedProjectPath) searchParams.set("projectPath", scopedProjectPath);
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined) searchParams.set(key, String(value));
+      }
+      const suffix = searchParams.toString();
+      return `${pathname}${suffix ? `?${suffix}` : ""}`;
+    },
+    [projectPath],
   );
 
   const runProgress = useMemo(() => {
@@ -211,41 +249,53 @@ export function ThreadDataPanel(): ReactElement {
     return Math.round((runDetail.run.outputCount / runDetail.run.sourceCount) * 100);
   }, [runDetail?.run.outputCount, runDetail?.run.sourceCount]);
 
-  const loadRun = useCallback(async (runId: string): Promise<void> => {
+  const loadRun = useCallback(async (runId: string, outputId?: string | null): Promise<void> => {
     const payload = await fetchJson<ThreadDataRunResponse>(
-      `/farplane/mine/runs/${encodeURIComponent(runId)}`,
+      mineUrl(`/farplane/mine/runs/${encodeURIComponent(runId)}`),
     );
+    const nextOutputId = outputId ?? null;
     setSelectedRunId(runId);
+    selectedRunIdRef.current = runId;
     setRunDetail(payload.detail);
-    setSelectedArtifactId(payload.detail?.artifacts?.[0]?.id ?? "report");
-    setRunTab("outputs");
+    setSelectedOutputId(nextOutputId);
+    selectedOutputIdRef.current = nextOutputId;
+    if (nextOutputId) {
+      const output = payload.detail?.outputs.find((row) => row.id === nextOutputId) ?? null;
+      setThreadDataTab("review");
+      setOutputViewMode(defaultOutputViewMode(payload.detail?.run, output));
+    }
+    setSelectedArtifactId(preferredArtifactId(payload.detail?.artifacts));
     setStatus(`Loaded run ${runId}`);
-  }, []);
+  }, [mineUrl]);
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
     setStatus("Refreshing mining runs...");
     try {
       const [programPayload, threadPayload, runPayload] = await Promise.all([
-        fetchJson<ThreadDataProgramsResponse>("/farplane/mine/programs"),
+        fetchJson<ThreadDataProgramsResponse>(mineUrl("/farplane/mine/programs")),
         fetchJson<ThreadDataThreadsResponse>(
-          `/farplane/mine/threads?limit=${DEFAULT_THREAD_LIMIT}`,
+          mineUrl("/farplane/mine/threads", { limit: DEFAULT_THREAD_LIMIT }),
         ),
-        fetchJson<ThreadDataRunsResponse>("/farplane/mine/runs"),
+        fetchJson<ThreadDataRunsResponse>(mineUrl("/farplane/mine/runs")),
       ]);
       const nextPrograms = programPayload.programs;
       const nextRuns = sortMiningRuns(runPayload.runs ?? []);
       setPrograms(nextPrograms);
       setThreads(threadPayload.threads ?? []);
       setRuns(nextRuns);
-      const nextProgramId = selectedProgramId || nextPrograms[0]?.id || "";
+      const nextProgramId = selectedProgramIdRef.current || nextPrograms[0]?.id || "";
       setSelectedProgramId(nextProgramId);
       setProgramDraft(
         draftFromProgram(nextPrograms.find((program) => program.id === nextProgramId) ?? null),
       );
-      const runToLoad = selectedRunId ?? runPayload.latest?.runId ?? null;
+      const runToLoad = selectedRunIdRef.current ?? runPayload.latest?.runId ?? null;
       if (runToLoad) {
-        await loadRun(runToLoad);
+        const outputToLoad =
+          runToLoad === initialRunId
+            ? initialOutputId
+            : selectedOutputIdRef.current;
+        await loadRun(runToLoad, outputToLoad);
       } else {
         setRunDetail(null);
         setStatus("No mining runs yet.");
@@ -254,11 +304,25 @@ export function ThreadDataPanel(): ReactElement {
       setError(nextError instanceof Error ? nextError.message : "thread_data_refresh_failed");
       setStatus("Mining runs unavailable.");
     }
-  }, [loadRun, selectedProgramId, selectedRunId]);
+  }, [initialOutputId, initialRunId, loadRun, mineUrl]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!initialRunId) return;
+    void loadRun(initialRunId, initialOutputId);
+  }, [initialOutputId, initialRunId, loadRun]);
+
+  useEffect(() => {
+    selectedOutputIdRef.current = null;
+    selectedRunIdRef.current = null;
+  }, [projectPath]);
+
+  useEffect(() => {
+    selectedProgramIdRef.current = selectedProgramId;
+  }, [selectedProgramId]);
 
   useEffect(() => {
     setProgramDraft(draftFromProgram(selectedProgram));
@@ -286,7 +350,7 @@ export function ThreadDataPanel(): ReactElement {
     setStatus(`Saving ${programDraft.id}...`);
     setError(null);
     try {
-      const payload = await fetchJson<ThreadDataProgramsResponse>("/farplane/mine/programs", {
+      const payload = await fetchJson<ThreadDataProgramsResponse>(mineUrl("/farplane/mine/programs"), {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -311,7 +375,7 @@ export function ThreadDataPanel(): ReactElement {
     setStatus("Creating mining run...");
     setError(null);
     try {
-      const payload = await fetchJson<ThreadDataRunResponse>("/farplane/mine/runs", {
+      const payload = await fetchJson<ThreadDataRunResponse>(mineUrl("/farplane/mine/runs"), {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -330,11 +394,13 @@ export function ThreadDataPanel(): ReactElement {
         const detail = payload.detail;
         setRunDetail(detail);
         setSelectedRunId(detail.run.runId);
+        selectedRunIdRef.current = detail.run.runId;
+        selectedOutputIdRef.current = null;
         setRuns((current) =>
           sortMiningRuns([detail.run, ...current.filter((run) => run.runId !== detail.run.runId)]),
         );
         setIsNewRunOpen(false);
-        setRunTab("outputs");
+        setThreadDataTab("review");
         setStatus(`Created run ${detail.run.runId}`);
       }
     } catch (nextError) {
@@ -349,7 +415,7 @@ export function ThreadDataPanel(): ReactElement {
     setError(null);
     try {
       const payload = await fetchJson<ThreadDataRunResponse>(
-        `/farplane/mine/runs/${encodeURIComponent(selectedRunId)}/replay`,
+        mineUrl(`/farplane/mine/runs/${encodeURIComponent(selectedRunId)}/replay`),
         {
           method: "POST",
           headers: { "x-farplane-actor-role": "operator" },
@@ -358,10 +424,17 @@ export function ThreadDataPanel(): ReactElement {
       if (payload.detail) {
         const detail = payload.detail;
         setRunDetail(detail);
+        if (
+          selectedOutputIdRef.current &&
+          !detail.outputs.some((output) => output.id === selectedOutputIdRef.current)
+        ) {
+          selectedOutputIdRef.current = null;
+          setSelectedOutputId(null);
+        }
         setRuns((current) =>
           sortMiningRuns([detail.run, ...current.filter((run) => run.runId !== detail.run.runId)]),
         );
-        setRunTab("attempts");
+        setThreadDataTab("attempts");
         setStatus(`Replayed ${selectedRunId}`);
       }
     } catch (nextError) {
@@ -373,8 +446,9 @@ export function ThreadDataPanel(): ReactElement {
   const openOutput = (outputId: string): void => {
     const nextOutput = runDetail?.outputs.find((output) => output.id === outputId) ?? null;
     setSelectedOutputId(outputId);
+    selectedOutputIdRef.current = outputId;
     setOutputViewMode(defaultOutputViewMode(runDetail?.run, nextOutput));
-    setIsOutputOpen(true);
+    setThreadDataTab("review");
   };
 
   const setOutputVerdict = async (verdict: ThreadDataRunOutput["verdict"]): Promise<void> => {
@@ -383,7 +457,9 @@ export function ThreadDataPanel(): ReactElement {
     setError(null);
     try {
       const payload = await fetchJson<ThreadDataRunResponse>(
-        `/farplane/mine/runs/${encodeURIComponent(selectedRunId)}/outputs/${encodeURIComponent(selectedOutputId)}/verdict`,
+        mineUrl(
+          `/farplane/mine/runs/${encodeURIComponent(selectedRunId)}/outputs/${encodeURIComponent(selectedOutputId)}/verdict`,
+        ),
         {
           method: "POST",
           headers: {
@@ -409,6 +485,7 @@ export function ThreadDataPanel(): ReactElement {
 
   const selectRun = (runId: string): void => {
     setThreadDataTab("review");
+    selectedOutputIdRef.current = null;
     void loadRun(runId);
   };
 
@@ -420,7 +497,7 @@ export function ThreadDataPanel(): ReactElement {
       <header className="grid min-w-0 gap-3 rounded-md border bg-background/80 p-3 md:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-lg font-semibold tracking-normal">Mining Runs</h1>
+            <h1 className="text-lg font-semibold tracking-normal">Thread Data</h1>
             <Badge variant="outline">{programs.length} programs</Badge>
             <Badge variant="outline">{runs.length} runs</Badge>
             <Badge variant="outline">
@@ -465,6 +542,14 @@ export function ThreadDataPanel(): ReactElement {
             <ListChecks className="mr-2 size-4" />
             Review
           </TabsTrigger>
+          <TabsTrigger value="artifacts">
+            <FolderOpen className="mr-2 size-4" />
+            Artifacts
+          </TabsTrigger>
+          <TabsTrigger value="attempts">
+            <Play className="mr-2 size-4" />
+            Attempts
+          </TabsTrigger>
           <TabsTrigger value="programs">
             <FileText className="mr-2 size-4" />
             Programs
@@ -481,65 +566,64 @@ export function ThreadDataPanel(): ReactElement {
 
         <TabsContent value="review" className="min-h-0">
           <div className="grid h-full min-w-0 min-h-0 gap-3 overflow-hidden">
-            {runDetail ? (
+            {selectedOutput ? (
+              <OutputDetailScreen
+                mode={outputViewMode}
+                output={selectedOutput}
+                redactionMarkdown={selectedOutput.redactionMarkdown}
+                run={runDetail?.run ?? null}
+                scorecard={selectedScorecard}
+                selectedOutputDecisionsText={selectedOutputDecisionsText}
+                selectedOutputEvidenceRows={selectedOutputEvidenceRows}
+                selectedOutputJsonText={selectedOutputJsonText}
+                onBack={() => {
+                  selectedOutputIdRef.current = null;
+                  setSelectedOutputId(null);
+                }}
+                onModeChange={setOutputViewMode}
+                onVerdict={setOutputVerdict}
+              />
+            ) : runDetail ? (
               <section className="grid min-w-0 min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden">
                 <RunHeader detail={runDetail} progress={runProgress} />
-                <Tabs
-                  value={runTab}
-                  onValueChange={(value) => setRunTab(value as RunTab)}
-                  className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)]"
-                >
-                  <TabsList className="max-w-full overflow-x-auto">
-                    <TabsTrigger value="outputs">Outputs</TabsTrigger>
-                    <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
-                    <TabsTrigger value="attempts">Attempts</TabsTrigger>
-                    <TabsTrigger value="program">Program</TabsTrigger>
-                    <TabsTrigger value="sources">Sources</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="outputs" className="min-h-0">
-                    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
-                      <div className="relative">
-                        <Search className="absolute left-2 top-2.5 size-4 text-muted-foreground" />
-                        <Input
-                          className="pl-8"
-                          value={outputQuery}
-                          onChange={(event) => setOutputQuery(event.target.value)}
-                          placeholder="Filter outputs, tickets, verdicts"
-                        />
-                      </div>
-                      <OutputTable rows={visibleOutputs} onOpen={openOutput} />
-                    </div>
-                  </TabsContent>
-                  <TabsContent value="artifacts" className="min-h-0">
-                    <ArtifactInspector
-                      artifacts={runDetail.artifacts ?? []}
-                      selectedArtifact={selectedArtifact}
-                      selectedArtifactId={selectedArtifactId}
-                      onSelect={setSelectedArtifactId}
+                <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 size-4 text-muted-foreground" />
+                    <Input
+                      className="pl-8"
+                      value={outputQuery}
+                      onChange={(event) => setOutputQuery(event.target.value)}
+                      placeholder="Filter outputs, tickets, verdicts"
                     />
-                  </TabsContent>
-                  <TabsContent value="attempts" className="min-h-0">
-                    <AttemptTimeline attempts={runDetail.attempts ?? []} />
-                  </TabsContent>
-                  <TabsContent value="program" className="min-h-0">
-                    <ProgramEditor
-                      draft={programDraft}
-                      programs={programs}
-                      selectedId={selectedProgramId}
-                      onDraftChange={setProgramDraft}
-                      onSave={() => void saveProgram()}
-                      onSelect={setSelectedProgramId}
-                    />
-                  </TabsContent>
-                  <TabsContent value="sources" className="min-h-0">
-                    <SourceTable rows={runDetail.sources} selected={new Set()} readonly />
-                  </TabsContent>
-                </Tabs>
+                  </div>
+                  <OutputTable rows={visibleOutputs} onOpen={openOutput} />
+                </div>
               </section>
             ) : (
               <EmptyRunState onCreate={() => setIsNewRunOpen(true)} />
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="artifacts" className="min-h-0">
+          {runDetail ? (
+            <ArtifactInspector
+              artifacts={runDetail.artifacts ?? []}
+              selectedArtifact={selectedArtifact}
+              selectedArtifactId={selectedArtifactId}
+              onSelect={setSelectedArtifactId}
+            />
+          ) : (
+            <EmptyRunState onCreate={() => setIsNewRunOpen(true)} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="attempts" className="min-h-0">
+          {runDetail ? (
+            <AttemptTimeline attempts={runDetail.attempts ?? []} />
+          ) : (
+            <EmptyRunState onCreate={() => setIsNewRunOpen(true)} />
+          )}
         </TabsContent>
 
         <TabsContent value="programs" className="min-h-0">
@@ -609,19 +693,6 @@ export function ThreadDataPanel(): ReactElement {
         onToggleThread={toggleThread}
       />
 
-      <OutputReviewSheet
-        isOpen={isOutputOpen}
-        mode={outputViewMode}
-        output={selectedOutput}
-        redactionMarkdown={selectedOutput?.redactionMarkdown}
-        scorecard={selectedScorecard}
-        selectedOutputDecisionsText={selectedOutputDecisionsText}
-        selectedOutputEvidenceRows={selectedOutputEvidenceRows}
-        selectedOutputJsonText={selectedOutputJsonText}
-        onModeChange={setOutputViewMode}
-        onOpenChange={setIsOutputOpen}
-        onVerdict={setOutputVerdict}
-      />
     </div>
   );
 }
@@ -1151,23 +1222,24 @@ function ArtifactInspector({
   selectedArtifact: ThreadDataArtifact | null;
   selectedArtifactId: string;
 }): ReactElement {
+  const reportArtifacts = artifacts.filter((artifact) => artifactGroup(artifact) === "report");
+  const debugArtifacts = artifacts.filter((artifact) => artifactGroup(artifact) === "debug");
   return (
     <div className="grid h-full min-h-0 gap-3 md:grid-cols-[260px_minmax(0,1fr)]">
       <div className="rounded-md border">
         <ScrollArea className="h-full max-h-[calc(100dvh-260px)]">
-          {artifacts.map((artifact) => (
-            <button
-              key={artifact.id}
-              type="button"
-              className={`block w-full border-b px-3 py-2 text-left text-sm hover:bg-muted/50 ${artifact.id === selectedArtifactId ? "bg-muted" : ""}`}
-              onClick={() => onSelect(artifact.id)}
-            >
-              <span className="flex items-center gap-2">
-                <Badge variant={artifactTone(artifact.kind)}>{artifact.kind}</Badge>
-                <span className="truncate">{artifact.label}</span>
-              </span>
-            </button>
-          ))}
+          <ArtifactGroupList
+            artifacts={reportArtifacts}
+            label="Report Files"
+            selectedArtifactId={selectedArtifactId}
+            onSelect={onSelect}
+          />
+          <ArtifactGroupList
+            artifacts={debugArtifacts}
+            label="Debug Files"
+            selectedArtifactId={selectedArtifactId}
+            onSelect={onSelect}
+          />
         </ScrollArea>
       </div>
       <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-md border bg-background">
@@ -1178,10 +1250,97 @@ function ArtifactInspector({
           </p>
         </div>
         <ScrollArea className="min-h-0 p-3">
-          <pre className="whitespace-pre-wrap break-words text-xs [overflow-wrap:anywhere]">
-            {artifactPreview(selectedArtifact)}
-          </pre>
+          <ArtifactPreview artifact={selectedArtifact} />
         </ScrollArea>
+      </div>
+    </div>
+  );
+}
+
+function ArtifactGroupList({
+  artifacts,
+  label,
+  onSelect,
+  selectedArtifactId,
+}: {
+  artifacts: ThreadDataArtifact[];
+  label: string;
+  onSelect: (id: string) => void;
+  selectedArtifactId: string;
+}): ReactElement | null {
+  if (!artifacts.length) return null;
+  return (
+    <div className="border-b last:border-b-0">
+      <div className="px-3 py-2 text-[11px] font-medium uppercase text-muted-foreground">
+        {label}
+      </div>
+      {artifacts.map((artifact) => (
+        <button
+          key={artifact.id}
+          type="button"
+          className={`block w-full border-t px-3 py-2 text-left text-sm hover:bg-muted/50 ${artifact.id === selectedArtifactId ? "bg-muted" : ""}`}
+          onClick={() => onSelect(artifact.id)}
+        >
+          <span className="flex items-center gap-2">
+            <Badge variant={artifactTone(artifact.kind)}>{artifact.kind}</Badge>
+            <span className="truncate">{artifact.label}</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ArtifactPreview({ artifact }: { artifact: ThreadDataArtifact | null }): ReactElement {
+  if (!artifact) return <p className="text-sm text-muted-foreground">No artifact selected.</p>;
+  const json = parseArtifactJson(artifact);
+  if (json !== null) {
+    return (
+      <div className="grid gap-3">
+        <JsonArtifactSummary value={json} />
+        <pre className="whitespace-pre-wrap break-words rounded-md border bg-muted/30 p-3 text-xs [overflow-wrap:anywhere]">
+          {artifactPreviewText(artifact)}
+        </pre>
+      </div>
+    );
+  }
+  return (
+    <pre className="whitespace-pre-wrap break-words text-xs [overflow-wrap:anywhere]">
+      {artifactPreviewText(artifact)}
+    </pre>
+  );
+}
+
+function JsonArtifactSummary({ value }: { value: unknown }): ReactElement {
+  if (Array.isArray(value)) {
+    return (
+      <div className="rounded-md border bg-background p-3">
+        <div className="text-xs font-medium uppercase text-muted-foreground">JSON Summary</div>
+        <p className="mt-1 text-sm">{value.length} top-level items</p>
+      </div>
+    );
+  }
+  if (!value || typeof value !== "object") {
+    return (
+      <div className="rounded-md border bg-background p-3">
+        <div className="text-xs font-medium uppercase text-muted-foreground">JSON Value</div>
+        <p className="mt-1 text-sm">{shortJsonValue(value)}</p>
+      </div>
+    );
+  }
+  const entries = Object.entries(value).slice(0, 12);
+  return (
+    <div className="rounded-md border bg-background p-3">
+      <div className="mb-2 text-xs font-medium uppercase text-muted-foreground">
+        JSON Summary
+      </div>
+      <div className="grid gap-2 md:grid-cols-2">
+        {entries.map(([key, entryValue]) => (
+          <div key={key} className="min-w-0 rounded border bg-muted/20 px-2 py-1.5">
+            <div className="truncate font-mono text-[11px] text-muted-foreground">{key}</div>
+            <div className="truncate text-xs">{shortJsonValue(entryValue)}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -1357,65 +1516,84 @@ function OutputTable({
   );
 }
 
-function OutputReviewSheet({
-  isOpen,
+function OutputDetailScreen({
   mode,
+  onBack,
   onModeChange,
-  onOpenChange,
   onVerdict,
   output,
   redactionMarkdown,
+  run,
   scorecard,
   selectedOutputDecisionsText,
   selectedOutputEvidenceRows,
   selectedOutputJsonText,
 }: {
-  isOpen: boolean;
   mode: OutputViewMode;
+  onBack: () => void;
   onModeChange: (mode: OutputViewMode) => void;
-  onOpenChange: (open: boolean) => void;
   onVerdict: (verdict: ThreadDataRunOutput["verdict"]) => Promise<void>;
   output: ThreadDataRunOutput | null;
   redactionMarkdown?: string;
+  run: ThreadDataRunIndexEntry | null;
   scorecard: ReturnType<typeof scorecardSummary>;
   selectedOutputDecisionsText: string;
   selectedOutputEvidenceRows: MiningEvidenceRow[];
   selectedOutputJsonText: string;
 }): ReactElement {
   return (
-    <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[min(960px,94vw)] sm:max-w-none">
-        <SheetHeader>
-          <SheetTitle>{output?.sourceTitle ?? "Output"}</SheetTitle>
-          <SheetDescription>
-            Review mined output, evidence, redaction, and verdict.
-          </SheetDescription>
-        </SheetHeader>
-        <div className="flex flex-wrap items-center gap-2 px-4">
-          <Badge variant="outline">{output?.verdict ?? "unreviewed"}</Badge>
-          <Badge variant={output?.redactionStatus === "clean" ? "secondary" : "outline"}>
-            {output?.redactionStatus ?? "unknown"}
-          </Badge>
-          <div className="ml-2 flex flex-wrap items-center gap-1 border-l pl-3">
-            <ModeButton active={mode === "summary"} onClick={() => onModeChange("summary")}>
-              Summary
-            </ModeButton>
-            <ModeButton active={mode === "evidence"} onClick={() => onModeChange("evidence")}>
-              Evidence
-            </ModeButton>
-            <ModeButton active={mode === "decisions"} onClick={() => onModeChange("decisions")}>
-              Decisions
-            </ModeButton>
-            <ModeButton active={mode === "markdown"} onClick={() => onModeChange("markdown")}>
-              Markdown
-            </ModeButton>
-            <ModeButton active={mode === "json"} onClick={() => onModeChange("json")}>
-              JSON
-            </ModeButton>
-            <ModeButton active={mode === "redaction"} onClick={() => onModeChange("redaction")}>
-              Redaction
-            </ModeButton>
+    <section className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden rounded-md border bg-background">
+      <header className="border-b p-3">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <Button size="icon" variant="ghost" aria-label="Back to outputs" onClick={onBack}>
+                <ArrowLeft className="size-4" />
+              </Button>
+              <div className="min-w-0">
+                <h2 className="truncate text-base font-semibold">
+                  {output?.sourceTitle ?? "Output"}
+                </h2>
+                <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
+                  {run?.runId ?? "run"} / {output?.id ?? "output"}
+                </p>
+              </div>
+            </div>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">{output?.ticketId ?? "no ticket"}</Badge>
+            <Badge variant={output?.verdict === "promoted" ? "default" : "outline"}>
+              {output?.verdict ?? "unreviewed"}
+            </Badge>
+            <Badge variant={output?.redactionStatus === "clean" ? "secondary" : "outline"}>
+              {output?.redactionStatus ?? "unknown"}
+            </Badge>
+          </div>
+        </div>
+      </header>
+      <div className="flex min-w-0 flex-wrap items-center gap-2 border-b px-3 py-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
+          <ModeButton active={mode === "summary"} onClick={() => onModeChange("summary")}>
+            Summary
+          </ModeButton>
+          <ModeButton active={mode === "evidence"} onClick={() => onModeChange("evidence")}>
+            Evidence
+          </ModeButton>
+          <ModeButton active={mode === "decisions"} onClick={() => onModeChange("decisions")}>
+            Decisions
+          </ModeButton>
+          <ModeButton active={mode === "markdown"} onClick={() => onModeChange("markdown")}>
+            Markdown
+          </ModeButton>
+          <ModeButton active={mode === "json"} onClick={() => onModeChange("json")}>
+            JSON
+          </ModeButton>
+          <ModeButton active={mode === "redaction"} onClick={() => onModeChange("redaction")}>
+            Redaction
+          </ModeButton>
+        </div>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Badge variant="outline">{output?.verdict ?? "unreviewed"}</Badge>
           <Button size="sm" variant="outline" onClick={() => void onVerdict("unreviewed")}>
             <ListChecks className="size-4" />
             Unreview
@@ -1432,20 +1610,20 @@ function OutputReviewSheet({
             Promote
           </Button>
         </div>
-        <ScrollArea className="mt-2 h-[calc(100dvh-155px)] rounded-md border bg-muted/20 p-3">
-          {mode === "summary" ? <ScorecardView output={output} scorecard={scorecard} /> : null}
-          {mode === "markdown" ? (
-            <PreBlock text={output?.outputMarkdown ?? "No output selected."} />
-          ) : null}
-          {mode === "json" ? <PreBlock text={selectedOutputJsonText} /> : null}
-          {mode === "decisions" ? <PreBlock text={selectedOutputDecisionsText} /> : null}
-          {mode === "evidence" ? <EvidenceList rows={selectedOutputEvidenceRows} /> : null}
-          {mode === "redaction" ? (
-            <PreBlock text={redactionMarkdown ?? "No redaction report selected."} />
-          ) : null}
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
+      </div>
+      <ScrollArea className="min-h-0 bg-muted/20 p-3">
+        {mode === "summary" ? <ScorecardView output={output} scorecard={scorecard} /> : null}
+        {mode === "markdown" ? (
+          <PreBlock text={output?.outputMarkdown ?? "No output selected."} />
+        ) : null}
+        {mode === "json" ? <PreBlock text={selectedOutputJsonText} /> : null}
+        {mode === "decisions" ? <PreBlock text={selectedOutputDecisionsText} /> : null}
+        {mode === "evidence" ? <EvidenceList rows={selectedOutputEvidenceRows} /> : null}
+        {mode === "redaction" ? (
+          <PreBlock text={redactionMarkdown ?? "No redaction report selected."} />
+        ) : null}
+      </ScrollArea>
+    </section>
   );
 }
 
@@ -1494,9 +1672,83 @@ function ScorecardView({
       <div className="rounded-md border bg-background p-3">
         <h3 className="text-sm font-semibold">Summary</h3>
         <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+          {scorecard?.overallScore !== undefined ? `Score: ${scorecard.overallScore}/100\n` : ""}
           {scorecard?.overall ?? output?.summary ?? "No scorecard summary available."}
         </p>
       </div>
+      {scorecard?.skillTrace ? (
+        <div className="rounded-md border bg-background p-3">
+          <div className="mb-3 flex items-center gap-2">
+            <ListChecks className="size-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Skill Trace</h3>
+          </div>
+          {scorecard.skillTraceSummary ? (
+            <p className="mb-3 whitespace-pre-wrap text-sm text-muted-foreground">
+              {scorecard.skillTraceSummary}
+            </p>
+          ) : null}
+          <div className="grid gap-2 md:grid-cols-2">
+            <ScoreMetric
+              icon={<CheckCircle2 className="size-4" />}
+              label="Skill Loaded"
+              value={scorecard.skillTrace.skillLoaded ?? "unknown"}
+            />
+            <ScoreMetric
+              icon={<RefreshCw className="size-4" />}
+              label="Load Timing"
+              value={scorecard.skillTrace.skillLoadTiming ?? "unknown"}
+            />
+            <ScoreMetric
+              icon={<ShieldAlert className="size-4" />}
+              label="Missed Triggers"
+              value={
+                scorecard.skillTrace.missedTriggers.length
+                  ? scorecard.skillTrace.missedTriggers.join(", ")
+                  : "none"
+              }
+            />
+            <ScoreMetric
+              icon={<ShieldAlert className="size-4" />}
+              label="False Positives"
+              value={
+                scorecard.skillTrace.falsePositiveTriggers.length
+                  ? scorecard.skillTrace.falsePositiveTriggers.join(", ")
+                  : "none"
+              }
+            />
+            <ScoreMetric
+              icon={<GitFork className="size-4" />}
+              label="Wasted Steps"
+              value={scorecard.skillTrace.wastedSteps ?? "unknown"}
+            />
+            <ScoreMetric
+              icon={<CheckSquare className="size-4" />}
+              label="Default Followed"
+              value={scorecard.skillTrace.defaultFollowed ?? "unknown"}
+            />
+            <ScoreMetric
+              icon={<FileText className="size-4" />}
+              label="Reference Loads"
+              value={String(scorecard.skillTrace.referenceLoadCount)}
+            />
+            <ScoreMetric
+              icon={<ListChecks className="size-4" />}
+              label="Skill Delta Candidates"
+              value={String(scorecard.skillTrace.traceToSkillDeltaCount)}
+            />
+          </div>
+          {scorecard.skillTrace.limitations.length ? (
+            <div className="mt-3 rounded-md border bg-muted/30 p-3">
+              <div className="text-xs font-medium uppercase text-muted-foreground">Limits</div>
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                {scorecard.skillTrace.limitations.map((limitation) => (
+                  <li key={limitation}>{limitation}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

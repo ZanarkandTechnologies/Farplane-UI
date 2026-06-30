@@ -104,6 +104,47 @@ describe("hook telemetry projections", () => {
     expect(JSON.stringify(rows)).not.toContain("should not leak");
   });
 
+  it("infers miner report ticket ids from sibling report events", () => {
+    const rows = hookTelemetryRowsToLearningTimelineRows([
+      {
+        hookName: "codex-event-miner",
+        hookType: "Stop",
+        projectId: "codex-proj-farplane",
+        sessionId: "session-1",
+        eventAt: 2_000,
+        eventKey: "miner-completed",
+        payload: {
+          eventName: "miner.agent.completed",
+          source: "miner_agent_report",
+          sourceProgram: "codex-event-miner",
+          status: "queued",
+          summary: "Mined one strong workflow decision.",
+          reviewRunPath: ".farplane/event-miner/runs/run-1",
+        },
+      },
+      {
+        hookName: "codex-event-miner",
+        hookType: "Stop",
+        projectId: "codex-proj-farplane",
+        sessionId: "session-1",
+        eventAt: 2_000,
+        eventKey: "decision",
+        payload: {
+          eventName: "decision.observed",
+          source: "miner_agent_report",
+          sourceProgram: "decision-v1",
+          ticketId: "TASK-0250",
+          summary: "Pulse rewarded TASK-0250 completion.",
+          reviewRunPath: ".farplane/event-miner/runs/run-1",
+        },
+      },
+    ]);
+
+    expect(rows.find((row) => row.eventName === "miner.agent.completed")).toEqual(
+      expect.objectContaining({ ticketId: "TASK-0250" }),
+    );
+  });
+
   it("projects typed Farplane file events into the learning timeline", () => {
     const validFarplanePayload = {
       schemaVersion: 1,

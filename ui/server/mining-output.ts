@@ -1,6 +1,10 @@
 import { messageWindowPathForSource, type JsonObject, type MiningThreadSource } from "./mining-sources";
 import { pathExists, readJsonFile } from "./mining-files";
-import type { TicketCompletionPacket, TicketCompletionMetric } from "./mining-ticket-packet";
+import type {
+  TicketCompletionPacket,
+  TicketCompletionMetric,
+  TicketSkillTraceAssessment,
+} from "./mining-ticket-packet";
 import type { MiningProgram, MiningRunIndexEntry } from "./mining-types";
 
 type EvidenceSpan = {
@@ -248,6 +252,40 @@ function scoreFromSignals(signals: boolean[]): number {
   return Math.round((signals.filter(Boolean).length / signals.length) * 100);
 }
 
+function skillTraceSummary(skillTrace: TicketSkillTraceAssessment): string {
+  const loaded = skillTrace.loadedSkills.map((skill) => skill.skillId).join(", ") || "none observed";
+  const intended = skillTrace.intendedSkills.map((skill) => skill.skillId).join(", ") || "none inferred";
+  return `Loaded: ${loaded}. Intended: ${intended}. Missed: ${skillTrace.missedTrigger.skillIds.length}. Corrections: ${skillTrace.correctionNeeded.evidenceRefs.length}.`;
+}
+
+function skillTraceMarkdown(skillTrace: TicketSkillTraceAssessment): string[] {
+  return [
+    "## Skill Trace",
+    `- Skill loaded: ${skillTrace.skillLoaded.status} (${skillTrace.skillLoaded.loadedCount}/${skillTrace.skillLoaded.intendedCount})`,
+    `- Load timing: ${skillTrace.skillLoadTiming.value} (${skillTrace.skillLoadTiming.status})`,
+    `- Missed triggers: ${
+      skillTrace.missedTrigger.skillIds.length ? skillTrace.missedTrigger.skillIds.join(", ") : skillTrace.missedTrigger.status
+    }`,
+    `- False-positive triggers: ${
+      skillTrace.falsePositiveTrigger.skillIds.length
+        ? skillTrace.falsePositiveTrigger.skillIds.join(", ")
+        : skillTrace.falsePositiveTrigger.status
+    }`,
+    `- Wasted steps: ${skillTrace.wastedSteps.summary}`,
+    `- Default followed: ${skillTrace.defaultFollowed.status}`,
+    `- Reference loads: ${skillTrace.referenceLoads.length}`,
+    `- Correction needed: ${skillTrace.correctionNeeded.status}`,
+    "",
+    "### Trace To Skill Delta",
+    ...(skillTrace.traceToSkillDelta.length
+      ? skillTrace.traceToSkillDelta.map((delta) => `- ${delta.skillId ?? "unknown skill"}: ${delta.summary}`)
+      : ["- none detected in bounded packet"]),
+    "",
+    "### Skill Trace Limits",
+    ...skillTrace.limitations.map((limitation) => `- ${limitation}`),
+  ];
+}
+
 function buildTicketScorecard(input: {
   packet: TicketCompletionPacket;
   program: MiningProgram;
@@ -296,6 +334,8 @@ function buildTicketScorecard(input: {
       regressionRisk: proofCount > 0 ? 2 : 4,
     },
     deterministicMetrics: input.packet.metrics,
+    skillTraceAssessment: input.packet.skillTrace,
+    skillTraceSummary: skillTraceSummary(input.packet.skillTrace),
     decisionAssessment:
       decisionCount > 0
         ? `Found ${decisionCount} mined decision event${decisionCount === 1 ? "" : "s"} for this ticket.`
@@ -332,6 +372,8 @@ function buildTicketScorecard(input: {
       ticketId: input.packet.ticketId,
       sessionId: input.packet.sessionId,
       threadId: input.packet.threadId,
+      runId: input.runId,
+      outputId: input.outputId,
       summary: `Ticket audit scored ${input.packet.ticketId ?? input.outputId} at ${scorecard.overallScore}/100.`,
       reviewRunPath: `.farplane/mine/runs/${input.runId}/outputs/${input.outputId}/scorecard.json`,
     },
@@ -354,6 +396,8 @@ function buildTicketScorecard(input: {
     ...input.packet.metrics.map((row) =>
       `- ${row.label}: ${row.status === "known" ? `${row.value} ${row.unit ?? ""}`.trim() : `unknown (${row.reason})`}`,
     ),
+    "",
+    ...skillTraceMarkdown(input.packet.skillTrace),
     "",
     "## Next Improvements",
     ...(scorecard.nextImprovements.length
