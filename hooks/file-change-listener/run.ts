@@ -10,10 +10,12 @@ import {
  * Entrypoint for the Codex PostToolUse tracked file-change listener.
  */
 import {
+  createTicketAuditRunsForCompletedEvents,
   parseFarplaneFileEventCandidatesFromStdin,
   parseFileChangeBubbleCandidatesFromStdin,
   publishFarplaneFileEventCandidates,
   publishFileChangeBubbleCandidates,
+  publishTicketAuditRunEvents,
 } from "./handler";
 
 async function readStdin(): Promise<string> {
@@ -70,13 +72,19 @@ async function main(): Promise<void> {
       endpointBaseUrl,
       telemetryToken,
     });
+    const auditResult = await createTicketAuditRunsForCompletedEvents(fileEventCandidates);
+    const auditPublishResult = await publishTicketAuditRunEvents(auditResult, {
+      endpointBaseUrl,
+      telemetryToken,
+      projectPath: projectPath,
+    });
     const result = await publishFileChangeBubbleCandidates(candidates, {
       endpointBaseUrl,
       telemetryToken,
     });
     if (debugEnabled) {
       console.error(
-        `[file-change-listener] fileEvents=${eventResult.attempted}/${eventResult.published} summaries=${result.attempted}/${result.published}`,
+        `[file-change-listener] fileEvents=${eventResult.attempted}/${eventResult.published} ticketAudits=${auditResult.created}/${auditResult.attempted} auditEvents=${auditPublishResult.published}/${auditPublishResult.attempted} summaries=${result.attempted}/${result.published}`,
       );
     }
   } catch (error) {

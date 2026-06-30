@@ -6,9 +6,12 @@ export type MiningThreadSource = {
   id: string;
   safeFileId?: string;
   sessionId?: string;
+  threadId?: string;
   name: string;
   preview: string;
   cwd?: string;
+  inputRef?: string;
+  ticketId?: string;
   updatedAt?: number;
   sourceKind?: string;
 };
@@ -81,9 +84,12 @@ export function normalizeStoredMiningSource(value: unknown): MiningThreadSource 
     id,
     safeFileId,
     sessionId: compactText(row.sessionId) || undefined,
+    threadId: compactText(row.threadId) || undefined,
     name: compactText(row.name ?? row.preview, id),
     preview: compactText(row.preview ?? row.name, id),
     cwd: compactText(row.cwd) || undefined,
+    inputRef: compactText(row.inputRef) || undefined,
+    ticketId: compactText(row.ticketId) || undefined,
     updatedAt: normalizedTimestamp(row.updatedAt),
     sourceKind: sourceKind === "message_window" ? "farplane-message-window" : sourceKind || undefined,
   };
@@ -97,16 +103,23 @@ export function messageWindowPathForSource(source: MiningThreadSource): string |
 
 export function threadSourceToMiningSource(source: MiningThreadSource): JsonObject {
   const inputRef = messageWindowPathForSource(source) ?? `codex-thread:${source.id}`;
+  const sourceKind =
+    source.sourceKind === "farplane-message-window"
+      ? "message_window"
+      : source.sourceKind && source.sourceKind !== "codex-thread"
+        ? source.sourceKind
+        : "codex_thread";
   return {
     sourceId: source.id,
     safeFileId: source.safeFileId,
-    sourceKind: source.sourceKind === "farplane-message-window" ? "message_window" : "codex_thread",
-    inputRef,
+    sourceKind,
+    inputRef: source.inputRef ?? inputRef,
     name: source.name,
     preview: source.preview,
     cwd: source.cwd,
     sessionId: source.sessionId,
-    threadId: source.id,
+    ticketId: source.ticketId,
+    threadId: source.threadId ?? source.id,
     updatedAt: source.updatedAt,
   };
 }
@@ -127,6 +140,7 @@ export function fileEventToMiningSource(value: unknown): JsonObject | null {
     ticketId: entityId.startsWith("TASK-") ? entityId : undefined,
     sessionId: compactText(row.sessionId) || undefined,
     threadId: compactText(row.threadId) || undefined,
+    updatedAt: normalizedTimestamp(row.eventAt ?? row.updatedAt),
     sourceEventKey: eventKey || undefined,
     provider: compactText(row.provider) || "local_file",
     externalId: compactText(row.externalId) || undefined,

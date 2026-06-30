@@ -8,15 +8,17 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { parseFarplaneFileEvent, type FarplaneFileEvent } from "./file-event-registry";
-import { readFileEventSnapshot, writeFileEventSnapshot } from "./file-event-snapshot-store";
+import { createMiningLocalApi } from "../../ui/server/mining-local-api";
+import { ticketCompletionEventToMiningSource } from "../../ui/server/mining-sources";
 import {
+  type CodexSummaryOptions,
   resolveCodexSummaryOptions,
   summarizeTrackedFileChangeWithCodex,
-  type CodexSummaryOptions,
 } from "../shared/codex-summary";
+import { codexProjectIdFromPath, defaultTrackedPathPatterns } from "../shared/project-hook-config";
 import { publishHookTelemetryWithOutbox } from "../shared/telemetry-outbox";
-import { defaultTrackedPathPatterns } from "../shared/project-hook-config";
+import { type FarplaneFileEvent, parseFarplaneFileEvent } from "./file-event-registry";
+import { readFileEventSnapshot, writeFileEventSnapshot } from "./file-event-snapshot-store";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -34,6 +36,25 @@ export type PublishFileChangeOptions = {
   endpointBaseUrl?: string;
   telemetryToken?: string;
   fetchImpl?: typeof fetch;
+};
+
+export type TicketAuditRunResult = {
+  attempted: number;
+  created: number;
+  skipped: number;
+  failed: number;
+  events: Array<{
+    eventName: "ticket.audit.created" | "ticket.audit.failed";
+    eventKey: string;
+    projectId?: string;
+    sessionId?: string;
+    ticketId?: string;
+    summary: string;
+    runId?: string;
+    reviewRunPath?: string;
+    reason?: string;
+    eventAt: number;
+  }>;
 };
 
 export type FileChangeParseOptions = {
@@ -114,7 +135,8 @@ function normalizeRelativePath(candidate: string, projectPath: string): string |
     ? path.normalize(withoutLine)
     : path.resolve(projectPath, withoutLine);
   const relative = path.relative(projectPath, absolute).replace(/\\/g, "/");
-  if (!relative || relative.startsWith("../") || relative === ".." || path.isAbsolute(relative)) return null;
+  if (!relative || relative.startsWith("../") || relative === ".." || path.isAbsolute(relative))
+    return null;
   return relative;
 }
 
@@ -200,7 +222,15 @@ function shellTokens(command: string): string[] {
 }
 
 function isShellBoundary(token: string): boolean {
-  return token === ";" || token === "&&" || token === "||" || token === "|" || token === "<" || token === ">" || token === ">>";
+  return (
+    token === ";" ||
+    token === "&&" ||
+    token === "||" ||
+    token === "|" ||
+    token === "<" ||
+    token === ">" ||
+    token === ">>"
+  );
 }
 
 function extractLikelyPathStrings(value: unknown, depth = 0): string[] {
@@ -215,7 +245,11 @@ function extractLikelyPathStrings(value: unknown, depth = 0): string[] {
 
   const paths: string[] = [];
   for (const [key, child] of Object.entries(value)) {
-    if (/^(path|file|filePath|file_path|filename|target|targetPath|target_path|paths|changedFiles|changed_files)$/i.test(key)) {
+    if (
+      /^(path|file|filePath|file_path|filename|target|targetPath|target_path|paths|changedFiles|changed_files)$/i.test(
+        key,
+      )
+    ) {
       if (typeof child === "string") paths.push(child);
       if (Array.isArray(child)) {
         paths.push(...child.filter((entry): entry is string => typeof entry === "string"));
@@ -313,15 +347,17 @@ function parseFileChangeCandidatePathsFromPayload(
   if (!metadata.projectPath) return [];
   const projectPath = path.resolve(metadata.projectPath);
   const eventAt = resolveOccurredAt(payload, now);
-  return changedTrackedFilesFromPayload(payload, projectPath, options.trackedPathPatterns).map((filePath) => {
-    return {
-      threadId: metadata.threadId ?? metadata.sessionId,
-      sessionId: metadata.sessionId,
-      projectPath,
-      filePath,
-      eventAt,
-    };
-  });
+  return changedTrackedFilesFromPayload(payload, projectPath, options.trackedPathPatterns).map(
+    (filePath) => {
+      return {
+        threadId: metadata.threadId ?? metadata.sessionId,
+        sessionId: metadata.sessionId,
+        projectPath,
+        filePath,
+        eventAt,
+      };
+    },
+  );
 }
 
 export async function parseFileChangeBubbleCandidatesFromPayload(
@@ -335,16 +371,15 @@ export async function parseFileChangeBubbleCandidatesFromPayload(
   const candidates: FileChangeBubbleCandidate[] = [];
 
   for (const candidate of paths) {
-    const message =
-      await summarizeTrackedFileChangeWithCodex(
-        {
-          projectPath: candidate.projectPath,
-          filePath: candidate.filePath,
-          fileContentSnippet: fileContentSnippet(candidate.projectPath, candidate.filePath),
-          toolPayloadSnippet: payloadSnippet(record),
-        },
-        codexSummary,
-      );
+    const message = await summarizeTrackedFileChangeWithCodex(
+      {
+        projectPath: candidate.projectPath,
+        filePath: candidate.filePath,
+        fileContentSnippet: fileContentSnippet(candidate.projectPath, candidate.filePath),
+        toolPayloadSnippet: payloadSnippet(record),
+      },
+      codexSummary,
+    );
     if (!message) continue;
     candidates.push({
       ...candidate,
@@ -388,6 +423,7 @@ export function parseFarplaneFileEventCandidatesFromPayload(
       text,
       previous,
       eventAt: candidate.eventAt,
+      projectId: codexProjectIdFromPath(candidate.projectPath),
       sessionId: candidate.sessionId,
       threadId: candidate.threadId,
     });
@@ -435,13 +471,19 @@ export async function parseFileChangeBubbleCandidatesFromStdin(
 export async function publishFileChangeBubbleCandidates(
   candidates: FileChangeBubbleCandidate[],
   options: PublishFileChangeOptions = {},
-): Promise<{ attempted: number; published: number; skipped: boolean; queued?: number; replayed?: number }> {
+): Promise<{
+  attempted: number;
+  published: number;
+  skipped: boolean;
+  queued?: number;
+  replayed?: number;
+}> {
   const primaryProjectPath = candidates[0]?.projectPath;
   const result = await publishHookTelemetryWithOutbox(
     candidates.map((candidate) => ({
       hookName: "file-change-listener",
       hookType: "PostToolUse",
-      projectId: undefined,
+      projectId: codexProjectIdFromPath(candidate.projectPath),
       sessionId: candidate.sessionId,
       payload: {
         eventName: "file.change.summary",
@@ -463,10 +505,139 @@ export async function publishFileChangeBubbleCandidates(
   return result;
 }
 
+export async function createTicketAuditRunsForCompletedEvents(
+  candidates: FarplaneFileEventCandidate[],
+): Promise<TicketAuditRunResult> {
+  const result: TicketAuditRunResult = {
+    attempted: 0,
+    created: 0,
+    skipped: 0,
+    failed: 0,
+    events: [],
+  };
+  for (const candidate of candidates.filter(
+    (event) => event.eventName === "farplane.ticket.completed",
+  )) {
+    result.attempted += 1;
+    const ticketId = candidate.entityId;
+    const source = ticketCompletionEventToMiningSource({
+      ...candidate,
+      entityId: candidate.entityId,
+      eventKey: candidate.eventKey,
+      eventName: candidate.eventName,
+      path: candidate.path,
+      sessionId: candidate.sessionId,
+      summary: candidate.summary,
+      threadId: candidate.threadId,
+    });
+    if (!source || !ticketId) {
+      result.skipped += 1;
+      continue;
+    }
+    try {
+      const api = createMiningLocalApi({
+        mineRoot: path.join(candidate.projectPath, ".farplane", "mine"),
+        readFilesystemThreads: async () => [],
+        requestCodexThreads: async () => ({ data: [] }),
+      });
+      const detail = await api.createRun({
+        mode: "ticket_completion",
+        programId: "ticket-completion-audit-v1",
+        source: "hook",
+        sourceEventKey: candidate.eventKey,
+        sources: [
+          {
+            ...source,
+            name: `${ticketId} completed`,
+            preview: candidate.summary ?? `${ticketId} completed`,
+            cwd: candidate.projectPath,
+            threadId: candidate.threadId ?? candidate.sessionId,
+            sessionId: candidate.sessionId,
+          },
+        ],
+      });
+      const run = detail?.run && typeof detail.run === "object" ? (detail.run as JsonRecord) : {};
+      const runId = cleanString(run.runId, 160);
+      result.created += 1;
+      result.events.push({
+        eventName: "ticket.audit.created",
+        eventKey: `ticket-audit:v1:created:${candidate.eventKey}`.slice(0, 500),
+        projectId: candidate.projectId,
+        sessionId: candidate.sessionId,
+        ticketId,
+        summary: `Created ticket completion audit for ${ticketId}`,
+        runId,
+        reviewRunPath: runId ? `.farplane/mine/runs/${runId}` : undefined,
+        eventAt: Date.now(),
+      });
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message.slice(0, 240) : String(error).slice(0, 240);
+      result.failed += 1;
+      result.events.push({
+        eventName: "ticket.audit.failed",
+        eventKey: `ticket-audit:v1:failed:${candidate.eventKey}`.slice(0, 500),
+        projectId: candidate.projectId,
+        sessionId: candidate.sessionId,
+        ticketId,
+        summary: `Ticket completion audit failed for ${ticketId}`,
+        reason,
+        eventAt: Date.now(),
+      });
+    }
+  }
+  return result;
+}
+
+export async function publishTicketAuditRunEvents(
+  auditResult: TicketAuditRunResult,
+  options: PublishFileChangeOptions & { projectPath?: string } = {},
+): Promise<{
+  attempted: number;
+  published: number;
+  skipped: boolean;
+  queued?: number;
+  replayed?: number;
+}> {
+  const result = await publishHookTelemetryWithOutbox(
+    auditResult.events.map((event) => ({
+      hookName: "file-change-listener",
+      hookType: "PostToolUse",
+      projectId: event.projectId,
+      sessionId: event.sessionId,
+      payload: {
+        schemaVersion: 1,
+        source: "ticket_completion_audit_subscriber",
+        eventName: event.eventName,
+        ticketId: event.ticketId,
+        summary: event.summary,
+        runId: event.runId,
+        reviewRunPath: event.reviewRunPath,
+        reason: event.reason,
+      },
+      eventAt: event.eventAt,
+      eventKey: event.eventKey,
+    })),
+    {
+      endpointBaseUrl: options.endpointBaseUrl,
+      telemetryToken: options.telemetryToken,
+      fetchImpl: options.fetchImpl,
+      projectPath: options.projectPath,
+    },
+  );
+  return result;
+}
+
 export async function publishFarplaneFileEventCandidates(
   candidates: FarplaneFileEventCandidate[],
   options: PublishFileChangeOptions = {},
-): Promise<{ attempted: number; published: number; skipped: boolean; queued?: number; replayed?: number }> {
+): Promise<{
+  attempted: number;
+  published: number;
+  skipped: boolean;
+  queued?: number;
+  replayed?: number;
+}> {
   const primaryProjectPath = candidates[0]?.projectPath;
   const result = await publishHookTelemetryWithOutbox(
     candidates.map((candidate) => {

@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-06-30 | feature | MEM-0250 | hooks,thread-data,mining,tickets | Upgraded ticket-completion audits from generic dry-run mining outputs into structured evaluation packets and scorecards: completed ticket runs now write packet.json/packet.md plus scorecard.json/scorecard.md with deterministic known/unknown metrics, bounded transcript context, mined decision refs, and ticket-folder evidence while keeping lesson/trouble upserts and full transcript embedding out of scope.
+
 2026-06-30 | ui | MEM-0249 | ui,team-workspace,thread-data,mining | Added Thread Data directly to Team Panel as the single thread/mining entrypoint, mounting the mining cockpit in-panel with Review, Programs, Sources, and Forking sub-tabs instead of splitting lineage and mining across duplicate top-level tabs.
 
 2026-06-29 | ui | MEM-0247 | ui,thread-data,mining | Reworked the Thread Data mining cockpit from a persistent run sidebar to a compact header run selector with a searchable run-history drawer, giving the selected run workspace the full panel width while keeping run switching, artifacts, attempts, outputs, and replay review in one context.

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -20,7 +20,31 @@ async function createTempRoot(prefix: string): Promise<string> {
 
 describe("mining local API", () => {
   it("creates event-triggered ticket completion runs from explicit sources", async () => {
-    const mineRoot = await createTempRoot("farplane-mine-api-");
+    const projectRoot = await createTempRoot("farplane-mine-project-");
+    const mineRoot = path.join(projectRoot, ".farplane", "mine");
+    await mkdir(path.join(projectRoot, "tickets", "TASK-0029", "artifacts"), { recursive: true });
+    await writeFile(
+      path.join(projectRoot, "tickets", "TASK-0029", "ticket.md"),
+      [
+        "---",
+        "ticket_id: TASK-0029",
+        "title: Extract mining API",
+        "status: done",
+        "created_at: 2026-06-28T00:00:00.000Z",
+        "updated_at: 2026-06-29T00:00:00.000Z",
+        "---",
+        "",
+        "# TASK-0029: Extract Mining API",
+        "",
+        "## Done",
+        "- API extracted",
+      ].join("\n"),
+    );
+    await writeFile(
+      path.join(projectRoot, "tickets", "TASK-0029", "progress.md"),
+      "# Progress\n\n- Implemented API extraction.\n- Added tests.\n",
+    );
+    await writeFile(path.join(projectRoot, "tickets", "TASK-0029", "artifacts", "proof.txt"), "ok\n");
     const api = createMiningLocalApi({
       mineRoot,
       readFilesystemThreads: async () => [],
@@ -41,7 +65,10 @@ describe("mining local API", () => {
           sourceKind: "ticket_packet",
           name: "TASK-0029 completed",
           preview: "Extract mining API out of Vite.",
+          ticketId: "TASK-0029",
           threadId: "thread-ticket",
+          sessionId: "thread-ticket",
+          updatedAt: 1782691200,
         },
       ],
     });
@@ -67,6 +94,67 @@ describe("mining local API", () => {
         sourceEventKey: "ticket:TASK-0029:completed",
       }),
     );
+    const storedSources = JSON.parse(
+      await readFile(path.join(mineRoot, "runs", String(run?.runId), "sources.json"), "utf-8"),
+    );
+    expect(storedSources).toEqual([
+      expect.objectContaining({
+        sourceKind: "ticket_packet",
+        sourceId: "TASK-0029-complete",
+        ticketId: "TASK-0029",
+      }),
+    ]);
+    const packet = JSON.parse(
+      await readFile(path.join(mineRoot, "runs", String(run?.runId), "packet.json"), "utf-8"),
+    );
+    expect(packet).toEqual(
+      expect.objectContaining({
+        packetKind: "ticket_completion",
+        ticketId: "TASK-0029",
+        transcript: expect.objectContaining({ fullTranscriptPolicy: "reference_only" }),
+      }),
+    );
+    expect(JSON.stringify(packet)).not.toContain("full transcript");
+    const outputIndex = JSON.parse(
+      await readFile(path.join(mineRoot, "runs", String(run?.runId), "outputs", "index.json"), "utf-8"),
+    );
+    expect(outputIndex[0]).toEqual(
+      expect.objectContaining({
+        scorecardJsonPath: expect.stringContaining("scorecard.json"),
+        scorecardMarkdownPath: expect.stringContaining("scorecard.md"),
+      }),
+    );
+    const scorecard = JSON.parse(
+      await readFile(
+        path.join(mineRoot, "runs", String(run?.runId), "outputs", String(outputIndex[0].id), "scorecard.json"),
+        "utf-8",
+      ),
+    );
+    expect(scorecard).toEqual(
+      expect.objectContaining({
+        ticketId: "TASK-0029",
+        deterministicMetrics: expect.arrayContaining([
+          expect.objectContaining({ id: "token_usage", status: "unknown" }),
+          expect.objectContaining({ id: "proof_artifact_count", value: 1 }),
+        ]),
+      }),
+    );
+
+    const duplicate = await api.createRun({
+      mode: "ticket_completion",
+      programId: "ticket-completion-audit-v1",
+      source: "hook",
+      sourceEventKey: "ticket:TASK-0029:completed",
+      sources: [
+        {
+          sourceId: "TASK-0029-complete",
+          sourceKind: "ticket_packet",
+          name: "TASK-0029 completed again",
+          preview: "Duplicate delivery.",
+        },
+      ],
+    });
+    expect((duplicate?.run as TestJson | undefined)?.runId).toBe(run?.runId);
   });
 
   it("rejects unsafe message-window ids before reading source files", async () => {

@@ -1,12 +1,14 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
+  createTicketAuditRunsForCompletedEvents,
   parseFarplaneFileEventCandidatesFromPayload,
   parseFileChangeBubbleCandidatesFromPayload,
   publishFarplaneFileEventCandidates,
   publishFileChangeBubbleCandidates,
+  publishTicketAuditRunEvents,
 } from "./handler";
 
 const testSummaryRunner = async () => "Summarized tracked file update";
@@ -27,7 +29,8 @@ describe("file-change-listener", () => {
           toolName: "apply_patch",
           cwd: repo,
           sessionId: "thread-1",
-          toolInput: "*** Begin Patch\n*** Update File: progress.md\n@@\n+Chose acquisition research next.\n*** End Patch\n",
+          toolInput:
+            "*** Begin Patch\n*** Update File: progress.md\n@@\n+Chose acquisition research next.\n*** End Patch\n",
         },
         1_000,
         { codexSummary: { runner: testSummaryRunner } },
@@ -72,14 +75,15 @@ describe("file-change-listener", () => {
   it("supports custom tracked path patterns", async () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
     try {
-      writeFileSync(path.join(repo, "package.json"), "{\"ok\":true}\n");
+      writeFileSync(path.join(repo, "package.json"), '{"ok":true}\n');
       const rows = await parseFileChangeBubbleCandidatesFromPayload(
         {
           event: "PostToolUse",
           toolName: "apply_patch",
           cwd: repo,
           sessionId: "thread-1",
-          toolInput: "*** Begin Patch\n*** Update File: package.json\n@@\n+{\"ok\":true}\n*** End Patch\n",
+          toolInput:
+            '*** Begin Patch\n*** Update File: package.json\n@@\n+{"ok":true}\n*** End Patch\n',
         },
         1_000,
         { trackedPathPatterns: ["package.json"], codexSummary: { runner: testSummaryRunner } },
@@ -136,7 +140,8 @@ describe("file-change-listener", () => {
           toolName: "bash",
           cwd: repo,
           sessionId: "thread-1",
-          command: "printf '%s\\n' update > docs/prd.md && printf '%s\\n' update | tee docs/specs/telemetry.md",
+          command:
+            "printf '%s\\n' update > docs/prd.md && printf '%s\\n' update | tee docs/specs/telemetry.md",
         },
         1_000,
         { codexSummary: { runner: testSummaryRunner } },
@@ -183,14 +188,18 @@ describe("file-change-listener", () => {
   it("skips tracked file telemetry when summarization fails and fallback is disabled", async () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
     try {
-      writeFileSync(path.join(repo, "progress.md"), "# Progress\n\n- Local summarizer unavailable.\n");
+      writeFileSync(
+        path.join(repo, "progress.md"),
+        "# Progress\n\n- Local summarizer unavailable.\n",
+      );
       const rows = await parseFileChangeBubbleCandidatesFromPayload(
         {
           event: "PostToolUse",
           toolName: "apply_patch",
           cwd: repo,
           sessionId: "thread-1",
-          toolInput: "*** Begin Patch\n*** Update File: progress.md\n@@\n+Local summarizer unavailable.\n*** End Patch\n",
+          toolInput:
+            "*** Begin Patch\n*** Update File: progress.md\n@@\n+Local summarizer unavailable.\n*** End Patch\n",
         },
         1_000,
         { codexSummary: { runner: async () => "" } },
@@ -226,10 +235,17 @@ describe("file-change-listener", () => {
       },
     );
 
-    expect(result).toMatchObject({ attempted: 1, published: 1, queued: 0, replayed: 0, skipped: false });
+    expect(result).toMatchObject({
+      attempted: 1,
+      published: 1,
+      queued: 0,
+      replayed: 0,
+      skipped: false,
+    });
     expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual(
       expect.objectContaining({
         hookName: "file-change-listener",
+        projectId: "codex-proj-repo",
         hookType: "PostToolUse",
         payload: expect.objectContaining({
           eventName: "file.change.summary",
@@ -269,7 +285,8 @@ describe("file-change-listener", () => {
         toolName: "apply_patch",
         cwd: repo,
         sessionId: "thread-1",
-        toolInput: "*** Begin Patch\n*** Update File: tickets/TASK-0099/ticket.md\n@@\n+status change\n*** End Patch\n",
+        toolInput:
+          "*** Begin Patch\n*** Update File: tickets/TASK-0099/ticket.md\n@@\n+status change\n*** End Patch\n",
       };
       const first = parseFarplaneFileEventCandidatesFromPayload(basePayload, 1_000, {
         fileEventStateDir: stateDir,
@@ -344,7 +361,9 @@ describe("file-change-listener", () => {
           path: "farplane/goals.md",
           entityKind: "goal",
           contentHash: "hash-1",
-          changedFields: [{ path: "heading:North Star", after: { hash: "hash-2", preview: "North Star" } }],
+          changedFields: [
+            { path: "heading:North Star", after: { hash: "hash-2", preview: "North Star" } },
+          ],
           sectionHints: ["North Star"],
           summary: "goal changed",
           eventAt: 1_000,
@@ -358,7 +377,13 @@ describe("file-change-listener", () => {
       },
     );
 
-    expect(result).toMatchObject({ attempted: 1, published: 1, queued: 0, replayed: 0, skipped: false });
+    expect(result).toMatchObject({
+      attempted: 1,
+      published: 1,
+      queued: 0,
+      replayed: 0,
+      skipped: false,
+    });
     const body = JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body));
     expect(body).toEqual(
       expect.objectContaining({
@@ -372,5 +397,136 @@ describe("file-change-listener", () => {
       }),
     );
     expect(JSON.stringify(body)).not.toContain("# Goals");
+  });
+
+  it("creates an idempotent ticket audit mining run for completed ticket events", async () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
+    const stateDir = path.join(repo, ".farplane", "file-events", "state-test");
+    try {
+      const ticketDir = path.join(repo, "tickets", "TASK-0099");
+      mkdirSync(ticketDir, { recursive: true });
+      const ticketPath = path.join(ticketDir, "ticket.md");
+      const payload = {
+        event: "PostToolUse",
+        toolName: "apply_patch",
+        cwd: repo,
+        sessionId: "thread-1",
+        toolInput:
+          "*** Begin Patch\n*** Update File: tickets/TASK-0099/ticket.md\n@@\n+status change\n*** End Patch\n",
+      };
+      writeFileSync(
+        ticketPath,
+        [
+          "---",
+          "ticket_id: TASK-0099",
+          "title: Audit proof",
+          "status: review",
+          "phase: proof",
+          "---",
+          "",
+          "# TASK-0099: Audit proof",
+          "",
+        ].join("\n"),
+      );
+      parseFarplaneFileEventCandidatesFromPayload(payload, 1_000, { fileEventStateDir: stateDir });
+      writeFileSync(
+        ticketPath,
+        [
+          "---",
+          "ticket_id: TASK-0099",
+          "title: Audit proof",
+          "status: done",
+          "phase: complete",
+          "next_action: done",
+          "---",
+          "",
+          "# TASK-0099: Audit proof",
+          "",
+        ].join("\n"),
+      );
+      const completed = parseFarplaneFileEventCandidatesFromPayload(payload, 2_000, {
+        fileEventStateDir: stateDir,
+      });
+
+      const first = await createTicketAuditRunsForCompletedEvents(completed);
+      const second = await createTicketAuditRunsForCompletedEvents(completed);
+
+      expect(first).toMatchObject({ attempted: 1, created: 1, failed: 0 });
+      expect(second).toMatchObject({ attempted: 1, created: 1, failed: 0 });
+      const runsIndexPath = path.join(repo, ".farplane", "mine", "runs", "index.json");
+      const runs = JSON.parse(readFileSync(runsIndexPath, "utf8"));
+      expect(runs).toHaveLength(1);
+      const runId = runs[0].runId;
+      const input = JSON.parse(
+        readFileSync(path.join(repo, ".farplane", "mine", "runs", runId, "input.json"), "utf8"),
+      );
+      const sources = JSON.parse(
+        readFileSync(path.join(repo, ".farplane", "mine", "runs", runId, "sources.json"), "utf8"),
+      );
+      expect(input).toEqual(
+        expect.objectContaining({
+          mode: "ticket_completion",
+          source: "hook",
+          sourceEventKey: completed[0]?.eventKey,
+        }),
+      );
+      expect(sources[0]).toEqual(
+        expect.objectContaining({
+          sourceKind: "ticket_packet",
+          ticketId: "TASK-0099",
+        }),
+      );
+      expect(
+        existsSync(path.join(repo, ".farplane", "mine", "runs", runId, "outputs", "index.json")),
+      ).toBe(true);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("publishes ticket audit creation telemetry", async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
+
+    const result = await publishTicketAuditRunEvents(
+      {
+        attempted: 1,
+        created: 1,
+        skipped: 0,
+        failed: 0,
+        events: [
+          {
+            eventName: "ticket.audit.created",
+            eventKey: "ticket-audit:v1:created:key",
+            projectId: "codex-proj-repo",
+            sessionId: "thread-1",
+            ticketId: "TASK-0099",
+            summary: "Created ticket completion audit for TASK-0099",
+            runId: "mine-test",
+            reviewRunPath: ".farplane/mine/runs/mine-test",
+            eventAt: 3_000,
+          },
+        ],
+      },
+      {
+        endpointBaseUrl: "http://127.0.0.1:3211/",
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        projectPath: "/repo",
+      },
+    );
+
+    expect(result).toMatchObject({ attempted: 1, published: 1, queued: 0, skipped: false });
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual(
+      expect.objectContaining({
+        hookName: "file-change-listener",
+        projectId: "codex-proj-repo",
+        payload: expect.objectContaining({
+          eventName: "ticket.audit.created",
+          ticketId: "TASK-0099",
+          runId: "mine-test",
+        }),
+      }),
+    );
   });
 });

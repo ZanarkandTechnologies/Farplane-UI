@@ -17,6 +17,11 @@ import {
 import { isDirectory, pathExists, readJsonFile, writeJsonFile } from "./mining-files";
 import { buildDryRunOutput, buildParentPrompt, buildReport } from "./mining-output";
 import {
+  buildTicketCompletionPacket,
+  type TicketCompletionPacket,
+} from "./mining-ticket-packet";
+import { renderTicketCompletionPacketMarkdown } from "./mining-ticket-packet-markdown";
+import {
   DEFAULT_MINING_PROGRAMS,
   normalizeProgram,
   normalizeRunIndexEntry,
@@ -146,6 +151,18 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
     );
   }
 
+  async function findRunBySourceEventKey(sourceEventKey: string): Promise<JsonObject | null> {
+    const current = await listRuns();
+    for (const entry of current) {
+      const input = await readJsonFile<JsonObject>(
+        path.join(deps.mineRoot, "runs", entry.runId, "input.json"),
+        {},
+      );
+      if (input.sourceEventKey === sourceEventKey) return readRun(entry.runId);
+    }
+    return null;
+  }
+
   async function writeRunIndex(entry: MiningRunIndexEntry): Promise<void> {
     const current = await listRuns();
     await writeJsonFile(
@@ -167,6 +184,7 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
     runId: string;
     runRoot: string;
     sources: MiningThreadSource[];
+    ticketPackets?: Map<string, TicketCompletionPacket>;
     preserveVerdicts?: Map<string, string>;
   }): Promise<{ outputs: JsonObject[]; privacyIssueCount: number }> {
     const outputs: JsonObject[] = [];
@@ -175,7 +193,13 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
       const outputId = safeMiningId(source.id, `source-${outputs.length + 1}`);
       assertSafeMiningFileId(outputId, "output");
       const outputRoot = path.join(input.runRoot, "outputs", outputId);
-      const output = await buildDryRunOutput({ outputId, program: input.program, runId: input.runId, source });
+      const output = await buildDryRunOutput({
+        outputId,
+        program: input.program,
+        runId: input.runId,
+        source,
+        ticketPacket: input.ticketPackets?.get(outputId),
+      });
       if (output.redaction.status !== "clean") privacyIssueCount += 1;
       const preservedVerdict = input.preserveVerdicts?.get(outputId);
       if (
@@ -188,6 +212,16 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
       await mkdir(outputRoot, { recursive: true });
       await writeFile(path.join(outputRoot, "output.md"), output.markdown, "utf-8");
       await writeJsonFile(path.join(outputRoot, "output.json"), output.json);
+      const scorecardJson =
+        output.json.scorecard && typeof output.json.scorecard === "object" && !Array.isArray(output.json.scorecard)
+          ? (output.json.scorecard as JsonObject)
+          : undefined;
+      const scorecardJsonPath = scorecardJson ? path.join(outputRoot, "scorecard.json") : undefined;
+      const scorecardMarkdownPath = output.scorecardMarkdown ? path.join(outputRoot, "scorecard.md") : undefined;
+      if (scorecardJsonPath && scorecardJson) await writeJsonFile(scorecardJsonPath, scorecardJson);
+      if (scorecardMarkdownPath && output.scorecardMarkdown) {
+        await writeFile(scorecardMarkdownPath, output.scorecardMarkdown, "utf-8");
+      }
       const decisionsJsonPath =
         input.program.id === "decision-v1" ? path.join(outputRoot, "decisions.json") : undefined;
       if (decisionsJsonPath) await writeJsonFile(decisionsJsonPath, output.json.decisions ?? []);
@@ -198,6 +232,8 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
         ...output.json,
         outputMarkdownPath: path.join(outputRoot, "output.md"),
         outputJsonPath: path.join(outputRoot, "output.json"),
+        scorecardJsonPath,
+        scorecardMarkdownPath,
         decisionsJsonPath,
         redactionMarkdownPath: path.join(outputRoot, "redaction.md"),
         telemetryJsonPath: path.join(outputRoot, "telemetry.json"),
@@ -222,6 +258,11 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
       body.source === "hook" || body.source === "manual" || body.source === "provider" || body.source === "automation"
         ? body.source
         : "backfill";
+    const sourceEventKey = typeof body.sourceEventKey === "string" ? body.sourceEventKey.trim() : "";
+    if (sourceEventKey) {
+      const existingRun = await findRunBySourceEventKey(sourceEventKey);
+      if (existingRun) return existingRun;
+    }
     const limit = Math.min(Math.max(Math.floor(Number(filters.limit ?? 20) || 20), 1), 200);
     const lastDays = Math.max(Math.floor(Number(filters.lastDays ?? 30) || 30), 0);
     const requestedIds = new Set(normalizeStringList(body.threadIds));
@@ -238,6 +279,21 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
     const runId = `mine-${Date.now().toString(36)}`;
     const runRoot = path.join(deps.mineRoot, "runs", runId);
     const miningSources = sources.map(threadSourceToMiningSource);
+    const projectPath = path.dirname(path.dirname(deps.mineRoot));
+    const ticketPackets = new Map<string, TicketCompletionPacket>();
+    if (miningMode === "ticket_completion" && program.id === "ticket-completion-audit-v1") {
+      for (const sourceRow of sources) {
+        const outputId = safeMiningId(sourceRow.id, `source-${ticketPackets.size + 1}`);
+        const packet = await buildTicketCompletionPacket({
+          projectPath,
+          runId,
+          source: sourceRow,
+          sourceEventKey: sourceEventKey || undefined,
+          now,
+        });
+        ticketPackets.set(outputId, packet);
+      }
+    }
     const runInput = {
       mode: miningMode,
       source,
@@ -245,7 +301,7 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
       threadIds: sources.map((row) => row.id),
       filters: { lastDays, limit },
       executorMode: mode,
-      sourceEventKey: typeof body.sourceEventKey === "string" ? body.sourceEventKey : undefined,
+      sourceEventKey: sourceEventKey || undefined,
       sources: miningSources,
     };
     const attempt = {
@@ -261,6 +317,7 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
       runId,
       runRoot,
       sources,
+      ticketPackets,
     });
     const completedAt = now().toISOString();
     const entry: MiningRunIndexEntry = {
@@ -291,6 +348,13 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
     });
     await writeJsonFile(path.join(runRoot, "input.json"), runInput);
     await writeJsonFile(path.join(runRoot, "sources.json"), miningSources);
+    if (ticketPackets.size === 1) {
+      const packet = [...ticketPackets.values()][0];
+      await writeJsonFile(path.join(runRoot, "packet.json"), packet);
+      await writeFile(path.join(runRoot, "packet.md"), renderTicketCompletionPacketMarkdown(packet), "utf-8");
+    } else if (ticketPackets.size > 1) {
+      await writeJsonFile(path.join(runRoot, "packets.json"), [...ticketPackets.values()]);
+    }
     await writeJsonFile(path.join(runRoot, "attempts.json"), [attempt]);
     await writeJsonFile(path.join(runRoot, "outputs", "index.json"), outputs);
     await writeFile(path.join(runRoot, "parent-prompt.md"), buildParentPrompt({ mode, program, runId, runRoot, sources }), "utf-8");
@@ -308,6 +372,8 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
     const inputJson = await readJsonFile<unknown>(path.join(runRoot, "input.json"), null);
     const sourcesJson = await readJsonFile<unknown[]>(path.join(runRoot, "sources.json"), []);
     const attempts = await readJsonFile<JsonObject[]>(path.join(runRoot, "attempts.json"), []);
+    const packetJson = await readJsonFile<unknown>(path.join(runRoot, "packet.json"), null);
+    const packetMarkdown = await readFile(path.join(runRoot, "packet.md"), "utf-8").catch(() => "");
     const sources = sourcesJson
       .map(normalizeStoredMiningSource)
       .filter((source): source is MiningThreadSource => Boolean(source));
@@ -321,6 +387,8 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
         ...output,
         outputMarkdown: await readFile(path.join(outputRoot, "output.md"), "utf-8").catch(() => ""),
         outputJson: await readJsonFile<unknown>(path.join(outputRoot, "output.json"), null),
+        outputScorecard: await readJsonFile<unknown>(path.join(outputRoot, "scorecard.json"), null),
+        scorecardMarkdown: await readFile(path.join(outputRoot, "scorecard.md"), "utf-8").catch(() => ""),
         outputDecisions: await readJsonFile<unknown>(path.join(outputRoot, "decisions.json"), null),
         redactionMarkdown: await readFile(path.join(outputRoot, "redaction.md"), "utf-8").catch(() => ""),
       });
@@ -370,6 +438,28 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
         path: path.join(runRoot, "outputs", "index.json"),
         content: JSON.stringify(outputIndex, null, 2),
       },
+      ...(packetJson
+        ? [
+            {
+              id: "packet",
+              label: "packet.json",
+              kind: "json",
+              path: path.join(runRoot, "packet.json"),
+              content: JSON.stringify(packetJson, null, 2),
+            },
+          ]
+        : []),
+      ...(packetMarkdown
+        ? [
+            {
+              id: "packet-md",
+              label: "packet.md",
+              kind: "markdown",
+              path: path.join(runRoot, "packet.md"),
+              content: packetMarkdown,
+            },
+          ]
+        : []),
       ...outputs.map((output) => ({
         id: `output-${String(output.id)}`,
         label: `outputs/${String(output.id)}/output.json`,
@@ -411,6 +501,22 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
     const sources = sourcesRaw
       .map(normalizeStoredMiningSource)
       .filter((source): source is MiningThreadSource => Boolean(source));
+    const projectPath = path.dirname(path.dirname(deps.mineRoot));
+    const ticketPackets = new Map<string, TicketCompletionPacket>();
+    if (run.miningMode === "ticket_completion" && program.id === "ticket-completion-audit-v1") {
+      const inputJson = await readJsonFile<JsonObject>(path.join(runRoot, "input.json"), {});
+      for (const sourceRow of sources) {
+        const outputId = safeMiningId(sourceRow.id, `source-${ticketPackets.size + 1}`);
+        const packet = await buildTicketCompletionPacket({
+          projectPath,
+          runId,
+          source: sourceRow,
+          sourceEventKey: typeof inputJson.sourceEventKey === "string" ? inputJson.sourceEventKey : undefined,
+          now,
+        });
+        ticketPackets.set(outputId, packet);
+      }
+    }
     const existingOutputs = await readJsonFile<JsonObject[]>(path.join(runRoot, "outputs", "index.json"), []);
     const preservedVerdicts = new Map(
       existingOutputs.map((output) => [
@@ -425,6 +531,7 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
       runId,
       runRoot,
       sources,
+      ticketPackets,
       preserveVerdicts: preservedVerdicts,
     });
     const completedAt = now().toISOString();
@@ -451,6 +558,11 @@ export function createMiningLocalApi(deps: MiningLocalApiDeps): MiningLocalApi {
       completedAt,
     };
     await writeJsonFile(attemptsPath, [...attempts, nextAttempt]);
+    if (ticketPackets.size === 1) {
+      const packet = [...ticketPackets.values()][0];
+      await writeJsonFile(path.join(runRoot, "packet.json"), packet);
+      await writeFile(path.join(runRoot, "packet.md"), renderTicketCompletionPacketMarkdown(packet), "utf-8");
+    }
     await writeJsonFile(path.join(runRoot, "outputs", "index.json"), outputs);
     await writeJsonFile(runPath, {
       ...runRaw,

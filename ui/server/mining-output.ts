@@ -1,5 +1,6 @@
 import { messageWindowPathForSource, type JsonObject, type MiningThreadSource } from "./mining-sources";
 import { pathExists, readJsonFile } from "./mining-files";
+import type { TicketCompletionPacket, TicketCompletionMetric } from "./mining-ticket-packet";
 import type { MiningProgram, MiningRunIndexEntry } from "./mining-types";
 
 type EvidenceSpan = {
@@ -238,16 +239,229 @@ function buildRedactionReport(input: {
   };
 }
 
+function metricValue(packet: TicketCompletionPacket, id: string): TicketCompletionMetric | undefined {
+  return packet.metrics.find((row) => row.id === id);
+}
+
+function scoreFromSignals(signals: boolean[]): number {
+  if (!signals.length) return 0;
+  return Math.round((signals.filter(Boolean).length / signals.length) * 100);
+}
+
+function buildTicketScorecard(input: {
+  packet: TicketCompletionPacket;
+  program: MiningProgram;
+  runId: string;
+  outputId: string;
+}): { json: JsonObject; markdown: string; telemetryEvents: JsonObject[] } {
+  const ticketFile = input.packet.files.find((file) => file.path.endsWith("ticket.md"));
+  const programFile = input.packet.files.find((file) => file.path.endsWith("program.md"));
+  const progressFile = input.packet.files.find((file) => file.path.endsWith("progress.md"));
+  const proofCount = Number(metricValue(input.packet, "proof_artifact_count")?.value ?? 0);
+  const decisionCount = Number(metricValue(input.packet, "decision_event_count")?.value ?? 0);
+  const transcriptRows = Number(metricValue(input.packet, "transcript_window_rows")?.value ?? 0);
+  const scorecard = {
+    schemaVersion: 1,
+    ticketId: input.packet.ticketId,
+    sessionId: input.packet.sessionId,
+    runId: input.runId,
+    overallScore: scoreFromSignals([
+      Boolean(ticketFile?.exists),
+      Boolean(progressFile?.exists),
+      proofCount > 0,
+      transcriptRows > 0,
+      input.packet.metrics.some((metric) => metric.id === "time_to_complete" && metric.status === "known"),
+    ]),
+    scopeFollowed: ticketFile?.exists
+      ? "Ticket contract was available for evaluation."
+      : "Ticket contract was missing from the packet.",
+    proofQuality:
+      proofCount > 0
+        ? `Found ${proofCount} proof artifact${proofCount === 1 ? "" : "s"} linked to the ticket folder.`
+        : "No ticket proof artifacts were found; proof quality needs reviewer attention.",
+    skippedSteps: [
+      ...(programFile?.exists ? [] : ["program.md missing"]),
+      ...(progressFile?.exists ? [] : ["progress.md missing"]),
+      ...(proofCount > 0 ? [] : ["proof artifacts missing"]),
+      ...(transcriptRows > 0 ? [] : ["bounded transcript unavailable"]),
+    ],
+    rubricScores: {
+      scopeFollowing: ticketFile?.exists ? 4 : 2,
+      programAdherence: programFile?.exists ? 4 : 2,
+      proofQuality: proofCount > 0 ? 4 : 2,
+      missedSteps: programFile?.exists && progressFile?.exists && proofCount > 0 ? 4 : 2,
+      correctionHandling: transcriptRows > 0 ? 3 : 1,
+      efficiencyQuality: metricValue(input.packet, "time_to_complete")?.status === "known" ? 3 : 1,
+      decisionQuality: decisionCount > 0 ? 4 : 2,
+      regressionRisk: proofCount > 0 ? 2 : 4,
+    },
+    deterministicMetrics: input.packet.metrics,
+    decisionAssessment:
+      decisionCount > 0
+        ? `Found ${decisionCount} mined decision event${decisionCount === 1 ? "" : "s"} for this ticket.`
+        : "No mined ticket decisions were found in local event-miner reports.",
+    userCorrectionHandling:
+      transcriptRows > 0
+        ? "Bounded transcript context is available for reviewer inspection."
+        : "No bounded transcript context was available; correction handling is unknown.",
+    nextImprovements: [
+      ...(proofCount > 0 ? [] : ["Attach or generate proof artifacts before closing the ticket."]),
+      ...(programFile?.exists ? [] : ["Create a Goal program for material ticket runs."]),
+      ...(transcriptRows > 0 ? [] : ["Ensure session/message-window context is captured for future audits."]),
+      ...(input.packet.metrics.some((metric) => metric.id === "token_usage" && metric.status === "unknown")
+        ? ["Add reliable Codex token usage metadata before scoring token efficiency."]
+        : []),
+    ],
+    evidenceRefs: [
+      ...input.packet.files.filter((file) => file.exists).map((file) => file.path),
+      ...input.packet.artifacts.map((artifact) => artifact.path),
+      ...input.packet.decisions.map((decision) => decision.reviewRunPath).filter(Boolean),
+    ],
+    packetWarnings: input.packet.warnings,
+  };
+  const telemetryEvents = [
+    {
+      schemaVersion: 1,
+      eventName: "ticket.audit.scored",
+      eventAt: new Date().toISOString(),
+      eventKey: `ticket-audit:v1:scored:${input.runId}:${input.outputId}`,
+      source: "ticket_completion_audit",
+      sourceProgram: input.program.id,
+      status: "observed",
+      severity: scorecard.overallScore >= 70 ? "low" : "medium",
+      ticketId: input.packet.ticketId,
+      sessionId: input.packet.sessionId,
+      threadId: input.packet.threadId,
+      summary: `Ticket audit scored ${input.packet.ticketId ?? input.outputId} at ${scorecard.overallScore}/100.`,
+      reviewRunPath: `.farplane/mine/runs/${input.runId}/outputs/${input.outputId}/scorecard.json`,
+    },
+  ];
+  const markdown = [
+    `# Ticket Audit Scorecard: ${input.packet.ticketId ?? input.outputId}`,
+    "",
+    `Overall score: ${scorecard.overallScore}/100`,
+    "",
+    "## Summary",
+    `- Scope: ${scorecard.scopeFollowed}`,
+    `- Proof: ${scorecard.proofQuality}`,
+    `- Decisions: ${scorecard.decisionAssessment}`,
+    `- Correction handling: ${scorecard.userCorrectionHandling}`,
+    "",
+    "## Skipped Steps",
+    ...(scorecard.skippedSteps.length ? scorecard.skippedSteps.map((step) => `- ${step}`) : ["- none detected"]),
+    "",
+    "## Metrics",
+    ...input.packet.metrics.map((row) =>
+      `- ${row.label}: ${row.status === "known" ? `${row.value} ${row.unit ?? ""}`.trim() : `unknown (${row.reason})`}`,
+    ),
+    "",
+    "## Next Improvements",
+    ...(scorecard.nextImprovements.length
+      ? scorecard.nextImprovements.map((item) => `- ${item}`)
+      : ["- no immediate improvement candidate"]),
+    "",
+  ].join("\n");
+  return { json: scorecard, markdown, telemetryEvents };
+}
+
+async function buildTicketCompletionOutput(input: {
+  outputId: string;
+  program: MiningProgram;
+  runId: string;
+  source: MiningThreadSource;
+  ticketPacket: TicketCompletionPacket;
+}): Promise<{
+  json: JsonObject;
+  markdown: string;
+  redaction: { flags: string[]; markdown: string; status: "clean" | "needs_review" };
+  scorecardMarkdown: string;
+}> {
+  const scorecard = buildTicketScorecard({
+    outputId: input.outputId,
+    packet: input.ticketPacket,
+    program: input.program,
+    runId: input.runId,
+  });
+  const evidenceSpans = input.ticketPacket.transcript.boundedWindow.map((row, index) => ({
+    id: `transcript-${index + 1}`,
+    sourcePath: row.sourcePath,
+    jsonPointer: row.jsonPointer,
+    role: row.role,
+    capturedAt: row.capturedAt,
+    text: row.text,
+  }));
+  const redaction = buildRedactionReport({
+    source: input.source,
+    spans: evidenceSpans.length
+      ? evidenceSpans
+      : [
+          {
+            id: "packet-1",
+            sourcePath: "packet.json",
+            jsonPointer: "/source/preview",
+            role: "summary",
+            text: input.ticketPacket.source.preview,
+          },
+        ],
+  });
+  const json: JsonObject = {
+    runId: input.runId,
+    programId: input.program.id,
+    programVersion: input.program.version,
+    mode: "dry-run",
+    sessionId: input.ticketPacket.sessionId ?? input.source.sessionId ?? input.source.id,
+    threadId: input.ticketPacket.threadId ?? input.source.id,
+    ticketId: input.ticketPacket.ticketId,
+    sourceTitle: input.source.name,
+    status: "complete",
+    verdict: "unreviewed",
+    redactionStatus: redaction.status,
+    summary: `Ticket completion audit for ${input.ticketPacket.ticketId ?? input.source.name}.`,
+    scorecard: scorecard.json,
+    evidenceSpans,
+    telemetryEvents: scorecard.telemetryEvents,
+  };
+  const markdown = [
+    `# ${input.source.name}`,
+    "",
+    `Program: ${input.program.id} v${input.program.version}`,
+    `Run: ${input.runId}`,
+    `Ticket: ${input.ticketPacket.ticketId ?? "unknown"}`,
+    "Mode: ticket-completion-audit",
+    "Verdict: unreviewed",
+    `Redaction: ${redaction.status}`,
+    "",
+    "## Scorecard",
+    scorecard.markdown,
+    "",
+    "## Packet",
+    "- See run-level `packet.json` and `packet.md`.",
+    "",
+  ].join("\n");
+  return { json, markdown, redaction, scorecardMarkdown: scorecard.markdown };
+}
+
 export async function buildDryRunOutput(input: {
   outputId: string;
   program: MiningProgram;
   runId: string;
   source: MiningThreadSource;
+  ticketPacket?: TicketCompletionPacket;
 }): Promise<{
   json: JsonObject;
   markdown: string;
   redaction: { flags: string[]; markdown: string; status: "clean" | "needs_review" };
+  scorecardMarkdown?: string;
 }> {
+  if (input.program.id === "ticket-completion-audit-v1" && input.ticketPacket) {
+    return buildTicketCompletionOutput({
+      outputId: input.outputId,
+      program: input.program,
+      runId: input.runId,
+      source: input.source,
+      ticketPacket: input.ticketPacket,
+    });
+  }
   const spans = await readEvidenceSpans(input.source);
   const redaction = buildRedactionReport({ source: input.source, spans });
   const userSignals = spans.filter((span) => span.role === "user").slice(0, 3);

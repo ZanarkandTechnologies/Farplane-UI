@@ -44,6 +44,17 @@ export function defaultTrackedPathPatterns(): string[] {
   return [...DEFAULT_TRACKED_PATH_PATTERNS];
 }
 
+export function codexProjectIdFromPath(projectPath: string): string {
+  const slug =
+    path
+      .resolve(projectPath)
+      .replace(/\/+$/, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "codex";
+  return `codex-proj-${slug}`;
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)

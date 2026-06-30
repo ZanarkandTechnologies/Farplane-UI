@@ -2,9 +2,19 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { readFarplaneManifestTracked, resolveProjectHookConfig } from "./project-hook-config";
+import {
+  codexProjectIdFromPath,
+  readFarplaneManifestTracked,
+  resolveProjectHookConfig,
+} from "./project-hook-config";
 
 describe("project-hook-config", () => {
+  it("derives stable Codex project ids from paths", () => {
+    expect(codexProjectIdFromPath("/Users/Kenji/Farplane UI")).toBe(
+      "codex-proj-users-kenji-farplane-ui",
+    );
+  });
+
   it("reads tracked files from the Farplane manifest", () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-hook-config-"));
     try {

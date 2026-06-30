@@ -92,13 +92,14 @@ export const DEFAULT_MINING_PROGRAMS: MiningProgram[] = [
   {
     id: "ticket-completion-audit-v1",
     name: "Ticket completion audit",
-    version: "0.1.0",
-    objective: "Score completed ticket execution from a ticket-completion source packet.",
+    version: "0.2.0",
+    objective:
+      "Score completed ticket execution from a structured ticket-completion packet with deterministic metrics, ticket-folder context, decisions, and bounded transcript refs.",
     outputMode: "markdown-json",
     prompt:
-      "Read the ticket-completion source packet and return a compact scorecard with followed scope, skipped steps, proof quality, and next improvements.",
+      "Read packet.json and score the completed ticket without inventing unavailable metrics. Use deterministic metrics as provided, inspect ticket folder context, mined decisions, proof artifacts, and bounded transcript context, then return scorecard.json/scorecard.md fields for scope following, program adherence, proof quality, missed steps, correction handling, efficiency, decision quality, regression risk, and next improvements. Token usage and turns must remain unknown unless reliable source data is present.",
     createdAt: "2026-06-29T00:00:00.000Z",
-    updatedAt: "2026-06-29T00:00:00.000Z",
+    updatedAt: "2026-06-30T00:00:00.000Z",
   },
 ];
 
