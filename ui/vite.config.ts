@@ -576,9 +576,13 @@ function convexClientUrlFromSiteUrl(value: string): string {
 function resolveViteConvexUrl(): string {
   const savedViteConvexUrl = localConfigEnvString("VITE_CONVEX_URL");
   if (savedViteConvexUrl) return normalizeConvexClientUrl(savedViteConvexUrl);
-  const savedClientUrl = localConfigString(["convex", "clientUrl"]);
+  const savedClientUrl =
+    localConfigString(["convex", "client_url"]) ||
+    localConfigString(["convex", "clientUrl"]);
   if (savedClientUrl) return normalizeConvexClientUrl(savedClientUrl);
-  const savedSiteUrl = localConfigString(["convex", "siteUrl"]);
+  const savedSiteUrl =
+    localConfigString(["convex", "site_url"]) ||
+    localConfigString(["convex", "siteUrl"]);
   const savedSiteClientUrl = convexClientUrlFromSiteUrl(savedSiteUrl);
   if (savedSiteClientUrl) return savedSiteClientUrl;
   const clientUrl = firstEnvValue(["VITE_CONVEX_URL", "CONVEX_URL"]);
