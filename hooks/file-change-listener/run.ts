@@ -50,6 +50,7 @@ async function main(): Promise<void> {
   const parseOptions = {
     trackedPathPatterns: hookConfig.patterns,
     codexSummary: resolveCodexSummaryOptions(process.env),
+    summaryDebounceMs: hookConfig.summaryDebounceMs,
   };
   const fileEventCandidates = parseFarplaneFileEventCandidatesFromStdin(
     stdin,

@@ -15,8 +15,13 @@ import {
   resolveCodexSummaryOptions,
   summarizeTrackedFileChangeWithCodex,
 } from "../shared/codex-summary";
+import { DEFAULT_FILE_CHANGE_SUMMARY_DEBOUNCE_MS } from "../shared/file-change-summary-settings";
 import { codexProjectIdFromPath, defaultTrackedPathPatterns } from "../shared/project-hook-config";
 import { publishHookTelemetryWithOutbox } from "../shared/telemetry-outbox";
+import {
+  contentDebounceHash,
+  waitForSettledFileChangeSummary,
+} from "./file-change-summary-debounce";
 import { type FarplaneFileEvent, parseFarplaneFileEvent } from "./file-event-registry";
 import { readFileEventSnapshot, writeFileEventSnapshot } from "./file-event-snapshot-store";
 
@@ -65,6 +70,8 @@ export type TicketAuditRunResult = {
 export type FileChangeParseOptions = {
   trackedPathPatterns?: readonly string[];
   codexSummary?: CodexSummaryOptions;
+  summaryDebounceMs?: number;
+  summaryDebounceStateDir?: string;
   fileEventStateDir?: string;
   updateFileEventState?: boolean;
 };
@@ -88,7 +95,8 @@ function numberValue(value: unknown): number | undefined {
 
 function eventAtMs(value: unknown, fallback = Date.now()): number {
   const numeric = numberValue(value);
-  if (numeric !== undefined) return numeric < 10_000_000_000 ? Math.floor(numeric * 1000) : Math.floor(numeric);
+  if (numeric !== undefined)
+    return numeric < 10_000_000_000 ? Math.floor(numeric * 1000) : Math.floor(numeric);
   const parsed = Date.parse(cleanString(value, 120) ?? "");
   return Number.isFinite(parsed) ? parsed : fallback;
 }
@@ -384,14 +392,28 @@ export async function parseFileChangeBubbleCandidatesFromPayload(
   const paths = parseFileChangeCandidatePathsFromPayload(payload, now, options);
   const record = isRecord(payload) ? payload : {};
   const codexSummary = options.codexSummary ?? resolveCodexSummaryOptions();
+  const summaryDebounceMs =
+    typeof options.summaryDebounceMs === "number" && Number.isFinite(options.summaryDebounceMs)
+      ? options.summaryDebounceMs
+      : DEFAULT_FILE_CHANGE_SUMMARY_DEBOUNCE_MS;
   const candidates: FileChangeBubbleCandidate[] = [];
 
   for (const candidate of paths) {
+    const contentSnippet = fileContentSnippet(candidate.projectPath, candidate.filePath);
+    const settled = await waitForSettledFileChangeSummary({
+      projectPath: candidate.projectPath,
+      filePath: candidate.filePath,
+      now,
+      debounceMs: summaryDebounceMs,
+      stateDir: options.summaryDebounceStateDir,
+      contentHash: contentDebounceHash(contentSnippet),
+    });
+    if (!settled) continue;
     const message = await summarizeTrackedFileChangeWithCodex(
       {
         projectPath: candidate.projectPath,
         filePath: candidate.filePath,
-        fileContentSnippet: fileContentSnippet(candidate.projectPath, candidate.filePath),
+        fileContentSnippet: contentSnippet,
         toolPayloadSnippet: payloadSnippet(record),
       },
       codexSummary,
@@ -590,7 +612,9 @@ export async function createTicketAuditRunsForCompletedEvents(
       for (const output of outputs) {
         const outputId = cleanString(output.id, 160);
         const outputJson = isRecord(output.outputJson) ? output.outputJson : {};
-        const telemetryEvents = Array.isArray(outputJson.telemetryEvents) ? outputJson.telemetryEvents.filter(isRecord) : [];
+        const telemetryEvents = Array.isArray(outputJson.telemetryEvents)
+          ? outputJson.telemetryEvents.filter(isRecord)
+          : [];
         for (const telemetry of telemetryEvents) {
           const eventName = cleanString(telemetry.eventName, 120);
           if (eventName !== "ticket.audit.scored") continue;
@@ -607,13 +631,16 @@ export async function createTicketAuditRunsForCompletedEvents(
               cleanString(telemetry.summary, 240) ??
               `Ticket audit scored ${ticketId}${runId ? ` in ${runId}` : ""}.`,
             source: cleanString(telemetry.source, 120) ?? "ticket_completion_audit",
-            sourceProgram: cleanString(telemetry.sourceProgram, 120) ?? "ticket-completion-audit-v1",
+            sourceProgram:
+              cleanString(telemetry.sourceProgram, 120) ?? "ticket-completion-audit-v1",
             status: cleanString(telemetry.status, 80) ?? "observed",
             severity: cleanString(telemetry.severity, 80) as "low" | "medium" | "high" | undefined,
             runId: cleanString(telemetry.runId, 160) ?? runId,
             reviewRunPath:
               cleanString(telemetry.reviewRunPath, 240) ??
-              (runId && outputId ? `.farplane/mine/runs/${runId}/outputs/${outputId}/scorecard.json` : undefined),
+              (runId && outputId
+                ? `.farplane/mine/runs/${runId}/outputs/${outputId}/scorecard.json`
+                : undefined),
             eventAt: eventAtMs(telemetry.eventAt),
           });
         }

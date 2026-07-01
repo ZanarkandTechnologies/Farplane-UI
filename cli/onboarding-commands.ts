@@ -6,7 +6,7 @@
  *
  * KEY CONCEPTS:
  * - Required sidecars live in `~/.openclaw`.
- * - UI-safe env vars live in `ui/.env.local` even when backend env lives at repo root.
+ * - UI-safe env vars live in `ui/.env.local`; local secrets live in Farplane config.
  * - Onboarding is idempotent and bootstraps the first-party Notion comment bridge.
  *
  * USAGE:
@@ -47,6 +47,7 @@ import {
   cliYellow,
 } from "./cli-utils.js";
 import { findInvalidOfficeObjects } from "./office-commands.js";
+import { readFarplaneConfigFileObject } from "./runtime-config.js";
 import {
   type CompanyModel,
   createSidecarStore,
@@ -185,6 +186,11 @@ async function readJsonTemplate<T>(filePath: string): Promise<T> {
 
 function asObject(value: unknown): JsonObject {
   return value && typeof value === "object" ? (value as JsonObject) : {};
+}
+
+function stringConfigValue(filePath: string, pathParts: string[]): string {
+  const value = readFarplaneConfigFileObject(filePath, pathParts);
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function asArray(value: unknown): unknown[] {
@@ -442,7 +448,7 @@ function generateHookToken(): string {
 
 function ensureNotionCommentBridgeDefaults(
   config: JsonObject,
-  rootEnv: Record<string, string>,
+  farplaneConfigPath: string,
 ): JsonObject {
   const repoRoot = resolveRepoRoot();
   const plugins = asObject(config.plugins);
@@ -498,7 +504,7 @@ function ensureNotionCommentBridgeDefaults(
   const notionApiKey =
     (typeof defaultAccount.apiKey === "string" && defaultAccount.apiKey.trim()) ||
     process.env.NOTION_API_KEY?.trim() ||
-    rootEnv.NOTION_API_KEY?.trim() ||
+    stringConfigValue(farplaneConfigPath, ["integrations", "notion_api_key"]) ||
     undefined;
 
   return {
@@ -780,6 +786,7 @@ export function registerOnboardingCommands(program: Command): void {
       const exampleEnvPath = path.join(uiRoot, ".env.example");
       const rootEnvPath = path.join(repoRoot, ".env.local");
       const pendingApprovalsPath = path.join(store.companyPath, "..", "pending-approvals.json");
+      const farplaneConfigPath = path.join(path.dirname(store.companyPath), "config.toml");
       const rootEnv = await readDotEnvFile(rootEnvPath);
       const existingOpenclaw = await store.readOpenclawConfig();
       const existingShellcorpConfig = await store.readShellcorpConfig();
@@ -901,7 +908,7 @@ export function registerOnboardingCommands(program: Command): void {
           opts,
         }),
       );
-      nextOpenclaw = ensureNotionCommentBridgeDefaults(nextOpenclaw, rootEnv);
+      nextOpenclaw = ensureNotionCommentBridgeDefaults(nextOpenclaw, farplaneConfigPath);
       const openclawBefore = openclawBeforeRaw;
       const openclawAfter = JSON.stringify(nextOpenclaw);
       const farplaneConfigAfter = JSON.stringify(nextShellcorpConfig);

@@ -12,6 +12,7 @@ async function setupRepoFixture(
 ): Promise<{ repoRoot: string; stateDir: string }> {
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), "farplane-onboarding-repo-"));
   const stateDir = path.join(repoRoot, "state");
+  await mkdir(stateDir, { recursive: true });
   await mkdir(path.join(repoRoot, "templates", "openclaw"), { recursive: true });
   await mkdir(path.join(repoRoot, "templates", "sidecar"), { recursive: true });
   await mkdir(path.join(repoRoot, "ui"), { recursive: true });
@@ -155,7 +156,12 @@ async function setupRepoFixture(
   );
   await writeFile(
     path.join(repoRoot, ".env.local"),
-    `${["CONVEX_URL=https://demo.convex.cloud", "NOTION_API_KEY=secret_test"].join("\n")}\n`,
+    "CONVEX_URL=https://demo.convex.cloud\n",
+    "utf-8",
+  );
+  await writeFile(
+    path.join(stateDir, "config.toml"),
+    `${["[integrations]", 'notion_api_key = "secret_test"'].join("\n")}\n`,
     "utf-8",
   );
   if (input.withPackageJson === true) {
@@ -218,6 +224,7 @@ afterEach(() => {
   setCliInstallExecFileRunnerForTests(null);
   delete process.env.OPENCLAW_STATE_DIR;
   delete process.env.FARPLANE_REPO_ROOT;
+  delete process.env.NOTION_API_KEY;
   process.exitCode = undefined;
 });
 
@@ -480,7 +487,12 @@ describe("onboarding CLI", () => {
     process.env.FARPLANE_REPO_ROOT = repoRoot;
     await seedOpenclawMainAgent(stateDir);
 
-    await writeFile(path.join(repoRoot, ".env.local"), "NOTION_API_KEY=secret_test\n", "utf-8");
+    await writeFile(path.join(repoRoot, ".env.local"), "", "utf-8");
+    await writeFile(
+      path.join(stateDir, "config.toml"),
+      `${["[integrations]", 'notion_api_key = "secret_test"'].join("\n")}\n`,
+      "utf-8",
+    );
     await writeFile(
       path.join(stateDir, "openclaw.json"),
       `${JSON.stringify(
@@ -678,7 +690,12 @@ describe("onboarding CLI", () => {
     process.env.OPENCLAW_STATE_DIR = stateDir;
     process.env.FARPLANE_REPO_ROOT = repoRoot;
     await mkdir(stateDir, { recursive: true });
-    await writeFile(path.join(repoRoot, ".env.local"), "NOTION_API_KEY=secret_test\n", "utf-8");
+    await writeFile(path.join(repoRoot, ".env.local"), "", "utf-8");
+    await writeFile(
+      path.join(stateDir, "config.toml"),
+      `${["[integrations]", 'notion_api_key = "secret_test"'].join("\n")}\n`,
+      "utf-8",
+    );
 
     await writeFile(
       path.join(stateDir, "openclaw.json"),

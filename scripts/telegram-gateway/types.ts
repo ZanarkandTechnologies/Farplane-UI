@@ -1,8 +1,8 @@
 /**
  * Shared contracts for the local Telegram gateway.
  *
- * Inputs: Telegram Bot API updates, Codex exec JSONL payloads, and local gateway
- * config/state JSON.
+ * Inputs: Telegram Bot API updates, Codex exec JSONL payloads, TOML runtime
+ * config, and local gateway state JSON.
  * Outputs: typed routing decisions, state records, and delivery results.
  * Side effects: none.
  */

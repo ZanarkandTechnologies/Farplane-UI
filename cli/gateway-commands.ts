@@ -5,7 +5,7 @@
  *
  * KEY CONCEPTS:
  * - CLI owns the operator entrypoint; adapter implementations can remain repo scripts.
- * - Telegram config is read from ~/.farplane/config.json by default.
+ * - Telegram config is read from ~/.farplane/config.toml by default.
  */
 
 import { spawn } from "node:child_process";
@@ -161,7 +161,11 @@ async function ensureTelegramDaemonFiles(paths: TelegramDaemonPaths): Promise<vo
   await writeFile(paths.plistPath, buildTelegramDaemonPlist(paths), "utf8");
 }
 
-async function runCommand(command: string, args: string[], opts: { allowFailure?: boolean } = {}): Promise<void> {
+async function runCommand(
+  command: string,
+  args: string[],
+  opts: { allowFailure?: boolean } = {},
+): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, { stdio: "inherit", env: process.env });
     child.on("error", (error) => {
@@ -183,7 +187,9 @@ async function runCommand(command: string, args: string[], opts: { allowFailure?
   });
 }
 
-async function runTelegramDaemonAction(action: "install" | "start" | "restart" | "stop" | "status" | "logs"): Promise<void> {
+async function runTelegramDaemonAction(
+  action: "install" | "start" | "restart" | "stop" | "status" | "logs",
+): Promise<void> {
   if (process.platform !== "darwin") {
     throw new Error("telegram_daemon_requires_macos_launchd");
   }
@@ -230,11 +236,15 @@ async function runTelegramDaemonAction(action: "install" | "start" | "restart" |
     allowFailure: action === "start",
   });
   await runCommand("launchctl", ["kickstart", "-k", service]);
-  console.log(cliBlue(`Telegram gateway daemon ${action === "restart" ? "restarted" : "started"}.`));
+  console.log(
+    cliBlue(`Telegram gateway daemon ${action === "restart" ? "restarted" : "started"}.`),
+  );
   console.log(cliDim(`Status: npm run shell -- gateway telegram daemon status`));
 }
 
-export async function startTelegramGateway(options: StartTelegramGatewayOptions = {}): Promise<void> {
+export async function startTelegramGateway(
+  options: StartTelegramGatewayOptions = {},
+): Promise<void> {
   const cwd = options.cwd ?? resolveRepoRoot();
   const args = ["scripts/telegram-gateway.ts"];
   if (options.send) {
@@ -290,7 +300,7 @@ export function registerGatewayCommands(program: Command): void {
     .option("--check-config", "Check config without polling Telegram", false)
     .action(async (opts: { once?: boolean; dryRun?: boolean; checkConfig?: boolean }) => {
       console.log(cliSection("Telegram Gateway"));
-      console.log(cliDim("Config: ~/.farplane/config.json"));
+      console.log(cliDim("Config: ~/.farplane/config.toml"));
       console.log(cliBlue("Stop a long-running gateway with Ctrl+C."));
       console.log("");
       await startTelegramGateway({
@@ -310,12 +320,18 @@ export function registerGatewayCommands(program: Command): void {
     .option("--document <path>", "Path to a local file to send as a Telegram document")
     .option("--artifact <path>", "Alias for --document")
     .option("--title <title>", "Short local mapping title")
-    .option("--parse-mode <mode>", "Telegram parse mode: none, Markdown, MarkdownV2, or HTML", "none")
+    .option(
+      "--parse-mode <mode>",
+      "Telegram parse mode: none, Markdown, MarkdownV2, or HTML",
+      "none",
+    )
     .action(async (opts: NonNullable<StartTelegramGatewayOptions["send"]>) => {
       await startTelegramGateway({ send: opts });
     });
 
-  const daemon = telegram.command("daemon").description("Manage the macOS launchd Telegram gateway daemon");
+  const daemon = telegram
+    .command("daemon")
+    .description("Manage the macOS launchd Telegram gateway daemon");
 
   daemon
     .command("install")

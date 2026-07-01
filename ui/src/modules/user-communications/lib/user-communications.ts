@@ -1,18 +1,17 @@
 /**
  * User communications config helpers.
  *
- * Inputs: local browser settings for the Telegram gateway.
- * Outputs: normalized main-thread configuration and shell env snippets.
- * Side effects: none; browser callers own localStorage reads/writes.
+ * Inputs: Farplane runtime config payloads for the Telegram gateway.
+ * Outputs: normalized main-thread configuration, TOML preview, and shell snippets.
+ * Side effects: none; browser callers own bridge reads/writes.
  */
-
-export const USER_COMMUNICATIONS_CONFIG_STORAGE_KEY = "farplane:user-communications:telegram";
 
 export type UserCommunicationsConfig = {
   mainThreadId: string;
   stateBase: string;
   codexAppServerUrl: string;
   botToken: string;
+  botTokenConfigured: boolean;
   allowFrom: string;
 };
 
@@ -67,18 +66,14 @@ export type UserCommunicationActivityRow = {
   threadId?: string;
 };
 
-function normalizeHistoryRoute(
-  value: unknown,
-): TelegramGatewayHistoryEntry["route"] {
+function normalizeHistoryRoute(value: unknown): TelegramGatewayHistoryEntry["route"] {
   if (value === "source_thread" || value === "coordinator" || value === "unknown_reply") {
     return value;
   }
   return undefined;
 }
 
-function normalizeHistoryStatus(
-  value: unknown,
-): TelegramGatewayHistoryEntry["status"] {
+function normalizeHistoryStatus(value: unknown): TelegramGatewayHistoryEntry["status"] {
   if (value === "queued" || value === "failed" || value === "delivered") {
     return value;
   }
@@ -90,6 +85,7 @@ export const DEFAULT_USER_COMMUNICATIONS_CONFIG: UserCommunicationsConfig = {
   stateBase: "http://127.0.0.1:5173",
   codexAppServerUrl: "ws://127.0.0.1:47891",
   botToken: "",
+  botTokenConfigured: false,
   allowFrom: "",
 };
 
@@ -99,59 +95,48 @@ export function normalizeUserCommunicationsConfig(
   return {
     mainThreadId: input?.mainThreadId?.trim() ?? "",
     stateBase: input?.stateBase?.trim() || DEFAULT_USER_COMMUNICATIONS_CONFIG.stateBase,
-    codexAppServerUrl: input?.codexAppServerUrl?.trim() || DEFAULT_USER_COMMUNICATIONS_CONFIG.codexAppServerUrl,
+    codexAppServerUrl:
+      input?.codexAppServerUrl?.trim() || DEFAULT_USER_COMMUNICATIONS_CONFIG.codexAppServerUrl,
     botToken: input?.botToken?.trim() ?? "",
+    botTokenConfigured: input?.botTokenConfigured === true || Boolean(input?.botToken?.trim()),
     allowFrom: input?.allowFrom?.trim() ?? "",
   };
 }
 
-export function parseUserCommunicationsConfig(raw: string | null): UserCommunicationsConfig {
-  if (!raw) return DEFAULT_USER_COMMUNICATIONS_CONFIG;
-  try {
-    const parsed = JSON.parse(raw) as Partial<UserCommunicationsConfig>;
-    return normalizeUserCommunicationsConfig(parsed);
-  } catch {
-    return DEFAULT_USER_COMMUNICATIONS_CONFIG;
-  }
-}
-
-export function serializeUserCommunicationsConfig(config: UserCommunicationsConfig): string {
-  return JSON.stringify(normalizeUserCommunicationsConfig(config));
-}
-
 export function buildTelegramGatewayEnv(_config: UserCommunicationsConfig): string {
-  const lines = [
-    "npm run cli -- gateway telegram --once",
-  ];
+  const lines = ["npm run cli -- gateway telegram --once"];
   return lines.filter((line): line is string => Boolean(line)).join("\n");
 }
 
-export function buildTelegramGatewayConfigJson(config: UserCommunicationsConfig): string {
+function tomlString(value: string): string {
+  return JSON.stringify(value);
+}
+
+export function buildTelegramGatewayConfigToml(config: UserCommunicationsConfig): string {
   const normalized = normalizeUserCommunicationsConfig(config);
   const allowFrom = normalized.allowFrom
     .split(",")
     .map((entry) => entry.trim())
     .filter(Boolean);
-  return `${JSON.stringify(
-    {
-      version: 1,
-      runtime: {
-        aiOfficeUrl: normalized.stateBase,
-        codexAppServerUrl: normalized.codexAppServerUrl,
-      },
-      telegram: {
-        enabled: true,
-        dmPolicy: "allowlist",
-        botToken: normalized.botToken,
-        allowFrom,
-        mainThreadId: normalized.mainThreadId,
-        groupPolicy: "allowlist",
-        streaming: { mode: "off" },
-      },
-    },
-    null,
-    2,
-  )}\n`;
+  const lines = [
+    "[runtime]",
+    `ai_office_url = ${tomlString(normalized.stateBase)}`,
+    `codex_app_server_url = ${tomlString(normalized.codexAppServerUrl)}`,
+    "",
+    "[telegram]",
+    "enabled = true",
+    'dm_policy = "allowlist"',
+    normalized.botToken
+      ? `bot_token = ${tomlString(normalized.botToken)}`
+      : "# bot_token is saved in ~/.farplane/config.toml",
+    `allow_from = [${allowFrom.map(tomlString).join(", ")}]`,
+    `main_thread_id = ${tomlString(normalized.mainThreadId)}`,
+    'group_policy = "allowlist"',
+    "",
+    "[telegram.streaming]",
+    'mode = "off"',
+  ];
+  return `${lines.join("\n")}\n`;
 }
 
 export function emptyTelegramGatewayState(): TelegramGatewayState {
@@ -162,7 +147,9 @@ export function normalizeTelegramGatewayState(input: unknown): TelegramGatewaySt
   const row = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
   const mappings = Array.isArray(row.mappings)
     ? row.mappings
-        .filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
+        .filter((entry): entry is Record<string, unknown> =>
+          Boolean(entry && typeof entry === "object"),
+        )
         .map((entry) => ({
           telegramMessageId: Number(entry.telegramMessageId),
           chatId: String(entry.chatId ?? ""),
@@ -171,38 +158,51 @@ export function normalizeTelegramGatewayState(input: unknown): TelegramGatewaySt
           title: typeof entry.title === "string" ? entry.title : undefined,
           createdAt: Number(entry.createdAt),
         }))
-        .filter((entry) => Number.isFinite(entry.telegramMessageId) && entry.chatId && entry.threadId)
+        .filter(
+          (entry) => Number.isFinite(entry.telegramMessageId) && entry.chatId && entry.threadId,
+        )
     : [];
   const history = Array.isArray(row.history)
     ? row.history
-        .filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
+        .filter((entry): entry is Record<string, unknown> =>
+          Boolean(entry && typeof entry === "object"),
+        )
         .map((entry) => ({
           telegramMessageId: Number(entry.telegramMessageId),
           chatId: String(entry.chatId ?? ""),
-          direction: entry.direction === "outbound" ? "outbound" as const : "inbound" as const,
+          direction: entry.direction === "outbound" ? ("outbound" as const) : ("inbound" as const),
           text: String(entry.text ?? ""),
           occurredAt: Number(entry.occurredAt),
           route: normalizeHistoryRoute(entry.route),
           threadId: typeof entry.threadId === "string" ? entry.threadId : undefined,
           status: normalizeHistoryStatus(entry.status),
         }))
-        .filter((entry) => Number.isFinite(entry.telegramMessageId) && Number.isFinite(entry.occurredAt))
+        .filter(
+          (entry) => Number.isFinite(entry.telegramMessageId) && Number.isFinite(entry.occurredAt),
+        )
     : [];
   const pending = Array.isArray(row.pending)
     ? row.pending
-        .filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
+        .filter((entry): entry is Record<string, unknown> =>
+          Boolean(entry && typeof entry === "object"),
+        )
         .map((entry) => ({
           telegramMessageId: Number(entry.telegramMessageId),
           chatId: String(entry.chatId ?? ""),
           text: String(entry.text ?? ""),
-          route: entry.route === "coordinator" ? "coordinator" as const : "source_thread" as const,
+          route:
+            entry.route === "coordinator" ? ("coordinator" as const) : ("source_thread" as const),
           threadId: String(entry.threadId ?? ""),
           createdAt: Number(entry.createdAt),
           attempts: Number(entry.attempts ?? 0),
-          lastAttemptAt: Number.isFinite(Number(entry.lastAttemptAt)) ? Number(entry.lastAttemptAt) : undefined,
+          lastAttemptAt: Number.isFinite(Number(entry.lastAttemptAt))
+            ? Number(entry.lastAttemptAt)
+            : undefined,
           lastError: typeof entry.lastError === "string" ? entry.lastError : undefined,
         }))
-        .filter((entry) => Number.isFinite(entry.telegramMessageId) && entry.chatId && entry.threadId)
+        .filter(
+          (entry) => Number.isFinite(entry.telegramMessageId) && entry.chatId && entry.threadId,
+        )
     : [];
   return {
     updateOffset: Number.isFinite(Number(row.updateOffset)) ? Number(row.updateOffset) : 0,
@@ -227,20 +227,20 @@ export function buildUserCommunicationActivityRows(
     sourceThread: titleForThread(entry.threadId, state.mappings),
     route:
       entry.route === "source_thread"
-        ? "reply -> source" as const
+        ? ("reply -> source" as const)
         : entry.route === "coordinator"
-          ? "standalone -> main" as const
+          ? ("standalone -> main" as const)
           : entry.route === "unknown_reply"
-            ? "unknown reply" as const
+            ? ("unknown reply" as const)
             : entry.direction === "outbound"
-              ? "notification sent" as const
-              : "standalone -> main" as const,
+              ? ("notification sent" as const)
+              : ("standalone -> main" as const),
     status:
       entry.status === "queued"
-        ? "waiting reply" as const
+        ? ("waiting reply" as const)
         : entry.status === "failed" || entry.route === "unknown_reply"
-          ? "failed" as const
-          : "delivered" as const,
+          ? ("failed" as const)
+          : ("delivered" as const),
     text: entry.text,
     threadId: entry.threadId,
   }));
@@ -248,7 +248,10 @@ export function buildUserCommunicationActivityRows(
     id: `pending-${entry.telegramMessageId}-${entry.createdAt}`,
     occurredAt: entry.createdAt,
     sourceThread: titleForThread(entry.threadId, state.mappings),
-    route: entry.route === "source_thread" ? "reply -> source" as const : "standalone -> main" as const,
+    route:
+      entry.route === "source_thread"
+        ? ("reply -> source" as const)
+        : ("standalone -> main" as const),
     status: "waiting reply" as const,
     text: entry.text,
     threadId: entry.threadId,
@@ -265,7 +268,9 @@ export function buildUserCommunicationActivityRows(
       text: `Telegram message ${mapping.telegramMessageId}`,
       threadId: mapping.threadId,
     }));
-  return [...inboundRows, ...pendingRows, ...waitingRows].sort((left, right) => right.occurredAt - left.occurredAt);
+  return [...inboundRows, ...pendingRows, ...waitingRows].sort(
+    (left, right) => right.occurredAt - left.occurredAt,
+  );
 }
 
 export function filterUserCommunicationActivityRows(

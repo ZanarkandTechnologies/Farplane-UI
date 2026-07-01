@@ -11,27 +11,38 @@ import {
   Settings,
   UserRoundCheck,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { type ReactElement, useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  buildTelegramGatewayConfigJson,
+  buildTelegramGatewayConfigToml,
   buildTelegramGatewayEnv,
   buildUserCommunicationActivityRows,
   DEFAULT_USER_COMMUNICATIONS_CONFIG,
   emptyTelegramGatewayState,
   filterUserCommunicationActivityRows,
   normalizeTelegramGatewayState,
-  parseUserCommunicationsConfig,
-  serializeUserCommunicationsConfig,
-  USER_COMMUNICATIONS_CONFIG_STORAGE_KEY,
+  normalizeUserCommunicationsConfig,
   type TelegramGatewayState,
   type UserCommunicationActivityRow,
   type UserCommunicationRouteFilter,
@@ -48,7 +59,9 @@ function formatTime(timestamp: number): string {
   }).format(new Date(timestamp));
 }
 
-function statusVariant(status: UserCommunicationActivityRow["status"]): "secondary" | "outline" | "destructive" {
+function statusVariant(
+  status: UserCommunicationActivityRow["status"],
+): "secondary" | "outline" | "destructive" {
   if (status === "failed") return "destructive";
   if (status === "waiting reply") return "outline";
   return "secondary";
@@ -59,21 +72,92 @@ function routeLabel(route: UserCommunicationActivityRow["route"]): string {
 }
 
 export function UserCommunicationsTab(): ReactElement {
-  const [config, setConfig] = useState<UserCommunicationsConfig>(DEFAULT_USER_COMMUNICATIONS_CONFIG);
-  const [gatewayState, setGatewayState] = useState<TelegramGatewayState>(emptyTelegramGatewayState());
+  const [config, setConfig] = useState<UserCommunicationsConfig>(
+    DEFAULT_USER_COMMUNICATIONS_CONFIG,
+  );
+  const [gatewayState, setGatewayState] = useState<TelegramGatewayState>(
+    emptyTelegramGatewayState(),
+  );
   const [routeFilter, setRouteFilter] = useState<UserCommunicationRouteFilter>("all");
   const [search, setSearch] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copiedCommand, setCopiedCommand] = useState(false);
   const [stateError, setStateError] = useState("");
+  const [configLoaded, setConfigLoaded] = useState(false);
 
   useEffect(() => {
-    setConfig(parseUserCommunicationsConfig(window.localStorage.getItem(USER_COMMUNICATIONS_CONFIG_STORAGE_KEY)));
+    let cancelled = false;
+    async function loadConfig(): Promise<void> {
+      try {
+        const response = await fetch("/farplane/runtime-config", {
+          headers: { accept: "application/json" },
+        });
+        if (!response.ok) throw new Error(`config_${response.status}`);
+        const body = (await response.json()) as {
+          payload?: {
+            config?: Record<string, unknown>;
+            telegram?: Record<string, unknown>;
+          };
+        };
+        if (cancelled) return;
+        const runtime = body.payload?.config ?? {};
+        const telegram = body.payload?.telegram ?? {};
+        const botToken = telegram.botToken;
+        setConfig(
+          normalizeUserCommunicationsConfig({
+            mainThreadId: typeof telegram.mainThreadId === "string" ? telegram.mainThreadId : "",
+            stateBase: typeof runtime.stateBase === "string" ? runtime.stateBase : "",
+            codexAppServerUrl:
+              typeof runtime.codexAppServerUrl === "string" ? runtime.codexAppServerUrl : "",
+            botTokenConfigured:
+              Boolean(botToken) &&
+              typeof botToken === "object" &&
+              !Array.isArray(botToken) &&
+              (botToken as { configured?: unknown }).configured === true,
+            allowFrom: Array.isArray(telegram.allowFrom)
+              ? telegram.allowFrom.map(String).join(", ")
+              : "",
+          }),
+        );
+      } finally {
+        if (!cancelled) setConfigLoaded(true);
+      }
+    }
+    void loadConfig();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(USER_COMMUNICATIONS_CONFIG_STORAGE_KEY, serializeUserCommunicationsConfig(config));
-  }, [config]);
+    if (!configLoaded) return;
+    const normalized = normalizeUserCommunicationsConfig(config);
+    const timeout = window.setTimeout(() => {
+      void fetch("/farplane/runtime-config", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          config: {
+            codexAppServerUrl: normalized.codexAppServerUrl,
+            stateBase: normalized.stateBase,
+          },
+          telegram: {
+            enabled: true,
+            mainThreadId: normalized.mainThreadId,
+            allowFrom: normalized.allowFrom,
+            botToken: normalized.botToken,
+            dmPolicy: "allowlist",
+            groupPolicy: "allowlist",
+            streamingMode: "off",
+          },
+        }),
+      });
+    }, 500);
+    return () => window.clearTimeout(timeout);
+  }, [config, configLoaded]);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,13 +184,17 @@ export function UserCommunicationsTab(): ReactElement {
   }, []);
 
   const command = useMemo(() => buildTelegramGatewayEnv(config), [config]);
-  const configJson = useMemo(() => buildTelegramGatewayConfigJson(config), [config]);
+  const configToml = useMemo(() => buildTelegramGatewayConfigToml(config), [config]);
   const rows = useMemo(() => buildUserCommunicationActivityRows(gatewayState), [gatewayState]);
   const visibleRows = useMemo(
     () => filterUserCommunicationActivityRows(rows, routeFilter, search),
     [rows, routeFilter, search],
   );
-  const isConfigured = Boolean(config.mainThreadId.trim() && config.botToken.trim() && config.allowFrom.trim());
+  const isConfigured = Boolean(
+    config.mainThreadId.trim() &&
+      (config.botToken.trim() || config.botTokenConfigured) &&
+      config.allowFrom.trim(),
+  );
   const waitingCount = rows.filter((row) => row.status === "waiting reply").length;
   const failedCount = rows.filter((row) => row.status === "failed").length;
   const deliveredCount = rows.filter((row) => row.status === "delivered").length;
@@ -196,7 +284,7 @@ export function UserCommunicationsTab(): ReactElement {
                       setConfig((current) => ({ ...current, botToken: event.target.value }))
                     }
                     className="pl-9"
-                    placeholder="bot token"
+                    placeholder={config.botTokenConfigured ? "saved in config.toml" : "bot token"}
                   />
                 </div>
               </div>
@@ -223,19 +311,25 @@ export function UserCommunicationsTab(): ReactElement {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="outline" onClick={() => void copyCommand()}>
-                    {copiedCommand ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
+                    {copiedCommand ? (
+                      <Check className="mr-2 h-4 w-4" />
+                    ) : (
+                      <Copy className="mr-2 h-4 w-4" />
+                    )}
                     {copiedCommand ? "Copied" : "Copy Run Command"}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Copies the local gateway command. The JSON config is saved below.</TooltipContent>
+                <TooltipContent>
+                  Copies the local gateway command. Settings save to ~/.farplane/config.toml.
+                </TooltipContent>
               </Tooltip>
             </div>
             <details className="mt-3">
               <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
-                Preview config.json
+                Preview config.toml
               </summary>
               <pre className="mt-2 max-h-32 overflow-auto rounded-md border bg-background p-3 text-xs">
-                {configJson}
+                {configToml}
               </pre>
             </details>
           </div>
@@ -243,7 +337,10 @@ export function UserCommunicationsTab(): ReactElement {
       </Collapsible>
 
       <div className="flex flex-wrap items-center gap-2 py-3">
-        <Select value={routeFilter} onValueChange={(value) => setRouteFilter(value as UserCommunicationRouteFilter)}>
+        <Select
+          value={routeFilter}
+          onValueChange={(value) => setRouteFilter(value as UserCommunicationRouteFilter)}
+        >
           <SelectTrigger size="sm" className="w-[150px]">
             <SelectValue />
           </SelectTrigger>
@@ -289,7 +386,9 @@ export function UserCommunicationsTab(): ReactElement {
                   </TableCell>
                   <TableCell className="min-w-[240px] whitespace-normal align-top">
                     <div className="truncate text-sm font-medium">{row.sourceThread}</div>
-                    <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">"{row.text}"</div>
+                    <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                      "{row.text}"
+                    </div>
                   </TableCell>
                   <TableCell className="align-top text-xs">{routeLabel(row.route)}</TableCell>
                   <TableCell className="align-top">

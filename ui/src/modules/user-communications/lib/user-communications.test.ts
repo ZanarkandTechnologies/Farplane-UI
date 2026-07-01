@@ -1,15 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildTelegramGatewayConfigToml,
   buildTelegramGatewayEnv,
-  buildTelegramGatewayConfigJson,
   buildUserCommunicationActivityRows,
   DEFAULT_USER_COMMUNICATIONS_CONFIG,
   filterUserCommunicationActivityRows,
   normalizeTelegramGatewayState,
   normalizeUserCommunicationsConfig,
-  parseUserCommunicationsConfig,
-  serializeUserCommunicationsConfig,
 } from "./user-communications";
 
 describe("user communications config helpers", () => {
@@ -27,27 +25,9 @@ describe("user communications config helpers", () => {
       stateBase: DEFAULT_USER_COMMUNICATIONS_CONFIG.stateBase,
       codexAppServerUrl: DEFAULT_USER_COMMUNICATIONS_CONFIG.codexAppServerUrl,
       botToken: "token",
+      botTokenConfigured: true,
       allowFrom: "100",
     });
-  });
-
-  it("parses and serializes local browser config", () => {
-    const serialized = serializeUserCommunicationsConfig({
-      mainThreadId: "thread-main",
-      stateBase: " http://localhost:5173 ",
-      codexAppServerUrl: " ws://127.0.0.1:47891 ",
-      botToken: "token",
-      allowFrom: "100,200",
-    });
-
-    expect(parseUserCommunicationsConfig(serialized)).toEqual({
-      mainThreadId: "thread-main",
-      stateBase: "http://localhost:5173",
-      codexAppServerUrl: "ws://127.0.0.1:47891",
-      botToken: "token",
-      allowFrom: "100,200",
-    });
-    expect(parseUserCommunicationsConfig("not-json")).toEqual(DEFAULT_USER_COMMUNICATIONS_CONFIG);
   });
 
   it("builds a gateway command from the configured main thread", () => {
@@ -56,24 +36,14 @@ describe("user communications config helpers", () => {
       stateBase: "http://localhost:5173",
       codexAppServerUrl: "ws://127.0.0.1:47891",
       botToken: "token",
+      botTokenConfigured: true,
       allowFrom: "100, 200",
     };
 
     expect(buildTelegramGatewayEnv(config)).toBe("npm run cli -- gateway telegram --once");
-    expect(JSON.parse(buildTelegramGatewayConfigJson(config))).toEqual(
-      expect.objectContaining({
-        version: 1,
-        runtime: expect.objectContaining({
-          aiOfficeUrl: "http://localhost:5173",
-          codexAppServerUrl: "ws://127.0.0.1:47891",
-        }),
-        telegram: expect.objectContaining({
-          mainThreadId: "thread-main",
-          botToken: "token",
-          allowFrom: ["100", "200"],
-        }),
-      }),
-    );
+    expect(buildTelegramGatewayConfigToml(config)).toContain("[telegram]");
+    expect(buildTelegramGatewayConfigToml(config)).toContain('main_thread_id = "thread-main"');
+    expect(buildTelegramGatewayConfigToml(config)).toContain('allow_from = ["100", "200"]');
   });
 
   it("builds activity rows from gateway state", () => {

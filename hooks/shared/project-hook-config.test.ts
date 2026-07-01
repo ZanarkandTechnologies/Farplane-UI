@@ -8,6 +8,16 @@ import {
   resolveProjectHookConfig,
 } from "./project-hook-config";
 
+function writeHookConfigToml(root: string, lines: string[]): NodeJS.ProcessEnv {
+  const stateRoot = path.join(root, "state");
+  mkdirSync(stateRoot, { recursive: true });
+  writeFileSync(
+    path.join(stateRoot, "config.toml"),
+    ["[hooks.file_change]", ...lines, ""].join("\n"),
+  );
+  return { FARPLANE_STATE_DIR: stateRoot } as NodeJS.ProcessEnv;
+}
+
 describe("project-hook-config", () => {
   it("derives stable Codex project ids from paths", () => {
     expect(codexProjectIdFromPath("/Users/Kenji/Farplane UI")).toBe(
@@ -41,17 +51,14 @@ describe("project-hook-config", () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-hook-config-"));
     try {
       mkdirSync(path.join(repo, "farplane"), { recursive: true });
-      mkdirSync(path.join(repo, ".farplane", "hooks"), { recursive: true });
       writeFileSync(
         path.join(repo, "farplane", "manifest.json"),
         JSON.stringify({ standard: { tracked: ["docs/MEMORY.md"] } }),
       );
-      writeFileSync(
-        path.join(repo, ".farplane", "hooks", "config.json"),
-        JSON.stringify({ customPatterns: ["tickets/*/progress.md"] }),
-      );
+      const env = writeHookConfigToml(repo, ['customPatterns = ["tickets/*/progress.md"]']);
 
       const config = resolveProjectHookConfig(repo, {
+        ...env,
         FARPLANE_FILE_CHANGE_PATTERNS: "package.json,docs/**/*.md",
       } as NodeJS.ProcessEnv);
 
@@ -61,24 +68,20 @@ describe("project-hook-config", () => {
     }
   });
 
-  it("keeps built-in hook patterns when manifest paths are selected", () => {
+  it("keeps built-in hook patterns when canonical manifest paths are selected", () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-hook-config-"));
     try {
       mkdirSync(path.join(repo, "farplane"), { recursive: true });
-      mkdirSync(path.join(repo, ".farplane", "hooks"), { recursive: true });
       writeFileSync(
         path.join(repo, "farplane", "manifest.json"),
         JSON.stringify({ standard: { tracked: ["docs/MEMORY.md"] } }),
       );
-      writeFileSync(
-        path.join(repo, ".farplane", "hooks", "config.json"),
-        JSON.stringify({
-          selectedManifestPaths: ["docs/MEMORY.md"],
-          customPatterns: ["custom/*.md"],
-        }),
-      );
+      const env = writeHookConfigToml(repo, [
+        'selectedManifestPaths = ["docs/MEMORY.md"]',
+        'customPatterns = ["custom/*.md"]',
+      ]);
 
-      const config = resolveProjectHookConfig(repo, {} as NodeJS.ProcessEnv);
+      const config = resolveProjectHookConfig(repo, env);
 
       expect(config.patterns).toEqual(
         expect.arrayContaining([
@@ -94,7 +97,7 @@ describe("project-hook-config", () => {
     }
   });
 
-  it("reads summary bubble enablement from saved project config", () => {
+  it("reads canonical hooks config from Farplane config.toml only", () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-hook-config-"));
     try {
       mkdirSync(path.join(repo, "farplane"), { recursive: true });
@@ -103,12 +106,69 @@ describe("project-hook-config", () => {
         path.join(repo, "farplane", "manifest.json"),
         JSON.stringify({ standard: { tracked: ["docs/MEMORY.md"] } }),
       );
+      const env = writeHookConfigToml(repo, ['customPatterns = ["canonical/*.md"]']);
+
+      const config = resolveProjectHookConfig(repo, env);
+      expect(config.configPath).toBe(path.join(repo, "state", "config.toml"));
+      expect(config.patterns).toEqual(expect.arrayContaining(["canonical/*.md"]));
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("reads summary bubble enablement from saved project config", () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "farplane-hook-config-"));
+    try {
+      mkdirSync(path.join(repo, "farplane"), { recursive: true });
       writeFileSync(
-        path.join(repo, ".farplane", "hooks", "config.json"),
-        JSON.stringify({ summaryEnabled: false }),
+        path.join(repo, "farplane", "manifest.json"),
+        JSON.stringify({ standard: { tracked: ["docs/MEMORY.md"] } }),
+      );
+      const env = writeHookConfigToml(repo, ["summaryEnabled = false"]);
+
+      expect(resolveProjectHookConfig(repo, env).summaryEnabled).toBe(false);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("disables summary bubbles by default and supports an env opt-in", () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "farplane-hook-config-"));
+    try {
+      mkdirSync(path.join(repo, "farplane"), { recursive: true });
+      writeFileSync(
+        path.join(repo, "farplane", "manifest.json"),
+        JSON.stringify({ standard: { tracked: ["docs/MEMORY.md"] } }),
       );
 
       expect(resolveProjectHookConfig(repo, {} as NodeJS.ProcessEnv).summaryEnabled).toBe(false);
+      expect(
+        resolveProjectHookConfig(repo, {
+          FARPLANE_FILE_CHANGE_SUMMARY_ENABLED: "1",
+        } as NodeJS.ProcessEnv).summaryEnabled,
+      ).toBe(true);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("reads summary debounce from saved project config and env override", () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "farplane-hook-config-"));
+    try {
+      mkdirSync(path.join(repo, "farplane"), { recursive: true });
+      writeFileSync(
+        path.join(repo, "farplane", "manifest.json"),
+        JSON.stringify({ standard: { tracked: ["docs/MEMORY.md"] } }),
+      );
+      const env = writeHookConfigToml(repo, ["summaryDebounceMs = 12000"]);
+
+      expect(resolveProjectHookConfig(repo, env).summaryDebounceMs).toBe(12_000);
+      expect(
+        resolveProjectHookConfig(repo, {
+          ...env,
+          FARPLANE_FILE_CHANGE_SUMMARY_DEBOUNCE_MS: "4000",
+        } as NodeJS.ProcessEnv).summaryDebounceMs,
+      ).toBe(4_000);
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

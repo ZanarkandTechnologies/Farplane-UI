@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Install or print the global Codex hook config for Farplane telemetry.
+ * Install or print the repo-local Codex hook config for Farplane telemetry.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -52,7 +52,8 @@ const HOOKS = [
 
 function parseArgs(argv) {
   const targetArg = argv.find((arg) => arg.startsWith("--target="));
-  const target = targetArg?.split("=").at(1) === "project" || argv.includes("--project") ? "project" : "global";
+  const explicitTarget = targetArg?.split("=").at(1);
+  const target = explicitTarget === "global" || argv.includes("--global") ? "global" : "project";
   return {
     write: argv.includes("--write"),
     json: argv.includes("--json"),
@@ -194,7 +195,7 @@ export function main() {
   } else {
     console.log(payload);
   }
-  console.log("Next: open Codex /hooks and trust the changed global hooks.");
+  console.log(`Next: open Codex /hooks and trust the changed ${options.target} hooks.`);
 }
 
 if (import.meta.url === pathToFileURL(path.resolve(process.argv[1] ?? "")).href) {

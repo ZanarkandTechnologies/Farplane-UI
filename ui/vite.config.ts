@@ -443,6 +443,34 @@ function serializeFarplaneConfigToml(row: JsonObject): string {
         !Array.isArray(row.telegram) &&
         (row.telegram as JsonObject).streaming,
     ),
+    ...serializeTomlSection(
+      "hooks.file_change",
+      row.hooks &&
+        typeof row.hooks === "object" &&
+        !Array.isArray(row.hooks) &&
+        (row.hooks as JsonObject).file_change,
+    ),
+    ...serializeTomlSection(
+      "social.x",
+      row.social &&
+        typeof row.social === "object" &&
+        !Array.isArray(row.social) &&
+        (row.social as JsonObject).x,
+    ),
+    ...serializeTomlSection(
+      "social.instagram",
+      row.social &&
+        typeof row.social === "object" &&
+        !Array.isArray(row.social) &&
+        (row.social as JsonObject).instagram,
+    ),
+    ...serializeTomlSection(
+      "social.meta",
+      row.social &&
+        typeof row.social === "object" &&
+        !Array.isArray(row.social) &&
+        (row.social as JsonObject).meta,
+    ),
     ...serializeTomlSection("env", row.env),
   ];
   return `${lines.join("\n").trimEnd()}\n`;
@@ -635,8 +663,7 @@ function runtimeSecretStatus(pathParts: string[], envNames: string[]): JsonObjec
       ? localSecretString(["integrations", "meshy_api_key"])
       : "") ||
     (pathParts[0] === "integrations" && pathParts[1] === "notionApiKey"
-      ? localSecretString(["integrations", "notion_api_key"]) ||
-        localSecretString(["integrations", "notion_token"])
+      ? localSecretString(["integrations", "notion_api_key"])
       : "") ||
     (pathParts[0] === "convex" && pathParts[1] === "telemetryToken"
       ? localSecretString(["convex", "telemetry_token"])
@@ -760,13 +787,6 @@ const RUNTIME_ENV_CATALOG: RuntimeEnvConfig[] = [
     label: "Meshy API Key",
     group: "Optional integrations",
     description: "Fallback Meshy key name used by scripts and integrations.",
-    secret: true,
-  },
-  {
-    name: "NOTION_API_KEY",
-    label: "Notion API Key",
-    group: "Optional integrations",
-    description: "Optional Notion integration secret.",
     secret: true,
   },
   {
@@ -972,14 +992,12 @@ async function saveRuntimeConfigFromUi(input: unknown): Promise<JsonObject> {
       ["integrations", "meshy_api_key"],
       ["integrations", "meshyApiKey"],
     ]);
-  const notionApiKey =
-    objectStringAt(secretEnv, ["NOTION_API_KEY"]) ||
-    objectStringAt(secretEnv, ["NOTION_TOKEN"]);
   const telemetryToken =
     objectStringAt(secretEnv, ["FARPLANE_TELEMETRY_TOKEN"]);
   if (meshyApiKey) setNestedString(config, ["integrations", "meshy_api_key"], meshyApiKey);
-  if (notionApiKey) setNestedString(config, ["integrations", "notion_api_key"], notionApiKey);
   if (telemetryToken) setNestedString(config, ["convex", "telemetry_token"], telemetryToken);
+  setNestedValue(config, ["env", "NOTION_API_KEY"], undefined);
+  setNestedValue(config, ["env", "NOTION_TOKEN"], undefined);
 
   await mkdir(FARPLANE_HOME, { recursive: true });
   await writeFile(FARPLANE_CONFIG_TOML_PATH, serializeFarplaneConfigToml(config), "utf-8");
@@ -1022,11 +1040,7 @@ function readManifestTrackedPaths(manifest: JsonObject): string[] {
 }
 
 function hookConfigRecord(input: unknown): JsonObject {
-  const record = input && typeof input === "object" && !Array.isArray(input) ? input as JsonObject : {};
-  const nested = record.fileChange && typeof record.fileChange === "object" && !Array.isArray(record.fileChange)
-    ? record.fileChange as JsonObject
-    : {};
-  return Object.keys(nested).length > 0 ? nested : record;
+  return input && typeof input === "object" && !Array.isArray(input) ? input as JsonObject : {};
 }
 
 function nonNegativeInteger(value: unknown): number | undefined {
@@ -1049,9 +1063,7 @@ function normalizeHookConfig(input: unknown, manifestTracked: string[]): Farplan
         ? record.summaryEnabled
         : DEFAULT_HOOK_CONFIG.summaryEnabled,
     summaryDebounceMs:
-      nonNegativeInteger(record.summaryDebounceMs) ??
-      nonNegativeInteger(record.summaryThrottleMs) ??
-      DEFAULT_HOOK_CONFIG.summaryDebounceMs,
+      nonNegativeInteger(record.summaryDebounceMs) ?? DEFAULT_HOOK_CONFIG.summaryDebounceMs,
     includeManifestTracked:
       typeof record.includeManifestTracked === "boolean"
         ? record.includeManifestTracked
@@ -1062,7 +1074,8 @@ function normalizeHookConfig(input: unknown, manifestTracked: string[]): Farplan
 }
 
 function hookConfigPath(projectPath: string): string {
-  return path.join(projectPath, "farplane", "hooks.json");
+  void projectPath;
+  return FARPLANE_CONFIG_TOML_PATH;
 }
 
 async function readProjectHookConfig(projectPath: string): Promise<JsonObject> {
@@ -1071,7 +1084,7 @@ async function readProjectHookConfig(projectPath: string): Promise<JsonObject> {
   const manifest = await readJsonFile<JsonObject>(manifestPath, {});
   const manifestTracked = readManifestTrackedPaths(manifest);
   const canonicalConfigPath = hookConfigPath(root);
-  const configSource = await readJsonFile<unknown>(canonicalConfigPath, {});
+  const configSource = localConfigObject(["hooks", "file_change"]);
   const config = normalizeHookConfig(configSource, manifestTracked);
   const activePatterns = config.enabled
     ? uniqueHookPatterns([
@@ -1097,22 +1110,16 @@ async function saveProjectHookConfig(projectPath: string, input: unknown): Promi
   const manifest = await readJsonFile<JsonObject>(path.join(root, "farplane", "manifest.json"), {});
   const config = normalizeHookConfig(input, readManifestTrackedPaths(manifest));
   const filePath = hookConfigPath(root);
-  const existing = await readJsonFile<JsonObject>(filePath, {});
+  const existing = readLocalTomlObjectSync(filePath);
+  setNestedValue(existing, ["hooks", "file_change", "enabled"], config.enabled);
+  setNestedValue(existing, ["hooks", "file_change", "summaryEnabled"], config.summaryEnabled);
+  setNestedValue(existing, ["hooks", "file_change", "summaryDebounceMs"], config.summaryDebounceMs);
+  setNestedValue(existing, ["hooks", "file_change", "includeManifestTracked"], config.includeManifestTracked);
+  setNestedValue(existing, ["hooks", "file_change", "selectedManifestPaths"], config.selectedManifestPaths);
+  setNestedValue(existing, ["hooks", "file_change", "customPatterns"], config.customPatterns);
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(
-    filePath,
-    `${JSON.stringify(
-      {
-        ...existing,
-        schema: "farplane_hooks",
-        spec_version: "1.0.0",
-        fileChange: config,
-      },
-      null,
-      2,
-    )}\n`,
-    "utf8",
-  );
+  await writeFile(filePath, serializeFarplaneConfigToml(existing), "utf8");
+  await chmod(filePath, 0o600).catch(() => undefined);
   return readProjectHookConfig(root);
 }
 

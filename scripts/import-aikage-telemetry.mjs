@@ -15,21 +15,93 @@ const DEFAULT_BATCH_SIZE = 200;
 const MAX_PROMPT_LENGTH = 100;
 
 function farplaneHome() {
-  return process.env.FARPLANE_STATE_DIR?.trim() || process.env.FARPLANE_HOME?.trim() || path.join(os.homedir(), ".farplane");
+  return (
+    process.env.FARPLANE_STATE_DIR?.trim() ||
+    process.env.FARPLANE_HOME?.trim() ||
+    path.join(os.homedir(), ".farplane")
+  );
 }
 
-function readJsonObject(filePath) {
+function stripTomlComment(line) {
+  let quoted = false;
+  let escaped = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\" && quoted) {
+      escaped = true;
+      continue;
+    }
+    if (char === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (char === "#" && !quoted) return line.slice(0, index).trimEnd();
+  }
+  return line.trimEnd();
+}
+
+function parseTomlValue(rawValue) {
+  const value = rawValue.trim();
+  if (!value) return "";
+  if (value === "true") return true;
+  if (value === "false") return false;
+  if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
+  if (value.startsWith("[") && value.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  if (value.startsWith('"') && value.endsWith('"')) {
+    try {
+      const parsed = JSON.parse(value);
+      return typeof parsed === "string" ? parsed.trim() : "";
+    } catch {
+      return value.slice(1, -1).trim();
+    }
+  }
+  return value.trim();
+}
+
+function readTomlObject(filePath) {
+  let current = null;
+  const root = {};
   try {
-    const parsed = JSON.parse(readFileSync(filePath, "utf8"));
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    const lines = readFileSync(filePath, "utf8").split(/\r?\n/);
+    for (const rawLine of lines) {
+      const line = stripTomlComment(rawLine).trim();
+      if (!line) continue;
+      const sectionMatch = line.match(/^\[([A-Za-z0-9_.-]+)\]$/);
+      if (sectionMatch) {
+        current = root;
+        for (const part of sectionMatch[1].split(".")) {
+          if (!current[part] || typeof current[part] !== "object" || Array.isArray(current[part])) {
+            current[part] = {};
+          }
+          current = current[part];
+        }
+        continue;
+      }
+      const assignmentMatch = line.match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*(.*)$/);
+      if (!assignmentMatch || !current) continue;
+      current[assignmentMatch[1]] = parseTomlValue(assignmentMatch[2]);
+    }
   } catch {
     return {};
   }
+  return root;
 }
 
 function savedConfigValue(name, { secret = false } = {}) {
+  void secret;
   const root = farplaneHome();
-  const source = readJsonObject(path.join(root, secret ? "secrets.json" : "config.json"));
+  const source = readTomlObject(path.join(root, "config.toml"));
   const value = source.env?.[name];
   return typeof value === "string" ? value.trim() : process.env[name]?.trim() || "";
 }

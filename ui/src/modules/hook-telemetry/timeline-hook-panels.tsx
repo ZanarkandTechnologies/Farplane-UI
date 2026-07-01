@@ -6,7 +6,7 @@
  * Ownership: hook-telemetry UI module.
  * Inputs: project-local hook config from the Vite bridge plus Convex telemetry rows.
  * Outputs: per-project hook controls, event previews, and non-executing program-route previews.
- * Side effects: saves `.farplane/hooks/config.json` and can invoke hook installation.
+ * Side effects: saves `~/.farplane/config.toml` and can invoke hook installation.
  */
 
 import { Copy, RefreshCw, Settings2 } from "lucide-react";
@@ -24,7 +24,6 @@ import { EventPreviewRow } from "./timeline-event-preview";
 
 type HookConfigState = {
   enabled: boolean;
-  summaryEnabled: boolean;
   includeManifestTracked: boolean;
   selectedManifestPaths: string[];
   customPatterns: string[];
@@ -75,13 +74,11 @@ const HOOK_DEFINITIONS: HookDefinition[] = [
     name: "File Change Listener",
     type: "PostToolUse",
     status: "enabled",
-    description:
-      "Captures project file edits, emits typed Farplane file events, and optionally posts status bubbles.",
+    description: "Captures project file edits and emits typed Farplane file events.",
     events: [
       "farplane.ticket.changed",
       "farplane.ticket.completed",
       "farplane.ticket.progress.changed",
-      "file.change.summary",
     ],
   },
   {
@@ -177,7 +174,6 @@ function FileChangeHookDetail({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [customPatterns, setCustomPatterns] = useState("");
   const [includeManifestTracked, setIncludeManifestTracked] = useState(true);
-  const [summaryEnabled, setSummaryEnabled] = useState(true);
   const [enabled, setEnabled] = useState(true);
   const [busyState, setBusyState] = useState<BusyState>("");
   const [message, setMessage] = useState("");
@@ -189,7 +185,6 @@ function FileChangeHookDetail({
     setData(payload);
     const config = payload.config;
     setEnabled(config?.enabled ?? true);
-    setSummaryEnabled(config?.summaryEnabled ?? true);
     setIncludeManifestTracked(config?.includeManifestTracked ?? true);
     setSelected(new Set(config?.selectedManifestPaths ?? payload.manifestTracked ?? []));
     setCustomPatterns((config?.customPatterns ?? []).join("\n"));
@@ -220,7 +215,6 @@ function FileChangeHookDetail({
         body: JSON.stringify({
           config: {
             enabled,
-            summaryEnabled,
             includeManifestTracked,
             selectedManifestPaths: [...selected],
             customPatterns: customPatterns
@@ -306,8 +300,7 @@ function FileChangeHookDetail({
                 <div>
                   <h3 className="font-medium text-sm">Capture</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Project-local config stored at{" "}
-                    {data?.configPath ?? ".farplane/hooks/config.json"}.
+                    Project-local config stored at {data?.configPath ?? "~/.farplane/config.toml"}.
                   </p>
                 </div>
                 <Button
@@ -324,7 +317,7 @@ function FileChangeHookDetail({
                   <RefreshCw className="size-4" />
                 </Button>
               </div>
-              <div className="mt-4 grid gap-2 md:grid-cols-3">
+              <div className="mt-4 grid gap-2 md:grid-cols-2">
                 <Label
                   htmlFor="timeline-hook-enabled"
                   className="flex items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-sm"
@@ -335,17 +328,6 @@ function FileChangeHookDetail({
                     onCheckedChange={(value) => setEnabled(Boolean(value))}
                   />
                   Capture file events
-                </Label>
-                <Label
-                  htmlFor="timeline-hook-summary-enabled"
-                  className="flex items-center gap-2 rounded-md border bg-background/50 px-3 py-2 text-sm"
-                >
-                  <Checkbox
-                    id="timeline-hook-summary-enabled"
-                    checked={summaryEnabled}
-                    onCheckedChange={(value) => setSummaryEnabled(Boolean(value))}
-                  />
-                  Summary bubbles
                 </Label>
                 <Label
                   htmlFor="timeline-hook-manifest-enabled"

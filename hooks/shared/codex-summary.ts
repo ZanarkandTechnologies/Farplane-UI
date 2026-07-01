@@ -6,10 +6,10 @@
  * Outputs: one tiny status label or null when local summarization fails.
  * Side effects: spawns `codex exec` and writes a temporary output file.
  */
+import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import { readFarplaneConfigValue } from "../../cli/runtime-config";
 
 export type CodexSummaryInput = {
@@ -40,7 +40,9 @@ const MAX_TOOL_SNIPPET = 2_000;
 const MAX_SUMMARY_WORDS = 4;
 const MAX_SUMMARY_LENGTH = 48;
 
-export function resolveCodexSummaryOptions(env: NodeJS.ProcessEnv = process.env): CodexSummaryOptions {
+export function resolveCodexSummaryOptions(
+  env: NodeJS.ProcessEnv = process.env,
+): CodexSummaryOptions {
   return {
     model: readFarplaneConfigValue("FARPLANE_FILE_CHANGE_SUMMARY_MODEL", { env }) || DEFAULT_MODEL,
   };
@@ -62,7 +64,12 @@ export function buildCodexSummaryPrompt(input: CodexSummaryInput): string {
     input.fileContentSnippet.slice(0, MAX_FILE_SNIPPET),
     "</file_excerpt>",
     input.toolPayloadSnippet
-      ? ["", "<tool_payload_excerpt>", input.toolPayloadSnippet.slice(0, MAX_TOOL_SNIPPET), "</tool_payload_excerpt>"].join("\n")
+      ? [
+          "",
+          "<tool_payload_excerpt>",
+          input.toolPayloadSnippet.slice(0, MAX_TOOL_SNIPPET),
+          "</tool_payload_excerpt>",
+        ].join("\n")
       : "",
   ]
     .filter(Boolean)
@@ -73,7 +80,8 @@ export async function summarizeTrackedFileChangeWithCodex(
   input: CodexSummaryInput,
   options: CodexSummaryOptions = {},
 ): Promise<string | null> {
-  const timeoutMs = options.timeoutMs && options.timeoutMs > 0 ? options.timeoutMs : DEFAULT_TIMEOUT_MS;
+  const timeoutMs =
+    options.timeoutMs && options.timeoutMs > 0 ? options.timeoutMs : DEFAULT_TIMEOUT_MS;
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "farplane-codex-summary-"));
   const outputPath = path.join(tempDir, "last-message.txt");
   await writeFile(outputPath, "", "utf8");
@@ -108,6 +116,8 @@ function buildCodexExecArgs(input: {
     "hooks",
     "--cd",
     input.projectPath,
+    "-c",
+    "notify=[]",
     "--output-last-message",
     input.outputPath,
   ];

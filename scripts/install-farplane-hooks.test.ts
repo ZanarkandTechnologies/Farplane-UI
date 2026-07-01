@@ -2,6 +2,30 @@ import { describe, expect, it } from "vitest";
 import { pruneFarplaneHookConfig, upsertFarplaneHookConfig } from "./install-farplane-hooks.mjs";
 
 describe("install-farplane-hooks", () => {
+  it("prints project-local hook config by default", async () => {
+    const { spawnSync } = await import("node:child_process");
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/install-farplane-hooks.mjs", "--json"],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual(expect.objectContaining({ target: "project" }));
+  });
+
+  it("keeps a deliberate global target available", async () => {
+    const { spawnSync } = await import("node:child_process");
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/install-farplane-hooks.mjs", "--json", "--global"],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual(expect.objectContaining({ target: "global" }));
+  });
+
   it("installs Farplane managed hooks idempotently", () => {
     const once = upsertFarplaneHookConfig({ hooks: { PostToolUse: [], Stop: [] } });
     const twice = upsertFarplaneHookConfig(once);

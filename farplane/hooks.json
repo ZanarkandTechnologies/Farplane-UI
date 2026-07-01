@@ -1,5 +1,6 @@
 {
-  "version": 1,
+  "schema": "farplane_hooks",
+  "spec_version": "1.0.0",
   "hooks": {
     "file_growth": {
       "enabled": false,

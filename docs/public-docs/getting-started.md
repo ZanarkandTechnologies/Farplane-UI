@@ -28,8 +28,8 @@ Onboarding now handles:
 - Notion plugin load-path and default entry setup
 - office style preset capture
 - staged progress output for each bootstrap phase
-- generation of `ui/.env.local`
-- Convex URL handoff from repo-root `.env.local` to `VITE_CONVEX_URL`
+- migration of bootstrap env values into local private `~/.farplane/config.toml`
+- optional `ui/.env.local` bootstrap compatibility for Vite-safe values
 - doctor checks before sending you into the UI
 - optional immediate UI launch at the end of the flow
 
@@ -38,24 +38,24 @@ Onboarding now handles:
 For day-to-day local projects, use Settings -> Runtime -> Project Config for
 the settings listed in `.env.example`, including runtime URLs, hook/debug
 flags, review settings, and API keys. Farplane stores local non-secret values
-in `~/.farplane/config.json` and saves API keys outside the browser bundle.
-The Vite bridge, Farplane CLI, hooks, and runtime scripts read those local
-settings files before falling back to shell env or legacy `.env.local` values.
+and API keys in local private `~/.farplane/config.toml`. The Vite bridge,
+Farplane CLI, hooks, and runtime scripts read that local settings file before
+explicit shell env overrides.
 
-Env files are still supported as bootstrap and CI fallbacks:
+Env files are bootstrap/import surfaces, not runtime config fallbacks:
 
 - repo-root `.env.local`: backend and private values such as Convex/OpenRouter/Notion tokens
 - `ui/.env.local`: UI-safe `VITE_*` values only
 
 This split is intentional because the Vite app reads its env from `ui/`, not the repo root.
 
-If you run `npx convex dev` and it writes a Convex URL into the repo-root `.env.local`, rerun:
+If you run `npx convex dev` and it writes a Convex URL into the repo-root `.env.local`, import it back into Farplane config with:
 
 ```bash
 npm run shell -- onboarding
 ```
 
-That refreshes `ui/.env.local` so the UI can read `VITE_CONVEX_URL`.
+That refreshes `~/.farplane/config.toml` so the UI bridge, CLI, hooks, and scripts resolve the same value.
 
 ## CLI Notes
 

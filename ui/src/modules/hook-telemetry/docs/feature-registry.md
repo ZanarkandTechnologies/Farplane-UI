@@ -19,14 +19,14 @@ the office launcher entry `raw-telemetry`.
   payload preview.
 - Hooks: renders a per-project hook control center with hook package list,
   file-change listener config, active pattern count, manifest file selection,
-  summary-bubble toggle, install action, and recent event preview.
+  install action, and recent event preview.
 - Event Programs: renders non-executing routing previews for event-to-mining
   program subscriptions such as `farplane.ticket.completed` to
   `ticket-completion-audit-v1`.
 - Raw: preserves the raw event table escape hatch for operator debugging.
 - Distributions: renders top event names, hook names, hook types, and sessions
   for the current filtered window.
-- Hooks setup: writes project-local `.farplane/hooks/config.json` through the
+- Hooks setup: writes local private `~/.farplane/config.toml` `[hooks.file_change]` through the
   Vite state bridge and runs the global Codex hook installer on request.
 - Thread telemetry: `thread.created` and `thread.forked` rows remain available
   through Events and Distributions; Raw Telemetry does not expose a separate

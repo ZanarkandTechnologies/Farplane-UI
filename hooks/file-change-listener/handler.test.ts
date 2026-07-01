@@ -33,7 +33,7 @@ describe("file-change-listener", () => {
             "*** Begin Patch\n*** Update File: progress.md\n@@\n+Chose acquisition research next.\n*** End Patch\n",
         },
         1_000,
-        { codexSummary: { runner: testSummaryRunner } },
+        { summaryDebounceMs: 0, codexSummary: { runner: testSummaryRunner } },
       );
 
       expect(rows).toEqual([
@@ -63,7 +63,7 @@ describe("file-change-listener", () => {
           toolInput: "*** Begin Patch\n*** Update File: package.json\n@@\n+{}\n*** End Patch\n",
         },
         1_000,
-        { codexSummary: { runner: testSummaryRunner } },
+        { summaryDebounceMs: 0, codexSummary: { runner: testSummaryRunner } },
       );
 
       expect(rows).toEqual([]);
@@ -86,7 +86,11 @@ describe("file-change-listener", () => {
             '*** Begin Patch\n*** Update File: package.json\n@@\n+{"ok":true}\n*** End Patch\n',
         },
         1_000,
-        { trackedPathPatterns: ["package.json"], codexSummary: { runner: testSummaryRunner } },
+        {
+          trackedPathPatterns: ["package.json"],
+          summaryDebounceMs: 0,
+          codexSummary: { runner: testSummaryRunner },
+        },
       );
 
       expect(rows).toEqual([
@@ -95,6 +99,94 @@ describe("file-change-listener", () => {
           message: "Summarized tracked file update",
         }),
       ]);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("debounces repeated summary spawns so only the latest tracked file event runs", async () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
+    const debounceStateDir = path.join(repo, ".farplane", "summary-debounce-test");
+    let summaryRuns = 0;
+    try {
+      writeFileSync(path.join(repo, "progress.md"), "# Progress\n\n- First update.\n");
+      const payload = {
+        event: "PostToolUse",
+        toolName: "apply_patch",
+        cwd: repo,
+        sessionId: "thread-1",
+        toolInput:
+          "*** Begin Patch\n*** Update File: progress.md\n@@\n+First update.\n*** End Patch\n",
+      };
+
+      const firstPromise = parseFileChangeBubbleCandidatesFromPayload(payload, 10_000, {
+        summaryDebounceMs: 20,
+        summaryDebounceStateDir: debounceStateDir,
+        codexSummary: {
+          runner: async () => {
+            summaryRuns += 1;
+            return "First progress";
+          },
+        },
+      });
+      const secondPromise = parseFileChangeBubbleCandidatesFromPayload(payload, 10_001, {
+        summaryDebounceMs: 20,
+        summaryDebounceStateDir: debounceStateDir,
+        codexSummary: {
+          runner: async () => {
+            summaryRuns += 1;
+            return "Latest progress";
+          },
+        },
+      });
+      const [first, second] = await Promise.all([firstPromise, secondPromise]);
+
+      expect(first).toEqual([]);
+      expect(second).toEqual([expect.objectContaining({ message: "Latest progress" })]);
+      expect(summaryRuns).toBe(1);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("allows another summary after the debounce window settles", async () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
+    const debounceStateDir = path.join(repo, ".farplane", "summary-debounce-test");
+    let summaryRuns = 0;
+    try {
+      writeFileSync(path.join(repo, "progress.md"), "# Progress\n\n- Later update.\n");
+      const payload = {
+        event: "PostToolUse",
+        toolName: "apply_patch",
+        cwd: repo,
+        sessionId: "thread-1",
+        toolInput:
+          "*** Begin Patch\n*** Update File: progress.md\n@@\n+Later update.\n*** End Patch\n",
+      };
+
+      await parseFileChangeBubbleCandidatesFromPayload(payload, 10_000, {
+        summaryDebounceMs: 1,
+        summaryDebounceStateDir: debounceStateDir,
+        codexSummary: {
+          runner: async () => {
+            summaryRuns += 1;
+            return "Progress updated";
+          },
+        },
+      });
+      const second = await parseFileChangeBubbleCandidatesFromPayload(payload, 19_000, {
+        summaryDebounceMs: 1,
+        summaryDebounceStateDir: debounceStateDir,
+        codexSummary: {
+          runner: async () => {
+            summaryRuns += 1;
+            return "Progress refreshed";
+          },
+        },
+      });
+
+      expect(second).toEqual([expect.objectContaining({ message: "Progress refreshed" })]);
+      expect(summaryRuns).toBe(2);
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
@@ -113,7 +205,7 @@ describe("file-change-listener", () => {
           changedFiles: ["goals.md"],
         },
         1_000,
-        { codexSummary: { runner: testSummaryRunner } },
+        { summaryDebounceMs: 0, codexSummary: { runner: testSummaryRunner } },
       );
 
       expect(rows).toEqual([
@@ -144,7 +236,7 @@ describe("file-change-listener", () => {
             "printf '%s\\n' update > docs/prd.md && printf '%s\\n' update | tee docs/specs/telemetry.md",
         },
         1_000,
-        { codexSummary: { runner: testSummaryRunner } },
+        { summaryDebounceMs: 0, codexSummary: { runner: testSummaryRunner } },
       );
 
       expect(rows).toEqual([
@@ -176,7 +268,7 @@ describe("file-change-listener", () => {
           command: "cat docs/prd.md && rg Existing docs/prd.md",
         },
         1_000,
-        { codexSummary: { runner: testSummaryRunner } },
+        { summaryDebounceMs: 0, codexSummary: { runner: testSummaryRunner } },
       );
 
       expect(rows).toEqual([]);
@@ -202,7 +294,7 @@ describe("file-change-listener", () => {
             "*** Begin Patch\n*** Update File: progress.md\n@@\n+Local summarizer unavailable.\n*** End Patch\n",
         },
         1_000,
-        { codexSummary: { runner: async () => "" } },
+        { summaryDebounceMs: 0, codexSummary: { runner: async () => "" } },
       );
 
       expect(rows).toEqual([]);
