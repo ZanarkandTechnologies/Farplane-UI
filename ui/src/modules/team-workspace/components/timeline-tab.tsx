@@ -29,6 +29,7 @@ import { buildTeamTimelineRows, type TeamTimelineRow } from "./team-timeline";
 interface TimelineTabProps {
   convexEnabled: boolean;
   projectId: string | null;
+  projectPath?: string | null;
   teamScopeId: string | null;
   memoryRows: TeamMemoryRow[];
   communicationRows: CommunicationRow[];
@@ -39,6 +40,7 @@ interface TimelineTabProps {
 export function TimelineTab({
   convexEnabled,
   projectId,
+  projectPath,
   teamScopeId,
   memoryRows,
   communicationRows,
@@ -46,7 +48,10 @@ export function TimelineTab({
   onConfigureHooks,
 }: TimelineTabProps): ReactElement {
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
-  const timelineProjectId = projectId ?? teamScopeId;
+  const timelineProjectId = useMemo(
+    () => (projectPath?.trim() ? codexProjectIdFromPath(projectPath) : (projectId ?? teamScopeId)),
+    [projectId, projectPath, teamScopeId],
+  );
   const hookTimeline = useQuery(
     api.modules.hookTelemetry.queries.getLearningTimelineFromHookTelemetry,
     convexEnabled && isConvexEnabled() && timelineProjectId
@@ -536,6 +541,16 @@ function formatDateTime(value: number): string {
     month: "short",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function codexProjectIdFromPath(projectPath: string): string {
+  const slug = projectPath
+    .trim()
+    .replace(/\/+$/, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `codex-proj-${slug || "codex"}`;
 }
 
 type LearningTimelineResponse = {

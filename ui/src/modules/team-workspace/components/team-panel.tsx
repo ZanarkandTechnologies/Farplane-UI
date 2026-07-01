@@ -348,6 +348,7 @@ export function TeamPanel({
             <TimelineTab
               convexEnabled={convexEnabled}
               projectId={project?.id ?? null}
+              projectPath={activeProjectPath ?? null}
               teamScopeId={teamScopeId}
               memoryRows={memoryRows}
               communicationRows={communicationRows}
