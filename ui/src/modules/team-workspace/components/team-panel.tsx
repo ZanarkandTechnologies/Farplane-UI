@@ -24,6 +24,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UI_Z } from "@/lib/z-index";
 import { useChatActions } from "@/modules/chat/chat-store";
@@ -32,7 +33,11 @@ import { ThreadDataPanel } from "@/modules/thread-data";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
 import { KanbanTab } from "./kanban-tab";
+import { DistributionTab } from "./tabs/distribution";
 import { OverviewTab } from "./tabs/overview";
+import { findMetricsSnapshot } from "./tabs/overview/goal-kpi-model";
+import { buildSocialContentInsightsModel } from "./tabs/overview/social-content-insights";
+import { TeamMembersSection } from "./tabs/overview/team-members-section";
 import {
   ProjectCadenceTab,
   ProjectGoalsTab,
@@ -73,6 +78,8 @@ export function TeamPanel({
   const setIsAgentSessionPanelOpen = useAppStore((state) => state.setIsAgentSessionPanelOpen);
   const setIsRawTelemetryPanelOpen = useAppStore((state) => state.setIsRawTelemetryPanelOpen);
   const setSelectedAgentId = useAppStore((state) => state.setSelectedAgentId);
+  const setHighlightedEmployeeIds = useAppStore((state) => state.setHighlightedEmployeeIds);
+  const highlightedEmployeeIds = useAppStore((state) => state.highlightedEmployeeIds);
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [threadDataTarget, setThreadDataTarget] = useState<{
@@ -149,6 +156,8 @@ export function TeamPanel({
     projectPath: activeProjectPath,
     enabled: isOpen,
   });
+  const metricsSnapshot = findMetricsSnapshot(projectConfigState.config);
+  const socialContent = buildSocialContentInsightsModel(projectConfigState.config);
   const { memoryRows } = useTeamPanelMemoryState({
     activeProjectId,
     activeProjectPath,
@@ -228,6 +237,12 @@ export function TeamPanel({
               <TabsTrigger className="flex-none" value="goals">
                 Goals
               </TabsTrigger>
+              <TabsTrigger className="flex-none" value="distribution">
+                Distribution
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="members">
+                Members
+              </TabsTrigger>
               <TabsTrigger className="flex-none" value="products">
                 Products
               </TabsTrigger>
@@ -255,11 +270,8 @@ export function TeamPanel({
               panelTitle={panelTitle}
               project={project}
               projectTasks={projectTasks}
-              employees={employees}
-              teamEmployees={teamEmployees}
               workload={workload}
               companyModel={companyModel}
-              selectedProjectId={selectedProjectId}
               setSelectedProjectId={setSelectedProjectId}
               globalMode={globalMode}
               hasBusinessConfig={hasBusinessConfig}
@@ -269,8 +281,6 @@ export function TeamPanel({
               projectConfig={projectConfigState.config}
               projectConfigState={projectConfigState.state}
               projectConfigError={projectConfigState.error}
-              onMessageAgent={handleOpenDirectChat}
-              onOpenAgentSession={handleOpenAgentSession}
             />
           </TabsContent>
 
@@ -281,6 +291,25 @@ export function TeamPanel({
               error={projectConfigState.error}
               projectTasks={projectTasks}
             />
+          </TabsContent>
+
+          <TabsContent value="distribution" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <DistributionTab snapshot={metricsSnapshot} socialContent={socialContent} />
+          </TabsContent>
+
+          <TabsContent value="members" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <ScrollArea className="h-full pr-3">
+              <TeamMembersSection
+                employees={employees}
+                globalMode={globalMode}
+                highlightedEmployeeIds={highlightedEmployeeIds}
+                onMessageAgent={handleOpenDirectChat}
+                onOpenAgentSession={handleOpenAgentSession}
+                presenceRows={presenceRows}
+                setHighlightedEmployeeIds={setHighlightedEmployeeIds}
+                teamEmployees={teamEmployees}
+              />
+            </ScrollArea>
           </TabsContent>
 
           <TabsContent value="products" className="mt-4 min-h-0 flex-1 overflow-hidden">

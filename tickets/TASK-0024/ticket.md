@@ -15,8 +15,8 @@ requires_qa: true
 requires_demo: false
 created_at: 2026-06-28
 updated_at: 2026-06-29
-next_action: review Team Panel proof screenshots and decide whether the horizontal Kanban lane width feels right
-last_verification: 2026-06-29; focused format/lint/team-workspace tests/ui build/Farplane validator/diff-check/browser proof passed
+next_action: review Team Panel Overview/Goals/Distribution/Members against tickets/TASK-0024/design.md
+last_verification: 2026-07-01; focused Team Workspace lint/tests plus browser proof for Overview, Goals, Distribution, Members, and mobile Distribution passed; full ui:typecheck remains blocked by existing repo-wide TS debt
 ---
 
 # TASK-0024: Tighten Team Panel Goals, Products, Kanban, And Timeline Tabs
@@ -86,16 +86,24 @@ strip.
 - Focused format/lint/tests/build and browser evidence pass.
 
 ## State
-- `next_action:` review proof screenshots; likely follow-up is deciding whether
-  the readable horizontal Kanban width should be denser or stay scrollable.
+- `next_action:` review the Overview/Goals/Distribution/Members split against
+  `tickets/TASK-0024/design.md`.
 - `blocked:` false
-- `latest_verification:` 2026-06-29; focused Biome format/lint, Team Workspace
-  tests, UI production build, Farplane project-file validator, focused
-  `git diff --check`, and browser proof through `/office` passed.
+- `latest_verification:` 2026-07-01; focused Team Workspace Biome check,
+  focused goal/social/team-panel tests, and browser proof through `/office`
+  passed for Overview, Goals, Distribution, Members, and mobile Distribution.
+  Full `npm run ui:typecheck` remains blocked by existing repo-wide TypeScript
+  debt outside this change.
 - `result:` implemented; ready for review.
 
 ## Links
 - `artifacts:`
+  - `tickets/TASK-0024/design.md`
+  - `.farplane/proof/team-panel-goals-distribution-2026-07-01/overview.png`
+  - `.farplane/proof/team-panel-goals-distribution-2026-07-01/goals.png`
+  - `.farplane/proof/team-panel-goals-distribution-2026-07-01/distribution.png`
+  - `.farplane/proof/team-panel-goals-distribution-2026-07-01/members.png`
+  - `.farplane/proof/team-panel-goals-distribution-2026-07-01/mobile-distribution.png`
   - `.farplane/proof/TASK-0024-farplane-overview-tabs.png`
   - `.farplane/proof/TASK-0024-farplane-goals-wrap.png`
   - `.farplane/proof/TASK-0024-farplane-products-rows.png`

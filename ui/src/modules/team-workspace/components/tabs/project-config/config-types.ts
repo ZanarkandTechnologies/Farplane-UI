@@ -29,6 +29,9 @@ export type FarplaneRuntimeSource = {
   exists: boolean;
   updatedAtMs: number | null;
   childCount: number | null;
+  content?: string;
+  parsedJson?: unknown;
+  error?: string;
 };
 
 export type FarplaneProjectConfig = {

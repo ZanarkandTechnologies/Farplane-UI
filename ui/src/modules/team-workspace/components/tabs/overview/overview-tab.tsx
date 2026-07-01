@@ -6,28 +6,23 @@
  * Team charter, stats grid, and compact roster-first member oversight for the Team Panel overview tab.
  */
 
-import { FileCog, Flag, Gauge, Target } from "lucide-react";
+import { AlertTriangle, FileText, Flag, Gauge, Target } from "lucide-react";
 import { type ReactElement, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useAppStore } from "@/store";
 import type { AgentPresenceRow, PanelTask } from "../../team-panel-types";
 import {
   type FarplaneProjectConfig,
   findConfigFile,
   getConfigSection,
   type ProjectConfigLoadState,
-  parseMarkdownTable,
 } from "../project-config";
-import { HudMetric, OverviewTrendBars, SignalCard } from "./overview-cards";
-import {
-  bulletLines,
-  compactMarkdownText,
-  findKpiAxis,
-  overviewKpiFromRow,
-} from "./overview-helpers";
-import { TeamMembersSection } from "./team-members-section";
+import { findMetricsSnapshot, parseGoalAxesFromFile } from "./goal-kpi-model";
+import { HudMetric, SignalCard } from "./overview-cards";
+import { bulletLines, compactMarkdownText } from "./overview-helpers";
+import { buildSocialContentInsightsModel } from "./social-content-insights";
 
 type WorkloadSummary = {
   projectId: string;
@@ -40,28 +35,13 @@ type ProjectModel = {
   name: string;
   status: string;
   goal?: string;
-  kpis?: string[];
   businessConfig?: unknown;
-  ledger?: { type: string; amount: number }[];
-  account?: unknown;
-  accountEvents?: unknown[];
 };
 
 type TeamModel = {
   _id: string;
   name: string;
   description?: string;
-  businessReadiness?: { ready: boolean; issues: string[] };
-};
-
-type EmployeeModel = {
-  _id: string;
-  name: string;
-  teamId?: string;
-  jobTitle?: string;
-  profileImageUrl?: string;
-  status?: string;
-  statusMessage?: string;
 };
 
 interface OverviewTabProps {
@@ -69,11 +49,8 @@ interface OverviewTabProps {
   panelTitle: string;
   project: ProjectModel | null;
   projectTasks: PanelTask[];
-  employees: EmployeeModel[];
-  teamEmployees: EmployeeModel[];
   workload: WorkloadSummary[];
   companyModel: { projects: ProjectModel[] } | null;
-  selectedProjectId: string | null;
   setSelectedProjectId: (id: string | null) => void;
   globalMode: boolean;
   hasBusinessConfig: boolean;
@@ -83,16 +60,12 @@ interface OverviewTabProps {
   projectConfig: FarplaneProjectConfig | null;
   projectConfigState: ProjectConfigLoadState;
   projectConfigError: string | null;
-  onMessageAgent: (agentId: string) => void;
-  onOpenAgentSession: (agentId: string) => void;
 }
 
 export function OverviewTab({
   team,
   project,
   projectTasks,
-  employees,
-  teamEmployees,
   workload,
   companyModel,
   setSelectedProjectId,
@@ -104,12 +77,7 @@ export function OverviewTab({
   projectConfig,
   projectConfigState,
   projectConfigError,
-  onMessageAgent,
-  onOpenAgentSession,
 }: OverviewTabProps): ReactElement {
-  const setHighlightedEmployeeIds = useAppStore((state) => state.setHighlightedEmployeeIds);
-  const highlightedEmployeeIds = useAppStore((state) => state.highlightedEmployeeIds);
-
   const summary = workload.find((entry) => entry.projectId === (project?.id ?? ""));
 
   const aiCurrencyFormatter = useMemo(
@@ -144,14 +112,14 @@ export function OverviewTab({
     260,
   );
   const principles = bulletLines(getConfigSection(harnessFile, "Operating Principles"));
-  const kpiRows = parseMarkdownTable(getConfigSection(goalsFile, "KPI Axes")).slice(1);
-  const kpiAxes = kpiRows.map(overviewKpiFromRow);
-  const revenueEntries =
-    project?.ledger?.filter((entry) => /revenue|sale|income|money/i.test(entry.type)) ?? [];
-  const moneyMade = revenueEntries.reduce((total, entry) => total + entry.amount, 0);
-  const viewersKpi = findKpiAxis(kpiAxes, [/view/i, /attention/i]);
-  const userGrowthKpi = findKpiAxis(kpiAxes, [/user/i, /signup/i, /qualified/i, /curiosity/i]);
-  const smartGoalKpi = findKpiAxis(kpiAxes, [/feature/i, /quality/i, /showcase/i]) ?? kpiAxes[0];
+  const goalAxes = parseGoalAxesFromFile(goalsFile);
+  const metricsSnapshot = findMetricsSnapshot(projectConfig);
+  const availableMetricCount =
+    metricsSnapshot?.metrics.filter((metric) => metric.status === "available").length ?? 0;
+  const sourceGapCount =
+    metricsSnapshot?.sourceGaps.length ??
+    metricsSnapshot?.metrics.filter((metric) => metric.status === "source_gap").length ??
+    0;
   const taskCounts = {
     open: projectTasks.filter((task) => task.status !== "done").length,
     review: projectTasks.filter((task) => task.status === "review").length,
@@ -171,37 +139,78 @@ export function OverviewTab({
     projectConfig?.runtimeSources.find((source) => source.id === "reports")?.childCount ?? 0;
   const evalRunCount =
     projectConfig?.runtimeSources.find((source) => source.id === "eval-runs")?.childCount ?? 0;
+  const reportsSource = projectConfig?.runtimeSources.find((source) => source.id === "reports");
+  const reportBaseHref = reportsSource?.absolutePath
+    ? pathToFileHref(reportsSource.absolutePath)
+    : null;
+  const socialContent = buildSocialContentInsightsModel(projectConfig);
+  const distributionViews = socialContent.items.reduce(
+    (total, item) => total + (item.content_metrics.views ?? 0),
+    0,
+  );
+  const distributionGaps = socialContent.items.reduce(
+    (total, item) =>
+      total +
+      item.gaps.length +
+      (item.content_metrics.retention_score === null && item.kind.toLowerCase() === "reels"
+        ? 1
+        : 0),
+    0,
+  );
+  const latestDailyDiff = metricsSnapshot?.metrics
+    .flatMap((metric) => metric.series.slice(-1).map((point) => point.dailyDiff))
+    .filter((value): value is number => typeof value === "number")
+    .reduce((total, value) => total + value, 0);
+  const openGaps = [
+    ...(metricsSnapshot?.sourceGaps ?? []).slice(0, 4).map((gap) => ({
+      id: gap.metricId,
+      label: gap.metricId,
+      detail: gap.reason || "not connected yet",
+    })),
+    ...socialContent.items
+      .flatMap((item) =>
+        item.gaps.map((gap) => ({
+          id: `${item.content_id}:${gap}`,
+          label: `${item.platform} ${item.kind}`,
+          detail: gap,
+        })),
+      )
+      .slice(0, 2),
+  ];
   const topSignals = [
     {
-      label: "Money Made",
-      value: revenueEntries.length > 0 ? aiCurrencyFormatter.format(moneyMade) : "not bound",
+      label: "Goal Health",
+      value: metricsSnapshot ? `${availableMetricCount} live` : "missing",
       detail:
-        revenueEntries.length > 0
-          ? `${revenueEntries.length} revenue ledger entr${revenueEntries.length === 1 ? "y" : "ies"}`
-          : "Bind revenue ledger, Stripe, invoices, or a manual metric provider.",
-      target: "business outcome",
-      provider: revenueEntries.length > 0 ? "project ledger" : "provider_missing",
+        sourceGapCount > 0
+          ? `${sourceGapCount} source gap${sourceGapCount === 1 ? "" : "s"}`
+          : "no metric source gaps",
+      target: "strategy contract",
+      provider: metricsSnapshot ? "latest.json" : "provider_missing",
     },
     {
-      label: "User Growth",
-      value: userGrowthKpi ? "target set" : "not set",
-      detail: userGrowthKpi?.target ?? "No user/signup KPI axis is configured yet.",
-      target: userGrowthKpi?.axis ?? "growth signal",
-      provider: userGrowthKpi?.provider ?? "provider_missing",
+      label: "Today Move",
+      value:
+        typeof latestDailyDiff === "number"
+          ? `${latestDailyDiff >= 0 ? "+" : ""}${numberText(latestDailyDiff)}`
+          : "n/a",
+      detail: "sum of latest daily KPI diffs",
+      target: "daily motion",
+      provider: metricsSnapshot ? "series.daily_diff" : "provider_missing",
     },
     {
-      label: "Viewer Growth",
-      value: viewersKpi ? "target set" : "not set",
-      detail: viewersKpi?.target ?? "No attention/viewer KPI axis is configured yet.",
-      target: viewersKpi?.axis ?? "attention signal",
-      provider: viewersKpi?.provider ?? "provider_missing",
+      label: "Distribution",
+      value: numberText(distributionViews),
+      detail: `${socialContent.items.length} selected content item(s), ${distributionGaps} gap(s)`,
+      target: "content reach",
+      provider: socialContent.sourceLabel,
     },
     {
-      label: "SMART Goal Health",
-      value: `${taskCounts.done}/${Math.max(1, taskCounts.open + taskCounts.done)}`,
-      detail: smartGoalKpi?.currentBet ?? "Use goals.md KPI Axes to bind operating goals.",
-      target: smartGoalKpi?.axis ?? "operating KPI",
-      provider: smartGoalKpi?.provider ?? "provider_missing",
+      label: "Agents",
+      value: String(presenceRows.length),
+      detail: `${presenceRows.filter((row) => row.blockedTaskCount > 0).length} blocked, ${presenceRows.filter((row) => row.liveState).length} live`,
+      target: "persistent roster",
+      provider: "runtime presence",
     },
   ];
   const configBadge =
@@ -210,10 +219,70 @@ export function OverviewTab({
       : projectConfigState === "loading"
         ? "loading config"
         : projectConfigError || "config unavailable";
+  const openGapsCard = (
+    <Card className="rounded-md">
+      <CardHeader className="pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <AlertTriangle className="h-4 w-4" />
+            Open Gaps + Reports
+          </CardTitle>
+          <div className="flex flex-wrap gap-2">
+            {reportBaseHref ? (
+              <>
+                <Button asChild variant="outline" size="sm">
+                  <a
+                    href={`${reportBaseHref}/interval/daily_interval`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Daily report
+                  </a>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <a
+                    href={`${reportBaseHref}/interval/weekly_interval`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Weekly report
+                  </a>
+                </Button>
+              </>
+            ) : (
+              <Badge variant="secondary">reports source missing</Badge>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {openGaps.length > 0 ? (
+          <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+            {openGaps.map((gap) => (
+              <div key={gap.id} className="rounded-md border bg-muted/20 p-3">
+                <p className="break-all font-mono text-xs font-medium [overflow-wrap:anywhere]">
+                  {gap.label}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{gap.detail}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground">
+            No source gaps in the latest available snapshot.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   return (
     <ScrollArea className="h-full pr-3">
       <div className="space-y-4">
+        {openGapsCard}
+
         <Card className="rounded-md">
           <CardHeader className="pb-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -252,7 +321,7 @@ export function OverviewTab({
             </div>
             <div className="space-y-3 rounded-md border bg-muted/20 p-3">
               <div className="flex items-center gap-2">
-                <FileCog className="h-4 w-4 text-muted-foreground" />
+                <Gauge className="h-4 w-4 text-muted-foreground" />
                 <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
                   Harness Mission
                 </p>
@@ -281,14 +350,14 @@ export function OverviewTab({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2 text-sm">
                 <Gauge className="h-4 w-4" />
-                KPI Cockpit
+                Signal Summary
               </CardTitle>
               <span className="text-xs text-muted-foreground">
-                ultimate signals plus SMART-goal operating health
+                CEO scan; drill into Goals or Distribution for detail
               </span>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-4">
               {topSignals.map((signal) => (
                 <SignalCard
@@ -300,65 +369,6 @@ export function OverviewTab({
                   provider={signal.provider}
                 />
               ))}
-            </div>
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-                  Operating KPI Board
-                </p>
-                <Badge variant="outline">{kpiAxes.length} configured</Badge>
-              </div>
-              {kpiAxes.length > 0 ? (
-                <div className="space-y-2">
-                  {kpiAxes.slice(0, 6).map((kpi) => (
-                    <div
-                      key={`${kpi.axis}-${kpi.weight}`}
-                      className="grid min-w-0 grid-cols-1 gap-3 rounded-md border bg-muted/20 p-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_8rem]"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <Badge variant="outline" className="shrink-0">
-                            {kpi.weight}
-                          </Badge>
-                          <p className="min-w-0 break-words text-sm font-medium [overflow-wrap:anywhere]">
-                            {kpi.axis}
-                          </p>
-                        </div>
-                        <p className="mt-2 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">
-                          {kpi.target}
-                        </p>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                          Why It Matters
-                        </p>
-                        <p className="mt-1 break-words text-xs [overflow-wrap:anywhere]">
-                          {kpi.currentBet}
-                        </p>
-                        <p className="mt-2 break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
-                          Evidence: {kpi.evidence}
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between gap-3 xl:flex-col xl:items-start">
-                        <Badge
-                          variant={kpi.provider === "provider_missing" ? "secondary" : "outline"}
-                          className="max-w-full whitespace-normal break-words text-left [overflow-wrap:anywhere]"
-                        >
-                          {kpi.provider}
-                        </Badge>
-                        <OverviewTrendBars
-                          seed={`${kpi.axis}:${kpi.provider}`}
-                          active={kpi.provider !== "provider_missing"}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground">
-                  No KPI Axes table found in farplane/goals.md yet.
-                </p>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -387,7 +397,7 @@ export function OverviewTab({
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
           <HudMetric
             label="KPI Axes"
-            value={String(kpiRows.length)}
+            value={String(goalAxes.length)}
             detail="from farplane/goals.md"
           />
           <HudMetric
@@ -412,18 +422,15 @@ export function OverviewTab({
             detail={aiUsageUnavailableText ?? `${evalRunCount} eval run source(s)`}
           />
         </div>
-
-        <TeamMembersSection
-          employees={employees}
-          globalMode={globalMode}
-          highlightedEmployeeIds={highlightedEmployeeIds}
-          onMessageAgent={onMessageAgent}
-          onOpenAgentSession={onOpenAgentSession}
-          presenceRows={presenceRows}
-          setHighlightedEmployeeIds={setHighlightedEmployeeIds}
-          teamEmployees={teamEmployees}
-        />
       </div>
     </ScrollArea>
   );
+}
+
+function numberText(value: number): string {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
+}
+
+function pathToFileHref(path: string): string {
+  return `file://${path.split("/").map(encodeURIComponent).join("/")}`;
 }

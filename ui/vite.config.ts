@@ -72,8 +72,6 @@ const COMPANY_MODEL_PATH = path.join(FARPLANE_HOME, "company.json");
 const LOCAL_HOOK_EVENTS_DIR = path.join(FARPLANE_HOME, "events");
 const COMPANY_TEMPLATE_PATH = path.resolve(__dirname, "../templates/sidecar/company.template.json");
 const FARPLANE_CONFIG_TOML_PATH = path.join(FARPLANE_HOME, "config.toml");
-const FARPLANE_CONFIG_JSON_PATH = path.join(FARPLANE_HOME, "config.json");
-const FARPLANE_SECRETS_JSON_PATH = path.join(FARPLANE_HOME, "secrets.json");
 const OFFICE_OBJECTS_PATH = path.join(FARPLANE_HOME, "office-objects.json");
 const OFFICE_SETTINGS_PATH = path.join(FARPLANE_HOME, "office.json");
 const CODEX_OFFICE_CONFIG_PATH = path.join(FARPLANE_HOME, "codex-office.json");
@@ -328,33 +326,6 @@ const SKILL_PACKAGE_FILE_NAMES = ["SKILL.md", "skill.md"] as const;
 const MESHY_API_BASE = "https://api.meshy.ai/openapi/v2";
 const execFileAsync = promisify(execFile);
 
-function readRootEnvValue(name: string): string {
-  for (const fileName of [".env.local", ".env"]) {
-    const filePath = path.join(REPO_ROOT, fileName);
-    if (!existsSync(filePath)) continue;
-    const lines = readFileSync(filePath, "utf-8").split(/\r?\n/);
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
-      if (!match || match[1] !== name) continue;
-      return match[2].replace(/\s+#.*$/, "").trim().replace(/^['"]|['"]$/g, "");
-    }
-  }
-  return "";
-}
-
-function readLocalJsonObjectSync(filePath: string): JsonObject {
-  try {
-    const parsed = JSON.parse(readFileSync(filePath, "utf-8")) as unknown;
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? (parsed as JsonObject)
-      : {};
-  } catch {
-    return {};
-  }
-}
-
 function stripTomlComment(line: string): string {
   let quoted = false;
   let escaped = false;
@@ -377,9 +348,20 @@ function stripTomlComment(line: string): string {
   return line.trimEnd();
 }
 
-function parseTomlString(rawValue: string): string {
+function parseTomlValue(rawValue: string): unknown {
   const value = rawValue.trim();
   if (!value) return "";
+  if (value === "true") return true;
+  if (value === "false") return false;
+  if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
+  if (value.startsWith("[") && value.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
   if (value.startsWith("\"") && value.endsWith("\"")) {
     try {
       const parsed = JSON.parse(value) as unknown;
@@ -413,7 +395,7 @@ function readLocalTomlObjectSync(filePath: string): JsonObject {
       }
       const assignmentMatch = line.match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*(.*)$/);
       if (!assignmentMatch || !current) continue;
-      current[assignmentMatch[1]] = parseTomlString(assignmentMatch[2]);
+      current[assignmentMatch[1]] = parseTomlValue(assignmentMatch[2]);
     }
   } catch {
     return {};
@@ -422,13 +404,24 @@ function readLocalTomlObjectSync(filePath: string): JsonObject {
 }
 
 function tomlString(value: unknown): string {
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (Array.isArray(value)) {
+    return JSON.stringify(value.filter((entry) => typeof entry === "string"));
+  }
   return JSON.stringify(typeof value === "string" ? value : String(value ?? ""));
 }
 
 function serializeTomlSection(name: string, row: unknown): string[] {
   if (!row || typeof row !== "object" || Array.isArray(row)) return [];
   const entries = Object.entries(row as JsonObject)
-    .filter(([, value]) => typeof value === "string" && value.trim())
+    .filter(([, value]) => {
+      if (typeof value === "string") return value.trim();
+      if (typeof value === "boolean") return true;
+      if (typeof value === "number") return Number.isFinite(value);
+      if (Array.isArray(value)) return value.length > 0;
+      return false;
+    })
     .sort(([left], [right]) => left.localeCompare(right));
   if (!entries.length) return [];
   return [`[${name}]`, ...entries.map(([key, value]) => `${key} = ${tomlString(value)}`), ""];
@@ -442,6 +435,14 @@ function serializeFarplaneConfigToml(row: JsonObject): string {
     ...serializeTomlSection("runtime", row.runtime),
     ...serializeTomlSection("convex", row.convex),
     ...serializeTomlSection("integrations", row.integrations),
+    ...serializeTomlSection("telegram", row.telegram),
+    ...serializeTomlSection(
+      "telegram.streaming",
+      row.telegram &&
+        typeof row.telegram === "object" &&
+        !Array.isArray(row.telegram) &&
+        (row.telegram as JsonObject).streaming,
+    ),
     ...serializeTomlSection("env", row.env),
   ];
   return `${lines.join("\n").trimEnd()}\n`;
@@ -456,22 +457,29 @@ function objectStringAt(row: JsonObject, pathParts: string[]): string {
   return typeof current === "string" ? current.trim() : "";
 }
 
+function objectRecordAt(row: JsonObject, pathParts: string[]): JsonObject {
+  let current: unknown = row;
+  for (const part of pathParts) {
+    if (!current || typeof current !== "object" || Array.isArray(current)) return {};
+    current = (current as JsonObject)[part];
+  }
+  return current && typeof current === "object" && !Array.isArray(current) ? current as JsonObject : {};
+}
+
 function canonicalConfigString(pathParts: string[]): string {
   return objectStringAt(readLocalTomlObjectSync(FARPLANE_CONFIG_TOML_PATH), pathParts);
 }
 
+function localConfigObject(pathParts: string[]): JsonObject {
+  return objectRecordAt(readLocalTomlObjectSync(FARPLANE_CONFIG_TOML_PATH), pathParts);
+}
+
 function localConfigString(pathParts: string[]): string {
-  return (
-    canonicalConfigString(pathParts) ||
-    objectStringAt(readLocalJsonObjectSync(FARPLANE_CONFIG_JSON_PATH), pathParts)
-  );
+  return canonicalConfigString(pathParts);
 }
 
 function localSecretString(pathParts: string[]): string {
-  return (
-    canonicalConfigString(pathParts) ||
-    objectStringAt(readLocalJsonObjectSync(FARPLANE_SECRETS_JSON_PATH), pathParts)
-  );
+  return canonicalConfigString(pathParts);
 }
 
 function localConfigEnvString(name: string): string {
@@ -500,7 +508,7 @@ function firstLocalSecretString(paths: string[][]): string {
 
 function firstEnvValue(names: string[]): string {
   for (const name of names) {
-    const value = localConfigEnvString(name) || process.env[name]?.trim() || readRootEnvValue(name);
+    const value = localConfigEnvString(name) || process.env[name]?.trim();
     if (value) return value;
   }
   return "";
@@ -602,6 +610,24 @@ function setNestedString(row: JsonObject, pathParts: string[], value: string): v
   }
 }
 
+function setNestedValue(row: JsonObject, pathParts: string[], value: JsonValue | undefined): void {
+  let current = row;
+  for (let index = 0; index < pathParts.length - 1; index += 1) {
+    const key = pathParts[index];
+    const child = current[key];
+    if (!child || typeof child !== "object" || Array.isArray(child)) {
+      current[key] = {};
+    }
+    current = current[key] as JsonObject;
+  }
+  const leaf = pathParts[pathParts.length - 1];
+  if (value === undefined || value === null || value === "") {
+    delete current[leaf];
+  } else {
+    current[leaf] = value;
+  }
+}
+
 function runtimeSecretStatus(pathParts: string[], envNames: string[]): JsonObject {
   const saved =
     localSecretString(pathParts) ||
@@ -619,7 +645,7 @@ function runtimeSecretStatus(pathParts: string[], envNames: string[]): JsonObjec
     return { configured: true, source: "saved" };
   }
   for (const name of envNames) {
-    if (process.env[name]?.trim() || readRootEnvValue(name)) {
+    if (process.env[name]?.trim()) {
       return { configured: true, source: "env" };
     }
   }
@@ -782,7 +808,7 @@ const RUNTIME_ENV_CATALOG: RuntimeEnvConfig[] = [
 function runtimeEnvStatus(config: RuntimeEnvConfig): JsonObject {
   const saved = config.secret ? localSecretEnvString(config.name) : localConfigEnvString(config.name);
   if (saved) return { configured: true, source: "saved" };
-  if (process.env[config.name]?.trim() || readRootEnvValue(config.name)) {
+  if (process.env[config.name]?.trim()) {
     return { configured: true, source: "env" };
   }
   return { configured: false, source: "missing" };
@@ -790,10 +816,15 @@ function runtimeEnvStatus(config: RuntimeEnvConfig): JsonObject {
 
 function runtimeEnvValue(config: RuntimeEnvConfig): string {
   if (config.secret) return "";
-  return localConfigEnvString(config.name) || process.env[config.name]?.trim() || readRootEnvValue(config.name);
+  return localConfigEnvString(config.name) || process.env[config.name]?.trim() || "";
 }
 
 function readRuntimeConfigForUi(): JsonObject {
+  const telegram = localConfigObject(["telegram"]);
+  const telegramStreaming =
+    telegram.streaming && typeof telegram.streaming === "object" && !Array.isArray(telegram.streaming)
+      ? telegram.streaming as JsonObject
+      : {};
   return {
     config: {
       codexAppServerUrl:
@@ -825,8 +856,6 @@ function readRuntimeConfigForUi(): JsonObject {
         ]) ||
         process.env.FARPLANE_CONVEX_SITE_URL?.trim() ||
         process.env.CONVEX_SITE_URL?.trim() ||
-        readRootEnvValue("FARPLANE_CONVEX_SITE_URL") ||
-        readRootEnvValue("CONVEX_SITE_URL") ||
         "",
       convexClientUrl:
         localConfigEnvString("VITE_CONVEX_URL") ||
@@ -837,8 +866,6 @@ function readRuntimeConfigForUi(): JsonObject {
         ]) ||
         process.env.VITE_CONVEX_URL?.trim() ||
         process.env.CONVEX_URL?.trim() ||
-        readRootEnvValue("VITE_CONVEX_URL") ||
-        readRootEnvValue("CONVEX_URL") ||
         "",
     },
     secrets: {
@@ -848,6 +875,23 @@ function readRuntimeConfigForUi(): JsonObject {
       ),
       notionApiKey: runtimeSecretStatus(["integrations", "notionApiKey"], ["NOTION_API_KEY"]),
       telemetryToken: runtimeSecretStatus(["convex", "telemetryToken"], ["FARPLANE_TELEMETRY_TOKEN"]),
+    },
+    telegram: {
+      enabled: telegram.enabled !== false,
+      mainThreadId:
+        localConfigString(["telegram", "main_thread_id"]) ||
+        localConfigString(["telegram", "mainThreadId"]),
+      allowFrom: Array.isArray(telegram.allow_from)
+        ? telegram.allow_from.map(String).filter(Boolean)
+        : Array.isArray(telegram.allowFrom)
+          ? telegram.allowFrom.map(String).filter(Boolean)
+          : [],
+      dmPolicy: localConfigString(["telegram", "dm_policy"]) || localConfigString(["telegram", "dmPolicy"]),
+      groupPolicy:
+        localConfigString(["telegram", "group_policy"]) ||
+        localConfigString(["telegram", "groupPolicy"]),
+      streamingMode: typeof telegramStreaming.mode === "string" ? telegramStreaming.mode : "",
+      botToken: runtimeSecretStatus(["telegram", "bot_token"], ["TELEGRAM_BOT_TOKEN"]),
     },
     env: RUNTIME_ENV_CATALOG.map((config) => ({
       ...config,
@@ -867,8 +911,11 @@ async function saveRuntimeConfigFromUi(input: unknown): Promise<JsonObject> {
     body.secrets && typeof body.secrets === "object" && !Array.isArray(body.secrets)
       ? (body.secrets as JsonObject)
       : {};
+  const telegramInput =
+    body.telegram && typeof body.telegram === "object" && !Array.isArray(body.telegram)
+      ? (body.telegram as JsonObject)
+      : {};
   const config = readLocalTomlObjectSync(FARPLANE_CONFIG_TOML_PATH);
-  const legacySecrets = await readJsonFile<JsonObject>(FARPLANE_SECRETS_JSON_PATH, {});
 
   setNestedString(config, ["runtime", "codex_app_server_url"], String(configInput.codexAppServerUrl ?? ""));
   setNestedString(config, ["runtime", "state_base"], String(configInput.stateBase ?? ""));
@@ -899,6 +946,21 @@ async function saveRuntimeConfigFromUi(input: unknown): Promise<JsonObject> {
     const value = typeof secretInput[key] === "string" ? secretInput[key].trim() : "";
     if (value) setNestedString(config, [...pathParts], value);
   }
+  if (Object.keys(telegramInput).length > 0) {
+    setNestedValue(config, ["telegram", "enabled"], telegramInput.enabled === false ? false : true);
+    setNestedString(config, ["telegram", "main_thread_id"], String(telegramInput.mainThreadId ?? ""));
+    setNestedString(config, ["telegram", "dm_policy"], String(telegramInput.dmPolicy ?? "allowlist"));
+    setNestedString(config, ["telegram", "group_policy"], String(telegramInput.groupPolicy ?? "allowlist"));
+    const rawAllowFrom = Array.isArray(telegramInput.allowFrom)
+      ? telegramInput.allowFrom
+      : String(telegramInput.allowFrom ?? "")
+          .split(",")
+          .map((entry) => entry.trim());
+    setNestedValue(config, ["telegram", "allow_from"], rawAllowFrom.map(String).filter(Boolean));
+    setNestedString(config, ["telegram", "streaming", "mode"], String(telegramInput.streamingMode ?? "off"));
+    const botToken = typeof telegramInput.botToken === "string" ? telegramInput.botToken.trim() : "";
+    if (botToken) setNestedString(config, ["telegram", "bot_token"], botToken);
+  }
   const secretEnv =
     config.env && typeof config.env === "object" && !Array.isArray(config.env)
       ? (config.env as JsonObject)
@@ -912,11 +974,9 @@ async function saveRuntimeConfigFromUi(input: unknown): Promise<JsonObject> {
     ]);
   const notionApiKey =
     objectStringAt(secretEnv, ["NOTION_API_KEY"]) ||
-    objectStringAt(secretEnv, ["NOTION_TOKEN"]) ||
-    objectStringAt(legacySecrets, ["integrations", "notionApiKey"]);
+    objectStringAt(secretEnv, ["NOTION_TOKEN"]);
   const telemetryToken =
-    objectStringAt(secretEnv, ["FARPLANE_TELEMETRY_TOKEN"]) ||
-    objectStringAt(legacySecrets, ["convex", "telemetryToken"]);
+    objectStringAt(secretEnv, ["FARPLANE_TELEMETRY_TOKEN"]);
   if (meshyApiKey) setNestedString(config, ["integrations", "meshy_api_key"], meshyApiKey);
   if (notionApiKey) setNestedString(config, ["integrations", "notion_api_key"], notionApiKey);
   if (telemetryToken) setNestedString(config, ["convex", "telemetry_token"], telemetryToken);
@@ -930,6 +990,7 @@ async function saveRuntimeConfigFromUi(input: unknown): Promise<JsonObject> {
 type FarplaneHookConfig = {
   enabled: boolean;
   summaryEnabled: boolean;
+  summaryDebounceMs: number;
   includeManifestTracked: boolean;
   selectedManifestPaths: string[];
   customPatterns: string[];
@@ -937,7 +998,8 @@ type FarplaneHookConfig = {
 
 const DEFAULT_HOOK_CONFIG: FarplaneHookConfig = {
   enabled: true,
-  summaryEnabled: true,
+  summaryEnabled: false,
+  summaryDebounceMs: 8_000,
   includeManifestTracked: true,
   selectedManifestPaths: [],
   customPatterns: [],
@@ -959,8 +1021,23 @@ function readManifestTrackedPaths(manifest: JsonObject): string[] {
   ]).filter((entry) => !entry.endsWith("/"));
 }
 
-function normalizeHookConfig(input: unknown, manifestTracked: string[]): FarplaneHookConfig {
+function hookConfigRecord(input: unknown): JsonObject {
   const record = input && typeof input === "object" && !Array.isArray(input) ? input as JsonObject : {};
+  const nested = record.fileChange && typeof record.fileChange === "object" && !Array.isArray(record.fileChange)
+    ? record.fileChange as JsonObject
+    : {};
+  return Object.keys(nested).length > 0 ? nested : record;
+}
+
+function nonNegativeInteger(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return Math.floor(value);
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : undefined;
+}
+
+function normalizeHookConfig(input: unknown, manifestTracked: string[]): FarplaneHookConfig {
+  const record = hookConfigRecord(input);
   const selected = uniqueHookPatterns(
     Array.isArray(record.selectedManifestPaths) ? record.selectedManifestPaths : manifestTracked,
   );
@@ -971,6 +1048,10 @@ function normalizeHookConfig(input: unknown, manifestTracked: string[]): Farplan
       typeof record.summaryEnabled === "boolean"
         ? record.summaryEnabled
         : DEFAULT_HOOK_CONFIG.summaryEnabled,
+    summaryDebounceMs:
+      nonNegativeInteger(record.summaryDebounceMs) ??
+      nonNegativeInteger(record.summaryThrottleMs) ??
+      DEFAULT_HOOK_CONFIG.summaryDebounceMs,
     includeManifestTracked:
       typeof record.includeManifestTracked === "boolean"
         ? record.includeManifestTracked
@@ -981,7 +1062,7 @@ function normalizeHookConfig(input: unknown, manifestTracked: string[]): Farplan
 }
 
 function hookConfigPath(projectPath: string): string {
-  return path.join(projectPath, ".farplane", "hooks", "config.json");
+  return path.join(projectPath, "farplane", "hooks.json");
 }
 
 async function readProjectHookConfig(projectPath: string): Promise<JsonObject> {
@@ -989,7 +1070,9 @@ async function readProjectHookConfig(projectPath: string): Promise<JsonObject> {
   const manifestPath = path.join(root, "farplane", "manifest.json");
   const manifest = await readJsonFile<JsonObject>(manifestPath, {});
   const manifestTracked = readManifestTrackedPaths(manifest);
-  const config = normalizeHookConfig(await readJsonFile<unknown>(hookConfigPath(root), {}), manifestTracked);
+  const canonicalConfigPath = hookConfigPath(root);
+  const configSource = await readJsonFile<unknown>(canonicalConfigPath, {});
+  const config = normalizeHookConfig(configSource, manifestTracked);
   const activePatterns = config.enabled
     ? uniqueHookPatterns([
       ...(config.includeManifestTracked ? config.selectedManifestPaths : []),
@@ -999,7 +1082,7 @@ async function readProjectHookConfig(projectPath: string): Promise<JsonObject> {
   return {
     ok: true,
     projectPath: root,
-    configPath: hookConfigPath(root),
+    configPath: canonicalConfigPath,
     manifestPath,
     manifestExists: await pathExists(manifestPath),
     manifestTracked,
@@ -1014,8 +1097,22 @@ async function saveProjectHookConfig(projectPath: string, input: unknown): Promi
   const manifest = await readJsonFile<JsonObject>(path.join(root, "farplane", "manifest.json"), {});
   const config = normalizeHookConfig(input, readManifestTrackedPaths(manifest));
   const filePath = hookConfigPath(root);
+  const existing = await readJsonFile<JsonObject>(filePath, {});
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  await writeFile(
+    filePath,
+    `${JSON.stringify(
+      {
+        ...existing,
+        schema: "farplane_hooks",
+        spec_version: "1.0.0",
+        fileChange: config,
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
   return readProjectHookConfig(root);
 }
 
@@ -2832,6 +2929,37 @@ async function readFarplaneProjectConfig(projectPath: string): Promise<JsonObjec
   const runtimeCandidates = [
     { id: "reports", label: "Reports", path: ".farplane/reports", kind: "directory" },
     { id: "eval-runs", label: "Eval runs", path: ".farplane/evals/runs", kind: "directory" },
+    { id: "metrics-ui", label: "Metrics UI snapshot", path: ".farplane/metrics/ui/latest.json", kind: "file" },
+    {
+      id: "social-x-latest-selected",
+      label: "X latest selected content",
+      path: "tmp/social-metrics-dry-run/x_latest_selected.json",
+      kind: "file",
+    },
+    {
+      id: "social-x-yesterday-selected",
+      label: "X yesterday selected content",
+      path: "tmp/social-metrics-dry-run/x_yesterday_selected.json",
+      kind: "file",
+    },
+    {
+      id: "social-instagram-latest-selected",
+      label: "Instagram latest selected content",
+      path: "tmp/social-metrics-dry-run/instagram_latest_selected.json",
+      kind: "file",
+    },
+    {
+      id: "social-instagram-latest-reel-selected",
+      label: "Instagram latest Reel selected content",
+      path: "tmp/social-metrics-dry-run/instagram_latest_reel_selected.json",
+      kind: "file",
+    },
+    {
+      id: "social-instagram-yesterday-selected",
+      label: "Instagram yesterday selected content",
+      path: "tmp/social-metrics-dry-run/instagram_yesterday_selected.json",
+      kind: "file",
+    },
     { id: "run-ledger", label: "Run ledger", path: ".farplane/state/run-ledger.json", kind: "file" },
     { id: "logs", label: "Logs", path: ".farplane/logs", kind: "directory" },
   ];
@@ -2840,8 +2968,22 @@ async function readFarplaneProjectConfig(projectPath: string): Promise<JsonObjec
       const absolutePath = path.join(rootPath, candidate.path);
       const fileStat = await stat(absolutePath).catch(() => null);
       let childCount: number | null = null;
+      let content: string | undefined;
+      let parsedJson: JsonObject | JsonObject[] | null = null;
+      let error: string | undefined;
       if (fileStat?.isDirectory()) {
         childCount = (await readdir(absolutePath).catch(() => [])).length;
+      }
+      if (fileStat?.isFile()) {
+        try {
+          content = await readFile(absolutePath, "utf-8");
+          if (candidate.path.endsWith(".json") && content.trim()) {
+            const parsed = JSON.parse(content) as unknown;
+            if (parsed && typeof parsed === "object") parsedJson = parsed as JsonObject | JsonObject[];
+          }
+        } catch {
+          error = candidate.path.endsWith(".json") ? "json_read_or_parse_failed" : "read_failed";
+        }
       }
       return {
         ...candidate,
@@ -2849,6 +2991,9 @@ async function readFarplaneProjectConfig(projectPath: string): Promise<JsonObjec
         exists: Boolean(fileStat),
         updatedAtMs: fileStat?.mtimeMs ?? null,
         childCount,
+        content,
+        parsedJson,
+        error,
       };
     }),
   );

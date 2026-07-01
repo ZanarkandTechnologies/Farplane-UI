@@ -17,6 +17,8 @@
 export type TabKey =
   | "overview"
   | "goals"
+  | "distribution"
+  | "members"
   | "products"
   | "kanban"
   | "cadence"
