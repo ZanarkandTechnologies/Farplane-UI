@@ -8,6 +8,7 @@ export type {
 export {
   findConfigFile,
   getConfigSection,
+  ProjectAutomationsTab,
   ProjectCadenceTab,
   ProjectConfigTab,
   ProjectGoalsTab,

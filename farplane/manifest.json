@@ -20,7 +20,7 @@
       "farplane/harness.md",
       "farplane/goals.md",
       "farplane/products.md",
-      "farplane/automations.md",
+      "farplane/automations.toml",
       "farplane/bindings.md",
       "farplane/hooks.json",
       ".agents/skills/README.md",
@@ -82,7 +82,7 @@
         "farplane/harness.md",
         "farplane/goals.md",
         "farplane/products.md",
-        "farplane/automations.md",
+        "farplane/automations.toml",
         "farplane/bindings.md",
         "farplane/hooks.json",
         "tickets/README.md"

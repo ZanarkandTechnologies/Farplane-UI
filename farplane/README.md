@@ -20,7 +20,7 @@ farplane/
   harness.md       # static human charter and authority boundaries
   goals.md         # north star, KPIs, current milestone, holds
   products.md      # team/product/work-lane catalog
-  automations.md   # reviewable Codex automation prompt source
+  automations.toml # reviewable Codex automation config source
   bindings.md      # non-secret project IDs, URLs, labels, aliases
   hooks.json       # declarative Farplane-native hook config
   pm.json          # optional UI thread manifest for one visual project PM

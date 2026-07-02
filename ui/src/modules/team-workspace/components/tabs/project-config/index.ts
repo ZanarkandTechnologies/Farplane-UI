@@ -1,4 +1,4 @@
-export { ProjectCadenceTab } from "./cadence-tab";
+export { ProjectAutomationsTab, ProjectCadenceTab } from "./cadence-tab";
 export { findConfigFile, getConfigSection, parseMarkdownTable } from "./config-parsing";
 export type {
   FarplaneConfigFile,

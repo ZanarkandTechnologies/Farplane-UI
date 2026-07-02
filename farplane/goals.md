@@ -116,7 +116,7 @@ project "Farplane UI" {
 The PM may autonomously:
 
 - read `farplane/harness.md`, `farplane/products.md`, `farplane/goals.md`,
-  `farplane/automations.md`, active tickets, and recent interval reports;
+  `farplane/automations.toml`, active tickets, and recent interval reports;
 - choose one ready local ticket per Pulse beat;
 - split or clarify vague local work into smaller ticket proposals;
 - propose product refill tickets when the board is thin;

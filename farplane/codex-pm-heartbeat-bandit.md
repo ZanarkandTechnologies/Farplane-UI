@@ -422,7 +422,7 @@ Objective: Find one measurable user acquisition experiment for Farplane.
 
 Files:
 - farplane/goals.md
-- farplane/automations.md
+- farplane/automations.toml
 - .farplane/automation/reflections/latest.md
 - tickets/
 
@@ -463,7 +463,7 @@ Farplane should not implement a second scheduler.
 ## Open Questions
 
 - What exact Codex native heartbeat configuration file/API should be generated
-  from `farplane/automations.md`?
+  from `farplane/automations.toml`?
 - Should reward updates happen inside every heartbeat, or should there be a
   separate daily/weekly metric heartbeat?
 - How should the child thread title be set if Codex native thread title APIs are
@@ -474,7 +474,7 @@ Farplane should not implement a second scheduler.
 
 ## Recommended First Slice
 
-1. Keep `farplane/automations.md` as the human-readable automation contract.
+1. Keep `farplane/automations.toml` as the parseable automation config contract.
 2. Create a Codex native heartbeat from `settings.founder_heartbeat`.
 3. On each beat, run the local program:
 

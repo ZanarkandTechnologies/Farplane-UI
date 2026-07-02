@@ -22,7 +22,7 @@ Cadence, Telemetry, and Config.
   - `farplane/harness.md`
   - `farplane/goals.md`
   - `farplane/products.md`
-  - `farplane/automations.md`
+  - `farplane/automations.toml`
   - `farplane/bindings.md`
   - `farplane/evals.md`
   - `farplane/hooks.json`
