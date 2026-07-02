@@ -10,7 +10,7 @@ export type FarplaneConfigFile = {
   absolutePath: string;
   title: string;
   kind: string;
-  format: "json" | "markdown";
+  format: "json" | "markdown" | "toml";
   exists: boolean;
   content: string;
   updatedAtMs: number | null;

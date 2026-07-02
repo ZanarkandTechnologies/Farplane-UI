@@ -115,7 +115,7 @@ const FARPLANE_PROJECT_CONFIG_FILES = [
   { path: "farplane/harness.md", title: "Harness", kind: "harness", format: "markdown" },
   { path: "farplane/goals.md", title: "Goals", kind: "goals", format: "markdown" },
   { path: "farplane/products.md", title: "Products", kind: "products", format: "markdown" },
-  { path: "farplane/automations.md", title: "Automations", kind: "automations", format: "markdown" },
+  { path: "farplane/automations.toml", title: "Automations", kind: "automations", format: "toml" },
   { path: "farplane/bindings.md", title: "Bindings", kind: "bindings", format: "markdown" },
   { path: "farplane/evals.md", title: "Evals", kind: "evals", format: "markdown" },
   { path: "farplane/hooks.json", title: "Hooks", kind: "hooks", format: "json" },
@@ -194,7 +194,7 @@ const TEMPLATE_TRACKING_FAMILIES: TemplateTrackingFamilyConfig[] = [
     scope: "project-config",
     source: "frontmatter",
     description: "Recurring jobs, schedules, reports, and ticket source policy.",
-    paths: ["farplane/automations.md"],
+    paths: ["farplane/automations.toml"],
     owner: "project-pm-automation",
   },
   {

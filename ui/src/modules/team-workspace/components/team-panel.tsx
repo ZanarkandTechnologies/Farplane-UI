@@ -39,7 +39,7 @@ import { findMetricsSnapshot } from "./tabs/overview/goal-kpi-model";
 import { buildSocialContentInsightsModel } from "./tabs/overview/social-content-insights";
 import { TeamMembersSection } from "./tabs/overview/team-members-section";
 import {
-  ProjectCadenceTab,
+  ProjectAutomationsTab,
   ProjectGoalsTab,
   ProjectProductsTab,
   useFarplaneProjectConfig,
@@ -250,7 +250,7 @@ export function TeamPanel({
                 Kanban
               </TabsTrigger>
               <TabsTrigger className="flex-none" value="cadence">
-                Cadence
+                Automations
               </TabsTrigger>
               <TabsTrigger className="flex-none" value="thread-data">
                 Thread Data
@@ -333,7 +333,7 @@ export function TeamPanel({
           </TabsContent>
 
           <TabsContent value="cadence" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ProjectCadenceTab config={projectConfigState.config} />
+            <ProjectAutomationsTab config={projectConfigState.config} />
           </TabsContent>
 
           <TabsContent value="thread-data" className="mt-4 min-h-0 flex-1 overflow-hidden">
