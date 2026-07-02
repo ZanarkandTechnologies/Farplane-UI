@@ -44,6 +44,7 @@
     "hooks:install:skill-invocations": "node scripts/install-skill-invocation-hook.mjs --write",
     "office:skill-smoke": "bash scripts/office-skill-smoke.sh",
     "telemetry:import:aikage": "node scripts/import-aikage-telemetry.mjs",
+    "dashboard:compile": "node scripts/compile-dashboard-projections.mjs",
     "test": "vitest",
     "test:once": "vitest run",
     "test:skills": "vitest run skills/skill-contract.test.ts",

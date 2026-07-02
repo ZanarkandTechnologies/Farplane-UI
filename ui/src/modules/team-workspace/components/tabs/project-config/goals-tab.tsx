@@ -3,13 +3,13 @@ import type { ReactElement } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { type PanelTask, STATUS_LABELS } from "../../team-panel-types";
-import { GoalKpiCockpit } from "../overview/goal-kpi-cockpit";
+import { GoalKpiCockpit } from "@/modules/team-workspace/components/dashboard-projections/goal-kpi-cockpit";
 import {
   buildGoalAxisViews,
   findMetricsSnapshot,
   parseGoalAxesFromFile,
-} from "../overview/goal-kpi-model";
+} from "@/modules/team-workspace/lib/dashboard-projections/goal-kpi-model";
+import { type PanelTask, STATUS_LABELS } from "../../team-panel-types";
 import { findConfigFile, getConfigSection } from "./config-parsing";
 import type { FarplaneProjectConfig, ProjectConfigLoadState } from "./config-types";
 import { ConfigLoadingState, MetricTile, shortText, statusBadge } from "./shared";
@@ -39,7 +39,7 @@ export function ProjectGoalsTab({
     0;
   const snapshotLabel = snapshot
     ? `${snapshot.snapshotDate || "latest"} · ${availableMetricCount} live · ${sourceGapCount} gap`
-    : "metrics snapshot missing";
+    : "metric readings missing";
   const doneTasks = projectTasks.filter((task) => task.status === "done").slice(0, 4);
   const openTasks = projectTasks.filter((task) => task.status !== "done");
 
@@ -86,9 +86,9 @@ export function ProjectGoalsTab({
             detail="goal axes from goals.md"
           />
           <MetricTile
-            label="Live Metrics"
+            label="Tracked KPIs"
             value={snapshot ? String(availableMetricCount) : "missing"}
-            detail=".farplane/metrics/ui/latest.json"
+            detail="observed readings"
           />
           <MetricTile
             label="Active Tickets"

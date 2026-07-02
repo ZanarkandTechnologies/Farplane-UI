@@ -1,0 +1,48 @@
+[
+  { "id": "reports", "label": "Reports", "path": ".farplane/reports", "kind": "directory" },
+  { "id": "eval-runs", "label": "Eval runs", "path": ".farplane/evals/runs", "kind": "directory" },
+  {
+    "id": "metrics-ui",
+    "label": "Metrics UI snapshot",
+    "path": ".farplane/metrics/ui/latest.json",
+    "kind": "file"
+  },
+  {
+    "id": "overview-surface",
+    "label": "Overview surface",
+    "path": ".farplane/state/overview_surface.json",
+    "kind": "file"
+  },
+  {
+    "id": "social-x-latest-selected",
+    "label": "X latest selected content",
+    "path": ".farplane/metrics/provider-exports/x_latest_selected.json",
+    "kind": "file"
+  },
+  {
+    "id": "social-x-yesterday-selected",
+    "label": "X yesterday selected content",
+    "path": ".farplane/metrics/provider-exports/x_yesterday_selected.json",
+    "kind": "file"
+  },
+  {
+    "id": "social-instagram-latest-selected",
+    "label": "Instagram latest selected content",
+    "path": ".farplane/metrics/provider-exports/instagram_latest_selected.json",
+    "kind": "file"
+  },
+  {
+    "id": "social-instagram-latest-reel-selected",
+    "label": "Instagram latest Reel selected content",
+    "path": ".farplane/metrics/provider-exports/instagram_latest_reel_selected.json",
+    "kind": "file"
+  },
+  {
+    "id": "social-instagram-yesterday-selected",
+    "label": "Instagram yesterday selected content",
+    "path": ".farplane/metrics/provider-exports/instagram_yesterday_selected.json",
+    "kind": "file"
+  },
+  { "id": "run-ledger", "label": "Run ledger", "path": ".farplane/state/run-ledger.json", "kind": "file" },
+  { "id": "logs", "label": "Logs", "path": ".farplane/logs", "kind": "directory" }
+]

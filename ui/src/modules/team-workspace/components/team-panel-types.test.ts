@@ -86,6 +86,39 @@ describe("deriveAgentPresenceRows", () => {
     expect(rows[0]?.latestOccurredAt).toBe(123);
   });
 
+  it("preserves employee appearance data for renderer-aware member cards", () => {
+    const employees: PresenceEmployee[] = [
+      {
+        _id: "employee-sprite",
+        name: "Sprite Builder",
+        profileImageUrl: "https://example.com/profile.png",
+        isSupervisor: true,
+        appearance: {
+          clothesStyle: "techBro",
+          hairColor: "#123456",
+          characterRenderer: {
+            id: "sprite-sheet-2d",
+            source: { type: "codex-pet", petId: "mini-kenji" },
+          },
+        },
+      },
+    ];
+
+    const rows = deriveAgentPresenceRows({
+      employees,
+      projectTasks: [],
+      communicationRows: [],
+    });
+
+    expect(rows[0]?.avatarUrl).toBe("https://example.com/profile.png");
+    expect(rows[0]?.isSupervisor).toBe(true);
+    expect(rows[0]?.appearance?.hairColor).toBe("#123456");
+    expect(rows[0]?.appearance?.characterRenderer).toEqual({
+      id: "sprite-sheet-2d",
+      source: { type: "codex-pet", petId: "mini-kenji" },
+    });
+  });
+
   it("sorts agents by freshest active context", () => {
     const employees: PresenceEmployee[] = [
       { _id: "employee-alpha", name: "Alpha" },

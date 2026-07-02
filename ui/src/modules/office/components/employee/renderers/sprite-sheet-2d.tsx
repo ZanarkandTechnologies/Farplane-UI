@@ -244,6 +244,20 @@ function SpriteBillboard(
 
   return (
     <group>
+      {!projection && (runtime.isHighlighted || runtime.isSelected || runtime.isHovered) ? (
+        <>
+          <SpriteHighlightHalo
+            active={runtime.isHighlighted}
+            focused={runtime.isSelected || runtime.isHovered}
+            opacity={props.presenceVisual?.bodyOpacity ?? 1}
+          />
+          <SpriteHighlightFloorRing
+            active={runtime.isHighlighted}
+            focused={runtime.isSelected || runtime.isHovered}
+            opacity={props.presenceVisual?.bodyOpacity ?? 1}
+          />
+        </>
+      ) : null}
       <sprite
         ref={spriteRef}
         material={material}
@@ -262,6 +276,105 @@ function SpriteBillboard(
         />
       ) : null}
     </group>
+  );
+}
+
+function SpriteHighlightHalo({
+  active,
+  focused,
+  opacity,
+}: {
+  active: boolean;
+  focused: boolean;
+  opacity: number;
+}) {
+  const texture = useMemo(() => {
+    if (typeof document === "undefined") return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = 128;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.lineWidth = active ? 12 : 8;
+    context.strokeStyle = active ? "rgba(56, 189, 248, 1)" : "rgba(255, 255, 255, 0.78)";
+    context.shadowBlur = active ? 28 : 14;
+    context.shadowColor = active ? "rgba(56, 189, 248, 0.95)" : "rgba(255, 255, 255, 0.58)";
+    context.beginPath();
+    context.ellipse(64, 68, active ? 48 : 42, active ? 54 : 48, 0, 0, Math.PI * 2);
+    context.stroke();
+    if (active) {
+      context.lineWidth = 3;
+      context.strokeStyle = "rgba(255, 255, 255, 0.92)";
+      context.shadowBlur = 0;
+      context.beginPath();
+      context.ellipse(64, 68, 34, 40, 0, 0, Math.PI * 2);
+      context.stroke();
+    }
+    const nextTexture = new THREE.CanvasTexture(canvas);
+    nextTexture.colorSpace = THREE.SRGBColorSpace;
+    nextTexture.magFilter = THREE.LinearFilter;
+    nextTexture.minFilter = THREE.LinearFilter;
+    return nextTexture;
+  }, [active]);
+  const material = useMemo(
+    () =>
+      texture
+        ? new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            depthWrite: false,
+            depthTest: false,
+            opacity: opacity * (active ? 0.95 : focused ? 0.72 : 0),
+          })
+        : null,
+    [active, focused, opacity, texture],
+  );
+
+  useEffect(() => {
+    return () => {
+      texture?.dispose();
+      material?.dispose();
+    };
+  }, [material, texture]);
+
+  if (!material) return null;
+
+  return (
+    <sprite
+      material={material}
+      position={[0, TOTAL_HEIGHT * 0.02, -0.04]}
+      scale={[TOTAL_HEIGHT * 1.02, TOTAL_HEIGHT * 1.28, 1]}
+    />
+  );
+}
+
+function SpriteHighlightFloorRing({
+  active,
+  focused,
+  opacity,
+}: {
+  active: boolean;
+  focused: boolean;
+  opacity: number;
+}) {
+  const ringOpacity = opacity * (active ? 0.9 : focused ? 0.58 : 0);
+  return (
+    <mesh
+      position={[0, -TOTAL_HEIGHT * 0.48, 0.02]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      renderOrder={9}
+    >
+      <ringGeometry args={[0.34, 0.52, 48]} />
+      <meshBasicMaterial
+        color={active ? "#38bdf8" : "#ffffff"}
+        transparent
+        opacity={ringOpacity}
+        depthTest={false}
+        depthWrite={false}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
   );
 }
 

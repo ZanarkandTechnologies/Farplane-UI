@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { buildRollingSevenDayChartData } from "./goal-kpi-cockpit";
-import type { KpiMetricRow } from "./goal-kpi-model";
+import type { KpiMetricRow } from "../../lib/dashboard-projections/goal-kpi-model";
 
 function metric(series: KpiMetricRow["series"]): KpiMetricRow {
   return {
     metricId: "x_views",
     label: "X views",
     axis: "distribution_from_evidence",
+    product: "distribution",
     sourceId: "x_account_metrics",
     status: "available",
     current: series.at(-1)?.current ?? null,

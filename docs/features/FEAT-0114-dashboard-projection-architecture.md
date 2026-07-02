@@ -1,0 +1,177 @@
+---
+kind: feature-spec
+status: proposed
+project: Farplane UI
+created_at: 2026-07-01
+updated_at: 2026-07-01
+owner: team-workspace
+related_systems:
+  - ../systems/README.md
+source_refs:
+  - ../../farplane/goals.md
+  - ../../ui/src/modules/team-workspace/lib/dashboard-projections/goal-kpi-model.ts
+  - ../../ui/src/modules/team-workspace/components/tabs/overview/overview-tab.tsx
+  - ../../ui/vite.config.ts
+external_grounding:
+  - https://www.metabase.com/docs/latest/dashboards/introduction
+  - https://www.metabase.com/docs/latest/configuring-metabase/caching
+  - https://grafana.com/docs/grafana/latest/administration/data-source-management/
+  - https://superset.apache.org/admin-docs/configuration/cache/
+  - https://tanstack.com/query/latest
+---
+
+# Dashboard Projection Architecture
+
+Farplane Overview dashboards should render compiled project projections, not
+let each card independently fetch and interpret raw project files. The
+dashboard contract is:
+
+```text
+raw provider exports + tickets + telemetry + reports + farplane/goals.md
+  -> metric snapshot compiler
+  -> overview projection compiler
+  -> frontend fetch hook
+  -> pure dashboard cards
+```
+
+This mirrors common dashboard product architecture: cards are configured views
+over queries or metrics, query results are cached or materialized, and the
+frontend manages freshness rather than recomputing raw data per card.
+
+## Source Contracts
+
+- `farplane/goals.md` owns KPI strategy and Horizon Advisor pin intent.
+- `.farplane/metrics/ui/latest.json` owns compiled metric observations for UI
+  consumers.
+- `.farplane/state/overview_surface.json` owns the render-ready Overview
+  projection.
+- The board/ticket backend owns actionable work, including human action items
+  and gaps that need follow-up.
+- `.farplane/reports/**` owns human-readable daily and weekly reports.
+
+The UI may show source paths and freshness, but it should not treat report
+Markdown or raw social exports as the primary dashboard API.
+
+## Metric Snapshot
+
+The existing UI expects this shape for `.farplane/metrics/ui/latest.json`:
+
+```ts
+type MetricsUiSnapshot = {
+  snapshot_date: string;
+  generated_at: string;
+  metrics: KpiMetricRow[];
+  source_gaps: MetricSourceGap[];
+};
+```
+
+The compiler should create this file from available platform exports, social
+content review files, telemetry, and future provider adapters. Missing data
+should become `source_gaps[]`, not silent zeroes.
+
+Run the local compiler with:
+
+```bash
+npm run dashboard:compile -- --project .
+```
+
+## Overview Projection
+
+The Overview projection is the stable API for the Overview tab:
+
+```ts
+type OverviewSurface = {
+  generated_at: string;
+  project_id: string;
+  pins: OverviewPinCard[];
+  attention: AttentionItem[];
+  reports: ReportLink[];
+  sources: SourceRef[];
+};
+```
+
+`pins` should contain at most four cards. Horizon Advisor can mark KPI nodes
+with overview pin metadata during KPI breakdown, and the compiler resolves that
+intent into render-ready cards.
+
+```ts
+type KpiOverviewHint = {
+  pin?: boolean;
+  priority?: number;
+  reason?: string;
+  card_kind?: "number" | "trend" | "status" | "cost" | "queue";
+};
+```
+
+The projection compiler owns tie-breaking, fallback cards, missing provider
+state, and provenance. Card components only render projection rows.
+
+## Attention Items
+
+Open gaps should compile into attention items rather than live as a separate
+dashboard object.
+
+```ts
+type AttentionItem = {
+  id: string;
+  kind: "gap" | "ticket" | "human_action";
+  title: string;
+  linked_ticket_id?: string;
+  ticket_status?: string;
+  attention_reason: string;
+  owner: "agent" | "human" | "system";
+  first_seen_at?: string;
+  age_hours?: number;
+};
+```
+
+If a gap needs work, it should link to a ticket. If it needs the operator, it
+should be represented as a human action item or review-needed ticket. If it is
+only informational, it belongs in the detailed Goals, Distribution, Telemetry,
+or Reports surfaces rather than the Overview top band.
+
+## Frontend Fetching
+
+The frontend should use TanStack Query for HTTP/Vite-bridge server state,
+starting with one module-local hook for the Overview projection:
+
+```ts
+useOverviewSurface(projectPath, enabled)
+  -> { surface, state, error, refresh }
+```
+
+TanStack Query owns cache lifetime, dedupe, retry, refetch, and invalidation
+policy for project-runtime HTTP endpoints. Convex realtime queries should stay
+on Convex's `useQuery`; TanStack Query is for Vite bridge and other ordinary
+HTTP-backed server state.
+
+Effect is not the React fetching layer for this slice. It may be reconsidered
+later for projection compiler or provider-ingestion code if typed failures,
+parallel reads, retries, resource cleanup, or dependency injection become
+large enough to justify the additional runtime model.
+
+## Non-Goals
+
+- Do not make each card fetch raw X, Instagram, ticket, telemetry, and report
+  data independently.
+- Do not parse JSON blocks embedded in reports as the canonical dashboard
+  input.
+- Do not add user pin review as a requirement for the first slice. Horizon
+  Advisor may choose pins agentically, while future operator overrides can
+  remain a separate config capability.
+- Do not add a broad dashboard schema store when the compiled projection file
+  satisfies the current local-first UI contract.
+- Do not migrate Convex realtime state to TanStack Query.
+- Do not introduce Effect into React dashboard components for this slice.
+
+## Proof
+
+Implementation should prove:
+
+- metric snapshot parsing still handles available metrics and source gaps;
+- the Overview projection compiler emits at most four pinned cards;
+- attention items preserve ticket/gap status and ownership;
+- the Overview tab renders from the projection with source freshness and useful
+  empty states;
+- the Metrics or Goals surface can still drill into the full KPI tree and
+  snapshot detail.

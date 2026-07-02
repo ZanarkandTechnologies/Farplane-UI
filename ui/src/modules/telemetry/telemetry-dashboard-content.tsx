@@ -72,7 +72,6 @@ export function TelemetryDashboardContent({
   mode,
   projectId,
   teamId,
-  title,
 }: TelemetryDashboardContentProps): ReactElement {
   const { isPublic } = useOfficeAccessMode();
   const convexEnabled = isConvexEnabled();
@@ -127,61 +126,61 @@ export function TelemetryDashboardContent({
 
   const diagnosticsCount = data.stats.inProgressTurnCount + data.stats.unmatchedTurnCount;
   const viewOptions = isPublic ? PUBLIC_VIEW_OPTIONS : PRIVATE_VIEW_OPTIONS;
-  const visibleView = activeView;
+  const visibleView = mode === "team" ? "dashboard" : activeView;
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 pt-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="truncate text-base font-semibold">
-              {mode === "global" ? "Harness Usage" : title || "Team Harness Usage"}
-            </h2>
-            <Badge variant={diagnosticsCount > 0 ? "secondary" : "outline"}>
-              {diagnosticsCount} diagnostic{diagnosticsCount === 1 ? "" : "s"}
-            </Badge>
+      {mode === "global" ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="truncate text-base font-semibold">Harness Usage</h2>
+              <Badge variant={diagnosticsCount > 0 ? "secondary" : "outline"}>
+                {diagnosticsCount} diagnostic{diagnosticsCount === 1 ? "" : "s"}
+              </Badge>
+            </div>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">Completed hours exclude over-cap turns.</p>
           </div>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">Completed hours exclude over-cap turns.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={visibleView} onValueChange={(value) => setActiveView(value as TelemetryView)}>
+              <SelectTrigger aria-label="Telemetry view" size="sm" className="w-[136px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {viewOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={String(rangeDays)} onValueChange={handleRangeDaysChange}>
+              <SelectTrigger aria-label="Telemetry range" size="sm" className="w-[120px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RANGE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={String(option.value)}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={durationCap} onValueChange={handleDurationCapChange}>
+              <SelectTrigger aria-label="Duration cap filter" size="sm" className="w-[120px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DURATION_CAP_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={visibleView} onValueChange={(value) => setActiveView(value as TelemetryView)}>
-            <SelectTrigger aria-label="Telemetry view" size="sm" className="w-[136px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {viewOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={String(rangeDays)} onValueChange={handleRangeDaysChange}>
-            <SelectTrigger aria-label="Telemetry range" size="sm" className="w-[120px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {RANGE_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={String(option.value)}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={durationCap} onValueChange={handleDurationCapChange}>
-            <SelectTrigger aria-label="Duration cap filter" size="sm" className="w-[120px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DURATION_CAP_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      ) : null}
 
       <TelemetryMetricGrid data={data} />
 

@@ -26,6 +26,11 @@ import {
   readFilesystemObservedCodexThreads,
 } from "./codex-thread-summaries";
 import { createMiningLocalApi } from "./server/mining-local-api";
+import {
+  readFeedScoutBridge,
+  readDashboardRuntimeSourceCandidates,
+  readOverviewSurfaceBridge,
+} from "./vite-bridge/project-dashboard";
 import { normalizeBridgeOfficeSettings, type BridgeOfficeSettings as OfficeSettings } from "./office-settings-bridge";
 import {
   LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS,
@@ -116,6 +121,7 @@ const FARPLANE_PROJECT_CONFIG_FILES = [
   { path: "farplane/goals.md", title: "Goals", kind: "goals", format: "markdown" },
   { path: "farplane/products.md", title: "Products", kind: "products", format: "markdown" },
   { path: "farplane/automations.toml", title: "Automations", kind: "automations", format: "toml" },
+  { path: "farplane/bindings.yaml", title: "Bindings", kind: "bindings", format: "markdown" },
   { path: "farplane/bindings.md", title: "Bindings", kind: "bindings", format: "markdown" },
   { path: "farplane/evals.md", title: "Evals", kind: "evals", format: "markdown" },
   { path: "farplane/hooks.json", title: "Hooks", kind: "hooks", format: "json" },
@@ -660,6 +666,16 @@ function setNestedValue(row: JsonObject, pathParts: string[], value: JsonValue |
   }
 }
 
+function setNestedStringIfPresent(
+  row: JsonObject,
+  source: JsonObject,
+  sourceKey: string,
+  pathParts: string[],
+): void {
+  if (!Object.prototype.hasOwnProperty.call(source, sourceKey)) return;
+  setNestedString(row, pathParts, String(source[sourceKey] ?? ""));
+}
+
 function runtimeSecretStatus(pathParts: string[], envNames: string[]): JsonObject {
   const saved =
     localSecretString(pathParts) ||
@@ -941,14 +957,23 @@ async function saveRuntimeConfigFromUi(input: unknown): Promise<JsonObject> {
       : {};
   const config = readLocalTomlObjectSync(FARPLANE_CONFIG_TOML_PATH);
 
-  setNestedString(config, ["runtime", "codex_app_server_url"], String(configInput.codexAppServerUrl ?? ""));
-  setNestedString(config, ["runtime", "state_base"], String(configInput.stateBase ?? ""));
-  setNestedString(config, ["convex", "site_url"], String(configInput.convexSiteUrl ?? ""));
-  setNestedString(config, ["convex", "client_url"], String(configInput.convexClientUrl ?? ""));
-  setNestedString(config, ["env", "CODEX_APP_SERVER_URL"], String(configInput.codexAppServerUrl ?? ""));
-  setNestedString(config, ["env", "FARPLANE_STATE_BASE"], String(configInput.stateBase ?? ""));
-  setNestedString(config, ["env", "FARPLANE_CONVEX_SITE_URL"], String(configInput.convexSiteUrl ?? ""));
-  setNestedString(config, ["env", "VITE_CONVEX_URL"], String(configInput.convexClientUrl ?? ""));
+  setNestedStringIfPresent(config, configInput, "codexAppServerUrl", [
+    "runtime",
+    "codex_app_server_url",
+  ]);
+  setNestedStringIfPresent(config, configInput, "stateBase", ["runtime", "state_base"]);
+  setNestedStringIfPresent(config, configInput, "convexSiteUrl", ["convex", "site_url"]);
+  setNestedStringIfPresent(config, configInput, "convexClientUrl", ["convex", "client_url"]);
+  setNestedStringIfPresent(config, configInput, "codexAppServerUrl", [
+    "env",
+    "CODEX_APP_SERVER_URL",
+  ]);
+  setNestedStringIfPresent(config, configInput, "stateBase", ["env", "FARPLANE_STATE_BASE"]);
+  setNestedStringIfPresent(config, configInput, "convexSiteUrl", [
+    "env",
+    "FARPLANE_CONVEX_SITE_URL",
+  ]);
+  setNestedStringIfPresent(config, configInput, "convexClientUrl", ["env", "VITE_CONVEX_URL"]);
 
   const envInput =
     body.env && typeof body.env === "object" && !Array.isArray(body.env)
@@ -2560,18 +2585,73 @@ function isSafeProjectPath(value: unknown): value is string {
   return path.isAbsolute(projectPath);
 }
 
+const DASHBOARD_RUNTIME_SOURCE_CANDIDATES = readDashboardRuntimeSourceCandidates(REPO_ROOT);
+
 function parseSimpleFrontMatter(markdown: string): Record<string, string> {
   if (!markdown.startsWith("---")) return {};
   const end = markdown.indexOf("\n---", 3);
   if (end === -1) return {};
   const frontMatter = markdown.slice(3, end).split(/\r?\n/g);
   const parsed: Record<string, string> = {};
-  for (const line of frontMatter) {
+  for (let index = 0; index < frontMatter.length; index += 1) {
+    const line = frontMatter[index];
     const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
     if (!match) continue;
-    parsed[match[1].trim()] = match[2].trim().replace(/^["']|["']$/g, "");
+    const key = match[1].trim();
+    const rawValue = match[2].trim();
+    const blockMode = rawValue.match(/^([>|])[-+]?$/)?.[1];
+    if (blockMode) {
+      const blockLines: string[] = [];
+      while (frontMatter[index + 1]?.match(/^\s+/)) {
+        index += 1;
+        blockLines.push(frontMatter[index].replace(/^\s{2,}/, ""));
+      }
+      parsed[key] =
+        blockMode === ">"
+          ? blockLines.join("\n").replace(/([^\n])\n([^\n])/g, "$1 $2").trim()
+          : blockLines.join("\n").trim();
+      continue;
+    }
+    if (!rawValue && frontMatter[index + 1]?.match(/^\s+-\s+/)) {
+      const items: string[] = [];
+      while (frontMatter[index + 1]?.match(/^\s+-\s+/)) {
+        index += 1;
+        items.push(frontMatter[index].replace(/^\s+-\s+/, "").trim().replace(/^["']|["']$/g, ""));
+      }
+      parsed[key] = items.join("\n\n");
+      continue;
+    }
+    parsed[key] = rawValue.replace(/^["']|["']$/g, "");
   }
   return parsed;
+}
+
+function splitSummaryRows(summary: string): string[] {
+  return summary
+    .split(/\n{2,}|\r?\n\s*[-*]\s+|\r?\n/g)
+    .map((row) => row.replace(/^[-*]\s+/, "").trim())
+    .filter(Boolean);
+}
+
+function extractMarkdownSummaryRows(markdownBody: string): string[] {
+  const summaryLines: string[] = [];
+  let inSummary = false;
+  for (const line of markdownBody.split(/\r?\n/g)) {
+    if (/^##\s+Summary\s*$/.test(line)) {
+      inSummary = true;
+      continue;
+    }
+    if (inSummary && /^##\s+/.test(line)) break;
+    if (inSummary) summaryLines.push(line);
+  }
+  const summaryBody = summaryLines.join("\n").trim();
+  if (!summaryBody) return [];
+  const bulletRows = summaryBody
+    .split(/\r?\n/g)
+    .map((line) => line.match(/^-\s+(.+)$/)?.[1]?.trim() ?? "")
+    .filter(Boolean);
+  const rows = bulletRows.length > 0 ? bulletRows : splitSummaryRows(summaryBody);
+  return rows.map((row) => row.replace(/`([^`]+)`/g, "$1").trim()).filter(Boolean);
 }
 
 function inferTicketTitle(filePath: string, markdown: string, frontMatter: Record<string, string>): string {
@@ -2861,6 +2941,83 @@ function markdownWithoutFrontMatter(markdown: string): string {
   return markdown.slice(end + 4).replace(/^\s+/, "");
 }
 
+async function readLatestIntervalReport({
+  intervalId,
+  label,
+  reportsRoot,
+  rootPath,
+}: {
+  intervalId: string;
+  label: string;
+  reportsRoot: string;
+  rootPath: string;
+}): Promise<JsonObject | null> {
+  const intervalPath = path.join(reportsRoot, "interval", intervalId);
+  const entries = await readdir(intervalPath, { withFileTypes: true }).catch(() => []);
+  const markdownFiles = entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+    .map((entry) => entry.name)
+    .sort((left, right) => right.localeCompare(left));
+  const latestName = markdownFiles[0];
+  if (!latestName) return null;
+
+  const absolutePath = path.join(intervalPath, latestName);
+  const fileStat = await stat(absolutePath).catch(() => null);
+  if (!fileStat?.isFile()) return null;
+
+  try {
+    const content = await readFile(absolutePath, "utf-8");
+    const frontMatter = parseSimpleFrontMatter(content);
+    const summary = (frontMatter.summary || frontMatter.ui_summary || "").trim();
+    const body = markdownWithoutFrontMatter(content);
+    const frontMatterSummaryRows = summary ? [summary] : [];
+    const bodySummaryRows = extractMarkdownSummaryRows(body);
+    const summaryRows =
+      frontMatterSummaryRows.length > 0 || bodySummaryRows.length === 0
+        ? frontMatterSummaryRows
+        : bodySummaryRows;
+    return {
+      id: `${intervalId}:${latestName.replace(/\.md$/i, "")}`,
+      label,
+      intervalId,
+      path: path.relative(rootPath, absolutePath).replace(/\\/g, "/"),
+      absolutePath,
+      summary: summary || undefined,
+      summaryRows,
+      content: body,
+      frontMatter,
+      createdAt: frontMatter.created_at || undefined,
+      updatedAtMs: fileStat.mtimeMs,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function readLatestIntervalReports({
+  reportsRoot,
+  rootPath,
+}: {
+  reportsRoot: string;
+  rootPath: string;
+}): Promise<JsonObject[]> {
+  const reports = await Promise.all([
+    readLatestIntervalReport({
+      intervalId: "daily_interval",
+      label: "Daily report",
+      reportsRoot,
+      rootPath,
+    }),
+    readLatestIntervalReport({
+      intervalId: "weekly_interval",
+      label: "Weekly report",
+      reportsRoot,
+      rootPath,
+    }),
+  ]);
+  return reports.filter((report): report is JsonObject => Boolean(report));
+}
+
 function parseMarkdownSections(markdown: string): JsonObject[] {
   const body = markdownWithoutFrontMatter(markdown);
   const sections: JsonObject[] = [];
@@ -2937,45 +3094,8 @@ async function readFarplaneProjectConfig(projectPath: string): Promise<JsonObjec
     });
   }
 
-  const runtimeCandidates = [
-    { id: "reports", label: "Reports", path: ".farplane/reports", kind: "directory" },
-    { id: "eval-runs", label: "Eval runs", path: ".farplane/evals/runs", kind: "directory" },
-    { id: "metrics-ui", label: "Metrics UI snapshot", path: ".farplane/metrics/ui/latest.json", kind: "file" },
-    {
-      id: "social-x-latest-selected",
-      label: "X latest selected content",
-      path: "tmp/social-metrics-dry-run/x_latest_selected.json",
-      kind: "file",
-    },
-    {
-      id: "social-x-yesterday-selected",
-      label: "X yesterday selected content",
-      path: "tmp/social-metrics-dry-run/x_yesterday_selected.json",
-      kind: "file",
-    },
-    {
-      id: "social-instagram-latest-selected",
-      label: "Instagram latest selected content",
-      path: "tmp/social-metrics-dry-run/instagram_latest_selected.json",
-      kind: "file",
-    },
-    {
-      id: "social-instagram-latest-reel-selected",
-      label: "Instagram latest Reel selected content",
-      path: "tmp/social-metrics-dry-run/instagram_latest_reel_selected.json",
-      kind: "file",
-    },
-    {
-      id: "social-instagram-yesterday-selected",
-      label: "Instagram yesterday selected content",
-      path: "tmp/social-metrics-dry-run/instagram_yesterday_selected.json",
-      kind: "file",
-    },
-    { id: "run-ledger", label: "Run ledger", path: ".farplane/state/run-ledger.json", kind: "file" },
-    { id: "logs", label: "Logs", path: ".farplane/logs", kind: "directory" },
-  ];
   const runtimeSources = await Promise.all(
-    runtimeCandidates.map(async (candidate) => {
+    DASHBOARD_RUNTIME_SOURCE_CANDIDATES.map(async (candidate) => {
       const absolutePath = path.join(rootPath, candidate.path);
       const fileStat = await stat(absolutePath).catch(() => null);
       let childCount: number | null = null;
@@ -3004,6 +3124,10 @@ async function readFarplaneProjectConfig(projectPath: string): Promise<JsonObjec
         childCount,
         content,
         parsedJson,
+        reports:
+          candidate.id === "reports" && fileStat?.isDirectory()
+            ? await readLatestIntervalReports({ reportsRoot: absolutePath, rootPath })
+            : undefined,
         error,
       };
     }),
@@ -4089,6 +4213,28 @@ function farplaneStateBridge() {
             return;
           }
           writeJson(res, 200, await readFarplaneProjectConfig(projectPath));
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/overview-surface") {
+          const result = await readOverviewSurfaceBridge({
+            codexGlobalStatePath: CODEX_GLOBAL_STATE_PATH,
+            projectPath: url.searchParams.get("projectPath"),
+            repoRoot: REPO_ROOT,
+          });
+          writeJson(res, result.status, result.payload);
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/feed-scout") {
+          const result = await readFeedScoutBridge({
+            codexGlobalStatePath: CODEX_GLOBAL_STATE_PATH,
+            date: url.searchParams.get("date"),
+            frameworkRoot: FARPLANE_FRAMEWORK_ROOT,
+            projectPath: url.searchParams.get("projectPath"),
+            repoRoot: REPO_ROOT,
+          });
+          writeJson(res, result.status, result.payload);
           return;
         }
 

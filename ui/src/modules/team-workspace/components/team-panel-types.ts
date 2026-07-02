@@ -17,13 +17,14 @@
 export type TabKey =
   | "overview"
   | "goals"
-  | "distribution"
+  | "kanban"
+  | "timeline"
   | "members"
   | "products"
-  | "kanban"
+  | "distribution"
+  | "news"
   | "cadence"
   | "thread-data"
-  | "timeline"
   | "telemetry";
 
 export type TaskStatus = "todo" | "in_progress" | "review" | "blocked" | "done";
@@ -123,6 +124,19 @@ export type PresenceEmployee = {
   profileImageUrl?: string;
   status?: string;
   statusMessage?: string;
+  isCEO?: boolean;
+  isSupervisor?: boolean;
+  appearance?: {
+    clothesStyle?: "default" | "dj" | "professional" | "techBro";
+    hairColor?: string;
+    petType?: "none" | "dog" | "cat" | "goldfish" | "rabbit" | "lobster";
+    characterRenderer?: {
+      id?: "three-human" | "sprite-sheet-2d";
+      source?:
+        | { type: "codex-pet"; petId: string }
+        | { type: "url"; atlasUrl: string; manifestUrl?: string };
+    };
+  };
 };
 
 export type AgentPresenceRow = {
@@ -131,6 +145,9 @@ export type AgentPresenceRow = {
   name: string;
   roleLabel: string;
   avatarUrl?: string;
+  isCEO?: boolean;
+  isSupervisor?: boolean;
+  appearance?: PresenceEmployee["appearance"];
   liveState?: string;
   statusText: string;
   latestTaskId?: string;
@@ -218,6 +235,9 @@ export function deriveAgentPresenceRows(input: {
       name: employee.name,
       roleLabel: employee.jobTitle?.trim() || "Operator",
       avatarUrl: employee.profileImageUrl?.trim() || undefined,
+      isCEO: employee.isCEO,
+      isSupervisor: employee.isSupervisor,
+      appearance: employee.appearance,
       liveState: employee.status?.trim() || undefined,
       statusText:
         employee.statusMessage?.trim() ||

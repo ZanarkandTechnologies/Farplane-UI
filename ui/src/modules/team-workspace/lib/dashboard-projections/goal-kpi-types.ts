@@ -1,0 +1,112 @@
+/**
+ * Shared Goal/KPI projection types.
+ * Kept separate from parser logic so the runtime model stays below source-size guardrails.
+ */
+
+export type GoalSmartGoal = {
+  id: string;
+  target: string;
+  kpis: string[];
+  updateHint: string;
+  interpretation?: string;
+};
+
+export type GoalAxisContract = {
+  id: string;
+  label: string;
+  question: string;
+  evidenceHints: string[];
+  smartGoals: GoalSmartGoal[];
+};
+
+export type MetricBreakdownItem = {
+  id: string;
+  kind?: string;
+  url?: string;
+  value: number | null;
+};
+
+export type MetricSeriesPoint = {
+  date: string;
+  value: number | null;
+  current: number | null;
+  dailyDiff: number | null;
+  items: MetricBreakdownItem[];
+};
+
+export type KpiMetricRow = {
+  metricId: string;
+  label: string;
+  axis: string;
+  product: string;
+  sourceId: string;
+  status: string;
+  current: number | null;
+  unit?: string;
+  target: number | string | null;
+  targetHit: boolean | null;
+  aggregation: string;
+  cumulative: boolean;
+  display: string;
+  series: MetricSeriesPoint[];
+};
+
+export type MetricSourceGap = {
+  metricId: string;
+  sourceId: string;
+  reason: string;
+};
+
+export type ContentMetricSeriesPoint = {
+  date: string;
+  value: number | null;
+};
+
+export type ContentMetricRow = {
+  metricId: string;
+  label: string;
+  unit: string;
+  product: string;
+  current: number | null;
+  series: ContentMetricSeriesPoint[];
+};
+
+export type MetricsContentRow = {
+  contentId: string;
+  id: string;
+  approval?: string;
+  approvalRef?: string;
+  campaign?: string;
+  externalId?: string;
+  kind?: string;
+  kpis: string[];
+  mediaProductType?: string;
+  mediaType?: string;
+  platform: string;
+  publishedAt?: string;
+  status?: string;
+  title?: string;
+  url: string | null;
+  metrics: ContentMetricRow[];
+};
+
+export type MetricsUiSnapshot = {
+  schemaVersion: number;
+  snapshotDate: string;
+  generatedAt: string;
+  metrics: KpiMetricRow[];
+  contents: MetricsContentRow[];
+  sourceGaps: MetricSourceGap[];
+};
+
+export type SmartGoalView = GoalSmartGoal & {
+  metrics: Array<{
+    metricId: string;
+    metric: KpiMetricRow | null;
+    gap: MetricSourceGap | null;
+  }>;
+};
+
+export type GoalAxisView = Omit<GoalAxisContract, "smartGoals"> & {
+  smartGoals: SmartGoalView[];
+};

@@ -91,8 +91,13 @@ export function TelemetryDashboardView({
   const dailyData = buildDailyData(data).slice(-range);
   const focus = getFocus(activeMode, dailyData, data);
 
+  const layoutClassName =
+    mode === "global"
+      ? "grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr)_300px]"
+      : "grid h-full min-h-0 gap-3";
+
   return (
-    <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+    <div className={layoutClassName}>
       <Card className="flex min-h-0 flex-col rounded-md">
         <CardHeader className="shrink-0 gap-2 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -120,10 +125,12 @@ export function TelemetryDashboardView({
         </CardHeader>
         <CardContent className="min-h-0 flex-1 px-4 pb-4">{renderChart(activeMode, dailyData, data)}</CardContent>
       </Card>
-      <div className="grid min-h-0 content-start gap-3 overflow-hidden">
-        <LifecycleHealth data={data} />
-        <ContributionPanel data={data} mode={mode} />
-      </div>
+      {mode === "global" ? (
+        <div className="grid min-h-0 content-start gap-3 overflow-hidden">
+          <LifecycleHealth data={data} />
+          <ContributionPanel data={data} mode={mode} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -144,10 +151,21 @@ function AgentHoursChart({ data }: { data: DailyDatum[] }): ReactElement {
       <RechartsLineChart data={data} margin={{ bottom: 8, left: 8, right: 16, top: 16 }}>
         <CartesianGrid strokeDasharray="4 6" vertical={false} />
         <XAxis axisLine={false} dataKey="label" interval="preserveStartEnd" tickLine={false} tickMargin={8} />
-        <YAxis hide />
+        <YAxis dataKey="agentHours" domain={[0, "dataMax"]} hide yAxisId="hours" />
+        <YAxis allowDecimals={false} dataKey="completedTurnCount" domain={[0, "dataMax"]} hide yAxisId="turns" />
         <ChartTooltip content={<ChartTooltipContent />} cursor={{ strokeDasharray: "4 4" }} />
-        <RechartsLine dataKey="agentHours" dot={false} isAnimationActive={false} stroke="var(--color-agentHours)" strokeWidth={2} type="monotone" />
-        <RechartsLine dataKey="completedTurnCount" dot={false} isAnimationActive={false} stroke="var(--color-completedTurnCount)" strokeWidth={1.5} type="monotone" />
+        <RechartsLine dataKey="agentHours" dot={false} isAnimationActive={false} stroke="var(--color-agentHours)" strokeWidth={2.5} type="monotone" yAxisId="hours" />
+        <RechartsLine
+          dataKey="completedTurnCount"
+          dot={false}
+          isAnimationActive={false}
+          stroke="var(--color-completedTurnCount)"
+          strokeDasharray="5 6"
+          strokeOpacity={0.5}
+          strokeWidth={1.25}
+          type="monotone"
+          yAxisId="turns"
+        />
       </RechartsLineChart>
     </ChartContainer>
   );

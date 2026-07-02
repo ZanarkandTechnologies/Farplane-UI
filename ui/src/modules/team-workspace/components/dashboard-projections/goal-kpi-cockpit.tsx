@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { GoalAxisView, KpiMetricRow } from "./goal-kpi-model";
+import type { GoalAxisView, KpiMetricRow } from "../../lib/dashboard-projections/goal-kpi-model";
 
 const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 type KpiChartMode = "daily" | "cumulative";
@@ -47,7 +47,12 @@ function diffBadgeVariant(value: number | null): "outline" | "secondary" | "dest
 }
 
 function targetProgress(metric: KpiMetricRow | null): number | null {
-  if (!metric || typeof metric.target !== "number" || metric.target <= 0 || metric.current === null) {
+  if (
+    !metric ||
+    typeof metric.target !== "number" ||
+    metric.target <= 0 ||
+    metric.current === null
+  ) {
     return null;
   }
   return Math.max(0, Math.min(100, (metric.current / metric.target) * 100));
@@ -125,7 +130,10 @@ function KpiTrendChart({
           minTickGap={6}
         />
         <YAxis hide domain={["auto", "auto"]} />
-        <ChartTooltip content={<ChartTooltipContent />} cursor={{ fill: "hsl(var(--muted) / 0.3)" }} />
+        <ChartTooltip
+          content={<ChartTooltipContent />}
+          cursor={{ fill: "hsl(var(--muted) / 0.3)" }}
+        />
         {isDaily ? (
           <Bar dataKey="dailyDiff" fill="var(--color-dailyDiff)" radius={[2, 2, 0, 0]} />
         ) : (
@@ -169,7 +177,12 @@ function MetricBreakdown({ metric }: { metric: KpiMetricRow }): ReactElement | n
               <span className="font-medium tabular-nums">{formatMetricValue(item.value)}</span>
               {item.url ? (
                 <Button asChild size="sm" variant="outline" className="h-7 px-2">
-                  <a href={item.url} target="_blank" rel="noopener noreferrer" aria-label="Open item">
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Open item"
+                  >
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 </Button>
@@ -220,6 +233,7 @@ function KpiRow({
               metricId,
               label: metricId,
               axis: "",
+              product: "",
               sourceId: "",
               status,
               current: null,
@@ -237,9 +251,7 @@ function KpiRow({
       <div className="min-w-0 space-y-2">
         {isDaily ? (
           <>
-            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              Today
-            </p>
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Today</p>
             <Badge variant={diffBadgeVariant(todayDiff)} className="text-sm tabular-nums">
               {formatDailyDiff(todayDiff)}
             </Badge>
@@ -249,9 +261,7 @@ function KpiRow({
           </>
         ) : isAvailable ? (
           <>
-            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              Current
-            </p>
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Current</p>
             <p className="text-2xl font-semibold tabular-nums">
               {formatMetricValue(metric?.current ?? null)}
             </p>
@@ -332,6 +342,11 @@ export function GoalKpiCockpit({
                         <p className="mt-2 break-words text-sm font-medium [overflow-wrap:anywhere]">
                           {goal.target}
                         </p>
+                        {goal.interpretation ? (
+                          <p className="mt-2 break-words text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">
+                            {goal.interpretation}
+                          </p>
+                        ) : null}
                       </div>
                       <Badge variant="secondary">{goal.metrics.length} KPI(s)</Badge>
                     </div>
@@ -358,7 +373,7 @@ export function GoalKpiCockpit({
                             ))
                           ) : (
                             <p className="rounded-md border bg-background/40 p-3 text-sm text-muted-foreground">
-                              This legacy goal has no stable KPI IDs yet.
+                              No KPI IDs are attached to this SMART goal yet.
                             </p>
                           )}
                         </TabsContent>

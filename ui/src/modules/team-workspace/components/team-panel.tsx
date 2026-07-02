@@ -29,14 +29,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UI_Z } from "@/lib/z-index";
 import { useChatActions } from "@/modules/chat/chat-store";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
+import { findMetricsSnapshot } from "@/modules/team-workspace/lib/dashboard-projections/goal-kpi-model";
+import { buildSocialContentInsightsModel } from "@/modules/team-workspace/lib/dashboard-projections/social-content-insights";
 import { ThreadDataPanel } from "@/modules/thread-data";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
 import { KanbanTab } from "./kanban-tab";
 import { DistributionTab } from "./tabs/distribution";
+import { NewsTab } from "./tabs/news";
 import { OverviewTab } from "./tabs/overview";
-import { findMetricsSnapshot } from "./tabs/overview/goal-kpi-model";
-import { buildSocialContentInsightsModel } from "./tabs/overview/social-content-insights";
 import { TeamMembersSection } from "./tabs/overview/team-members-section";
 import {
   ProjectAutomationsTab,
@@ -70,7 +71,7 @@ export function TeamPanel({
   focusAgentId = null,
   globalMode = false,
 }: TeamPanelProps) {
-  const { teams, employees, companyModel, workload, refresh } = useOfficeDataContext();
+  const { teams, employees, companyModel, refresh } = useOfficeDataContext();
   const adapter = useOfficeRuntimeAdapter();
   const { openEmployeeChat } = useChatActions();
   const selectedProjectId = useAppStore((state) => state.selectedProjectId);
@@ -157,7 +158,7 @@ export function TeamPanel({
     enabled: isOpen,
   });
   const metricsSnapshot = findMetricsSnapshot(projectConfigState.config);
-  const socialContent = buildSocialContentInsightsModel(projectConfigState.config);
+  const socialContent = buildSocialContentInsightsModel(projectConfigState.config, metricsSnapshot);
   const { memoryRows } = useTeamPanelMemoryState({
     activeProjectId,
     activeProjectPath,
@@ -237,8 +238,11 @@ export function TeamPanel({
               <TabsTrigger className="flex-none" value="goals">
                 Goals
               </TabsTrigger>
-              <TabsTrigger className="flex-none" value="distribution">
-                Distribution
+              <TabsTrigger className="flex-none" value="kanban">
+                Kanban
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="timeline">
+                Timeline
               </TabsTrigger>
               <TabsTrigger className="flex-none" value="members">
                 Members
@@ -246,17 +250,17 @@ export function TeamPanel({
               <TabsTrigger className="flex-none" value="products">
                 Products
               </TabsTrigger>
-              <TabsTrigger className="flex-none" value="kanban">
-                Kanban
+              <TabsTrigger className="flex-none" value="distribution">
+                Distribution
+              </TabsTrigger>
+              <TabsTrigger className="flex-none" value="news">
+                News
               </TabsTrigger>
               <TabsTrigger className="flex-none" value="cadence">
                 Automations
               </TabsTrigger>
               <TabsTrigger className="flex-none" value="thread-data">
                 Thread Data
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="timeline">
-                Timeline
               </TabsTrigger>
               <TabsTrigger className="flex-none" value="telemetry">
                 Telemetry
@@ -269,15 +273,12 @@ export function TeamPanel({
               team={team}
               panelTitle={panelTitle}
               project={project}
-              projectTasks={projectTasks}
-              workload={workload}
               companyModel={companyModel}
               setSelectedProjectId={setSelectedProjectId}
               globalMode={globalMode}
               hasBusinessConfig={hasBusinessConfig}
               aiBurn24hUsd={teamAiUsageSummary.cost24hUsd}
               aiUsageUnavailableText={teamUsageError}
-              presenceRows={presenceRows}
               projectConfig={projectConfigState.config}
               projectConfigState={projectConfigState.state}
               projectConfigError={projectConfigState.error}
@@ -291,29 +292,6 @@ export function TeamPanel({
               error={projectConfigState.error}
               projectTasks={projectTasks}
             />
-          </TabsContent>
-
-          <TabsContent value="distribution" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <DistributionTab snapshot={metricsSnapshot} socialContent={socialContent} />
-          </TabsContent>
-
-          <TabsContent value="members" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ScrollArea className="h-full pr-3">
-              <TeamMembersSection
-                employees={employees}
-                globalMode={globalMode}
-                highlightedEmployeeIds={highlightedEmployeeIds}
-                onMessageAgent={handleOpenDirectChat}
-                onOpenAgentSession={handleOpenAgentSession}
-                presenceRows={presenceRows}
-                setHighlightedEmployeeIds={setHighlightedEmployeeIds}
-                teamEmployees={teamEmployees}
-              />
-            </ScrollArea>
-          </TabsContent>
-
-          <TabsContent value="products" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ProjectProductsTab config={projectConfigState.config} />
           </TabsContent>
 
           <TabsContent value="kanban" className="mt-4 min-h-0 flex-1 overflow-hidden">
@@ -332,18 +310,6 @@ export function TeamPanel({
             />
           </TabsContent>
 
-          <TabsContent value="cadence" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ProjectAutomationsTab config={projectConfigState.config} />
-          </TabsContent>
-
-          <TabsContent value="thread-data" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ThreadDataPanel
-              initialRunId={threadDataTarget?.runId ?? null}
-              initialOutputId={threadDataTarget?.outputId ?? null}
-              projectPath={threadDataTarget?.projectPath ?? activeProjectPath ?? null}
-            />
-          </TabsContent>
-
           <TabsContent value="timeline" className="mt-4 min-h-0 flex-1 overflow-hidden">
             <TimelineTab
               convexEnabled={convexEnabled}
@@ -357,6 +323,47 @@ export function TeamPanel({
                 setActiveTab("thread-data");
               }}
               onConfigureHooks={() => setIsRawTelemetryPanelOpen(true)}
+            />
+          </TabsContent>
+
+          <TabsContent value="members" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <ScrollArea className="h-full pr-3">
+              <TeamMembersSection
+                highlightedEmployeeIds={highlightedEmployeeIds}
+                onMessageAgent={handleOpenDirectChat}
+                onOpenAgentSession={handleOpenAgentSession}
+                presenceRows={presenceRows}
+                setHighlightedEmployeeIds={setHighlightedEmployeeIds}
+              />
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="products" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <ProjectProductsTab config={projectConfigState.config} />
+          </TabsContent>
+
+          <TabsContent value="distribution" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <DistributionTab snapshot={metricsSnapshot} socialContent={socialContent} />
+          </TabsContent>
+
+          <TabsContent value="news" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <NewsTab
+              enabled={isOpen && activeTab === "news"}
+              projectId={project?.id ?? null}
+              projectName={project?.name ?? null}
+              projectPath={activeProjectPath ?? null}
+            />
+          </TabsContent>
+
+          <TabsContent value="cadence" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <ProjectAutomationsTab config={projectConfigState.config} />
+          </TabsContent>
+
+          <TabsContent value="thread-data" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <ThreadDataPanel
+              initialRunId={threadDataTarget?.runId ?? null}
+              initialOutputId={threadDataTarget?.outputId ?? null}
+              projectPath={threadDataTarget?.projectPath ?? activeProjectPath ?? null}
             />
           </TabsContent>
 
