@@ -23,6 +23,7 @@ export type TabKey =
   | "products"
   | "distribution"
   | "news"
+  | "skills"
   | "cadence"
   | "thread-data"
   | "telemetry";

@@ -3,9 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PanelTask } from "../../team-panel-types";
 import type { MetricCard } from "./types";
 
-export function getSkillSourceKind(sourcePath: string | undefined): "local" | "repo" | "global" {
+export function getSkillSourceKind(
+  sourcePath: string | undefined,
+): "local" | "project" | "repo" | "global" {
   const normalized = sourcePath ?? "";
   if (normalized.includes(".codex/skills")) return "local";
+  if (normalized.includes(".agents/skills")) return "project";
   if (normalized.startsWith("skills/")) return "repo";
   return "global";
 }

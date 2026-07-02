@@ -60,6 +60,7 @@ const FARPLANE_FRAMEWORK_ROOT =
   process.env.FARPLANE_FRAMEWORK_ROOT ||
   path.resolve(REPO_ROOT, "..", "Farplane");
 const SKILLS_ROOT = path.join(REPO_ROOT, "skills");
+const PROJECT_AGENT_SKILLS_ROOT = path.join(REPO_ROOT, ".agents", "skills");
 const PROJECT_CODEX_SKILLS_ROOT = path.join(REPO_ROOT, ".codex", "skills");
 const CODEX_SKILLS_ROOT = path.join(CODEX_HOME, "skills");
 const CODEX_SKILL_MAINTENANCE_GRAPH_ROOT = path.join(
@@ -1529,7 +1530,12 @@ async function resolveRepoSkillDirectory(skillId: string): Promise<string | null
 }
 
 function getSkillStudioRoots(): string[] {
-  return [PROJECT_CODEX_SKILLS_ROOT, SKILLS_ROOT, CODEX_SKILLS_ROOT].filter((root, index, roots) => {
+  return [
+    PROJECT_AGENT_SKILLS_ROOT,
+    PROJECT_CODEX_SKILLS_ROOT,
+    SKILLS_ROOT,
+    CODEX_SKILLS_ROOT,
+  ].filter((root, index, roots) => {
     return existsSync(root) && roots.indexOf(root) === index;
   });
 }

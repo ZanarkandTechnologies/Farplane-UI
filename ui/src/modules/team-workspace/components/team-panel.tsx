@@ -38,6 +38,7 @@ import { KanbanTab } from "./kanban-tab";
 import { DistributionTab } from "./tabs/distribution";
 import { NewsTab } from "./tabs/news";
 import { OverviewTab } from "./tabs/overview";
+import { SkillsReadinessTab } from "./tabs/operator-intelligence";
 import { TeamMembersSection } from "./tabs/overview/team-members-section";
 import {
   ProjectAutomationsTab,
@@ -256,6 +257,9 @@ export function TeamPanel({
               <TabsTrigger className="flex-none" value="news">
                 News
               </TabsTrigger>
+              <TabsTrigger className="flex-none" value="skills">
+                Skills
+              </TabsTrigger>
               <TabsTrigger className="flex-none" value="cadence">
                 Automations
               </TabsTrigger>
@@ -352,6 +356,16 @@ export function TeamPanel({
               projectId={project?.id ?? null}
               projectName={project?.name ?? null}
               projectPath={activeProjectPath ?? null}
+            />
+          </TabsContent>
+
+          <TabsContent value="skills" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <SkillsReadinessTab
+              project={project}
+              companyModel={companyModel}
+              projectTasks={projectTasks}
+              memoryRows={memoryRows}
+              globalMode={globalMode}
             />
           </TabsContent>
 
