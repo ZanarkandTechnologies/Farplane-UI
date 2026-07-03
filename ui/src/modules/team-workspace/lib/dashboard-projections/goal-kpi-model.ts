@@ -9,6 +9,11 @@ import type {
   FarplaneConfigFile,
   FarplaneProjectConfig,
 } from "@/modules/team-workspace/lib/project-config";
+import {
+  findProjectUiSnapshot,
+  type ProjectUiMetricCard,
+  type ProjectUiMetricTarget,
+} from "./project-ui-snapshot";
 import type {
   ContentMetricRow,
   ContentMetricSeriesPoint,
@@ -224,6 +229,54 @@ function toStringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+function stringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map((entry) => toStringValue(entry).trim()).filter(Boolean)
+    : [];
+}
+
+function targetLabel(value: ProjectUiMetricTarget | number | string | null): {
+  deadline?: string;
+  direction?: string;
+  label: number | string | null;
+  unit?: string;
+} {
+  if (typeof value === "number" || typeof value === "string" || value === null) {
+    return { label: value };
+  }
+  return {
+    deadline: value.deadline,
+    direction: value.direction,
+    label: value.label ?? value.value ?? null,
+    unit: value.unit,
+  };
+}
+
+function metricRowFromProjectUi(metric: ProjectUiMetricCard): KpiMetricRow {
+  const target = targetLabel(metric.target);
+  return {
+    metricId: metric.metricId,
+    label: metric.label,
+    description: metric.description,
+    axis: "",
+    product: metric.productId,
+    sourceId: metric.primitiveId,
+    status: metric.status,
+    current: metric.current,
+    unit: metric.unit,
+    target: target.label,
+    targetDirection: target.direction,
+    targetUnit: target.unit || metric.unit,
+    targetDeadline: target.deadline,
+    targetHit: metric.targetHit,
+    sourceGapIds: metric.sourceGapIds,
+    aggregation: "",
+    cumulative: false,
+    display: metric.display,
+    series: metric.series,
+  };
+}
+
 function parseBreakdownItems(value: unknown): MetricBreakdownItem[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -361,6 +414,7 @@ export function parseMetricsUiSnapshot(value: unknown): MetricsUiSnapshot | null
       return {
         metricId,
         label: toStringValue(row.label) || humanizeId(metricId),
+        description: toStringValue(row.description ?? row.tooltip ?? row.calculation_description ?? row.calculationDescription) || undefined,
         axis: toStringValue(row.axis),
         product: toStringValue(row.product),
         sourceId: toStringValue(row.source_id) || toStringValue(row.product) || metricId,
@@ -370,6 +424,7 @@ export function parseMetricsUiSnapshot(value: unknown): MetricsUiSnapshot | null
         target:
           typeof row.target === "number" || typeof row.target === "string" ? row.target : null,
         targetHit: typeof row.target_hit === "boolean" ? row.target_hit : null,
+        sourceGapIds: stringList(row.source_gap_ids ?? row.sourceGapIds),
         aggregation: toStringValue(row.aggregation),
         cumulative: row.cumulative === true,
         display: toStringValue(row.display),
@@ -425,8 +480,101 @@ export function parseMetricsUiSnapshot(value: unknown): MetricsUiSnapshot | null
 export function findMetricsSnapshot(
   config: FarplaneProjectConfig | null,
 ): MetricsUiSnapshot | null {
-  const source = config?.runtimeSources.find((entry) => entry.id === "metrics-ui");
-  return parseMetricsUiSnapshot(source?.parsedJson);
+  const projectUiSnapshot = findProjectUiSnapshot(config);
+  if (projectUiSnapshot) {
+    return {
+      schemaVersion: projectUiSnapshot.schemaVersion,
+      snapshotDate: projectUiSnapshot.generatedAt.slice(0, 10),
+      generatedAt: projectUiSnapshot.generatedAt,
+      metrics: projectUiSnapshot.metrics.series.map(metricRowFromProjectUi),
+      contents: projectUiSnapshot.metrics.contents.map((content) => ({
+        contentId: content.contentId,
+        id: content.contentId,
+        approval: content.approval,
+        approvalRef: content.approvalRef,
+        campaign: content.campaign,
+        externalId: content.externalId,
+        kind: content.kind,
+        kpis: content.kpis,
+        platform: content.platform,
+        publishedAt: content.publishedAt ?? undefined,
+        status: content.status,
+        title: content.title,
+        url: content.url,
+        metrics: content.metrics.map((metric) => ({
+          metricId: metric.metricId,
+          label: metric.label,
+          unit: metric.unit,
+          product: metric.productId,
+          current: metric.current,
+          series: metric.series,
+        })),
+      })),
+      sourceGaps: projectUiSnapshot.sourceGaps.map((gap) => ({
+        metricId: gap.id,
+        sourceId: gap.owner,
+        reason: gap.message,
+      })),
+    };
+  }
+  return null;
+}
+
+export function buildGoalAxisViewsFromProjectUi(
+  config: FarplaneProjectConfig | null,
+): GoalAxisView[] {
+  const snapshot = findProjectUiSnapshot(config);
+  if (!snapshot) return [];
+  const metricById = new Map(
+    snapshot.metrics.series.map((metric) => [metric.metricId, metricRowFromProjectUi(metric)]),
+  );
+  const gapById = new Map(
+    snapshot.sourceGaps.map((gap) => [
+      gap.id,
+      { metricId: gap.id, sourceId: gap.owner, reason: gap.message },
+    ]),
+  );
+  return snapshot.tabs.goals.axes.map((axis) => ({
+    id: axis.id,
+    label: axis.label,
+    question: axis.question,
+    evidenceHints: axis.evidenceHints,
+    smartGoals: axis.smartGoals.map((goal) => ({
+      id: goal.id,
+      target: goal.target,
+      kpis: goal.kpis.map((kpi) => kpi.metricId),
+      updateHint: goal.updateHint ?? "",
+      interpretation: goal.interpretation,
+      metrics: goal.kpis.map((kpi) => {
+        const target = targetLabel(kpi.target);
+        return {
+          metricId: kpi.metricId,
+          metric: metricById.get(kpi.metricId) ?? {
+            metricId: kpi.metricId,
+            label: kpi.label,
+            description: kpi.description,
+            axis: axis.id,
+            product: "",
+            sourceId: kpi.primitiveId,
+            status: kpi.status,
+            current: kpi.current,
+            unit: kpi.unit,
+            target: target.label,
+            targetDirection: target.direction,
+            targetUnit: target.unit || kpi.unit,
+            targetDeadline: target.deadline,
+            targetHit: kpi.targetHit,
+            sourceGapIds: kpi.sourceGapIds,
+            aggregation: "",
+            cumulative: false,
+            display: kpi.display,
+            series: [],
+          },
+          gap: kpi.sourceGapIds.map((id) => gapById.get(id)).find(Boolean) ?? null,
+        };
+      }),
+    })),
+  }));
 }
 
 export function buildGoalAxisViews(

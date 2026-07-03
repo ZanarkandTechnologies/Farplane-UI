@@ -37,6 +37,7 @@ export type MetricSeriesPoint = {
 export type KpiMetricRow = {
   metricId: string;
   label: string;
+  description?: string;
   axis: string;
   product: string;
   sourceId: string;
@@ -44,7 +45,11 @@ export type KpiMetricRow = {
   current: number | null;
   unit?: string;
   target: number | string | null;
+  targetDirection?: string;
+  targetUnit?: string;
+  targetDeadline?: string;
   targetHit: boolean | null;
+  sourceGapIds?: string[];
   aggregation: string;
   cumulative: boolean;
   display: string;

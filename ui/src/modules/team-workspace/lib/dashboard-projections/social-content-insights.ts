@@ -9,6 +9,7 @@ import type {
   FarplaneRuntimeSource,
 } from "@/modules/team-workspace/lib/project-config";
 import type { ContentMetricRow, MetricsUiSnapshot } from "./goal-kpi-model";
+import { findProjectUiSnapshot, type ProjectUiContentItem } from "./project-ui-snapshot";
 
 type NullableNumber = number | null;
 export type SocialPlatform = "x" | "instagram" | "unknown";
@@ -264,6 +265,61 @@ export function parseSocialContentFromMetricsSnapshot(
   }));
 }
 
+function parseSocialContentFromProjectUiItem(content: ProjectUiContentItem): SocialContentInsight {
+  return {
+    platform: platformFromUnknown(content.platform, content.contentId),
+    content_id: content.contentId,
+    approval: content.approval,
+    approval_ref: content.approvalRef,
+    campaign: content.campaign,
+    external_id: content.externalId,
+    kpis: content.kpis,
+    url: content.url,
+    published_at: content.publishedAt ?? null,
+    kind:
+      content.kind ??
+      kindFromContent({
+        contentId: content.contentId,
+        mediaProductType: undefined,
+        url: content.url,
+      }),
+    status: content.status,
+    title: content.title,
+    content_metrics: contentMetricsFromSnapshotMetrics(
+      content.metrics.map((metric) => ({
+        metricId: metric.metricId,
+        label: metric.label,
+        unit: metric.unit,
+        product: metric.productId,
+        current: metric.current,
+        series: metric.series,
+      })),
+    ),
+    metric_chips: metricChipsFromSnapshotMetrics(
+      content.metrics.map((metric) => ({
+        metricId: metric.metricId,
+        label: metric.label,
+        unit: metric.unit,
+        product: metric.productId,
+        current: metric.current,
+        series: metric.series,
+      })),
+    ),
+    series_rows: seriesRowsFromSnapshotMetrics(
+      content.metrics.map((metric) => ({
+        metricId: metric.metricId,
+        label: metric.label,
+        unit: metric.unit,
+        product: metric.productId,
+        current: metric.current,
+        series: metric.series,
+      })),
+    ),
+    gaps: content.sourceGapIds,
+    source_metric_ids: content.metrics.map((metric) => metric.metricId),
+  };
+}
+
 function contentItemsFromRuntimeSource(source: FarplaneRuntimeSource): SocialContentInsight[] {
   const parsed = source.parsedJson;
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return [];
@@ -287,13 +343,44 @@ export function buildSocialContentInsightsModel(
   config: FarplaneProjectConfig | null,
   snapshot: MetricsUiSnapshot | null = null,
 ): SocialContentInsightsModel {
+  const projectUiSnapshot = findProjectUiSnapshot(config);
+  const projectUiItems = [
+    ...(projectUiSnapshot?.tabs.distribution.contentItems ?? []),
+    ...(projectUiSnapshot?.metrics.contents ?? []),
+  ];
+  if (projectUiItems.length > 0) {
+    return {
+      items: projectUiItems.map(parseSocialContentFromProjectUiItem),
+      windows: [
+        {
+          id: "project-ui-distribution",
+          label: "Project snapshot content",
+          detail: `${projectUiItems.length} content item${projectUiItems.length === 1 ? "" : "s"}`,
+          state: "ready",
+        },
+      ],
+      sourceLabel: "project snapshot",
+    };
+  }
+  if (projectUiSnapshot) {
+    return {
+      items: [],
+      windows: projectUiSnapshot.tabs.distribution.sourceGapIds.map((id) => ({
+        id,
+        label: id,
+        detail: id,
+        state: "gap",
+      })),
+      sourceLabel: "project snapshot",
+    };
+  }
   const snapshotItems = parseSocialContentFromMetricsSnapshot(snapshot);
   if (snapshotItems.length > 0) {
     return {
       items: snapshotItems,
       windows: [
         {
-          id: "metrics-ui-contents",
+          id: "project-ui-contents",
           label: "Compiled content",
           detail: `${snapshotItems.length} content item${snapshotItems.length === 1 ? "" : "s"}`,
           state: "ready",

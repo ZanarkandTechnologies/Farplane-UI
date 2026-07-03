@@ -294,7 +294,6 @@ export function TeamPanel({
               config={projectConfigState.config}
               state={projectConfigState.state}
               error={projectConfigState.error}
-              projectTasks={projectTasks}
             />
           </TabsContent>
 

@@ -131,7 +131,11 @@ export function distributionSourceGaps(
   const hasReach = hasAvailableMetric(snapshot, /(?:^|_)reach$/i);
   const hasWatchTime = hasAvailableMetric(snapshot, /(?:avg|total)_watch_time/i);
   return (snapshot?.sourceGaps ?? [])
-    .filter((gap) => /evidence_distribution_reach|instagram_retention_score/i.test(gap.metricId))
+    .filter((gap) =>
+      /distribution|content|ledger|evidence_distribution_reach|instagram_retention_score/i.test(
+        `${gap.metricId} ${gap.sourceId} ${gap.reason}`,
+      ),
+    )
     .filter((gap) => {
       if (gap.metricId === "evidence_distribution_reach" && hasReach) return false;
       if (gap.metricId === "instagram_retention_score" && hasWatchTime) return false;

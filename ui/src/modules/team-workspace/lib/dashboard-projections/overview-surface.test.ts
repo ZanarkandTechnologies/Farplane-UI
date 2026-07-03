@@ -47,9 +47,9 @@ describe("overview surface model", () => {
       ],
       sources: [
         {
-          id: "metrics-ui",
+          id: "project-ui",
           label: "Metrics",
-          path: ".farplane/metrics/ui/latest.json",
+          path: ".farplane/project/ui/latest.json",
           exists: true,
         },
       ],

@@ -8,6 +8,7 @@ export type OverviewPinCard = {
   id: string;
   label: string;
   value: string;
+  description?: string;
   detail: string;
   target: string;
   provider: string;
@@ -121,6 +122,7 @@ function parsePins(value: unknown): OverviewPinCard[] {
         id,
         label: stringValue(row.label) || id,
         value: stringValue(row.value) || "n/a",
+        description: optionalString(row.description ?? row.tooltip),
         detail: stringValue(row.detail),
         target: stringValue(row.target),
         provider: stringValue(row.provider) || "provider_missing",

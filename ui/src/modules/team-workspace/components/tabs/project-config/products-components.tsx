@@ -20,6 +20,9 @@ export function ProductSurfaceCard({
   row: string[];
 }): ReactElement {
   const productId = row[0] ?? "";
+  const proofState = row[5] ?? "";
+  const ticketCount = row[6] ?? "";
+  const sourceGaps = row[7] ?? "";
   return (
     <div className="grid min-w-0 grid-cols-1 gap-3 rounded-md border bg-card p-4 lg:grid-cols-[10rem_minmax(0,1fr)_minmax(16rem,0.72fr)]">
       <div className="flex items-start gap-3 rounded-md border bg-muted/20 p-3 lg:block">
@@ -33,6 +36,11 @@ export function ProductSurfaceCard({
           <Badge variant="secondary" className="mt-2 max-w-full whitespace-normal break-words">
             {productId || "product"}
           </Badge>
+          {proofState ? (
+            <Badge variant={proofState === "ready" ? "outline" : "secondary"} className="mt-2">
+              {proofState.replace(/[_-]+/g, " ")}
+            </Badge>
+          ) : null}
         </div>
       </div>
       <div className="min-w-0 space-y-2">
@@ -45,6 +53,10 @@ export function ProductSurfaceCard({
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           <ProductField label="Audience" value={row[2] ?? "Audience pending"} />
           <ProductField label="Output" value={row[3] ?? "Output pending"} />
+        </div>
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          <ProductField label="Ticket Count" value={ticketCount || "not attributed"} />
+          <ProductField label="Source Gaps" value={sourceGaps || "none"} />
         </div>
       </div>
       <ProductKpiPanel fallback={row[4] ?? ""} metrics={metrics} productId={productId} />

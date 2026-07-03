@@ -15,6 +15,7 @@ import { SignalCard } from "./overview-cards";
 export type OverviewPinnedSignal = {
   label: string;
   value: string;
+  description?: string;
   detail: string;
   target: string;
   provider: string;
@@ -65,6 +66,7 @@ export function OverviewPinnedSignals({
                 key={signal.label}
                 label={signal.label}
                 value={signal.value}
+                description={signal.description}
                 detail={signal.detail}
                 target={signal.target}
                 provider={signal.provider}
@@ -153,7 +155,7 @@ export function OverviewCeoSummary({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-sm">
             <Target className="h-4 w-4" />
-            CEO Overview
+            Team Focus
           </CardTitle>
           <div className="flex items-center gap-2">
             {hasBusinessConfig ? (
@@ -171,13 +173,13 @@ export function OverviewCeoSummary({
           <div className="flex items-center gap-2">
             <Flag className="h-4 w-4 text-muted-foreground" />
             <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-              North Star
+              Current Focus
             </p>
           </div>
           <p className="text-base font-medium leading-6">{northStar}</p>
           <div className="rounded-md border bg-background/50 p-3">
             <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-              Current Bet
+                Current Bet
             </p>
             <p className="mt-1 text-sm text-muted-foreground">{currentBet}</p>
           </div>
@@ -186,14 +188,14 @@ export function OverviewCeoSummary({
           <div className="flex items-center gap-2">
             <Gauge className="h-4 w-4 text-muted-foreground" />
             <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-              Harness Mission
+              Active Milestone
             </p>
           </div>
           <p className="text-sm leading-6 text-muted-foreground">{mission}</p>
           <div className="flex flex-wrap gap-2">
-            <Badge variant={harnessFileExists ? "outline" : "secondary"}>harness.md</Badge>
-            <Badge variant={goalsFileExists ? "outline" : "secondary"}>goals.md</Badge>
-            <Badge variant={evalsFileExists ? "outline" : "secondary"}>evals.md</Badge>
+            <Badge variant={harnessFileExists ? "outline" : "secondary"}>snapshot</Badge>
+            <Badge variant={goalsFileExists ? "outline" : "secondary"}>goals</Badge>
+            <Badge variant={evalsFileExists ? "outline" : "secondary"}>products</Badge>
           </div>
           {principles.length > 0 ? (
             <div className="space-y-1">

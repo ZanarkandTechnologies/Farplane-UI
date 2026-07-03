@@ -1,9 +1,10 @@
 import type { ReactElement } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { findMetricsSnapshot } from "@/modules/team-workspace/lib/dashboard-projections/goal-kpi-model";
+import { findProjectUiSnapshot } from "@/modules/team-workspace/lib/dashboard-projections/project-ui-snapshot";
 import { findConfigFile, getConfigSection, parseMarkdownTable } from "./config-parsing";
 import type { FarplaneProjectConfig } from "./config-types";
-import { ProductSurfaceCard, ShopDepartmentsCard } from "./products-components";
+import { ProductSurfaceCard } from "./products-components";
 import { groupMetricsByProduct } from "./products-model";
 import { MetricTile, statusBadge } from "./shared";
 
@@ -13,8 +14,19 @@ export function ProjectProductsTab({
   config: FarplaneProjectConfig | null;
 }): ReactElement {
   const products = findConfigFile(config, "products");
-  const productRows = parseMarkdownTable(getConfigSection(products, "Products")).slice(1);
-  const laneRows = parseMarkdownTable(getConfigSection(products, "Work Lanes")).slice(1);
+  const projectUiSnapshot = findProjectUiSnapshot(config);
+  const productRows = projectUiSnapshot
+    ? projectUiSnapshot.tabs.products.products.map((product) => [
+        product.productId,
+        product.name,
+        product.audience,
+        product.output,
+        product.reward,
+        product.proofState,
+        String(product.ticketCount ?? ""),
+        product.sourceGapIds.join(", "),
+      ])
+    : parseMarkdownTable(getConfigSection(products, "Products")).slice(1);
   const snapshot = findMetricsSnapshot(config);
   const metricsByProduct = groupMetricsByProduct(snapshot?.metrics ?? []);
   const linkedKpiCount = productRows.reduce(
@@ -40,9 +52,9 @@ export function ProjectProductsTab({
             detail="product surfaces"
           />
           <MetricTile
-            label="Departments"
-            value={String(laneRows.length)}
-            detail="work-lane weights"
+            label="Source Gaps"
+            value={String(projectUiSnapshot?.tabs.products.sourceGapIds.length ?? 0)}
+            detail="product evidence gaps"
           />
           <MetricTile
             label="Linked KPIs"
@@ -60,7 +72,6 @@ export function ProjectProductsTab({
             />
           ))}
         </div>
-        <ShopDepartmentsCard laneRows={laneRows} />
       </div>
     </ScrollArea>
   );

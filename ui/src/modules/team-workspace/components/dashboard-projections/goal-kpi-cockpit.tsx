@@ -1,96 +1,52 @@
 "use client";
 
-import { ExternalLink, Gauge } from "lucide-react";
+import { ExternalLink, Gauge, Info } from "lucide-react";
 import type { ReactElement } from "react";
 import { Area, Bar, CartesianGrid, ComposedChart, XAxis, YAxis } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import type { GoalAxisView, KpiMetricRow } from "../../lib/dashboard-projections/goal-kpi-model";
+import {
+  buildRollingSevenDayChartData,
+  formatMetricValue,
+  metricRowState,
+  metricStateLabel,
+  metricTargetHit,
+  targetCopy,
+  trendLabel,
+} from "./goal-kpi-cockpit-model";
 
-const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 type KpiChartMode = "daily" | "cumulative";
-type KpiChartPoint = {
-  date: string;
-  label: string;
-  current: number | null;
-  dailyDiff: number | null;
-};
 
-function formatMetricValue(value: number | null): string {
-  return typeof value === "number" && Number.isFinite(value) ? numberFormatter.format(value) : "-";
-}
-
-function latestDailyDiff(metric: KpiMetricRow | null): number | null {
-  const latest = metric?.series.at(-1);
-  return latest?.dailyDiff ?? null;
-}
-
-function formatDailyDiff(value: number | null): string {
-  if (value === null) return "Today n/a";
-  if (value > 0) return `Today +${numberFormatter.format(value)}`;
-  return `Today ${numberFormatter.format(value)}`;
-}
-
-function metricBadgeVariant(status: string): "outline" | "secondary" | "destructive" {
-  if (status === "available") return "outline";
-  if (status === "source_gap" || status === "missing") return "secondary";
-  return "destructive";
-}
-
-function diffBadgeVariant(value: number | null): "outline" | "secondary" | "destructive" {
-  if (value === null || value === 0) return "secondary";
-  return value > 0 ? "outline" : "destructive";
-}
-
-function targetProgress(metric: KpiMetricRow | null): number | null {
-  if (
-    !metric ||
-    typeof metric.target !== "number" ||
-    metric.target <= 0 ||
-    metric.current === null
-  ) {
-    return null;
+function sourceGapCopy(metric: KpiMetricRow | null, gapReason: string | null): string | null {
+  if (gapReason) return gapReason;
+  const sourceGapCount = metric?.sourceGapIds?.length ?? 0;
+  if (sourceGapCount > 0) {
+    return `${sourceGapCount} source gap${sourceGapCount === 1 ? "" : "s"} in snapshot`;
   }
-  return Math.max(0, Math.min(100, (metric.current / metric.target) * 100));
+  return null;
 }
 
-function formatShortDate(date: Date): string {
-  return `${date.getUTCMonth() + 1}/${date.getUTCDate()}`;
+function rowStateClasses(state: "hit" | "gap" | "active"): string {
+  if (state === "hit") return "bg-emerald-500/10 hover:bg-emerald-500/15";
+  if (state === "gap") return "bg-amber-500/10 hover:bg-amber-500/15";
+  return "hover:bg-muted/20";
 }
 
-function addUtcDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next;
+function stateBadgeVariant(state: "hit" | "gap" | "active"): "outline" | "secondary" | "destructive" {
+  if (state === "hit") return "outline";
+  if (state === "gap") return "secondary";
+  return "outline";
 }
 
-export function buildRollingSevenDayChartData(metric: KpiMetricRow): KpiChartPoint[] {
-  const datedPoints = metric.series
-    .map((point) => ({
-      ...point,
-      parsedDate: new Date(`${point.date}T00:00:00Z`),
-    }))
-    .filter((point) => !Number.isNaN(point.parsedDate.getTime()))
-    .sort((left, right) => left.parsedDate.getTime() - right.parsedDate.getTime());
-  const latestDate = datedPoints.at(-1)?.parsedDate;
-  if (!latestDate) return [];
-  const pointByDate = new Map(datedPoints.map((point) => [point.date, point]));
-  const firstDate = addUtcDays(latestDate, -6);
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = addUtcDays(firstDate, index);
-    const key = date.toISOString().slice(0, 10);
-    const point = pointByDate.get(key);
-    return {
-      date: key,
-      label: formatShortDate(date),
-      current: point?.current ?? null,
-      dailyDiff: point?.dailyDiff ?? null,
-    };
-  });
+function stateLabel(state: "hit" | "gap" | "active", status: string): string {
+  if (state === "hit") return "hit";
+  if (state === "gap") return "gap";
+  return metricStateLabel(status).toLowerCase();
 }
 
 function KpiTrendChart({
@@ -103,7 +59,7 @@ function KpiTrendChart({
   const points = metric.series;
   if (points.length === 0) {
     return (
-      <div className="flex h-16 items-center justify-center rounded-md border bg-background/40 text-xs text-muted-foreground">
+      <div className="flex h-32 items-center justify-center rounded-md border bg-background/40 text-xs text-muted-foreground">
         no series
       </div>
     );
@@ -112,12 +68,12 @@ function KpiTrendChart({
   const isDaily = mode === "daily";
   return (
     <ChartContainer
-      className="h-20 w-full rounded-md border bg-background/40 px-1 py-1"
+      className="h-32 w-full rounded-md border bg-background/40 px-2 py-2"
       config={{
         current: { color: "var(--primary)", label: "Current" },
         dailyDiff: { color: "var(--muted-foreground)", label: "Daily diff" },
       }}
-      initialDimension={{ width: 360, height: 80 }}
+      initialDimension={{ width: 360, height: 128 }}
     >
       <ComposedChart data={chartData} margin={{ bottom: 4, left: 2, right: 2, top: 4 }}>
         <CartesianGrid vertical={false} />
@@ -195,100 +151,187 @@ function MetricBreakdown({ metric }: { metric: KpiMetricRow }): ReactElement | n
   );
 }
 
-function KpiRow({
-  metricId,
+function MiniTrendBars({ metric }: { metric: KpiMetricRow | null }): ReactElement {
+  const points = metric ? buildRollingSevenDayChartData(metric) : [];
+  const values = points.map((point) => point.dailyDiff ?? point.current).filter((value): value is number => typeof value === "number");
+  const max = Math.max(...values.map((value) => Math.abs(value)), 1);
+  if (points.length === 0 || values.length === 0) {
+    return <span className="text-xs text-muted-foreground">no trend</span>;
+  }
+  return (
+    <div className="flex h-8 items-end gap-1" aria-label={`7 day trend ${trendLabel(metric)}`}>
+      {points.map((point) => {
+        const value = point.dailyDiff ?? point.current;
+        const height = typeof value === "number" ? Math.max(15, (Math.abs(value) / max) * 100) : 8;
+        return (
+          <span
+            key={point.date}
+            className={
+              typeof value === "number"
+                ? "w-1.5 rounded-sm bg-primary/70"
+                : "w-1.5 rounded-sm bg-muted-foreground/20"
+            }
+            style={{ height: `${height}%` }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function MetricTitle({
   metric,
-  gapReason,
-  mode,
+  metricId,
 }: {
+  metric: KpiMetricRow | null;
+  metricId: string;
+}): ReactElement {
+  const label = metric?.label ?? metricId;
+  const description = metric?.description?.trim();
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <p className="break-words text-sm font-semibold [overflow-wrap:anywhere]">{label}</p>
+      {description ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={`How ${label} is calculated`}
+            >
+              <Info className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-80 text-left leading-5">
+            {description}
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+    </div>
+  );
+}
+
+type KpiTableEntry = {
   metricId: string;
   metric: KpiMetricRow | null;
   gapReason: string | null;
-  mode: KpiChartMode;
-}): ReactElement {
+};
+
+function emptyMetricRow(metricId: string, status: string): KpiMetricRow {
+  return {
+    metricId,
+    label: metricId,
+    axis: "",
+    product: "",
+    sourceId: "",
+    status,
+    current: null,
+    target: null,
+    targetHit: null,
+    aggregation: "",
+    cumulative: false,
+    display: "",
+    series: [],
+    sourceGapIds: [],
+  };
+}
+
+function KpiTableRow({ entry }: { entry: KpiTableEntry }): ReactElement {
+  const { metricId, metric, gapReason } = entry;
   const status = metric?.status ?? (gapReason ? "source_gap" : "missing");
-  const isAvailable = status === "available";
-  const todayDiff = latestDailyDiff(metric);
-  const progress = targetProgress(metric);
-  const numericTarget = typeof metric?.target === "number" ? metric.target : null;
-  const stringTarget = typeof metric?.target === "string" ? metric.target : null;
-  const isDaily = mode === "daily";
+  const rowState = metricRowState(metric, status);
+  const gapCopy = sourceGapCopy(metric, gapReason);
+  const metricTargetCopy = targetCopy(metric);
   return (
-    <div className="grid min-w-0 gap-3 rounded-md border bg-muted/20 p-3 xl:grid-cols-[minmax(12rem,0.8fr)_minmax(0,1.35fr)_minmax(10rem,0.8fr)]">
-      <div className="min-w-0 space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={metricBadgeVariant(status)}>{status}</Badge>
-          <Badge variant="outline">{metric?.sourceId || "not connected"}</Badge>
+    <details className="group border-t first:border-t-0">
+      <summary className={cn("grid cursor-pointer list-none gap-3 px-3 py-3 md:grid-cols-[minmax(12rem,1.6fr)_minmax(5rem,0.5fr)_minmax(8rem,0.8fr)_minmax(5rem,0.55fr)_minmax(5rem,0.45fr)]", rowStateClasses(rowState))}>
+        <div className="min-w-0 space-y-1">
+          <MetricTitle metric={metric} metricId={metricId} />
+          <p className="break-all font-mono text-xs text-muted-foreground">{metricId}</p>
+          {gapCopy ? (
+            <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
+              Gap: {gapCopy}
+            </p>
+          ) : null}
         </div>
-        <p className="break-words text-sm font-semibold [overflow-wrap:anywhere]">
-          {metric?.label ?? metricId}
-        </p>
-        <p className="break-all font-mono text-xs text-muted-foreground">{metricId}</p>
-      </div>
-      <div className="min-w-0 space-y-2">
-        <KpiTrendChart
-          mode={mode}
-          metric={
-            metric ?? {
-              metricId,
-              label: metricId,
-              axis: "",
-              product: "",
-              sourceId: "",
-              status,
-              current: null,
-              target: null,
-              targetHit: null,
-              aggregation: "",
-              cumulative: false,
-              display: "",
-              series: [],
-            }
-          }
-        />
-        {metric ? <MetricBreakdown metric={metric} /> : null}
-      </div>
-      <div className="min-w-0 space-y-2">
-        {isDaily ? (
-          <>
-            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Today</p>
-            <Badge variant={diffBadgeVariant(todayDiff)} className="text-sm tabular-nums">
-              {formatDailyDiff(todayDiff)}
-            </Badge>
-            <p className="text-xs text-muted-foreground">
-              current {formatMetricValue(metric?.current ?? null)}
-            </p>
-          </>
-        ) : isAvailable ? (
-          <>
-            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Current</p>
-            <p className="text-2xl font-semibold tabular-nums">
-              {formatMetricValue(metric?.current ?? null)}
-            </p>
-            {progress !== null ? (
-              <div className="space-y-1">
-                <Progress value={progress} />
-                <p className="text-xs text-muted-foreground">
-                  {numberFormatter.format(progress)}% of {formatMetricValue(numericTarget)}
-                </p>
-              </div>
-            ) : (
-              <Badge variant="secondary">target not set</Badge>
-            )}
-            {stringTarget ? (
-              <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
-                target: {stringTarget}
-              </p>
-            ) : null}
-          </>
-        ) : (
-          <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
-            source gap: {gapReason ?? "not connected yet"}
+        <div className="text-sm tabular-nums">
+          <span className="md:hidden text-xs text-muted-foreground">Current </span>
+          {formatMetricValue(metric?.current ?? null)}
+        </div>
+        <div className="break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">
+          <span className="md:hidden text-xs">Target </span>
+          {metricTargetCopy || "target not set"}
+        </div>
+        <div className="flex items-center gap-2">
+          <MiniTrendBars metric={metric} />
+          <span className="text-xs text-muted-foreground">{trendLabel(metric)}</span>
+        </div>
+        <div>
+          <Badge
+            variant={stateBadgeVariant(rowState)}
+            className={rowState === "hit" ? "border-emerald-500/40 text-emerald-300" : ""}
+          >
+            {stateLabel(rowState, status)}
+          </Badge>
+        </div>
+      </summary>
+      <div className="grid gap-3 border-t bg-background/40 p-3 lg:grid-cols-2">
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            Daily movement
           </p>
-        )}
+          <KpiTrendChart
+            mode="daily"
+            metric={metric ?? emptyMetricRow(metricId, status)}
+          />
+        </div>
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            Cumulative
+          </p>
+          <KpiTrendChart
+            mode="cumulative"
+            metric={metric ?? emptyMetricRow(metricId, status)}
+          />
+        </div>
+        {metric ? (
+          <div className="lg:col-span-2">
+            <MetricBreakdown metric={metric} />
+          </div>
+        ) : null}
       </div>
+    </details>
+  );
+}
+
+function GoalKpiTable({ entries }: { entries: KpiTableEntry[] }): ReactElement {
+  if (entries.length === 0) {
+    return (
+      <p className="rounded-md border bg-background/40 p-3 text-sm text-muted-foreground">
+        No KPI IDs are attached to this SMART goal yet.
+      </p>
+    );
+  }
+  return (
+    <div className="overflow-hidden rounded-md border bg-background/40">
+      <div className="hidden grid-cols-[minmax(12rem,1.6fr)_minmax(5rem,0.5fr)_minmax(8rem,0.8fr)_minmax(5rem,0.55fr)_minmax(5rem,0.45fr)] gap-3 border-b bg-muted/20 px-3 py-2 text-[10px] uppercase tracking-[0.14em] text-muted-foreground md:grid">
+        <span>Metric</span>
+        <span>Current</span>
+        <span>Target</span>
+        <span>Trend</span>
+        <span>State</span>
+      </div>
+      {entries.map((entry) => (
+        <KpiTableRow key={entry.metricId} entry={entry} />
+      ))}
     </div>
   );
+}
+
+function goalProgress(entries: KpiTableEntry[]): { hit: number; total: number; complete: boolean } {
+  const total = entries.length;
+  const hit = entries.filter((entry) => metricTargetHit(entry.metric)).length;
+  return { hit, total, complete: total > 0 && hit === total };
 }
 
 export function GoalKpiCockpit({
@@ -335,7 +378,35 @@ export function GoalKpiCockpit({
               ) : null}
               <div className="space-y-3">
                 {axis.smartGoals.map((goal) => (
-                  <div key={goal.id} className="space-y-2 rounded-md border bg-muted/20 p-3">
+                  <GoalBlock key={goal.id} goal={goal} />
+                ))}
+              </div>
+            </section>
+          ))
+        ) : (
+          <p className="rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground">
+            No goal axes found in the project snapshot.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function GoalBlock({ goal }: { goal: GoalAxisView["smartGoals"][number] }): ReactElement {
+  const entries = goal.metrics.map((entry) => ({
+    metricId: entry.metricId,
+    metric: entry.metric,
+    gapReason: entry.gap?.reason ?? null,
+  }));
+  const progress = goalProgress(entries);
+  return (
+    <div
+      className={cn(
+        "space-y-2 rounded-md border bg-muted/20 p-3",
+        progress.complete ? "border-emerald-500/30 bg-emerald-500/10" : "",
+      )}
+    >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <Badge variant="outline">{goal.id}</Badge>
@@ -348,53 +419,19 @@ export function GoalKpiCockpit({
                           </p>
                         ) : null}
                       </div>
-                      <Badge variant="secondary">{goal.metrics.length} KPI(s)</Badge>
+                      <Badge
+                        variant={progress.complete ? "outline" : "secondary"}
+                        className={progress.complete ? "border-emerald-500/40 text-emerald-300" : ""}
+                      >
+                        {progress.complete ? "complete" : `${progress.hit}/${progress.total} KPI hit`}
+                      </Badge>
                     </div>
-                    <Tabs defaultValue="daily" className="gap-3">
-                      <TabsList className="h-8 rounded-md">
-                        <TabsTrigger value="daily" className="text-xs">
-                          Daily
-                        </TabsTrigger>
-                        <TabsTrigger value="cumulative" className="text-xs">
-                          Cumulative
-                        </TabsTrigger>
-                      </TabsList>
-                      {(["daily", "cumulative"] as const).map((mode) => (
-                        <TabsContent key={mode} value={mode} className="m-0 space-y-2">
-                          {goal.metrics.length > 0 ? (
-                            goal.metrics.map((entry) => (
-                              <KpiRow
-                                key={`${goal.id}:${mode}:${entry.metricId}`}
-                                metricId={entry.metricId}
-                                metric={entry.metric}
-                                gapReason={entry.gap?.reason ?? null}
-                                mode={mode}
-                              />
-                            ))
-                          ) : (
-                            <p className="rounded-md border bg-background/40 p-3 text-sm text-muted-foreground">
-                              No KPI IDs are attached to this SMART goal yet.
-                            </p>
-                          )}
-                        </TabsContent>
-                      ))}
-                    </Tabs>
+                    <GoalKpiTable entries={entries} />
                     {goal.updateHint ? (
                       <p className="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
                         Update: {goal.updateHint}
                       </p>
                     ) : null}
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))
-        ) : (
-          <p className="rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground">
-            No goal axes found in farplane/goals.md.
-          </p>
-        )}
-      </CardContent>
-    </Card>
+    </div>
   );
 }

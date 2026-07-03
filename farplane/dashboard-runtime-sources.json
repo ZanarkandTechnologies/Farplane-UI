@@ -1,18 +1,12 @@
 [
+  {
+    "id": "project-ui",
+    "label": "Project UI snapshot",
+    "path": ".farplane/project/ui/latest.json",
+    "kind": "file"
+  },
   { "id": "reports", "label": "Reports", "path": ".farplane/reports", "kind": "directory" },
   { "id": "eval-runs", "label": "Eval runs", "path": ".farplane/evals/runs", "kind": "directory" },
-  {
-    "id": "metrics-ui",
-    "label": "Metrics UI snapshot",
-    "path": ".farplane/metrics/ui/latest.json",
-    "kind": "file"
-  },
-  {
-    "id": "overview-surface",
-    "label": "Overview surface",
-    "path": ".farplane/state/overview_surface.json",
-    "kind": "file"
-  },
   {
     "id": "social-x-latest-selected",
     "label": "X latest selected content",

@@ -39,7 +39,7 @@ export function OverviewReportsCard({
       </CardHeader>
       <CardContent>
         {reports.length > 0 ? (
-          <div className="grid gap-3">
+          <div className="overflow-hidden rounded-md border bg-background/40">
             {reports.map((report) => (
               <ReportSummaryCard
                 key={report.id}
@@ -114,7 +114,7 @@ function ReportSummaryCard({
   return (
     <div
       className={cn(
-        "rounded-md border bg-muted/20 p-3",
+        "border-t px-3 py-3 first:border-t-0",
         selected ? "border-primary/50 bg-primary/5" : "",
       )}
     >
@@ -148,8 +148,8 @@ function ReportSummaryRows({
         <div
           key={row}
           className={cn(
-            "rounded-md border bg-muted/20 text-sm leading-6 text-muted-foreground",
-            compact ? "p-2" : "p-3",
+            "text-sm leading-6 text-muted-foreground",
+            compact ? "" : "rounded-md border bg-muted/20 p-3",
           )}
         >
           <span className="break-words [overflow-wrap:anywhere]">{row}</span>

@@ -11,13 +11,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { buildOverviewSummarySurface } from "@/modules/team-workspace/lib/dashboard-projections/overview-summary-surface";
 import type { OverviewSurface } from "@/modules/team-workspace/lib/dashboard-projections/overview-surface";
+import { findProjectUiSnapshot } from "@/modules/team-workspace/lib/dashboard-projections/project-ui-snapshot";
 import {
   type FarplaneProjectConfig,
-  findConfigFile,
-  getConfigSection,
   type ProjectConfigLoadState,
 } from "../project-config";
-import { compactMarkdownText, bulletLines } from "./overview-helpers";
 import { ReportReader, OverviewReportsCard } from "./overview-reports";
 import {
   OverviewAttentionCard,
@@ -25,7 +23,6 @@ import {
   OverviewPinnedSignals,
   ProjectScopeCard,
 } from "./overview-sections";
-import { useOverviewSurface } from "./use-overview-surface";
 
 type ProjectModel = {
   id: string;
@@ -79,16 +76,7 @@ export function OverviewTab({
   team,
 }: OverviewTabProps): ReactElement {
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
-  const {
-    surface: overviewSurface,
-    state: overviewSurfaceState,
-    error: overviewSurfaceError,
-    refresh: refreshOverviewSurface,
-  } = useOverviewSurface({
-    projectPath: projectConfig?.projectPath,
-    enabled: projectConfigState === "ready",
-  });
-
+  const projectUiSnapshot = findProjectUiSnapshot(projectConfig);
   const summarySurface = useMemo(
     () =>
       projectConfigState === "ready"
@@ -96,19 +84,17 @@ export function OverviewTab({
         : null,
     [aiBurn24hUsd, aiUsageUnavailableText, projectConfig, projectConfigState],
   );
-  const projectionLoading =
-    projectConfigState === "loading" ||
-    (projectConfigState === "ready" && overviewSurfaceState === "loading" && !overviewSurface);
-  const effectiveSurface = overviewSurface ?? summarySurface ?? EMPTY_OVERVIEW_SURFACE;
+  const projectionLoading = projectConfigState === "loading";
+  const effectiveSurface = summarySurface ?? EMPTY_OVERVIEW_SURFACE;
 
   const projectionBadge =
-    overviewSurfaceState === "ready" && overviewSurface
-      ? "overview projection"
-      : overviewSurfaceState === "ready" && summarySurface
-        ? "metrics summary"
-        : overviewSurfaceState === "loading"
-          ? "loading projection"
-          : overviewSurfaceError || "projection missing";
+    projectConfigState === "ready" && projectUiSnapshot
+      ? "project snapshot"
+      : projectConfigState === "ready" && summarySurface
+        ? "snapshot missing"
+        : projectConfigState === "loading"
+          ? "loading snapshot"
+          : projectConfigError || "snapshot unavailable";
   const reportLinks = effectiveSurface.reports;
   const selectedReport =
     reportLinks.find((report) => report.id === selectedReportId) ?? reportLinks[0] ?? null;
@@ -123,11 +109,13 @@ export function OverviewTab({
     cleanedTeamDescription.length > 0 && cleanedTeamDescription !== normalizedProjectGoal
       ? cleanedTeamDescription
       : "";
-  const teamGoal =
-    normalizedProjectGoal || "No goal set yet. Use the team CLI to define a clear business target.";
-  const harnessFile = findConfigFile(projectConfig, "harness");
-  const goalsFile = findConfigFile(projectConfig, "goals");
-  const evalsFile = findConfigFile(projectConfig, "evals");
+  const teamFocus = projectUiSnapshot?.tabs.overview.teamFocus;
+  const activeProducts = teamFocus?.activeProductIds.slice(0, 4).join(", ");
+  const focusSummary =
+    teamFocus?.currentFocus ||
+    teamFocus?.currentBet ||
+    activeProducts ||
+    "No current team focus is configured in the project snapshot.";
 
   return (
     <ScrollArea className="h-full pr-3">
@@ -142,12 +130,13 @@ export function OverviewTab({
         <div className="space-y-4">
           <OverviewPinnedSignals
             loading={projectionLoading}
-            onRefresh={refreshOverviewSurface}
+            onRefresh={() => undefined}
             projectionBadge={projectionBadge}
-            projectionReady={Boolean(overviewSurface)}
+            projectionReady={Boolean(projectUiSnapshot)}
             signals={effectiveSurface.pins.map((pin) => ({
               label: pin.label,
               value: pin.value,
+              description: pin.description,
               detail: pin.detail || pin.reason || pin.status,
               target: pin.target || pin.cardKind || "overview pin",
               provider: pin.provider || "overview_surface",
@@ -169,27 +158,25 @@ export function OverviewTab({
             }))}
             loading={projectionLoading}
             projectionBadge={projectionBadge}
-            projectionReady={Boolean(overviewSurface)}
+            projectionReady={Boolean(projectUiSnapshot)}
           />
 
           <OverviewCeoSummary
             configBadge={configBadge(projectConfigState, projectConfigError)}
-            currentBet={compactMarkdownText(
-              getConfigSection(goalsFile, "Current Bet"),
-              "No current bet configured in farplane/goals.md.",
-              260,
-            )}
-            evalsFileExists={Boolean(evalsFile?.exists)}
-            goalsFileExists={Boolean(goalsFile?.exists)}
-            harnessFileExists={Boolean(harnessFile?.exists)}
+            currentBet={teamFocus?.currentBet ?? "No current bet in project snapshot."}
+            evalsFileExists={Boolean(projectUiSnapshot)}
+            goalsFileExists={Boolean(projectUiSnapshot)}
+            harnessFileExists={Boolean(projectUiSnapshot)}
             hasBusinessConfig={hasBusinessConfig}
-            mission={compactMarkdownText(
-              getConfigSection(harnessFile, "Mission"),
-              teamBusinessDescription || "No harness mission configured.",
-              260,
-            )}
-            northStar={compactMarkdownText(getConfigSection(goalsFile, "North Star"), teamGoal, 260)}
-            principles={bulletLines(getConfigSection(harnessFile, "Operating Principles"))}
+            mission={
+              teamFocus?.activeMilestone ??
+              (teamBusinessDescription || "No active milestone in snapshot.")
+            }
+            northStar={focusSummary}
+            principles={[
+              teamFocus?.topGoalId ? `Top goal: ${teamFocus.topGoalId}` : "",
+              activeProducts ? `Active products: ${activeProducts}` : "",
+            ].filter(Boolean)}
             projectConfigReady={projectConfigState === "ready"}
             projectStatus={project?.status ?? "active"}
           />

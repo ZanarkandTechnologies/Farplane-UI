@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRollingSevenDayChartData } from "./goal-kpi-cockpit";
+import { buildRollingSevenDayChartData, latestDailyDiff } from "./goal-kpi-cockpit-model";
 import type { KpiMetricRow } from "../../lib/dashboard-projections/goal-kpi-model";
 
 function metric(series: KpiMetricRow["series"]): KpiMetricRow {
@@ -34,5 +34,17 @@ describe("goal KPI cockpit charts", () => {
     expect(data[4]).toMatchObject({ date: "2026-06-29", current: 10, dailyDiff: null });
     expect(data[5]).toMatchObject({ date: "2026-06-30", current: null, dailyDiff: null });
     expect(data[6]).toMatchObject({ date: "2026-07-01", current: 15, dailyDiff: 5 });
+  });
+
+  it("derives daily movement from adjacent current readings when daily_diff is absent", () => {
+    const row = metric([
+      { date: "2026-06-29", value: 0.2, current: 0.2, dailyDiff: null, items: [] },
+      { date: "2026-07-01", value: 0.3, current: 0.3, dailyDiff: null, items: [] },
+    ]);
+    const data = buildRollingSevenDayChartData(row);
+
+    expect(latestDailyDiff(row)).toBeCloseTo(0.1);
+    expect(data[6]).toMatchObject({ date: "2026-07-01", current: 0.3 });
+    expect(data[6].dailyDiff).toBeCloseTo(0.1);
   });
 });

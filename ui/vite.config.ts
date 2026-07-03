@@ -29,7 +29,6 @@ import { createMiningLocalApi } from "./server/mining-local-api";
 import {
   readFeedScoutBridge,
   readDashboardRuntimeSourceCandidates,
-  readOverviewSurfaceBridge,
 } from "./vite-bridge/project-dashboard";
 import { normalizeBridgeOfficeSettings, type BridgeOfficeSettings as OfficeSettings } from "./office-settings-bridge";
 import {
@@ -4219,16 +4218,6 @@ function farplaneStateBridge() {
             return;
           }
           writeJson(res, 200, await readFarplaneProjectConfig(projectPath));
-          return;
-        }
-
-        if (method === "GET" && pathname === "/farplane/overview-surface") {
-          const result = await readOverviewSurfaceBridge({
-            codexGlobalStatePath: CODEX_GLOBAL_STATE_PATH,
-            projectPath: url.searchParams.get("projectPath"),
-            repoRoot: REPO_ROOT,
-          });
-          writeJson(res, result.status, result.payload);
           return;
         }
 

@@ -48,6 +48,7 @@ describe("goal KPI model", () => {
         {
           metric_id: "x_followers",
           label: "X followers",
+          description: "Latest follower count from the X account export.",
           axis: "distribution_from_evidence",
           source_id: "x_account_metrics",
           status: "available",
@@ -74,6 +75,9 @@ describe("goal KPI model", () => {
     });
     const views = buildGoalAxisViews(axes, snapshot);
     expect(views[0].smartGoals[0].metrics[0].metric?.current).toBe(265);
+    expect(views[0].smartGoals[0].metrics[0].metric?.description).toBe(
+      "Latest follower count from the X account export.",
+    );
     expect(views[0].smartGoals[0].metrics[2].gap?.reason).toBe(
       "no available observation for metric",
     );
