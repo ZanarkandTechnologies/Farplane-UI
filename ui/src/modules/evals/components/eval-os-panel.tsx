@@ -8,10 +8,19 @@
  */
 
 import { FileJson2, RefreshCw, Upload } from "lucide-react";
-import { type ChangeEvent, type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type ReactElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -27,6 +36,15 @@ import { EvalRunHistory } from "@/modules/evals/components/eval-run-history";
 import { EvalTaskDetailPanel } from "@/modules/evals/components/eval-task-detail";
 import { EvalTaskGrid } from "@/modules/evals/components/eval-task-grid";
 import {
+  AGGREGATE_RUN_ID,
+  buildAggregateSummary,
+  computeAggregateMetrics,
+  formatScorePercent,
+  getSkillCatalogIds,
+  type SkillCatalogResponse,
+} from "@/modules/evals/lib/eval-aggregate";
+import {
+  filterEvalTasks,
   formatPercent,
   formatRunDate,
   isEvalSummary,
@@ -54,6 +72,9 @@ type SkillEvalRunsResponse = {
   error?: string;
 };
 
+type EvalMode = "aggregate" | "run";
+type SingleRunTab = "tasks" | "failures" | "artifacts";
+
 async function readJsonFileInput(file: File): Promise<unknown> {
   return JSON.parse(await file.text()) as unknown;
 }
@@ -70,6 +91,26 @@ function upsertManualRun(runs: EvalRunIndexEntry[], summary: EvalSummary): EvalR
   return sortRunIndex([entry, ...runs.filter((run) => run.job_id !== summary.job_id)]);
 }
 
+function CompactEvalMetric({
+  detail,
+  label,
+  value,
+}: {
+  detail: string;
+  label: string;
+  value: string | number;
+}): ReactElement {
+  return (
+    <div className="grid w-[140px] shrink-0 grid-rows-2 gap-0.5 border-r px-3 py-1.5 text-xs last:border-r-0">
+      <div className="truncate text-[10px] uppercase text-muted-foreground">{label}</div>
+      <div className="flex min-w-0 items-baseline gap-1.5">
+        <span className="shrink-0 text-sm font-semibold leading-none tabular-nums">{value}</span>
+        <span className="truncate text-[10px] leading-none text-muted-foreground">{detail}</span>
+      </div>
+    </div>
+  );
+}
+
 export function EvalOsPanel(): ReactElement {
   const [searchParams] = useSearchParams();
   const skillQuery = searchParams.get("skill") ?? "";
@@ -83,11 +124,50 @@ export function EvalOsPanel(): ReactElement {
   const [query, setQuery] = useState(skillQuery);
   const [filter, setFilter] = useState<EvalTaskFilter>("all");
   const [scopeFilter, setScopeFilter] = useState<EvalTaskScopeFilter>("all");
-  const [activeEvalTab, setActiveEvalTab] = useState("tasks");
+  const [mode, setMode] = useState<EvalMode>(requestedRunId ? "run" : "aggregate");
+  const [singleRunTab, setSingleRunTab] = useState<SingleRunTab>("tasks");
+  const [skillCatalogIds, setSkillCatalogIds] = useState<string[]>([]);
   const [status, setStatus] = useState("Loading eval artifacts...");
   const [error, setError] = useState<string | null>(null);
   const summaryInputRef = useRef<HTMLInputElement | null>(null);
   const detailsInputRef = useRef<HTMLInputElement | null>(null);
+
+  const loadAggregateRun = useCallback(async (sourceRuns: EvalRunIndexEntry[]): Promise<void> => {
+    setStatus("Loading aggregate...");
+    setError(null);
+    const newestTaskById = new Map<string, EvalSummary["tasks"][number]>();
+    const aggregateDetailsByTaskId: Record<string, EvalTaskDetail> = {};
+
+    for (const run of sourceRuns) {
+      const response = await fetch(`/farplane/evals/runs/${encodeURIComponent(run.job_id)}`);
+      const payload = (await response.json()) as EvalRunResponse;
+      if (!response.ok || !payload.ok || !payload.summary) continue;
+
+      for (const task of payload.summary.tasks) {
+        if (newestTaskById.has(task.task_id)) continue;
+        newestTaskById.set(task.task_id, {
+          ...task,
+          reason: task.reason ?? payload.detailsByTaskId?.[task.task_id]?.judge?.reason,
+        });
+        const detail = payload.detailsByTaskId?.[task.task_id];
+        if (detail) aggregateDetailsByTaskId[task.task_id] = detail;
+      }
+    }
+
+    const aggregateTasks = Array.from(newestTaskById.values());
+    setSelectedRunId(AGGREGATE_RUN_ID);
+    setSummary(
+      buildAggregateSummary({
+        detailsByTaskId: aggregateDetailsByTaskId,
+        runs: sourceRuns,
+        tasks: aggregateTasks,
+      }),
+    );
+    setDetailsByTaskId(aggregateDetailsByTaskId);
+    setSelectedTaskId(null);
+    setIsDetailOpen(false);
+    setStatus(`Loaded latest result for ${aggregateTasks.length} eval task(s).`);
+  }, []);
 
   const loadRun = useCallback(async (runId: string): Promise<void> => {
     setStatus(`Loading ${runId}...`);
@@ -97,6 +177,7 @@ export function EvalOsPanel(): ReactElement {
     if (!response.ok || !payload.ok || !payload.summary) {
       throw new Error(payload.error ?? "eval_run_load_failed");
     }
+    setMode("run");
     setSelectedRunId(payload.summary.job_id);
     setSummary(payload.summary);
     setDetailsByTaskId(payload.detailsByTaskId ?? {});
@@ -125,8 +206,15 @@ export function EvalOsPanel(): ReactElement {
       const requestedRun = requestedRunId
         ? nextRuns.find((run) => run.job_id === requestedRunId)
         : null;
-      const runToLoad = requestedRun?.job_id ?? matchingSkillRunId ?? payload.latest?.job_id;
-      if (runToLoad) {
+      const runToLoad =
+        requestedRunId === AGGREGATE_RUN_ID
+          ? AGGREGATE_RUN_ID
+          : (requestedRun?.job_id ?? (requestedRunId ? matchingSkillRunId : AGGREGATE_RUN_ID));
+      if (runToLoad === AGGREGATE_RUN_ID) {
+        setMode("aggregate");
+        await loadAggregateRun(nextRuns);
+      } else if (runToLoad) {
+        setMode("run");
         await loadRun(runToLoad);
       } else {
         setSelectedRunId(null);
@@ -134,27 +222,57 @@ export function EvalOsPanel(): ReactElement {
         setDetailsByTaskId({});
         setSelectedTaskId(null);
         setIsDetailOpen(false);
-        setStatus(payload.exists ? "No eval runs indexed yet." : "No .farplane/evals artifacts found.");
+        setStatus(
+          payload.exists ? "No eval runs indexed yet." : "No .farplane/evals artifacts found.",
+        );
       }
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "eval_os_refresh_failed");
       setStatus("Eval artifacts unavailable.");
     }
-  }, [loadRun, requestedRunId, skillQuery]);
+  }, [loadAggregateRun, loadRun, requestedRunId, skillQuery]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   useEffect(() => {
+    let cancelled = false;
+    async function loadSkillCatalog(): Promise<void> {
+      try {
+        const response = await fetch("/openclaw/skills/catalog");
+        if (!response.ok) return;
+        const payload = (await response.json()) as SkillCatalogResponse;
+        if (!cancelled) setSkillCatalogIds(getSkillCatalogIds(payload.skills ?? []));
+      } catch {
+        if (!cancelled) setSkillCatalogIds([]);
+      }
+    }
+    void loadSkillCatalog();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!skillQuery) return;
     setQuery(skillQuery);
-    setActiveEvalTab("tasks");
+    setMode("aggregate");
   }, [skillQuery]);
 
-  const health = useMemo(() => computeEvalHealth(summary, detailsByTaskId), [summary, detailsByTaskId]);
-  const selectedTask =
-    summary?.tasks.find((task) => task.task_id === selectedTaskId) ?? null;
+  const health = useMemo(
+    () => computeEvalHealth(summary, detailsByTaskId),
+    [summary, detailsByTaskId],
+  );
+  const aggregateMetrics = useMemo(
+    () => computeAggregateMetrics({ detailsByTaskId, skillCatalogIds, summary }),
+    [detailsByTaskId, skillCatalogIds, summary],
+  );
+  const failingTasks = useMemo(
+    () => filterEvalTasks(summary?.tasks ?? [], detailsByTaskId, query, "fail", scopeFilter),
+    [detailsByTaskId, query, scopeFilter, summary?.tasks],
+  );
+  const selectedTask = summary?.tasks.find((task) => task.task_id === selectedTaskId) ?? null;
   const selectedDetail = selectedTask ? detailsByTaskId[selectedTask.task_id] : undefined;
   const verdictEntries = useMemo(() => {
     const counts = summary?.verdict_counts ?? {};
@@ -174,6 +292,7 @@ export function EvalOsPanel(): ReactElement {
     try {
       const json = await readJsonFileInput(file);
       if (!isEvalSummary(json)) throw new Error("summary_json_invalid");
+      setMode("run");
       setSummary(json);
       setSelectedRunId(json.job_id);
       setRuns((current) => upsertManualRun(current, json));
@@ -219,30 +338,69 @@ export function EvalOsPanel(): ReactElement {
       data-testid="eval-os-panel"
     >
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <span className="text-[11px] uppercase text-muted-foreground">Run</span>
-          <Select
-            value={selectedRunId ?? ""}
-            onValueChange={(runId) =>
-              void loadRun(runId).catch((nextError) => {
-                setError(nextError instanceof Error ? nextError.message : "eval_run_load_failed");
-              })
-            }
-            disabled={!runs.length}
-          >
-            <SelectTrigger size="sm" className="w-[280px] max-w-full">
-              <SelectValue placeholder="No run loaded" />
-            </SelectTrigger>
-            <SelectContent>
-              {runs.map((run) => (
-                <SelectItem key={run.job_id} value={run.job_id}>
-                  {run.label || run.job_id}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+          <div className="flex rounded-md border bg-muted/20 p-0.5">
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === "aggregate" ? "secondary" : "ghost"}
+              onClick={() => {
+                setMode("aggregate");
+                void loadAggregateRun(runs).catch((nextError) => {
+                  setError(
+                    nextError instanceof Error ? nextError.message : "eval_aggregate_load_failed",
+                  );
+                });
+              }}
+              disabled={!runs.length}
+            >
+              All / Latest
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === "run" ? "secondary" : "ghost"}
+              onClick={() => {
+                setMode("run");
+                if (selectedRunId === AGGREGATE_RUN_ID && runs[0]?.job_id) {
+                  void loadRun(runs[0].job_id).catch((nextError) => {
+                    setError(
+                      nextError instanceof Error ? nextError.message : "eval_run_load_failed",
+                    );
+                  });
+                }
+              }}
+              disabled={!runs.length}
+            >
+              Single Run
+            </Button>
+          </div>
+          {mode === "run" ? (
+            <Select
+              value={selectedRunId === AGGREGATE_RUN_ID ? "" : (selectedRunId ?? "")}
+              onValueChange={(runId) =>
+                void loadRun(runId).catch((nextError) => {
+                  setError(nextError instanceof Error ? nextError.message : "eval_run_load_failed");
+                })
+              }
+              disabled={!runs.length}
+            >
+              <SelectTrigger size="sm" className="w-[280px] max-w-full">
+                <SelectValue placeholder="Select run" />
+              </SelectTrigger>
+              <SelectContent>
+                {runs.map((run) => (
+                  <SelectItem key={run.job_id} value={run.job_id}>
+                    {run.label || run.job_id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
           <div className="hidden min-w-0 text-xs text-muted-foreground md:block">
-            <span>{formatRunDate(summary?.created_at)}</span>
+            <span>
+              {mode === "aggregate" ? "latest per eval" : formatRunDate(summary?.created_at)}
+            </span>
             <span className="mx-2">/</span>
             <span>{summary?.harness ?? "harness unknown"}</span>
             <span className="mx-1">/</span>
@@ -254,14 +412,30 @@ export function EvalOsPanel(): ReactElement {
           <span className="max-w-[280px] truncate text-xs text-muted-foreground">
             {error ?? status}
           </span>
-          <Button type="button" size="icon-sm" variant="outline" onClick={() => void refresh()} aria-label="Refresh eval runs">
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="outline"
+            onClick={() => void refresh()}
+            aria-label="Refresh eval runs"
+          >
             <RefreshCw className="size-4" />
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => summaryInputRef.current?.click()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => summaryInputRef.current?.click()}
+          >
             <Upload className="size-4" />
             Summary
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => detailsInputRef.current?.click()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => detailsInputRef.current?.click()}
+          >
             <FileJson2 className="size-4" />
             Details
           </Button>
@@ -269,152 +443,213 @@ export function EvalOsPanel(): ReactElement {
       </div>
 
       {summary ? (
-        <Tabs
-          value={activeEvalTab}
-          onValueChange={setActiveEvalTab}
-          className="flex min-h-0 flex-col overflow-hidden"
-        >
-          <TabsList className="mb-3 w-fit max-w-full flex-wrap justify-start">
-            <TabsTrigger value="runs">Runs</TabsTrigger>
-            <TabsTrigger value="tasks">Tasks</TabsTrigger>
-            <TabsTrigger value="health">Health</TabsTrigger>
-            <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="runs" className="m-0 min-h-0 flex-1">
-            <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[22rem_minmax(0,1fr)]">
-              <EvalRunHistory
-                runs={runs}
-                selectedRunId={selectedRunId}
-                onSelectRun={(runId) =>
-                  void loadRun(runId).catch((nextError) => {
-                    setError(nextError instanceof Error ? nextError.message : "eval_run_load_failed");
-                  })
-                }
-              />
-              <div className="min-h-0 rounded-md border p-4">
-                <p className="text-xs uppercase text-muted-foreground">Selected Run</p>
-                <h2 className="mt-1 truncate text-xl font-semibold">{summary.label ?? summary.job_id}</h2>
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  <div className="rounded-md border p-3">
-                    <p className="text-xs text-muted-foreground">Pass rate</p>
-                    <p className="mt-2 text-2xl font-semibold">{formatPercent(health.passRate)}</p>
-                  </div>
-                  <div className="rounded-md border p-3">
-                    <p className="text-xs text-muted-foreground">Tasks</p>
-                    <p className="mt-2 text-2xl font-semibold">{health.taskCount}</p>
-                  </div>
-                  <div className="rounded-md border p-3">
-                    <p className="text-xs text-muted-foreground">Details</p>
-                    <p className="mt-2 text-2xl font-semibold">{health.loadedDetailCount}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="tasks" className="m-0 min-h-0 flex-1">
-            <EvalTaskGrid
-              tasks={summary.tasks}
-              detailsByTaskId={detailsByTaskId}
-              selectedTaskId={selectedTaskId}
-              query={query}
-              filter={filter}
-              scopeFilter={scopeFilter}
-              onQueryChange={setQuery}
-              onFilterChange={setFilter}
-              onScopeFilterChange={setScopeFilter}
-              onSelectTask={openTaskDetail}
-            />
-          </TabsContent>
-
-          <TabsContent value="health" className="m-0 min-h-0 flex-1">
-            <div className="grid min-h-0 gap-3 lg:grid-cols-[220px_minmax(0,1fr)_190px]">
-              <div className="grid place-items-center rounded-md border bg-muted/10">
-                <div className="text-center">
-                  <p className="text-5xl font-semibold leading-none">{health.score}</p>
-                  <p className="mt-1 text-[11px] uppercase text-muted-foreground">health</p>
-                  <Badge className="mt-3" variant={health.failureCount ? "destructive" : "secondary"}>
-                    {health.verdict}
-                  </Badge>
-                </div>
-              </div>
-              <div className="min-w-0 space-y-2 rounded-md border p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold">Verdict Mix</p>
-                    <p className="text-xs text-muted-foreground">
-                      {health.taskCount} tasks / {health.loadedDetailCount} details loaded
-                    </p>
-                  </div>
-                  <Badge variant={health.failureCount ? "destructive" : "secondary"}>
-                    {health.failureCount} failure{health.failureCount === 1 ? "" : "s"}
-                  </Badge>
-                </div>
-                <div className="space-y-2">
-                  {verdictEntries.map((entry) => (
-                    <div key={entry.key} className="grid grid-cols-[28px_minmax(0,1fr)_32px] items-center gap-2 text-xs">
-                      <span className="font-semibold">{entry.key}</span>
-                      <Progress value={entry.percent} className="h-1.5 bg-muted" />
-                      <span className="text-right text-muted-foreground">{entry.count}</span>
+        <>
+          {mode === "aggregate" ? (
+            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+              <div className="flex min-h-[52px] flex-wrap items-stretch overflow-hidden rounded-md border bg-card/70">
+                <CompactEvalMetric
+                  label="Harness"
+                  value={formatScorePercent(aggregateMetrics.harnessScore ?? Number.NaN)}
+                  detail="weighted"
+                />
+                <CompactEvalMetric
+                  label="Quality"
+                  value={formatScorePercent(aggregateMetrics.evalQuality ?? Number.NaN)}
+                  detail="evaled"
+                />
+                <CompactEvalMetric
+                  label="Coverage"
+                  value={aggregateMetrics.coverageLabel}
+                  detail={
+                    aggregateMetrics.coverageRate === undefined
+                      ? "no catalog"
+                      : formatScorePercent(aggregateMetrics.coverageRate)
+                  }
+                />
+                <CompactEvalMetric
+                  label="Failing"
+                  value={aggregateMetrics.failingCount}
+                  detail={`${aggregateMetrics.noEvalCount ?? 0} gaps`}
+                />
+                <HoverCard openDelay={150}>
+                  <HoverCardTrigger asChild>
+                    <button
+                      type="button"
+                      className="grid w-[140px] shrink-0 grid-rows-2 gap-0.5 border-r px-3 py-1.5 text-left text-xs hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <span className="truncate text-[10px] uppercase text-muted-foreground">
+                        Grade Mix
+                      </span>
+                      <span className="flex min-w-0 items-baseline gap-1.5">
+                        <span className="shrink-0 text-sm font-semibold leading-none">
+                          {health.verdict}
+                        </span>
+                        <span className="truncate text-[10px] leading-none text-muted-foreground">
+                          details
+                        </span>
+                      </span>
+                    </button>
+                  </HoverCardTrigger>
+                  <HoverCardContent align="start" className="z-[10000] w-80">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold">Grade Mix</p>
+                      <Badge variant={aggregateMetrics.failingCount ? "destructive" : "secondary"}>
+                        {health.verdict}
+                      </Badge>
                     </div>
-                  ))}
+                    <div className="space-y-2">
+                      {verdictEntries.map((entry) => (
+                        <div
+                          key={entry.key}
+                          className="grid grid-cols-[28px_minmax(0,1fr)_32px] items-center gap-2 text-xs"
+                        >
+                          <span className="font-semibold">{entry.key}</span>
+                          <Progress value={entry.percent} className="h-1.5 bg-muted" />
+                          <span className="text-right text-muted-foreground">{entry.count}</span>
+                        </div>
+                      ))}
+                      {aggregateMetrics.noEvalCount ? (
+                        <div className="grid grid-cols-[28px_minmax(0,1fr)_32px] items-center gap-2 text-xs">
+                          <span className="font-semibold">--</span>
+                          <Progress
+                            value={Math.min(100, aggregateMetrics.noEvalCount * 4)}
+                            className="h-1.5 bg-muted"
+                          />
+                          <span className="text-right text-muted-foreground">
+                            {aggregateMetrics.noEvalCount}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </HoverCardContent>
+                </HoverCard>
+                <div className="flex min-w-[220px] flex-1 items-center gap-2 px-3 py-1.5 text-xs">
+                  <span className="shrink-0 text-[10px] uppercase text-muted-foreground">Next</span>
+                  <span className="min-w-0 truncate">
+                    {aggregateMetrics.priorityItems[0] ?? "No priority work"}
+                  </span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-md border p-3">
-                  <p className="text-muted-foreground">Pass rate</p>
-                  <p className="mt-2 text-2xl font-semibold">{formatPercent(health.passRate)}</p>
-                </div>
-                <div className="rounded-md border p-3">
-                  <p className="text-muted-foreground">Runs</p>
-                  <p className="mt-2 text-2xl font-semibold">{runs.length}</p>
-                </div>
-                <div className="col-span-2 min-w-0 rounded-md border p-3">
-                  <p className="text-muted-foreground">Run artifact</p>
-                  <p className="mt-2 truncate font-mono text-xs">{summary.job_id}</p>
-                </div>
-              </div>
+              <EvalTaskGrid
+                tasks={summary.tasks}
+                detailsByTaskId={detailsByTaskId}
+                selectedTaskId={selectedTaskId}
+                query={query}
+                filter={filter}
+                scopeFilter={scopeFilter}
+                onQueryChange={setQuery}
+                onFilterChange={setFilter}
+                onScopeFilterChange={setScopeFilter}
+                onSelectTask={openTaskDetail}
+              />
             </div>
-          </TabsContent>
+          ) : (
+            <Tabs
+              value={singleRunTab}
+              onValueChange={(value) => setSingleRunTab(value as SingleRunTab)}
+              className="flex min-h-0 flex-col overflow-hidden"
+            >
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <TabsList className="w-fit max-w-full flex-wrap justify-start">
+                  <TabsTrigger value="tasks">Tasks</TabsTrigger>
+                  <TabsTrigger value="failures">Failures</TabsTrigger>
+                  <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
+                </TabsList>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant={health.failureCount ? "destructive" : "secondary"}>
+                    {formatPercent(health.passRate)}
+                  </Badge>
+                  <span>{health.taskCount} tasks</span>
+                  <span>{health.loadedDetailCount} details</span>
+                </div>
+              </div>
 
-          <TabsContent value="artifacts" className="m-0 min-h-0 flex-1">
-            <div className="grid h-full min-h-0 gap-3 md:grid-cols-2">
-              <div className="rounded-md border p-4">
-                <p className="text-sm font-semibold">Loaded Artifacts</p>
-                <div className="mt-4 space-y-2 text-sm">
-                  <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
-                    <span className="text-muted-foreground">summary</span>
-                    <span className="truncate font-mono text-xs">{summary.job_id}</span>
-                  </div>
-                  <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
-                    <span className="text-muted-foreground">details</span>
-                    <span>{Object.keys(detailsByTaskId).length} loaded</span>
-                  </div>
-                  <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
-                    <span className="text-muted-foreground">suite</span>
-                    <span>{summary.suite ?? "--"}</span>
+              <TabsContent value="tasks" className="m-0 min-h-0 flex-1">
+                <EvalTaskGrid
+                  tasks={summary.tasks}
+                  detailsByTaskId={detailsByTaskId}
+                  selectedTaskId={selectedTaskId}
+                  query={query}
+                  filter={filter}
+                  scopeFilter={scopeFilter}
+                  onQueryChange={setQuery}
+                  onFilterChange={setFilter}
+                  onScopeFilterChange={setScopeFilter}
+                  onSelectTask={openTaskDetail}
+                />
+              </TabsContent>
+
+              <TabsContent value="failures" className="m-0 min-h-0 flex-1">
+                <EvalTaskGrid
+                  tasks={failingTasks}
+                  detailsByTaskId={detailsByTaskId}
+                  selectedTaskId={selectedTaskId}
+                  query={query}
+                  filter="all"
+                  scopeFilter={scopeFilter}
+                  onQueryChange={setQuery}
+                  onFilterChange={setFilter}
+                  onScopeFilterChange={setScopeFilter}
+                  onSelectTask={openTaskDetail}
+                />
+              </TabsContent>
+
+              <TabsContent value="artifacts" className="m-0 min-h-0 flex-1">
+                <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[22rem_minmax(0,1fr)]">
+                  <EvalRunHistory
+                    runs={runs}
+                    selectedRunId={selectedRunId}
+                    onSelectRun={(runId) =>
+                      void loadRun(runId).catch((nextError) => {
+                        setError(
+                          nextError instanceof Error ? nextError.message : "eval_run_load_failed",
+                        );
+                      })
+                    }
+                  />
+                  <div className="grid min-h-0 gap-3 md:grid-cols-2">
+                    <div className="rounded-md border p-4">
+                      <p className="text-sm font-semibold">Loaded Artifacts</p>
+                      <div className="mt-4 space-y-2 text-sm">
+                        <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
+                          <span className="text-muted-foreground">summary</span>
+                          <span className="truncate font-mono text-xs">{summary.job_id}</span>
+                        </div>
+                        <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
+                          <span className="text-muted-foreground">details</span>
+                          <span>{Object.keys(detailsByTaskId).length} loaded</span>
+                        </div>
+                        <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
+                          <span className="text-muted-foreground">suite</span>
+                          <span>{summary.suite ?? "--"}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rounded-md border p-4">
+                      <p className="text-sm font-semibold">Manual Import</p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Import updates this panel without mutating eval artifacts.
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Button type="button" onClick={() => summaryInputRef.current?.click()}>
+                          <Upload className="size-4" />
+                          Summary
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => detailsInputRef.current?.click()}
+                        >
+                          <FileJson2 className="size-4" />
+                          Details
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="rounded-md border p-4">
-                <p className="text-sm font-semibold">Manual Import</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Import remains read-only: JSON files update the local panel state without mutating eval artifacts.
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button type="button" onClick={() => summaryInputRef.current?.click()}>
-                    <Upload className="size-4" />
-                    Summary
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => detailsInputRef.current?.click()}>
-                    <FileJson2 className="size-4" />
-                    Details
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
+              </TabsContent>
+            </Tabs>
+          )}
 
           <Sheet open={isDetailOpen && Boolean(selectedTask)} onOpenChange={setIsDetailOpen}>
             <SheetContent className="z-[10000] w-[640px] max-w-[92vw] gap-0 p-0 sm:max-w-[640px]">
@@ -426,7 +661,7 @@ export function EvalOsPanel(): ReactElement {
               </div>
             </SheetContent>
           </Sheet>
-        </Tabs>
+        </>
       ) : (
         <div className="grid min-h-0 place-items-center rounded-md border border-dashed bg-muted/10">
           <div className="w-full max-w-2xl space-y-4 p-6 text-center">
@@ -444,7 +679,11 @@ export function EvalOsPanel(): ReactElement {
                 <Upload className="size-4" />
                 Load summary.json
               </Button>
-              <Button type="button" variant="outline" onClick={() => detailsInputRef.current?.click()}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => detailsInputRef.current?.click()}
+              >
                 <FileJson2 className="size-4" />
                 Load task details
               </Button>
