@@ -5,9 +5,9 @@ import {
   buildCreativeElementEmbeddingText,
   buildResourceBankDashboard,
   buildRetrievalTagPlan,
+  buildSkillFindingEmbeddingText,
   buildTastyPack,
   matchesTastyPackFilters,
-  buildSkillFindingEmbeddingText,
   mergeTags,
   normalizeTags,
   resolveTastyPackFilters,
@@ -15,10 +15,9 @@ import {
 
 describe("resource bank helpers", () => {
   it("normalizes typed tags and dedupes them", () => {
-    expect(mergeTags(["Style:Academic Chaos", "format:2x2-grid"], ["style:academic-chaos"])).toEqual([
-      "style:academic-chaos",
-      "format:2x2-grid",
-    ]);
+    expect(
+      mergeTags(["Style:Academic Chaos", "format:2x2-grid"], ["style:academic-chaos"]),
+    ).toEqual(["style:academic-chaos", "format:2x2-grid"]);
     expect(normalizeTags([" retrieval:Landing Page Inspo "])).toEqual([
       "retrieval:landing-page-inspo",
     ]);
@@ -82,6 +81,23 @@ describe("resource bank helpers", () => {
           createdAtMs: 10,
           updatedAtMs: 10,
         },
+        {
+          _id: "asset-thumb-1",
+          parentAssetId: "asset-1",
+          title: "Video structure reference thumbnail",
+          assetKind: "image",
+          assetRole: "thumbnail",
+          sourceUrl: "https://example.com/thumb.jpg",
+          outputTypes: [],
+          audiences: [],
+          ageRanges: [],
+          industries: [],
+          customerRoles: [],
+          tags: ["format:short-video"],
+          searchableText: "thumbnail",
+          createdAtMs: 11,
+          updatedAtMs: 11,
+        },
       ],
       [
         {
@@ -131,6 +147,8 @@ describe("resource bank helpers", () => {
       skillFindingCount: 1,
       latestSavedAt: 10,
     });
+    expect(dashboard.assets[0]?.previewAsset?.sourceUrl).toBe("https://example.com/thumb.jpg");
+    expect(dashboard.assets[0]?.derivedAssets).toHaveLength(1);
     expect(dashboard.assets[0]?.creativeElements[0]?.title).toBe("Cold open");
     expect(dashboard.assets[0]?.skillFindings).toHaveLength(1);
     expect(dashboard.clusters.map((cluster) => cluster.key)).toContain("skill:video-structure");
@@ -209,7 +227,10 @@ describe("resource bank helpers", () => {
   });
 
   it("builds tasty packs from captures, analysis, and extracted creative elements", () => {
-    const filters = resolveTastyPackFilters({ timeframe: "past_week", audience: "founders" }, 1_000_000);
+    const filters = resolveTastyPackFilters(
+      { timeframe: "past_week", audience: "founders" },
+      1_000_000,
+    );
     const pack = buildTastyPack({
       idea: "AI office employee agent intro",
       filters,
@@ -241,7 +262,9 @@ describe("resource bank helpers", () => {
           analysisType: "video",
           whyItWorks: ["The reel makes an AI employee premise instantly legible."],
           takeaways: ["Operator liked the first three seconds and transformation pattern."],
-          remixConstraints: ["Audio was not fingerprinted; exact source footage should not be copied."],
+          remixConstraints: [
+            "Audio was not fingerprinted; exact source footage should not be copied.",
+          ],
           embeddingText: "AI office employee transformation reel",
           tags: ["style:old-school-corporate"],
           createdAtMs: 999_050,
@@ -278,7 +301,10 @@ describe("resource bank helpers", () => {
     expect(pack.captures).toHaveLength(1);
     expect(pack.captures[0]?.source.sourceHandle).toBe("https://example.com/reel");
     expect(pack.captures[0]?.analysis.whySaved[0]).toContain("first three seconds");
-    expect(pack.captures[0]?.elements.map((element) => element.kind)).toEqual(["hook", "storyboard"]);
+    expect(pack.captures[0]?.elements.map((element) => element.kind)).toEqual([
+      "hook",
+      "storyboard",
+    ]);
     expect(pack.captures[0]?.elements[0]?.title).toBe("Office-worker transformation hook");
     expect(pack.captures[0]?.elements[0]?.anchor).toBe("0-3s");
     expect(pack.meta).toEqual({ captureCount: 1, timeframe: "past_week" });

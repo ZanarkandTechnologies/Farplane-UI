@@ -10,13 +10,6 @@
 import { v } from "convex/values";
 import { action, mutation, query } from "../../_generated/server";
 import {
-  buildAssetSearchableText,
-  clampLimit,
-  cleanText,
-  mergeTags,
-  normalizeFacetValues,
-} from "./resourceBank";
-import {
   getAssetOrThrow,
   getJobOrThrow,
   matchesFilters,
@@ -25,6 +18,13 @@ import {
   rowTaskId,
   toAssetRow,
 } from "./records";
+import {
+  buildAssetSearchableText,
+  clampLimit,
+  cleanText,
+  mergeTags,
+  normalizeFacetValues,
+} from "./resourceBank";
 import {
   addResourceAssetArgsValidator,
   findSimilarAssetsArgsValidator,
@@ -53,7 +53,7 @@ export const addResourceAsset = mutation({
       title,
       sourceUrl: cleanText(args.sourceUrl, 2_000),
       canonicalUrl: cleanText(args.canonicalUrl, 2_000),
-      storageId: cleanText(args.storageId, 240),
+      storageId: args.storageId,
       localPath: cleanText(args.localPath, 2_000),
       mimeType: cleanText(args.mimeType, 120),
       width: args.width,
@@ -86,6 +86,14 @@ export const addResourceAsset = mutation({
       createdAtMs: timestamp,
       updatedAtMs: timestamp,
     });
+  },
+});
+
+export const generateResourceAssetUploadUrl = mutation({
+  args: {},
+  returns: v.string(),
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
   },
 });
 

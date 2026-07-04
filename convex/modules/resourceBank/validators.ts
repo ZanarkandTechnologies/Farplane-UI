@@ -81,7 +81,7 @@ export const addResourceAssetArgsValidator = {
   title: v.string(),
   sourceUrl: v.optional(v.string()),
   canonicalUrl: v.optional(v.string()),
-  storageId: v.optional(v.string()),
+  storageId: v.optional(v.id("_storage")),
   localPath: v.optional(v.string()),
   mimeType: v.optional(v.string()),
   width: v.optional(v.number()),

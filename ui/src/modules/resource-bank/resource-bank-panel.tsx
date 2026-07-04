@@ -5,12 +5,22 @@
  * ===================
  * Ownership: Resource Bank UI module.
  * Inputs: Convex resource-bank dashboard query.
- * Outputs: searchable asset cards, clusters, and selected skill findings.
+ * Outputs: searchable visual asset cards and selected creative elements.
  * Side effects: optional demo seed mutation; no raw media copying.
  */
 
 import { useMutation, useQuery } from "convex/react";
-import { Database, Film, Lightbulb, LinkIcon, Search, Sparkles, Tags } from "lucide-react";
+import {
+  Database,
+  ExternalLink,
+  Film,
+  ImageIcon,
+  Lightbulb,
+  LinkIcon,
+  Search,
+  Sparkles,
+  Tags,
+} from "lucide-react";
 import { type ReactElement, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,13 +44,6 @@ type ResourceBankDashboard = {
   };
   assets: ResourceBankAsset[];
   topTags: Array<{ tag: string; count: number }>;
-  clusters: Array<{
-    key: string;
-    label: string;
-    assetCount: number;
-    skillFindingCount: number;
-    tags: string[];
-  }>;
 };
 
 type ResourceBankAsset = {
@@ -48,11 +51,18 @@ type ResourceBankAsset = {
   title: string;
   assetKind: string;
   assetRole: string;
+  sourceUrl?: string;
+  canonicalUrl?: string;
+  storageId?: string;
+  storageUrl?: string | null;
+  localPath?: string;
   tags: string[];
   searchableText: string;
   projectId?: string;
   taskId?: string;
   createdAtMs: number;
+  previewAsset?: ResourceBankAssetPreview;
+  derivedAssets?: ResourceBankAssetPreview[];
   analyses: Array<{
     _id?: string;
     analysisType: string;
@@ -80,6 +90,18 @@ type ResourceBankAsset = {
     suggestedSkillChange?: string;
     tags: string[];
   }>;
+};
+
+type ResourceBankAssetPreview = {
+  _id?: string;
+  title: string;
+  assetKind: string;
+  assetRole: string;
+  sourceUrl?: string;
+  canonicalUrl?: string;
+  storageId?: string;
+  storageUrl?: string | null;
+  localPath?: string;
 };
 
 function StatePanel(props: {
@@ -136,8 +158,76 @@ function formatTag(tag: string): string {
 
 function assetIcon(kind: string): ReactElement {
   if (kind === "video" || kind === "clip") return <Film className="size-4" />;
+  if (kind === "image" || kind === "screenshot" || kind === "frame")
+    return <ImageIcon className="size-4" />;
   if (kind === "url") return <LinkIcon className="size-4" />;
   return <Database className="size-4" />;
+}
+
+function displayablePreviewUrl(asset: ResourceBankAssetPreview | undefined): string | undefined {
+  if (asset?.storageUrl) return asset.storageUrl;
+  if (asset?.localPath) {
+    return `/@fs${asset.localPath.split("/").map(encodeURIComponent).join("/")}`;
+  }
+  const candidate = sourceUrl(asset);
+  if (!candidate) return undefined;
+  if (candidate.startsWith("data:image/") || candidate.startsWith("blob:")) {
+    return candidate;
+  }
+  if (!candidate.startsWith("https://") && !candidate.startsWith("http://")) return undefined;
+  if (/\.(avif|gif|jpe?g|png|webp)(\?.*)?$/i.test(candidate)) return candidate;
+  return undefined;
+}
+
+function hasPreviewHandle(asset: ResourceBankAssetPreview | undefined): boolean {
+  return Boolean(asset?.sourceUrl ?? asset?.canonicalUrl ?? asset?.storageId ?? asset?.localPath);
+}
+
+function sourceUrl(asset: ResourceBankAssetPreview | undefined): string | undefined {
+  return asset?.canonicalUrl ?? asset?.sourceUrl;
+}
+
+function sourceLabel(asset: ResourceBankAssetPreview | undefined): string | undefined {
+  const value = sourceUrl(asset);
+  if (!value) return asset?.localPath?.split("/").pop();
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch {
+    return value;
+  }
+}
+
+function AssetPreview(props: {
+  asset: ResourceBankAssetPreview | undefined;
+  fallbackKind: string;
+  title: string;
+  compact?: boolean;
+}): ReactElement {
+  const previewUrl = displayablePreviewUrl(props.asset);
+  const heightClass = props.compact ? "h-28" : "h-40";
+  if (previewUrl) {
+    return (
+      <div className={`overflow-hidden rounded-md border bg-muted ${heightClass}`}>
+        <img src={previewUrl} alt="" className="size-full object-cover" loading="lazy" />
+      </div>
+    );
+  }
+  return (
+    <div
+      className={`flex flex-col items-center justify-center gap-2 rounded-md border bg-muted px-3 text-center text-muted-foreground ${heightClass}`}
+      title={
+        hasPreviewHandle(props.asset)
+          ? "Preview handle saved but not browser-displayable"
+          : undefined
+      }
+    >
+      {assetIcon(props.asset?.assetKind ?? props.fallbackKind)}
+      <span className="max-w-full truncate text-[11px]">
+        {sourceLabel(props.asset) ?? props.fallbackKind}
+      </span>
+      <span className="sr-only">{props.title}</span>
+    </div>
+  );
 }
 
 export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps): ReactElement {
@@ -145,7 +235,6 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
   const canSeedDemo = import.meta.env.DEV;
   const [query, setQuery] = useState("");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
-  const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
   const seedDemo = useMutation(api.modules.resourceBank.demo.seedDemoResourceBank);
   const data = useQuery(
     api.modules.resourceBank.retrieval.getResourceBankDashboard,
@@ -154,15 +243,8 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
 
   const selectedAsset = useMemo(() => {
     if (!data) return null;
-    return (
-      data.assets.find((asset) => asset._id === selectedAssetId) ??
-      data.assets.find((asset) =>
-        selectedCluster ? asset.tags.includes(selectedCluster) : false,
-      ) ??
-      data.assets[0] ??
-      null
-    );
-  }, [data, selectedAssetId, selectedCluster]);
+    return data.assets.find((asset) => asset._id === selectedAssetId) ?? data.assets[0] ?? null;
+  }, [data, selectedAssetId]);
 
   const content = (() => {
     if (!convexEnabled) {
@@ -179,7 +261,7 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
         <StatePanel
           icon={<Sparkles className="size-5" />}
           title="Loading Resource Bank"
-          detail="Reading saved assets, analyses, clusters, and skill findings."
+          detail="Reading saved assets, analyses, creative elements, and previews."
         />
       );
     }
@@ -232,31 +314,7 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
           />
         </div>
 
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[220px_minmax(0,1fr)_360px]">
-          <aside className="min-h-0 rounded-md border bg-card">
-            <div className="border-b px-4 py-3 text-sm font-semibold">Clusters</div>
-            <div className="max-h-[54vh] overflow-auto p-2">
-              {data.clusters.map((cluster) => (
-                <button
-                  key={cluster.key}
-                  type="button"
-                  onClick={() => {
-                    setSelectedCluster(cluster.key);
-                    setSelectedAssetId(null);
-                  }}
-                  className={`mb-2 w-full rounded-md border px-3 py-2 text-left text-xs transition hover:bg-accent ${
-                    selectedCluster === cluster.key ? "border-primary bg-primary/10" : "bg-background"
-                  }`}
-                >
-                  <div className="font-medium capitalize">{cluster.label}</div>
-                  <div className="mt-1 text-muted-foreground">
-                    {cluster.assetCount} assets | {cluster.skillFindingCount} findings
-                  </div>
-                </button>
-              ))}
-            </div>
-          </aside>
-
+        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
           <section className="min-h-0 rounded-md border bg-card">
             <div className="flex items-center gap-2 border-b px-4 py-3">
               <Search className="size-4 text-muted-foreground" />
@@ -277,13 +335,20 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
                   type="button"
                   onClick={() => {
                     setSelectedAssetId(asset._id ?? null);
-                    setSelectedCluster(null);
                   }}
                   className={`rounded-md border p-3 text-left transition hover:bg-accent ${
-                    selectedAsset?._id === asset._id ? "border-primary bg-primary/10" : "bg-background"
+                    selectedAsset?._id === asset._id
+                      ? "border-primary bg-primary/10"
+                      : "bg-background"
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-3">
+                  <AssetPreview
+                    asset={asset.previewAsset ?? asset}
+                    fallbackKind={asset.assetKind}
+                    title={asset.title}
+                    compact
+                  />
+                  <div className="mt-3 flex items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-2">
                       {assetIcon(asset.assetKind)}
                       <div className="truncate text-sm font-semibold">{asset.title}</div>
@@ -309,15 +374,30 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
             <div className="border-b px-4 py-3 text-sm font-semibold">Selected Asset</div>
             {selectedAsset ? (
               <div className="max-h-[54vh] overflow-auto p-4">
-                <div className="flex items-start justify-between gap-3">
+                <AssetPreview
+                  asset={selectedAsset.previewAsset ?? selectedAsset}
+                  fallbackKind={selectedAsset.assetKind}
+                  title={selectedAsset.title}
+                />
+                <div className="mt-4 flex items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold">{selectedAsset.title}</div>
                     <div className="mt-1 text-xs text-muted-foreground">
                       {selectedAsset.assetKind} | saved {formatTime(selectedAsset.createdAtMs)}
                     </div>
+                    {sourceUrl(selectedAsset) ? (
+                      <Button asChild variant="outline" size="sm" className="mt-3">
+                        <a href={sourceUrl(selectedAsset)} target="_blank" rel="noreferrer">
+                          <ExternalLink className="size-3.5" />
+                          Open source
+                        </a>
+                      </Button>
+                    ) : null}
                   </div>
                   <Badge variant="outline">{selectedAsset.skillFindings.length} findings</Badge>
-                  <Badge variant="outline">{selectedAsset.creativeElements?.length ?? 0} elements</Badge>
+                  <Badge variant="outline">
+                    {selectedAsset.creativeElements?.length ?? 0} elements
+                  </Badge>
                 </div>
 
                 <div className="mt-4">
@@ -327,7 +407,10 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
                   <div className="mt-2 space-y-2">
                     {(selectedAsset.creativeElements ?? []).length > 0 ? (
                       selectedAsset.creativeElements?.map((element) => (
-                        <div key={element._id ?? `${element.kind}:${element.title}`} className="rounded-md border p-3">
+                        <div
+                          key={element._id ?? `${element.kind}:${element.title}`}
+                          className="rounded-md border p-3"
+                        >
                           <div className="flex items-center justify-between gap-2">
                             <div className="text-xs font-semibold">{element.title}</div>
                             <Badge variant="secondary">{element.kind}</Badge>
@@ -355,11 +438,13 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
                     Analysis
                   </div>
                   <div className="mt-2 space-y-2">
-                    {selectedAsset.analyses.flatMap((analysis) => analysis.whyItWorks).map((text) => (
-                      <div key={text} className="rounded-md bg-muted px-3 py-2 text-xs leading-5">
-                        {text}
-                      </div>
-                    ))}
+                    {selectedAsset.analyses
+                      .flatMap((analysis) => analysis.whyItWorks)
+                      .map((text) => (
+                        <div key={text} className="rounded-md bg-muted px-3 py-2 text-xs leading-5">
+                          {text}
+                        </div>
+                      ))}
                   </div>
                 </div>
 
@@ -372,7 +457,9 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
                       <div key={finding._id ?? finding.label} className="rounded-md border p-3">
                         <div className="flex items-center justify-between gap-2">
                           <div className="text-xs font-semibold">{finding.label}</div>
-                          <Badge variant="secondary">{finding.findingKind.replace(/_/g, " ")}</Badge>
+                          <Badge variant="secondary">
+                            {finding.findingKind.replace(/_/g, " ")}
+                          </Badge>
                         </div>
                         <div className="mt-2 text-xs leading-5 text-muted-foreground">
                           {finding.capability}

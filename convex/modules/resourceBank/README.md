@@ -22,6 +22,24 @@ output by default. Extract the value into creative elements, with an optional
 separate retained evidence only when a future workflow needs direct media reuse,
 debugging, rights review, or audit proof.
 
+Preview thumbnails/contact sheets should be stored as derived Resource Bank
+assets with `storageId` pointing at Convex file storage. The ingest path can
+upload a local generated image and insert the derived row with:
+
+```bash
+npm run resource-bank:upload-thumbnail -- \
+  --job-id <resourceBankIngestionJobs id> \
+  --parent-asset-id <primary resourceBankAssets id> \
+  --file /path/to/contact_sheet.jpg \
+  --title "Contact sheet: source title" \
+  --source-url https://source.example/item \
+  --tag frame-backed
+```
+
+The dashboard query resolves stored thumbnails to `storageUrl` with
+`ctx.storage.getUrl`, and the panel renders that URL before falling back to
+direct image URLs or local dev paths.
+
 Tasty Pack retrieval filters primary assets by timeframe plus retrieval facets
 (`audiences`, `industries`, `ageRanges`, `customerRoles`, `outputTypes`, and
 optional `tastinessScore`), then hydrates attached analyses and creative

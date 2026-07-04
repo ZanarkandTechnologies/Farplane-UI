@@ -15,6 +15,7 @@ export type ResourceBankAssetRow = {
   sourceUrl?: string;
   canonicalUrl?: string;
   storageId?: string;
+  storageUrl?: string | null;
   localPath?: string;
   durationMs?: number;
   startMs?: number;
@@ -84,6 +85,7 @@ export type ResourceBankAssetDetail = ResourceBankAssetRow & {
   analyses: ResourceBankAnalysisRow[];
   creativeElements: ResourceBankCreativeElementRow[];
   derivedAssets: ResourceBankAssetRow[];
+  previewAsset?: ResourceBankAssetRow;
   skillFindings: ResourceBankSkillFindingRow[];
 };
 
@@ -233,10 +235,10 @@ export function normalizeFacetValues(...groups: Array<readonly string[] | undefi
   return normalizeTags(groups.flatMap((group) => [...(group ?? [])]));
 }
 
-export function buildRetrievalTagPlan(input: {
-  tags?: readonly string[];
-  outputType?: string;
-}): { filterTags: string[]; tagExpansions: string[] } {
+export function buildRetrievalTagPlan(input: { tags?: readonly string[]; outputType?: string }): {
+  filterTags: string[];
+  tagExpansions: string[];
+} {
   const filterTags = normalizeTags(input.tags);
   const outputTags = input.outputType ? normalizeTags([`output:${input.outputType}`]) : [];
   return {
@@ -249,13 +251,19 @@ export function clampLimit(limit: number | undefined, fallback = 24, max = 80): 
   return Math.max(1, Math.min(max, Math.floor(limit ?? fallback)));
 }
 
-export function includesAllTags(rowTags: readonly string[], requiredTags: readonly string[]): boolean {
+export function includesAllTags(
+  rowTags: readonly string[],
+  requiredTags: readonly string[],
+): boolean {
   if (requiredTags.length === 0) return true;
   const rowTagSet = new Set(rowTags.map((tag) => tag.toLowerCase()));
   return requiredTags.every((tag) => rowTagSet.has(tag.toLowerCase()));
 }
 
-export function intersectsFacet(rowValues: readonly string[], requiredValues: readonly string[]): boolean {
+export function intersectsFacet(
+  rowValues: readonly string[],
+  requiredValues: readonly string[],
+): boolean {
   if (requiredValues.length === 0) return true;
   const rowSet = new Set(rowValues.map((value) => value.toLowerCase()));
   return requiredValues.some((value) => rowSet.has(value.toLowerCase()));
@@ -271,12 +279,14 @@ export function resolveTastyPackFilters(
     timeframe === "all"
       ? undefined
       : nowMs -
-        ({
-          past_day: 1,
-          past_week: 7,
-          past_month: 30,
-          past_90_days: 90,
-        } satisfies Record<Exclude<TastyPackTimeframe, "all">, number>)[timeframe] *
+        (
+          {
+            past_day: 1,
+            past_week: 7,
+            past_month: 30,
+            past_90_days: 90,
+          } satisfies Record<Exclude<TastyPackTimeframe, "all">, number>
+        )[timeframe] *
           24 *
           60 *
           60 *
@@ -293,7 +303,10 @@ export function resolveTastyPackFilters(
     ),
     audiences: normalizeFacetValues(input.audiences, input.audience ? [input.audience] : undefined),
     ageRanges: normalizeFacetValues(input.ageRanges),
-    industries: normalizeFacetValues(input.industries, input.industry ? [input.industry] : undefined),
+    industries: normalizeFacetValues(
+      input.industries,
+      input.industry ? [input.industry] : undefined,
+    ),
     customerRoles: normalizeFacetValues(
       input.customerRoles,
       input.customerRole ? [input.customerRole] : undefined,
@@ -368,7 +381,9 @@ export function buildTastyPack(input: {
   };
 }
 
-function sourceHandle(asset: Pick<ResourceBankAssetRow, "storageId" | "canonicalUrl" | "sourceUrl" | "localPath">): string | undefined {
+function sourceHandle(
+  asset: Pick<ResourceBankAssetRow, "storageId" | "canonicalUrl" | "sourceUrl" | "localPath">,
+): string | undefined {
   return asset.storageId ?? asset.canonicalUrl ?? asset.sourceUrl ?? asset.localPath;
 }
 
@@ -422,13 +437,7 @@ export function buildAssetSearchableText(input: {
   sourceRef?: string;
   tags?: readonly string[];
 }): string {
-  return [
-    input.title,
-    input.note,
-    input.requestedFocus,
-    input.sourceRef,
-    ...(input.tags ?? []),
-  ]
+  return [input.title, input.note, input.requestedFocus, input.sourceRef, ...(input.tags ?? [])]
     .filter(Boolean)
     .join("\n")
     .slice(0, RESOURCE_BANK_TEXT_LIMIT);
@@ -497,12 +506,7 @@ export function buildCreativeElementEmbeddingText(input: {
   anchor?: string;
   tags?: readonly string[];
 }): string {
-  return [
-    input.title,
-    input.description,
-    input.anchor,
-    ...(input.tags ?? []),
-  ]
+  return [input.title, input.description, input.anchor, ...(input.tags ?? [])]
     .filter(Boolean)
     .join("\n")
     .slice(0, RESOURCE_BANK_TEXT_LIMIT);
@@ -523,12 +527,17 @@ export function buildResourceBankDashboard(
   );
   const primaryAssets = assets.filter((asset) => asset.assetRole === "primary");
   const tagCounts = new Map<string, number>();
-  for (const tag of [...assets.flatMap((asset) => asset.tags), ...skillFindings.flatMap((finding) => finding.tags)]) {
+  for (const tag of [
+    ...assets.flatMap((asset) => asset.tags),
+    ...skillFindings.flatMap((finding) => finding.tags),
+  ]) {
     tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
   }
 
   const clusters = [...tagCounts.entries()]
-    .filter(([tag]) => tag.startsWith("skill:") || tag.startsWith("style:") || tag.startsWith("format:"))
+    .filter(
+      ([tag]) => tag.startsWith("skill:") || tag.startsWith("style:") || tag.startsWith("format:"),
+    )
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
     .slice(0, 8)
     .map(([tag]) => {
@@ -555,6 +564,7 @@ export function buildResourceBankDashboard(
       analyses: analysesByAsset.get(asset._id ?? "") ?? [],
       creativeElements: elementsByAsset.get(asset._id ?? "") ?? [],
       derivedAssets: derivedByParent.get(asset._id ?? "") ?? [],
+      previewAsset: selectPreviewAsset(asset, derivedByParent.get(asset._id ?? "") ?? []),
       skillFindings: findingsByAsset.get(asset._id ?? "") ?? [],
     })),
     topTags: [...tagCounts.entries()]
@@ -563,6 +573,22 @@ export function buildResourceBankDashboard(
       .map(([tag, count]) => ({ tag, count })),
     clusters,
   };
+}
+
+function selectPreviewAsset(
+  asset: ResourceBankAssetRow,
+  derivedAssets: readonly ResourceBankAssetRow[],
+): ResourceBankAssetRow | undefined {
+  const candidates = [asset, ...derivedAssets];
+  return (
+    candidates.find(
+      (candidate) => candidate.assetRole === "thumbnail" && isPreviewableKind(candidate.assetKind),
+    ) ?? candidates.find((candidate) => isPreviewableKind(candidate.assetKind))
+  );
+}
+
+function isPreviewableKind(kind: string): boolean {
+  return kind === "image" || kind === "screenshot" || kind === "frame" || kind === "thumbnail";
 }
 
 function groupBy<T>(values: readonly T[], getKey: (value: T) => string): Map<string, T[]> {

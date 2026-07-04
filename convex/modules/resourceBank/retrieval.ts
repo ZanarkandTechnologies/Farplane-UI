@@ -1,16 +1,25 @@
 // Resource Bank retrieval functions compose asset, analysis, and skill-finding rows for UI and agents.
+import type { Id } from "../../_generated/dataModel";
+import type { QueryCtx } from "../../_generated/server";
 import { query } from "../../_generated/server";
 import {
+  matchesFilters,
+  toAnalysisRow,
+  toAssetRow,
+  toCreativeElementRow,
+  toSkillFindingRow,
+} from "./records";
+import {
   buildResourceBankDashboard,
-  buildTastyPack,
   buildRetrievalTagPlan,
+  buildTastyPack,
   clampLimit,
   cleanText,
   matchesTastyPackFilters,
   RESOURCE_BANK_QUERY_LIMIT,
+  type ResourceBankAssetRow,
   resolveTastyPackFilters,
 } from "./resourceBank";
-import { matchesFilters, toAnalysisRow, toAssetRow, toCreativeElementRow, toSkillFindingRow } from "./records";
 import {
   createTastyPackArgsValidator,
   dashboardArgsValidator,
@@ -26,7 +35,27 @@ export const getResourceBankDashboard = query({
       .withIndex("by_createdAtMs")
       .order("desc")
       .take(limit * 3);
-    const filteredAssets = assets.filter((row) => matchesFilters(row, args)).slice(0, limit);
+    const filteredAssets = assets
+      .filter((row) => row.assetRole === "primary" && matchesFilters(row, args))
+      .slice(0, limit);
+    const derivedAssets = await Promise.all(
+      filteredAssets.map((asset) =>
+        ctx.db
+          .query("resourceBankAssets")
+          .withIndex("by_job", (q) => q.eq("ingestionJobId", asset.ingestionJobId))
+          .take(20),
+      ),
+    );
+    const selectedAssets = [
+      ...filteredAssets,
+      ...derivedAssets
+        .flat()
+        .filter(
+          (asset) =>
+            asset.assetRole !== "primary" &&
+            filteredAssets.some((primary) => primary._id === asset.parentAssetId),
+        ),
+    ];
     const analyses = await Promise.all(
       filteredAssets.map((asset) =>
         ctx.db
@@ -51,14 +80,29 @@ export const getResourceBankDashboard = query({
           .take(10),
       ),
     );
+    const selectedAssetRows = await hydrateStorageUrls(ctx, selectedAssets.map(toAssetRow));
     return buildResourceBankDashboard(
-      filteredAssets.map(toAssetRow),
+      selectedAssetRows,
       analyses.flat().map(toAnalysisRow),
       creativeElements.flat().map(toCreativeElementRow),
       findings.flat().map(toSkillFindingRow),
     );
   },
 });
+
+async function hydrateStorageUrls(
+  ctx: QueryCtx,
+  assets: ResourceBankAssetRow[],
+): Promise<ResourceBankAssetRow[]> {
+  return await Promise.all(
+    assets.map(async (asset) => ({
+      ...asset,
+      storageUrl: asset.storageId
+        ? await ctx.storage.getUrl(asset.storageId as Id<"_storage">)
+        : undefined,
+    })),
+  );
+}
 
 export const retrieveForCreation = query({
   args: retrieveForCreationArgsValidator,
@@ -114,7 +158,9 @@ export const retrieveForCreation = query({
                 ? [`Treated outputType "${args.outputType}" as a soft hint, not a required tag.`]
                 : []),
             ]
-          : ["Embedding was supplied but this query path is full-text; use findSimilarAssets for vector search."],
+          : [
+              "Embedding was supplied but this query path is full-text; use findSimilarAssets for vector search.",
+            ],
     };
   },
 });
@@ -136,7 +182,9 @@ export const createTastyPack = query({
           .order("desc")
           .take(limit * 8);
 
-    const assets = rawAssets.map(toAssetRow).filter((asset) => matchesTastyPackFilters(asset, filters));
+    const assets = rawAssets
+      .map(toAssetRow)
+      .filter((asset) => matchesTastyPackFilters(asset, filters));
     const selectedAssets = assets
       .sort(
         (left, right) =>
