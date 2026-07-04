@@ -142,6 +142,17 @@ export const findingKindValidator = v.union(
   v.literal("reusable_technique"),
 );
 
+export const creativeElementKindValidator = v.union(
+  v.literal("visual"),
+  v.literal("audio"),
+  v.literal("hook"),
+  v.literal("storyboard"),
+  v.literal("editing"),
+  v.literal("copy"),
+  v.literal("format"),
+  v.literal("constraint"),
+);
+
 export const addSkillFindingArgsValidator = {
   jobId: v.id("resourceBankIngestionJobs"),
   assetId: v.id("resourceBankAssets"),
@@ -159,6 +170,19 @@ export const addSkillFindingArgsValidator = {
   embeddingText: v.optional(v.string()),
   embeddingModel: v.optional(v.string()),
   embedding: v.optional(v.array(v.float64())),
+};
+
+export const addCreativeElementArgsValidator = {
+  jobId: v.id("resourceBankIngestionJobs"),
+  assetId: v.id("resourceBankAssets"),
+  analysisId: v.optional(v.id("resourceBankAnalyses")),
+  kind: creativeElementKindValidator,
+  title: v.string(),
+  description: v.string(),
+  anchor: v.optional(v.string()),
+  embeddingText: v.optional(v.string()),
+  embedding: v.optional(v.array(v.float64())),
+  tags: v.optional(v.array(v.string())),
 };
 
 export const completeIngestionJobArgsValidator = {
@@ -194,6 +218,18 @@ export const searchSkillFindingsArgsValidator = {
 
 export const getResourceAssetArgsValidator = {
   assetId: v.id("resourceBankAssets"),
+};
+
+export const listCreativeElementsByAssetArgsValidator = {
+  assetId: v.id("resourceBankAssets"),
+  kind: v.optional(creativeElementKindValidator),
+  limit: v.optional(v.number()),
+};
+
+export const listCreativeElementsByJobArgsValidator = {
+  jobId: v.id("resourceBankIngestionJobs"),
+  kind: v.optional(creativeElementKindValidator),
+  limit: v.optional(v.number()),
 };
 
 export const dashboardArgsValidator = {
@@ -254,7 +290,20 @@ export const createTastyPackArgsValidator = {
   customerRoles: v.optional(v.array(v.string())),
   projectId: v.optional(v.string()),
   taskId: v.optional(v.string()),
+  kinds: v.optional(v.array(creativeElementKindValidator)),
   limit: v.optional(v.number()),
+};
+
+export const resetResourceBankAfterSnapshotArgsValidator = {
+  confirm: v.string(),
+  snapshotCreatedAtMs: v.number(),
+  expectedCounts: v.object({
+    jobs: v.number(),
+    assets: v.number(),
+    analyses: v.number(),
+    skillFindings: v.number(),
+    creativeElements: v.number(),
+  }),
 };
 
 export const seedDemoArgsValidator = {
@@ -264,3 +313,6 @@ export const seedDemoArgsValidator = {
 
 export const createIngestionJobValidator = v.object(createIngestionJobArgsValidator);
 export type CreateIngestionJobArgs = Infer<typeof createIngestionJobValidator>;
+
+export const addCreativeElementValidator = v.object(addCreativeElementArgsValidator);
+export type AddCreativeElementArgs = Infer<typeof addCreativeElementValidator>;

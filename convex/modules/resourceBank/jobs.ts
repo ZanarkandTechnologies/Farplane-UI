@@ -80,6 +80,13 @@ export const linkJobToTask = mutation({
     for (const asset of assets) {
       await ctx.db.patch(asset._id, { projectId, taskId, updatedAtMs: nowMs() });
     }
+    const creativeElements = await ctx.db
+      .query("resourceBankCreativeElements")
+      .withIndex("by_job", (q) => q.eq("ingestionJobId", args.jobId))
+      .take(200);
+    for (const element of creativeElements) {
+      await ctx.db.patch(element._id, { projectId, taskId });
+    }
     return { ok: true, jobId: args.jobId };
   },
 });

@@ -10,7 +10,7 @@ import {
   RESOURCE_BANK_QUERY_LIMIT,
   resolveTastyPackFilters,
 } from "./resourceBank";
-import { matchesFilters, toAnalysisRow, toAssetRow, toSkillFindingRow } from "./records";
+import { matchesFilters, toAnalysisRow, toAssetRow, toCreativeElementRow, toSkillFindingRow } from "./records";
 import {
   createTastyPackArgsValidator,
   dashboardArgsValidator,
@@ -35,6 +35,14 @@ export const getResourceBankDashboard = query({
           .take(10),
       ),
     );
+    const creativeElements = await Promise.all(
+      filteredAssets.map((asset) =>
+        ctx.db
+          .query("resourceBankCreativeElements")
+          .withIndex("by_asset", (q) => q.eq("assetId", asset._id))
+          .take(20),
+      ),
+    );
     const findings = await Promise.all(
       filteredAssets.map((asset) =>
         ctx.db
@@ -46,6 +54,7 @@ export const getResourceBankDashboard = query({
     return buildResourceBankDashboard(
       filteredAssets.map(toAssetRow),
       analyses.flat().map(toAnalysisRow),
+      creativeElements.flat().map(toCreativeElementRow),
       findings.flat().map(toSkillFindingRow),
     );
   },
@@ -135,22 +144,39 @@ export const createTastyPack = query({
           right.createdAtMs - left.createdAtMs,
       )
       .slice(0, limit);
-    const analyses = await Promise.all(
-      selectedAssets.map((asset) =>
-        asset._id
-          ? ctx.db
-              .query("resourceBankAnalyses")
-              .withIndex("by_asset", (q) => q.eq("assetId", asset._id))
-              .take(6)
-          : [],
+    const [analyses, creativeElements] = await Promise.all([
+      Promise.all(
+        selectedAssets.map((asset) =>
+          asset._id
+            ? ctx.db
+                .query("resourceBankAnalyses")
+                .withIndex("by_asset", (q) => q.eq("assetId", asset._id))
+                .take(6)
+            : [],
+        ),
       ),
-    );
+      Promise.all(
+        selectedAssets.map((asset) =>
+          asset._id
+            ? ctx.db
+                .query("resourceBankCreativeElements")
+                .withIndex("by_asset", (q) => q.eq("assetId", asset._id))
+                .take(80)
+            : [],
+        ),
+      ),
+    ]);
+    const kindFilters = new Set(args.kinds ?? []);
+    const filteredCreativeElements = creativeElements.flat().map(toCreativeElementRow);
 
     return buildTastyPack({
       idea: args.idea,
       filters,
       assets: selectedAssets,
       analyses: analyses.flat().map(toAnalysisRow),
+      creativeElements: filteredCreativeElements.filter(
+        (row) => kindFilters.size === 0 || kindFilters.has(row.kind),
+      ),
     });
   },
 });

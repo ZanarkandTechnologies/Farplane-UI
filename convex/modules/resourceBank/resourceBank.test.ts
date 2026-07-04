@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildAnalysisEmbeddingText,
+  buildCreativeElementEmbeddingText,
   buildResourceBankDashboard,
   buildRetrievalTagPlan,
   buildTastyPack,
@@ -38,11 +39,19 @@ describe("resource bank helpers", () => {
       howToReuse: "Apply to future video cold opens.",
       tags: ["skill:video-lighting"],
     });
+    const elementText = buildCreativeElementEmbeddingText({
+      title: "First three seconds hook",
+      description: "Reveal with fast caption movement.",
+      anchor: "0-3s",
+      tags: ["kind:hook"],
+    });
 
     expect(analysisText).toContain("first minute uses warm key light");
     expect(analysisText).toContain("warm side key");
     expect(skillText).toContain("Break down lighting");
     expect(skillText).toContain("skill:video-lighting");
+    expect(elementText).toContain("Reveal with fast caption movement");
+    expect(elementText).toContain("0-3s");
   });
 
   it("keeps output type as a retrieval hint instead of a hard filter", () => {
@@ -89,6 +98,19 @@ describe("resource bank helpers", () => {
       ],
       [
         {
+          _id: "element-1",
+          assetId: "asset-1",
+          kind: "hook",
+          title: "Cold open",
+          description: "Open on the strongest visual.",
+          anchor: "hero",
+          embeddingText: "cold open",
+          tags: ["format:short-video"],
+          createdAtMs: 10,
+        },
+      ],
+      [
+        {
           _id: "finding-1",
           assetId: "asset-1",
           findingKind: "skill_candidate",
@@ -105,9 +127,11 @@ describe("resource bank helpers", () => {
 
     expect(dashboard.totals).toEqual({
       assetCount: 1,
+      creativeElementCount: 1,
       skillFindingCount: 1,
       latestSavedAt: 10,
     });
+    expect(dashboard.assets[0]?.creativeElements[0]?.title).toBe("Cold open");
     expect(dashboard.assets[0]?.skillFindings).toHaveLength(1);
     expect(dashboard.clusters.map((cluster) => cluster.key)).toContain("skill:video-structure");
   });
@@ -184,7 +208,7 @@ describe("resource bank helpers", () => {
     ).toBe(false);
   });
 
-  it("builds tasty packs from recent assets and freeform retention analysis", () => {
+  it("builds tasty packs from captures, analysis, and extracted creative elements", () => {
     const filters = resolveTastyPackFilters({ timeframe: "past_week", audience: "founders" }, 1_000_000);
     const pack = buildTastyPack({
       idea: "AI office employee agent intro",
@@ -215,20 +239,48 @@ describe("resource bank helpers", () => {
           _id: "analysis-1",
           assetId: "asset-1",
           analysisType: "video",
-          whyItWorks: ["The first three seconds show a jarring office-worker transformation."],
-          takeaways: ["Use the hook as a self-insert agent cold open."],
-          promptGuess: "vintage corporate training video, office agent cameo",
-          remixConstraints: ["Do not copy the creator identity."],
-          embeddingText: "Hook: the first three seconds pull attention with a strange corporate scene. Retention: each beat adds another office-history gag.",
+          whyItWorks: ["The reel makes an AI employee premise instantly legible."],
+          takeaways: ["Operator liked the first three seconds and transformation pattern."],
+          remixConstraints: ["Audio was not fingerprinted; exact source footage should not be copied."],
+          embeddingText: "AI office employee transformation reel",
+          tags: ["style:old-school-corporate"],
+          createdAtMs: 999_050,
+        },
+      ],
+      creativeElements: [
+        {
+          _id: "element-1",
+          ingestionJobId: "job-1",
+          assetId: "asset-1",
+          kind: "hook",
+          title: "Office-worker transformation hook",
+          description: "The first three seconds show a jarring office-worker transformation.",
+          anchor: "0-3s",
+          embeddingText: "first three seconds office-worker transformation hook",
           tags: ["style:old-school-corporate"],
           createdAtMs: 999_100,
+        },
+        {
+          _id: "element-2",
+          ingestionJobId: "job-1",
+          assetId: "asset-1",
+          kind: "storyboard",
+          title: "Agent identity reveal",
+          description: "A human office scene flips into an AI employee-agent premise.",
+          anchor: "3-8s",
+          embeddingText: "timeline beat AI office employee agent reveal",
+          tags: ["story:agent-reveal"],
+          createdAtMs: 999_200,
         },
       ],
     });
 
-    expect(pack.assets).toHaveLength(1);
-    expect(pack.assets[0]?.retentionNotes[0]).toContain("first three seconds");
-    expect(pack.assets[0]?.sourceHandle).toBe("https://example.com/reel");
-    expect(pack.packSummary).toContain("Audience filter: founders.");
+    expect(pack.captures).toHaveLength(1);
+    expect(pack.captures[0]?.source.sourceHandle).toBe("https://example.com/reel");
+    expect(pack.captures[0]?.analysis.whySaved[0]).toContain("first three seconds");
+    expect(pack.captures[0]?.elements.map((element) => element.kind)).toEqual(["hook", "storyboard"]);
+    expect(pack.captures[0]?.elements[0]?.title).toBe("Office-worker transformation hook");
+    expect(pack.captures[0]?.elements[0]?.anchor).toBe("0-3s");
+    expect(pack.meta).toEqual({ captureCount: 1, timeframe: "past_week" });
   });
 });

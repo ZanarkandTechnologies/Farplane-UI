@@ -6,6 +6,7 @@ export const RESOURCE_BANK_QUERY_LIMIT = 40;
 
 export type ResourceBankAssetRow = {
   _id?: string;
+  ingestionJobId?: string;
   parentAssetId?: string;
   title: string;
   assetKind: string;
@@ -15,6 +16,9 @@ export type ResourceBankAssetRow = {
   canonicalUrl?: string;
   storageId?: string;
   localPath?: string;
+  durationMs?: number;
+  startMs?: number;
+  endMs?: number;
   author?: string;
   attributionStatus?: string;
   outputTypes: string[];
@@ -27,6 +31,7 @@ export type ResourceBankAssetRow = {
   searchableText: string;
   projectId?: string;
   taskId?: string;
+  retentionNote?: string;
   createdAtMs: number;
   updatedAtMs: number;
 };
@@ -59,8 +64,25 @@ export type ResourceBankSkillFindingRow = {
   createdAtMs: number;
 };
 
+export type ResourceBankCreativeElementRow = {
+  _id?: string;
+  ingestionJobId?: string;
+  assetId: string;
+  analysisId?: string;
+  kind: "visual" | "audio" | "hook" | "storyboard" | "editing" | "copy" | "format" | "constraint";
+  title: string;
+  description: string;
+  anchor?: string;
+  embeddingText: string;
+  tags: string[];
+  projectId?: string;
+  taskId?: string;
+  createdAtMs: number;
+};
+
 export type ResourceBankAssetDetail = ResourceBankAssetRow & {
   analyses: ResourceBankAnalysisRow[];
+  creativeElements: ResourceBankCreativeElementRow[];
   derivedAssets: ResourceBankAssetRow[];
   skillFindings: ResourceBankSkillFindingRow[];
 };
@@ -68,6 +90,7 @@ export type ResourceBankAssetDetail = ResourceBankAssetRow & {
 export type ResourceBankDashboard = {
   totals: {
     assetCount: number;
+    creativeElementCount: number;
     skillFindingCount: number;
     latestSavedAt?: number;
   };
@@ -117,7 +140,7 @@ export type ResolvedTastyPackFilters = {
   taskId?: string;
 };
 
-export type TastyPackAsset = {
+export type TastyPackSource = {
   assetId?: string;
   title: string;
   savedAtMs: number;
@@ -130,11 +153,6 @@ export type TastyPackAsset = {
   ageRanges: string[];
   industries: string[];
   customerRoles: string[];
-  whyRelevant: string[];
-  retentionNotes: string[];
-  takeaways: string[];
-  promptGuess?: string;
-  remixConstraints: string[];
   sourceHandle?: string;
   attribution: {
     author?: string;
@@ -144,17 +162,41 @@ export type TastyPackAsset = {
   };
 };
 
+export type TastyPackElement = {
+  id?: string;
+  kind: ResourceBankCreativeElementRow["kind"];
+  title: string;
+  description: string;
+  anchor?: string;
+  tags: string[];
+};
+
+export type TastyPackAnalysis = {
+  summary: string[];
+  whySaved: string[];
+  extractionLimits: string[];
+};
+
+export type TastyPackCapture = {
+  captureId: string;
+  source: TastyPackSource;
+  analysis: TastyPackAnalysis;
+  elements: TastyPackElement[];
+};
+
 export type TastyPack = {
-  query: {
+  request: {
     idea?: string;
     timeframe: TastyPackTimeframe;
     startAtMs?: number;
     endAtMs?: number;
+    filters: Omit<ResolvedTastyPackFilters, "timeframe" | "startAtMs" | "endAtMs">;
   };
-  filters: Omit<ResolvedTastyPackFilters, "timeframe" | "startAtMs" | "endAtMs">;
-  assets: TastyPackAsset[];
-  packSummary: string[];
-  retrievalNotes: string[];
+  captures: TastyPackCapture[];
+  meta: {
+    captureCount: number;
+    timeframe: TastyPackTimeframe;
+  };
 };
 
 export function cleanText(value: string | undefined, limit = 240): string | undefined {
@@ -284,73 +326,92 @@ export function buildTastyPack(input: {
   filters: ResolvedTastyPackFilters;
   assets: ResourceBankAssetRow[];
   analyses: ResourceBankAnalysisRow[];
+  creativeElements: ResourceBankCreativeElementRow[];
 }): TastyPack {
   const analysesByAsset = groupBy(input.analyses, (analysis) => analysis.assetId);
-  const packAssets = input.assets.map((asset) => {
+  const elementsByAsset = groupBy(input.creativeElements, (element) => element.assetId);
+  const captures = input.assets.map((asset) => {
     const analyses = analysesByAsset.get(asset._id ?? "") ?? [];
+    const elements = (elementsByAsset.get(asset._id ?? "") ?? []).sort(
+      (left, right) => left.createdAtMs - right.createdAtMs,
+    );
     return {
-      assetId: asset._id,
-      title: asset.title,
-      savedAtMs: asset.createdAtMs,
-      assetKind: asset.assetKind,
-      platform: asset.platform,
-      tastinessScore: asset.tastinessScore,
-      tags: asset.tags,
-      outputTypes: asset.outputTypes,
-      audiences: asset.audiences,
-      ageRanges: asset.ageRanges,
-      industries: asset.industries,
-      customerRoles: asset.customerRoles,
-      whyRelevant: analyses.flatMap((analysis) => analysis.whyItWorks).slice(0, 8),
-      retentionNotes: analyses
-        .flatMap((analysis) => [analysis.embeddingText, ...analysis.takeaways])
-        .filter((note) => /hook|first|3 seconds|three seconds|retention|watch|stay/i.test(note))
-        .slice(0, 6),
-      takeaways: analyses.flatMap((analysis) => analysis.takeaways).slice(0, 8),
-      promptGuess: analyses.find((analysis) => analysis.promptGuess)?.promptGuess,
-      remixConstraints: analyses.flatMap((analysis) => analysis.remixConstraints).slice(0, 8),
-      sourceHandle: asset.storageId ?? asset.canonicalUrl ?? asset.sourceUrl ?? asset.localPath,
-      attribution: {
-        author: asset.author,
-        status: asset.attributionStatus,
-        sourceUrl: asset.sourceUrl,
-        canonicalUrl: asset.canonicalUrl,
-      },
+      captureId: asset._id ?? `asset-${asset.createdAtMs}`,
+      source: toSource(asset),
+      analysis: toAnalysisSummary(analyses),
+      elements: elements.map(toElement),
     };
   });
 
   return {
-    query: {
+    request: {
       idea: cleanText(input.idea, 500),
       timeframe: input.filters.timeframe,
       startAtMs: input.filters.startAtMs,
       endAtMs: input.filters.endAtMs,
+      filters: {
+        tags: input.filters.tags,
+        outputTypes: input.filters.outputTypes,
+        audiences: input.filters.audiences,
+        ageRanges: input.filters.ageRanges,
+        industries: input.filters.industries,
+        customerRoles: input.filters.customerRoles,
+        projectId: input.filters.projectId,
+        taskId: input.filters.taskId,
+      },
     },
-    filters: {
-      tags: input.filters.tags,
-      outputTypes: input.filters.outputTypes,
-      audiences: input.filters.audiences,
-      ageRanges: input.filters.ageRanges,
-      industries: input.filters.industries,
-      customerRoles: input.filters.customerRoles,
-      projectId: input.filters.projectId,
-      taskId: input.filters.taskId,
+    captures,
+    meta: {
+      captureCount: captures.length,
+      timeframe: input.filters.timeframe,
     },
-    assets: packAssets,
-    packSummary: [
-      `Selected ${packAssets.length} saved references from ${input.filters.timeframe}.`,
-      ...(input.filters.audiences.length > 0
-        ? [`Audience filter: ${input.filters.audiences.join(", ")}.`]
-        : []),
-      ...(input.filters.industries.length > 0
-        ? [`Industry filter: ${input.filters.industries.join(", ")}.`]
-        : []),
-      ...(input.idea ? [`Idea lens: ${input.idea}.`] : []),
-    ],
-    retrievalNotes: [
-      "Tasty Packs prioritize timeframe and audience/customer facets, then use analysis text for hook and retention reasoning.",
-      "Hook and retention mechanics stay in freeform analysis for v1 instead of becoming managed performance tags.",
-    ],
+  };
+}
+
+function sourceHandle(asset: Pick<ResourceBankAssetRow, "storageId" | "canonicalUrl" | "sourceUrl" | "localPath">): string | undefined {
+  return asset.storageId ?? asset.canonicalUrl ?? asset.sourceUrl ?? asset.localPath;
+}
+
+function toSource(asset: ResourceBankAssetRow): TastyPackSource {
+  return {
+    assetId: asset._id,
+    title: asset.title,
+    savedAtMs: asset.createdAtMs,
+    assetKind: asset.assetKind,
+    platform: asset.platform,
+    tastinessScore: asset.tastinessScore,
+    tags: asset.tags,
+    outputTypes: asset.outputTypes,
+    audiences: asset.audiences,
+    ageRanges: asset.ageRanges,
+    industries: asset.industries,
+    customerRoles: asset.customerRoles,
+    sourceHandle: sourceHandle(asset),
+    attribution: {
+      author: asset.author,
+      status: asset.attributionStatus,
+      sourceUrl: asset.sourceUrl,
+      canonicalUrl: asset.canonicalUrl,
+    },
+  };
+}
+
+function toElement(element: ResourceBankCreativeElementRow): TastyPackElement {
+  return {
+    id: element._id,
+    kind: element.kind,
+    title: element.title,
+    description: element.description,
+    anchor: element.anchor,
+    tags: element.tags,
+  };
+}
+
+function toAnalysisSummary(analyses: ResourceBankAnalysisRow[]): TastyPackAnalysis {
+  return {
+    summary: analyses.flatMap((analysis) => analysis.whyItWorks).slice(0, 6),
+    whySaved: analyses.flatMap((analysis) => analysis.takeaways).slice(0, 6),
+    extractionLimits: analyses.flatMap((analysis) => analysis.remixConstraints).slice(0, 6),
   };
 }
 
@@ -430,12 +491,31 @@ export function buildSkillFindingEmbeddingText(input: {
     .slice(0, RESOURCE_BANK_TEXT_LIMIT);
 }
 
+export function buildCreativeElementEmbeddingText(input: {
+  title: string;
+  description: string;
+  anchor?: string;
+  tags?: readonly string[];
+}): string {
+  return [
+    input.title,
+    input.description,
+    input.anchor,
+    ...(input.tags ?? []),
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .slice(0, RESOURCE_BANK_TEXT_LIMIT);
+}
+
 export function buildResourceBankDashboard(
   assets: ResourceBankAssetRow[],
   analyses: ResourceBankAnalysisRow[],
+  creativeElements: ResourceBankCreativeElementRow[],
   skillFindings: ResourceBankSkillFindingRow[],
 ): ResourceBankDashboard {
   const analysesByAsset = groupBy(analyses, (analysis) => analysis.assetId);
+  const elementsByAsset = groupBy(creativeElements, (element) => element.assetId);
   const findingsByAsset = groupBy(skillFindings, (finding) => finding.assetId);
   const derivedByParent = groupBy(
     assets.filter((asset) => asset.assetRole !== "primary"),
@@ -466,12 +546,14 @@ export function buildResourceBankDashboard(
   return {
     totals: {
       assetCount: primaryAssets.length,
+      creativeElementCount: creativeElements.length,
       skillFindingCount: skillFindings.length,
       latestSavedAt: primaryAssets[0]?.createdAtMs,
     },
     assets: primaryAssets.map((asset) => ({
       ...asset,
       analyses: analysesByAsset.get(asset._id ?? "") ?? [],
+      creativeElements: elementsByAsset.get(asset._id ?? "") ?? [],
       derivedAssets: derivedByParent.get(asset._id ?? "") ?? [],
       skillFindings: findingsByAsset.get(asset._id ?? "") ?? [],
     })),

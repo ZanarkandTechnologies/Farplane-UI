@@ -29,8 +29,10 @@ import type * as modules_hookTelemetry_validators from "../modules/hookTelemetry
 import type * as modules_projectArtefacts_artefacts from "../modules/projectArtefacts/artefacts.js";
 import type * as modules_resourceBank_analyses from "../modules/resourceBank/analyses.js";
 import type * as modules_resourceBank_assets from "../modules/resourceBank/assets.js";
+import type * as modules_resourceBank_creativeElements from "../modules/resourceBank/creativeElements.js";
 import type * as modules_resourceBank_demo from "../modules/resourceBank/demo.js";
 import type * as modules_resourceBank_jobs from "../modules/resourceBank/jobs.js";
+import type * as modules_resourceBank_maintenance from "../modules/resourceBank/maintenance.js";
 import type * as modules_resourceBank_records from "../modules/resourceBank/records.js";
 import type * as modules_resourceBank_resourceBank from "../modules/resourceBank/resourceBank.js";
 import type * as modules_resourceBank_retrieval from "../modules/resourceBank/retrieval.js";
@@ -78,8 +80,10 @@ declare const fullApi: ApiFromModules<{
   "modules/projectArtefacts/artefacts": typeof modules_projectArtefacts_artefacts;
   "modules/resourceBank/analyses": typeof modules_resourceBank_analyses;
   "modules/resourceBank/assets": typeof modules_resourceBank_assets;
+  "modules/resourceBank/creativeElements": typeof modules_resourceBank_creativeElements;
   "modules/resourceBank/demo": typeof modules_resourceBank_demo;
   "modules/resourceBank/jobs": typeof modules_resourceBank_jobs;
+  "modules/resourceBank/maintenance": typeof modules_resourceBank_maintenance;
   "modules/resourceBank/records": typeof modules_resourceBank_records;
   "modules/resourceBank/resourceBank": typeof modules_resourceBank_resourceBank;
   "modules/resourceBank/retrieval": typeof modules_resourceBank_retrieval;

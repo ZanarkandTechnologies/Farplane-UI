@@ -201,4 +201,44 @@ export const resourceBankTables = {
       dimensions: RESOURCE_BANK_EMBEDDING_DIMENSIONS,
       filterFields: ["findingKind", "skillId", "projectId", "taskId"],
     }),
+
+  resourceBankCreativeElements: defineTable({
+    ingestionJobId: v.id("resourceBankIngestionJobs"),
+    assetId: v.id("resourceBankAssets"),
+    analysisId: v.optional(v.id("resourceBankAnalyses")),
+    kind: v.union(
+      v.literal("visual"),
+      v.literal("audio"),
+      v.literal("hook"),
+      v.literal("storyboard"),
+      v.literal("editing"),
+      v.literal("copy"),
+      v.literal("format"),
+      v.literal("constraint"),
+    ),
+    title: v.string(),
+    description: v.string(),
+    anchor: v.optional(v.string()),
+    embeddingTarget: v.literal("creative_element_search"),
+    embeddingText: v.string(),
+    embedding: v.optional(v.array(v.float64())),
+    tags: v.array(v.string()),
+    projectId: v.optional(v.string()),
+    taskId: v.optional(v.string()),
+    createdAtMs: v.number(),
+  })
+    .index("by_asset", ["assetId"])
+    .index("by_job", ["ingestionJobId"])
+    .index("by_kind_createdAtMs", ["kind", "createdAtMs"])
+    .index("by_project_createdAtMs", ["projectId", "createdAtMs"])
+    .index("by_task_createdAtMs", ["taskId", "createdAtMs"])
+    .searchIndex("search_creative_elements", {
+      searchField: "embeddingText",
+      filterFields: ["kind", "projectId", "taskId"],
+    })
+    .vectorIndex("by_embedding", {
+      vectorField: "embedding",
+      dimensions: RESOURCE_BANK_EMBEDDING_DIMENSIONS,
+      filterFields: ["kind", "projectId", "taskId"],
+    }),
 };

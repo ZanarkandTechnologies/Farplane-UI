@@ -10,6 +10,7 @@ export const seedDemoResourceBank = mutation({
     jobId: v.id("resourceBankIngestionJobs"),
     assetId: v.id("resourceBankAssets"),
     analysisId: v.id("resourceBankAnalyses"),
+    creativeElementId: v.id("resourceBankCreativeElements"),
     findingId: v.id("resourceBankSkillFindings"),
   }),
   handler: async (ctx, args) => {
@@ -96,6 +97,21 @@ export const seedDemoResourceBank = mutation({
       taskId: "demo-video-task",
       createdAtMs: timestamp,
     });
-    return { jobId, assetId, analysisId, findingId };
+    const creativeElementId = await ctx.db.insert("resourceBankCreativeElements", {
+      ingestionJobId: jobId,
+      assetId,
+      analysisId,
+      kind: "hook",
+      title: "Warm side-key cold open",
+      description: "Open with a face-forward warm side key and quick contrast cut before the first beat settles.",
+      anchor: "0-3s",
+      embeddingTarget: "creative_element_search",
+      embeddingText: "Warm side-key hook stack. First three seconds. Quick contrast cut. Founder reel.",
+      tags: ["intent:future-video", "format:short-video", "style:warm-lighting"],
+      projectId: "demo-project",
+      taskId: "demo-video-task",
+      createdAtMs: timestamp,
+    });
+    return { jobId, assetId, analysisId, creativeElementId, findingId };
   },
 });

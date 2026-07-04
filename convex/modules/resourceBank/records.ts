@@ -8,6 +8,7 @@ export type ResourceBankJob = Doc<"resourceBankIngestionJobs">;
 export type ResourceBankAsset = Doc<"resourceBankAssets">;
 export type ResourceBankAnalysis = Doc<"resourceBankAnalyses">;
 export type ResourceBankSkillFinding = Doc<"resourceBankSkillFindings">;
+export type ResourceBankCreativeElement = Doc<"resourceBankCreativeElements">;
 
 export async function getJobOrThrow(
   ctx: ResourceBankDbCtx,
@@ -51,6 +52,7 @@ export function rowTaskId(job: ResourceBankJob, fallback?: string): string | und
 export function toAssetRow(row: ResourceBankAsset) {
   return {
     _id: row._id,
+    ingestionJobId: row.ingestionJobId,
     parentAssetId: row.parentAssetId,
     title: row.title,
     assetKind: row.assetKind,
@@ -60,6 +62,9 @@ export function toAssetRow(row: ResourceBankAsset) {
     canonicalUrl: row.canonicalUrl,
     storageId: row.storageId,
     localPath: row.localPath,
+    durationMs: row.durationMs,
+    startMs: row.startMs,
+    endMs: row.endMs,
     author: row.author,
     attributionStatus: row.attributionStatus,
     outputTypes: row.outputTypes ?? [],
@@ -72,6 +77,7 @@ export function toAssetRow(row: ResourceBankAsset) {
     searchableText: row.searchableText,
     projectId: row.projectId,
     taskId: row.taskId,
+    retentionNote: row.retentionNote,
     createdAtMs: row.createdAtMs,
     updatedAtMs: row.updatedAtMs,
   };
@@ -105,6 +111,24 @@ export function toSkillFindingRow(row: ResourceBankSkillFinding) {
     suggestedSkillChange: row.suggestedSkillChange,
     tags: row.tags,
     embeddingText: row.embeddingText,
+    createdAtMs: row.createdAtMs,
+  };
+}
+
+export function toCreativeElementRow(row: ResourceBankCreativeElement) {
+  return {
+    _id: row._id,
+    ingestionJobId: row.ingestionJobId,
+    assetId: row.assetId,
+    analysisId: row.analysisId,
+    kind: row.kind,
+    title: row.title,
+    description: row.description,
+    anchor: row.anchor,
+    embeddingText: row.embeddingText,
+    tags: row.tags,
+    projectId: row.projectId,
+    taskId: row.taskId,
     createdAtMs: row.createdAtMs,
   };
 }

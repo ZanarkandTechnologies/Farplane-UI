@@ -28,6 +28,7 @@ type ResourceBankPanelProps = {
 type ResourceBankDashboard = {
   totals: {
     assetCount: number;
+    creativeElementCount?: number;
     skillFindingCount: number;
     latestSavedAt?: number;
   };
@@ -59,6 +60,14 @@ type ResourceBankAsset = {
     takeaways: string[];
     promptGuess?: string;
     remixConstraints: string[];
+  }>;
+  creativeElements?: Array<{
+    _id?: string;
+    kind: string;
+    title: string;
+    description: string;
+    anchor?: string;
+    tags: string[];
   }>;
   skillFindings: Array<{
     _id?: string;
@@ -179,7 +188,7 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
         <StatePanel
           icon={<Lightbulb className="size-5" />}
           title="No saved references yet"
-          detail="Ingest a link, video, image, screenshot, or note with $ingest-content. The bank will store the asset, analysis, and extracted skill findings."
+          detail="Ingest a link, image, video, poster, landing page, or note with $ingest-content. The bank stores the source, compact analysis, and extracted creative elements."
           action={
             canSeedDemo ? (
               <Button
@@ -205,9 +214,9 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
           />
           <MetricTile
             icon={<Lightbulb className="size-4" />}
-            label="Skill Findings"
-            value={String(data.totals.skillFindingCount)}
-            detail="Extracted capabilities"
+            label="Elements"
+            value={String(data.totals.creativeElementCount ?? 0)}
+            detail="Extracted creative parts"
           />
           <MetricTile
             icon={<Tags className="size-4" />}
@@ -308,11 +317,42 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
                     </div>
                   </div>
                   <Badge variant="outline">{selectedAsset.skillFindings.length} findings</Badge>
+                  <Badge variant="outline">{selectedAsset.creativeElements?.length ?? 0} elements</Badge>
                 </div>
 
                 <div className="mt-4">
                   <div className="text-xs font-semibold uppercase text-muted-foreground">
-                    Why It Works
+                    Creative Elements
+                  </div>
+                  <div className="mt-2 space-y-2">
+                    {(selectedAsset.creativeElements ?? []).length > 0 ? (
+                      selectedAsset.creativeElements?.map((element) => (
+                        <div key={element._id ?? `${element.kind}:${element.title}`} className="rounded-md border p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-xs font-semibold">{element.title}</div>
+                            <Badge variant="secondary">{element.kind}</Badge>
+                          </div>
+                          <div className="mt-2 text-xs leading-5 text-muted-foreground">
+                            {element.description}
+                          </div>
+                          {element.anchor ? (
+                            <div className="mt-2 text-[11px] font-medium text-muted-foreground">
+                              {element.anchor}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                        No creative elements extracted yet.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <div className="text-xs font-semibold uppercase text-muted-foreground">
+                    Analysis
                   </div>
                   <div className="mt-2 space-y-2">
                     {selectedAsset.analyses.flatMap((analysis) => analysis.whyItWorks).map((text) => (

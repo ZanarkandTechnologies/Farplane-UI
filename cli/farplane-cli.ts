@@ -22,6 +22,7 @@ import { registerOfficeCommands } from "./office-commands.js";
 import { registerAgentCommands } from "./agent-commands.js";
 import { registerGatewayCommands } from "./gateway-commands.js";
 import { registerOnboardingCommands } from "./onboarding-commands.js";
+import { registerResourceBankCommands } from "./resource-bank-commands.js";
 import { registerDoctorCommands, registerTeamCommands } from "./team-commands/index.js";
 import { registerThreadCommands } from "./thread-commands.js";
 import { registerUiCommands } from "./ui-commands.js";
@@ -42,6 +43,7 @@ async function main(): Promise<void> {
   registerUiCommands(program);
   registerGatewayCommands(program);
   registerTeamCommands(program);
+  registerResourceBankCommands(program);
   registerThreadCommands(program);
   registerAgentCommands(program);
   registerDoctorCommands(program);
