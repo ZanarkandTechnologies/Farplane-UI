@@ -83,8 +83,12 @@ Future creation skills should query by:
 
 ```text
 create_tasty_pack(idea?, timeframe?, audience?, industry?, outputType?, tags?, count?)
-  -> top_matches + why_relevant + reusable_levers + attribution
+  -> captures[source + analysis + elements] + warnings
 ```
+
+Pinned elements are the primary taste signal because they are grounded in the
+operator note. Future creation skills should focus more on pinned elements and
+treat unpinned elements as context.
 
 Example retrieval requests:
 

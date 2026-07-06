@@ -36,7 +36,7 @@ scope.
 
 ```text
 ingest_content(source, note?, context?) -> saved_reference + reusable_elements + retrieval_handle + evidence
-state: reads(Resource Bank schema/functions, source content, user note); writes(Convex resourceBankIngestionJobs/resourceBankAssets/resourceBankAnalyses/resourceBankSkillFindings)
+state: reads(Resource Bank schema/functions, source content, user note); writes(Convex resourceBankIngestionJobs/resourceBankAssets/resourceBankAnalyses/resourceBankCreativeElements/resourceBankSkillFindings)
 gates: source_read_or_limit_recorded; note_intent_bound; retrieval_facets_extracted; usefulness_extracted; storage_write_verified; retrieval_verified
 routes: summarize | media-ingest | video-understanding | visual-design | image-generation | video-generation | social-content | video-production
 fails: treats all media as text; ignores note-specific segment; saves raw media without retention note; stores vibes without reusable levers; turns hook mechanics into a managed performance-tag taxonomy; skips retrieval verification
@@ -68,6 +68,10 @@ The note steers every phase. If the note says "the first few seconds are nice,"
 focus extraction on that segment before summarizing the whole source. If the
 note says "make me my own version," store the reusable pattern and prompt/asset
 recipe; do not imply direct copying.
+The note is also the taste priority source: mark creative elements as `pinned`
+only when they are grounded in what the operator explicitly liked or selected in
+the note. Do not ask the operator to manage a numeric weight; downstream content
+planning should simply focus more on pinned elements.
 
 For video and social clips, model attention as a retention game. Capture what
 the source does in the first 0-3 seconds to earn attention, then record what
@@ -136,9 +140,10 @@ saved record; downstream production skills own making new assets from records.
    - [ ] Separate facts seen in the source from Codex interpretation and the
      operator's note.
 - [ ] 4. Extract usefulness into reusable elements.
-   - [ ] Store one or more element candidates: style, layout, clip segment,
-     image/background, caption pattern, prompt, sound/music cue, pacing pattern,
-     shot recipe, or asset recipe.
+   - [ ] Store one or more creative elements: visual, audio, hook, storyboard,
+     editing, copy, format, or constraint.
+   - [ ] Mark note-backed, operator-liked elements as `pinned`; leave broader
+     source context unpinned.
    - [ ] For "make my own version" requests, create a generation recipe and
      remix constraints; only call generation skills when the operator wants the
      asset produced now.
@@ -167,16 +172,22 @@ saved record; downstream production skills own making new assets from records.
    - [ ] Add skill findings with
      `modules/resourceBank/skillFindings:addSkillFinding` only when the source
      clearly suggests a reusable technique, skill update, or skill candidate.
-   - [ ] Store segments and reusable elements in the closest available current
+   - [ ] Add creative elements with
+     `modules/resourceBank/creativeElements:addCreativeElement`, using `pinned`
+     only for elements grounded in the operator note.
+   - [ ] Store segments and reusable context in the closest available current
      surface: asset `startMs`/`endMs`/`retentionNote`, analysis `takeaways`,
-     `frameNotes`, `promptGuess`, `remixConstraints`, tags, and skill findings.
+     `frameNotes`, `promptGuess`, `remixConstraints`, tags, creative elements,
+     and skill findings.
 - [ ] 7. Verify retrieval.
    - [ ] Query `modules/resourceBank/assets:getResourceAsset` for the saved
      asset and confirm assets, analyses, skill findings, tags, and facets are
      present.
    - [ ] Query `modules/resourceBank/retrieval:createTastyPack` with the likely
      timeframe and any inferred audience/output facets; confirm the saved asset
-     can be found when facets were supplied.
+     can be found when facets were supplied, and confirm note-backed pinned
+     elements produce a non-weak taste readiness signal when the note named what
+     mattered.
    - [ ] If Convex is unavailable, write a blocker note with the exact command
      or tool failure and do not claim the item is saved.
 - [ ] 8. Return the ingestion packet and next reuse handle.
@@ -228,7 +239,7 @@ source: short-form video URL
 note: "I like the first 3 seconds and want this for founder-facing AI office reels."
 facets: outputTypes=["reel"], audiences=["founders"], industries=["ai"], customerRoles=["founder"]
 analysis: first 0-3s hook, later retention beats, reusable levers, prompt guess, remix constraints
-verification: getResourceAsset returns the analysis, then createTastyPack({ timeframe: "past_week", audience: "founders" }) can find it.
+verification: getResourceAsset returns the analysis and creative elements, then createTastyPack({ timeframe: "past_week", audience: "founders" }) can find it with note-backed pinned elements.
 ```
 
 ## Gotchas

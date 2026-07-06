@@ -14,7 +14,10 @@ The active Tasty Pack contract is intentionally minimal. It returns captures:
 source metadata, compact analysis, and extracted creative elements. Creative
 elements are the production-use components the operator may want later:
 `visual`, `audio`, `hook`, `storyboard`, `editing`, `copy`, `format`, and
-`constraint`.
+`constraint`. Creative elements also carry operator taste priority directly:
+`pinned` means the element is grounded in the operator's ingestion `note` and
+should drive downstream planning. Do not add a separate production-pattern record
+for this; the usable pattern emerges from the ordered element list.
 
 Do not store frame, clip, transcript, or audio evidence as first-class Tasty Pack
 output by default. Extract the value into creative elements, with an optional
@@ -43,7 +46,20 @@ direct image URLs or local dev paths.
 Tasty Pack retrieval filters primary assets by timeframe plus retrieval facets
 (`audiences`, `industries`, `ageRanges`, `customerRoles`, `outputTypes`, and
 optional `tastinessScore`), then hydrates attached analyses and creative
-elements.
+elements. Pack elements are ordered by pinned status and recency so content
+planning can simply focus more on the operator-stated taste components.
+
+Existing creative element rows can be normalized with:
+
+```bash
+npx convex run modules/resourceBank/maintenance:backfillCreativeElementPins \
+  '{"confirm":"backfill-creative-element-pins"}'
+```
+
+The legacy migration pins all existing creative elements because the current
+corpus was already curated as important saved taste. New ingests should only pin
+elements when the operator's ingestion note explicitly says that ingredient
+matters.
 
 Embeddings live on `resourceBankAnalyses`, `resourceBankSkillFindings`, and
 `resourceBankCreativeElements`. Move to `@convex-dev/rag` only when the vault

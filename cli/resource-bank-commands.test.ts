@@ -85,26 +85,46 @@ describe("resource bank CLI", () => {
             tastinessScore: 0.93,
             sourceHandle: "https://example.com/reel",
           },
-          analysis: { whySaved: ["Operator liked the identity flip."] },
-          elements: [{ kind: "hook", title: "Employee reveal hook", anchor: "0-3s" }],
+          analysis: {
+            operatorNote: "I like the identity flip.",
+            whySaved: ["Operator liked the identity flip."],
+          },
+          elements: [
+            {
+              kind: "hook",
+              title: "Employee reveal hook",
+              anchor: "0-3s",
+              pinned: true,
+            },
+          ],
         },
       ],
-      meta: { captureCount: 1, timeframe: "past_week" },
+      meta: {
+        captureCount: 1,
+        timeframe: "past_week",
+        pinnedElementCount: 1,
+        operatorNoteCount: 1,
+        warnings: [],
+      },
     });
 
     expect(text).toContain("Resource Bank Tasty Pack");
     expect(text).toContain("Corporate cold open score=0.93");
     expect(text).toContain("Captures: 1");
+    expect(text).toContain("Pinned elements: 1; operator notes: 1");
     expect(text).toContain("https://example.com/reel");
+    expect(text).toContain("note: I like the identity flip.");
     expect(text).toContain("Operator liked the identity flip");
-    expect(text).toContain("hook: Employee reveal hook (0-3s)");
+    expect(text).toContain("hook: Employee reveal hook (0-3s) [pinned]");
   });
 
   it("registers a CLI command that shells out through npx convex run", async () => {
     const child = new MockChild();
     const spawnMock = vi.fn(() => child);
     vi.doMock("node:child_process", () => ({ spawn: spawnMock }));
-    const { registerResourceBankCommands: registerWithMock } = await import("./resource-bank-commands.js");
+    const { registerResourceBankCommands: registerWithMock } = await import(
+      "./resource-bank-commands.js"
+    );
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
     const program = new Command();
@@ -160,7 +180,9 @@ describe("resource bank CLI", () => {
     const child = new MockChild();
     const spawnMock = vi.fn(() => child);
     vi.doMock("node:child_process", () => ({ spawn: spawnMock }));
-    const { registerResourceBankCommands: registerWithMock } = await import("./resource-bank-commands.js");
+    const { registerResourceBankCommands: registerWithMock } = await import(
+      "./resource-bank-commands.js"
+    );
     vi.spyOn(console, "log").mockImplementation(() => undefined);
 
     const program = new Command();

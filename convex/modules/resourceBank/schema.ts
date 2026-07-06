@@ -219,6 +219,7 @@ export const resourceBankTables = {
     title: v.string(),
     description: v.string(),
     anchor: v.optional(v.string()),
+    pinned: v.optional(v.boolean()),
     embeddingTarget: v.literal("creative_element_search"),
     embeddingText: v.string(),
     embedding: v.optional(v.array(v.float64())),

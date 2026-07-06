@@ -145,13 +145,20 @@ instead of pretending the source was fully understood.
 The v1 model should stay compact:
 
 ```text
-ingestion job -> primary asset -> analyses -> skill findings
+ingestion job -> primary asset -> analyses -> creative elements
+                                      -> skill findings
               -> derived assets such as frames, clips, transcripts, thumbnails
 ```
 
-Keep embeddings on analysis/finding rows for v1. Add chunk tables or a RAG
-component only when the product needs chunked transcripts, multiple namespaces,
-importance weighting, surrounding context, or many embeddings per source.
+Keep embeddings on analysis, creative element, and finding rows for v1. Add
+chunk tables or a RAG component only when the product needs chunked transcripts,
+multiple namespaces, importance weighting, surrounding context, or many
+embeddings per source.
+Creative elements carry operator taste priority directly with `pinned`. The
+operator's ingestion note is the taste source; pinned elements are the
+note-grounded ingredients that downstream planning should build around. Do not
+introduce a separate production-pattern object or ask the operator to manage a
+numeric taste weight.
 
 ### Search And Retrieval
 
@@ -199,20 +206,29 @@ recent taste.
 
 ```text
 TastyPack {
-  goal
-  timeframe
-  source_refs[]
-  top_patterns[]
-  hook_candidates[]
-  middle_hook_candidates[]
-  visual_directions[]
-  audio_or_sound_cues[]
-  storytelling_structures[]
-  caption_or_copy_patterns[]
-  remix_constraints[]
-  generation_brief
+  request
+  captures[] {
+    source
+    analysis
+    elements[] {
+      kind
+      title
+      description
+      anchor?
+      pinned
+    }
+  }
+  meta
 }
 ```
+
+Pinned elements sort ahead of ordinary context elements so the content
+implementation plan can build around them. The production pattern emerges from
+the ordered element list instead of a competing stored object.
+
+Legacy Resource Bank creative elements can be bulk-pinned because pre-pin saved
+elements were already curated as important taste. New ingests should only pin
+elements grounded in the operator's ingestion note.
 
 Example:
 

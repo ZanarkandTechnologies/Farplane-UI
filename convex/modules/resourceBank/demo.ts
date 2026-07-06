@@ -103,10 +103,13 @@ export const seedDemoResourceBank = mutation({
       analysisId,
       kind: "hook",
       title: "Warm side-key cold open",
-      description: "Open with a face-forward warm side key and quick contrast cut before the first beat settles.",
+      description:
+        "Open with a face-forward warm side key and quick contrast cut before the first beat settles.",
       anchor: "0-3s",
+      pinned: true,
       embeddingTarget: "creative_element_search",
-      embeddingText: "Warm side-key hook stack. First three seconds. Quick contrast cut. Founder reel.",
+      embeddingText:
+        "Warm side-key hook stack. First three seconds. Quick contrast cut. Founder reel.",
       tags: ["intent:future-video", "format:short-video", "style:warm-lighting"],
       projectId: "demo-project",
       taskId: "demo-video-task",

@@ -11,6 +11,7 @@ import {
   mergeTags,
   normalizeTags,
   resolveTastyPackFilters,
+  sortCreativeElementsForTastePack,
 } from "./resourceBank";
 
 describe("resource bank helpers", () => {
@@ -120,6 +121,7 @@ describe("resource bank helpers", () => {
           title: "Cold open",
           description: "Open on the strongest visual.",
           anchor: "hero",
+          pinned: false,
           embeddingText: "cold open",
           tags: ["format:short-video"],
           createdAtMs: 10,
@@ -251,6 +253,7 @@ describe("resource bank helpers", () => {
           searchableText: "old school corporate reel",
           sourceUrl: "https://example.com/reel",
           attributionStatus: "partial",
+          operatorNote: "I like the fast identity reveal and want that to drive the video.",
           createdAtMs: 999_000,
           updatedAtMs: 999_000,
         },
@@ -279,6 +282,7 @@ describe("resource bank helpers", () => {
           title: "Office-worker transformation hook",
           description: "The first three seconds show a jarring office-worker transformation.",
           anchor: "0-3s",
+          pinned: false,
           embeddingText: "first three seconds office-worker transformation hook",
           tags: ["style:old-school-corporate"],
           createdAtMs: 999_100,
@@ -291,6 +295,7 @@ describe("resource bank helpers", () => {
           title: "Agent identity reveal",
           description: "A human office scene flips into an AI employee-agent premise.",
           anchor: "3-8s",
+          pinned: true,
           embeddingText: "timeline beat AI office employee agent reveal",
           tags: ["story:agent-reveal"],
           createdAtMs: 999_200,
@@ -300,13 +305,109 @@ describe("resource bank helpers", () => {
 
     expect(pack.captures).toHaveLength(1);
     expect(pack.captures[0]?.source.sourceHandle).toBe("https://example.com/reel");
+    expect(pack.captures[0]?.analysis.operatorNote).toContain("fast identity reveal");
     expect(pack.captures[0]?.analysis.whySaved[0]).toContain("first three seconds");
     expect(pack.captures[0]?.elements.map((element) => element.kind)).toEqual([
-      "hook",
       "storyboard",
+      "hook",
     ]);
-    expect(pack.captures[0]?.elements[0]?.title).toBe("Office-worker transformation hook");
-    expect(pack.captures[0]?.elements[0]?.anchor).toBe("0-3s");
-    expect(pack.meta).toEqual({ captureCount: 1, timeframe: "past_week" });
+    expect(pack.captures[0]?.elements[0]?.title).toBe("Agent identity reveal");
+    expect(pack.captures[0]?.elements[0]?.pinned).toBe(true);
+    expect(pack.meta).toEqual({
+      captureCount: 1,
+      timeframe: "past_week",
+      pinnedElementCount: 1,
+      operatorNoteCount: 1,
+      warnings: [],
+    });
+  });
+
+  it("sorts creative elements by pinned status, then recency", () => {
+    const sorted = sortCreativeElementsForTastePack([
+      {
+        _id: "ordinary-recent",
+        assetId: "asset-1",
+        kind: "copy",
+        title: "Ordinary recent",
+        description: "Useful context.",
+        pinned: false,
+        embeddingText: "ordinary recent",
+        tags: [],
+        createdAtMs: 300,
+      },
+      {
+        _id: "pinned-older",
+        assetId: "asset-1",
+        kind: "hook",
+        title: "Pinned older",
+        description: "Important operator taste.",
+        pinned: true,
+        embeddingText: "pinned older",
+        tags: [],
+        createdAtMs: 100,
+      },
+      {
+        _id: "pinned-newer",
+        assetId: "asset-1",
+        kind: "storyboard",
+        title: "Pinned newer",
+        description: "Most important operator taste.",
+        pinned: true,
+        embeddingText: "pinned newer",
+        tags: [],
+        createdAtMs: 200,
+      },
+    ]);
+
+    expect(sorted.map((element) => element._id)).toEqual([
+      "pinned-newer",
+      "pinned-older",
+      "ordinary-recent",
+    ]);
+  });
+
+  it("warns when an operator note produces no pinned elements", () => {
+    const filters = resolveTastyPackFilters({ timeframe: "past_week" }, 1_000_000);
+    const pack = buildTastyPack({
+      filters,
+      assets: [
+        {
+          _id: "asset-1",
+          title: "Unprioritized reel",
+          assetKind: "video",
+          assetRole: "primary",
+          outputTypes: [],
+          audiences: [],
+          ageRanges: [],
+          industries: [],
+          customerRoles: [],
+          tags: [],
+          searchableText: "unprioritized reel",
+          operatorNote: "I like the pacing and caption rhythm.",
+          createdAtMs: 999_000,
+          updatedAtMs: 999_000,
+        },
+      ],
+      analyses: [],
+      creativeElements: [
+        {
+          _id: "element-1",
+          assetId: "asset-1",
+          kind: "editing",
+          title: "Generic jump cuts",
+          description: "Fast cuts appear throughout the clip.",
+          pinned: false,
+          embeddingText: "generic jump cuts",
+          tags: [],
+          createdAtMs: 999_100,
+        },
+      ],
+    });
+
+    expect(pack.meta.pinnedElementCount).toBe(0);
+    expect(pack.meta.operatorNoteCount).toBe(1);
+    expect(pack.meta.warnings).toContain(
+      "Operator note exists, but no element was pinned from that stated taste.",
+    );
   });
 });

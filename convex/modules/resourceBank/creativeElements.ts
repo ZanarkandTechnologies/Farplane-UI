@@ -9,7 +9,12 @@
 
 import { v } from "convex/values";
 import { mutation, query } from "../../_generated/server";
-import { buildCreativeElementEmbeddingText, clampLimit, cleanText, mergeTags } from "./resourceBank";
+import {
+  buildCreativeElementEmbeddingText,
+  clampLimit,
+  cleanText,
+  mergeTags,
+} from "./resourceBank";
 import {
   getAnalysisOrThrow,
   getAssetOrThrow,
@@ -58,6 +63,7 @@ export const addCreativeElement = mutation({
       title,
       description,
       anchor: cleanText(args.anchor, 500),
+      pinned: args.pinned ?? false,
       embeddingTarget: "creative_element_search",
       embeddingText,
       embedding: args.embedding,

@@ -9,9 +9,13 @@
 
 import { v } from "convex/values";
 import { mutation, query } from "../../_generated/server";
-import { resetResourceBankAfterSnapshotArgsValidator } from "./validators";
+import {
+  backfillCreativeElementPinsArgsValidator,
+  resetResourceBankAfterSnapshotArgsValidator,
+} from "./validators";
 
 const RESET_CONFIRMATION = "reset-resource-bank-after-snapshot";
+const BACKFILL_CREATIVE_ELEMENT_PINS_CONFIRMATION = "backfill-creative-element-pins";
 
 const countsMatch = (
   actual: {
@@ -87,6 +91,45 @@ export const countResourceBankRows = query({
   },
 });
 
+export const backfillCreativeElementPins = mutation({
+  args: backfillCreativeElementPinsArgsValidator,
+  returns: v.object({
+    ok: v.boolean(),
+    scanned: v.number(),
+    updated: v.number(),
+    remaining: v.number(),
+    defaults: v.object({
+      pinned: v.boolean(),
+    }),
+  }),
+  handler: async (ctx, args) => {
+    if (args.confirm !== BACKFILL_CREATIVE_ELEMENT_PINS_CONFIRMATION) {
+      throw new Error("resource_bank_creative_element_pins_backfill_not_confirmed");
+    }
+    const limit = Math.max(1, Math.min(500, Math.floor(args.limit ?? 200)));
+    const rows = await ctx.db.query("resourceBankCreativeElements").collect();
+    const rowsNeedingBackfill = rows.filter((row) => row.pinned !== true);
+    let updated = 0;
+    for (const row of rowsNeedingBackfill.slice(0, limit)) {
+      if (row.pinned !== true) {
+        await ctx.db.patch(row._id, {
+          pinned: true,
+        });
+        updated += 1;
+      }
+    }
+    return {
+      ok: true,
+      scanned: rows.length,
+      updated,
+      remaining: Math.max(0, rowsNeedingBackfill.length - updated),
+      defaults: {
+        pinned: true,
+      },
+    };
+  },
+});
+
 export const resetResourceBankAfterSnapshot = mutation({
   args: resetResourceBankAfterSnapshotArgsValidator,
   returns: v.object({
@@ -119,7 +162,9 @@ export const resetResourceBankAfterSnapshot = mutation({
       creativeElements: creativeElements.length,
     };
     if (!countsMatch(actualCounts, args.expectedCounts)) {
-      throw new Error(`resource_bank_reset_snapshot_count_mismatch:${JSON.stringify(actualCounts)}`);
+      throw new Error(
+        `resource_bank_reset_snapshot_count_mismatch:${JSON.stringify(actualCounts)}`,
+      );
     }
 
     for (const row of creativeElements) await ctx.db.delete(row._id);

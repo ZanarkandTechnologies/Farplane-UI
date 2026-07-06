@@ -33,6 +33,7 @@ export type ResourceBankAssetRow = {
   projectId?: string;
   taskId?: string;
   retentionNote?: string;
+  operatorNote?: string;
   createdAtMs: number;
   updatedAtMs: number;
 };
@@ -74,6 +75,7 @@ export type ResourceBankCreativeElementRow = {
   title: string;
   description: string;
   anchor?: string;
+  pinned: boolean;
   embeddingText: string;
   tags: string[];
   projectId?: string;
@@ -170,10 +172,12 @@ export type TastyPackElement = {
   title: string;
   description: string;
   anchor?: string;
+  pinned: boolean;
   tags: string[];
 };
 
 export type TastyPackAnalysis = {
+  operatorNote?: string;
   summary: string[];
   whySaved: string[];
   extractionLimits: string[];
@@ -198,6 +202,9 @@ export type TastyPack = {
   meta: {
     captureCount: number;
     timeframe: TastyPackTimeframe;
+    pinnedElementCount: number;
+    operatorNoteCount: number;
+    warnings: string[];
   };
 };
 
@@ -345,16 +352,15 @@ export function buildTastyPack(input: {
   const elementsByAsset = groupBy(input.creativeElements, (element) => element.assetId);
   const captures = input.assets.map((asset) => {
     const analyses = analysesByAsset.get(asset._id ?? "") ?? [];
-    const elements = (elementsByAsset.get(asset._id ?? "") ?? []).sort(
-      (left, right) => left.createdAtMs - right.createdAtMs,
-    );
+    const elements = sortCreativeElementsForTastePack(elementsByAsset.get(asset._id ?? "") ?? []);
     return {
       captureId: asset._id ?? `asset-${asset.createdAtMs}`,
       source: toSource(asset),
-      analysis: toAnalysisSummary(analyses),
+      analysis: toAnalysisSummary(analyses, asset),
       elements: elements.map(toElement),
     };
   });
+  const warnings = buildTastyPackWarnings(captures);
 
   return {
     request: {
@@ -377,8 +383,47 @@ export function buildTastyPack(input: {
     meta: {
       captureCount: captures.length,
       timeframe: input.filters.timeframe,
+      pinnedElementCount: countPinnedElements(captures),
+      operatorNoteCount: countOperatorNotes(captures),
+      warnings,
     },
   };
+}
+
+export function sortCreativeElementsForTastePack(
+  elements: readonly ResourceBankCreativeElementRow[],
+): ResourceBankCreativeElementRow[] {
+  return [...elements].sort(
+    (left, right) =>
+      Number(right.pinned) - Number(left.pinned) || right.createdAtMs - left.createdAtMs,
+  );
+}
+
+export function countPinnedElements(captures: readonly TastyPackCapture[]): number {
+  return captures.flatMap((capture) => capture.elements).filter((element) => element.pinned).length;
+}
+
+export function countOperatorNotes(captures: readonly TastyPackCapture[]): number {
+  return captures.filter((capture) => capture.analysis.operatorNote).length;
+}
+
+export function buildTastyPackWarnings(captures: readonly TastyPackCapture[]): string[] {
+  const elements = captures.flatMap((capture) => capture.elements);
+  const pinnedElementCount = elements.filter((element) => element.pinned).length;
+  const operatorNoteCount = captures.filter((capture) => capture.analysis.operatorNote).length;
+  const warnings: string[] = [];
+  if (captures.length === 0) {
+    warnings.push("No saved captures matched the supplied filters.");
+  } else if (elements.length === 0) {
+    warnings.push("Pack has no creative elements to plan from.");
+  }
+  if (elements.length > 0 && pinnedElementCount === 0) {
+    warnings.push("Pack has no pinned elements; treat extracted elements as context, not taste.");
+  }
+  if (operatorNoteCount > 0 && pinnedElementCount === 0) {
+    warnings.push("Operator note exists, but no element was pinned from that stated taste.");
+  }
+  return warnings;
 }
 
 function sourceHandle(
@@ -418,12 +463,17 @@ function toElement(element: ResourceBankCreativeElementRow): TastyPackElement {
     title: element.title,
     description: element.description,
     anchor: element.anchor,
+    pinned: element.pinned,
     tags: element.tags,
   };
 }
 
-function toAnalysisSummary(analyses: ResourceBankAnalysisRow[]): TastyPackAnalysis {
+function toAnalysisSummary(
+  analyses: ResourceBankAnalysisRow[],
+  asset?: ResourceBankAssetRow,
+): TastyPackAnalysis {
   return {
+    operatorNote: asset?.operatorNote,
     summary: analyses.flatMap((analysis) => analysis.whyItWorks).slice(0, 6),
     whySaved: analyses.flatMap((analysis) => analysis.takeaways).slice(0, 6),
     extractionLimits: analyses.flatMap((analysis) => analysis.remixConstraints).slice(0, 6),

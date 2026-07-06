@@ -125,6 +125,7 @@ export function toCreativeElementRow(row: ResourceBankCreativeElement) {
     title: row.title,
     description: row.description,
     anchor: row.anchor,
+    pinned: row.pinned ?? false,
     embeddingText: row.embeddingText,
     tags: row.tags,
     projectId: row.projectId,

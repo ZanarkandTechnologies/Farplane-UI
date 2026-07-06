@@ -192,7 +192,14 @@ export const createTastyPack = query({
           right.createdAtMs - left.createdAtMs,
       )
       .slice(0, limit);
-    const [analyses, creativeElements] = await Promise.all([
+    const [jobs, analyses, creativeElements] = await Promise.all([
+      Promise.all(
+        selectedAssets.map((asset) =>
+          asset.ingestionJobId
+            ? ctx.db.get(asset.ingestionJobId as Id<"resourceBankIngestionJobs">)
+            : null,
+        ),
+      ),
       Promise.all(
         selectedAssets.map((asset) =>
           asset._id
@@ -216,11 +223,15 @@ export const createTastyPack = query({
     ]);
     const kindFilters = new Set(args.kinds ?? []);
     const filteredCreativeElements = creativeElements.flat().map(toCreativeElementRow);
+    const selectedAssetsWithNotes = selectedAssets.map((asset, index) => ({
+      ...asset,
+      operatorNote: cleanText(jobs[index]?.note, 2_000),
+    }));
 
     return buildTastyPack({
       idea: args.idea,
       filters,
-      assets: selectedAssets,
+      assets: selectedAssetsWithNotes,
       analyses: analyses.flat().map(toAnalysisRow),
       creativeElements: filteredCreativeElements.filter(
         (row) => kindFilters.size === 0 || kindFilters.has(row.kind),

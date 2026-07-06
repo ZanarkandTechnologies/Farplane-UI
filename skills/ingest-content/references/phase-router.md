@@ -130,19 +130,22 @@ Current Resource Bank storage can represent elements through:
 - `resourceBankAnalyses`: facts, interpretation, why-it-works,
   hook/retention notes, takeaways, prompt guess, remix constraints, confidence,
   and embedding text.
+- `resourceBankCreativeElements`: first-class reusable visual, audio, hook,
+  storyboard, editing, copy, format, and constraint elements. Pin only the
+  elements grounded in the operator note so downstream content planning can
+  focus more on them.
 - `resourceBankSkillFindings`: reusable techniques, skill updates, existing
   skill matches, and skill candidates.
 
 Future richer storage should add first-class records for:
 
 - segments: time ranges, selected frames, clip labels, transcript spans.
-- reusable elements: style/layout/asset/pattern/recipe records.
 - richer timeline records: only when segment-level rendering or editing needs
   first-class retention beats.
 - `@convex-dev/rag` or chunk tables: only when large transcripts/documents need
   chunked retrieval, namespaces, importance weighting, or surrounding context.
 
-Until those tables exist, write element records into `analyses.takeaways`,
-`frameNotes`, `promptGuess`, `remixConstraints`, skill findings, and lightweight
-tags in a structured way. Keep customer/audience/output retrieval in asset
-facets rather than tags.
+Write reusable element records into `resourceBankCreativeElements`; keep
+supporting context in `analyses.takeaways`, `frameNotes`, `promptGuess`,
+`remixConstraints`, skill findings, and lightweight tags. Keep
+customer/audience/output retrieval in asset facets rather than tags.

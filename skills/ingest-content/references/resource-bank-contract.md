@@ -19,6 +19,9 @@ operator supplies another vault:
 - `resourceBankAnalyses`: source-backed and inferred breakdowns, including
   why-it-works, hook/retention notes, takeaways, prompt guesses, remix
   constraints, confidence, and embedding text.
+- `resourceBankCreativeElements`: reusable production ingredients extracted
+  from the source. `pinned` marks elements grounded in the operator's ingestion
+  note; downstream content planning should focus more on these elements.
 - `resourceBankSkillFindings`: reusable techniques, existing-skill matches,
   skill updates, and skill candidates extracted from a source.
 
@@ -67,11 +70,13 @@ Store these details in `whyItWorks`, `takeaways`, `frameNotes`, `promptGuess`,
    `modules/resourceBank/assets:addResourceAsset`.
 3. Add one or more analyses:
    `modules/resourceBank/analyses:addResourceAnalysis`.
-4. Add optional skill findings:
+4. Add creative elements:
+   `modules/resourceBank/creativeElements:addCreativeElement`.
+5. Add optional skill findings:
    `modules/resourceBank/skillFindings:addSkillFinding`.
-5. Query `modules/resourceBank/assets:getResourceAsset` to verify the asset and
+6. Query `modules/resourceBank/assets:getResourceAsset` to verify the asset and
    attached records.
-6. Query `modules/resourceBank/retrieval:createTastyPack` with the likely
+7. Query `modules/resourceBank/retrieval:createTastyPack` with the likely
    timeframe and facets to verify future pack retrieval.
 
 ## Convex Function Map
@@ -162,6 +167,20 @@ addSkillFinding({
   embedding?
 }) -> findingId
 
+addCreativeElement({
+  jobId,
+  assetId,
+  analysisId?,
+  kind,
+  title,
+  description,
+  anchor?,
+  pinned?,
+  embeddingText?,
+  embedding?,
+  tags?
+}) -> creativeElementId
+
 createTastyPack({
   idea?,
   timeframe?,
@@ -219,6 +238,8 @@ the start," save:
 - the hook/retention logic in `whyItWorks`, `frameNotes`, and `embeddingText`;
 - the generation recipe as `promptGuess`;
 - attribution and remix boundaries as `remixConstraints`;
+- note-backed reusable ingredients as creative elements, with `pinned=true`
+  only for elements the operator explicitly liked or selected;
 - retrieval facets for audience/output/industry/customer filters.
 
 ## Verification Standard
@@ -229,8 +250,11 @@ Storage is not done until Resource Bank returns:
   retrieval facets;
 - at least one retained asset or an explicit note-only reason;
 - at least one analysis from `ingest-content`;
+- at least one creative element for creative/video/social inspiration sources;
 - optional skill findings only when evidence supports them;
-- a Tasty Pack query that can find the asset by timeframe and supplied facets.
+- a Tasty Pack query that can find the asset by timeframe and supplied facets,
+  preserving `analysis.operatorNote`, element `pinned`, and direct pack
+  warnings when a note produced no pinned elements.
 
 If the Convex deployment cannot be found, a function is missing, upload fails,
 or the query does not return the expected row, report the exact blocker and

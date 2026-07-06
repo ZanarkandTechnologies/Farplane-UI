@@ -180,9 +180,15 @@ export const addCreativeElementArgsValidator = {
   title: v.string(),
   description: v.string(),
   anchor: v.optional(v.string()),
+  pinned: v.optional(v.boolean()),
   embeddingText: v.optional(v.string()),
   embedding: v.optional(v.array(v.float64())),
   tags: v.optional(v.array(v.string())),
+};
+
+export const backfillCreativeElementPinsArgsValidator = {
+  confirm: v.string(),
+  limit: v.optional(v.number()),
 };
 
 export const completeIngestionJobArgsValidator = {

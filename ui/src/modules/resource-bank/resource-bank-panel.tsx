@@ -77,6 +77,7 @@ type ResourceBankAsset = {
     title: string;
     description: string;
     anchor?: string;
+    pinned?: boolean;
     tags: string[];
   }>;
   skillFindings: Array<{

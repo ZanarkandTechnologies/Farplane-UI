@@ -44,6 +44,7 @@ type TastyPackElement = {
   title?: string;
   description?: string;
   anchor?: string;
+  pinned?: boolean;
 };
 
 type TastyPackCapture = {
@@ -57,6 +58,7 @@ type TastyPackCapture = {
     };
   };
   analysis?: {
+    operatorNote?: string;
     summary?: string[];
     whySaved?: string[];
     extractionLimits?: string[];
@@ -75,6 +77,9 @@ type TastyPackResult = {
   meta?: {
     captureCount?: number;
     timeframe?: string;
+    pinnedElementCount?: number;
+    operatorNoteCount?: number;
+    warnings?: string[];
   };
 };
 
@@ -93,7 +98,10 @@ type SpawnedConvexProcess = {
   stdout: NodeJS.ReadableStream;
   stderr: NodeJS.ReadableStream;
   on(event: "error", listener: (error: Error) => void): unknown;
-  on(event: "exit", listener: (code: number | null, signal: NodeJS.Signals | null) => void): unknown;
+  on(
+    event: "exit",
+    listener: (code: number | null, signal: NodeJS.Signals | null) => void,
+  ): unknown;
 };
 
 function npxCommand(): string {
@@ -250,7 +258,8 @@ function elementList(items: TastyPackElement[] | undefined, fallback: string): s
     .map((item) => {
       const kind = item.kind ? `${item.kind}: ` : "";
       const anchor = item.anchor ? ` (${item.anchor})` : "";
-      return `${kind}${item.title ?? item.description ?? "untitled"}${anchor}`;
+      const priority = item.pinned ? " [pinned]" : "";
+      return `${kind}${item.title ?? item.description ?? "untitled"}${anchor}${priority}`;
     })
     .join("; ");
 }
@@ -262,6 +271,12 @@ export function renderTastyPackText(pack: TastyPackResult): string {
     cliDim(`Timeframe: ${pack.meta?.timeframe ?? pack.request?.timeframe ?? "past_week"}`),
     pack.request?.idea ? cliDim(`Idea: ${pack.request.idea}`) : undefined,
     cliDim(`Captures: ${pack.meta?.captureCount ?? captures.length}`),
+    pack.meta
+      ? cliDim(
+          `Pinned elements: ${pack.meta.pinnedElementCount ?? 0}; operator notes: ${pack.meta.operatorNoteCount ?? 0}`,
+        )
+      : undefined,
+    ...(pack.meta?.warnings ?? []).map((warning) => `! ${warning}`),
     "",
     captures.length === 0 ? "No saved captures matched the supplied filters." : undefined,
   ].filter((line): line is string => line !== undefined);
@@ -269,11 +284,18 @@ export function renderTastyPackText(pack: TastyPackResult): string {
   captures.slice(0, 20).forEach((capture, index) => {
     const sourceRef = capture.source;
     const score =
-      typeof sourceRef?.tastinessScore === "number" ? ` score=${sourceRef.tastinessScore.toFixed(2)}` : "";
+      typeof sourceRef?.tastinessScore === "number"
+        ? ` score=${sourceRef.tastinessScore.toFixed(2)}`
+        : "";
     const source =
-      sourceRef?.sourceHandle ?? sourceRef?.attribution?.canonicalUrl ?? sourceRef?.attribution?.sourceUrl;
+      sourceRef?.sourceHandle ??
+      sourceRef?.attribution?.canonicalUrl ??
+      sourceRef?.attribution?.sourceUrl;
     lines.push(`${index + 1}. ${sourceRef?.title ?? "Untitled capture"}${score}`);
     if (source) lines.push(`   ${cliDim(source)}`);
+    if (capture.analysis?.operatorNote) {
+      lines.push(`   note: ${capture.analysis.operatorNote}`);
+    }
     lines.push(`   why: ${lineList(capture.analysis?.whySaved, "no analysis")}`);
     lines.push(`   elements: ${elementList(capture.elements, "no creative elements")}`);
   });
@@ -293,8 +315,16 @@ export function registerResourceBankCommands(program: Command): void {
     .description("Create a Tasty Pack from saved Resource Bank assets")
     .option("--idea <text>", "Idea lens; overrides the positional idea")
     .option("--timeframe <value>", "past_day|past_week|past_month|past_90_days|all", parseTimeframe)
-    .option("--start-at-ms <ms>", "Custom inclusive lower timestamp in milliseconds", parseNumberOption)
-    .option("--end-at-ms <ms>", "Custom inclusive upper timestamp in milliseconds", parseNumberOption)
+    .option(
+      "--start-at-ms <ms>",
+      "Custom inclusive lower timestamp in milliseconds",
+      parseNumberOption,
+    )
+    .option(
+      "--end-at-ms <ms>",
+      "Custom inclusive upper timestamp in milliseconds",
+      parseNumberOption,
+    )
     .option("--tag <tag>", "Tag filter; can be repeated or comma-separated", collectOption, [])
     .option("--output-type <type>", "Single output type facet")
     .option("--output-types <types>", "Comma-separated output type facets", collectOption, [])
@@ -307,7 +337,12 @@ export function registerResourceBankCommands(program: Command): void {
     .option("--customer-roles <roles>", "Comma-separated customer role facets", collectOption, [])
     .option("--project-id <id>", "Project id facet")
     .option("--task-id <id>", "Task id facet")
-    .option("--kinds <kinds>", "Creative element kind filters; can be repeated or comma-separated", collectOption, [])
+    .option(
+      "--kinds <kinds>",
+      "Creative element kind filters; can be repeated or comma-separated",
+      collectOption,
+      [],
+    )
     .option("--limit <n>", "Maximum references to return", parseLimit)
     .option("--push", "Push Convex code before running the query", false)
     .option("--prod", "Run against the production Convex deployment", false)
