@@ -71,7 +71,16 @@ export type ResourceBankCreativeElementRow = {
   ingestionJobId?: string;
   assetId: string;
   analysisId?: string;
-  kind: "visual" | "audio" | "hook" | "storyboard" | "editing" | "copy" | "format" | "constraint";
+  kind:
+    | "visual"
+    | "audio"
+    | "hook"
+    | "storyboard"
+    | "editing"
+    | "copy"
+    | "character"
+    | "format"
+    | "constraint";
   title: string;
   description: string;
   anchor?: string;

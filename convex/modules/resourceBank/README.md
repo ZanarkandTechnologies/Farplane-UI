@@ -13,8 +13,11 @@ ingestion job -> primary asset -> analysis summary -> creative elements
 The active Tasty Pack contract is intentionally minimal. It returns captures:
 source metadata, compact analysis, and extracted creative elements. Creative
 elements are the production-use components the operator may want later:
-`visual`, `audio`, `hook`, `storyboard`, `editing`, `copy`, `format`, and
-`constraint`. Creative elements also carry operator taste priority directly:
+`visual`, `audio`, `hook`, `storyboard`, `editing`, `copy`, `character`,
+`format`, and `constraint`. `character` covers distinctive hosts, guides,
+personas, archetypes, mascots, or recurring figures that carry the creative
+premise without copying protected identity. Creative elements also carry
+operator taste priority directly:
 `pinned` means the element is grounded in the operator's ingestion `note` and
 should drive downstream planning. Do not add a separate production-pattern record
 for this; the usable pattern emerges from the ordered element list.

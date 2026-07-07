@@ -300,6 +300,18 @@ describe("resource bank helpers", () => {
           tags: ["story:agent-reveal"],
           createdAtMs: 999_200,
         },
+        {
+          _id: "element-3",
+          ingestionJobId: "job-1",
+          assetId: "asset-1",
+          kind: "character",
+          title: "Deadpan legacy-office guide",
+          description: "A dry corporate-training host makes the AI employee premise feel familiar.",
+          pinned: true,
+          embeddingText: "deadpan old-school corporate guide character",
+          tags: ["character:corporate-guide"],
+          createdAtMs: 999_300,
+        },
       ],
     });
 
@@ -308,15 +320,16 @@ describe("resource bank helpers", () => {
     expect(pack.captures[0]?.analysis.operatorNote).toContain("fast identity reveal");
     expect(pack.captures[0]?.analysis.whySaved[0]).toContain("first three seconds");
     expect(pack.captures[0]?.elements.map((element) => element.kind)).toEqual([
+      "character",
       "storyboard",
       "hook",
     ]);
-    expect(pack.captures[0]?.elements[0]?.title).toBe("Agent identity reveal");
+    expect(pack.captures[0]?.elements[0]?.title).toBe("Deadpan legacy-office guide");
     expect(pack.captures[0]?.elements[0]?.pinned).toBe(true);
     expect(pack.meta).toEqual({
       captureCount: 1,
       timeframe: "past_week",
-      pinnedElementCount: 1,
+      pinnedElementCount: 2,
       operatorNoteCount: 1,
       warnings: [],
     });

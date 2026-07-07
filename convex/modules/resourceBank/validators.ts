@@ -149,6 +149,7 @@ export const creativeElementKindValidator = v.union(
   v.literal("storyboard"),
   v.literal("editing"),
   v.literal("copy"),
+  v.literal("character"),
   v.literal("format"),
   v.literal("constraint"),
 );
@@ -183,6 +184,16 @@ export const addCreativeElementArgsValidator = {
   pinned: v.optional(v.boolean()),
   embeddingText: v.optional(v.string()),
   embedding: v.optional(v.array(v.float64())),
+  tags: v.optional(v.array(v.string())),
+};
+
+export const updateCreativeElementArgsValidator = {
+  elementId: v.id("resourceBankCreativeElements"),
+  kind: v.optional(creativeElementKindValidator),
+  title: v.optional(v.string()),
+  description: v.optional(v.string()),
+  anchor: v.optional(v.string()),
+  pinned: v.optional(v.boolean()),
   tags: v.optional(v.array(v.string())),
 };
 

@@ -226,6 +226,12 @@ Pinned elements sort ahead of ordinary context elements so the content
 implementation plan can build around them. The production pattern emerges from
 the ordered element list instead of a competing stored object.
 
+Creative element kinds include `visual`, `audio`, `hook`, `storyboard`,
+`editing`, `copy`, `character`, `format`, and `constraint`. Use `character` for
+distinctive personas, guides, archetypes, mascots, or recurring figures such as
+"deadpan tech shaman" or "old-school corporate trainer"; pair it with remix
+constraints when likeness or IP should not be copied.
+
 Legacy Resource Bank creative elements can be bulk-pinned because pre-pin saved
 elements were already curated as important taste. New ingests should only pin
 elements grounded in the operator's ingestion note.

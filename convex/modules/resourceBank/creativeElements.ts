@@ -28,6 +28,7 @@ import {
   addCreativeElementArgsValidator,
   listCreativeElementsByAssetArgsValidator,
   listCreativeElementsByJobArgsValidator,
+  updateCreativeElementArgsValidator,
 } from "./validators";
 
 export const addCreativeElement = mutation({
@@ -87,6 +88,51 @@ export const listCreativeElementsByAsset = query({
       .filter((row) => !args.kind || row.kind === args.kind)
       .slice(0, limit)
       .map(toCreativeElementRow);
+  },
+});
+
+export const updateCreativeElement = mutation({
+  args: updateCreativeElementArgsValidator,
+  returns: v.object({
+    _id: v.id("resourceBankCreativeElements"),
+    kind: v.string(),
+    title: v.string(),
+    description: v.string(),
+    anchor: v.optional(v.string()),
+    pinned: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.elementId);
+    if (!row) throw new Error("resource_bank_creative_element_not_found");
+    const title = cleanText(args.title, 240) ?? row.title;
+    const description = cleanText(args.description, 2_000) ?? row.description;
+    const anchor = args.anchor === undefined ? row.anchor : cleanText(args.anchor, 500);
+    const tags = args.tags === undefined ? row.tags : mergeTags(args.tags);
+    const embeddingText = buildCreativeElementEmbeddingText({
+      title,
+      description,
+      anchor,
+      tags,
+    });
+    await ctx.db.patch(args.elementId, {
+      kind: args.kind ?? row.kind,
+      title,
+      description,
+      anchor,
+      pinned: args.pinned ?? row.pinned ?? false,
+      tags,
+      embeddingText,
+    });
+    const updated = await ctx.db.get(args.elementId);
+    if (!updated) throw new Error("resource_bank_creative_element_not_found_after_update");
+    return {
+      _id: updated._id,
+      kind: updated.kind,
+      title: updated.title,
+      description: updated.description,
+      anchor: updated.anchor,
+      pinned: updated.pinned ?? false,
+    };
   },
 });
 

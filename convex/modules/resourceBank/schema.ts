@@ -213,6 +213,7 @@ export const resourceBankTables = {
       v.literal("storyboard"),
       v.literal("editing"),
       v.literal("copy"),
+      v.literal("character"),
       v.literal("format"),
       v.literal("constraint"),
     ),
