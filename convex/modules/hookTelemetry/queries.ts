@@ -1,16 +1,16 @@
-import { query, type QueryCtx } from "../../_generated/server";
+import { type QueryCtx, query } from "../../_generated/server";
 import { buildTelemetrySummary } from "../runtimeTelemetry/runtimeTelemetry";
 import { telemetryDashboardArgsValidator } from "../runtimeTelemetry/validators";
 import { buildSkillInvocationDashboard } from "../skillInvocations/contracts";
 import { hookTelemetryRowsToLearningTimelineRows } from "./learningTimeline";
 import {
-  hookTelemetryRowsToAgentBubbleMessages,
+  type HookTelemetryRow,
   hookTelemetryRowsToActivityPingRows,
+  hookTelemetryRowsToAgentBubbleMessages,
   hookTelemetryRowsToObservedCodexWorkers,
   hookTelemetryRowsToOfficeTravelIntents,
   hookTelemetryRowsToSkillInvocationRows,
   hookTelemetryRowsToThreadLineageGraph,
-  type HookTelemetryRow,
 } from "./projections";
 import {
   hookTelemetryBubbleArgsValidator,
@@ -146,16 +146,20 @@ function filterHookTelemetryRows(
 export const listHookTelemetryEvents = query({
   args: hookTelemetryWindowArgsValidator,
   handler: async (ctx, args) => {
-    return filterHookTelemetryRows((await fetchHookTelemetryRows(ctx, args)).map(toExplorerEvent), args).map(
-      toHookTelemetryRow,
-    );
+    return filterHookTelemetryRows(
+      (await fetchHookTelemetryRows(ctx, args)).map(toExplorerEvent),
+      args,
+    ).map(toHookTelemetryRow);
   },
 });
 
 export const getHookTelemetryExplorer = query({
   args: hookTelemetryWindowArgsValidator,
   handler: async (ctx, args) => {
-    const events = filterHookTelemetryRows((await fetchHookTelemetryRows(ctx, args)).map(toExplorerEvent), args);
+    const events = filterHookTelemetryRows(
+      (await fetchHookTelemetryRows(ctx, args)).map(toExplorerEvent),
+      args,
+    );
 
     return {
       events,
@@ -179,12 +183,17 @@ export const getSkillInvocationDashboardFromHookTelemetry = query({
     const cutoff = Date.now() - normalizeDays(args.rangeDays) * MS_PER_DAY;
     const rows = await ctx.db
       .query("hookTelemetryEvents")
-      .withIndex("by_hook_eventAt", (q) => q.eq("hookName", "skill-invocation-listener").gte("eventAt", cutoff))
+      .withIndex("by_hook_eventAt", (q) =>
+        q.eq("hookName", "skill-invocation-listener").gte("eventAt", cutoff),
+      )
       .order("desc")
       .take(MAX_ROWS);
-    return buildSkillInvocationDashboard(hookTelemetryRowsToSkillInvocationRows(rows.map(toHookTelemetryRow)), {
-      limit: args.limit,
-    });
+    return buildSkillInvocationDashboard(
+      hookTelemetryRowsToSkillInvocationRows(rows.map(toHookTelemetryRow)),
+      {
+        limit: args.limit,
+      },
+    );
   },
 });
 
@@ -198,14 +207,17 @@ export const getRuntimeTelemetryDashboardFromHookTelemetry = query({
       .withIndex("by_eventAt", (q) => q.gte("eventAt", cutoff))
       .order("desc")
       .take(MAX_ROWS);
-    return buildTelemetrySummary(hookTelemetryRowsToActivityPingRows(rows.map(toHookTelemetryRow)), {
-      days,
-      now: Date.now(),
-      timezone: args.timezone,
-      maxTurnDurationMs: args.maxTurnDurationMs,
-      turnPage: args.turnPage,
-      turnPageSize: args.turnPageSize,
-    });
+    return buildTelemetrySummary(
+      hookTelemetryRowsToActivityPingRows(rows.map(toHookTelemetryRow)),
+      {
+        days,
+        now: Date.now(),
+        timezone: args.timezone,
+        maxTurnDurationMs: args.maxTurnDurationMs,
+        turnPage: args.turnPage,
+        turnPageSize: args.turnPageSize,
+      },
+    );
   },
 });
 
@@ -214,7 +226,10 @@ export const getObservedCodexWorkers = query({
   handler: async (ctx, args) => {
     const rangeMs = Math.max(
       5_000,
-      Math.min(MAX_OBSERVED_WORKER_RANGE_MS, Math.floor(args.rangeMs ?? DEFAULT_OBSERVED_WORKER_RANGE_MS)),
+      Math.min(
+        MAX_OBSERVED_WORKER_RANGE_MS,
+        Math.floor(args.rangeMs ?? DEFAULT_OBSERVED_WORKER_RANGE_MS),
+      ),
     );
     const cutoff = Date.now() - rangeMs;
     const limit = normalizeLimit(args.limit);
@@ -222,7 +237,9 @@ export const getObservedCodexWorkers = query({
     const rows = projectId
       ? await ctx.db
           .query("hookTelemetryEvents")
-          .withIndex("by_project_eventAt", (q) => q.eq("projectId", projectId).gte("eventAt", cutoff))
+          .withIndex("by_project_eventAt", (q) =>
+            q.eq("projectId", projectId).gte("eventAt", cutoff),
+          )
           .order("desc")
           .take(limit)
       : await ctx.db
@@ -270,7 +287,7 @@ export const getThreadLineageGraph = query({
 export const getLearningTimelineFromHookTelemetry = query({
   args: learningTimelineArgsValidator,
   handler: async (ctx, args) => {
-    const rawLimit = Math.min(MAX_ROWS, Math.max(1_000, normalizeLimit(args.limit) * 20));
+    const rawLimit = MAX_ROWS;
     const rows = await fetchHookTelemetryRows(ctx, {
       projectId: args.projectId,
       sessionId: args.sessionId,
@@ -281,7 +298,9 @@ export const getLearningTimelineFromHookTelemetry = query({
     const timeline = hookTelemetryRowsToLearningTimelineRows(rows.map(toHookTelemetryRow))
       .filter((row) => !args.ticketId?.trim() || row.ticketId === args.ticketId.trim())
       .filter((row) => !args.eventName?.trim() || row.eventName === args.eventName.trim())
-      .filter((row) => !args.sourceProgram?.trim() || row.sourceProgram === args.sourceProgram.trim())
+      .filter(
+        (row) => !args.sourceProgram?.trim() || row.sourceProgram === args.sourceProgram.trim(),
+      )
       .slice(0, normalizeLimit(args.limit));
 
     return {
@@ -306,7 +325,9 @@ export const getRecentBubbleMessages = query({
     );
     const cutoff = Date.now() - rangeMs;
     const limit = normalizeLimit(args.limit);
-    const sessionIds = [...new Set((args.sessionIds ?? []).map((entry) => entry.trim()).filter(Boolean))];
+    const sessionIds = [
+      ...new Set((args.sessionIds ?? []).map((entry) => entry.trim()).filter(Boolean)),
+    ];
     const projectId = args.projectId?.trim();
 
     const rows =
@@ -316,7 +337,9 @@ export const getRecentBubbleMessages = query({
               sessionIds.map((sessionId) =>
                 ctx.db
                   .query("hookTelemetryEvents")
-                  .withIndex("by_session_eventAt", (q) => q.eq("sessionId", sessionId).gte("eventAt", cutoff))
+                  .withIndex("by_session_eventAt", (q) =>
+                    q.eq("sessionId", sessionId).gte("eventAt", cutoff),
+                  )
                   .order("desc")
                   .take(limit),
               ),
@@ -325,7 +348,9 @@ export const getRecentBubbleMessages = query({
         : projectId
           ? await ctx.db
               .query("hookTelemetryEvents")
-              .withIndex("by_project_eventAt", (q) => q.eq("projectId", projectId).gte("eventAt", cutoff))
+              .withIndex("by_project_eventAt", (q) =>
+                q.eq("projectId", projectId).gte("eventAt", cutoff),
+              )
               .order("desc")
               .take(limit)
           : await ctx.db
@@ -334,7 +359,9 @@ export const getRecentBubbleMessages = query({
               .order("desc")
               .take(limit);
 
-    const sortedRows = rows.map(toHookTelemetryRow).sort((left, right) => right.eventAt - left.eventAt);
+    const sortedRows = rows
+      .map(toHookTelemetryRow)
+      .sort((left, right) => right.eventAt - left.eventAt);
     const limitedRows = sortedRows.slice(0, limit);
     return {
       messages: hookTelemetryRowsToAgentBubbleMessages(limitedRows),

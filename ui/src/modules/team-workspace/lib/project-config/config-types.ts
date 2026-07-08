@@ -37,16 +37,25 @@ export type FarplaneRuntimeSource = {
 
 export type FarplaneRuntimeReport = {
   id: string;
+  ref: string;
+  parentRef?: string;
+  childRefs?: string[];
+  ancestorRefs?: string[];
+  groupRef?: string;
+  depth?: number;
   label: string;
-  intervalId: string;
+  kind: string;
+  intervalId?: string;
   path: string;
   absolutePath: string;
+  href?: string;
   summary?: string;
   summaryRows?: string[];
-  content: string;
+  content?: string;
   frontMatter: Record<string, string>;
   createdAt?: string;
   updatedAtMs: number | null;
+  registryPath?: string;
 };
 
 export type FarplaneProjectConfig = {

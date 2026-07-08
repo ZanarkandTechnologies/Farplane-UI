@@ -13,10 +13,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { TeamTimelineRow } from "./team-timeline";
 import {
   compactEventType,
-  eventMinerReportUrl,
-  eventMinerRunIdFromReviewPath,
   type EventMinerReportResponse,
   type EventMinerReportState,
+  eventMinerReportUrl,
+  eventMinerRunIdFromReviewPath,
   formatDateTime,
   formatTime,
   normalizeEventMinerReport,
@@ -96,7 +96,9 @@ export function TimelineDetailPanel({
     setEventMinerReport({ runId: eventMinerRunId, status: "loading" });
     fetch(eventMinerReportUrl(eventMinerRunId, row.projectPath))
       .then(async (response) => {
-        const payload = (await response.json().catch(() => null)) as EventMinerReportResponse | null;
+        const payload = (await response
+          .json()
+          .catch(() => null)) as EventMinerReportResponse | null;
         if (!response.ok || !payload?.ok || !payload.detail) {
           throw new Error(payload?.error ?? "event_miner_report_not_found");
         }
@@ -273,12 +275,18 @@ function TimelineEventButton({
           compact ? "size-3" : "size-3.5"
         }`}
       >
-        <CircleDot className={`${compact ? "size-2.5" : "size-3"} ${selected ? "text-primary" : "text-muted-foreground"}`} />
+        <CircleDot
+          className={`${compact ? "size-2.5" : "size-3"} ${selected ? "text-primary" : "text-muted-foreground"}`}
+        />
       </span>
       <span className="min-w-0">
         <span className="flex min-w-0 flex-wrap items-center gap-2">
           <Badge
-            variant={row.sourceType === "memory_event" ? "secondary" : "outline"}
+            variant={
+              row.sourceType === "memory_event" || row.sourceType === "report_event"
+                ? "secondary"
+                : "outline"
+            }
             className="max-w-[210px] truncate text-[10px] uppercase"
           >
             {typeLabel}
@@ -324,7 +332,9 @@ function DetailBlock({
   return (
     <div className="rounded-md border bg-background p-3">
       <div className="text-[11px] font-medium uppercase text-muted-foreground">{label}</div>
-      <p className={`mt-1 break-words text-sm [overflow-wrap:anywhere] ${mono ? "font-mono text-xs" : ""}`}>
+      <p
+        className={`mt-1 break-words text-sm [overflow-wrap:anywhere] ${mono ? "font-mono text-xs" : ""}`}
+      >
         {value}
       </p>
     </div>
@@ -360,7 +370,10 @@ function EventMinerReportPreview({ state }: { state: EventMinerReportState }): R
       {events.length ? (
         <div className="mt-3 space-y-2">
           {events.map((event) => (
-            <div key={`${event.eventName}:${event.summary}`} className="rounded border bg-background p-2">
+            <div
+              key={`${event.eventName}:${event.summary}`}
+              className="rounded border bg-background p-2"
+            >
               <div className="mb-1 flex flex-wrap items-center gap-2">
                 <Badge variant="secondary" className="text-[10px] uppercase">
                   {compactEventType(event.eventName)}
@@ -369,7 +382,9 @@ function EventMinerReportPreview({ state }: { state: EventMinerReportState }): R
                   <span className="text-[11px] text-muted-foreground">{event.severity}</span>
                 ) : null}
               </div>
-              <p className="line-clamp-3 break-words text-xs [overflow-wrap:anywhere]">{event.summary}</p>
+              <p className="line-clamp-3 break-words text-xs [overflow-wrap:anywhere]">
+                {event.summary}
+              </p>
             </div>
           ))}
         </div>

@@ -88,11 +88,22 @@ describe("team timeline helpers", () => {
         },
       ],
       communicationRows: [],
+      fileRows: [
+        {
+          _id: "report:daily",
+          sourceType: "report_event",
+          occurredAt: 20,
+          projectId: "proj-a",
+          eventType: "report.generated",
+          label: "Daily report",
+        },
+      ],
       projectId: "proj-a",
     });
 
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(3);
     expect(rows[0]?.sourceType).toBe("memory_event");
-    expect(rows[1]?.sourceType).toBe("hook_event");
+    expect(rows[1]?.sourceType).toBe("report_event");
+    expect(rows[2]?.sourceType).toBe("hook_event");
   });
 });

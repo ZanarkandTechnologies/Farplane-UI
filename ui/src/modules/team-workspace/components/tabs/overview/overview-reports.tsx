@@ -13,7 +13,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { OverviewReportLink } from "@/modules/team-workspace/lib/dashboard-projections/overview-surface";
-import { formatReportDate, pathToFileHref, reportSummaryRows } from "./overview-report-model";
+import {
+  formatReportDate,
+  pathToFileHref,
+  reportFileName,
+  reportSummaryRows,
+} from "./overview-report-model";
 
 export function OverviewReportsCard({
   onOpenReport,
@@ -33,7 +38,7 @@ export function OverviewReportsCard({
             Reports
           </CardTitle>
           <Badge variant={reports.length > 0 ? "outline" : "secondary"}>
-            {reports.length > 0 ? `${reports.length} projected` : "reports source missing"}
+            {reports.length > 0 ? `${reports.length} pinned` : "reports source missing"}
           </Badge>
         </div>
       </CardHeader>
@@ -69,12 +74,18 @@ export function ReportReader({
     <aside className="sticky top-0 max-h-[calc(100vh-10rem)] rounded-md border bg-card">
       <div className="flex items-start justify-between gap-3 border-b p-3">
         <div className="min-w-0">
-          <p className="break-words text-sm font-medium [overflow-wrap:anywhere]">
-            {report.label}
+          <p className="break-words text-sm font-medium [overflow-wrap:anywhere]">{report.label}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {reportFileName(report)} · {formatReportDate(report)}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">{formatReportDate(report)}</p>
         </div>
-        <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close report">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          aria-label="Close report"
+        >
           <X className="h-4 w-4" />
         </Button>
       </div>
@@ -120,10 +131,10 @@ function ReportSummaryCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="break-words text-sm font-medium [overflow-wrap:anywhere]">
-            {report.label}
+          <p className="break-words text-sm font-medium [overflow-wrap:anywhere]">{report.label}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {reportFileName(report)} · {formatReportDate(report)}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">{formatReportDate(report)}</p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={onOpen}>
           <FileText className="h-4 w-4" />

@@ -37,8 +37,8 @@ import { useAppStore } from "@/store";
 import { KanbanTab } from "./kanban-tab";
 import { DistributionTab } from "./tabs/distribution";
 import { NewsTab } from "./tabs/news";
-import { OverviewTab } from "./tabs/overview";
 import { SkillsReadinessTab } from "./tabs/operator-intelligence";
+import { OverviewTab } from "./tabs/overview";
 import { TeamMembersSection } from "./tabs/overview/team-members-section";
 import {
   ProjectAutomationsTab,
@@ -46,6 +46,7 @@ import {
   ProjectProductsTab,
   useFarplaneProjectConfig,
 } from "./tabs/project-config";
+import { ReportsTab } from "./tabs/reports";
 import { deriveProjectId, type TabKey } from "./team-panel-types";
 import { TelemetryTab } from "./telemetry-tab";
 import { TimelineTab } from "./timeline-tab";
@@ -62,6 +63,54 @@ interface TeamPanelProps {
   initialTab?: TabKey;
   focusAgentId?: string | null;
   globalMode?: boolean;
+}
+
+type TabGroupId = "overview" | "work" | "team" | "history" | "intel";
+
+type TabGroup = {
+  children: { label: string; value: TabKey }[];
+  id: TabGroupId;
+  label: string;
+};
+
+const TAB_GROUPS: TabGroup[] = [
+  { id: "overview", label: "Overview", children: [{ label: "Overview", value: "overview" }] },
+  {
+    id: "work",
+    label: "Work",
+    children: [
+      { label: "Goals", value: "goals" },
+      { label: "Kanban", value: "kanban" },
+      { label: "Products", value: "products" },
+      { label: "Distribution", value: "distribution" },
+    ],
+  },
+  {
+    id: "team",
+    label: "Team",
+    children: [
+      { label: "Members", value: "members" },
+      { label: "Skills", value: "skills" },
+      { label: "Automations", value: "cadence" },
+    ],
+  },
+  {
+    id: "history",
+    label: "History",
+    children: [
+      { label: "Timeline", value: "timeline" },
+      { label: "Reports", value: "reports" },
+      { label: "Thread Data", value: "thread-data" },
+      { label: "Telemetry", value: "telemetry" },
+    ],
+  },
+  { id: "intel", label: "Intel", children: [{ label: "News", value: "news" }] },
+];
+
+function tabGroupFor(tab: TabKey): TabGroup {
+  return (
+    TAB_GROUPS.find((group) => group.children.some((child) => child.value === tab)) ?? TAB_GROUPS[0]
+  );
 }
 
 export function TeamPanel({
@@ -184,6 +233,7 @@ export function TeamPanel({
     project,
   });
   const panelTitle = globalMode ? "All Teams" : (team?.name ?? "Team");
+  const activeTabGroup = tabGroupFor(activeTab);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -195,6 +245,7 @@ export function TeamPanel({
     setSelectedProjectId(companyModel.projects[0].id);
   }, [companyModel?.projects, globalMode, isOpen, selectedProjectId, setSelectedProjectId]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Reset the thread-data selection when the active project changes.
   useEffect(() => {
     setThreadDataTarget(null);
   }, [activeProjectPath]);
@@ -232,44 +283,34 @@ export function TeamPanel({
           className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6"
         >
           <div className="mt-4 max-w-full overflow-x-auto pb-1">
-            <TabsList className="h-9 w-max justify-start">
-              <TabsTrigger className="flex-none" value="overview">
-                Overview
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="goals">
-                Goals
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="kanban">
-                Kanban
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="timeline">
-                Timeline
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="members">
-                Members
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="products">
-                Products
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="distribution">
-                Distribution
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="news">
-                News
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="skills">
-                Skills
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="cadence">
-                Automations
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="thread-data">
-                Thread Data
-              </TabsTrigger>
-              <TabsTrigger className="flex-none" value="telemetry">
-                Telemetry
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex w-max items-center gap-2">
+              <div className="flex items-center gap-1 rounded-md border bg-muted/20 p-1">
+                {TAB_GROUPS.map((group) => {
+                  const active = group.id === activeTabGroup.id;
+                  return (
+                    <button
+                      key={group.id}
+                      type="button"
+                      className={`h-8 rounded px-3 text-sm font-medium transition-colors ${
+                        active
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:bg-background/60"
+                      }`}
+                      onClick={() => setActiveTab(group.children[0].value)}
+                    >
+                      {group.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <TabsList className="flex h-auto w-max flex-nowrap justify-start gap-1 border border-primary/20 bg-primary/10 p-1">
+                {activeTabGroup.children.map((child) => (
+                  <TabsTrigger className="h-8 flex-none" key={child.value} value={child.value}>
+                    {child.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
           </div>
 
           <TabsContent value="overview" className="mt-4 min-h-0 flex-1 overflow-hidden">
@@ -326,6 +367,14 @@ export function TeamPanel({
                 setActiveTab("thread-data");
               }}
               onConfigureHooks={() => setIsRawTelemetryPanelOpen(true)}
+            />
+          </TabsContent>
+
+          <TabsContent value="reports" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <ReportsTab
+              projectConfig={projectConfigState.config}
+              projectConfigState={projectConfigState.state}
+              projectConfigError={projectConfigState.error}
             />
           </TabsContent>
 

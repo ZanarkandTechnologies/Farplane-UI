@@ -47,7 +47,8 @@ frontend manages freshness rather than recomputing raw data per card.
   projection.
 - The board/ticket backend owns actionable work, including human action items
   and gaps that need follow-up.
-- `.farplane/reports/**` owns human-readable daily and weekly reports.
+- `.farplane/reports/index.json` owns the UI-facing report registry generated
+  from report frontmatter under `.farplane/reports/**`.
 
 The UI may show source paths and freshness, but it should not treat report
 Markdown or raw social exports as the primary dashboard API.
@@ -106,6 +107,24 @@ type KpiOverviewHint = {
 The projection compiler owns tie-breaking, fallback cards, missing provider
 state, and provenance. Card components only render projection rows.
 
+## Report Surface
+
+Reports have two UI entry points over the same registry-backed rows:
+
+- Overview shows a compact Reports card for pinned/current cadence reports,
+  initially the latest daily and weekly interval reports.
+- The Reports tab shows the full project report registry from
+  `<project>/.farplane/reports/index.json`, with filename, kind, cadence,
+  search, filter, and sort controls. In the Team Panel, Reports belongs beside
+  Timeline because both are history/audit surfaces.
+
+Both surfaces consume the Core report registry. Neither surface should crawl
+fixed daily/weekly paths or parse Markdown bodies as the canonical report list.
+
+The Team Panel has enough entry points that the next navigation design pass
+should group tabs into higher-level modes, likely separating command/status,
+work execution, history/reports, project setup, and diagnostics.
+
 ## Attention Items
 
 Open gaps should compile into attention items rather than live as a separate
@@ -145,6 +164,28 @@ policy for project-runtime HTTP endpoints. Convex realtime queries should stay
 on Convex's `useQuery`; TanStack Query is for Vite bridge and other ordinary
 HTTP-backed server state.
 
+Timeline, Reports, and future high-volume telemetry surfaces should use
+day-windowed pages rather than loading a broad history window and slicing in
+React:
+
+```ts
+type ProjectTimelinePage = {
+  day: string;
+  rows: TeamTimelineRow[];
+  nextCursor?: string;
+  previousDay?: string;
+  sourceCounts: Record<string, number>;
+};
+```
+
+Reports enter this timeline as `report_event` rows selected by ref/path
+patterns. The default Timeline pattern includes daily and weekly interval
+reports and excludes pulse/context reports; pulse remains opt-in because it is
+a high-volume heartbeat artifact. Use TanStack Query `useInfiniteQuery` for
+these Vite bridge pages. Keep Convex realtime hook telemetry on Convex hooks in
+this slice; Convex's TanStack adapter can be evaluated later only if a Convex
+query itself needs TanStack cache composition.
+
 Effect is not the React fetching layer for this slice. It may be reconsidered
 later for projection compiler or provider-ingestion code if typed failures,
 parallel reads, retries, resource cleanup, or dependency injection become
@@ -154,8 +195,8 @@ large enough to justify the additional runtime model.
 
 - Do not make each card fetch raw X, Instagram, ticket, telemetry, and report
   data independently.
-- Do not parse JSON blocks embedded in reports as the canonical dashboard
-  input.
+- Do not parse report Markdown, JSON blocks embedded in reports, or fixed
+  daily/weekly report paths as the canonical dashboard input.
 - Do not add user pin review as a requirement for the first slice. Horizon
   Advisor may choose pins agentically, while future operator overrides can
   remain a separate config capability.

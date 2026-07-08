@@ -36,7 +36,14 @@ describe("overview surface model", () => {
       reports: [
         {
           id: "daily",
+          ref: "reports/interval/daily_interval/2026-07-02T053611+0800",
+          parent_ref: "reports/interval/daily_interval",
+          children_refs: ["reports/interval/daily_interval/2026-07-02T053611+0800/feed-scout"],
+          ancestor_refs: ["reports", "reports/interval", "reports/interval/daily_interval"],
+          group_ref: "reports/interval/daily_interval",
+          depth: 4,
           label: "Daily",
+          kind: "interval-report",
           path: ".farplane/reports/daily.md",
           summary: "Daily source gaps are closed.",
           summary_rows: ["Daily source gaps are closed.", "Next action is review."],
@@ -58,6 +65,19 @@ describe("overview surface model", () => {
     expect(surface?.pins.map((pin) => pin.id)).toEqual(["first", "second", "third", "fourth"]);
     expect(surface?.attention[0].owner).toBe("system");
     expect(surface?.reports[0].summary).toBe("Daily source gaps are closed.");
+    expect(surface?.reports[0].ref).toBe("reports/interval/daily_interval/2026-07-02T053611+0800");
+    expect(surface?.reports[0].parentRef).toBe("reports/interval/daily_interval");
+    expect(surface?.reports[0].childRefs).toEqual([
+      "reports/interval/daily_interval/2026-07-02T053611+0800/feed-scout",
+    ]);
+    expect(surface?.reports[0].ancestorRefs).toEqual([
+      "reports",
+      "reports/interval",
+      "reports/interval/daily_interval",
+    ]);
+    expect(surface?.reports[0].groupRef).toBe("reports/interval/daily_interval");
+    expect(surface?.reports[0].depth).toBe(4);
+    expect(surface?.reports[0].kind).toBe("interval-report");
     expect(surface?.reports[0].summaryRows).toEqual([
       "Daily source gaps are closed.",
       "Next action is review.",

@@ -16,6 +16,7 @@
 
 export type TabKey =
   | "overview"
+  | "reports"
   | "goals"
   | "kanban"
   | "timeline"

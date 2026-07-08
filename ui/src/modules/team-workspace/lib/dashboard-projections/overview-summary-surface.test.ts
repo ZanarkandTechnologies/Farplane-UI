@@ -25,6 +25,82 @@ function projectConfigWithSnapshot(parsedJson: unknown): FarplaneProjectConfig {
 }
 
 describe("overview summary surface", () => {
+  it("keeps overview reports limited to latest daily and weekly cadence rows", () => {
+    const config: FarplaneProjectConfig = {
+      ok: true,
+      projectPath: "/tmp/farplane",
+      generatedAtMs: Date.UTC(2026, 6, 8),
+      files: [],
+      runtimeSources: [
+        {
+          id: "reports",
+          label: "Reports",
+          path: ".farplane/reports",
+          kind: "directory",
+          absolutePath: "/tmp/farplane/.farplane/reports",
+          exists: true,
+          updatedAtMs: Date.UTC(2026, 6, 8),
+          childCount: null,
+          reports: [
+            {
+              id: "reports/interval/daily_interval/2026-07-07T213501Z",
+              ref: "reports/interval/daily_interval/2026-07-07T213501Z",
+              groupRef: "reports/interval/daily_interval",
+              label: "Daily interval",
+              kind: "interval-report",
+              path: ".farplane/reports/interval/daily_interval/2026-07-07T213501Z.md",
+              absolutePath:
+                "/tmp/farplane/.farplane/reports/interval/daily_interval/2026-07-07T213501Z.md",
+              summary: "Daily summary",
+              summaryRows: ["Daily summary"],
+              frontMatter: { created_at: "2026-07-08T05:35:01+08:00" },
+              createdAt: "2026-07-08T05:35:01+08:00",
+              updatedAtMs: Date.UTC(2026, 6, 7),
+            },
+            {
+              id: "reports/feed-scout/2026-07-07T213501Z",
+              ref: "reports/feed-scout/2026-07-07T213501Z",
+              label: "Feed scout",
+              kind: "feed-scout-report",
+              path: ".farplane/reports/feed-scout/2026-07-07T213501Z.md",
+              absolutePath: "/tmp/farplane/.farplane/reports/feed-scout/2026-07-07T213501Z.md",
+              summary: "Feed scout summary",
+              summaryRows: ["Feed scout summary"],
+              frontMatter: { created_at: "2026-07-08T05:35:01+08:00" },
+              createdAt: "2026-07-08T05:35:01+08:00",
+              updatedAtMs: Date.UTC(2026, 6, 7),
+            },
+            {
+              id: "reports/interval/weekly_interval/2026-07-05T214922Z",
+              ref: "reports/interval/weekly_interval/2026-07-05T214922Z",
+              groupRef: "reports/interval/weekly_interval",
+              label: "Weekly interval",
+              kind: "interval-report",
+              path: ".farplane/reports/interval/weekly_interval/2026-07-05T214922Z.md",
+              absolutePath:
+                "/tmp/farplane/.farplane/reports/interval/weekly_interval/2026-07-05T214922Z.md",
+              summary: "Weekly summary",
+              summaryRows: ["Weekly summary"],
+              frontMatter: { created_at: "2026-07-06T05:49:22+08:00" },
+              createdAt: "2026-07-06T05:49:22+08:00",
+              updatedAtMs: Date.UTC(2026, 6, 5),
+            },
+          ],
+        },
+      ],
+    };
+
+    const surface = buildOverviewSummarySurface({
+      aiBurn24hUsd: 0,
+      projectConfig: config,
+    });
+
+    expect(surface.reports.map((report) => report.ref)).toEqual([
+      "reports/interval/daily_interval/2026-07-07T213501Z",
+      "reports/interval/weekly_interval/2026-07-05T214922Z",
+    ]);
+  });
+
   it("uses pinned metric readings as values instead of display mode strings", () => {
     const surface = buildOverviewSummarySurface({
       aiBurn24hUsd: 0,

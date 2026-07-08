@@ -2631,34 +2631,6 @@ function parseSimpleFrontMatter(markdown: string): Record<string, string> {
   return parsed;
 }
 
-function splitSummaryRows(summary: string): string[] {
-  return summary
-    .split(/\n{2,}|\r?\n\s*[-*]\s+|\r?\n/g)
-    .map((row) => row.replace(/^[-*]\s+/, "").trim())
-    .filter(Boolean);
-}
-
-function extractMarkdownSummaryRows(markdownBody: string): string[] {
-  const summaryLines: string[] = [];
-  let inSummary = false;
-  for (const line of markdownBody.split(/\r?\n/g)) {
-    if (/^##\s+Summary\s*$/.test(line)) {
-      inSummary = true;
-      continue;
-    }
-    if (inSummary && /^##\s+/.test(line)) break;
-    if (inSummary) summaryLines.push(line);
-  }
-  const summaryBody = summaryLines.join("\n").trim();
-  if (!summaryBody) return [];
-  const bulletRows = summaryBody
-    .split(/\r?\n/g)
-    .map((line) => line.match(/^-\s+(.+)$/)?.[1]?.trim() ?? "")
-    .filter(Boolean);
-  const rows = bulletRows.length > 0 ? bulletRows : splitSummaryRows(summaryBody);
-  return rows.map((row) => row.replace(/`([^`]+)`/g, "$1").trim()).filter(Boolean);
-}
-
 function inferTicketTitle(filePath: string, markdown: string, frontMatter: Record<string, string>): string {
   const explicit = frontMatter.title || frontMatter.name || frontMatter.summary;
   if (explicit?.trim()) return explicit.trim();
@@ -2946,81 +2918,298 @@ function markdownWithoutFrontMatter(markdown: string): string {
   return markdown.slice(end + 4).replace(/^\s+/, "");
 }
 
-async function readLatestIntervalReport({
-  intervalId,
-  label,
-  reportsRoot,
-  rootPath,
-}: {
-  intervalId: string;
-  label: string;
-  reportsRoot: string;
-  rootPath: string;
-}): Promise<JsonObject | null> {
-  const intervalPath = path.join(reportsRoot, "interval", intervalId);
-  const entries = await readdir(intervalPath, { withFileTypes: true }).catch(() => []);
-  const markdownFiles = entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-    .map((entry) => entry.name)
-    .sort((left, right) => right.localeCompare(left));
-  const latestName = markdownFiles[0];
-  if (!latestName) return null;
-
-  const absolutePath = path.join(intervalPath, latestName);
-  const fileStat = await stat(absolutePath).catch(() => null);
-  if (!fileStat?.isFile()) return null;
-
-  try {
-    const content = await readFile(absolutePath, "utf-8");
-    const frontMatter = parseSimpleFrontMatter(content);
-    const summary = (frontMatter.summary || frontMatter.ui_summary || "").trim();
-    const body = markdownWithoutFrontMatter(content);
-    const frontMatterSummaryRows = summary ? [summary] : [];
-    const bodySummaryRows = extractMarkdownSummaryRows(body);
-    const summaryRows =
-      frontMatterSummaryRows.length > 0 || bodySummaryRows.length === 0
-        ? frontMatterSummaryRows
-        : bodySummaryRows;
-    return {
-      id: `${intervalId}:${latestName.replace(/\.md$/i, "")}`,
-      label,
-      intervalId,
-      path: path.relative(rootPath, absolutePath).replace(/\\/g, "/"),
-      absolutePath,
-      summary: summary || undefined,
-      summaryRows,
-      content: body,
-      frontMatter,
-      createdAt: frontMatter.created_at || undefined,
-      updatedAtMs: fileStat.mtimeMs,
-    };
-  } catch {
-    return null;
-  }
+function reportLabelFromRef(ref: string): string {
+  const tail = ref.split("/").filter(Boolean).at(-1) ?? ref;
+  return tail.replace(/[_-]+/g, " ");
 }
 
-async function readLatestIntervalReports({
+function reportString(row: JsonObject, key: string): string {
+  return typeof row[key] === "string" ? row[key].trim() : "";
+}
+
+function reportStringList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const rows = value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return rows.length ? rows : undefined;
+}
+
+function reportFrontMatter(row: JsonObject): Record<string, string> {
+  const source =
+    row.frontmatter && typeof row.frontmatter === "object" && !Array.isArray(row.frontmatter)
+      ? row.frontmatter as JsonObject
+      : row.frontMatter && typeof row.frontMatter === "object" && !Array.isArray(row.frontMatter)
+        ? row.frontMatter as JsonObject
+        : {};
+  const merged = {
+    ...source,
+    ref: reportString(row, "ref"),
+    kind: reportString(row, "kind"),
+    created_at: reportString(row, "created_at"),
+    ui_summary: reportString(row, "ui_summary"),
+  };
+  return Object.fromEntries(
+    Object.entries(merged)
+      .map(([key, value]) => [key, typeof value === "string" ? value : JSON.stringify(value)] as const)
+      .filter(([, value]) => value.trim().length > 0),
+  );
+}
+
+function normalizeReportRegistryRows(value: unknown, reportsRoot: string, rootPath: string): JsonObject[] {
+  const registry = value && typeof value === "object" && !Array.isArray(value)
+    ? value as JsonObject
+    : null;
+  const rawReports = Array.isArray(registry?.reports) ? registry.reports : [];
+  return rawReports
+    .map((entry): JsonObject | null => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+      const row = entry as JsonObject;
+      const ref = reportString(row, "ref");
+      const kind = reportString(row, "kind");
+      const createdAt = reportString(row, "created_at");
+      const uiSummary = reportString(row, "ui_summary");
+      const reportPath = reportString(row, "path");
+      if (!ref || !kind || !createdAt || !uiSummary || !reportPath) return null;
+
+      const absolutePath = path.isAbsolute(reportPath) ? reportPath : path.join(rootPath, reportPath);
+      const relativePath = path.relative(rootPath, absolutePath).replace(/\\/g, "/");
+      return {
+        id: ref,
+        ref,
+        parentRef: reportString(row, "parent_ref") || undefined,
+        childRefs: reportStringList(row.children_refs),
+        ancestorRefs: reportStringList(row.ancestor_refs),
+        groupRef: reportString(row, "group_ref") || undefined,
+        depth: typeof row.depth === "number" && Number.isFinite(row.depth) ? row.depth : undefined,
+        label: reportString(row, "label") || reportLabelFromRef(ref),
+        kind,
+        path: relativePath,
+        absolutePath,
+        href: `file://${absolutePath.split("/").map(encodeURIComponent).join("/")}`,
+        summary: uiSummary,
+        summaryRows: [uiSummary],
+        content: undefined,
+        frontMatter: reportFrontMatter(row),
+        createdAt,
+        updatedAtMs:
+          typeof row.updated_at_ms === "number" && Number.isFinite(row.updated_at_ms)
+            ? row.updated_at_ms
+            : null,
+        registryPath: path.relative(rootPath, path.join(reportsRoot, "index.json")).replace(/\\/g, "/"),
+      };
+    })
+    .filter((report): report is JsonObject => Boolean(report))
+    .sort((left, right) => String(right.createdAt ?? "").localeCompare(String(left.createdAt ?? "")));
+}
+
+async function readReportRegistry({
   reportsRoot,
   rootPath,
 }: {
   reportsRoot: string;
   rootPath: string;
 }): Promise<JsonObject[]> {
-  const reports = await Promise.all([
-    readLatestIntervalReport({
-      intervalId: "daily_interval",
-      label: "Daily report",
-      reportsRoot,
+  const registryPath = path.join(reportsRoot, "index.json");
+  const content = await readFile(registryPath, "utf-8").catch(() => "");
+  if (!content.trim()) return [];
+  try {
+    return normalizeReportRegistryRows(JSON.parse(content) as unknown, reportsRoot, rootPath);
+  } catch {
+    return [];
+  }
+}
+
+const DEFAULT_TIMELINE_REPORT_INCLUDE = [
+  "reports/interval/daily_interval/*.md",
+  "reports/interval/weekly_interval/*.md",
+];
+const DEFAULT_TIMELINE_REPORT_EXCLUDE = ["reports/pulse/*.md", "reports/*/context/*.md"];
+const TIMELINE_HISTORY_ROW_PATTERN =
+  /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2})(?:\s+([+-]\d{4}))?)?\s*\|\s*([^|]+)\|\s*([^|]+)\|\s*([^|]+)\|\s*(.+)$/;
+
+function csvParam(value: string | null): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function timelineDay(value: string | null): string {
+  const candidate = value?.trim() ?? "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : new Date().toISOString().slice(0, 10);
+}
+
+function timelineDayBounds(day: string): { end: number; start: number } {
+  const start = Date.parse(`${day}T00:00:00`);
+  return { start, end: start + 24 * 60 * 60 * 1000 };
+}
+
+function parseTimelineOffset(value: string | null): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function timelineLimit(value: string | null): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+  if (!Number.isFinite(parsed)) return 80;
+  return Math.max(1, Math.min(200, parsed));
+}
+
+function timelineEscapeRegex(value: string): string {
+  return value.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+}
+
+function timelinePatternRegex(pattern: string): RegExp {
+  return new RegExp(`^${pattern.split("*").map(timelineEscapeRegex).join("[^/]*")}$`);
+}
+
+function timelineMatchesAny(value: string, patterns: string[]): boolean {
+  return patterns.some((pattern) => timelinePatternRegex(pattern).test(value));
+}
+
+function reportMatchesTimelinePatterns(row: JsonObject, include: string[], exclude: string[]): boolean {
+  const candidates = new Set<string>();
+  const ref = reportString(row, "ref");
+  const reportPath = reportString(row, "path");
+  if (ref) {
+    candidates.add(ref);
+    candidates.add(ref.endsWith(".md") ? ref : `${ref}.md`);
+  }
+  if (reportPath) {
+    candidates.add(reportPath);
+    candidates.add(reportPath.replace(/^\.farplane\//, ""));
+  }
+  const candidateRows = [...candidates].filter(Boolean);
+  const included = include.length === 0 || candidateRows.some((value) => timelineMatchesAny(value, include));
+  if (!included) return false;
+  return !candidateRows.some((value) => timelineMatchesAny(value, exclude));
+}
+
+function timelineReportRow(row: JsonObject, projectId: string): JsonObject | null {
+  const createdAt = reportString(row, "createdAt") || reportString(row, "created_at");
+  const occurredAt = Date.parse(createdAt);
+  if (!Number.isFinite(occurredAt)) return null;
+  const ref = reportString(row, "ref") || reportString(row, "id");
+  if (!ref) return null;
+  return {
+    _id: `report:${ref}`,
+    sourceType: "report_event",
+    occurredAt,
+    projectId,
+    eventType: "report.generated",
+    label: reportString(row, "label") || reportLabelFromRef(ref),
+    detail: reportString(row, "summary") || reportString(row, "ui_summary") || undefined,
+    sourcePath: reportString(row, "path") || undefined,
+    sourceHref: reportString(row, "href") || undefined,
+    reportKind: reportString(row, "kind") || undefined,
+    reportRef: ref,
+  };
+}
+
+function parseTimelineHistoryDate(date: string, time?: string, offset?: string): number {
+  const normalizedOffset = offset ? `${offset.slice(0, 3)}:${offset.slice(3)}` : "";
+  const timestamp = Date.parse(`${date}T${time ?? "12:00"}:00${normalizedOffset}`);
+  return Number.isFinite(timestamp) ? timestamp : Date.parse(`${date}T12:00:00`);
+}
+
+async function readTimelineMemoryRows(rootPath: string, projectId: string): Promise<JsonObject[]> {
+  const files = await readProjectMemoryFiles(rootPath);
+  const rows: JsonObject[] = [];
+  for (const file of files) {
+    const body = typeof file.body === "string" ? file.body : "";
+    const sourcePath = typeof file.sourcePath === "string" ? file.sourcePath : String(file.id ?? "");
+    for (const [lineIndex, rawLine] of body.split(/\r?\n/g).entries()) {
+      const match = rawLine.trim().match(TIMELINE_HISTORY_ROW_PATTERN);
+      if (!match) continue;
+      const [, date, time, offset, eventType, memoryId, tags, label] = match;
+      rows.push({
+        _id: `memory:${sourcePath}:${lineIndex}`,
+        sourceType: "memory_event",
+        occurredAt: parseTimelineHistoryDate(date, time, offset),
+        projectId,
+        eventType: eventType.trim(),
+        label: label.trim(),
+        detail: tags.trim(),
+        sourcePath,
+        memoryId: memoryId.trim(),
+      });
+    }
+  }
+  return rows;
+}
+
+async function readProjectTimelinePage(projectPath: string, url: URL): Promise<JsonObject> {
+  const rootPath = path.resolve(projectPath);
+  const projectId = `codex-proj-${rootPath.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "project"}`;
+  const day = timelineDay(url.searchParams.get("day"));
+  const { start, end } = timelineDayBounds(day);
+  const offset = parseTimelineOffset(url.searchParams.get("cursor"));
+  const limit = timelineLimit(url.searchParams.get("limit"));
+  const requestedSources = new Set(csvParam(url.searchParams.get("sources")));
+  const includeSources = requestedSources.size ? requestedSources : new Set(["reports", "memory"]);
+  const reportInclude = csvParam(url.searchParams.get("reportInclude"));
+  const reportExclude = csvParam(url.searchParams.get("reportExclude"));
+  const includePatterns = reportInclude.length ? reportInclude : DEFAULT_TIMELINE_REPORT_INCLUDE;
+  const excludePatterns = reportExclude.length ? reportExclude : DEFAULT_TIMELINE_REPORT_EXCLUDE;
+  const rows: JsonObject[] = [];
+
+  if (includeSources.has("reports")) {
+    const reportRows = await readReportRegistry({
+      reportsRoot: path.join(rootPath, ".farplane", "reports"),
       rootPath,
-    }),
-    readLatestIntervalReport({
-      intervalId: "weekly_interval",
-      label: "Weekly report",
-      reportsRoot,
-      rootPath,
-    }),
-  ]);
-  return reports.filter((report): report is JsonObject => Boolean(report));
+    });
+    rows.push(
+      ...reportRows
+        .filter((row) => reportMatchesTimelinePatterns(row, includePatterns, excludePatterns))
+        .map((row) => timelineReportRow(row, projectId))
+        .filter((row): row is JsonObject => Boolean(row)),
+    );
+  }
+  if (includeSources.has("memory")) {
+    rows.push(...(await readTimelineMemoryRows(rootPath, projectId)));
+  }
+
+  const dayRows = rows
+    .filter((row) => {
+      const occurredAt = typeof row.occurredAt === "number" ? row.occurredAt : 0;
+      return occurredAt >= start && occurredAt < end;
+    })
+    .sort((left, right) => Number(right.occurredAt ?? 0) - Number(left.occurredAt ?? 0));
+  const pageRows = dayRows.slice(offset, offset + limit);
+  const nextOffset = offset + pageRows.length;
+  const olderRowDays = rows
+    .map((row) => (typeof row.occurredAt === "number" ? row.occurredAt : 0))
+    .filter((occurredAt) => occurredAt > 0 && occurredAt < start)
+    .sort((left, right) => right - left);
+  const previousDay = olderRowDays.length
+    ? new Date(olderRowDays[0]).toISOString().slice(0, 10)
+    : undefined;
+  const sourceCounts = dayRows.reduce<JsonObject>(
+    (counts, row) => {
+      const source = String(row.sourceType ?? "unknown").replace(/_event$/, "");
+      counts[source] = Number(counts[source] ?? 0) + 1;
+      counts.total = Number(counts.total ?? 0) + 1;
+      return counts;
+    },
+    { total: 0 },
+  );
+
+  return {
+    ok: true,
+    projectPath: rootPath,
+    day,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? "local",
+    rows: pageRows,
+    nextCursor: nextOffset < dayRows.length ? String(nextOffset) : undefined,
+    previousDay,
+    sourceCounts,
+    appliedReportPatterns: [
+      ...includePatterns.map((pattern) => `include:${pattern}`),
+      ...excludePatterns.map((pattern) => `exclude:${pattern}`),
+    ],
+  };
 }
 
 function parseMarkdownSections(markdown: string): JsonObject[] {
@@ -3131,7 +3320,7 @@ async function readFarplaneProjectConfig(projectPath: string): Promise<JsonObjec
         parsedJson,
         reports:
           candidate.id === "reports" && fileStat?.isDirectory()
-            ? await readLatestIntervalReports({ reportsRoot: absolutePath, rootPath })
+            ? await readReportRegistry({ reportsRoot: absolutePath, rootPath })
             : undefined,
         error,
       };
@@ -4218,6 +4407,16 @@ function farplaneStateBridge() {
             return;
           }
           writeJson(res, 200, await readFarplaneProjectConfig(projectPath));
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/project-timeline") {
+          const projectPath = url.searchParams.get("projectPath")?.trim() || REPO_ROOT;
+          if (!isSafeProjectPath(projectPath)) {
+            writeJson(res, 400, { ok: false, error: "project_path_required" });
+            return;
+          }
+          writeJson(res, 200, await readProjectTimelinePage(projectPath, url));
           return;
         }
 

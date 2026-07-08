@@ -32,7 +32,14 @@ export type OverviewAttentionItem = {
 
 export type OverviewReportLink = {
   id: string;
+  ref?: string;
+  parentRef?: string;
+  childRefs?: string[];
+  ancestorRefs?: string[];
+  groupRef?: string;
+  depth?: number;
   label: string;
+  kind?: string;
   path: string;
   href?: string;
   summary?: string;
@@ -175,7 +182,14 @@ function parseReports(value: unknown): OverviewReportLink[] {
       if (!id || !path) return null;
       return {
         id,
+        ref: optionalString(row.ref),
+        parentRef: optionalString(row.parent_ref ?? row.parentRef),
+        childRefs: stringList(row.children_refs ?? row.childRefs),
+        ancestorRefs: stringList(row.ancestor_refs ?? row.ancestorRefs),
+        groupRef: optionalString(row.group_ref ?? row.groupRef),
+        depth: typeof row.depth === "number" && Number.isFinite(row.depth) ? row.depth : undefined,
         label: stringValue(row.label) || id,
+        kind: optionalString(row.kind),
         path,
         href: optionalString(row.href),
         summary: optionalString(row.summary ?? row.ui_summary ?? row.uiSummary),

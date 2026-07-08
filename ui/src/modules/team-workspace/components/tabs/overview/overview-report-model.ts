@@ -5,6 +5,11 @@
 
 import type { OverviewReportLink } from "@/modules/team-workspace/lib/dashboard-projections/overview-surface";
 
+export function reportFileName(report: OverviewReportLink): string {
+  const path = report.path || report.href || report.ref || report.id;
+  return path.split(/[\\/]/).filter(Boolean).at(-1) ?? report.id;
+}
+
 export function reportSummaryRows(report: OverviewReportLink): string[] {
   if (report.summaryRows?.length) return report.summaryRows;
   const summary = report.summary?.trim();

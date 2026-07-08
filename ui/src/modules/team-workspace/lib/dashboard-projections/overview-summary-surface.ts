@@ -12,9 +12,9 @@ import { findMetricsSnapshot } from "./goal-kpi-model";
 import type { OverviewReportLink, OverviewSurface } from "./overview-surface";
 import {
   findProjectUiSnapshot,
-  sourceGapText,
   type ProjectUiMetricCard,
   type ProjectUiMetricTarget,
+  sourceGapText,
 } from "./project-ui-snapshot";
 import { buildSocialContentInsightsModel } from "./social-content-insights";
 
@@ -36,9 +36,11 @@ function targetText(target: ProjectUiMetricTarget | number | string | null): str
       : typeof target.value === "string"
         ? target.value
         : target.label;
-  return [target.direction, value, target.unit, target.deadline ? `by ${target.deadline}` : ""]
-    .filter(Boolean)
-    .join(" ") || "target pending";
+  return (
+    [target.direction, value, target.unit, target.deadline ? `by ${target.deadline}` : ""]
+      .filter(Boolean)
+      .join(" ") || "target pending"
+  );
 }
 
 function metricCardValue(metric: ProjectUiMetricCard): string {
@@ -46,7 +48,11 @@ function metricCardValue(metric: ProjectUiMetricCard): string {
   const latest = metric.series.at(-1);
   if (typeof latest?.current === "number") return numberText(latest.current);
   if (typeof latest?.value === "number") return numberText(latest.value);
-  if (metric.status === "source_gap" || metric.sourceGaps.length > 0 || metric.sourceGapIds.length > 0) {
+  if (
+    metric.status === "source_gap" ||
+    metric.sourceGaps.length > 0 ||
+    metric.sourceGapIds.length > 0
+  ) {
     return "waiting";
   }
   return metric.status === "available" ? "n/a" : "missing";
@@ -63,7 +69,9 @@ function metricSourceGapDetail(metric: ProjectUiMetricCard): string | null {
     if (gap.reason === "no_component_view_observations" && gap.missingComponents.length > 0) {
       return `Needs same-day views from ${componentList(gap.missingComponents)}.`;
     }
-    const missing = gap.missingComponents.length ? `missing ${componentList(gap.missingComponents)}` : "";
+    const missing = gap.missingComponents.length
+      ? `missing ${componentList(gap.missingComponents)}`
+      : "";
     return [gap.reason, missing].filter(Boolean).join(" · ");
   }
   if (metric.sourceGapIds.length > 0) {
@@ -77,9 +85,9 @@ function componentList(components: string[]): string {
     component === "github_views"
       ? "GitHub"
       : component
-      .replace(/_views$/i, "")
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (letter) => letter.toUpperCase()),
+          .replace(/_views$/i, "")
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (letter) => letter.toUpperCase()),
   );
   if (labels.length <= 1) return labels.join("");
   if (labels.length === 2) return labels.join(" and ");
@@ -97,12 +105,11 @@ export function buildOverviewSummarySurface({
 }): OverviewSurface {
   const projectUiSnapshot = findProjectUiSnapshot(projectConfig);
   const pinnedMetricIds = new Set(projectUiSnapshot?.tabs.overview.pinnedMetrics ?? []);
-  const projectUiPinnedCards =
-    projectUiSnapshot?.tabs.overview.pinnedMetricCards.length
-      ? projectUiSnapshot.tabs.overview.pinnedMetricCards
-      : (projectUiSnapshot?.metrics.series.filter(
-          (metric) => metric.pinned || pinnedMetricIds.has(metric.metricId),
-        ) ?? []);
+  const projectUiPinnedCards = projectUiSnapshot?.tabs.overview.pinnedMetricCards.length
+    ? projectUiSnapshot.tabs.overview.pinnedMetricCards
+    : (projectUiSnapshot?.metrics.series.filter(
+        (metric) => metric.pinned || pinnedMetricIds.has(metric.metricId),
+      ) ?? []);
   const projectUiGaps = sourceGapText(
     projectUiSnapshot,
     projectUiSnapshot?.tabs.overview.sourceGapIds ?? [],
@@ -118,18 +125,12 @@ export function buildOverviewSummarySurface({
     (total, item) => total + (item.content_metrics.views ?? 0),
     0,
   );
-  const distributionGaps = socialContent.items.reduce(
-    (total, item) => total + item.gaps.length,
-    0,
-  );
+  const distributionGaps = socialContent.items.reduce((total, item) => total + item.gaps.length, 0);
   const latestDailyDiff = metricsSnapshot?.metrics
     .flatMap((metric) => metric.series.slice(-1).map((point) => point.dailyDiff))
     .filter((value): value is number => typeof value === "number")
     .reduce((total, value) => total + value, 0);
   const reportsSource = projectConfig?.runtimeSources.find((source) => source.id === "reports");
-  const reportBaseHref = reportsSource?.absolutePath
-    ? pathToFileHref(reportsSource.absolutePath)
-    : null;
   const reportLinks = reportsSource ? reportLinksFromRuntimeReports(reportsSource.reports) : [];
   const openGaps = [
     ...actionableSourceGaps.slice(0, 4).map((gap) => ({
@@ -150,7 +151,8 @@ export function buildOverviewSummarySurface({
 
   return {
     generatedAt:
-      projectUiSnapshot?.generatedAt ?? (projectConfig ? new Date(projectConfig.generatedAtMs).toISOString() : ""),
+      projectUiSnapshot?.generatedAt ??
+      (projectConfig ? new Date(projectConfig.generatedAtMs).toISOString() : ""),
     projectId: projectUiSnapshot?.projectRoot ?? projectConfig?.projectPath ?? "unknown",
     pins:
       projectUiPinnedCards.length > 0
@@ -246,27 +248,7 @@ export function buildOverviewSummarySurface({
         owner: "system" as const,
       })),
     ],
-    reports:
-      reportLinks.length > 0
-        ? reportLinks
-        : reportBaseHref
-          ? [
-              {
-                id: "daily-report",
-                label: "Daily report",
-                path: `${reportsSource?.absolutePath ?? ""}/interval/daily_interval`,
-                href: `${reportBaseHref}/interval/daily_interval`,
-                updatedAtMs: reportsSource?.updatedAtMs ?? null,
-              },
-              {
-                id: "weekly-report",
-                label: "Weekly report",
-                path: `${reportsSource?.absolutePath ?? ""}/interval/weekly_interval`,
-                href: `${reportBaseHref}/interval/weekly_interval`,
-                updatedAtMs: reportsSource?.updatedAtMs ?? null,
-              },
-            ]
-          : [],
+    reports: latestOverviewPinnedReports(reportLinks),
     sources:
       projectConfig?.runtimeSources.map((source) => ({
         id: source.id,
@@ -278,7 +260,7 @@ export function buildOverviewSummarySurface({
   };
 }
 
-function reportLinksFromRuntimeReports(
+export function reportLinksFromRuntimeReports(
   reports: FarplaneRuntimeReport[] | undefined,
 ): OverviewReportLink[] {
   if (!Array.isArray(reports)) return [];
@@ -286,9 +268,16 @@ function reportLinksFromRuntimeReports(
     .filter((report) => report.path.trim().length > 0)
     .map((report) => ({
       id: report.id,
+      ref: report.ref,
+      parentRef: report.parentRef,
+      childRefs: report.childRefs,
+      ancestorRefs: report.ancestorRefs,
+      groupRef: report.groupRef,
+      depth: report.depth,
       label: report.label,
+      kind: report.kind,
       path: report.absolutePath || report.path,
-      href: pathToFileHref(report.absolutePath || report.path),
+      href: report.href ?? pathToFileHref(report.absolutePath || report.path),
       summary: report.summary,
       summaryRows: report.summaryRows,
       content: report.content,
@@ -297,6 +286,22 @@ function reportLinksFromRuntimeReports(
       frontMatter: report.frontMatter,
       updatedAtMs: report.updatedAtMs,
     }));
+}
+
+export function latestOverviewPinnedReports(reports: OverviewReportLink[]): OverviewReportLink[] {
+  const pinnedCadences = ["daily_interval", "weekly_interval"];
+  return pinnedCadences
+    .map((cadence) => reports.find((report) => reportCadence(report) === cadence) ?? null)
+    .filter((report): report is OverviewReportLink => Boolean(report));
+}
+
+export function reportCadence(report: OverviewReportLink): string | null {
+  const source = [report.intervalId, report.ref, report.groupRef, report.path, report.id]
+    .filter(Boolean)
+    .join("/");
+  if (source.includes("daily_interval")) return "daily_interval";
+  if (source.includes("weekly_interval")) return "weekly_interval";
+  return null;
 }
 
 function visibleOverviewSourceGaps(

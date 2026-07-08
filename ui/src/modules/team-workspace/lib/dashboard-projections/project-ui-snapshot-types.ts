@@ -122,18 +122,54 @@ export type ProjectUiGoalAxis = {
   smartGoals: ProjectUiSmartGoal[];
 };
 
+export type ProjectUiProductKpis = {
+  all: string[];
+  guardrail: string[];
+  primary: string[];
+  supporting: string[];
+};
+
+export type ProjectUiProductGoal = {
+  id: string;
+  interpretation?: string;
+  kpis: string[];
+  scope?: string;
+  target: string;
+};
+
+export type ProjectUiProductArtifactWorkflow = {
+  executionArtifact: string;
+  feedbackQuestion: string;
+  id: string;
+  lane: string;
+  owner: string;
+  planningArtifact: string;
+};
+
 export type ProjectUiProduct = {
+  artifactWorkflows: ProjectUiProductArtifactWorkflow[];
   audience: string;
+  goals: ProjectUiProductGoal[];
+  kpis: ProjectUiProductKpis;
   kpiIds: string[];
+  lane: string;
+  laneWeight: number | null;
   metricIds: string[];
   name: string;
   output: string;
+  ownerSkill: string;
   productId: string;
   proofState: string;
   reward: string;
   sourceGapIds: string[];
   sourceRef?: ProjectUiSourceRef;
   ticketCount: number | null;
+};
+
+export type ProjectUiWorkLane = {
+  defaultWeight: number | null;
+  laneId: string;
+  purpose: string;
 };
 
 export type ProjectUiTeamFocus = {
@@ -173,6 +209,7 @@ export type ProjectUiSnapshot = {
     products: {
       products: ProjectUiProduct[];
       sourceGapIds: string[];
+      workLanes: ProjectUiWorkLane[];
     };
     distribution: {
       contentItems: ProjectUiContentItem[];

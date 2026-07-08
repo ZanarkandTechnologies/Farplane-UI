@@ -15,12 +15,16 @@ import type {
   ProjectUiMetricSourceGap,
   ProjectUiMetricTarget,
   ProjectUiProduct,
+  ProjectUiProductArtifactWorkflow,
+  ProjectUiProductGoal,
+  ProjectUiProductKpis,
   ProjectUiSmartGoal,
   ProjectUiSmartGoalKpi,
   ProjectUiSnapshot,
   ProjectUiSourceGap,
   ProjectUiSourceRef,
   ProjectUiTeamFocus,
+  ProjectUiWorkLane,
 } from "./project-ui-snapshot-types";
 
 export type {
@@ -32,12 +36,16 @@ export type {
   ProjectUiMetricSourceGap,
   ProjectUiMetricTarget,
   ProjectUiProduct,
+  ProjectUiProductArtifactWorkflow,
+  ProjectUiProductGoal,
+  ProjectUiProductKpis,
   ProjectUiSmartGoal,
   ProjectUiSmartGoalKpi,
   ProjectUiSnapshot,
   ProjectUiSourceGap,
   ProjectUiSourceRef,
   ProjectUiTeamFocus,
+  ProjectUiWorkLane,
 } from "./project-ui-snapshot-types";
 
 function record(value: unknown): Record<string, unknown> {
@@ -65,7 +73,15 @@ function stringList(value: unknown): string[] {
     : [];
 }
 
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
 function sourceRef(value: unknown): ProjectUiSourceRef | undefined {
+  if (typeof value === "string") {
+    const path = value.trim();
+    return path ? { path } : undefined;
+  }
   const row = record(value);
   const path = stringValue(row.path).trim();
   if (!path) return undefined;
@@ -77,7 +93,8 @@ function sourceRef(value: unknown): ProjectUiSourceRef | undefined {
     pointer: optionalString(row.pointer),
     rowId: optionalString(row.row_id ?? row.rowId),
     status: optionalString(row.status),
-    updatedAt: typeof row.updated_at === "string" || row.updated_at === null ? row.updated_at : undefined,
+    updatedAt:
+      typeof row.updated_at === "string" || row.updated_at === null ? row.updated_at : undefined,
   };
 }
 
@@ -160,7 +177,9 @@ function parseMetricCard(value: unknown): ProjectUiMetricCard | null {
   return {
     metricId,
     label: stringValue(row.label) || metricId,
-    description: optionalString(row.description ?? row.tooltip ?? row.calculation_description ?? row.calculationDescription),
+    description: optionalString(
+      row.description ?? row.tooltip ?? row.calculation_description ?? row.calculationDescription,
+    ),
     productId: stringValue(row.product_id ?? row.productId ?? row.product),
     primitiveId: stringValue(row.primitive_id ?? row.primitiveId ?? row.source_id ?? row.sourceId),
     status: stringValue(row.status) || "missing",
@@ -234,7 +253,9 @@ function parseSmartGoalKpi(value: unknown): ProjectUiSmartGoalKpi | null {
   return {
     metricId,
     label: stringValue(row.label) || metricId,
-    description: optionalString(row.description ?? row.tooltip ?? row.calculation_description ?? row.calculationDescription),
+    description: optionalString(
+      row.description ?? row.tooltip ?? row.calculation_description ?? row.calculationDescription,
+    ),
     current: nullableNumber(row.current),
     display: stringValue(row.display),
     status: stringValue(row.status) || "missing",
@@ -251,9 +272,7 @@ function parseGoalAxis(value: unknown): ProjectUiGoalAxis | null {
   const id = stringValue(row.id).trim();
   if (!id) return null;
   const rawSmartGoals = row.smart_goals ?? row.smartGoals;
-  const smartGoals: unknown[] = Array.isArray(rawSmartGoals)
-    ? rawSmartGoals
-    : [];
+  const smartGoals: unknown[] = Array.isArray(rawSmartGoals) ? rawSmartGoals : [];
   return {
     id,
     label: stringValue(row.label) || id,
@@ -281,20 +300,81 @@ function parseGoalAxis(value: unknown): ProjectUiGoalAxis | null {
 
 function parseProduct(value: unknown): ProjectUiProduct | null {
   const row = record(value);
-  const productId = stringValue(row.product_id ?? row.productId).trim();
+  const productId = stringValue(row.product_id ?? row.productId ?? row.id).trim();
   if (!productId) return null;
+  const artifactWorkflows = arrayValue(row.artifact_workflows ?? row.artifactWorkflows);
   return {
+    artifactWorkflows: artifactWorkflows
+      .map(parseProductArtifactWorkflow)
+      .filter((workflow): workflow is ProjectUiProductArtifactWorkflow => Boolean(workflow)),
     audience: stringValue(row.audience),
+    goals: (Array.isArray(row.goals) ? row.goals : [])
+      .map(parseProductGoal)
+      .filter((goal): goal is ProjectUiProductGoal => Boolean(goal)),
+    kpis: parseProductKpis(row.kpis),
     kpiIds: stringList(row.kpi_ids ?? row.kpiIds),
+    lane: stringValue(row.lane),
+    laneWeight: nullableNumber(
+      row.default_weight ?? row.defaultWeight ?? row.lane_weight ?? row.laneWeight,
+    ),
     metricIds: stringList(row.metric_ids ?? row.metricIds),
-    name: stringValue(row.name) || productId,
+    name: stringValue(row.name ?? row.label) || productId,
     output: stringValue(row.output),
+    ownerSkill: stringValue(row.owner_skill ?? row.ownerSkill),
     productId,
     proofState: stringValue(row.proof_state ?? row.proofState) || "unknown",
     reward: stringValue(row.reward),
     sourceGapIds: stringList(row.source_gap_ids ?? row.sourceGapIds),
-    sourceRef: sourceRef(row.source_ref ?? row.sourceRef),
+    sourceRef: sourceRef(row.source_ref ?? row.sourceRef ?? record(row.refs).product),
     ticketCount: nullableNumber(row.ticket_count ?? row.ticketCount),
+  };
+}
+
+function parseProductKpis(value: unknown): ProjectUiProductKpis {
+  const row = record(value);
+  return {
+    all: stringList(row.all),
+    guardrail: stringList(row.guardrail),
+    primary: stringList(row.primary),
+    supporting: stringList(row.supporting),
+  };
+}
+
+function parseProductGoal(value: unknown): ProjectUiProductGoal | null {
+  const row = record(value);
+  const id = stringValue(row.id).trim();
+  if (!id) return null;
+  return {
+    id,
+    interpretation: optionalString(row.interpretation),
+    kpis: stringList(row.kpis),
+    scope: optionalString(row.scope),
+    target: stringValue(row.target),
+  };
+}
+
+function parseProductArtifactWorkflow(value: unknown): ProjectUiProductArtifactWorkflow | null {
+  const row = record(value);
+  const id = stringValue(row.id).trim();
+  if (!id) return null;
+  return {
+    executionArtifact: stringValue(row.execution_artifact ?? row.executionArtifact),
+    feedbackQuestion: stringValue(row.feedback_question ?? row.feedbackQuestion),
+    id,
+    lane: stringValue(row.lane),
+    owner: stringValue(row.owner),
+    planningArtifact: stringValue(row.planning_artifact ?? row.planningArtifact),
+  };
+}
+
+function parseWorkLane(value: unknown): ProjectUiWorkLane | null {
+  const row = record(value);
+  const laneId = stringValue(row.lane_id ?? row.laneId ?? row.id).trim();
+  if (!laneId) return null;
+  return {
+    defaultWeight: nullableNumber(row.default_weight ?? row.defaultWeight),
+    laneId,
+    purpose: stringValue(row.purpose),
   };
 }
 
@@ -324,6 +404,7 @@ export function parseProjectUiSnapshot(value: unknown): ProjectUiSnapshot | null
   const distributionContent = Array.isArray(distribution.content_items)
     ? distribution.content_items
     : [];
+  const workLanes = arrayValue(products.work_lanes ?? products.workLanes);
   return {
     generatedAt: stringValue(source.generated_at ?? source.generatedAt),
     schemaVersion: typeof source.schema_version === "number" ? source.schema_version : 1,
@@ -369,6 +450,9 @@ export function parseProjectUiSnapshot(value: unknown): ProjectUiSnapshot | null
           .map(parseProduct)
           .filter((product): product is ProjectUiProduct => Boolean(product)),
         sourceGapIds: stringList(products.source_gap_ids ?? products.sourceGapIds),
+        workLanes: workLanes
+          .map(parseWorkLane)
+          .filter((lane): lane is ProjectUiWorkLane => Boolean(lane)),
       },
       distribution: {
         contentItems: distributionContent
@@ -380,7 +464,9 @@ export function parseProjectUiSnapshot(value: unknown): ProjectUiSnapshot | null
         )
           .map(parseContentMetricCard)
           .filter((metric): metric is ProjectUiContentMetricCard => Boolean(metric)),
-        contentMetricIds: stringList(distribution.content_metric_ids ?? distribution.contentMetricIds),
+        contentMetricIds: stringList(
+          distribution.content_metric_ids ?? distribution.contentMetricIds,
+        ),
         sourceGapIds: stringList(distribution.source_gap_ids ?? distribution.sourceGapIds),
       },
     },
@@ -394,7 +480,9 @@ export function findProjectUiSnapshot(
   return parseProjectUiSnapshot(source?.parsedJson);
 }
 
-export function sourceGapsById(snapshot: ProjectUiSnapshot | null): Map<string, ProjectUiSourceGap> {
+export function sourceGapsById(
+  snapshot: ProjectUiSnapshot | null,
+): Map<string, ProjectUiSourceGap> {
   return new Map((snapshot?.sourceGaps ?? []).map((gap) => [gap.id, gap]));
 }
 

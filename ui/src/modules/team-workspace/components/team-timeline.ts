@@ -20,7 +20,7 @@ export type CommunicationRow = {
 
 export type TeamTimelineRow = {
   _id: string;
-  sourceType: "board_event" | "agent_event" | "memory_event" | "hook_event";
+  sourceType: "board_event" | "agent_event" | "memory_event" | "hook_event" | "report_event";
   occurredAt: number;
   projectId: string;
   projectPath?: string;
@@ -32,8 +32,11 @@ export type TeamTimelineRow = {
   detail?: string;
   taskId?: string;
   sourcePath?: string;
+  sourceHref?: string;
   memoryId?: string;
   reviewRunPath?: string;
+  reportKind?: string;
+  reportRef?: string;
   runId?: string;
   outputId?: string;
   sourceProgram?: string;
@@ -84,10 +87,12 @@ export function buildTeamTimelineRows(params: {
   convexTimeline: TeamTimelineRow[] | undefined;
   memoryRows?: TeamMemoryRow[];
   communicationRows: CommunicationRow[];
+  fileRows?: TeamTimelineRow[];
   projectId: string | undefined;
 }): TeamTimelineRow[] {
   const memoryTimelineRows = buildMemoryTimelineRows(params.memoryRows ?? [], params.projectId);
   const convexRows = Array.isArray(params.convexTimeline) ? params.convexTimeline : [];
+  const fileRows = Array.isArray(params.fileRows) ? params.fileRows : [];
   const communicationRows: TeamTimelineRow[] = params.communicationRows.map((row) => ({
     _id: row.id,
     sourceType: "agent_event",
@@ -99,7 +104,7 @@ export function buildTeamTimelineRows(params: {
     detail: row.detail,
     taskId: row.taskId,
   }));
-  return [...convexRows, ...memoryTimelineRows, ...communicationRows]
+  return [...convexRows, ...fileRows, ...memoryTimelineRows, ...communicationRows]
     .sort((left, right) => right.occurredAt - left.occurredAt)
     .slice(0, 120);
 }
