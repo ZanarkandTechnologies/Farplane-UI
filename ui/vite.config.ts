@@ -119,7 +119,7 @@ const FARPLANE_PROJECT_CONFIG_FILES = [
   { path: "farplane/README.md", title: "Config Index", kind: "config-index", format: "markdown" },
   { path: "farplane/harness.md", title: "Harness", kind: "harness", format: "markdown" },
   { path: "farplane/goals.md", title: "Goals", kind: "goals", format: "markdown" },
-  { path: "farplane/products.md", title: "Products", kind: "products", format: "markdown" },
+  { path: "farplane/products.json", title: "Products Index", kind: "products-index", format: "json" },
   { path: "farplane/automations.toml", title: "Automations", kind: "automations", format: "toml" },
   { path: "farplane/bindings.yaml", title: "Bindings", kind: "bindings", format: "markdown" },
   { path: "farplane/bindings.md", title: "Bindings", kind: "bindings", format: "markdown" },

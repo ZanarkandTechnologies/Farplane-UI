@@ -21,7 +21,7 @@ Cadence, Telemetry, and Config.
   - `farplane/README.md`
   - `farplane/harness.md`
   - `farplane/goals.md`
-  - `farplane/products.md`
+  - `farplane/products.json`
   - `farplane/automations.toml`
   - `farplane/bindings.md`
   - `farplane/evals.md`
@@ -60,6 +60,7 @@ Cadence, Telemetry, and Config.
   - Manifest, Harness, Bindings, Raw Files
 - Source labels should include file paths such as `farplane/goals.md` and
   `farplane/manifest.json`.
+- Product surfaces should read `farplane/products.json`.
 
 ## Playwright Path
 

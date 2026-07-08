@@ -7,7 +7,7 @@ describe("project UI snapshot model", () => {
       generated_at: "2026-07-03T00:00:00Z",
       schema_version: 1,
       project: { id: "farplane-ui", name: "Farplane UI" },
-      sources: [{ id: "farplane:products.md", path: "farplane/products.md", status: "loaded" }],
+      sources: [{ id: "farplane:products.json", path: "farplane/products.json", status: "loaded" }],
       source_gaps: [
         {
           id: "missing_content_ledger",
