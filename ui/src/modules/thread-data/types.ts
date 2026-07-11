@@ -4,7 +4,10 @@ export type ThreadDataProgram = {
   version: string;
   objective: string;
   outputMode: "markdown-json" | "json" | "markdown";
-  prompt: string;
+  prompt?: string;
+  programRef?: string;
+  programDigest?: string;
+  immutable: true;
   createdAt: string;
   updatedAt: string;
 };
@@ -97,6 +100,8 @@ export type ThreadDataRunDetail = {
   sourcesJson?: unknown;
   reportMarkdown: string;
   parentPrompt: string;
+  replayable: boolean;
+  replayBlockReason?: string;
 };
 
 export type ThreadDataProgramsResponse = {

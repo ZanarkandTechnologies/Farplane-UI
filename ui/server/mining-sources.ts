@@ -146,8 +146,3 @@ export function fileEventToMiningSource(value: unknown): JsonObject | null {
     externalId: compactText(row.externalId) || undefined,
   };
 }
-
-export function ticketCompletionEventToMiningSource(value: unknown): JsonObject | null {
-  const source = fileEventToMiningSource(value);
-  return source ? { ...source, sourceKind: "ticket_packet" } : null;
-}

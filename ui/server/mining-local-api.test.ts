@@ -1,318 +1,149 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMiningLocalApi } from "./mining-local-api";
 
 const tempRoots: string[] = [];
-type TestJson = Record<string, unknown>;
 
 afterEach(async () => {
   await Promise.all(tempRoots.splice(0).map((root) => rm(root, { force: true, recursive: true })));
 });
 
-async function createTempRoot(prefix: string): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), prefix));
-  tempRoots.push(root);
-  return root;
+async function tempProject(): Promise<{ projectRoot: string; mineRoot: string }> {
+  const projectRoot = await mkdtemp(path.join(os.tmpdir(), "farplane-core-mine-"));
+  tempRoots.push(projectRoot);
+  return { projectRoot, mineRoot: path.join(projectRoot, ".farplane", "mine") };
 }
 
-describe("mining local API", () => {
-  it("creates event-triggered ticket completion runs from explicit sources", async () => {
-    const projectRoot = await createTempRoot("farplane-mine-project-");
-    const mineRoot = path.join(projectRoot, ".farplane", "mine");
-    await mkdir(path.join(projectRoot, "tickets", "TASK-0029", "artifacts"), { recursive: true });
-    await writeFile(
-      path.join(projectRoot, "tickets", "TASK-0029", "ticket.md"),
-      [
-        "---",
-        "ticket_id: TASK-0029",
-        "title: Extract mining API",
-        "status: done",
-        "created_at: 2026-06-28T00:00:00.000Z",
-        "updated_at: 2026-06-29T00:00:00.000Z",
-        "---",
-        "",
-        "# TASK-0029: Extract Mining API",
-        "",
-        "Use $impl-plan and ui/server/mining-local-api.ts as the implementation reference.",
-        "",
-        "## Done",
-        "- API extracted",
-      ].join("\n"),
-    );
-    await writeFile(
-      path.join(projectRoot, "tickets", "TASK-0029", "progress.md"),
-      "# Progress\n\n- Implemented API extraction.\n- Added tests.\n",
-    );
-    await mkdir(path.join(projectRoot, ".farplane", "state", "message-windows"), { recursive: true });
-    await writeFile(
-      path.join(projectRoot, ".farplane", "state", "message-windows", "thread-ticket.json"),
-      JSON.stringify({
-        rolling_exchanges: [
-          {
-            user_text: "Please use $impl-plan here.",
-            user_captured_at: "2026-06-28T01:00:00.000Z",
-            assistant_text: "Using $impl-plan and reading /Users/kenjipcx/.codex/skills/impl-plan/SKILL.md.",
-            assistant_captured_at: "2026-06-28T01:01:00.000Z",
+function apiWithRunner(mineRoot: string, runCoreMining: (args: readonly string[]) => Promise<unknown>) {
+  return createMiningLocalApi({
+    mineRoot,
+    readFilesystemThreads: async () => [],
+    requestCodexThreads: async () => ({ data: [] }),
+    runCoreMining,
+  });
+}
+
+describe("Core mining UI adapter", () => {
+  it("projects Core programs and runs without writing default programs", async () => {
+    const { projectRoot, mineRoot } = await tempProject();
+    const runner = vi.fn(async (args: readonly string[]) =>
+      args.includes("programs")
+        ? {
+            programs: [{ id: "lean", name: "Lean", version: "2", objective: "Report", program_digest: "abc" }],
+          }
+        : {
+            runs: [{ run_id: "run-1", program_ref: { id: "lean", version: "2" }, status: "complete", created_at: "2026-07-01T00:00:00Z", outputs: [{}] }],
           },
-          {
-            user_text: "wait, why did the first pass miss the ticket eval default?",
-            user_captured_at: "2026-06-28T01:02:00.000Z",
-            assistant_text: "I will follow the recommended checklist.",
-            assistant_captured_at: "2026-06-28T01:03:00.000Z",
-          },
-        ],
-      }),
-      "utf-8",
     );
-    await writeFile(path.join(projectRoot, "tickets", "TASK-0029", "artifacts", "proof.txt"), "ok\n");
-    const api = createMiningLocalApi({
-      mineRoot,
-      readFilesystemThreads: async () => [],
-      requestCodexThreads: async () => {
-        throw new Error("thread listing should not be used for event-triggered sources");
+    const api = apiWithRunner(mineRoot, runner);
+
+    expect(await api.listPrograms()).toEqual([
+      expect.objectContaining({ id: "lean", immutable: true, programDigest: "abc" }),
+    ]);
+    expect(await api.listRuns()).toEqual([
+      expect.objectContaining({ runId: "run-1", programId: "lean", outputCount: 1 }),
+    ]);
+    await expect(api.saveProgram({ id: "other" })).rejects.toThrow("mining_programs_core_immutable");
+    await expect(api.createRun({ programId: "lean" })).rejects.toThrow("mining_run_creation_core_owned");
+    expect(runner.mock.calls[0]?.[0]).toEqual(
+      expect.arrayContaining(["--project-root", projectRoot, "--json"]),
+    );
+  });
+
+  it("delegates replay and verdict updates to Core", async () => {
+    const { mineRoot } = await tempProject();
+    const runner = vi.fn(async () => ({
+      run: {
+        run_id: "run-1",
+        program_id: "lean",
+        status: "complete",
+        created_at: "2026-07-01T00:00:00Z",
+        outputs: [{ output_id: "report-1" }],
       },
-      now: () => new Date("2026-06-29T00:00:00.000Z"),
-    });
+      program: { id: "lean", name: "Lean", version: "1" },
+      input: { input_manifest: [] },
+      attempts: [],
+      report: { material_findings: [], source_gaps: [] },
+      verdicts: { "report-1": { verdict: "promoted" } },
+    }));
+    const api = apiWithRunner(mineRoot, runner);
 
-    const detail = await api.createRun({
-      mode: "ticket_completion",
-      programId: "ticket-completion-audit-v1",
-      source: "hook",
-      sourceEventKey: "ticket:TASK-0029:completed",
-      sources: [
-        {
-          sourceId: "TASK-0029-complete",
-          sourceKind: "ticket_packet",
-          name: "TASK-0029 completed",
-          preview: "Extract mining API out of Vite.",
-          ticketId: "TASK-0029",
-          threadId: "thread-ticket",
-          sessionId: "thread-ticket",
-          updatedAt: 1782691200,
-        },
-      ],
-    });
-    const run = detail?.run as TestJson | undefined;
-    const sources = detail?.sources as unknown[] | undefined;
-
-    expect(run).toEqual(
-      expect.objectContaining({
-        miningMode: "ticket_completion",
-        outputCount: 1,
-        source: "hook",
-      }),
-    );
-    expect(sources).toHaveLength(1);
-
-    const input = JSON.parse(
-      await readFile(path.join(mineRoot, "runs", String(run?.runId), "input.json"), "utf-8"),
-    );
-    expect(input).toEqual(
-      expect.objectContaining({
-        mode: "ticket_completion",
-        source: "hook",
-        sourceEventKey: "ticket:TASK-0029:completed",
-      }),
-    );
-    const storedSources = JSON.parse(
-      await readFile(path.join(mineRoot, "runs", String(run?.runId), "sources.json"), "utf-8"),
-    );
-    expect(storedSources).toEqual([
-      expect.objectContaining({
-        sourceKind: "ticket_packet",
-        sourceId: "TASK-0029-complete",
-        ticketId: "TASK-0029",
-      }),
-    ]);
-    const packet = JSON.parse(
-      await readFile(path.join(mineRoot, "runs", String(run?.runId), "packet.json"), "utf-8"),
-    );
-    expect(packet).toEqual(
-      expect.objectContaining({
-        packetKind: "ticket_completion",
-        ticketId: "TASK-0029",
-        transcript: expect.objectContaining({ fullTranscriptPolicy: "reference_only" }),
-      }),
-    );
-    expect(JSON.stringify(packet)).not.toContain("full transcript");
-    const outputIndex = JSON.parse(
-      await readFile(path.join(mineRoot, "runs", String(run?.runId), "outputs", "index.json"), "utf-8"),
-    );
-    expect(outputIndex[0]).toEqual(
-      expect.objectContaining({
-        scorecardJsonPath: expect.stringContaining("scorecard.json"),
-        scorecardMarkdownPath: expect.stringContaining("scorecard.md"),
-      }),
-    );
-    const scorecard = JSON.parse(
-      await readFile(
-        path.join(mineRoot, "runs", String(run?.runId), "outputs", String(outputIndex[0].id), "scorecard.json"),
-        "utf-8",
-      ),
-    );
-    expect(scorecard).toEqual(
-      expect.objectContaining({
-        ticketId: "TASK-0029",
-        runId: run?.runId,
-        deterministicMetrics: expect.arrayContaining([
-          expect.objectContaining({ id: "token_usage", status: "unknown" }),
-          expect.objectContaining({ id: "proof_artifact_count", value: 1 }),
-          expect.objectContaining({ id: "skill_loaded_count", value: 1 }),
-          expect.objectContaining({ id: "missed_skill_trigger_count", value: 0 }),
-        ]),
-        skillTraceAssessment: expect.objectContaining({
-          skillLoaded: expect.objectContaining({ status: "observed", loadedCount: 1 }),
-          intendedSkills: expect.arrayContaining([expect.objectContaining({ skillId: "impl-plan" })]),
-          loadedSkills: expect.arrayContaining([expect.objectContaining({ skillId: "impl-plan" })]),
-          correctionNeeded: expect.objectContaining({ status: "observed" }),
-        }),
-      }),
-    );
-    expect(outputIndex[0].telemetryEvents).toEqual([
-      expect.objectContaining({
-        eventName: "ticket.audit.scored",
-        outputId: outputIndex[0].id,
-        runId: run?.runId,
-        ticketId: "TASK-0029",
-      }),
-    ]);
-
-    const duplicate = await api.createRun({
-      mode: "ticket_completion",
-      programId: "ticket-completion-audit-v1",
-      source: "hook",
-      sourceEventKey: "ticket:TASK-0029:completed",
-      sources: [
-        {
-          sourceId: "TASK-0029-complete",
-          sourceKind: "ticket_packet",
-          name: "TASK-0029 completed again",
-          preview: "Duplicate delivery.",
-        },
-      ],
-    });
-    expect((duplicate?.run as TestJson | undefined)?.runId).toBe(run?.runId);
-  });
-
-  it("rejects unsafe message-window ids before reading source files", async () => {
-    const mineRoot = await createTempRoot("farplane-mine-api-");
-    const api = createMiningLocalApi({
-      mineRoot,
-      readFilesystemThreads: async () => [],
-      requestCodexThreads: async () => ({ data: [] }),
-    });
-
-    await expect(
-      api.createRun({
-        mode: "ticket_completion",
-        programId: "ticket-completion-audit-v1",
-        sources: [
-          {
-            sourceId: "../unsafe",
-            sourceKind: "message_window",
-            name: "Unsafe source",
-            preview: "Should not be read",
-            cwd: "/tmp/project",
-          },
-        ],
-      }),
-    ).rejects.toThrow("unsafe_source_id");
-  });
-
-  it("replays from stored inputs and preserves reviewer verdicts", async () => {
-    const mineRoot = await createTempRoot("farplane-mine-api-");
-    const api = createMiningLocalApi({
-      mineRoot,
-      readFilesystemThreads: async () => [],
-      requestCodexThreads: async () => ({
-        data: [
-          {
-            id: "thread-1",
-            name: "Ticket review thread",
-            preview: "TASK-0029 should extract the mining API from Vite.",
-            source: { kind: "codex-thread" },
-            updatedAt: 1_782_688_400,
-          },
-        ],
-      }),
-      now: () => new Date("2026-06-29T00:00:00.000Z"),
-    });
-
-    const created = await api.createRun({
-      filters: { lastDays: 0, limit: 1 },
-      programId: "decision-v1",
-      threadIds: ["thread-1"],
-    });
-    const createdRun = created?.run as TestJson | undefined;
-    const createdOutputs = created?.outputs as unknown[] | undefined;
-    const runId = String(createdRun?.runId);
-    expect(createdOutputs).toHaveLength(1);
-
-    const promoted = await api.updateOutputVerdict({
-      outputId: "thread-1",
-      runId,
+    const replayed = await api.replayRun("run-1");
+    const updated = await api.updateOutputVerdict({
+      runId: "run-1",
+      outputId: "report-1",
       verdict: "promoted",
     });
-    expect(promoted?.run).toEqual(expect.objectContaining({ promotedCount: 1, reviewedCount: 1 }));
 
-    const replayed = await api.replayRun(runId);
-    const replayedOutputs = replayed?.outputs as TestJson[] | undefined;
-    const replayedAttempts = replayed?.attempts as TestJson[] | undefined;
-    const replayedArtifacts = replayed?.artifacts as TestJson[] | undefined;
-    expect(replayed?.run).toEqual(
-      expect.objectContaining({
-        outputCount: 1,
-        promotedCount: 1,
-        reviewedCount: 1,
-      }),
+    expect(runner.mock.calls[0]?.[0]).toEqual(expect.arrayContaining(["runs", "replay", "run-1"]));
+    expect(runner.mock.calls[1]?.[0]).toEqual(expect.arrayContaining(["runs", "show", "run-1"]));
+    expect(runner.mock.calls[2]?.[0]).toEqual(
+      expect.arrayContaining(["outputs", "verdict", "run-1", "report-1", "promoted"]),
     );
-    expect(replayedOutputs?.[0]).toEqual(expect.objectContaining({ verdict: "promoted" }));
-    expect(replayedAttempts).toHaveLength(2);
-    expect(replayedArtifacts?.map((artifact) => artifact.label)).toEqual(
-      expect.arrayContaining(["input.json", "sources.json", "attempts.json", "report.md"]),
-    );
-
-    const attempts = JSON.parse(await readFile(path.join(mineRoot, "runs", runId, "attempts.json"), "utf-8"));
-    expect(attempts).toHaveLength(2);
-    expect(attempts[1]).toEqual(expect.objectContaining({ reason: "replayed_from_stored_input" }));
+    expect(runner.mock.calls[3]?.[0]).toEqual(expect.arrayContaining(["runs", "show", "run-1"]));
+    for (const detail of [replayed, updated]) {
+      expect(detail).toEqual(
+        expect.objectContaining({
+          replayable: true,
+          run: expect.objectContaining({ runId: "run-1", programId: "lean" }),
+          outputs: [expect.objectContaining({ id: "report-1", verdict: "promoted" })],
+        }),
+      );
+      expect((detail?.run as Record<string, unknown>).run_id).toBeUndefined();
+    }
   });
 
-  it("reads event-miner reports by run id", async () => {
-    const projectRoot = await createTempRoot("farplane-event-miner-project-");
-    const mineRoot = path.join(projectRoot, ".farplane", "mine");
-    await mkdir(path.join(projectRoot, ".farplane", "event-miner", "runs", "run-1"), { recursive: true });
-    await writeFile(
-      path.join(projectRoot, ".farplane", "event-miner", "runs", "run-1", "report.json"),
-      JSON.stringify({
-        schemaVersion: 1,
-        status: "completed",
-        observed: 1,
-        summary: "Found a ticket workflow decision.",
-        ticketId: "TASK-0029",
-        events: [{ eventName: "decision.observed", summary: "Use the ticket completion audit." }],
-      }),
-      "utf-8",
+  it("edits only project route bindings through Core", async () => {
+    const { mineRoot } = await tempProject();
+    const runner = vi.fn(async (args: readonly string[]) => ({
+      routes: args.includes("list")
+        ? [{ route_id: "completed", event_name: "farplane.ticket.completed", program_ref: "core:lean@1" }]
+        : [],
+    }));
+    const api = apiWithRunner(mineRoot, runner);
+
+    await api.setRoute({ id: "completed", eventName: "farplane.ticket.completed", programRef: "core:lean@1" });
+    await api.removeRoute("completed");
+
+    expect(runner.mock.calls[0]?.[0]).toEqual(
+      expect.arrayContaining(["routes", "set", "completed", "farplane.ticket.completed", "core:lean@1"]),
     );
-    const api = createMiningLocalApi({
-      mineRoot,
-      readFilesystemThreads: async () => [],
-      requestCodexThreads: async () => ({ data: [] }),
-    });
+    expect(runner.mock.calls[2]?.[0]).toEqual(expect.arrayContaining(["routes", "remove", "completed"]));
+  });
 
-    const detail = await api.readEventMinerReport("run-1");
+  it("keeps historical local runs readable when Core cannot serve them", async () => {
+    const { mineRoot } = await tempProject();
+    const runRoot = path.join(mineRoot, "runs", "legacy-1");
+    await mkdir(path.join(runRoot, "outputs"), { recursive: true });
+    const legacyRun = { runId: "legacy-1", programId: "old", status: "complete", createdAt: "2026-01-01T00:00:00Z" };
+    await writeFile(path.join(runRoot, "run.json"), JSON.stringify(legacyRun));
+    await writeFile(path.join(mineRoot, "runs", "index.json"), JSON.stringify([legacyRun]));
+    await writeFile(path.join(runRoot, "sources.json"), "[]");
+    await writeFile(path.join(runRoot, "attempts.json"), "[]");
+    await writeFile(path.join(runRoot, "outputs", "index.json"), "[]");
+    await writeFile(path.join(runRoot, "report.md"), "# Historical report\n");
+    const api = apiWithRunner(mineRoot, async () => { throw new Error("not_found"); });
 
-    expect(detail).toEqual(
+    expect(await api.listRuns()).toEqual([expect.objectContaining({ runId: "legacy-1" })]);
+    expect(await api.readRun("legacy-1")).toEqual(
       expect.objectContaining({
-        runId: "run-1",
-        report: expect.objectContaining({
-          observed: 1,
-          ticketId: "TASK-0029",
-        }),
+        replayable: false,
+        replayBlockReason: expect.stringContaining("no reconstructable frozen Core program"),
+        reportMarkdown: "# Historical report\n",
       }),
     );
-    await expect(api.readEventMinerReport("../unsafe")).resolves.toBeNull();
+  });
+
+  it("reads legacy event-miner reports without Convex", async () => {
+    const { projectRoot, mineRoot } = await tempProject();
+    const runRoot = path.join(projectRoot, ".farplane", "event-miner", "runs", "event-1");
+    await mkdir(runRoot, { recursive: true });
+    await writeFile(path.join(runRoot, "report.json"), JSON.stringify({ summary: "local" }));
+    const api = apiWithRunner(mineRoot, async () => null);
+    expect(await api.readEventMinerReport("event-1")).toEqual(
+      expect.objectContaining({ report: { summary: "local" } }),
+    );
   });
 });

@@ -20,9 +20,8 @@ the office launcher entry `raw-telemetry`.
 - Hooks: renders a per-project hook control center with hook package list,
   file-change listener config, active pattern count, manifest file selection,
   install action, and recent event preview.
-- Event Programs: renders non-executing routing previews for event-to-mining
-  program subscriptions such as `farplane.ticket.completed` to
-  `ticket-completion-audit-v1`.
+- Event Programs: projects Core-owned event routes and immutable program refs.
+  The UI does not assign completion events to a default program.
 - Raw: preserves the raw event table escape hatch for operator debugging.
 - Distributions: renders top event names, hook names, hook types, and sessions
   for the current filtered window.

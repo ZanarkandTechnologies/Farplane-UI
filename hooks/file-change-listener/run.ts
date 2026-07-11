@@ -8,16 +8,13 @@ import {
   resolveDefaultEndpointBaseUrl,
   resolveDefaultTelemetryToken,
 } from "../skill-invocation-listener/handler";
+import { handleFileChangeWithCore, publishCoreFileEventMirrors } from "./core-mining-adapter";
 /**
  * Entrypoint for the Codex PostToolUse tracked file-change listener.
  */
 import {
-  createTicketAuditRunsForCompletedEvents,
-  parseFarplaneFileEventCandidatesFromStdin,
   parseFileChangeBubbleCandidatesFromStdin,
-  publishFarplaneFileEventCandidates,
   publishFileChangeBubbleCandidates,
-  publishTicketAuditRunEvents,
 } from "./handler";
 
 async function readStdin(): Promise<string> {
@@ -43,45 +40,27 @@ async function main(): Promise<void> {
     }
   })();
   const hookConfig = resolveProjectHookConfig(projectPath, process.env);
-  if (!hookConfig.enabled) {
-    if (debugEnabled) console.error("[file-change-listener] disabled by project hook config");
-    return;
-  }
   const parseOptions = {
     trackedPathPatterns: hookConfig.patterns,
     codexSummary: resolveCodexSummaryOptions(process.env),
     summaryDebounceMs: hookConfig.summaryDebounceMs,
   };
-  const fileEventCandidates = parseFarplaneFileEventCandidatesFromStdin(
-    stdin,
-    Date.now(),
-    parseOptions,
-  );
   const candidates = hookConfig.summaryEnabled
     ? await parseFileChangeBubbleCandidatesFromStdin(stdin, Date.now(), parseOptions)
     : [];
-  if (candidates.length === 0 && fileEventCandidates.length === 0) {
-    if (debugEnabled) console.error("[file-change-listener] no tracked file changes detected");
-    return;
-  }
   try {
     const searchDirs = [
       repoRoot,
       process.cwd(),
-      ...fileEventCandidates.map((candidate) => candidate.projectPath),
       ...candidates.map((candidate) => candidate.projectPath),
     ];
     const endpointBaseUrl = resolveDefaultEndpointBaseUrl(process.env, searchDirs);
     const telemetryToken = resolveDefaultTelemetryToken(process.env, searchDirs);
-    const eventResult = await publishFarplaneFileEventCandidates(fileEventCandidates, {
+    const coreEvents = await handleFileChangeWithCore(stdin, projectPath);
+    const mirrorResult = await publishCoreFileEventMirrors(coreEvents, {
       endpointBaseUrl,
       telemetryToken,
-    });
-    const auditResult = await createTicketAuditRunsForCompletedEvents(fileEventCandidates);
-    const auditPublishResult = await publishTicketAuditRunEvents(auditResult, {
-      endpointBaseUrl,
-      telemetryToken,
-      projectPath: projectPath,
+      projectPath,
     });
     const result = await publishFileChangeBubbleCandidates(candidates, {
       endpointBaseUrl,
@@ -89,7 +68,7 @@ async function main(): Promise<void> {
     });
     if (debugEnabled) {
       console.error(
-        `[file-change-listener] fileEvents=${eventResult.attempted}/${eventResult.published} ticketAudits=${auditResult.created}/${auditResult.attempted} auditEvents=${auditPublishResult.published}/${auditPublishResult.attempted} summaries=${result.attempted}/${result.published}`,
+        `[file-change-listener] coreEvents=${coreEvents.length} mirrors=${mirrorResult.published}/${mirrorResult.attempted} summaries=${result.attempted}/${result.published}`,
       );
     }
   } catch (error) {

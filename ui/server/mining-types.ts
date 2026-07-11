@@ -6,7 +6,10 @@ export type MiningProgram = {
   version: string;
   objective: string;
   outputMode: "markdown-json" | "json" | "markdown";
-  prompt: string;
+  prompt?: string;
+  programRef?: string;
+  programDigest?: string;
+  immutable: true;
   createdAt: string;
   updatedAt: string;
 };
@@ -55,61 +58,12 @@ export type MiningLocalApiDeps = {
   now?: () => Date;
 };
 
-export const DEFAULT_MINING_PROGRAMS: MiningProgram[] = [
-  {
-    id: "decision-v1",
-    name: "Decision extractor",
-    version: "1.1.0",
-    objective: "Extract key product, architecture, and workflow decisions from a Codex thread.",
-    outputMode: "markdown-json",
-    prompt:
-      'Read the source Codex thread and return only a JSON array of decision objects. Each object must use this minimal schema: { title: string, problem: string, options: string[], recommendation: string, ticketId?: string, sessionId: string, decisionKind: "product"|"architecture"|"workflow"|"implementation", confidence: "low"|"medium"|"high" }. Exclude automation prompts, routing wrappers, and routine status chatter. If no real decision is present, return [].',
-    createdAt: "2026-06-28T00:00:00.000Z",
-    updatedAt: "2026-06-27T00:00:00.000Z",
-  },
-  {
-    id: "trajectory-v1",
-    name: "Trajectory miner",
-    version: "1.0.0",
-    objective: "Find high-value trajectories across a thread: intent, pivots, completed work, and next leverage.",
-    outputMode: "markdown-json",
-    prompt:
-      "Read the source Codex thread. Return a compact trajectory with original intent, pivots, final state, high-value artifacts, missed opportunities, and reusable follow-up actions.",
-    createdAt: "2026-06-28T00:00:00.000Z",
-    updatedAt: "2026-06-28T00:00:00.000Z",
-  },
-  {
-    id: "learning-v1",
-    name: "Learning miner",
-    version: "1.0.0",
-    objective: "Extract durable lessons, troubles, and prevention rules from old work.",
-    outputMode: "markdown-json",
-    prompt:
-      "Read the source Codex thread. Return lessons, repeated troubles, corrected assumptions, prevention rules, and candidate docs or skills that should receive the learning.",
-    createdAt: "2026-06-28T00:00:00.000Z",
-    updatedAt: "2026-06-28T00:00:00.000Z",
-  },
-  {
-    id: "ticket-completion-audit-v1",
-    name: "Ticket completion audit",
-    version: "0.2.0",
-    objective:
-      "Score completed ticket execution from a structured ticket-completion packet with deterministic metrics, ticket-folder context, decisions, and bounded transcript refs.",
-    outputMode: "markdown-json",
-    prompt:
-      "Read packet.json and score the completed ticket without inventing unavailable metrics. Use deterministic metrics as provided, inspect ticket folder context, mined decisions, proof artifacts, and bounded transcript context, then return scorecard.json/scorecard.md fields for scope following, program adherence, proof quality, missed steps, correction handling, efficiency, decision quality, regression risk, and next improvements. Token usage and turns must remain unknown unless reliable source data is present.",
-    createdAt: "2026-06-29T00:00:00.000Z",
-    updatedAt: "2026-06-30T00:00:00.000Z",
-  },
-];
-
 export function normalizeProgram(value: unknown): MiningProgram | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as JsonObject;
-  const id = safeMiningId(String(row.id ?? ""), "");
-  const name = String(row.name ?? "").trim();
-  const prompt = String(row.prompt ?? "").trim();
-  if (!id || !name || !prompt) return null;
+  const id = safeMiningId(String(row.id ?? row.program_id ?? ""), "");
+  const name = String(row.name ?? row.program_id ?? row.id ?? "").trim();
+  if (!id || !name) return null;
   const now = new Date().toISOString();
   const outputMode = String(row.outputMode ?? row.output_mode ?? "markdown-json");
   return {
@@ -118,9 +72,18 @@ export function normalizeProgram(value: unknown): MiningProgram | null {
     version: String(row.version ?? "1.0.0").trim() || "1.0.0",
     objective: String(row.objective ?? "").trim() || "Mine useful outputs from a Codex thread.",
     outputMode: outputMode === "json" || outputMode === "markdown" ? outputMode : "markdown-json",
-    prompt,
-    createdAt: typeof row.createdAt === "string" ? row.createdAt : now,
-    updatedAt: typeof row.updatedAt === "string" ? row.updatedAt : now,
+    prompt: String(row.prompt ?? "").trim() || undefined,
+    programRef: String(row.programRef ?? row.program_ref ?? row.ref ?? "").trim() || undefined,
+    programDigest: String(row.programDigest ?? row.program_digest ?? row.digest ?? "").trim() || undefined,
+    immutable: true,
+    createdAt:
+      typeof (row.createdAt ?? row.created_at) === "string"
+        ? String(row.createdAt ?? row.created_at)
+        : now,
+    updatedAt:
+      typeof (row.updatedAt ?? row.updated_at) === "string"
+        ? String(row.updatedAt ?? row.updated_at)
+        : now,
   };
 }
 
@@ -128,7 +91,13 @@ export function normalizeRunIndexEntry(value: unknown): MiningRunIndexEntry | nu
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as JsonObject;
   const runId = String(row.runId ?? row.run_id ?? "").trim();
-  const programId = String(row.programId ?? row.program_id ?? "").trim();
+  const programRef = row.program_ref && typeof row.program_ref === "object" ? row.program_ref as JsonObject : {};
+  const programId = String(
+    row.programId ??
+      row.program_id ??
+      programRef.id ??
+      (typeof row.program_ref === "string" ? row.program_ref : row.program ?? ""),
+  ).trim();
   if (!runId || !programId) return null;
   const status = String(row.status ?? "queued");
   return {
@@ -138,7 +107,9 @@ export function normalizeRunIndexEntry(value: unknown): MiningRunIndexEntry | nu
       row.miningMode === "ticket_completion" ||
       row.miningMode === "manual_selected"
         ? row.miningMode
-        : "historical_backfill",
+        : row.route_id || row.routeId
+          ? "event_triggered"
+          : "historical_backfill",
     source:
       row.source === "hook" ||
       row.source === "manual" ||
@@ -147,14 +118,20 @@ export function normalizeRunIndexEntry(value: unknown): MiningRunIndexEntry | nu
         ? row.source
         : "backfill",
     programId,
-    programVersion: String(row.programVersion ?? row.program_version ?? "1.0.0"),
+    programVersion: String(row.programVersion ?? row.program_version ?? programRef.version ?? "1.0.0"),
     label: String(row.label ?? runId),
     mode: row.mode === "worker" ? "worker" : "dry-run",
     status: status === "running" || status === "complete" || status === "failed" ? status : "queued",
-    createdAt: typeof row.createdAt === "string" ? row.createdAt : new Date().toISOString(),
-    completedAt: typeof row.completedAt === "string" ? row.completedAt : undefined,
-    sourceCount: Number(row.sourceCount ?? row.source_count ?? 0),
-    outputCount: Number(row.outputCount ?? row.output_count ?? 0),
+    createdAt:
+      typeof (row.createdAt ?? row.created_at) === "string"
+        ? String(row.createdAt ?? row.created_at)
+        : new Date().toISOString(),
+    completedAt:
+      typeof (row.completedAt ?? row.completed_at) === "string"
+        ? String(row.completedAt ?? row.completed_at)
+        : undefined,
+    sourceCount: Number(row.sourceCount ?? row.source_count ?? (Array.isArray(row.input_manifest) ? row.input_manifest.length : 0)),
+    outputCount: Number(row.outputCount ?? row.output_count ?? (Array.isArray(row.outputs) ? row.outputs.length : 0)),
     reviewedCount: Number(row.reviewedCount ?? row.reviewed_count ?? 0),
     promotedCount: Number(row.promotedCount ?? row.promoted_count ?? 0),
     rejectedCount: Number(row.rejectedCount ?? row.rejected_count ?? 0),

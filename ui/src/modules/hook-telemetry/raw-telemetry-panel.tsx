@@ -157,19 +157,11 @@ function RawTelemetryContent(): ReactElement {
     );
   }
 
-  if (!convexEnabled) {
-    return (
-      <div className="px-6 py-6">
-        <StateCard
-          title="Raw telemetry unavailable"
-          detail="Convex is not configured for this UI session."
-        />
-      </div>
-    );
-  }
-
   return (
-    <Tabs defaultValue="events" className="flex min-h-0 flex-1 flex-col px-6 pb-6 pt-3">
+    <Tabs
+      defaultValue={convexEnabled ? "events" : "programs"}
+      className="flex min-h-0 flex-1 flex-col px-6 pb-6 pt-3"
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <TabsList>
           <TabsTrigger value="events">Events</TabsTrigger>
@@ -230,7 +222,14 @@ function RawTelemetryContent(): ReactElement {
         {data ? (
           <EventTable rows={data.events} total={data.total} />
         ) : (
-          <StateCard title="Loading events" detail="Reading hook telemetry rows..." />
+          <StateCard
+            title={convexEnabled ? "Loading events" : "Event mirror unavailable"}
+            detail={
+              convexEnabled
+                ? "Reading hook telemetry rows..."
+                : "Convex is optional; Core programs, routes, runs, and reports remain available."
+            }
+          />
         )}
       </TabsContent>
       <TabsContent value="hooks" className="mt-3 min-h-0 flex-1">
@@ -243,14 +242,28 @@ function RawTelemetryContent(): ReactElement {
         {data ? (
           <EventTable rows={data.events} total={data.total} />
         ) : (
-          <StateCard title="Loading raw events" detail="Reading hook telemetry rows..." />
+          <StateCard
+            title={convexEnabled ? "Loading raw events" : "Event mirror unavailable"}
+            detail={
+              convexEnabled
+                ? "Reading hook telemetry rows..."
+                : "Convex is not configured for this UI session."
+            }
+          />
         )}
       </TabsContent>
       <TabsContent value="distribution" className="mt-3 min-h-0 flex-1">
         {data ? (
           <DistributionGrid data={data.distributions} total={data.total} />
         ) : (
-          <StateCard title="Loading distribution" detail="Aggregating hook telemetry rows..." />
+          <StateCard
+            title={convexEnabled ? "Loading distribution" : "Event mirror unavailable"}
+            detail={
+              convexEnabled
+                ? "Aggregating hook telemetry rows..."
+                : "Convex is not configured for this UI session."
+            }
+          />
         )}
       </TabsContent>
     </Tabs>

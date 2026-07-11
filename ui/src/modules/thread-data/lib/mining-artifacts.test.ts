@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  artifactPreviewText,
   artifactPreview,
+  artifactPreviewText,
   defaultOutputViewMode,
   displayEvidenceSource,
   filterOutputs,
@@ -131,7 +131,7 @@ describe("mining artifact helpers", () => {
     ]);
   });
 
-  it("chooses ticket-completion scorecard summaries before raw evidence", () => {
+  it("chooses summaries from report shape rather than a hardcoded program id", () => {
     expect(
       defaultOutputViewMode(
         {
@@ -139,7 +139,7 @@ describe("mining artifact helpers", () => {
           label: "ticket",
           miningMode: "ticket_completion",
           outputCount: 1,
-          programId: "ticket-completion-audit-v1",
+          programId: "core-report-v2",
           programVersion: "0.1.0",
           promotedCount: 0,
           rejectedCount: 0,
@@ -148,7 +148,7 @@ describe("mining artifact helpers", () => {
           sourceCount: 1,
           status: "complete",
         },
-        outputs[0],
+        { ...outputs[0], outputScorecard: { overall: "material findings" } },
       ),
     ).toBe("summary");
   });
@@ -213,7 +213,7 @@ describe("mining artifact helpers", () => {
     ).toBe("report");
     expect(
       parseArtifactJson({
-        content: "{\"ok\":true}",
+        content: '{"ok":true}',
         id: "input",
         kind: "json",
         label: "input.json",

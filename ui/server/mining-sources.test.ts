@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import {
   messageWindowPathForSource,
   normalizeStoredMiningSource,
-  ticketCompletionEventToMiningSource,
 } from "./mining-sources";
 
 describe("mining sources", () => {
@@ -49,22 +48,4 @@ describe("mining sources", () => {
     );
   });
 
-  it("turns ticket completion file events into replayable mining sources", () => {
-    expect(
-      ticketCompletionEventToMiningSource({
-        entityId: "TASK-0029",
-        eventKey: "ticket:TASK-0029:completed",
-        eventName: "ticket.completed",
-        path: "/repo/tickets/TASK-0029/ticket.md",
-        summary: "Ticket completed",
-      }),
-    ).toEqual(
-      expect.objectContaining({
-        sourceId: "ticket-task-0029-completed",
-        sourceKind: "ticket_packet",
-        ticketId: "TASK-0029",
-        inputRef: "/repo/tickets/TASK-0029/ticket.md",
-      }),
-    );
-  });
 });

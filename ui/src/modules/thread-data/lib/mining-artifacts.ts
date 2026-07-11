@@ -131,13 +131,11 @@ export function outputEvidenceRows(outputJson: unknown): MiningEvidenceRow[] {
 }
 
 export function defaultOutputViewMode(
-  run: ThreadDataRunIndexEntry | undefined,
+  _run: ThreadDataRunIndexEntry | undefined,
   output: ThreadDataRunOutput | null | undefined,
 ): "summary" | "decisions" | "evidence" {
-  if (run?.programId === "ticket-completion-audit-v1" || run?.miningMode === "ticket_completion") {
-    return "summary";
-  }
   if (output?.outputDecisions) return "decisions";
+  if (scorecardSummary(output?.outputScorecard ?? output?.outputJson)) return "summary";
   return "evidence";
 }
 
@@ -185,7 +183,11 @@ export function parseArtifactJson(artifact: ThreadDataArtifact | null | undefine
 
 export function preferredArtifactId(artifacts: ThreadDataArtifact[] | undefined): string {
   const ids = new Set((artifacts ?? []).map((artifact) => artifact.id));
-  return ["report", "packet-md", "packet", "outputs-index", "input"].find((id) => ids.has(id)) ?? "report";
+  return (
+    ["report", "lean-report", "deep-report", "outputs-index", "input", "packet-md", "packet"].find(
+      (id) => ids.has(id),
+    ) ?? "report"
+  );
 }
 
 export function shortJsonValue(value: unknown): string {
@@ -210,10 +212,25 @@ export function scorecardSummary(outputJson: unknown): ScorecardSummary | null {
     typeof rawScorecard.overallScore === "number" ? rawScorecard.overallScore : undefined;
   const skillTraceSummary = String(rawScorecard.skillTraceSummary ?? "").trim() || undefined;
   const skillTrace = scorecardSkillTrace(rawScorecard.skillTraceAssessment);
-  if (!scopeFollowed && !proofQuality && !skippedSteps && !overall && !skillTraceSummary && overallScore === undefined) {
+  if (
+    !scopeFollowed &&
+    !proofQuality &&
+    !skippedSteps &&
+    !overall &&
+    !skillTraceSummary &&
+    overallScore === undefined
+  ) {
     return null;
   }
-  return { overall, overallScore, proofQuality, scopeFollowed, skillTrace, skillTraceSummary, skippedSteps };
+  return {
+    overall,
+    overallScore,
+    proofQuality,
+    scopeFollowed,
+    skillTrace,
+    skillTraceSummary,
+    skippedSteps,
+  };
 }
 
 function stringList(value: unknown): string[] {
@@ -231,7 +248,9 @@ function scorecardStatus(value: unknown): string | undefined {
 function scorecardSkillTrace(value: unknown): ScorecardSummary["skillTrace"] | undefined {
   if (!isRecord(value)) return undefined;
   const missedTrigger = isRecord(value.missedTrigger) ? value.missedTrigger : {};
-  const falsePositiveTrigger = isRecord(value.falsePositiveTrigger) ? value.falsePositiveTrigger : {};
+  const falsePositiveTrigger = isRecord(value.falsePositiveTrigger)
+    ? value.falsePositiveTrigger
+    : {};
   const wastedSteps = isRecord(value.wastedSteps) ? value.wastedSteps : {};
   const defaultFollowed = isRecord(value.defaultFollowed) ? value.defaultFollowed : {};
   const correctionNeeded = isRecord(value.correctionNeeded) ? value.correctionNeeded : {};
@@ -240,7 +259,8 @@ function scorecardSkillTrace(value: unknown): ScorecardSummary["skillTrace"] | u
   const skillLoadTiming = isRecord(value.skillLoadTiming) ? value.skillLoadTiming : {};
   return {
     skillLoaded: scorecardStatus(value.skillLoaded),
-    skillLoadTiming: String(skillLoadTiming.value ?? skillLoadTiming.status ?? "").trim() || undefined,
+    skillLoadTiming:
+      String(skillLoadTiming.value ?? skillLoadTiming.status ?? "").trim() || undefined,
     missedTriggers: stringList(missedTrigger.skillIds),
     falsePositiveTriggers: stringList(falsePositiveTrigger.skillIds),
     wastedSteps: String(wastedSteps.summary ?? wastedSteps.status ?? "").trim() || undefined,

@@ -5,7 +5,7 @@
  * Side effects: none; callers own storage and transcript expansion.
  */
 
-import type { CreateMiningRunInput, MiningSource } from "@/lib/mining/types";
+import type { MiningSource } from "@/lib/mining/types";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -80,16 +80,6 @@ export function fileEventToMiningSource(value: unknown): MiningSource | null {
   };
 }
 
-export function ticketCompletionEventToMiningSource(value: unknown): MiningSource | null {
-  const source = fileEventToMiningSource(value);
-  if (!source) return null;
-  return {
-    ...source,
-    sourceKind: "ticket_packet",
-    inputRef: source.inputRef,
-  };
-}
-
 export function providerEventToMiningSource(value: unknown): MiningSource | null {
   if (!isRecord(value)) return null;
   const provider = compactText(value.provider);
@@ -105,25 +95,5 @@ export function providerEventToMiningSource(value: unknown): MiningSource | null
     sourceEventKey: compactText(value.eventKey) || undefined,
     provider,
     externalId,
-  };
-}
-
-export function sourceEventToMiningRunRequest(
-  event: unknown,
-  programId: string,
-): CreateMiningRunInput | null {
-  const source = fileEventToMiningSource(event) ?? providerEventToMiningSource(event);
-  if (!source) return null;
-  const eventName = isRecord(event) ? compactText(event.eventName) : "";
-  return {
-    mode: eventName === "farplane.ticket.completed" ? "ticket_completion" : "event_triggered",
-    source: source.provider === "local_file" ? "hook" : "provider",
-    programId,
-    sources: [
-      eventName === "farplane.ticket.completed"
-        ? { ...source, sourceKind: "ticket_packet" }
-        : source,
-    ],
-    sourceEventKey: source.sourceEventKey,
   };
 }

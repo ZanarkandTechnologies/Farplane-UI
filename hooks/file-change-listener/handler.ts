@@ -2,14 +2,12 @@
  * FILE CHANGE LISTENER HOOK
  * =========================
  * Purpose
- * - Detect tracked project file edits after write-capable tools.
- * - Publish typed `farplane.*` file events plus compact legacy status-bubble summaries.
+ * - Support optional legacy status-bubble summaries after write-capable tools.
+ * - Typed events and mining routes are owned by the Core adapter.
  */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { createMiningLocalApi } from "../../ui/server/mining-local-api";
-import { ticketCompletionEventToMiningSource } from "../../ui/server/mining-sources";
 import {
   type CodexSummaryOptions,
   resolveCodexSummaryOptions,
@@ -22,8 +20,6 @@ import {
   contentDebounceHash,
   waitForSettledFileChangeSummary,
 } from "./file-change-summary-debounce";
-import { type FarplaneFileEvent, parseFarplaneFileEvent } from "./file-event-registry";
-import { readFileEventSnapshot, writeFileEventSnapshot } from "./file-event-snapshot-store";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -43,37 +39,11 @@ export type PublishFileChangeOptions = {
   fetchImpl?: typeof fetch;
 };
 
-export type TicketAuditRunResult = {
-  attempted: number;
-  created: number;
-  skipped: number;
-  failed: number;
-  events: Array<{
-    eventName: "ticket.audit.created" | "ticket.audit.failed" | "ticket.audit.scored";
-    eventKey: string;
-    projectId?: string;
-    sessionId?: string;
-    ticketId?: string;
-    outputId?: string;
-    summary: string;
-    source?: string;
-    sourceProgram?: string;
-    status?: string;
-    severity?: "low" | "medium" | "high";
-    runId?: string;
-    reviewRunPath?: string;
-    reason?: string;
-    eventAt: number;
-  }>;
-};
-
 export type FileChangeParseOptions = {
   trackedPathPatterns?: readonly string[];
   codexSummary?: CodexSummaryOptions;
   summaryDebounceMs?: number;
   summaryDebounceStateDir?: string;
-  fileEventStateDir?: string;
-  updateFileEventState?: boolean;
 };
 
 const WRITE_TOOL_PATTERN = /(?:bash|apply_patch|edit|write|create|delete|multi_tool_use)/i;
@@ -87,18 +57,6 @@ function isRecord(value: unknown): value is JsonRecord {
 function cleanString(value: unknown, limit = 500): string | undefined {
   const trimmed = typeof value === "string" ? value.trim() : "";
   return trimmed ? trimmed.slice(0, limit) : undefined;
-}
-
-function numberValue(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-function eventAtMs(value: unknown, fallback = Date.now()): number {
-  const numeric = numberValue(value);
-  if (numeric !== undefined)
-    return numeric < 10_000_000_000 ? Math.floor(numeric * 1000) : Math.floor(numeric);
-  const parsed = Date.parse(cleanString(value, 120) ?? "");
-  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function resolveToolName(payload: JsonRecord): string {
@@ -317,16 +275,6 @@ function fileContentSnippet(projectPath: string, filePath: string): string {
   }
 }
 
-function readFileContent(projectPath: string, filePath: string): string {
-  const absolutePath = path.resolve(projectPath, filePath);
-  if (!existsSync(absolutePath)) return "";
-  try {
-    return readFileSync(absolutePath, { encoding: "utf8", flag: "r" });
-  } catch {
-    return "";
-  }
-}
-
 function payloadSnippet(payload: JsonRecord): string {
   try {
     return JSON.stringify(payload, (_key, value) => {
@@ -436,64 +384,6 @@ export async function parseFileChangeBubbleCandidatesFromPayload(
   return candidates;
 }
 
-export type FarplaneFileEventCandidate = FarplaneFileEvent & {
-  projectPath: string;
-};
-
-export function parseFarplaneFileEventCandidatesFromPayload(
-  payload: unknown,
-  now = Date.now(),
-  options: FileChangeParseOptions = {},
-): FarplaneFileEventCandidate[] {
-  const paths = parseFileChangeCandidatePathsFromPayload(payload, now, options);
-  const updateState = options.updateFileEventState !== false;
-  const candidates: FarplaneFileEventCandidate[] = [];
-  for (const candidate of paths) {
-    const text = readFileContent(candidate.projectPath, candidate.filePath);
-    if (!text) continue;
-    const previous = readFileEventSnapshot({
-      projectPath: candidate.projectPath,
-      filePath: candidate.filePath,
-      stateDir: options.fileEventStateDir,
-    });
-    const parsed = parseFarplaneFileEvent({
-      path: candidate.filePath,
-      text,
-      previous,
-      eventAt: candidate.eventAt,
-      projectId: codexProjectIdFromPath(candidate.projectPath),
-      sessionId: candidate.sessionId,
-      threadId: candidate.threadId,
-    });
-    if (!parsed.event || !parsed.snapshot) continue;
-    candidates.push({
-      ...parsed.event,
-      projectPath: candidate.projectPath,
-    });
-    if (updateState) {
-      writeFileEventSnapshot({
-        projectPath: candidate.projectPath,
-        filePath: candidate.filePath,
-        stateDir: options.fileEventStateDir,
-        snapshot: parsed.snapshot,
-      });
-    }
-  }
-  return candidates;
-}
-
-export function parseFarplaneFileEventCandidatesFromStdin(
-  stdin: string,
-  now = Date.now(),
-  options: FileChangeParseOptions = {},
-): FarplaneFileEventCandidate[] {
-  try {
-    return parseFarplaneFileEventCandidatesFromPayload(JSON.parse(stdin), now, options);
-  } catch {
-    return [];
-  }
-}
-
 export async function parseFileChangeBubbleCandidatesFromStdin(
   stdin: string,
   now = Date.now(),
@@ -533,207 +423,6 @@ export async function publishFileChangeBubbleCandidates(
       eventAt: candidate.eventAt,
       eventKey: candidate.eventKey,
     })),
-    {
-      endpointBaseUrl: options.endpointBaseUrl,
-      telemetryToken: options.telemetryToken,
-      fetchImpl: options.fetchImpl,
-      projectPath: primaryProjectPath,
-    },
-  );
-  return result;
-}
-
-export async function createTicketAuditRunsForCompletedEvents(
-  candidates: FarplaneFileEventCandidate[],
-): Promise<TicketAuditRunResult> {
-  const result: TicketAuditRunResult = {
-    attempted: 0,
-    created: 0,
-    skipped: 0,
-    failed: 0,
-    events: [],
-  };
-  for (const candidate of candidates.filter(
-    (event) => event.eventName === "farplane.ticket.completed",
-  )) {
-    result.attempted += 1;
-    const ticketId = candidate.entityId;
-    const source = ticketCompletionEventToMiningSource({
-      ...candidate,
-      entityId: candidate.entityId,
-      eventKey: candidate.eventKey,
-      eventName: candidate.eventName,
-      path: candidate.path,
-      sessionId: candidate.sessionId,
-      summary: candidate.summary,
-      threadId: candidate.threadId,
-    });
-    if (!source || !ticketId) {
-      result.skipped += 1;
-      continue;
-    }
-    try {
-      const api = createMiningLocalApi({
-        mineRoot: path.join(candidate.projectPath, ".farplane", "mine"),
-        readFilesystemThreads: async () => [],
-        requestCodexThreads: async () => ({ data: [] }),
-      });
-      const detail = await api.createRun({
-        mode: "ticket_completion",
-        programId: "ticket-completion-audit-v1",
-        source: "hook",
-        sourceEventKey: candidate.eventKey,
-        sources: [
-          {
-            ...source,
-            name: `${ticketId} completed`,
-            preview: candidate.summary ?? `${ticketId} completed`,
-            cwd: candidate.projectPath,
-            threadId: candidate.threadId ?? candidate.sessionId,
-            sessionId: candidate.sessionId,
-          },
-        ],
-      });
-      const run = detail?.run && typeof detail.run === "object" ? (detail.run as JsonRecord) : {};
-      const runId = cleanString(run.runId, 160);
-      const outputs = Array.isArray(detail?.outputs) ? detail.outputs.filter(isRecord) : [];
-      result.created += 1;
-      result.events.push({
-        eventName: "ticket.audit.created",
-        eventKey: `ticket-audit:v1:created:${candidate.eventKey}`.slice(0, 500),
-        projectId: candidate.projectId,
-        sessionId: candidate.sessionId,
-        ticketId,
-        summary: `Created ticket completion audit for ${ticketId}`,
-        runId,
-        reviewRunPath: runId ? `.farplane/mine/runs/${runId}` : undefined,
-        eventAt: Date.now(),
-      });
-      for (const output of outputs) {
-        const outputId = cleanString(output.id, 160);
-        const outputJson = isRecord(output.outputJson) ? output.outputJson : {};
-        const telemetryEvents = Array.isArray(outputJson.telemetryEvents)
-          ? outputJson.telemetryEvents.filter(isRecord)
-          : [];
-        for (const telemetry of telemetryEvents) {
-          const eventName = cleanString(telemetry.eventName, 120);
-          if (eventName !== "ticket.audit.scored") continue;
-          result.events.push({
-            eventName: "ticket.audit.scored",
-            eventKey:
-              cleanString(telemetry.eventKey, 500) ??
-              `ticket-audit:v1:scored:${runId ?? "run"}:${outputId ?? ticketId}`.slice(0, 500),
-            projectId: candidate.projectId,
-            sessionId: cleanString(telemetry.sessionId, 200) ?? candidate.sessionId,
-            ticketId: cleanString(telemetry.ticketId, 80) ?? ticketId,
-            outputId,
-            summary:
-              cleanString(telemetry.summary, 240) ??
-              `Ticket audit scored ${ticketId}${runId ? ` in ${runId}` : ""}.`,
-            source: cleanString(telemetry.source, 120) ?? "ticket_completion_audit",
-            sourceProgram:
-              cleanString(telemetry.sourceProgram, 120) ?? "ticket-completion-audit-v1",
-            status: cleanString(telemetry.status, 80) ?? "observed",
-            severity: cleanString(telemetry.severity, 80) as "low" | "medium" | "high" | undefined,
-            runId: cleanString(telemetry.runId, 160) ?? runId,
-            reviewRunPath:
-              cleanString(telemetry.reviewRunPath, 240) ??
-              (runId && outputId
-                ? `.farplane/mine/runs/${runId}/outputs/${outputId}/scorecard.json`
-                : undefined),
-            eventAt: eventAtMs(telemetry.eventAt),
-          });
-        }
-      }
-    } catch (error) {
-      const reason =
-        error instanceof Error ? error.message.slice(0, 240) : String(error).slice(0, 240);
-      result.failed += 1;
-      result.events.push({
-        eventName: "ticket.audit.failed",
-        eventKey: `ticket-audit:v1:failed:${candidate.eventKey}`.slice(0, 500),
-        projectId: candidate.projectId,
-        sessionId: candidate.sessionId,
-        ticketId,
-        summary: `Ticket completion audit failed for ${ticketId}`,
-        reason,
-        eventAt: Date.now(),
-      });
-    }
-  }
-  return result;
-}
-
-export async function publishTicketAuditRunEvents(
-  auditResult: TicketAuditRunResult,
-  options: PublishFileChangeOptions & { projectPath?: string } = {},
-): Promise<{
-  attempted: number;
-  published: number;
-  skipped: boolean;
-  queued?: number;
-  replayed?: number;
-}> {
-  const result = await publishHookTelemetryWithOutbox(
-    auditResult.events.map((event) => ({
-      hookName: "file-change-listener",
-      hookType: "PostToolUse",
-      projectId: event.projectId,
-      sessionId: event.sessionId,
-      payload: {
-        schemaVersion: 1,
-        eventName: event.eventName,
-        ticketId: event.ticketId,
-        outputId: event.outputId,
-        summary: event.summary,
-        source: event.source ?? "ticket_completion_audit_subscriber",
-        sourceProgram: event.sourceProgram,
-        status: event.status,
-        severity: event.severity,
-        runId: event.runId,
-        reviewRunPath: event.reviewRunPath,
-        reason: event.reason,
-      },
-      eventAt: event.eventAt,
-      eventKey: event.eventKey,
-    })),
-    {
-      endpointBaseUrl: options.endpointBaseUrl,
-      telemetryToken: options.telemetryToken,
-      fetchImpl: options.fetchImpl,
-      projectPath: options.projectPath,
-    },
-  );
-  return result;
-}
-
-export async function publishFarplaneFileEventCandidates(
-  candidates: FarplaneFileEventCandidate[],
-  options: PublishFileChangeOptions = {},
-): Promise<{
-  attempted: number;
-  published: number;
-  skipped: boolean;
-  queued?: number;
-  replayed?: number;
-}> {
-  const primaryProjectPath = candidates[0]?.projectPath;
-  const result = await publishHookTelemetryWithOutbox(
-    candidates.map((candidate) => {
-      const { projectPath: _projectPath, ...event } = candidate;
-      return {
-        hookName: "file-change-listener",
-        hookType: "PostToolUse",
-        projectId: candidate.projectId,
-        sessionId: candidate.sessionId,
-        payload: {
-          ...event,
-          cwd: candidate.projectPath,
-        },
-        eventAt: candidate.eventAt,
-        eventKey: candidate.eventKey,
-      };
-    }),
     {
       endpointBaseUrl: options.endpointBaseUrl,
       telemetryToken: options.telemetryToken,

@@ -4542,6 +4542,69 @@ function farplaneStateBridge() {
           return;
         }
 
+        if (method === "GET" && pathname === "/farplane/mine/routes") {
+          const scoped = scopedMiningApi(url);
+          if (!scoped) {
+            writeJson(res, 400, { ok: false, error: "project_path_invalid", routes: [] });
+            return;
+          }
+          writeJson(res, 200, { ok: true, routes: await scoped.api.listRoutes() });
+          return;
+        }
+
+        if (method === "POST" && pathname === "/farplane/mine/routes") {
+          if (!hasBridgeWriteAccess(req)) {
+            writeJson(res, 403, { ok: false, error: "forbidden", routes: [] });
+            return;
+          }
+          const scoped = scopedMiningApi(url);
+          if (!scoped) {
+            writeJson(res, 400, { ok: false, error: "project_path_invalid", routes: [] });
+            return;
+          }
+          try {
+            writeJson(res, 200, {
+              ok: true,
+              routes: await scoped.api.setRoute(await readBody(req)),
+            });
+          } catch (error) {
+            writeJson(res, 400, {
+              ok: false,
+              error: error instanceof Error ? error.message : "mining_route_set_failed",
+              routes: [],
+            });
+          }
+          return;
+        }
+
+        const miningRouteMatch = pathname.match(/^\/farplane\/mine\/routes\/([^/]+)$/);
+        if (method === "DELETE" && miningRouteMatch) {
+          if (!hasBridgeWriteAccess(req)) {
+            writeJson(res, 403, { ok: false, error: "forbidden", routes: [] });
+            return;
+          }
+          const scoped = scopedMiningApi(url);
+          if (!scoped) {
+            writeJson(res, 400, { ok: false, error: "project_path_invalid", routes: [] });
+            return;
+          }
+          try {
+            writeJson(res, 200, {
+              ok: true,
+              routes: await scoped.api.removeRoute(
+                decodeURIComponent(miningRouteMatch[1] ?? ""),
+              ),
+            });
+          } catch (error) {
+            writeJson(res, 400, {
+              ok: false,
+              error: error instanceof Error ? error.message : "mining_route_remove_failed",
+              routes: [],
+            });
+          }
+          return;
+        }
+
         if (method === "GET" && pathname === "/farplane/mine/threads") {
           const scoped = scopedMiningApi(url);
           if (!scoped) {

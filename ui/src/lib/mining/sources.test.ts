@@ -3,8 +3,6 @@ import {
   fileEventToMiningSource,
   historicalThreadSourceToMiningSource,
   providerEventToMiningSource,
-  sourceEventToMiningRunRequest,
-  ticketCompletionEventToMiningSource,
 } from "@/lib/mining/sources";
 
 describe("mining source normalizers", () => {
@@ -49,35 +47,6 @@ describe("mining source normalizers", () => {
       ticketId: "TASK-0028",
       sourceEventKey: "local:ticket:TASK-0028:1",
       provider: "local_file",
-    });
-  });
-
-  it("turns a completed ticket event into a ticket packet source and run request", () => {
-    const event = {
-      eventName: "farplane.ticket.completed",
-      eventKey: "local:ticket:TASK-0028:completed",
-      path: "tickets/TASK-0028/ticket.md",
-      entityId: "TASK-0028",
-      terminal: true,
-      summary: "Ticket completed",
-    };
-
-    expect(ticketCompletionEventToMiningSource(event)).toMatchObject({
-      sourceKind: "ticket_packet",
-      ticketId: "TASK-0028",
-      sourceEventKey: "local:ticket:TASK-0028:completed",
-    });
-    expect(sourceEventToMiningRunRequest(event, "ticket-completion-audit-v1")).toMatchObject({
-      mode: "ticket_completion",
-      source: "hook",
-      programId: "ticket-completion-audit-v1",
-      sourceEventKey: "local:ticket:TASK-0028:completed",
-      sources: [
-        {
-          sourceKind: "ticket_packet",
-          ticketId: "TASK-0028",
-        },
-      ],
     });
   });
 

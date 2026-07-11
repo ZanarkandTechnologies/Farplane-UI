@@ -17,7 +17,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { EVENT_PROGRAM_PREVIEWS } from "./event-programs-panel";
 import { PlannedHookDetail } from "./planned-hook-detail";
 import type { HookTelemetryEvent } from "./raw-telemetry-panel";
 import { EventPreviewRow } from "./timeline-event-preview";
@@ -436,22 +435,11 @@ function FileChangeHookDetail({
             </section>
 
             <section className="rounded-md border p-4">
-              <h3 className="font-medium text-sm">Subscribed Programs</h3>
-              <div className="mt-3 space-y-2">
-                {EVENT_PROGRAM_PREVIEWS.filter((program) =>
-                  hook.events.includes(program.eventName),
-                ).map((program) => (
-                  <div key={program.id} className="rounded-md border bg-background/50 px-3 py-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-sm">{program.name}</span>
-                      <Badge variant="outline">{program.mode}</Badge>
-                    </div>
-                    <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
-                      {program.eventName}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              <h3 className="font-medium text-sm">Mining routes</h3>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Route bindings are loaded from Core in the Programs tab; this hook does not assign
+                programs.
+              </p>
             </section>
           </aside>
         </div>

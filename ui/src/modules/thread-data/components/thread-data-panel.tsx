@@ -18,7 +18,6 @@ import {
   ListChecks,
   Play,
   RefreshCw,
-  Save,
   Search,
   ShieldAlert,
 } from "lucide-react";
@@ -32,13 +31,6 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import {
   Table,
   TableBody,
@@ -70,7 +62,6 @@ import {
   preferredArtifactId,
   runStatusTone,
   scorecardSummary,
-  selectedThreadIds,
   shortJsonValue,
   sortMiningRuns,
 } from "@/modules/thread-data/lib/mining-artifacts";
@@ -122,10 +113,10 @@ function scorecardPayload(output: ThreadDataRunOutput | null): unknown {
 
 function draftFromProgram(program: ThreadDataProgram | null): ProgramDraft {
   return {
-    id: program?.id ?? "custom-v1",
-    name: program?.name ?? "Custom mining program",
-    version: program?.version ?? "1.0.0",
-    objective: program?.objective ?? "Extract structured findings from old Codex threads.",
+    id: program?.id ?? "",
+    name: program?.name ?? "",
+    version: program?.version ?? "",
+    objective: program?.objective ?? "",
     prompt: program?.prompt ?? "",
   };
 }
@@ -159,7 +150,6 @@ export function ThreadDataPanel({
   const [status, setStatus] = useState("Loading mining runs...");
   const [error, setError] = useState<string | null>(null);
   const [programDraft, setProgramDraft] = useState<ProgramDraft>(draftFromProgram(null));
-  const [isNewRunOpen, setIsNewRunOpen] = useState(false);
   const [selectedOutputId, setSelectedOutputId] = useState<string | null>(null);
   const [selectedArtifactId, setSelectedArtifactId] = useState("report");
   const [threadDataTab, setThreadDataTab] = useState<ThreadDataTab>("review");
@@ -249,24 +239,27 @@ export function ThreadDataPanel({
     return Math.round((runDetail.run.outputCount / runDetail.run.sourceCount) * 100);
   }, [runDetail?.run.outputCount, runDetail?.run.sourceCount]);
 
-  const loadRun = useCallback(async (runId: string, outputId?: string | null): Promise<void> => {
-    const payload = await fetchJson<ThreadDataRunResponse>(
-      mineUrl(`/farplane/mine/runs/${encodeURIComponent(runId)}`),
-    );
-    const nextOutputId = outputId ?? null;
-    setSelectedRunId(runId);
-    selectedRunIdRef.current = runId;
-    setRunDetail(payload.detail);
-    setSelectedOutputId(nextOutputId);
-    selectedOutputIdRef.current = nextOutputId;
-    if (nextOutputId) {
-      const output = payload.detail?.outputs.find((row) => row.id === nextOutputId) ?? null;
-      setThreadDataTab("review");
-      setOutputViewMode(defaultOutputViewMode(payload.detail?.run, output));
-    }
-    setSelectedArtifactId(preferredArtifactId(payload.detail?.artifacts));
-    setStatus(`Loaded run ${runId}`);
-  }, [mineUrl]);
+  const loadRun = useCallback(
+    async (runId: string, outputId?: string | null): Promise<void> => {
+      const payload = await fetchJson<ThreadDataRunResponse>(
+        mineUrl(`/farplane/mine/runs/${encodeURIComponent(runId)}`),
+      );
+      const nextOutputId = outputId ?? null;
+      setSelectedRunId(runId);
+      selectedRunIdRef.current = runId;
+      setRunDetail(payload.detail);
+      setSelectedOutputId(nextOutputId);
+      selectedOutputIdRef.current = nextOutputId;
+      if (nextOutputId) {
+        const output = payload.detail?.outputs.find((row) => row.id === nextOutputId) ?? null;
+        setThreadDataTab("review");
+        setOutputViewMode(defaultOutputViewMode(payload.detail?.run, output));
+      }
+      setSelectedArtifactId(preferredArtifactId(payload.detail?.artifacts));
+      setStatus(`Loaded run ${runId}`);
+    },
+    [mineUrl],
+  );
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
@@ -292,9 +285,7 @@ export function ThreadDataPanel({
       const runToLoad = selectedRunIdRef.current ?? runPayload.latest?.runId ?? null;
       if (runToLoad) {
         const outputToLoad =
-          runToLoad === initialRunId
-            ? initialOutputId
-            : selectedOutputIdRef.current;
+          runToLoad === initialRunId ? initialOutputId : selectedOutputIdRef.current;
         await loadRun(runToLoad, outputToLoad);
       } else {
         setRunDetail(null);
@@ -315,6 +306,7 @@ export function ThreadDataPanel({
     void loadRun(initialRunId, initialOutputId);
   }, [initialOutputId, initialRunId, loadRun]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: project scope changes must clear retained run ids.
   useEffect(() => {
     selectedOutputIdRef.current = null;
     selectedRunIdRef.current = null;
@@ -346,71 +338,13 @@ export function ThreadDataPanel({
     );
   };
 
-  const saveProgram = async (): Promise<void> => {
-    setStatus(`Saving ${programDraft.id}...`);
-    setError(null);
-    try {
-      const payload = await fetchJson<ThreadDataProgramsResponse>(mineUrl("/farplane/mine/programs"), {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-farplane-actor-role": "operator",
-        },
-        body: JSON.stringify({
-          ...programDraft,
-          outputMode: "markdown-json",
-        }),
-      });
-      setPrograms(payload.programs);
-      setSelectedProgramId(programDraft.id);
-      setStatus(`Saved program ${programDraft.id}`);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "program_save_failed");
-      setStatus("Program save failed.");
-    }
-  };
-
-  const startRun = async (): Promise<void> => {
-    if (!selectedProgramId) return;
-    setStatus("Creating mining run...");
-    setError(null);
-    try {
-      const payload = await fetchJson<ThreadDataRunResponse>(mineUrl("/farplane/mine/runs"), {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-farplane-actor-role": "operator",
-        },
-        body: JSON.stringify({
-          programId: selectedProgramId,
-          threadIds: selectedThreadIds(threads, selectedThreadSet),
-          filters: {
-            lastDays: Number(lastDays) || 30,
-            limit: Number(sourceLimit) || 20,
-          },
-        }),
-      });
-      if (payload.detail) {
-        const detail = payload.detail;
-        setRunDetail(detail);
-        setSelectedRunId(detail.run.runId);
-        selectedRunIdRef.current = detail.run.runId;
-        selectedOutputIdRef.current = null;
-        setRuns((current) =>
-          sortMiningRuns([detail.run, ...current.filter((run) => run.runId !== detail.run.runId)]),
-        );
-        setIsNewRunOpen(false);
-        setThreadDataTab("review");
-        setStatus(`Created run ${detail.run.runId}`);
-      }
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "mining_run_failed");
-      setStatus("Mining run creation failed.");
-    }
-  };
-
   const replayRun = async (): Promise<void> => {
     if (!selectedRunId) return;
+    if (runDetail && !runDetail.replayable) {
+      setError(runDetail.replayBlockReason ?? "mining_run_not_replayable");
+      setStatus("Replay unavailable for this historical run.");
+      return;
+    }
     setStatus(`Replaying ${selectedRunId}...`);
     setError(null);
     try {
@@ -521,11 +455,12 @@ export function ThreadDataPanel({
             <RefreshCw className="size-4" />
             Refresh
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setIsNewRunOpen(true)}>
-            <Database className="size-4" />
-            New run
-          </Button>
-          <Button size="sm" onClick={() => void replayRun()} disabled={!selectedRunId}>
+          <Button
+            size="sm"
+            onClick={() => void replayRun()}
+            disabled={!selectedRunId || runDetail?.replayable === false}
+            title={runDetail?.replayable === false ? runDetail.replayBlockReason : undefined}
+          >
             <Play className="size-4" />
             Replay
           </Button>
@@ -600,7 +535,7 @@ export function ThreadDataPanel({
                 </div>
               </section>
             ) : (
-              <EmptyRunState onCreate={() => setIsNewRunOpen(true)} />
+              <EmptyRunState onCreate={() => void refresh()} />
             )}
           </div>
         </TabsContent>
@@ -614,7 +549,7 @@ export function ThreadDataPanel({
               onSelect={setSelectedArtifactId}
             />
           ) : (
-            <EmptyRunState onCreate={() => setIsNewRunOpen(true)} />
+            <EmptyRunState onCreate={() => void refresh()} />
           )}
         </TabsContent>
 
@@ -622,7 +557,7 @@ export function ThreadDataPanel({
           {runDetail ? (
             <AttemptTimeline attempts={runDetail.attempts ?? []} />
           ) : (
-            <EmptyRunState onCreate={() => setIsNewRunOpen(true)} />
+            <EmptyRunState onCreate={() => void refresh()} />
           )}
         </TabsContent>
 
@@ -631,8 +566,6 @@ export function ThreadDataPanel({
             draft={programDraft}
             programs={programs}
             selectedId={selectedProgramId}
-            onDraftChange={setProgramDraft}
-            onSave={() => void saveProgram()}
             onSelect={setSelectedProgramId}
           />
         </TabsContent>
@@ -654,10 +587,7 @@ export function ThreadDataPanel({
               <Button variant="outline" onClick={selectVisibleThreads}>
                 Select visible
               </Button>
-              <Button onClick={() => setIsNewRunOpen(true)}>
-                <Play className="size-4" />
-                New run
-              </Button>
+              <Badge variant="outline">Core-owned sources</Badge>
             </div>
             <SourceTable
               rows={visibleThreads}
@@ -671,28 +601,6 @@ export function ThreadDataPanel({
           <ForkingPanel runDetail={runDetail} threads={threads} />
         </TabsContent>
       </Tabs>
-
-      <NewRunSheet
-        isOpen={isNewRunOpen}
-        lastDays={lastDays}
-        programs={programs}
-        selectedProgram={selectedProgram}
-        selectedProgramId={selectedProgramId}
-        selectedThreadSet={selectedThreadSet}
-        sourceLimit={sourceLimit}
-        threadQuery={threadQuery}
-        threads={visibleThreads}
-        totalThreads={threads.length}
-        onLastDaysChange={setLastDays}
-        onOpenChange={setIsNewRunOpen}
-        onProgramSelect={setSelectedProgramId}
-        onRun={() => void startRun()}
-        onSelectVisible={selectVisibleThreads}
-        onSourceLimitChange={setSourceLimit}
-        onThreadQueryChange={setThreadQuery}
-        onToggleThread={toggleThread}
-      />
-
     </div>
   );
 }
@@ -1029,126 +937,15 @@ function EmptyRunState({ onCreate }: { onCreate: () => void }): ReactElement {
         <FolderOpen className="mx-auto size-10 text-muted-foreground" />
         <h2 className="mt-3 text-base font-semibold">No mining runs yet</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Create a run to write input, sources, attempts, reports, and outputs under
-          `.farplane/mine/runs/&lt;run-id&gt;`.
+          Core has not produced any mining runs for this project yet. Runs are created by Core
+          routes, not by this panel.
         </p>
         <Button className="mt-4" onClick={onCreate}>
           <Database className="size-4" />
-          Create first run
+          Refresh runs
         </Button>
       </div>
     </section>
-  );
-}
-
-function NewRunSheet({
-  isOpen,
-  lastDays,
-  onLastDaysChange,
-  onOpenChange,
-  onProgramSelect,
-  onRun,
-  onSelectVisible,
-  onSourceLimitChange,
-  onThreadQueryChange,
-  onToggleThread,
-  programs,
-  selectedProgram,
-  selectedProgramId,
-  selectedThreadSet,
-  sourceLimit,
-  threadQuery,
-  threads,
-  totalThreads,
-}: {
-  isOpen: boolean;
-  lastDays: string;
-  onLastDaysChange: (value: string) => void;
-  onOpenChange: (open: boolean) => void;
-  onProgramSelect: (id: string) => void;
-  onRun: () => void;
-  onSelectVisible: () => void;
-  onSourceLimitChange: (value: string) => void;
-  onThreadQueryChange: (value: string) => void;
-  onToggleThread: (id: string) => void;
-  programs: ThreadDataProgram[];
-  selectedProgram: ThreadDataProgram | null;
-  selectedProgramId: string;
-  selectedThreadSet: Set<string>;
-  sourceLimit: string;
-  threadQuery: string;
-  threads: ThreadDataSource[];
-  totalThreads: number;
-}): ReactElement {
-  return (
-    <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent className="grid w-[min(980px,94vw)] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-none">
-        <SheetHeader>
-          <SheetTitle>New Mining Run</SheetTitle>
-          <SheetDescription>
-            Select a program and sources. The run will become a replayable folder under
-            `.farplane/mine`.
-          </SheetDescription>
-        </SheetHeader>
-        <div className="grid min-h-0 gap-3 px-4 md:grid-cols-[260px_minmax(0,1fr)]">
-          <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
-            <div>
-              <Label className="text-xs">Program</Label>
-              <p className="mt-1 truncate text-sm font-medium">
-                {selectedProgram?.name ?? "No program"}
-              </p>
-            </div>
-            <ScrollArea className="rounded-md border">
-              {programs.map((program) => (
-                <button
-                  key={program.id}
-                  type="button"
-                  className={`block w-full border-b px-3 py-2 text-left text-sm hover:bg-muted/50 ${program.id === selectedProgramId ? "bg-muted" : ""}`}
-                  onClick={() => onProgramSelect(program.id)}
-                >
-                  <span className="block font-medium">{program.name}</span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {program.id} v{program.version}
-                  </span>
-                </button>
-              ))}
-            </ScrollArea>
-          </div>
-          <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
-            <div className="grid gap-2 md:grid-cols-[1fr_100px_100px_auto]">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 size-4 text-muted-foreground" />
-                <Input
-                  className="pl-8"
-                  value={threadQuery}
-                  onChange={(event) => onThreadQueryChange(event.target.value)}
-                  placeholder="Search sources, tickets, workspaces"
-                />
-              </div>
-              <Input value={lastDays} onChange={(event) => onLastDaysChange(event.target.value)} />
-              <Input
-                value={sourceLimit}
-                onChange={(event) => onSourceLimitChange(event.target.value)}
-              />
-              <Button variant="outline" onClick={onSelectVisible}>
-                Select visible
-              </Button>
-            </div>
-            <SourceTable rows={threads} selected={selectedThreadSet} onToggle={onToggleThread} />
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
-          <p className="text-xs text-muted-foreground">
-            {selectedThreadSet.size || Math.min(10, totalThreads)} selected by default from{" "}
-            {totalThreads} sources.
-          </p>
-          <Button onClick={onRun} disabled={!selectedProgramId}>
-            <Play className="size-4" />
-            Start run
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
   );
 }
 
@@ -1331,9 +1128,7 @@ function JsonArtifactSummary({ value }: { value: unknown }): ReactElement {
   const entries = Object.entries(value).slice(0, 12);
   return (
     <div className="rounded-md border bg-background p-3">
-      <div className="mb-2 text-xs font-medium uppercase text-muted-foreground">
-        JSON Summary
-      </div>
+      <div className="mb-2 text-xs font-medium uppercase text-muted-foreground">JSON Summary</div>
       <div className="grid gap-2 md:grid-cols-2">
         {entries.map(([key, entryValue]) => (
           <div key={key} className="min-w-0 rounded border bg-muted/20 px-2 py-1.5">
@@ -1377,15 +1172,11 @@ function AttemptTimeline({ attempts }: { attempts: Array<Record<string, unknown>
 
 function ProgramEditor({
   draft,
-  onDraftChange,
-  onSave,
   onSelect,
   programs,
   selectedId,
 }: {
   draft: ProgramDraft;
-  onDraftChange: (draft: ProgramDraft) => void;
-  onSave: () => void;
   onSelect: (id: string) => void;
   programs: ThreadDataProgram[];
   selectedId: string;
@@ -1409,56 +1200,32 @@ function ProgramEditor({
           ))}
         </ScrollArea>
       </div>
-      <div className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto] gap-3 rounded-md border bg-background p-3">
-        <div className="grid gap-2 md:grid-cols-3">
-          <Field
-            label="ID"
-            value={draft.id}
-            onChange={(value) => onDraftChange({ ...draft, id: value })}
-          />
-          <Field
-            label="Name"
-            value={draft.name}
-            onChange={(value) => onDraftChange({ ...draft, name: value })}
-          />
-          <Field
-            label="Version"
-            value={draft.version}
-            onChange={(value) => onDraftChange({ ...draft, version: value })}
-          />
+      <div className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-3 rounded-md border bg-background p-3">
+        <div className="flex items-center justify-between">
+          <Badge variant="secondary">Immutable Core program</Badge>
+          <span className="text-xs text-muted-foreground">Inspect only</span>
         </div>
-        <Field
-          label="Objective"
-          value={draft.objective}
-          onChange={(value) => onDraftChange({ ...draft, objective: value })}
-        />
+        <div className="grid gap-2 md:grid-cols-3">
+          <ReadOnlyField label="ID" value={draft.id} />
+          <ReadOnlyField label="Name" value={draft.name} />
+          <ReadOnlyField label="Version" value={draft.version} />
+        </div>
+        <ReadOnlyField label="Objective" value={draft.objective} />
         <Textarea
           className="min-h-[280px] resize-none font-mono text-xs"
           value={draft.prompt}
-          onChange={(event) => onDraftChange({ ...draft, prompt: event.target.value })}
+          readOnly
         />
-        <Button className="w-fit" onClick={onSave}>
-          <Save className="size-4" />
-          Save program
-        </Button>
       </div>
     </div>
   );
 }
 
-function Field({
-  label,
-  onChange,
-  value,
-}: {
-  label: string;
-  onChange: (value: string) => void;
-  value: string;
-}): ReactElement {
+function ReadOnlyField({ label, value }: { label: string; value: string }): ReactElement {
   return (
     <div className="grid gap-1">
-      <Label className="text-xs">{label}</Label>
-      <Input value={value} onChange={(event) => onChange(event.target.value)} />
+      <Label>{label}</Label>
+      <Input readOnly value={value} />
     </div>
   );
 }
