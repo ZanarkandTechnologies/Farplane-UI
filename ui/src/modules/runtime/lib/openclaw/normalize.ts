@@ -1101,6 +1101,7 @@ export function toSkillStudioCatalogEntry(
     displayName: String(row.displayName ?? skillId),
     description: String(row.description ?? ""),
     category: String(row.category ?? "workflow"),
+    tier: typeof row.tier === "number" ? row.tier : undefined,
     scope: row.scope === "agent" ? "agent" : "shared",
     sourcePath: String(row.sourcePath ?? ""),
     updatedAt: typeof row.updatedAt === "number" ? row.updatedAt : undefined,

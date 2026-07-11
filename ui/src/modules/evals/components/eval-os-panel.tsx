@@ -3,7 +3,7 @@
 /**
  * Eval OS panel
  * Inputs: local eval run artifacts from the Vite bridge plus optional manual JSON report files.
- * Outputs: read-only dashboard, run history, filtered task grid, and task-level evidence view.
+ * Outputs: read-only health dashboard, grouped run evidence, and task-level evidence view.
  * Side effects: browser fetches only; no eval artifact mutation.
  */
 
@@ -31,20 +31,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { EvalRunHistory } from "@/modules/evals/components/eval-run-history";
+import {
+  EvalHealthCards,
+  type EvalHealthTarget,
+  EvalTargetHealthDetail,
+} from "@/modules/evals/components/eval-health-cards";
+import { EvalRunGroupedList } from "@/modules/evals/components/eval-run-grouped-list";
 import { EvalTaskDetailPanel } from "@/modules/evals/components/eval-task-detail";
-import { EvalTaskGrid } from "@/modules/evals/components/eval-task-grid";
 import {
   AGGREGATE_RUN_ID,
   buildAggregateSummary,
   computeAggregateMetrics,
   formatScorePercent,
   getSkillCatalogIds,
+  type SkillCatalogEntry,
   type SkillCatalogResponse,
 } from "@/modules/evals/lib/eval-aggregate";
 import {
-  filterEvalTasks,
   formatPercent,
   formatRunDate,
   isEvalSummary,
@@ -58,8 +61,6 @@ import type {
   EvalRunsResponse,
   EvalSummary,
   EvalTaskDetail,
-  EvalTaskFilter,
-  EvalTaskScopeFilter,
 } from "@/modules/evals/lib/eval-types";
 
 type SkillEvalRunRow = {
@@ -73,7 +74,6 @@ type SkillEvalRunsResponse = {
 };
 
 type EvalMode = "aggregate" | "run";
-type SingleRunTab = "tasks" | "failures" | "artifacts";
 
 async function readJsonFileInput(file: File): Promise<unknown> {
   return JSON.parse(await file.text()) as unknown;
@@ -121,12 +121,12 @@ export function EvalOsPanel(): ReactElement {
   const [detailsByTaskId, setDetailsByTaskId] = useState<Record<string, EvalTaskDetail>>({});
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [query, setQuery] = useState(skillQuery);
-  const [filter, setFilter] = useState<EvalTaskFilter>("all");
-  const [scopeFilter, setScopeFilter] = useState<EvalTaskScopeFilter>("all");
   const [mode, setMode] = useState<EvalMode>(requestedRunId ? "run" : "aggregate");
-  const [singleRunTab, setSingleRunTab] = useState<SingleRunTab>("tasks");
+  const [healthTarget, setHealthTarget] = useState<EvalHealthTarget | null>(
+    skillQuery ? { kind: "skill", skillId: skillQuery } : null,
+  );
   const [skillCatalogIds, setSkillCatalogIds] = useState<string[]>([]);
+  const [skillCatalog, setSkillCatalog] = useState<SkillCatalogEntry[]>([]);
   const [status, setStatus] = useState("Loading eval artifacts...");
   const [error, setError] = useState<string | null>(null);
   const summaryInputRef = useRef<HTMLInputElement | null>(null);
@@ -148,6 +148,8 @@ export function EvalOsPanel(): ReactElement {
         newestTaskById.set(task.task_id, {
           ...task,
           reason: task.reason ?? payload.detailsByTaskId?.[task.task_id]?.judge?.reason,
+          run_id: payload.summary.job_id,
+          evaluated_at: payload.summary.completed_at ?? payload.summary.created_at,
         });
         const detail = payload.detailsByTaskId?.[task.task_id];
         if (detail) aggregateDetailsByTaskId[task.task_id] = detail;
@@ -243,9 +245,15 @@ export function EvalOsPanel(): ReactElement {
         const response = await fetch("/openclaw/skills/catalog");
         if (!response.ok) return;
         const payload = (await response.json()) as SkillCatalogResponse;
-        if (!cancelled) setSkillCatalogIds(getSkillCatalogIds(payload.skills ?? []));
+        if (!cancelled) {
+          setSkillCatalog(payload.skills ?? []);
+          setSkillCatalogIds(getSkillCatalogIds(payload.skills ?? []));
+        }
       } catch {
-        if (!cancelled) setSkillCatalogIds([]);
+        if (!cancelled) {
+          setSkillCatalog([]);
+          setSkillCatalogIds([]);
+        }
       }
     }
     void loadSkillCatalog();
@@ -256,8 +264,8 @@ export function EvalOsPanel(): ReactElement {
 
   useEffect(() => {
     if (!skillQuery) return;
-    setQuery(skillQuery);
     setMode("aggregate");
+    setHealthTarget({ kind: "skill", skillId: skillQuery });
   }, [skillQuery]);
 
   const health = useMemo(
@@ -267,10 +275,6 @@ export function EvalOsPanel(): ReactElement {
   const aggregateMetrics = useMemo(
     () => computeAggregateMetrics({ detailsByTaskId, skillCatalogIds, summary }),
     [detailsByTaskId, skillCatalogIds, summary],
-  );
-  const failingTasks = useMemo(
-    () => filterEvalTasks(summary?.tasks ?? [], detailsByTaskId, query, "fail", scopeFilter),
-    [detailsByTaskId, query, scopeFilter, summary?.tasks],
   );
   const selectedTask = summary?.tasks.find((task) => task.task_id === selectedTaskId) ?? null;
   const selectedDetail = selectedTask ? detailsByTaskId[selectedTask.task_id] : undefined;
@@ -530,125 +534,40 @@ export function EvalOsPanel(): ReactElement {
                   </span>
                 </div>
               </div>
-              <EvalTaskGrid
+              {healthTarget ? (
+                <EvalTargetHealthDetail
+                  target={healthTarget}
+                  tasks={summary.tasks}
+                  detailsByTaskId={detailsByTaskId}
+                  onBack={() => setHealthTarget(null)}
+                  onOpenTask={openTaskDetail}
+                />
+              ) : (
+                <EvalHealthCards
+                  catalog={skillCatalog}
+                  tasks={summary.tasks}
+                  detailsByTaskId={detailsByTaskId}
+                  onSelectTarget={setHealthTarget}
+                />
+              )}
+            </div>
+          ) : (
+            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <Badge variant={health.failureCount ? "destructive" : "secondary"}>
+                  {formatPercent(health.passRate)}
+                </Badge>
+                <span>{health.taskCount} cases</span>
+                <span>{health.failureCount} failing</span>
+                <span>{health.loadedDetailCount} details loaded</span>
+              </div>
+              <EvalRunGroupedList
+                catalog={skillCatalog}
                 tasks={summary.tasks}
                 detailsByTaskId={detailsByTaskId}
-                selectedTaskId={selectedTaskId}
-                query={query}
-                filter={filter}
-                scopeFilter={scopeFilter}
-                onQueryChange={setQuery}
-                onFilterChange={setFilter}
-                onScopeFilterChange={setScopeFilter}
                 onSelectTask={openTaskDetail}
               />
             </div>
-          ) : (
-            <Tabs
-              value={singleRunTab}
-              onValueChange={(value) => setSingleRunTab(value as SingleRunTab)}
-              className="flex min-h-0 flex-col overflow-hidden"
-            >
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <TabsList className="w-fit max-w-full flex-wrap justify-start">
-                  <TabsTrigger value="tasks">Tasks</TabsTrigger>
-                  <TabsTrigger value="failures">Failures</TabsTrigger>
-                  <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
-                </TabsList>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <Badge variant={health.failureCount ? "destructive" : "secondary"}>
-                    {formatPercent(health.passRate)}
-                  </Badge>
-                  <span>{health.taskCount} tasks</span>
-                  <span>{health.loadedDetailCount} details</span>
-                </div>
-              </div>
-
-              <TabsContent value="tasks" className="m-0 min-h-0 flex-1">
-                <EvalTaskGrid
-                  tasks={summary.tasks}
-                  detailsByTaskId={detailsByTaskId}
-                  selectedTaskId={selectedTaskId}
-                  query={query}
-                  filter={filter}
-                  scopeFilter={scopeFilter}
-                  onQueryChange={setQuery}
-                  onFilterChange={setFilter}
-                  onScopeFilterChange={setScopeFilter}
-                  onSelectTask={openTaskDetail}
-                />
-              </TabsContent>
-
-              <TabsContent value="failures" className="m-0 min-h-0 flex-1">
-                <EvalTaskGrid
-                  tasks={failingTasks}
-                  detailsByTaskId={detailsByTaskId}
-                  selectedTaskId={selectedTaskId}
-                  query={query}
-                  filter="all"
-                  scopeFilter={scopeFilter}
-                  onQueryChange={setQuery}
-                  onFilterChange={setFilter}
-                  onScopeFilterChange={setScopeFilter}
-                  onSelectTask={openTaskDetail}
-                />
-              </TabsContent>
-
-              <TabsContent value="artifacts" className="m-0 min-h-0 flex-1">
-                <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[22rem_minmax(0,1fr)]">
-                  <EvalRunHistory
-                    runs={runs}
-                    selectedRunId={selectedRunId}
-                    onSelectRun={(runId) =>
-                      void loadRun(runId).catch((nextError) => {
-                        setError(
-                          nextError instanceof Error ? nextError.message : "eval_run_load_failed",
-                        );
-                      })
-                    }
-                  />
-                  <div className="grid min-h-0 gap-3 md:grid-cols-2">
-                    <div className="rounded-md border p-4">
-                      <p className="text-sm font-semibold">Loaded Artifacts</p>
-                      <div className="mt-4 space-y-2 text-sm">
-                        <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
-                          <span className="text-muted-foreground">summary</span>
-                          <span className="truncate font-mono text-xs">{summary.job_id}</span>
-                        </div>
-                        <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
-                          <span className="text-muted-foreground">details</span>
-                          <span>{Object.keys(detailsByTaskId).length} loaded</span>
-                        </div>
-                        <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
-                          <span className="text-muted-foreground">suite</span>
-                          <span>{summary.suite ?? "--"}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="rounded-md border p-4">
-                      <p className="text-sm font-semibold">Manual Import</p>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        Import updates this panel without mutating eval artifacts.
-                      </p>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <Button type="button" onClick={() => summaryInputRef.current?.click()}>
-                          <Upload className="size-4" />
-                          Summary
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => detailsInputRef.current?.click()}
-                        >
-                          <FileJson2 className="size-4" />
-                          Details
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
           )}
 
           <Sheet open={isDetailOpen && Boolean(selectedTask)} onOpenChange={setIsDetailOpen}>

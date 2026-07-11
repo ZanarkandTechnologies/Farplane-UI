@@ -8,6 +8,8 @@ export type EvalTaskSummary = {
   reason?: string;
   detail_path?: string;
   tags?: string[];
+  run_id?: string;
+  evaluated_at?: string;
 };
 
 export type EvalSummary = {

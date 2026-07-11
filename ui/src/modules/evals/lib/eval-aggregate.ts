@@ -17,6 +17,9 @@ export const AGGREGATE_RUN_ID = "__aggregate_latest__";
 export type SkillCatalogEntry = {
   skillId?: string;
   name?: string;
+  displayName?: string;
+  description?: string;
+  tier?: number;
 };
 
 export type SkillCatalogResponse = {

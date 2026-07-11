@@ -53,6 +53,7 @@ type SkillPackageRecord = {
   skillMarkdown: string;
   displayName: string;
   description: string;
+  tier?: number;
   fileEntries: SkillStudioFileEntry[];
   demoCases: SkillDemoCase[];
 };
@@ -254,6 +255,7 @@ async function readSkillPackageRecord(
   const packageKey = toPosixPath(path.relative(skillsRoot, skillDir));
   const skillId = packageKey.split("/").at(-1) ?? packageKey;
   const frontmatter = extractSkillFrontmatter(skillMarkdown);
+  const frontmatterTier = Number(frontmatter.tier);
   const displayName = frontmatter.name?.trim() || titleCaseFromId(skillId);
   const manifest = deriveSkillManifest(manifestRaw, skillMarkdown, displayName);
   const fileEntries = await buildFileEntries(skillDir, repoRoot, manifest);
@@ -272,6 +274,7 @@ async function readSkillPackageRecord(
     skillMarkdown,
     displayName: manifest.interface.displayName,
     description: manifest.interface.shortDescription,
+    tier: Number.isFinite(frontmatterTier) ? frontmatterTier : undefined,
     fileEntries,
     demoCases,
   };
@@ -315,6 +318,7 @@ export async function listSkillStudioCatalog(
       displayName: record.displayName,
       description: record.description,
       category: record.category,
+      tier: record.tier,
       scope: runtimeStatus?.source.toLowerCase().includes("agent") ? "agent" : "shared",
       sourcePath: record.sourcePath,
       updatedAt: record.updatedAt,

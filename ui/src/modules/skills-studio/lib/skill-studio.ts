@@ -35,6 +35,7 @@ type YamlNode = string | number | boolean | null | YamlNode[] | { [key: string]:
 type ParsedFrontmatter = {
   name?: string;
   description?: string;
+  tier?: number;
 };
 
 const MERMAID_BLOCK_PATTERN = /```mermaid\s*([\s\S]*?)```/i;
@@ -347,6 +348,7 @@ export function extractSkillFrontmatter(markdown: string): ParsedFrontmatter {
   return {
     name: typeof parsed.name === "string" ? parsed.name : undefined,
     description: typeof parsed.description === "string" ? parsed.description : undefined,
+    tier: typeof parsed.tier === "number" ? parsed.tier : undefined,
   };
 }
 

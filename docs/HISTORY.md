@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-07-11 | ui | evals,skills,health | Replaced Eval OS's case-first navigation with a card-based health inventory and grouped evidence: Agent.md is a distinct global-contract entrypoint, every catalog skill is a tiered health card, and Single Run now shows compact evidence rows grouped by owning target without Tasks, Failures, or Artifacts tabs.
+
 2026-06-30 | feature | MEM-0250 | hooks,thread-data,mining,tickets | Upgraded ticket-completion audits from generic dry-run mining outputs into structured evaluation packets and scorecards: completed ticket runs now write packet.json/packet.md plus scorecard.json/scorecard.md with deterministic known/unknown metrics, bounded transcript context, mined decision refs, and ticket-folder evidence while keeping lesson/trouble upserts and full transcript embedding out of scope.
 
 2026-06-30 | ui | MEM-0249 | ui,team-workspace,thread-data,mining | Added Thread Data directly to Team Panel as the single thread/mining entrypoint, mounting the mining cockpit in-panel with Review, Programs, Sources, and Forking sub-tabs instead of splitting lineage and mining across duplicate top-level tabs.

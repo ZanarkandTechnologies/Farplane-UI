@@ -984,6 +984,7 @@ export interface SkillStudioCatalogEntry {
   displayName: string;
   description: string;
   category: string;
+  tier?: number;
   scope: "shared" | "agent";
   sourcePath: string;
   updatedAt?: number;
