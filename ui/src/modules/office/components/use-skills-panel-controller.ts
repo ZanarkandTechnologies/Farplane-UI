@@ -142,6 +142,7 @@ const FALLBACK_SKILL_CATALOG: SkillStudioCatalogEntry[] = [
   hasTests: skillId === "eval" || skillId === "skill-maintenance",
   hasDiagram: skillId === "skill-maintenance" || skillId === "skill-registry-ui",
   hasSkillMemory: false,
+  evalCount: 0,
 }));
 
 export function useSkillsPanelController(): ControllerResult {

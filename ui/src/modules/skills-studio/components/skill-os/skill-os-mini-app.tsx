@@ -22,6 +22,7 @@ import { SkillSidebar } from "./skill-sidebar";
 import { SkillWorkbench } from "./skill-workbench";
 import { useSkillGraphData } from "./use-skill-graph-data";
 import { useSkillInvocationCounts } from "./use-skill-invocation-counts";
+import { useSkillStudioDetail } from "./use-skill-studio-detail";
 
 type SkillOsTab = "workbench" | "rollout" | "templates" | "signals";
 
@@ -30,8 +31,14 @@ export function SkillOsMiniApp({
 }: {
   initialTab?: SkillOsTab;
 }): ReactElement {
-  const { docs, error, frameworkCoreGraph, graph, templateIntelligence, templateIntelligenceError } =
-    useSkillGraphData();
+  const {
+    docs,
+    error,
+    frameworkCoreGraph,
+    graph,
+    templateIntelligence,
+    templateIntelligenceError,
+  } = useSkillGraphData();
   const [activeOsTab, setActiveOsTab] = useState<SkillOsTab>(initialTab);
   const [query, setQuery] = useState("");
   const [selectedSkillId, setSelectedSkillId] = useState("");
@@ -102,6 +109,7 @@ export function SkillOsMiniApp({
     graph?.nodes.find((node) => node.id === selectedSkillId) ??
     null;
   const selectedDoc = selectedNode ? (docs?.skills[selectedNode.id] ?? null) : null;
+  const selectedDetail = useSkillStudioDetail(selectedNode?.id ?? "");
 
   function selectSkill(skillId: string): void {
     setSelectedSkillId(skillId);
@@ -187,6 +195,8 @@ export function SkillOsMiniApp({
                 onBack={() => setFullPage(false)}
                 onSelectSkill={selectSkill}
                 templateIntelligence={templateIntelligence}
+                evalPath={selectedDetail?.evalPath ?? selectedNode.eval}
+                evalSuite={selectedDetail?.evalSuite}
               />
             ) : null}
 
@@ -203,6 +213,8 @@ export function SkillOsMiniApp({
                 }}
                 onOpenFullPage={() => setFullPage(true)}
                 onSelectSkill={selectSkill}
+                evalCount={selectedDetail?.evalSuite?.evals.length ?? 0}
+                evalPath={selectedDetail?.evalPath ?? selectedNode.eval}
               />
             ) : null}
           </main>

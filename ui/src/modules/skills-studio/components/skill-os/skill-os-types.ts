@@ -2,6 +2,7 @@
 
 export type SkillGraphNode = {
   description?: string;
+  eval?: string;
   group?: string;
   has_checklist?: boolean;
   heat?: {

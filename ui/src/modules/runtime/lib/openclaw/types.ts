@@ -992,13 +992,45 @@ export interface SkillStudioCatalogEntry {
   hasTests: boolean;
   hasDiagram: boolean;
   hasSkillMemory: boolean;
+  evalPath?: string;
+  evalCount: number;
   runtimeStatus?: Pick<SkillStatusEntry, "eligible" | "blockedByAllowlist" | "disabled" | "source">;
 }
 
 export interface SkillStudioFileEntry {
   path: string;
-  kind: "skill" | "config" | "test" | "memory" | "fixture" | "asset" | "reference";
+  kind: "skill" | "config" | "eval" | "test" | "memory" | "fixture" | "asset" | "reference";
   isText: boolean;
+}
+
+export interface SkillEvalFarplaneMetadata {
+  title?: string;
+  context?: string;
+  tags?: string[];
+  notes?: string;
+  hardcase?: boolean;
+  difficulty?: string;
+  benchmark_value?: string;
+  sanitization_notes?: string;
+  expected_behavior?: string;
+  anti_patterns?: string[];
+  failure_modes?: string[];
+}
+
+export interface SkillEvalCase {
+  id: string;
+  prompt: string;
+  expected_output: string;
+  files: string[];
+  assertions: string[];
+  metadata?: {
+    farplane?: SkillEvalFarplaneMetadata;
+  };
+}
+
+export interface SkillEvalSuite {
+  skill_name: string;
+  evals: SkillEvalCase[];
 }
 
 export interface SkillStudioFileContent {
@@ -1055,6 +1087,8 @@ export interface SkillStudioDetail {
   relatedSkills: string[];
   fileEntries: SkillStudioFileEntry[];
   demoCases: SkillDemoCase[];
+  evalPath?: string;
+  evalSuite?: SkillEvalSuite;
   runtimeStatus?: SkillStatusEntry;
   focusAgentId?: string;
 }

@@ -25,7 +25,7 @@ refs:
 
 ```text
 eval tasks:
-  skills/*/eval_task.json
+  skills/*/evals/evals.json
   eval templates and examples
 
 eval runs:

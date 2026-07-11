@@ -23,6 +23,8 @@ describe("buildSkillWorkbenchModel", () => {
       },
       edges: [{ source: "example", target: "advise", type: "markdown-ref" }],
       invocationCount: 7,
+      evalCount: 2,
+      evalPath: "evals/evals.json",
       node: {
         description: "Example skill",
         id: "example",
@@ -41,5 +43,10 @@ describe("buildSkillWorkbenchModel", () => {
     expect(model.artifacts.find((artifact) => artifact.id === "frontmatter")?.detail).toBe(
       "2 keys",
     );
+    expect(model.evalCount).toBe(2);
+    expect(model.artifacts.find((artifact) => artifact.id === "evals")).toMatchObject({
+      available: true,
+      detail: "evals/evals.json",
+    });
   });
 });

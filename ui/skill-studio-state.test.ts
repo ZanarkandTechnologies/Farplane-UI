@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { getSkillStudioDetail, readSkillStudioFile, saveSkillStudioFile } from "./skill-studio-state";
+import { getSkillStudioDetail, listSkillStudioCatalog, parseSkillEvalSuite, readSkillStudioFile, saveSkillStudioFile } from "./skill-studio-state";
 
 const tempRoots: string[] = [];
 
@@ -20,6 +20,76 @@ afterEach(async () => {
 });
 
 describe("skill-studio-state file saves", () => {
+  it("loads the registry-owned canonical eval suite", async () => {
+    const repoRoot = await createTempDir("skill-studio-repo-");
+    const skillsRoot = path.join(repoRoot, "skills");
+    const skillDir = path.join(skillsRoot, "brainstorm");
+    await mkdir(path.join(repoRoot, "docs", "skills"), { recursive: true });
+    await mkdir(path.join(skillDir, "evals"), { recursive: true });
+    await writeFile(path.join(skillDir, "SKILL.md"), "# Brainstorm\n", "utf8");
+    await writeFile(
+      path.join(repoRoot, "docs", "skills", "registry.jsonl"),
+      `${JSON.stringify({ id: "brainstorm", path: "skills/brainstorm/SKILL.md", eval: "evals/evals.json" })}\n`,
+      "utf8",
+    );
+    await writeFile(path.join(skillDir, "evals", "evals.json"), JSON.stringify({
+      skill_name: "brainstorm",
+      evals: [{
+        id: "hardcase",
+        prompt: "Explore the decision.",
+        expected_output: "Three distinct directions.",
+        files: ["brief.md"],
+        assertions: ["Names tradeoffs"],
+        metadata: { farplane: { title: "Hard choice", tags: ["decision"], hardcase: true } },
+      }],
+    }), "utf8");
+
+    const detail = await getSkillStudioDetail(skillsRoot, repoRoot, "brainstorm");
+    const catalog = await listSkillStudioCatalog(skillsRoot, repoRoot);
+
+    expect(detail?.evalPath).toBe("evals/evals.json");
+    expect(detail?.evalSuite?.evals[0]?.prompt).toBe("Explore the decision.");
+    expect(detail?.evalSuite?.evals[0]?.metadata?.farplane?.hardcase).toBe(true);
+    expect(detail?.fileEntries).toContainEqual({ path: "evals/evals.json", kind: "eval", isText: true });
+    expect(catalog[0]?.evalCount).toBe(1);
+  });
+
+  it("rejects legacy skill-local eval fields instead of aliasing them", () => {
+    expect(parseSkillEvalSuite({
+      skill_name: "legacy",
+      evals: [{ id: "old", query: "old prompt", expected_output: "result", files: [], reference_points: [] }],
+    })).toBeNull();
+    expect(parseSkillEvalSuite({
+      skill_name: "legacy",
+      evals: [{
+        id: "mixed",
+        prompt: "canonical prompt",
+        query: "retired alias",
+        expected_output: "result",
+        files: [],
+        assertions: [],
+      }],
+    })).toBeNull();
+  });
+
+  it("requires the exact registry path and owning skill name", async () => {
+    const repoRoot = await createTempDir("skill-studio-repo-");
+    const skillsRoot = path.join(repoRoot, "skills");
+    const skillDir = path.join(skillsRoot, "strict-skill");
+    await mkdir(path.join(repoRoot, "docs", "skills"), { recursive: true });
+    await mkdir(path.join(skillDir, "custom"), { recursive: true });
+    await writeFile(path.join(skillDir, "SKILL.md"), "# Strict\n", "utf8");
+    await writeFile(path.join(repoRoot, "docs", "skills", "registry.jsonl"), `${JSON.stringify({
+      id: "strict-skill", path: "skills/strict-skill/SKILL.md", eval: "custom/suite.json",
+    })}\n`, "utf8");
+    await writeFile(path.join(skillDir, "custom", "suite.json"), JSON.stringify({
+      skill_name: "strict-skill", evals: [],
+    }), "utf8");
+
+    const detail = await getSkillStudioDetail(skillsRoot, repoRoot, "strict-skill");
+    expect(detail?.evalPath).toBeUndefined();
+    expect(parseSkillEvalSuite({ skill_name: "other", evals: [] }, "strict-skill")).toBeNull();
+  });
   it("loads nested skill packages by leaf skill id", async () => {
     const repoRoot = await createTempDir("skill-studio-repo-");
     const skillsRoot = path.join(repoRoot, "skills");

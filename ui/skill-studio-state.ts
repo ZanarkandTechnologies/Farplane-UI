@@ -21,6 +21,9 @@ import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import type {
   SkillDemoCase,
   SkillDemoRunResult,
+  SkillEvalCase,
+  SkillEvalFarplaneMetadata,
+  SkillEvalSuite,
   SkillManifest,
   SkillStatusEntry,
   SkillStudioCatalogEntry,
@@ -56,6 +59,8 @@ type SkillPackageRecord = {
   tier?: number;
   fileEntries: SkillStudioFileEntry[];
   demoCases: SkillDemoCase[];
+  evalPath?: string;
+  evalSuite?: SkillEvalSuite;
 };
 
 const TEXT_EXTENSIONS = new Set([".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".ts", ".tsx", ".js", ".jsx", ".css"]);
@@ -88,11 +93,126 @@ function classifySkillFile(filePath: string, skillDir: string, explicitReference
   const fileName = path.basename(filePath);
   if (fileName === "SKILL.md" || fileName === "skill.md") return "skill";
   if (fileName === "skill.config.yaml") return "config";
+  if (relative === "evals/evals.json") return "eval";
   if (relative === "MEMORY.md") return "memory";
   if (relative.startsWith("tests/")) return "test";
   if (relative.startsWith("fixtures/")) return "fixture";
   if (explicitReferenceSet.has(filePath)) return "reference";
   return "asset";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function stringArray(value: unknown): string[] | null {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string")
+    ? value
+    : null;
+}
+
+function parseFarplaneMetadata(value: unknown): SkillEvalFarplaneMetadata | undefined {
+  if (!isRecord(value)) return undefined;
+  const metadata: SkillEvalFarplaneMetadata = {};
+  for (const key of [
+    "title",
+    "context",
+    "notes",
+    "difficulty",
+    "benchmark_value",
+    "sanitization_notes",
+    "expected_behavior",
+  ] as const) {
+    if (typeof value[key] === "string") metadata[key] = value[key];
+  }
+  for (const key of ["tags", "anti_patterns", "failure_modes"] as const) {
+    const entries = stringArray(value[key]);
+    if (entries) metadata[key] = entries;
+  }
+  if (typeof value.hardcase === "boolean") metadata.hardcase = value.hardcase;
+  return Object.keys(metadata).length ? metadata : undefined;
+}
+
+function parseSkillEvalCase(value: unknown): SkillEvalCase | null {
+  if (!isRecord(value)) return null;
+  const allowedKeys = new Set(["id", "prompt", "expected_output", "files", "assertions", "metadata"]);
+  if (Object.keys(value).some((key) => !allowedKeys.has(key))) return null;
+  if (
+    typeof value.id !== "string" ||
+    typeof value.prompt !== "string" ||
+    typeof value.expected_output !== "string"
+  ) {
+    return null;
+  }
+  const files = stringArray(value.files);
+  const assertions = stringArray(value.assertions);
+  if (!files || !assertions) return null;
+  const metadataRow = isRecord(value.metadata) ? value.metadata : undefined;
+  if (metadataRow && Object.keys(metadataRow).some((key) => key !== "farplane")) return null;
+  const farplane = parseFarplaneMetadata(metadataRow?.farplane);
+  return {
+    id: value.id,
+    prompt: value.prompt,
+    expected_output: value.expected_output,
+    files,
+    assertions,
+    ...(farplane ? { metadata: { farplane } } : {}),
+  };
+}
+
+export function parseSkillEvalSuite(
+  value: unknown,
+  expectedSkillName?: string,
+): SkillEvalSuite | null {
+  if (!isRecord(value) || typeof value.skill_name !== "string" || !Array.isArray(value.evals)) {
+    return null;
+  }
+  if (Object.keys(value).some((key) => key !== "skill_name" && key !== "evals")) return null;
+  if (expectedSkillName && value.skill_name !== expectedSkillName) return null;
+  const evals = value.evals.map(parseSkillEvalCase);
+  if (evals.some((entry) => entry === null)) return null;
+  return { skill_name: value.skill_name, evals: evals as SkillEvalCase[] };
+}
+
+async function readRegistryEvalPath(
+  repoRoot: string,
+  skillDir: string,
+): Promise<string | undefined> {
+  const registryPath = path.join(repoRoot, "docs", "skills", "registry.jsonl");
+  const registry = await readFile(registryPath, "utf-8").catch(() => "");
+  const skillPath = toPosixPath(path.relative(repoRoot, path.join(skillDir, "SKILL.md")));
+  for (const line of registry.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    try {
+      const row = JSON.parse(line) as unknown;
+      if (!isRecord(row) || row.path !== skillPath || row.eval !== "evals/evals.json") continue;
+      const resolved = path.resolve(skillDir, row.eval);
+      if (!isWithin(skillDir, resolved)) return undefined;
+      return toPosixPath(row.eval);
+    } catch {
+      continue;
+    }
+  }
+  return undefined;
+}
+
+async function readSkillEvalSuite(
+  repoRoot: string,
+  skillDir: string,
+): Promise<{ evalPath?: string; evalSuite?: SkillEvalSuite }> {
+  const evalPath = await readRegistryEvalPath(repoRoot, skillDir);
+  if (!evalPath) return {};
+  const raw = await readFile(path.resolve(skillDir, evalPath), "utf-8").catch(() => null);
+  if (!raw) return { evalPath };
+  try {
+    const evalSuite = parseSkillEvalSuite(
+      JSON.parse(raw) as unknown,
+      path.basename(skillDir),
+    );
+    return evalSuite ? { evalPath, evalSuite } : { evalPath };
+  } catch {
+    return { evalPath };
+  }
 }
 
 async function walkFiles(rootDir: string): Promise<string[]> {
@@ -260,6 +380,7 @@ async function readSkillPackageRecord(
   const manifest = deriveSkillManifest(manifestRaw, skillMarkdown, displayName);
   const fileEntries = await buildFileEntries(skillDir, repoRoot, manifest);
   const demoCases = await buildDemoCases(skillDir);
+  const { evalPath, evalSuite } = await readSkillEvalSuite(repoRoot, skillDir);
   const skillStats = await stat(existingSkillPath);
   return {
     skillId,
@@ -277,6 +398,8 @@ async function readSkillPackageRecord(
     tier: Number.isFinite(frontmatterTier) ? frontmatterTier : undefined,
     fileEntries,
     demoCases,
+    evalPath,
+    evalSuite,
   };
 }
 
@@ -326,6 +449,8 @@ export async function listSkillStudioCatalog(
       hasTests: record.demoCases.length > 0,
       hasDiagram: Boolean(record.manifest.visualization.mermaid?.trim()),
       hasSkillMemory: record.manifest.state.mode === "skill_memory",
+      evalPath: record.evalPath,
+      evalCount: record.evalSuite?.evals.length ?? 0,
       runtimeStatus: runtimeStatus
         ? {
             eligible: runtimeStatus.eligible,
@@ -364,6 +489,8 @@ export async function getSkillStudioDetail(
     relatedSkills: record.manifest.dependencies.skills,
     fileEntries: record.fileEntries,
     demoCases: record.demoCases,
+    evalPath: record.evalPath,
+    evalSuite: record.evalSuite,
     runtimeStatus: matchRuntimeStatus(record.skillId, record.packageKey, runtimeStatuses),
     focusAgentId,
   };

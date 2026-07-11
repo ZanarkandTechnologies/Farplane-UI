@@ -1528,22 +1528,25 @@ async function resolveRepoSkillDirectory(skillId: string): Promise<string | null
   return null;
 }
 
-function getSkillStudioRoots(): string[] {
+type SkillStudioRoot = { root: string; repoRoot: string };
+
+function getSkillStudioRoots(): SkillStudioRoot[] {
   return [
-    PROJECT_AGENT_SKILLS_ROOT,
-    PROJECT_CODEX_SKILLS_ROOT,
-    SKILLS_ROOT,
-    CODEX_SKILLS_ROOT,
-  ].filter((root, index, roots) => {
-    return existsSync(root) && roots.indexOf(root) === index;
+    { root: path.join(FARPLANE_FRAMEWORK_ROOT, "skills"), repoRoot: FARPLANE_FRAMEWORK_ROOT },
+    { root: PROJECT_AGENT_SKILLS_ROOT, repoRoot: REPO_ROOT },
+    { root: PROJECT_CODEX_SKILLS_ROOT, repoRoot: REPO_ROOT },
+    { root: SKILLS_ROOT, repoRoot: REPO_ROOT },
+    { root: CODEX_SKILLS_ROOT, repoRoot: CODEX_HOME },
+  ].filter((entry, index, entries) => {
+    return existsSync(entry.root) && entries.findIndex((candidate) => candidate.root === entry.root) === index;
   });
 }
 
 async function listCombinedSkillStudioCatalog(): Promise<Awaited<ReturnType<typeof listSkillStudioCatalog>>> {
   const seen = new Set<string>();
   const merged: Awaited<ReturnType<typeof listSkillStudioCatalog>> = [];
-  for (const root of getSkillStudioRoots()) {
-    const rows = await listSkillStudioCatalog(root, REPO_ROOT).catch(() => []);
+  for (const { root, repoRoot } of getSkillStudioRoots()) {
+    const rows = await listSkillStudioCatalog(root, repoRoot).catch(() => []);
     for (const row of rows) {
       if (seen.has(row.skillId)) continue;
       seen.add(row.skillId);
@@ -1553,10 +1556,10 @@ async function listCombinedSkillStudioCatalog(): Promise<Awaited<ReturnType<type
   return merged.sort((a, b) => a.skillId.localeCompare(b.skillId));
 }
 
-async function resolveSkillStudioRoot(skillId: string): Promise<string | null> {
-  for (const root of getSkillStudioRoots()) {
-    const detail = await getSkillStudioDetail(root, REPO_ROOT, skillId).catch(() => null);
-    if (detail) return root;
+async function resolveSkillStudioRoot(skillId: string): Promise<SkillStudioRoot | null> {
+  for (const entry of getSkillStudioRoots()) {
+    const detail = await getSkillStudioDetail(entry.root, entry.repoRoot, skillId).catch(() => null);
+    if (detail) return entry;
   }
   return null;
 }
@@ -1565,8 +1568,8 @@ async function getCombinedSkillStudioDetail(
   skillId: string,
   agentId?: string,
 ): Promise<Awaited<ReturnType<typeof getSkillStudioDetail>>> {
-  const root = await resolveSkillStudioRoot(skillId);
-  return root ? getSkillStudioDetail(root, REPO_ROOT, skillId, [], agentId) : null;
+  const entry = await resolveSkillStudioRoot(skillId);
+  return entry ? getSkillStudioDetail(entry.root, entry.repoRoot, skillId, [], agentId) : null;
 }
 
 async function resolveAgentWorkspacePath(agentId: string): Promise<string> {
@@ -5246,7 +5249,7 @@ function farplaneStateBridge() {
             return;
           }
           const skillRoot = await resolveSkillStudioRoot(skillId);
-          const file = skillRoot ? await readSkillStudioFile(skillRoot, REPO_ROOT, skillId, filePath) : null;
+          const file = skillRoot ? await readSkillStudioFile(skillRoot.root, skillRoot.repoRoot, skillId, filePath) : null;
           if (!file) {
             writeJson(res, 404, { error: "skill_file_not_found" });
             return;
@@ -5272,7 +5275,7 @@ function farplaneStateBridge() {
           }
           const skillRoot = await resolveSkillStudioRoot(skillId);
           const file = skillRoot
-            ? await saveSkillStudioFile(skillRoot, REPO_ROOT, skillId, filePath, body.content)
+            ? await saveSkillStudioFile(skillRoot.root, skillRoot.repoRoot, skillId, filePath, body.content)
             : null;
           if (!file) {
             writeJson(res, 404, { error: "skill_file_not_writable" });
@@ -5292,7 +5295,9 @@ function farplaneStateBridge() {
             return;
           }
           const skillRoot = await resolveSkillStudioRoot(skillId);
-          const run = skillRoot ? await runSkillStudioDemo(skillRoot, REPO_ROOT, skillId, caseId) : null;
+          const run = skillRoot
+            ? await runSkillStudioDemo(skillRoot.root, skillRoot.repoRoot, skillId, caseId)
+            : null;
           if (!run) {
             writeJson(res, 404, { error: "skill_demo_not_found" });
             return;
@@ -5311,7 +5316,7 @@ function farplaneStateBridge() {
           const body = (await readBody(req)) as JsonObject;
           const skillRoot = await resolveSkillStudioRoot(skillId);
           const skill = skillRoot
-            ? await saveSkillStudioManifest(skillRoot, REPO_ROOT, skillId, {
+            ? await saveSkillStudioManifest(skillRoot.root, skillRoot.repoRoot, skillId, {
                 manifest:
                   body.manifest && typeof body.manifest === "object"
                     ? (body.manifest as Record<string, unknown> as never)

@@ -15,3 +15,10 @@ Rollout debt, heat, declared tier, and core relevance belong here because they a
 should be maintained or compounded next.
 
 Harness OS may link to Skill OS entrypoints, but it should not host skill rollout as a Harness OS tab.
+
+## Portable skill evals
+
+Skill registry rows may expose `eval: "evals/evals.json"`, relative to the owning skill package.
+Skill Studio loads the strict Agent Skills root `{ skill_name, evals }` and renders each case's
+`prompt`, `expected_output`, `files`, `assertions`, and optional `metadata.farplane` values.
+Global Eval OS run tasks remain a separate runner-native artifact family.

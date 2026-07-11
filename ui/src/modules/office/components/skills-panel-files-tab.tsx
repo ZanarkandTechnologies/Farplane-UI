@@ -14,7 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import type { SkillStudioFileContent } from "@/modules/runtime";
+import type { SkillEvalSuite, SkillStudioFileContent } from "@/modules/runtime";
+import { SkillEvalSuiteView } from "@/modules/skills-studio/components/skill-eval-suite-view";
 import type { SkillsPanelFileState, SkillsPanelSelectionState } from "./skills-panel-types";
 
 type Props = {
@@ -43,11 +44,16 @@ function formatJsonPreview(content: string): string {
 function SkillFilePreview({
   file,
   content,
+  evalSuite,
 }: {
   file: SkillStudioFileContent;
   content: string;
+  evalSuite?: SkillEvalSuite;
 }): ReactElement {
   const kind = filePreviewKind(file);
+  if (file.kind === "eval" && evalSuite) {
+    return <SkillEvalSuiteView suite={evalSuite} path={file.path} />;
+  }
   return (
     <div className="rounded-md border bg-muted/10">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
@@ -122,7 +128,11 @@ export function SkillsPanelFilesTab({
               <p className="text-xs text-muted-foreground">
                 This file is read-only from the viewer.
               </p>
-              <SkillFilePreview file={selectedFile} content={selectedFile.content ?? ""} />
+              <SkillFilePreview
+                file={selectedFile}
+                content={selectedFile.content ?? ""}
+                evalSuite={selectedDetail.evalSuite}
+              />
             </div>
           ) : (
             <div className="space-y-3">
@@ -134,7 +144,11 @@ export function SkillsPanelFilesTab({
                   <span className="text-xs text-muted-foreground">{fileSaveStatus}</span>
                 ) : null}
               </div>
-              <SkillFilePreview file={selectedFile} content={fileDraft} />
+              <SkillFilePreview
+                file={selectedFile}
+                content={fileDraft}
+                evalSuite={selectedDetail.evalSuite}
+              />
               <Textarea
                 className="min-h-[32rem] font-mono text-xs"
                 value={fileDraft}

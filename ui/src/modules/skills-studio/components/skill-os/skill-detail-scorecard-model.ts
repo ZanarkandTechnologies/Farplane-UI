@@ -82,7 +82,10 @@ function buildDirectHeatScore(node: SkillGraphNode, invocationCount: number): Sk
   };
 }
 
-function buildCompositionHeatScore(edges: SkillGraphEdge[], node: SkillGraphNode): SkillScoreSignal {
+function buildCompositionHeatScore(
+  edges: SkillGraphEdge[],
+  node: SkillGraphNode,
+): SkillScoreSignal {
   const incoming = edges.filter((edge) => edge.target === node.id);
   const referrers = new Set(incoming.map((edge) => edge.source));
   const chains = incoming.filter((edge) => edge.type === "common-chain").length;
@@ -140,14 +143,23 @@ function buildUniquenessScore({
   node: SkillGraphNode;
 }): SkillScoreSignal {
   const methods = Array.isArray(doc?.frontmatter?.methods) ? doc.frontmatter.methods.length : 0;
-  const outgoingTargets = new Set(edges.filter((edge) => edge.source === node.id).map((edge) => edge.target));
-  const proofSurface = hasText(model.evals) || hasText(model.qaTasks) || hasText(model.checklist);
+  const outgoingTargets = new Set(
+    edges.filter((edge) => edge.source === node.id).map((edge) => edge.target),
+  );
+  const proofSurface = model.evalCount > 0 || hasText(model.qaTasks) || hasText(model.checklist);
   const description = node.description?.trim() || doc?.frontmatter?.description;
-  const genericNamePenalty = /^(plan|review|execute|test|qa|research|summary|status)$/i.test(node.id)
+  const genericNamePenalty = /^(plan|review|execute|test|qa|research|summary|status)$/i.test(
+    node.id,
+  )
     ? 12
     : 0;
   const score = clampScore(
-    58 + Math.min(18, methods * 8) + Math.min(12, outgoingTargets.size * 3) + (proofSurface ? 10 : 0) + (description ? 8 : 0) - genericNamePenalty,
+    58 +
+      Math.min(18, methods * 8) +
+      Math.min(12, outgoingTargets.size * 3) +
+      (proofSurface ? 10 : 0) +
+      (description ? 8 : 0) -
+      genericNamePenalty,
   );
   return {
     detail: `${methods} methods / ${outgoingTargets.size} owned links`,
@@ -181,7 +193,8 @@ function buildGaps({
   return [
     {
       label: "eval coverage",
-      status: evalTaskCount >= EXPECTED_EVAL_COUNT ? "good" : evalTaskCount > 0 ? "risk" : "missing",
+      status:
+        evalTaskCount >= EXPECTED_EVAL_COUNT ? "good" : evalTaskCount > 0 ? "risk" : "missing",
       value: `${Math.min(evalTaskCount, EXPECTED_EVAL_COUNT)} / ${EXPECTED_EVAL_COUNT}`,
     },
     {
@@ -220,7 +233,8 @@ function recommendAction(signals: SkillScoreSignal[], gaps: SkillMaintenanceGap[
   if ((signalById.get("direct_heat") ?? 0) > 70 && (signalById.get("uniqueness") ?? 0) > 80) {
     return "Protect this hot distinct workflow.";
   }
-  if ((signalById.get("composition_heat") ?? 0) > 70) return "Keep stable; many skills compose through it.";
+  if ((signalById.get("composition_heat") ?? 0) > 70)
+    return "Keep stable; many skills compose through it.";
   return "Monitor; no urgent action.";
 }
 

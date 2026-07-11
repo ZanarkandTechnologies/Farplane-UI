@@ -25,6 +25,7 @@ describe("skills panel data helpers", () => {
           hasTests: true,
           hasDiagram: false,
           hasSkillMemory: false,
+          evalCount: 0,
         },
       ],
       {

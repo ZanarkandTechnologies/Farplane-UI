@@ -9,6 +9,8 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatPercent, formatRunDate } from "@/modules/evals/lib/eval-artifacts";
+import type { SkillEvalSuite } from "@/modules/runtime";
+import { SkillEvalSuiteView } from "../skill-eval-suite-view";
 import {
   buildSkillDetailScorecard,
   type SkillDetailScorecard,
@@ -53,7 +55,9 @@ function scoreTone(score: number): string {
   return "text-destructive";
 }
 
-function gapVariant(status: SkillMaintenanceGap["status"]): "default" | "secondary" | "destructive" | "outline" {
+function gapVariant(
+  status: SkillMaintenanceGap["status"],
+): "default" | "secondary" | "destructive" | "outline" {
   if (status === "good") return "secondary";
   if (status === "risk") return "default";
   if (status === "missing") return "destructive";
@@ -81,7 +85,9 @@ function ScorecardPanel({ scorecard }: { scorecard: SkillDetailScorecard }): Rea
       <section className="rounded-md border bg-card p-4">
         <p className="text-xs font-semibold uppercase text-muted-foreground">Skill Score</p>
         <div className="mt-4 flex items-end gap-2">
-          <span className={`text-6xl font-semibold leading-none tabular-nums ${scoreTone(scorecard.score)}`}>
+          <span
+            className={`text-6xl font-semibold leading-none tabular-nums ${scoreTone(scorecard.score)}`}
+          >
             {scorecard.score}
           </span>
           <span className="pb-1 text-sm text-muted-foreground">/100</span>
@@ -149,7 +155,12 @@ function EvalHistoryPanel({
                 : "No eval runs matched this skill yet."}
           </p>
         </div>
-        <Button type="button" size="sm" variant="outline" onClick={() => openEvalOsForSkill(skillId)}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => openEvalOsForSkill(skillId)}
+        >
           <ExternalLink className="size-4" />
           View all
         </Button>
@@ -171,9 +182,15 @@ function EvalHistoryPanel({
               className="grid grid-cols-[minmax(12rem,1fr)_8rem_6rem_6rem_minmax(8rem,0.7fr)] gap-3 border-b px-3 py-2 text-sm last:border-b-0"
             >
               <span className="min-w-0 truncate font-medium">{row.label}</span>
-              <span className="truncate text-xs text-muted-foreground">{formatRunDate(row.runDate)}</span>
+              <span className="truncate text-xs text-muted-foreground">
+                {formatRunDate(row.runDate)}
+              </span>
               <span>
-                <Badge variant={result === "fail" ? "destructive" : result === "pass" ? "secondary" : "outline"}>
+                <Badge
+                  variant={
+                    result === "fail" ? "destructive" : result === "pass" ? "secondary" : "outline"
+                  }
+                >
                   {result}
                 </Badge>
               </span>
@@ -229,10 +246,14 @@ function FileGraph({
   activeArtifact,
   model,
   onSelectArtifact,
+  evalPath,
+  evalSuite,
 }: {
   activeArtifact: SkillArtifactKind;
   model: SkillWorkbenchModel;
   onSelectArtifact: (artifact: SkillArtifactKind) => void;
+  evalPath?: string;
+  evalSuite?: SkillEvalSuite;
 }): ReactElement {
   return (
     <div className="grid min-h-[360px] gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
@@ -275,7 +296,12 @@ function FileGraph({
         </div>
       </div>
 
-      <ArtifactViewer activeArtifact={activeArtifact} model={model} />
+      <ArtifactViewer
+        activeArtifact={activeArtifact}
+        model={model}
+        evalPath={evalPath}
+        evalSuite={evalSuite}
+      />
     </div>
   );
 }
@@ -283,9 +309,13 @@ function FileGraph({
 function ArtifactViewer({
   activeArtifact,
   model,
+  evalPath,
+  evalSuite,
 }: {
   activeArtifact: SkillArtifactKind;
   model: SkillWorkbenchModel;
+  evalPath?: string;
+  evalSuite?: SkillEvalSuite;
 }): ReactElement {
   if (activeArtifact === "frontmatter") return <FrontmatterTable model={model} />;
   if (activeArtifact === "todo")
@@ -298,8 +328,13 @@ function ArtifactViewer({
   if (activeArtifact === "references") {
     return <MarkdownBlock label="references">{model.references}</MarkdownBlock>;
   }
-  if (activeArtifact === "evals")
-    return <MarkdownBlock label="eval hints">{model.evals}</MarkdownBlock>;
+  if (activeArtifact === "evals") {
+    return evalSuite && evalPath ? (
+      <SkillEvalSuiteView suite={evalSuite} path={evalPath} />
+    ) : (
+      <EmptyRenderer label="canonical eval suite" />
+    );
+  }
   if (activeArtifact === "ui") return <MarkdownBlock label="UI hints">{model.ui}</MarkdownBlock>;
   return <MarkdownBlock label="skill document">{model.raw}</MarkdownBlock>;
 }
@@ -312,6 +347,8 @@ export function SkillWorkbench({
   onBack,
   onSelectSkill,
   templateIntelligence,
+  evalPath,
+  evalSuite,
 }: {
   doc: SkillDoc | null;
   edges: SkillGraphEdge[];
@@ -320,16 +357,23 @@ export function SkillWorkbench({
   onBack: () => void;
   onSelectSkill: (skillId: string) => void;
   templateIntelligence: SkillTemplateIntelligencePayload | null;
+  evalPath?: string;
+  evalSuite?: SkillEvalSuite;
 }): ReactElement {
   const model = useMemo(
-    () => buildSkillWorkbenchModel({ doc, edges, invocationCount, node }),
-    [doc, edges, invocationCount, node],
+    () =>
+      buildSkillWorkbenchModel({
+        doc,
+        edges,
+        invocationCount,
+        node,
+        evalCount: evalSuite?.evals.length ?? 0,
+        evalPath,
+      }),
+    [doc, edges, invocationCount, node, evalPath, evalSuite],
   );
   const evalHistory = useSkillEvalHistory(node.id);
-  const evalTaskCount = useMemo(
-    () => new Set(evalHistory.rows.flatMap((row) => row.tasks.map((task) => task.task_id))).size,
-    [evalHistory.rows],
-  );
+  const evalTaskCount = evalSuite?.evals.length ?? 0;
   const scorecard = useMemo(
     () =>
       buildSkillDetailScorecard({
@@ -456,10 +500,16 @@ export function SkillWorkbench({
                 activeArtifact={activeArtifact}
                 model={model}
                 onSelectArtifact={setActiveArtifact}
+                evalPath={evalPath}
+                evalSuite={evalSuite}
               />
             </TabsContent>
             <TabsContent value="evals" className="m-0">
-              <MarkdownBlock label="eval hints">{model.evals}</MarkdownBlock>
+              {evalSuite && evalPath ? (
+                <SkillEvalSuiteView suite={evalSuite} path={evalPath} />
+              ) : (
+                <EmptyRenderer label="canonical eval suite" />
+              )}
             </TabsContent>
             <TabsContent value="ui" className="m-0">
               <MarkdownBlock label="UI hints">{model.ui}</MarkdownBlock>

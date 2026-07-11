@@ -33,7 +33,8 @@ export type SkillArtifactNode = {
 export type SkillWorkbenchModel = {
   artifacts: SkillArtifactNode[];
   checklist: string;
-  evals: string;
+  evalCount: number;
+  evalPath?: string;
   fileEdges: Array<{ source: SkillArtifactKind; target: SkillArtifactKind }>;
   frontmatterEntries: Array<[string, unknown]>;
   invocationCount: number;
@@ -93,11 +94,15 @@ export function buildSkillWorkbenchModel({
   edges,
   invocationCount,
   node,
+  evalCount = 0,
+  evalPath,
 }: {
   doc: SkillDoc | null;
   edges: SkillGraphEdge[];
   invocationCount: number;
   node: SkillGraphNode;
+  evalCount?: number;
+  evalPath?: string;
 }): SkillWorkbenchModel {
   const body = doc?.body ?? "";
   const checklistSection = extractHeadingSection(body, /checklist|done\s*\/\s*proof/i);
@@ -112,7 +117,6 @@ export function buildSkillWorkbenchModel({
     .filter(Boolean)
     .join("\n\n")
     .trim();
-  const evals = extractHeadingSection(body, /eval|rubric|judge/i);
   const ui = extractHeadingSection(body, /ui|interface|viewer|surface|panel/i);
   const outgoing = edges.filter((edge) => edge.source === node.id);
   const incoming = edges.filter((edge) => edge.target === node.id);
@@ -145,7 +149,12 @@ export function buildSkillWorkbenchModel({
       detail: "links and refs",
       available: hasText(references),
     },
-    { id: "evals", label: "evals", detail: "eval hints", available: hasText(evals) },
+    {
+      id: "evals",
+      label: "evals/evals.json",
+      detail: evalPath ?? "not registered",
+      available: evalCount > 0,
+    },
     { id: "ui", label: "ui", detail: "surface hints", available: hasText(ui) },
     { id: "raw", label: "raw files", detail: "embedded document", available: hasText(body) },
   ];
@@ -153,7 +162,8 @@ export function buildSkillWorkbenchModel({
   return {
     artifacts,
     checklist,
-    evals,
+    evalCount,
+    evalPath,
     fileEdges: artifacts.slice(1).map((artifact) => ({ source: "skill", target: artifact.id })),
     frontmatterEntries,
     invocationCount,

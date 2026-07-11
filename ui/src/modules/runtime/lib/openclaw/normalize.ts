@@ -6,100 +6,100 @@
  * MEMORY REFERENCES:
  * - MEM-0144
  */
+
+import { normalizeOfficeDecorSettings } from "@/modules/office/lib/office-decor";
+import {
+  DEFAULT_OFFICE_FOOTPRINT,
+  normalizeOfficeFootprint,
+} from "@/modules/office/lib/office-footprint";
+import {
+  getOfficeFootprintFromLayout,
+  normalizeOfficeLayout,
+} from "@/modules/office/lib/office-layout";
 import type {
-  AgentLiveStatus,
-  AgentMemoryEntry,
+  AgentCardModel,
   AgentFileEntry,
   AgentIdentityResult,
+  AgentLiveStatus,
+  AgentMemoryEntry,
   AgentsFilesGetResult,
   AgentsFilesListResult,
   AgentsFilesSetResult,
   AgentsListResult,
-  AgentCardModel,
+  BusinessConfigModel,
+  CapabilitySlotModel,
   ChannelAccountSnapshot,
-  ChannelUiMetaEntry,
+  ChannelBindingModel,
   ChannelsStatusSnapshot,
+  ChannelUiMetaEntry,
   ChatSendRequest,
-  CompanyOfficeObjectModel,
+  CompanyAgentModel,
   CompanyModel,
+  CompanyOfficeObjectModel,
   CronJob,
   CronStatus,
   DepartmentModel,
-  FederationProjectPolicy,
+  ExperimentModel,
   FederatedTaskModel,
+  FederationProjectPolicy,
   HeartbeatProfileModel,
+  HeartbeatWindow,
+  LedgerEntryModel,
+  MemoryItemModel,
+  MeshAssetModel,
+  MetricEventModel,
+  OfficeObjectSidecarModel,
+  OfficeSettingsModel,
   OpenClawConfigPreview,
   OpenClawConfigSnapshot,
-  ProviderIndexProfile,
-  ProjectModel,
+  PendingApprovalModel,
+  ProjectAccountEventModel,
+  ProjectAccountModel,
   ProjectArtefactEntry,
   ProjectArtefactGroup,
   ProjectArtefactIndexResult,
+  ProjectModel,
+  ProjectResourceModel,
   ProjectWorkloadSummary,
+  ProviderIndexProfile,
   ReconciliationWarning,
+  ResourceEventModel,
   RoleSlotModel,
+  SessionRowModel,
+  SessionTimelineEvent,
+  SessionTimelineModel,
+  SessionUsageSnapshot,
+  SessionUsageTotals,
+  SkillDemoCase,
+  SkillDemoRunResult,
+  SkillEvalCase,
+  SkillEvalFarplaneMetadata,
+  SkillEvalSuite,
+  SkillItemModel,
+  SkillManifest,
+  SkillManifestToolDependency,
   SkillStatusEntry,
   SkillStatusReport,
   SkillStudioCatalogEntry,
   SkillStudioDetail,
   SkillStudioFileContent,
   SkillStudioFileEntry,
-  SkillDemoCase,
-  SkillDemoRunResult,
-  SkillManifest,
-  SkillManifestToolDependency,
   TaskSyncState,
+  TeamBusinessSkillSyncResult,
   ToolCatalogEntry,
   ToolCatalogGroup,
   ToolCatalogProfile,
   ToolsCatalogResult,
   UnifiedOfficeModel,
-  MemoryItemModel,
-  SessionRowModel,
-  SessionTimelineEvent,
-  SessionTimelineModel,
-  SessionUsageSnapshot,
-  SessionUsageTotals,
-  HeartbeatWindow,
-  SkillItemModel,
-  CompanyAgentModel,
-  ChannelBindingModel,
-  OfficeObjectSidecarModel,
-  PendingApprovalModel,
-  OfficeSettingsModel,
-  MeshAssetModel,
-  LedgerEntryModel,
-  ProjectAccountModel,
-  ProjectAccountEventModel,
-  ExperimentModel,
-  MetricEventModel,
-  ProjectResourceModel,
-  ResourceEventModel,
-  CapabilitySlotModel,
-  BusinessConfigModel,
-  TeamBusinessSkillSyncResult,
 } from "./types";
-import { normalizeOfficeDecorSettings } from "@/modules/office/lib/office-decor";
-import {
-  getOfficeFootprintFromLayout,
-  normalizeOfficeLayout,
-} from "@/modules/office/lib/office-layout";
-import {
-  DEFAULT_OFFICE_FOOTPRINT,
-  normalizeOfficeFootprint,
-} from "@/modules/office/lib/office-footprint";
 
 type Json = Record<string, unknown>;
 const HEARTBEAT_START_PATTERN = /read\s+heartbeat\.md[\s\S]*current\s+time:/i;
 const HEARTBEAT_OK_PATTERN = /\bHEARTBEAT_OK\b/i;
-const HEARTBEAT_ERROR_PATTERN =
-  /\b(error|failed|exception|timeout|circuit_open)\b/i;
+const HEARTBEAT_ERROR_PATTERN = /\b(error|failed|exception|timeout|circuit_open)\b/i;
 const MAX_HEARTBEAT_BUBBLES = 3;
 
-export function normalizeArray<T>(
-  value: unknown,
-  map: (entry: unknown) => T | null,
-): T[] {
+export function normalizeArray<T>(value: unknown, map: (entry: unknown) => T | null): T[] {
   if (!Array.isArray(value)) return [];
   return value.map(map).filter((entry): entry is T => entry !== null);
 }
@@ -115,9 +115,7 @@ export function toAgent(entry: unknown): AgentCardModel | null {
       )
     : [];
   const deny = Array.isArray((row.toolPolicy as Json | undefined)?.deny)
-    ? ((row.toolPolicy as Json).deny as unknown[]).filter(
-        (v): v is string => typeof v === "string",
-      )
+    ? ((row.toolPolicy as Json).deny as unknown[]).filter((v): v is string => typeof v === "string")
     : [];
   return {
     agentId,
@@ -127,15 +125,11 @@ export function toAgent(entry: unknown): AgentCardModel | null {
     sandboxMode: String(row.sandboxMode ?? "off"),
     toolPolicy: { allow, deny },
     sessionCount: Number(row.sessionCount ?? 0),
-    lastUpdatedAt:
-      typeof row.lastUpdatedAt === "number" ? row.lastUpdatedAt : undefined,
+    lastUpdatedAt: typeof row.lastUpdatedAt === "number" ? row.lastUpdatedAt : undefined,
   };
 }
 
-export function toSession(
-  agentId: string,
-  entry: unknown,
-): SessionRowModel | null {
+export function toSession(agentId: string, entry: unknown): SessionRowModel | null {
   if (!entry || typeof entry !== "object") return null;
   const row = entry as Json;
   const sessionKey = String(row.sessionKey ?? row.key ?? "").trim();
@@ -177,8 +171,7 @@ export function toTimeline(
         sourceRaw === "unknown"
           ? sourceRaw
           : undefined;
-      const eventId =
-        typeof event.eventId === "string" ? event.eventId : undefined;
+      const eventId = typeof event.eventId === "string" ? event.eventId : undefined;
       return {
         ts,
         type: normalizedType,
@@ -228,31 +221,13 @@ function normalizeUsageNumber(value: unknown): number {
 
 function normalizeUsageTotals(entry: Json): SessionUsageTotals {
   return {
-    inputTokens: Math.max(
-      0,
-      Math.round(normalizeUsageNumber(entry.inputTokens)),
-    ),
-    outputTokens: Math.max(
-      0,
-      Math.round(normalizeUsageNumber(entry.outputTokens)),
-    ),
-    cacheReadTokens: Math.max(
-      0,
-      Math.round(normalizeUsageNumber(entry.cacheReadTokens)),
-    ),
-    cacheWriteTokens: Math.max(
-      0,
-      Math.round(normalizeUsageNumber(entry.cacheWriteTokens)),
-    ),
-    totalTokens: Math.max(
-      0,
-      Math.round(normalizeUsageNumber(entry.totalTokens)),
-    ),
+    inputTokens: Math.max(0, Math.round(normalizeUsageNumber(entry.inputTokens))),
+    outputTokens: Math.max(0, Math.round(normalizeUsageNumber(entry.outputTokens))),
+    cacheReadTokens: Math.max(0, Math.round(normalizeUsageNumber(entry.cacheReadTokens))),
+    cacheWriteTokens: Math.max(0, Math.round(normalizeUsageNumber(entry.cacheWriteTokens))),
+    totalTokens: Math.max(0, Math.round(normalizeUsageNumber(entry.totalTokens))),
     estimatedCostUsd: Math.max(0, normalizeUsageNumber(entry.estimatedCostUsd)),
-    responseCount: Math.max(
-      0,
-      Math.round(normalizeUsageNumber(entry.responseCount)),
-    ),
+    responseCount: Math.max(0, Math.round(normalizeUsageNumber(entry.responseCount))),
   };
 }
 
@@ -261,14 +236,11 @@ function normalizeUsageSnapshot(entry: Json): SessionUsageSnapshot {
     ...normalizeUsageTotals(entry),
     provider: typeof entry.provider === "string" ? entry.provider : undefined,
     model: typeof entry.model === "string" ? entry.model : undefined,
-    timestamp:
-      typeof entry.timestamp === "number" ? entry.timestamp : undefined,
+    timestamp: typeof entry.timestamp === "number" ? entry.timestamp : undefined,
   };
 }
 
-function normalizeUsageSummary(
-  entry: Json,
-): SessionTimelineModel["usageSummary"] {
+function normalizeUsageSummary(entry: Json): SessionTimelineModel["usageSummary"] {
   const totalsRaw =
     entry.sessionTotals && typeof entry.sessionTotals === "object"
       ? (entry.sessionTotals as Json)
@@ -278,21 +250,13 @@ function normalizeUsageSummary(
       ? (entry.lastResponse as Json)
       : null;
   const last24HoursRaw =
-    entry.last24Hours && typeof entry.last24Hours === "object"
-      ? (entry.last24Hours as Json)
-      : null;
+    entry.last24Hours && typeof entry.last24Hours === "object" ? (entry.last24Hours as Json) : null;
   const last7DaysRaw =
-    entry.last7Days && typeof entry.last7Days === "object"
-      ? (entry.last7Days as Json)
-      : null;
+    entry.last7Days && typeof entry.last7Days === "object" ? (entry.last7Days as Json) : null;
   return {
     sessionTotals: normalizeUsageTotals(totalsRaw),
-    ...(lastResponseRaw
-      ? { lastResponse: normalizeUsageSnapshot(lastResponseRaw) }
-      : {}),
-    ...(last24HoursRaw
-      ? { last24Hours: normalizeUsageTotals(last24HoursRaw) }
-      : {}),
+    ...(lastResponseRaw ? { lastResponse: normalizeUsageSnapshot(lastResponseRaw) } : {}),
+    ...(last24HoursRaw ? { last24Hours: normalizeUsageTotals(last24HoursRaw) } : {}),
     ...(last7DaysRaw ? { last7Days: normalizeUsageTotals(last7DaysRaw) } : {}),
   };
 }
@@ -376,10 +340,7 @@ export function parseHeartbeatWindows(
       if (current) {
         if (current.status === "running") {
           current.status = current.actionCount > 0 ? "ok" : "no_work";
-          current.summary =
-            current.actionCount > 0
-              ? "Heartbeat completed"
-              : "No work detected";
+          current.summary = current.actionCount > 0 ? "Heartbeat completed" : "No work detected";
         }
         windows.push(finalizeHeartbeatWindow(current, event.ts));
       }
@@ -405,8 +366,7 @@ export function parseHeartbeatWindows(
 
     if (HEARTBEAT_OK_PATTERN.test(event.text)) {
       current.status = current.actionCount > 0 ? "ok" : "no_work";
-      current.summary =
-        current.actionCount > 0 ? "Heartbeat completed" : "HEARTBEAT_OK";
+      current.summary = current.actionCount > 0 ? "Heartbeat completed" : "HEARTBEAT_OK";
       windows.push(finalizeHeartbeatWindow(current, event.ts));
       current = null;
       continue;
@@ -420,8 +380,7 @@ export function parseHeartbeatWindows(
       continue;
     }
 
-    const contributesAction =
-      event.role === "assistant" || event.type === "tool";
+    const contributesAction = event.role === "assistant" || event.type === "tool";
     if (contributesAction) current.actionCount += 1;
     for (const label of scoreBubbleLabel(event.text)) {
       current.bubbles.set(label, (current.bubbles.get(label) ?? 0) + 1);
@@ -492,8 +451,7 @@ export function toMemory(entry: unknown): MemoryItemModel | null {
     id,
     agentId: String(row.agentId ?? "main"),
     summary,
-    level:
-      row.level === "warning" || row.level === "critical" ? row.level : "info",
+    level: row.level === "warning" || row.level === "critical" ? row.level : "info",
     ts: typeof row.ts === "number" ? row.ts : Date.now(),
   };
 }
@@ -509,15 +467,12 @@ export function toAgentFileEntry(entry: unknown): AgentFileEntry | null {
     path: filePath,
     missing: row.missing === true,
     size: typeof row.size === "number" ? row.size : undefined,
-    updatedAtMs:
-      typeof row.updatedAtMs === "number" ? row.updatedAtMs : undefined,
+    updatedAtMs: typeof row.updatedAtMs === "number" ? row.updatedAtMs : undefined,
     content: typeof row.content === "string" ? row.content : undefined,
   };
 }
 
-export function toAgentsFilesListResult(
-  entry: unknown,
-): AgentsFilesListResult | null {
+export function toAgentsFilesListResult(entry: unknown): AgentsFilesListResult | null {
   if (!entry || typeof entry !== "object") return null;
   const row = entry as Json;
   const agentId = String(row.agentId ?? "").trim();
@@ -530,9 +485,7 @@ export function toAgentsFilesListResult(
   };
 }
 
-export function toAgentsFilesGetResult(
-  entry: unknown,
-): AgentsFilesGetResult | null {
+export function toAgentsFilesGetResult(entry: unknown): AgentsFilesGetResult | null {
   if (!entry || typeof entry !== "object") return null;
   const row = entry as Json;
   const agentId = String(row.agentId ?? "").trim();
@@ -542,9 +495,7 @@ export function toAgentsFilesGetResult(
   return { agentId, workspace, file };
 }
 
-export function toAgentsFilesSetResult(
-  entry: unknown,
-): AgentsFilesSetResult | null {
+export function toAgentsFilesSetResult(entry: unknown): AgentsFilesSetResult | null {
   const parsed = toAgentsFilesGetResult(entry);
   if (!parsed) return null;
   return { ok: true, ...parsed };
@@ -570,19 +521,11 @@ export function toProjectArtefactIndex(
   };
 }
 
-export function toToolCatalogProfile(
-  entry: unknown,
-): ToolCatalogProfile | null {
+export function toToolCatalogProfile(entry: unknown): ToolCatalogProfile | null {
   if (!entry || typeof entry !== "object") return null;
   const row = entry as Json;
   const id = String(row.id ?? "");
-  if (
-    id !== "minimal" &&
-    id !== "coding" &&
-    id !== "messaging" &&
-    id !== "full"
-  )
-    return null;
+  if (id !== "minimal" && id !== "coding" && id !== "messaging" && id !== "full") return null;
   return {
     id,
     label: String(row.label ?? id),
@@ -598,10 +541,7 @@ export function toToolCatalogEntry(entry: unknown): ToolCatalogEntry | null {
   const defaultProfiles = Array.isArray(row.defaultProfiles)
     ? row.defaultProfiles.filter(
         (value): value is "minimal" | "coding" | "messaging" | "full" =>
-          value === "minimal" ||
-          value === "coding" ||
-          value === "messaging" ||
-          value === "full",
+          value === "minimal" || value === "coding" || value === "messaging" || value === "full",
       )
     : [];
   return {
@@ -652,14 +592,11 @@ export function toChannelMetaEntry(entry: unknown): ChannelUiMetaEntry | null {
     id,
     label: String(row.label ?? id),
     detailLabel: String(row.detailLabel ?? ""),
-    systemImage:
-      typeof row.systemImage === "string" ? row.systemImage : undefined,
+    systemImage: typeof row.systemImage === "string" ? row.systemImage : undefined,
   };
 }
 
-export function toChannelAccountSnapshot(
-  entry: unknown,
-): ChannelAccountSnapshot | null {
+export function toChannelAccountSnapshot(entry: unknown): ChannelAccountSnapshot | null {
   if (!entry || typeof entry !== "object") return null;
   const row = entry as Json;
   const accountId = String(row.accountId ?? "").trim();
@@ -672,42 +609,30 @@ export function toChannelAccountSnapshot(
     linked: typeof row.linked === "boolean" ? row.linked : null,
     running: typeof row.running === "boolean" ? row.running : null,
     connected: typeof row.connected === "boolean" ? row.connected : null,
-    reconnectAttempts:
-      typeof row.reconnectAttempts === "number" ? row.reconnectAttempts : null,
-    lastConnectedAt:
-      typeof row.lastConnectedAt === "number" ? row.lastConnectedAt : null,
+    reconnectAttempts: typeof row.reconnectAttempts === "number" ? row.reconnectAttempts : null,
+    lastConnectedAt: typeof row.lastConnectedAt === "number" ? row.lastConnectedAt : null,
     lastError: typeof row.lastError === "string" ? row.lastError : null,
     lastStartAt: typeof row.lastStartAt === "number" ? row.lastStartAt : null,
     lastStopAt: typeof row.lastStopAt === "number" ? row.lastStopAt : null,
-    lastInboundAt:
-      typeof row.lastInboundAt === "number" ? row.lastInboundAt : null,
-    lastOutboundAt:
-      typeof row.lastOutboundAt === "number" ? row.lastOutboundAt : null,
+    lastInboundAt: typeof row.lastInboundAt === "number" ? row.lastInboundAt : null,
+    lastOutboundAt: typeof row.lastOutboundAt === "number" ? row.lastOutboundAt : null,
     lastProbeAt: typeof row.lastProbeAt === "number" ? row.lastProbeAt : null,
     mode: typeof row.mode === "string" ? row.mode : null,
     dmPolicy: typeof row.dmPolicy === "string" ? row.dmPolicy : null,
     allowFrom: Array.isArray(row.allowFrom)
-      ? row.allowFrom.filter(
-          (value): value is string => typeof value === "string",
-        )
+      ? row.allowFrom.filter((value): value is string => typeof value === "string")
       : null,
     tokenSource: typeof row.tokenSource === "string" ? row.tokenSource : null,
-    botTokenSource:
-      typeof row.botTokenSource === "string" ? row.botTokenSource : null,
-    appTokenSource:
-      typeof row.appTokenSource === "string" ? row.appTokenSource : null,
-    credentialSource:
-      typeof row.credentialSource === "string" ? row.credentialSource : null,
-    audienceType:
-      typeof row.audienceType === "string" ? row.audienceType : null,
+    botTokenSource: typeof row.botTokenSource === "string" ? row.botTokenSource : null,
+    appTokenSource: typeof row.appTokenSource === "string" ? row.appTokenSource : null,
+    credentialSource: typeof row.credentialSource === "string" ? row.credentialSource : null,
+    audienceType: typeof row.audienceType === "string" ? row.audienceType : null,
     audience: typeof row.audience === "string" ? row.audience : null,
     webhookPath: typeof row.webhookPath === "string" ? row.webhookPath : null,
     webhookUrl: typeof row.webhookUrl === "string" ? row.webhookUrl : null,
     baseUrl: typeof row.baseUrl === "string" ? row.baseUrl : null,
     allowUnmentionedGroups:
-      typeof row.allowUnmentionedGroups === "boolean"
-        ? row.allowUnmentionedGroups
-        : null,
+      typeof row.allowUnmentionedGroups === "boolean" ? row.allowUnmentionedGroups : null,
     cliPath: typeof row.cliPath === "string" ? row.cliPath : null,
     dbPath: typeof row.dbPath === "string" ? row.dbPath : null,
     port: typeof row.port === "number" ? row.port : null,
@@ -717,9 +642,7 @@ export function toChannelAccountSnapshot(
   };
 }
 
-export function toChannelsStatusSnapshot(
-  entry: unknown,
-): ChannelsStatusSnapshot | null {
+export function toChannelsStatusSnapshot(entry: unknown): ChannelsStatusSnapshot | null {
   if (!entry || typeof entry !== "object") return null;
   const row = entry as Json;
   const channelAccountsRaw =
@@ -728,51 +651,43 @@ export function toChannelsStatusSnapshot(
       : {};
   const channelAccounts: Record<string, ChannelAccountSnapshot[]> = {};
   for (const [channelId, accounts] of Object.entries(channelAccountsRaw)) {
-    channelAccounts[channelId] = normalizeArray(
-      accounts,
-      toChannelAccountSnapshot,
-    );
+    channelAccounts[channelId] = normalizeArray(accounts, toChannelAccountSnapshot);
   }
   const channelDefaultAccountIdRaw =
-    row.channelDefaultAccountId &&
-    typeof row.channelDefaultAccountId === "object"
+    row.channelDefaultAccountId && typeof row.channelDefaultAccountId === "object"
       ? (row.channelDefaultAccountId as Record<string, unknown>)
       : {};
   const channelDefaultAccountId = Object.fromEntries(
-    Object.entries(channelDefaultAccountIdRaw).map(([key, value]) => [
-      key,
-      String(value ?? ""),
-    ]),
+    Object.entries(channelDefaultAccountIdRaw).map(([key, value]) => [key, String(value ?? "")]),
   );
   return {
     ts: typeof row.ts === "number" ? row.ts : Date.now(),
     channelOrder: Array.isArray(row.channelOrder)
-      ? row.channelOrder.filter(
-          (value): value is string => typeof value === "string",
-        )
+      ? row.channelOrder.filter((value): value is string => typeof value === "string")
       : [],
     channelLabels:
       row.channelLabels && typeof row.channelLabels === "object"
         ? Object.fromEntries(
-            Object.entries(row.channelLabels as Record<string, unknown>).map(
-              ([key, value]) => [key, String(value ?? key)],
-            ),
+            Object.entries(row.channelLabels as Record<string, unknown>).map(([key, value]) => [
+              key,
+              String(value ?? key),
+            ]),
           )
         : {},
     channelDetailLabels:
       row.channelDetailLabels && typeof row.channelDetailLabels === "object"
         ? Object.fromEntries(
-            Object.entries(
-              row.channelDetailLabels as Record<string, unknown>,
-            ).map(([key, value]) => [key, String(value ?? "")]),
+            Object.entries(row.channelDetailLabels as Record<string, unknown>).map(
+              ([key, value]) => [key, String(value ?? "")],
+            ),
           )
         : undefined,
     channelSystemImages:
       row.channelSystemImages && typeof row.channelSystemImages === "object"
         ? Object.fromEntries(
-            Object.entries(
-              row.channelSystemImages as Record<string, unknown>,
-            ).map(([key, value]) => [key, String(value ?? "")]),
+            Object.entries(row.channelSystemImages as Record<string, unknown>).map(
+              ([key, value]) => [key, String(value ?? "")],
+            ),
           )
         : undefined,
     channelMeta: normalizeArray(row.channelMeta, toChannelMetaEntry),
@@ -802,14 +717,11 @@ export function toCronJob(entry: unknown): CronJob | null {
     id,
     agentId: typeof row.agentId === "string" ? row.agentId : undefined,
     name: String(row.name ?? id),
-    description:
-      typeof row.description === "string" ? row.description : undefined,
+    description: typeof row.description === "string" ? row.description : undefined,
     enabled: row.enabled !== false,
     deleteAfterRun: row.deleteAfterRun === true,
-    createdAtMs:
-      typeof row.createdAtMs === "number" ? row.createdAtMs : Date.now(),
-    updatedAtMs:
-      typeof row.updatedAtMs === "number" ? row.updatedAtMs : Date.now(),
+    createdAtMs: typeof row.createdAtMs === "number" ? row.createdAtMs : Date.now(),
+    updatedAtMs: typeof row.updatedAtMs === "number" ? row.updatedAtMs : Date.now(),
     schedule,
     sessionTarget: row.sessionTarget === "isolated" ? "isolated" : "main",
     wakeMode: row.wakeMode === "now" ? "now" : "next-heartbeat",
@@ -818,10 +730,7 @@ export function toCronJob(entry: unknown): CronJob | null {
       row.delivery && typeof row.delivery === "object"
         ? (row.delivery as CronJob["delivery"])
         : undefined,
-    state:
-      row.state && typeof row.state === "object"
-        ? (row.state as CronJob["state"])
-        : undefined,
+    state: row.state && typeof row.state === "object" ? (row.state as CronJob["state"]) : undefined,
   };
 }
 
@@ -831,8 +740,7 @@ export function toCronStatus(entry: unknown): CronStatus | null {
   return {
     enabled: row.enabled === true,
     jobs: typeof row.jobs === "number" ? row.jobs : 0,
-    nextWakeAtMs:
-      typeof row.nextWakeAtMs === "number" ? row.nextWakeAtMs : null,
+    nextWakeAtMs: typeof row.nextWakeAtMs === "number" ? row.nextWakeAtMs : null,
   };
 }
 
@@ -842,11 +750,8 @@ export function toSkillStatusEntry(entry: unknown): SkillStatusEntry | null {
   const name = String(row.name ?? "").trim();
   if (!name) return null;
   const requirements =
-    row.requirements && typeof row.requirements === "object"
-      ? (row.requirements as Json)
-      : {};
-  const missing =
-    row.missing && typeof row.missing === "object" ? (row.missing as Json) : {};
+    row.requirements && typeof row.requirements === "object" ? (row.requirements as Json) : {};
+  const missing = row.missing && typeof row.missing === "object" ? (row.missing as Json) : {};
   return {
     name,
     description: String(row.description ?? ""),
@@ -864,46 +769,30 @@ export function toSkillStatusEntry(entry: unknown): SkillStatusEntry | null {
     eligible: row.eligible !== false,
     requirements: {
       bins: Array.isArray(requirements.bins)
-        ? requirements.bins.filter(
-            (value): value is string => typeof value === "string",
-          )
+        ? requirements.bins.filter((value): value is string => typeof value === "string")
         : [],
       env: Array.isArray(requirements.env)
-        ? requirements.env.filter(
-            (value): value is string => typeof value === "string",
-          )
+        ? requirements.env.filter((value): value is string => typeof value === "string")
         : [],
       config: Array.isArray(requirements.config)
-        ? requirements.config.filter(
-            (value): value is string => typeof value === "string",
-          )
+        ? requirements.config.filter((value): value is string => typeof value === "string")
         : [],
       os: Array.isArray(requirements.os)
-        ? requirements.os.filter(
-            (value): value is string => typeof value === "string",
-          )
+        ? requirements.os.filter((value): value is string => typeof value === "string")
         : [],
     },
     missing: {
       bins: Array.isArray(missing.bins)
-        ? missing.bins.filter(
-            (value): value is string => typeof value === "string",
-          )
+        ? missing.bins.filter((value): value is string => typeof value === "string")
         : [],
       env: Array.isArray(missing.env)
-        ? missing.env.filter(
-            (value): value is string => typeof value === "string",
-          )
+        ? missing.env.filter((value): value is string => typeof value === "string")
         : [],
       config: Array.isArray(missing.config)
-        ? missing.config.filter(
-            (value): value is string => typeof value === "string",
-          )
+        ? missing.config.filter((value): value is string => typeof value === "string")
         : [],
       os: Array.isArray(missing.os)
-        ? missing.os.filter(
-            (value): value is string => typeof value === "string",
-          )
+        ? missing.os.filter((value): value is string => typeof value === "string")
         : [],
     },
     configChecks: Array.isArray(row.configChecks)
@@ -926,10 +815,7 @@ export function toSkillStatusEntry(entry: unknown): SkillStatusEntry | null {
             const kindRaw = String(install.kind ?? "");
             if (
               !id ||
-              (kindRaw !== "brew" &&
-                kindRaw !== "node" &&
-                kindRaw !== "go" &&
-                kindRaw !== "uv")
+              (kindRaw !== "brew" && kindRaw !== "node" && kindRaw !== "go" && kindRaw !== "uv")
             ) {
               return null;
             }
@@ -939,9 +825,7 @@ export function toSkillStatusEntry(entry: unknown): SkillStatusEntry | null {
               kind,
               label: String(install.label ?? id),
               bins: Array.isArray(install.bins)
-                ? install.bins.filter(
-                    (item): item is string => typeof item === "string",
-                  )
+                ? install.bins.filter((item): item is string => typeof item === "string")
                 : [],
             };
           })
@@ -950,9 +834,7 @@ export function toSkillStatusEntry(entry: unknown): SkillStatusEntry | null {
   };
 }
 
-function toSkillManifestToolDependency(
-  entry: unknown,
-): SkillManifestToolDependency | null {
+function toSkillManifestToolDependency(entry: unknown): SkillManifestToolDependency | null {
   if (!entry || typeof entry !== "object") return null;
   const row = entry as Json;
   const type = String(row.type ?? "").trim();
@@ -961,8 +843,7 @@ function toSkillManifestToolDependency(
   return {
     type,
     value,
-    description:
-      typeof row.description === "string" ? row.description : undefined,
+    description: typeof row.description === "string" ? row.description : undefined,
     transport: typeof row.transport === "string" ? row.transport : undefined,
     url: typeof row.url === "string" ? row.url : undefined,
   };
@@ -971,68 +852,38 @@ function toSkillManifestToolDependency(
 function toSkillManifest(entry: unknown): SkillManifest {
   const row = entry && typeof entry === "object" ? (entry as Json) : {};
   const interfaceRow =
-    row.interface && typeof row.interface === "object"
-      ? (row.interface as Json)
-      : {};
-  const policyRow =
-    row.policy && typeof row.policy === "object" ? (row.policy as Json) : {};
+    row.interface && typeof row.interface === "object" ? (row.interface as Json) : {};
+  const policyRow = row.policy && typeof row.policy === "object" ? (row.policy as Json) : {};
   const dependenciesRow =
-    row.dependencies && typeof row.dependencies === "object"
-      ? (row.dependencies as Json)
-      : {};
-  const stateRow =
-    row.state && typeof row.state === "object" ? (row.state as Json) : {};
-  const pathsRow =
-    row.paths && typeof row.paths === "object" ? (row.paths as Json) : {};
+    row.dependencies && typeof row.dependencies === "object" ? (row.dependencies as Json) : {};
+  const stateRow = row.state && typeof row.state === "object" ? (row.state as Json) : {};
+  const pathsRow = row.paths && typeof row.paths === "object" ? (row.paths as Json) : {};
   const visualizationRow =
-    row.visualization && typeof row.visualization === "object"
-      ? (row.visualization as Json)
-      : {};
-  const demosRow =
-    row.demos && typeof row.demos === "object" ? (row.demos as Json) : {};
+    row.visualization && typeof row.visualization === "object" ? (row.visualization as Json) : {};
+  const demosRow = row.demos && typeof row.demos === "object" ? (row.demos as Json) : {};
   const labelsRow =
-    demosRow.labels && typeof demosRow.labels === "object"
-      ? (demosRow.labels as Json)
-      : {};
+    demosRow.labels && typeof demosRow.labels === "object" ? (demosRow.labels as Json) : {};
 
   return {
     interface: {
       displayName: String(interfaceRow.displayName ?? ""),
       shortDescription: String(interfaceRow.shortDescription ?? ""),
-      iconSmall:
-        typeof interfaceRow.iconSmall === "string"
-          ? interfaceRow.iconSmall
-          : undefined,
-      iconLarge:
-        typeof interfaceRow.iconLarge === "string"
-          ? interfaceRow.iconLarge
-          : undefined,
-      brandColor:
-        typeof interfaceRow.brandColor === "string"
-          ? interfaceRow.brandColor
-          : undefined,
+      iconSmall: typeof interfaceRow.iconSmall === "string" ? interfaceRow.iconSmall : undefined,
+      iconLarge: typeof interfaceRow.iconLarge === "string" ? interfaceRow.iconLarge : undefined,
+      brandColor: typeof interfaceRow.brandColor === "string" ? interfaceRow.brandColor : undefined,
       defaultPrompt:
-        typeof interfaceRow.defaultPrompt === "string"
-          ? interfaceRow.defaultPrompt
-          : undefined,
+        typeof interfaceRow.defaultPrompt === "string" ? interfaceRow.defaultPrompt : undefined,
     },
     policy: {
       allowImplicitInvocation: policyRow.allowImplicitInvocation !== false,
     },
     dependencies: {
-      tools: normalizeArray(
-        dependenciesRow.tools,
-        toSkillManifestToolDependency,
-      ),
+      tools: normalizeArray(dependenciesRow.tools, toSkillManifestToolDependency),
       skills: Array.isArray(dependenciesRow.skills)
-        ? dependenciesRow.skills.filter(
-            (value): value is string => typeof value === "string",
-          )
+        ? dependenciesRow.skills.filter((value): value is string => typeof value === "string")
         : [],
       docs: Array.isArray(dependenciesRow.docs)
-        ? dependenciesRow.docs.filter(
-            (value): value is string => typeof value === "string",
-          )
+        ? dependenciesRow.docs.filter((value): value is string => typeof value === "string")
         : [],
     },
     state: {
@@ -1042,59 +893,39 @@ function toSkillManifest(entry: unknown): SkillManifest {
         stateRow.mode === "stateless"
           ? stateRow.mode
           : "stateless",
-      memoryFile:
-        typeof stateRow.memoryFile === "string"
-          ? stateRow.memoryFile
-          : undefined,
+      memoryFile: typeof stateRow.memoryFile === "string" ? stateRow.memoryFile : undefined,
     },
     paths: {
       read: Array.isArray(pathsRow.read)
-        ? pathsRow.read.filter(
-            (value): value is string => typeof value === "string",
-          )
+        ? pathsRow.read.filter((value): value is string => typeof value === "string")
         : [],
       write: Array.isArray(pathsRow.write)
-        ? pathsRow.write.filter(
-            (value): value is string => typeof value === "string",
-          )
+        ? pathsRow.write.filter((value): value is string => typeof value === "string")
         : [],
     },
     visualization: {
-      mermaid:
-        typeof visualizationRow.mermaid === "string"
-          ? visualizationRow.mermaid
-          : undefined,
+      mermaid: typeof visualizationRow.mermaid === "string" ? visualizationRow.mermaid : undefined,
     },
     references: Array.isArray(row.references)
-      ? row.references.filter(
-          (value): value is string => typeof value === "string",
-        )
+      ? row.references.filter((value): value is string => typeof value === "string")
       : [],
     demos: {
       defaultCaseId:
-        typeof demosRow.defaultCaseId === "string"
-          ? demosRow.defaultCaseId
-          : undefined,
+        typeof demosRow.defaultCaseId === "string" ? demosRow.defaultCaseId : undefined,
       labels: Object.fromEntries(
-        Object.entries(labelsRow).filter(
-          ([, value]) => typeof value === "string",
-        ),
+        Object.entries(labelsRow).filter(([, value]) => typeof value === "string"),
       ) as Record<string, string>,
     },
   };
 }
 
-export function toSkillStudioCatalogEntry(
-  entry: unknown,
-): SkillStudioCatalogEntry | null {
+export function toSkillStudioCatalogEntry(entry: unknown): SkillStudioCatalogEntry | null {
   if (!entry || typeof entry !== "object") return null;
   const row = entry as Json;
   const skillId = String(row.skillId ?? "").trim();
   if (!skillId) return null;
   const runtimeStatus =
-    row.runtimeStatus && typeof row.runtimeStatus === "object"
-      ? (row.runtimeStatus as Json)
-      : null;
+    row.runtimeStatus && typeof row.runtimeStatus === "object" ? (row.runtimeStatus as Json) : null;
   return {
     skillId,
     packageKey: String(row.packageKey ?? skillId),
@@ -1109,29 +940,27 @@ export function toSkillStudioCatalogEntry(
     hasTests: row.hasTests === true,
     hasDiagram: row.hasDiagram === true,
     hasSkillMemory: row.hasSkillMemory === true,
+    evalPath: typeof row.evalPath === "string" ? row.evalPath : undefined,
+    evalCount: typeof row.evalCount === "number" ? row.evalCount : 0,
     runtimeStatus: runtimeStatus
       ? {
           eligible: runtimeStatus.eligible !== false,
           blockedByAllowlist: runtimeStatus.blockedByAllowlist === true,
           disabled: runtimeStatus.disabled === true,
-          source:
-            typeof runtimeStatus.source === "string"
-              ? runtimeStatus.source
-              : "",
+          source: typeof runtimeStatus.source === "string" ? runtimeStatus.source : "",
         }
       : undefined,
   };
 }
 
-export function toSkillStudioFileContent(
-  entry: unknown,
-): SkillStudioFileContent | null {
+export function toSkillStudioFileContent(entry: unknown): SkillStudioFileContent | null {
   if (!entry || typeof entry !== "object") return null;
   const row = entry as Json;
   const filePath = String(row.path ?? "").trim();
   if (!filePath) return null;
   const kind =
     row.kind === "config" ||
+    row.kind === "eval" ||
     row.kind === "test" ||
     row.kind === "memory" ||
     row.kind === "fixture" ||
@@ -1148,6 +977,75 @@ export function toSkillStudioFileContent(
   };
 }
 
+function toStringArray(value: unknown): string[] | null {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string") ? value : null;
+}
+
+function toSkillEvalFarplaneMetadata(value: unknown): SkillEvalFarplaneMetadata | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const row = value as Json;
+  const metadata: SkillEvalFarplaneMetadata = {};
+  for (const key of [
+    "title",
+    "context",
+    "notes",
+    "difficulty",
+    "benchmark_value",
+    "sanitization_notes",
+    "expected_behavior",
+  ] as const) {
+    if (typeof row[key] === "string") metadata[key] = row[key];
+  }
+  for (const key of ["tags", "anti_patterns", "failure_modes"] as const) {
+    const entries = toStringArray(row[key]);
+    if (entries) metadata[key] = entries;
+  }
+  if (typeof row.hardcase === "boolean") metadata.hardcase = row.hardcase;
+  return Object.keys(metadata).length ? metadata : undefined;
+}
+
+function toSkillEvalCase(value: unknown): SkillEvalCase | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Json;
+  const allowedKeys = new Set(["id", "prompt", "expected_output", "files", "assertions", "metadata"]);
+  if (Object.keys(row).some((key) => !allowedKeys.has(key))) return null;
+  const files = toStringArray(row.files);
+  const assertions = toStringArray(row.assertions);
+  if (
+    typeof row.id !== "string" ||
+    typeof row.prompt !== "string" ||
+    typeof row.expected_output !== "string" ||
+    !files ||
+    !assertions
+  )
+    return null;
+  const metadata =
+    row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+      ? (row.metadata as Json)
+      : null;
+  if (metadata && Object.keys(metadata).some((key) => key !== "farplane")) return null;
+  const farplane = toSkillEvalFarplaneMetadata(metadata?.farplane);
+  return {
+    id: row.id,
+    prompt: row.prompt,
+    expected_output: row.expected_output,
+    files,
+    assertions,
+    ...(farplane ? { metadata: { farplane } } : {}),
+  };
+}
+
+function toSkillEvalSuite(value: unknown, expectedSkillName: string): SkillEvalSuite | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const row = value as Json;
+  if (typeof row.skill_name !== "string" || !Array.isArray(row.evals)) return undefined;
+  if (row.skill_name !== expectedSkillName) return undefined;
+  if (Object.keys(row).some((key) => key !== "skill_name" && key !== "evals")) return undefined;
+  const evals = row.evals.map(toSkillEvalCase);
+  if (evals.some((entry) => entry === null)) return undefined;
+  return { skill_name: row.skill_name, evals: evals as SkillEvalCase[] };
+}
+
 function toSkillDemoCase(entry: unknown): SkillDemoCase | null {
   if (!entry || typeof entry !== "object") return null;
   const row = entry as Json;
@@ -1162,9 +1060,7 @@ function toSkillDemoCase(entry: unknown): SkillDemoCase | null {
   };
 }
 
-export function toSkillDemoRunResult(
-  entry: unknown,
-): SkillDemoRunResult | null {
+export function toSkillDemoRunResult(entry: unknown): SkillDemoRunResult | null {
   if (!entry || typeof entry !== "object") return null;
   const row = entry as Json;
   const caseId = String(row.caseId ?? "").trim();
@@ -1177,9 +1073,7 @@ export function toSkillDemoRunResult(
     stdout: String(row.stdout ?? ""),
     stderr: String(row.stderr ?? ""),
     filesChecked: Array.isArray(row.filesChecked)
-      ? row.filesChecked.filter(
-          (value): value is string => typeof value === "string",
-        )
+      ? row.filesChecked.filter((value): value is string => typeof value === "string")
       : [],
     steps: Array.isArray(row.steps)
       ? row.steps
@@ -1188,19 +1082,14 @@ export function toSkillDemoRunResult(
             const step = value as Json;
             return {
               run: Array.isArray(step.run)
-                ? step.run.filter(
-                    (item): item is string => typeof item === "string",
-                  )
+                ? step.run.filter((item): item is string => typeof item === "string")
                 : [],
               stdout: String(step.stdout ?? ""),
               stderr: String(step.stderr ?? ""),
-              durationMs:
-                typeof step.durationMs === "number" ? step.durationMs : 0,
+              durationMs: typeof step.durationMs === "number" ? step.durationMs : 0,
               passed: step.passed === true,
               failures: Array.isArray(step.failures)
-                ? step.failures.filter(
-                    (item): item is string => typeof item === "string",
-                  )
+                ? step.failures.filter((item): item is string => typeof item === "string")
                 : [],
             };
           })
@@ -1229,9 +1118,7 @@ export function toSkillStudioDetail(entry: unknown): SkillStudioDetail | null {
     overviewMarkdown: String(row.overviewMarkdown ?? ""),
     mermaid: typeof row.mermaid === "string" ? row.mermaid : undefined,
     relatedSkills: Array.isArray(row.relatedSkills)
-      ? row.relatedSkills.filter(
-          (value): value is string => typeof value === "string",
-        )
+      ? row.relatedSkills.filter((value): value is string => typeof value === "string")
       : [],
     fileEntries: Array.isArray(row.fileEntries)
       ? row.fileEntries
@@ -1242,6 +1129,7 @@ export function toSkillStudioDetail(entry: unknown): SkillStudioDetail | null {
             if (!filePath) return null;
             const kind: SkillStudioFileEntry["kind"] =
               file.kind === "config" ||
+              file.kind === "eval" ||
               file.kind === "test" ||
               file.kind === "memory" ||
               file.kind === "fixture" ||
@@ -1258,9 +1146,10 @@ export function toSkillStudioDetail(entry: unknown): SkillStudioDetail | null {
           .filter((value): value is NonNullable<typeof value> => value !== null)
       : [],
     demoCases: normalizeArray(row.demoCases, toSkillDemoCase),
+    evalPath: typeof row.evalPath === "string" ? row.evalPath : undefined,
+    evalSuite: toSkillEvalSuite(row.evalSuite, skillId),
     runtimeStatus: toSkillStatusEntry(row.runtimeStatus) ?? undefined,
-    focusAgentId:
-      typeof row.focusAgentId === "string" ? row.focusAgentId : undefined,
+    focusAgentId: typeof row.focusAgentId === "string" ? row.focusAgentId : undefined,
   };
 }
 
@@ -1277,9 +1166,7 @@ export function toSkillStatusReport(entry: unknown): SkillStatusReport | null {
 export function toOfficeSettings(entry: unknown): OfficeSettingsModel {
   const row = entry && typeof entry === "object" ? (entry as Json) : {};
   const meshAssetDir =
-    typeof row.meshAssetDir === "string" && row.meshAssetDir.trim()
-      ? row.meshAssetDir.trim()
-      : "";
+    typeof row.meshAssetDir === "string" && row.meshAssetDir.trim() ? row.meshAssetDir.trim() : "";
   const layoutStrategy =
     row.layoutStrategy === "manual" ||
     row.layoutStrategy === "legacy" ||
@@ -1290,8 +1177,7 @@ export function toOfficeSettings(entry: unknown): OfficeSettingsModel {
     row.layoutStrategy === "command_districts"
       ? row.layoutStrategy
       : "team_neighborhoods";
-  const viewProfile =
-    row.viewProfile === "fixed_2_5d" ? "fixed_2_5d" : "free_orbit_3d";
+  const viewProfile = row.viewProfile === "fixed_2_5d" ? "fixed_2_5d" : "free_orbit_3d";
   const orbitControlsEnabled = row.orbitControlsEnabled !== false;
   const cameraOrientation =
     row.cameraOrientation === "north_east" ||
@@ -1302,10 +1188,7 @@ export function toOfficeSettings(entry: unknown): OfficeSettingsModel {
   const fallbackFootprint = normalizeOfficeFootprint(
     row.officeFootprint ?? DEFAULT_OFFICE_FOOTPRINT,
   );
-  const officeLayout = normalizeOfficeLayout(
-    row.officeLayout,
-    fallbackFootprint,
-  );
+  const officeLayout = normalizeOfficeLayout(row.officeLayout, fallbackFootprint);
   return {
     meshAssetDir,
     layoutStrategy,
@@ -1341,21 +1224,16 @@ export function toMeshAsset(entry: unknown): MeshAssetModel | null {
   };
 }
 
-export function toAgentMemoryEntry(
-  agentId: string,
-  entry: unknown,
-): AgentMemoryEntry | null {
+export function toAgentMemoryEntry(agentId: string, entry: unknown): AgentMemoryEntry | null {
   if (!entry || typeof entry !== "object") return null;
   const row = entry as Json;
   const id = String(row.id ?? "").trim();
   if (!id) return null;
   const sourcePath = String(row.sourcePath ?? "").trim();
-  const lineNumber =
-    typeof row.lineNumber === "number" ? row.lineNumber : Number.NaN;
+  const lineNumber = typeof row.lineNumber === "number" ? row.lineNumber : Number.NaN;
   const rawText = String(row.rawText ?? "").trim();
   const text = String(row.text ?? row.rawText ?? "").trim();
-  if (!sourcePath || !Number.isFinite(lineNumber) || !rawText || !text)
-    return null;
+  if (!sourcePath || !Number.isFinite(lineNumber) || !rawText || !text) return null;
   const type = String(row.type ?? "").trim();
   const normalizedType =
     type === "discovery" ||
@@ -1427,10 +1305,7 @@ export function toPendingApproval(entry: unknown): PendingApprovalModel | null {
       : "medium",
     createdAt: typeof row.createdAt === "number" ? row.createdAt : Date.now(),
     context: typeof row.context === "string" ? row.context : undefined,
-    status:
-      row.status === "approved" || row.status === "rejected"
-        ? row.status
-        : "pending",
+    status: row.status === "approved" || row.status === "rejected" ? row.status : "pending",
   };
 }
 
@@ -1528,9 +1403,7 @@ export function toCapabilitySlot(
   const skillId = String(row.skillId ?? "").trim();
   const categoryRaw = String(row.category ?? fallbackCategory);
   const category =
-    categoryRaw === "measure" ||
-    categoryRaw === "execute" ||
-    categoryRaw === "distribute"
+    categoryRaw === "measure" || categoryRaw === "execute" || categoryRaw === "distribute"
       ? categoryRaw
       : fallbackCategory;
   const configNode = asRecord(row.config);
@@ -1545,9 +1418,7 @@ export function toCapabilitySlot(
   };
 }
 
-export function toBusinessConfig(
-  entry: unknown,
-): BusinessConfigModel | undefined {
+export function toBusinessConfig(entry: unknown): BusinessConfigModel | undefined {
   const row = asRecord(entry);
   const type = String(row.type ?? "").trim();
   if (!type) return undefined;
@@ -1562,10 +1433,7 @@ export function toBusinessConfig(
   };
 }
 
-export function toLedgerEntry(
-  projectId: string,
-  entry: unknown,
-): LedgerEntryModel | null {
+export function toLedgerEntry(projectId: string, entry: unknown): LedgerEntryModel | null {
   const row = asRecord(entry);
   const id = String(row.id ?? "").trim();
   const timestamp = String(row.timestamp ?? "").trim();
@@ -1582,8 +1450,7 @@ export function toLedgerEntry(
     currency: String(row.currency ?? "USD"),
     source,
     description,
-    experimentId:
-      typeof row.experimentId === "string" ? row.experimentId : undefined,
+    experimentId: typeof row.experimentId === "string" ? row.experimentId : undefined,
   };
 }
 
@@ -1626,35 +1493,27 @@ export function toProjectAccountEvent(
     amountCents: Number.isFinite(amountCents) ? Math.round(amountCents) : 0,
     source,
     note: typeof row.note === "string" ? row.note : undefined,
-    balanceAfterCents: Number.isFinite(balanceAfterCents)
-      ? Math.round(balanceAfterCents)
-      : 0,
+    balanceAfterCents: Number.isFinite(balanceAfterCents) ? Math.round(balanceAfterCents) : 0,
   };
 }
 
-export function toExperiment(
-  projectId: string,
-  entry: unknown,
-): ExperimentModel | null {
+export function toExperiment(projectId: string, entry: unknown): ExperimentModel | null {
   const row = asRecord(entry);
   const id = String(row.id ?? "").trim();
   const hypothesis = String(row.hypothesis ?? "").trim();
   const startedAt = String(row.startedAt ?? "").trim();
   if (!id || !hypothesis || !startedAt) return null;
   const statusRaw = String(row.status ?? "running");
-  const status =
-    statusRaw === "completed" || statusRaw === "failed" ? statusRaw : "running";
+  const status = statusRaw === "completed" || statusRaw === "failed" ? statusRaw : "running";
   const metricsBeforeNode = asRecord(row.metricsBefore);
   const metricsAfterNode = asRecord(row.metricsAfter);
   const metricsBefore: Record<string, number> = {};
   const metricsAfter: Record<string, number> = {};
   for (const [key, value] of Object.entries(metricsBeforeNode)) {
-    if (typeof value === "number" && Number.isFinite(value))
-      metricsBefore[key] = value;
+    if (typeof value === "number" && Number.isFinite(value)) metricsBefore[key] = value;
   }
   for (const [key, value] of Object.entries(metricsAfterNode)) {
-    if (typeof value === "number" && Number.isFinite(value))
-      metricsAfter[key] = value;
+    if (typeof value === "number" && Number.isFinite(value)) metricsAfter[key] = value;
   }
   return {
     id,
@@ -1664,17 +1523,12 @@ export function toExperiment(
     startedAt,
     endedAt: typeof row.endedAt === "string" ? row.endedAt : undefined,
     results: typeof row.results === "string" ? row.results : undefined,
-    metricsBefore:
-      Object.keys(metricsBefore).length > 0 ? metricsBefore : undefined,
-    metricsAfter:
-      Object.keys(metricsAfter).length > 0 ? metricsAfter : undefined,
+    metricsBefore: Object.keys(metricsBefore).length > 0 ? metricsBefore : undefined,
+    metricsAfter: Object.keys(metricsAfter).length > 0 ? metricsAfter : undefined,
   };
 }
 
-export function toMetricEvent(
-  projectId: string,
-  entry: unknown,
-): MetricEventModel | null {
+export function toMetricEvent(projectId: string, entry: unknown): MetricEventModel | null {
   const row = asRecord(entry);
   const id = String(row.id ?? "").trim();
   const timestamp = String(row.timestamp ?? "").trim();
@@ -1683,8 +1537,7 @@ export function toMetricEvent(
   const metricsNode = asRecord(row.metrics);
   const metrics: Record<string, number> = {};
   for (const [key, value] of Object.entries(metricsNode)) {
-    if (typeof value === "number" && Number.isFinite(value))
-      metrics[key] = value;
+    if (typeof value === "number" && Number.isFinite(value)) metrics[key] = value;
   }
   if (Object.keys(metrics).length === 0) return null;
   return {
@@ -1713,22 +1566,16 @@ export function toResourceType(
 export function toResourceLowBehavior(
   entry: unknown,
 ): "warn" | "deprioritize_expensive_tasks" | "ask_pm_review" {
-  if (entry === "deprioritize_expensive_tasks" || entry === "ask_pm_review")
-    return entry;
+  if (entry === "deprioritize_expensive_tasks" || entry === "ask_pm_review") return entry;
   return "warn";
 }
 
-export function toResourceEventKind(
-  entry: unknown,
-): "refresh" | "consumption" | "adjustment" {
+export function toResourceEventKind(entry: unknown): "refresh" | "consumption" | "adjustment" {
   if (entry === "refresh" || entry === "consumption") return entry;
   return "adjustment";
 }
 
-export function toProjectResource(
-  projectId: string,
-  entry: unknown,
-): ProjectResourceModel | null {
+export function toProjectResource(projectId: string, entry: unknown): ProjectResourceModel | null {
   const row = asRecord(entry);
   const id = String(row.id ?? "").trim();
   const name = String(row.name ?? "").trim();
@@ -1760,22 +1607,15 @@ export function toProjectResource(
       : undefined,
     policy: {
       advisoryOnly: true,
-      softLimit: Number.isFinite(Number(policy.softLimit))
-        ? Number(policy.softLimit)
-        : undefined,
-      hardLimit: Number.isFinite(Number(policy.hardLimit))
-        ? Number(policy.hardLimit)
-        : undefined,
+      softLimit: Number.isFinite(Number(policy.softLimit)) ? Number(policy.softLimit) : undefined,
+      hardLimit: Number.isFinite(Number(policy.hardLimit)) ? Number(policy.hardLimit) : undefined,
       whenLow: toResourceLowBehavior(policy.whenLow),
     },
     metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
   };
 }
 
-export function toResourceEvent(
-  projectId: string,
-  entry: unknown,
-): ResourceEventModel | null {
+export function toResourceEvent(projectId: string, entry: unknown): ResourceEventModel | null {
   const row = asRecord(entry);
   const id = String(row.id ?? "").trim();
   const resourceId = String(row.resourceId ?? "").trim();
@@ -1818,8 +1658,7 @@ export function toProject(entry: unknown): ProjectModel | null {
     kpis: Array.isArray(row.kpis)
       ? row.kpis.filter((item): item is string => typeof item === "string")
       : [],
-    trackingContext:
-      typeof row.trackingContext === "string" ? row.trackingContext : undefined,
+    trackingContext: typeof row.trackingContext === "string" ? row.trackingContext : undefined,
     businessConfig: toBusinessConfig(row.businessConfig),
     account:
       toProjectAccount(id, row.account) ??
@@ -1828,27 +1667,17 @@ export function toProject(entry: unknown): ProjectModel | null {
             id: `${id}:account`,
             projectId: id,
             currency: "USD",
-            balanceCents:
-              accountEvents[accountEvents.length - 1]?.balanceAfterCents ?? 0,
+            balanceCents: accountEvents[accountEvents.length - 1]?.balanceAfterCents ?? 0,
             updatedAt:
-              accountEvents[accountEvents.length - 1]?.timestamp ??
-              new Date().toISOString(),
+              accountEvents[accountEvents.length - 1]?.timestamp ?? new Date().toISOString(),
           }
         : undefined),
     accountEvents,
     ledger,
-    experiments: normalizeArray(row.experiments, (item) =>
-      toExperiment(id, item),
-    ),
-    metricEvents: normalizeArray(row.metricEvents, (item) =>
-      toMetricEvent(id, item),
-    ),
-    resources: normalizeArray(row.resources, (item) =>
-      toProjectResource(id, item),
-    ),
-    resourceEvents: normalizeArray(row.resourceEvents, (item) =>
-      toResourceEvent(id, item),
-    ),
+    experiments: normalizeArray(row.experiments, (item) => toExperiment(id, item)),
+    metricEvents: normalizeArray(row.metricEvents, (item) => toMetricEvent(id, item)),
+    resources: normalizeArray(row.resources, (item) => toProjectResource(id, item)),
+    resourceEvents: normalizeArray(row.resourceEvents, (item) => toResourceEvent(id, item)),
   };
 }
 
@@ -1871,20 +1700,15 @@ export function toCompanyAgent(entry: unknown): CompanyAgentModel | null {
     agentId,
     role,
     projectId:
-      typeof row.projectId === "string" && row.projectId.trim()
-        ? row.projectId
-        : undefined,
+      typeof row.projectId === "string" && row.projectId.trim() ? row.projectId : undefined,
     heartbeatProfileId: String(row.heartbeatProfileId ?? ""),
     isCeo: Boolean(row.isCeo),
     lifecycleState:
-      lifecycle === "idle" ||
-      lifecycle === "pending_spawn" ||
-      lifecycle === "retired"
+      lifecycle === "idle" || lifecycle === "pending_spawn" || lifecycle === "retired"
         ? lifecycle
         : "active",
     presenceExpiresAt:
-      typeof row.presenceExpiresAt === "number" &&
-      Number.isFinite(row.presenceExpiresAt)
+      typeof row.presenceExpiresAt === "number" && Number.isFinite(row.presenceExpiresAt)
         ? row.presenceExpiresAt
         : undefined,
   };
@@ -1907,9 +1731,7 @@ export function toRoleSlot(entry: unknown): RoleSlotModel | null {
   return {
     projectId,
     role,
-    desiredCount: Number.isFinite(desiredCount)
-      ? Math.max(0, Math.floor(desiredCount))
-      : 0,
+    desiredCount: Number.isFinite(desiredCount) ? Math.max(0, Math.floor(desiredCount)) : 0,
     spawnPolicy: row.spawnPolicy === "manual" ? "manual" : "queue_pressure",
   };
 }
@@ -1923,9 +1745,7 @@ export function toTask(entry: unknown): FederatedTaskModel | null {
   const status = String(row.status ?? "todo");
   const priority = String(row.priority ?? "medium");
   const provider = String(row.provider ?? row.sourceProvider ?? "internal");
-  const canonicalProvider = String(
-    row.canonicalProvider ?? (provider || "internal"),
-  );
+  const canonicalProvider = String(row.canonicalProvider ?? (provider || "internal"));
   const syncState = String(row.syncState ?? "healthy");
   const artefactPathRaw =
     typeof row.artefactPath === "string"
@@ -1939,19 +1759,13 @@ export function toTask(entry: unknown): FederatedTaskModel | null {
     projectId,
     title,
     status:
-      status === "in_progress" ||
-      status === "review" ||
-      status === "blocked" ||
-      status === "done"
+      status === "in_progress" || status === "review" || status === "blocked" || status === "done"
         ? status
         : "todo",
-    ownerAgentId:
-      typeof row.ownerAgentId === "string" ? row.ownerAgentId : undefined,
+    ownerAgentId: typeof row.ownerAgentId === "string" ? row.ownerAgentId : undefined,
     priority: priority === "low" || priority === "high" ? priority : "medium",
     provider:
-      provider === "notion" || provider === "vibe" || provider === "linear"
-        ? provider
-        : "internal",
+      provider === "notion" || provider === "vibe" || provider === "linear" ? provider : "internal",
     canonicalProvider:
       canonicalProvider === "notion" ||
       canonicalProvider === "vibe" ||
@@ -1959,27 +1773,19 @@ export function toTask(entry: unknown): FederatedTaskModel | null {
         ? canonicalProvider
         : "internal",
     providerUrl:
-      typeof row.providerUrl === "string" && row.providerUrl.trim()
-        ? row.providerUrl
-        : undefined,
+      typeof row.providerUrl === "string" && row.providerUrl.trim() ? row.providerUrl : undefined,
     artefactPath,
     syncState:
-      syncState === "pending" ||
-      syncState === "conflict" ||
-      syncState === "error"
+      syncState === "pending" || syncState === "conflict" || syncState === "error"
         ? (syncState as TaskSyncState)
         : "healthy",
     syncError:
-      typeof row.syncError === "string" && row.syncError.trim()
-        ? row.syncError
-        : undefined,
+      typeof row.syncError === "string" && row.syncError.trim() ? row.syncError : undefined,
     updatedAt: typeof row.updatedAt === "number" ? row.updatedAt : Date.now(),
   };
 }
 
-export function toFederationPolicy(
-  entry: unknown,
-): FederationProjectPolicy | null {
+export function toFederationPolicy(entry: unknown): FederationProjectPolicy | null {
   const row = asRecord(entry);
   const projectId = String(row.projectId ?? "").trim();
   if (!projectId) return null;
@@ -1990,10 +1796,7 @@ export function toFederationPolicy(
         .map((value) => value.trim())
         .filter(
           (value) =>
-            value === "internal" ||
-            value === "notion" ||
-            value === "vibe" ||
-            value === "linear",
+            value === "internal" || value === "notion" || value === "vibe" || value === "linear",
         )
     : [];
   const conflictPolicy = String(row.conflictPolicy ?? "canonical_wins");
@@ -2007,8 +1810,7 @@ export function toFederationPolicy(
         : "internal",
     mirrors,
     writeBackEnabled: row.writeBackEnabled === true,
-    conflictPolicy:
-      conflictPolicy === "newest_wins" ? "newest_wins" : "canonical_wins",
+    conflictPolicy: conflictPolicy === "newest_wins" ? "newest_wins" : "canonical_wins",
   };
 }
 
@@ -2020,9 +1822,7 @@ export function hashSchemaVersion(input: string): string {
   return `schema-${Math.abs(hash)}`;
 }
 
-export function toProviderIndexProfile(
-  entry: unknown,
-): ProviderIndexProfile | null {
+export function toProviderIndexProfile(entry: unknown): ProviderIndexProfile | null {
   const row = asRecord(entry);
   const projectId = String(row.projectId ?? "").trim();
   const provider = String(row.provider ?? "notion");
@@ -2038,14 +1838,9 @@ export function toProviderIndexProfile(
           return {
             name,
             type,
-            description:
-              typeof value.description === "string"
-                ? value.description
-                : undefined,
+            description: typeof value.description === "string" ? value.description : undefined,
             options: Array.isArray(value.options)
-              ? value.options.filter(
-                  (item): item is string => typeof item === "string",
-                )
+              ? value.options.filter((item): item is string => typeof item === "string")
               : undefined,
           };
         })
@@ -2060,24 +1855,15 @@ export function toProviderIndexProfile(
     profileId: String(row.profileId ?? `${projectId}:${provider}:${entityId}`),
     projectId,
     provider:
-      provider === "internal" || provider === "vibe" || provider === "linear"
-        ? provider
-        : "notion",
+      provider === "internal" || provider === "vibe" || provider === "linear" ? provider : "notion",
     entityId,
     entityName: String(row.entityName ?? entityId),
-    toolNamingPrefix:
-      typeof row.toolNamingPrefix === "string"
-        ? row.toolNamingPrefix
-        : undefined,
+    toolNamingPrefix: typeof row.toolNamingPrefix === "string" ? row.toolNamingPrefix : undefined,
     fetchCommandHints: Array.isArray(row.fetchCommandHints)
-      ? row.fetchCommandHints.filter(
-          (item): item is string => typeof item === "string",
-        )
+      ? row.fetchCommandHints.filter((item): item is string => typeof item === "string")
       : [],
     fieldMappings: fields,
-    schemaVersion: String(
-      row.schemaVersion ?? hashSchemaVersion(schemaPayload),
-    ),
+    schemaVersion: String(row.schemaVersion ?? hashSchemaVersion(schemaPayload)),
     updatedAt: typeof row.updatedAt === "number" ? row.updatedAt : Date.now(),
   };
 }
@@ -2090,9 +1876,7 @@ export function resolveCanonicalWriteProvider(
   return policy.canonicalProvider;
 }
 
-export function toHeartbeatProfile(
-  entry: unknown,
-): HeartbeatProfileModel | null {
+export function toHeartbeatProfile(entry: unknown): HeartbeatProfileModel | null {
   const row = asRecord(entry);
   const id = String(row.id ?? "").trim();
   const role = String(row.role ?? "");
@@ -2110,9 +1894,7 @@ export function toHeartbeatProfile(
   return {
     id,
     role,
-    cadenceMinutes: Number.isFinite(cadenceMinutes)
-      ? Math.max(1, Math.floor(cadenceMinutes))
-      : 10,
+    cadenceMinutes: Number.isFinite(cadenceMinutes) ? Math.max(1, Math.floor(cadenceMinutes)) : 10,
     teamDescription: String(row.teamDescription ?? ""),
     productDetails: String(row.productDetails ?? ""),
     goal: String(row.goal ?? ""),
@@ -2142,16 +1924,12 @@ export function toChannelBinding(entry: unknown): ChannelBindingModel | null {
     externalChannelId,
     projectId,
     agentRole,
-    agentIdOverride:
-      typeof row.agentIdOverride === "string" ? row.agentIdOverride : undefined,
-    routingMode:
-      row.routingMode === "override_agent" ? "override_agent" : "default_pm",
+    agentIdOverride: typeof row.agentIdOverride === "string" ? row.agentIdOverride : undefined,
+    routingMode: row.routingMode === "override_agent" ? "override_agent" : "default_pm",
   };
 }
 
-export function toOfficeObject(
-  entry: unknown,
-): CompanyOfficeObjectModel | null {
+export function toOfficeObject(entry: unknown): CompanyOfficeObjectModel | null {
   const row = asRecord(entry);
   const id = String(row.id ?? "").trim();
   const meshType = String(row.meshType ?? "");
@@ -2170,16 +1948,12 @@ export function toOfficeObject(
     return null;
   }
   const positionInput = Array.isArray(row.position) ? row.position : [];
-  if (
-    positionInput.length !== 3 ||
-    positionInput.some((value) => typeof value !== "number")
-  )
+  if (positionInput.length !== 3 || positionInput.some((value) => typeof value !== "number"))
     return null;
   const px = Number(positionInput[0]);
   const py = Number(positionInput[1]);
   const pz = Number(positionInput[2]);
-  if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pz))
-    return null;
+  if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pz)) return null;
   const rotationInput = Array.isArray(row.rotation) ? row.rotation : undefined;
   const scaleInput = Array.isArray(row.scale) ? row.scale : undefined;
   return {
@@ -2190,11 +1964,7 @@ export function toOfficeObject(
       rotationInput &&
       rotationInput.length === 3 &&
       rotationInput.every((value) => typeof value === "number")
-        ? [
-            Number(rotationInput[0]),
-            Number(rotationInput[1]),
-            Number(rotationInput[2]),
-          ]
+        ? [Number(rotationInput[0]), Number(rotationInput[1]), Number(rotationInput[2])]
         : undefined,
     scale:
       scaleInput &&
@@ -2210,9 +1980,7 @@ export function toOfficeObject(
   };
 }
 
-export function toOfficeObjectSidecar(
-  entry: unknown,
-): OfficeObjectSidecarModel | null {
+export function toOfficeObjectSidecar(entry: unknown): OfficeObjectSidecarModel | null {
   const row = asRecord(entry);
   const id = String(row.id ?? row._id ?? row.identifier ?? "").trim();
   const identifier = String(row.identifier ?? id).trim();
@@ -2232,16 +2000,12 @@ export function toOfficeObjectSidecar(
     return null;
   }
   const positionInput = Array.isArray(row.position) ? row.position : [];
-  if (
-    positionInput.length !== 3 ||
-    positionInput.some((value) => typeof value !== "number")
-  )
+  if (positionInput.length !== 3 || positionInput.some((value) => typeof value !== "number"))
     return null;
   const px = Number(positionInput[0]);
   const py = Number(positionInput[1]);
   const pz = Number(positionInput[2]);
-  if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pz))
-    return null;
+  if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pz)) return null;
   const rotationInput = Array.isArray(row.rotation) ? row.rotation : undefined;
   const scaleInput = Array.isArray(row.scale) ? row.scale : undefined;
   return {
@@ -2253,11 +2017,7 @@ export function toOfficeObjectSidecar(
       rotationInput &&
       rotationInput.length === 3 &&
       rotationInput.every((value) => typeof value === "number")
-        ? [
-            Number(rotationInput[0]),
-            Number(rotationInput[1]),
-            Number(rotationInput[2]),
-          ]
+        ? [Number(rotationInput[0]), Number(rotationInput[1]), Number(rotationInput[2])]
         : undefined,
     scale:
       scaleInput &&
@@ -2274,9 +2034,7 @@ export function toOfficeObjectSidecar(
 
 export function toCanonicalOfficeObjectId(id: string): string {
   const trimmed = id.trim();
-  return trimmed.startsWith("office-")
-    ? trimmed.slice("office-".length)
-    : trimmed;
+  return trimmed.startsWith("office-") ? trimmed.slice("office-".length) : trimmed;
 }
 
 export function normalizeCompanyModel(value: unknown): CompanyModel {
@@ -2286,25 +2044,15 @@ export function normalizeCompanyModel(value: unknown): CompanyModel {
   const agents = normalizeArray(row.agents, toCompanyAgent);
   const roleSlots = normalizeArray(row.roleSlots, toRoleSlot);
   const tasks = normalizeArray(row.tasks, toTask);
-  const federationPolicies = normalizeArray(
-    row.federationPolicies,
-    toFederationPolicy,
-  );
-  const providerIndexProfiles = normalizeArray(
-    row.providerIndexProfiles,
-    toProviderIndexProfile,
-  );
-  const heartbeatProfiles = normalizeArray(
-    row.heartbeatProfiles,
-    toHeartbeatProfile,
-  );
+  const federationPolicies = normalizeArray(row.federationPolicies, toFederationPolicy);
+  const providerIndexProfiles = normalizeArray(row.providerIndexProfiles, toProviderIndexProfile);
+  const heartbeatProfiles = normalizeArray(row.heartbeatProfiles, toHeartbeatProfile);
   const channelBindings = normalizeArray(row.channelBindings, toChannelBinding);
   const officeObjects = normalizeArray(row.officeObjects, toOfficeObject);
   const runtime = asRecord(row.heartbeatRuntime);
   return {
     version: Number(row.version ?? 1),
-    departments:
-      departments.length > 0 ? departments : DEFAULT_COMPANY_MODEL.departments,
+    departments: departments.length > 0 ? departments : DEFAULT_COMPANY_MODEL.departments,
     projects,
     agents: agents.length > 0 ? agents : DEFAULT_COMPANY_MODEL.agents,
     roleSlots,
@@ -2312,24 +2060,15 @@ export function normalizeCompanyModel(value: unknown): CompanyModel {
     federationPolicies,
     providerIndexProfiles,
     heartbeatProfiles:
-      heartbeatProfiles.length > 0
-        ? heartbeatProfiles
-        : DEFAULT_COMPANY_MODEL.heartbeatProfiles,
+      heartbeatProfiles.length > 0 ? heartbeatProfiles : DEFAULT_COMPANY_MODEL.heartbeatProfiles,
     channelBindings,
     heartbeatRuntime: {
       enabled: runtime.enabled !== false,
-      pluginId: String(
-        runtime.pluginId ?? DEFAULT_COMPANY_MODEL.heartbeatRuntime.pluginId,
-      ),
-      serviceId: String(
-        runtime.serviceId ?? DEFAULT_COMPANY_MODEL.heartbeatRuntime.serviceId,
-      ),
+      pluginId: String(runtime.pluginId ?? DEFAULT_COMPANY_MODEL.heartbeatRuntime.pluginId),
+      serviceId: String(runtime.serviceId ?? DEFAULT_COMPANY_MODEL.heartbeatRuntime.serviceId),
       cadenceMinutes: Math.max(
         1,
-        Number(
-          runtime.cadenceMinutes ??
-            DEFAULT_COMPANY_MODEL.heartbeatRuntime.cadenceMinutes,
-        ),
+        Number(runtime.cadenceMinutes ?? DEFAULT_COMPANY_MODEL.heartbeatRuntime.cadenceMinutes),
       ),
       notes: typeof runtime.notes === "string" ? runtime.notes : undefined,
     },
@@ -2342,8 +2081,7 @@ export function buildWorkload(company: CompanyModel): ProjectWorkloadSummary[] {
     const tasks = company.tasks.filter((task) => task.projectId === project.id);
     const openTickets = tasks.filter((task) => task.status !== "done").length;
     const closedTickets = tasks.filter((task) => task.status === "done").length;
-    const ratio =
-      closedTickets === 0 ? openTickets : openTickets / closedTickets;
+    const ratio = closedTickets === 0 ? openTickets : openTickets / closedTickets;
     const queuePressure = ratio > 2 ? "high" : ratio > 1 ? "medium" : "low";
     return { projectId: project.id, openTickets, closedTickets, queuePressure };
   });
@@ -2455,14 +2193,10 @@ export function parseConfiguredAgentsFromConfig(
       sandboxMode: String(sandbox.mode ?? "off"),
       toolPolicy: {
         allow: Array.isArray(tools.allow)
-          ? tools.allow.filter(
-              (item): item is string => typeof item === "string",
-            )
+          ? tools.allow.filter((item): item is string => typeof item === "string")
           : [],
         deny: Array.isArray(tools.deny)
-          ? tools.deny.filter(
-              (item): item is string => typeof item === "string",
-            )
+          ? tools.deny.filter((item): item is string => typeof item === "string")
           : [],
       },
       sessionCount: 0,

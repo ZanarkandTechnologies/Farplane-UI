@@ -24,6 +24,8 @@ export function SkillDetailOverlay({
   onClose,
   onOpenFullPage,
   onSelectSkill,
+  evalCount,
+  evalPath,
 }: {
   doc: SkillDoc | null;
   edges: SkillGraphEdge[];
@@ -33,6 +35,8 @@ export function SkillDetailOverlay({
   onClose: () => void;
   onOpenFullPage: () => void;
   onSelectSkill: (skillId: string) => void;
+  evalCount: number;
+  evalPath?: string;
 }): ReactElement {
   const outgoing = edges.filter((edge) => edge.source === node.id);
   const incoming = edges.filter((edge) => edge.target === node.id);
@@ -51,8 +55,12 @@ export function SkillDetailOverlay({
             </Badge>
             <Badge variant="outline">{node.source ?? "local"}</Badge>
             <Badge variant="secondary">{invocationCount} invokes</Badge>
+            {evalPath ? <Badge variant="secondary">{evalCount} evals</Badge> : null}
           </div>
           <p className="mt-1 break-all text-xs text-muted-foreground">{node.path}</p>
+          {evalPath ? (
+            <p className="mt-1 break-all text-xs text-muted-foreground">{evalPath}</p>
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button size="sm" variant="outline" onClick={onOpenFullPage}>
