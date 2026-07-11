@@ -8,7 +8,8 @@ owner: team-workspace
 related_systems:
   - ../systems/README.md
 source_refs:
-  - ../../farplane/goals.md
+  - ../../farplane/harness.yaml
+  - ../../farplane/metrics.yaml
   - ../../ui/src/modules/team-workspace/lib/dashboard-projections/goal-kpi-model.ts
   - ../../ui/src/modules/team-workspace/components/tabs/overview/overview-tab.tsx
   - ../../ui/vite.config.ts
@@ -27,7 +28,7 @@ let each card independently fetch and interpret raw project files. The
 dashboard contract is:
 
 ```text
-raw provider exports + tickets + telemetry + reports + farplane/goals.md
+raw provider exports + tickets + telemetry + reports + farplane/harness.yaml + farplane/metrics.yaml
   -> metric snapshot compiler
   -> overview projection compiler
   -> frontend fetch hook
@@ -40,7 +41,9 @@ frontend manages freshness rather than recomputing raw data per card.
 
 ## Source Contracts
 
-- `farplane/goals.md` owns KPI strategy and Horizon Advisor pin intent.
+- `farplane/harness.yaml` owns selected objective and guard refs.
+- `farplane/metrics.yaml` owns reusable metric meaning, direction, freshness,
+  display, and guard semantics.
 - `.farplane/metrics/ui/latest.json` owns compiled metric observations for UI
   consumers.
 - `.farplane/state/overview_surface.json` owns the render-ready Overview

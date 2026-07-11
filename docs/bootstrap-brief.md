@@ -93,10 +93,10 @@ Canonical product model:
 
 - Status: filesystem ready; PM operating model clarified; live automation
   activation still requires explicit operator approval.
-- Substrate: `farplane/manifest.json` records spec `1.6.4`.
-- PM files: `farplane/harness.md`, `farplane/products.md`,
-  `farplane/goals.md`, `farplane/automations.md`, `farplane/hooks.json`, and
-  `farplane/pm.json` are present.
+- Substrate: `farplane/manifest.json` records spec `1.9.1`.
+- PM files: `farplane/harness.yaml`, `farplane/metrics.yaml`,
+  `farplane/bindings.yaml`, `farplane/automations.toml`,
+  `farplane/hooks.json`, and `farplane/pm.json` are present.
 - Approval gates: charter changes, product-boundary changes, live automation
   activation, external mutation, credentials, deploys, spend, publishing, and
   destructive cleanup remain human-gated.
@@ -104,9 +104,10 @@ Canonical product model:
 ## Runtime And State Decisions
 
 - Tracked Farplane project config lives under `farplane/`, with
-  `farplane/manifest.json` recording spec version `1.6.4`.
-- Ignored Farplane runtime state lives under `.farplane/`, including run
-  ledgers, reports, eval runs, logs, and review packets.
+  `farplane/manifest.json` recording spec version `1.9.1`.
+- Ignored Farplane runtime state lives under `.farplane/`, including
+  automation state, content ledgers, metric observations, project UI snapshots,
+  reports, eval runs, and logs.
 - The active tracked Farplane ticket queue uses `tickets/TASK-*/ticket.md`.
   Legacy `TKT-*` lane folders remain local-only reference state.
 - Starter PRD handoff: `tickets/TASK-0001/ticket.md`, which asks for a review

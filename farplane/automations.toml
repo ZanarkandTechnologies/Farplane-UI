@@ -1,52 +1,48 @@
-kind = "project-automations"
-status = "active"
-project = "Farplane UI"
-created_at = "2026-06-17"
-updated_at = "2026-07-02"
-framework_template_version = "0.6.0"
+# Canonical desired-state Codex automation config for this Farplane project.
+# Runtime logs, run IDs, last-run status, and automation memory stay outside tracked config.
+schema = "farplane_project_automations"
+framework_template_version = "1.0.0"
+updated_at = "2026-07-12"
 owner = "automation-advisor"
-source_of_truth = [
-  "farplane/harness.md",
-  "farplane/products.md",
-  "farplane/pm.json",
-]
 
 [[automations]]
-id = "farplane-ui-pulse"
-name = "Farplane UI Pulse"
+id = "farplane-ui-work-pulse"
+name = "Farplane UI Work Pulse"
 kind = "heartbeat"
 status = "active"
 prompt = '''
 Use $pulse-update.
 
-Run one Farplane UI Pulse beat.
+Run one bounded Farplane UI Work Pulse. Reconcile the board, make due ticket
+check-ins eligible, dispatch executable tickets up to the worker limit, and
+refill an empty BAU board through the next-wave planner. Pulse owns admission,
+dispatch, worker-free review routing and reminders, and check-in routing;
+workers execute ticket programs and produce proof. Do not implement ticket
+bodies inside the heartbeat.
 
 Params:
 project_root = "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI"
+wave_size = 1
+worker_limit = 1
+review_wip = 3
 
 Reads:
-- farplane/harness.md to preserve the static human thesis and authority boundaries.
-- farplane/products.md when shaping product refill tickets.
+- farplane/harness.yaml for the typed charter, selected objectives, products, capabilities, and gates.
+- farplane/metrics.yaml and farplane/bindings.yaml for objective meaning and honest source gaps.
+- active tickets/TASK-*/ticket.md and due check-ins.
 
 Overrides:
-- product refill tickets should name the project type, baseline or comparison point, expected artifact, and proof signal.
-- distribution/content tickets are allowed when they showcase a real Farplane UI product row or feature and name a feedback signal.
+- distribution/content tickets are ordinary BAU tickets only when they name accepted Farplane UI evidence, expected artifact, proof link, and feedback signal.
 - favor local ready/unblocked tickets before creating new work.
 
 Gates:
 - select at most one bounded action per beat.
-- no separate ticket-drainer automation is required.
-- substantial implementation routes through $harness-creator first when the operating model is missing, then $goal-advisor only after a concrete milestone exists.
 - no push, deploy, publish, spend, account changes, external mutation, or destructive cleanup.
 - no shady growth, fake engagement, privacy-invasive analytics, or content that misrepresents what agents or Farplane did.
-- no drift review, broad strategy replanning, or unbounded worker spawning.
+- no drift review, broad strategy replanning, separate scheduler, content heartbeat, or unbounded worker spawning.
 
-Final output:
-- execution mode
-- reward updates
-- child thread IDs or planning request
-- report/state paths
-- evidence that will decide the next reward update
+Config source:
+farplane/automations.toml automation id="farplane-ui-work-pulse"
 '''
 
 [automations.target]
@@ -57,35 +53,30 @@ type = "interval"
 interval_minutes = 30
 
 [[automations]]
-id = "farplane-ui-daily-interval"
-name = "Farplane UI Daily Interval"
+id = "farplane-ui-daily-bau-review"
+name = "Farplane UI Daily BAU Review"
 kind = "cron"
 status = "active"
 prompt = '''
 Use $interval-update.
 
-Run the Farplane UI Daily Interval.
+Run the daily BAU review for the last 24 hours. Write a dated report with the
+incremental Problems ledger. You may create or update at most one maintenance
+ticket only for an unresolved, deduped problem evidenced before this run.
+Same-run discoveries stay in the report. Do not plan new direction, mutate
+strategy, or execute tickets.
 
 Params:
 project_root = "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI"
-interval_id = "daily_interval"
+interval_id = "daily"
 review_window = "last_24h"
-planning_window = "next_24h"
+maintenance_ticket_limit = 1
+write_policy = "local maintenance ticket creation allowed; default review-required unless no human or external gate remains"
 timezone = "Asia/Kuala_Lumpur"
 
 Reads:
-- latest weekly_interval report when it exists.
-- farplane/harness.md
-- farplane/products.md
-- farplane/goals.md
-- active tickets/TASK-*/ticket.md files
-
-Runs:
-- plan_progress: light
-- goal_drift: light
-- ticket_board_drift: light
-- product_refill: when local ready work is thin
-- distribution_refill: when there are no current content/demo tickets tied to viral agent-office or feature-showcase products
+- latest completed weekly BAU report when present
+- latest completed Feed Scout report when present
 
 Gates:
 - report before mutation.
@@ -93,12 +84,8 @@ Gates:
 - no scheduler state writes.
 - no push, deploy, publish, spend, external mutation, commit, unbounded worker spawning, or destructive cleanup.
 
-Final output:
-- dated report path
-- next-24-hour plan
-- Pulse guidance
-- proposed ticket deltas or Goal Advisor handoffs
-- approval-required goals delta, if any
+Config source:
+farplane/automations.toml automation id="farplane-ui-daily-bau-review"
 '''
 
 [automations.target]
@@ -110,60 +97,40 @@ timezone = "Asia/Kuala_Lumpur"
 time = "05:33"
 
 [[automations]]
-id = "farplane-ui-weekly-interval"
-name = "Farplane UI Weekly Interval"
+id = "farplane-ui-weekly-bau-review"
+name = "Farplane UI Weekly BAU Review"
 kind = "cron"
 status = "active"
 prompt = '''
 Use $interval-update.
 
-Run the Farplane UI Weekly Interval.
+Run the weekly BAU review. Summarize completed daily reports and ticket
+evidence into a dated report with the incremental Problems ledger. You may
+create or update at most two maintenance tickets only for unresolved, deduped
+problems evidenced before this run. Do not plan new direction, mutate rewards,
+or execute tickets.
 
 Params:
 project_root = "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI"
-interval_id = "weekly_interval"
+interval_id = "weekly"
 review_window = "last_week"
-planning_window = "next_week"
+maintenance_ticket_limit = 2
+write_policy = "local maintenance ticket creation allowed; default review-required unless no human or external gate remains"
 timezone = "Asia/Kuala_Lumpur"
 
 Reads:
-- all daily_interval reports inside last_week.
-- farplane/harness.md
-- farplane/products.md
-- farplane/goals.md
-- docs/bootstrap-brief.md
-- active tickets
-
-Runs:
-- plan_progress: true
-- codex_attention_drift: true
-- ticket_board_drift: true
-- feedback_obligations: when sources exist
-- opportunity_signals: when sources exist
-- goal_drift: true
-- metric_snapshot: when sources exist
-- compounding_leverage_review: true
-- docs_consolidation: when sources exist
-- priority_planning: true
-- distribution_planning: true
+- completed daily BAU reports inside the review window
+- completed Feed Scout reports inside the review window
 
 Gates:
 - report before mutation.
-- approval required for static charter, north-star, KPI, strategy-axis, quarterly/yearly, durable milestone, and hold changes.
-- urgent leverage escalation requires high confidence, explicit loss term, evidence refs, review-by date, and owner route.
 - source gaps instead of guessed refs.
 - no scheduler state writes.
 - no shady growth, fake engagement, privacy-invasive analytics, or content that misrepresents what agents or Farplane did.
 - no push, deploy, publish, spend, external mutation, commit, unbounded worker spawning, or destructive cleanup.
 
-Final output:
-- dated report path
-- next-week plan
-- lane distribution and ticket budget
-- Pulse guidance
-- proposed ticket deltas or Goal Advisor handoffs
-- approval-required goals delta, if any
-- leverage decisions and reward closure
+Config source:
+farplane/automations.toml automation id="farplane-ui-weekly-bau-review"
 '''
 
 [automations.target]
@@ -174,3 +141,48 @@ type = "weekly"
 timezone = "Asia/Kuala_Lumpur"
 days = ["Mon"]
 time = "05:45"
+
+[[automations]]
+id = "farplane-ui-weekly-dogfood"
+name = "Farplane UI Weekly Dogfood"
+kind = "cron"
+status = "active"
+prompt = '''
+Use $dogfood-review.
+
+Run the weekly Farplane UI dogfood review only over already-recorded
+experiment outcomes, accepted UI evidence, ticket reviews, and prior Dogfood
+reports. Write the dated portfolio report first, then create at most one
+non-interfering experiment or improvement ticket when evidence and capacity
+justify it. Do not start or check in an experiment; Work Pulse owns execution.
+
+Params:
+project_root = "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI"
+window = "last_week"
+experiment_wave_size = 1
+experiment_wip_limit = 2
+max_concurrent_live_delayed = 1
+one_active_per_attributable_surface = true
+write_policy = "local experiment ticket creation allowed; default review-required unless no human or external gate remains"
+
+Reads:
+- active experiment Goal Packets
+- recent archived experiment Goal Packets
+- previous dated Dogfood report when present
+
+Gates:
+- no content heartbeat or separate controller.
+- no push, deploy, publish, spend, account mutation, customer contact, external mutation, or destructive cleanup.
+
+Config source:
+farplane/automations.toml automation id="farplane-ui-weekly-dogfood"
+'''
+
+[automations.target]
+workspace = "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI"
+
+[automations.schedule]
+type = "weekly"
+timezone = "Asia/Kuala_Lumpur"
+days = ["Mon"]
+time = "06:00"

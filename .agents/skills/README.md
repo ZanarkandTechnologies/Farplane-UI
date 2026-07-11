@@ -30,3 +30,4 @@ repeated use shows cross-project value.
 | Ticket and review workflow | `farplane-ui-board-review` |
 | Harness operating modules | `farplane-ui-harness-modules` |
 | Browser QA and evidence flows | `farplane-ui-proof-surface` |
+| Farplane UI product operations | `farplane-ui-product-ops` |

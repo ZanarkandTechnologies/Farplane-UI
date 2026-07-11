@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ProjectModel } from "@/modules/runtime";
 import { useAppStore } from "@/store";
-import { findConfigFile, getConfigSection } from "./config-parsing";
+import { findConfigFile, getConfigSection, getConfigStringList } from "./config-parsing";
 import type { FarplaneProjectConfig } from "./config-types";
 import {
   AlertTriangle,
@@ -38,8 +38,14 @@ export function ProjectConfigTab({
   const harness = findConfigFile(config, "harness");
   const hooks = findConfigFile(config, "hooks");
   const manifest = findConfigFile(config, "manifest");
-  const principles = bulletLines(getConfigSection(harness, "Operating Principles"));
-  const nonTradeoffs = bulletLines(getConfigSection(harness, "Non-Tradeoffs"));
+  const principles =
+    getConfigStringList(harness, ["operating_principles"]).length > 0
+      ? getConfigStringList(harness, ["operating_principles"])
+      : bulletLines(getConfigSection(harness, "Operating Principles"));
+  const nonTradeoffs =
+    getConfigStringList(harness, ["constraints", "non_tradeoffs"]).length > 0
+      ? getConfigStringList(harness, ["constraints", "non_tradeoffs"])
+      : bulletLines(getConfigSection(harness, "Non-Tradeoffs"));
   const openSkillSurface = useOpenSkillSurface();
 
   return (

@@ -3,8 +3,8 @@
 ## Goal
 
 Prove the Team Panel renders the project-local `farplane/` config as a
-source-honest game-style project HUD: Overview, Goals, Products, Kanban,
-Cadence, Telemetry, and Config.
+source-honest project HUD: Overview, Objectives, Charter, Kanban, Cadence,
+Telemetry, and Config.
 
 ## Fast Entry
 
@@ -19,12 +19,10 @@ Cadence, Telemetry, and Config.
 - Required tracked files:
   - `farplane/manifest.json`
   - `farplane/README.md`
-  - `farplane/harness.md`
-  - `farplane/goals.md`
-  - `farplane/products.json`
+  - `farplane/harness.yaml`
+  - `farplane/metrics.yaml`
   - `farplane/automations.toml`
-  - `farplane/bindings.md`
-  - `farplane/evals.md`
+  - `farplane/bindings.yaml`
   - `farplane/hooks.json`
   - `farplane/pm.json`
 - Runtime files under `.farplane/` are optional and may be absent. The UI
@@ -44,8 +42,8 @@ Cadence, Telemetry, and Config.
 
 - Primary tab labels:
   - `Overview`
-  - `Goals`
-  - `Products`
+  - `Objectives`
+  - `Charter`
   - `Kanban`
   - `Cadence`
   - `Telemetry`
@@ -54,13 +52,13 @@ Cadence, Telemetry, and Config.
   - KPI gauges
   - Party leader / PM
   - Harness traits or harness rules
-  - Quest journal
-  - Product world map or lane weights
+  - Objective cards
+  - Product/descriptive output rows
   - Pulse, Daily, Weekly, PM, Hooks
   - Manifest, Harness, Bindings, Raw Files
-- Source labels should include file paths such as `farplane/goals.md` and
+- Source labels should include file paths such as `farplane/harness.yaml` and
   `farplane/manifest.json`.
-- Product surfaces should read `farplane/products.json`.
+- Product surfaces should read `farplane/harness.yaml` products.
 
 ## Playwright Path
 

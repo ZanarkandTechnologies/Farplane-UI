@@ -119,10 +119,9 @@ const FARPLANE_PROJECT_CONFIG_FILES = [
   { path: "farplane/manifest.json", title: "Manifest", kind: "manifest", format: "json" },
   { path: "farplane/README.md", title: "Config Index", kind: "config-index", format: "markdown" },
   { path: "farplane/harness.yaml", title: "Harness", kind: "harness", format: "yaml" },
-  { path: "farplane/metrics.yaml", title: "Metrics", kind: "metrics", format: "markdown" },
+  { path: "farplane/metrics.yaml", title: "Metrics", kind: "metrics", format: "yaml" },
   { path: "farplane/automations.toml", title: "Automations", kind: "automations", format: "toml" },
-  { path: "farplane/bindings.yaml", title: "Bindings", kind: "bindings", format: "markdown" },
-  { path: "farplane/evals.md", title: "Evals", kind: "evals", format: "markdown" },
+  { path: "farplane/bindings.yaml", title: "Bindings", kind: "bindings", format: "yaml" },
   { path: "farplane/hooks.json", title: "Hooks", kind: "hooks", format: "json" },
   { path: "farplane/pm.json", title: "Project PM", kind: "pm", format: "json" },
 ] as const;
@@ -170,7 +169,7 @@ const TEMPLATE_TRACKING_FAMILIES: TemplateTrackingFamilyConfig[] = [
     familyId: "farplane-config-index",
     label: "Config Index",
     scope: "project-config",
-    source: "frontmatter",
+    source: "derived",
     description: "The farplane/ directory index and tracked config map.",
     paths: ["farplane/README.md"],
     owner: "harness",
@@ -179,7 +178,7 @@ const TEMPLATE_TRACKING_FAMILIES: TemplateTrackingFamilyConfig[] = [
     familyId: "project-harness",
     label: "Project Harness",
     scope: "project-config",
-    source: "frontmatter",
+    source: "derived",
     description: "Project mission, values, modes, systems, and feedback loops.",
     paths: ["farplane/harness.yaml"],
     owner: "harness",
@@ -188,7 +187,7 @@ const TEMPLATE_TRACKING_FAMILIES: TemplateTrackingFamilyConfig[] = [
     familyId: "project-automations",
     label: "Automations",
     scope: "project-config",
-    source: "frontmatter",
+    source: "derived",
     description: "Recurring jobs, schedules, reports, and ticket source policy.",
     paths: ["farplane/automations.toml"],
     owner: "project-pm-automation",
@@ -197,19 +196,10 @@ const TEMPLATE_TRACKING_FAMILIES: TemplateTrackingFamilyConfig[] = [
     familyId: "project-bindings",
     label: "Bindings",
     scope: "project-config",
-    source: "frontmatter",
+    source: "derived",
     description: "Non-secret project IDs, URLs, labels, and aliases.",
     paths: ["farplane/bindings.yaml"],
     owner: "project-pm-automation",
-  },
-  {
-    familyId: "project-evals",
-    label: "Project Evals",
-    scope: "project-config",
-    source: "frontmatter",
-    description: "Project-level proof and eval policy.",
-    paths: ["farplane/evals.md"],
-    owner: "harness",
   },
   {
     familyId: "ticket-template",
@@ -254,7 +244,7 @@ const TEMPLATE_TRACKING_FAMILIES: TemplateTrackingFamilyConfig[] = [
     scope: "evals",
     source: "scanner-gap",
     description: "Reusable eval task and hardcase shapes.",
-    paths: ["farplane/evals.md", ".farplane/evals/"],
+    paths: [".farplane/evals/"],
     notes: "Project eval policy is tracked; eval task manifests need their own scanner.",
     owner: "evals",
   },
@@ -3244,12 +3234,12 @@ async function readFarplaneProjectConfig(projectPath: string): Promise<JsonObjec
       }
     }
     let parsedJson: JsonObject | JsonObject[] | null = null;
-    if (file.format === "json" && content.trim()) {
+    if ((file.format === "json" || file.format === "yaml") && content.trim()) {
       try {
-        const parsed = JSON.parse(content) as unknown;
+        const parsed = file.format === "yaml" ? parseYaml(content) : (JSON.parse(content) as unknown);
         if (parsed && typeof parsed === "object") parsedJson = parsed as JsonObject | JsonObject[];
       } catch {
-        error = "json_parse_failed";
+        error = file.format === "yaml" ? "yaml_parse_failed" : "json_parse_failed";
       }
     }
     const frontMatter = file.format === "markdown" ? parseSimpleFrontMatter(content) : {};

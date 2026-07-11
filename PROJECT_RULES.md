@@ -22,8 +22,8 @@ This file defines project-specific technical rules, stack details, and execution
 - `ui/`: Vite/React office UI workspace
 - `docs/`: canonical project state (`bootstrap-brief.md`, `prd.md`, `features/FEAT-*.md`, `systems/*.md`, `HISTORY.md`, `MEMORY.md`, `TROUBLES.md`, `LESSONS.md`, `TASTE.md`)
 - `qa/`: reusable browser QA runbooks, cookbook pages, shortcuts, probes, and evidence expectations
-- `farplane/`: tracked Farplane project config (`manifest.json`, harness, goals, automations, bindings, evals, PM thread manifest)
-- `.farplane/`: ignored local runtime state, reports, eval runs, logs, review packets, and run ledgers
+- `farplane/`: tracked Farplane project config (`manifest.json`, `harness.yaml`, `metrics.yaml`, `automations.toml`, `bindings.yaml`, hooks, PM thread manifest)
+- `.farplane/`: ignored local runtime state, automation state, reports, eval runs, logs, content ledgers, metric observations, and project UI snapshots
 - `tickets/`: tracked Farplane ticket queue (`TASK-*/ticket.md`, `archive/`, `templates/`); legacy `TKT-*` lanes are local-only
 
 ## UI Modularity Rules

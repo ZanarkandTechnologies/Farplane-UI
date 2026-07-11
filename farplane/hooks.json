@@ -1,24 +1,28 @@
 {
-  "schema": "farplane_hooks",
-  "spec_version": "1.0.0",
-  "hooks": {
-    "file_growth": {
-      "enabled": false,
-      "model": "gpt-5.4-mini",
-      "timeout_seconds": 90,
-      "rules": [
-        {
-          "name": "project-memory",
-          "patterns": [
-            "docs/MEMORY.md",
-            "docs/TROUBLES.md",
-            "docs/LESSONS.md"
-          ],
-          "max_lines": 500,
-          "target_lines": 180,
-          "action": "summarize_in_place"
-        }
-      ]
-    }
+  "version": 1,
+  "file_events": {
+    "enabled": true,
+    "events": [
+      "farplane.ticket.completed",
+      "farplane.ticket.changed",
+      "farplane.ticket.program.changed",
+      "farplane.ticket.progress.changed",
+      "farplane.config.changed",
+      "farplane.memory.changed",
+      "farplane.learning.changed",
+      "farplane.history.changed"
+    ],
+    "patterns": [
+      "tickets/TASK-*/ticket.md",
+      "tickets/TASK-*/program.md",
+      "tickets/TASK-*/progress.md",
+      "farplane/*.yaml",
+      "farplane/*.yml",
+      "farplane/*.json",
+      "docs/MEMORY.md",
+      "docs/LESSONS.md",
+      "docs/TROUBLES.md",
+      "docs/HISTORY.md"
+    ]
   }
 }

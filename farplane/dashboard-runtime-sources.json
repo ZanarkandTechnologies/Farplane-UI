@@ -7,6 +7,14 @@
   },
   { "id": "reports", "label": "Reports", "path": ".farplane/reports", "kind": "directory" },
   { "id": "eval-runs", "label": "Eval runs", "path": ".farplane/evals/runs", "kind": "directory" },
+  { "id": "automation", "label": "Automation state", "path": ".farplane/automation", "kind": "directory" },
+  {
+    "id": "metric-observations",
+    "label": "Metric observations",
+    "path": ".farplane/metrics/observations",
+    "kind": "directory"
+  },
+  { "id": "file-events", "label": "File events", "path": ".farplane/file-events", "kind": "directory" },
   {
     "id": "social-x-latest-selected",
     "label": "X latest selected content",
@@ -37,6 +45,5 @@
     "path": ".farplane/metrics/provider-exports/instagram_yesterday_selected.json",
     "kind": "file"
   },
-  { "id": "run-ledger", "label": "Run ledger", "path": ".farplane/state/run-ledger.json", "kind": "file" },
   { "id": "logs", "label": "Logs", "path": ".farplane/logs", "kind": "directory" }
 ]

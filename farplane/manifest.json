@@ -1,12 +1,12 @@
 {
   "schema": "farplane_project",
-  "spec_version": "1.6.4",
+  "spec_version": "1.9.1",
   "template_uses": {
-    "farplane-framework": "1.6.4"
+    "farplane-framework": "1.9.1"
   },
   "project": {
     "name": "Farplane UI",
-    "description": "Local founder-control office for steering AI work, inspecting runtime-backed teams, and moving ideas through ticket-backed execution and proof.",
+    "description": "Trusted local founder-control UI for steering, proving, and distributing Farplane workflows.",
     "archetype": "founder_control_ai_office"
   },
   "standard": {
@@ -17,12 +17,10 @@
       "ARCHITECTURE.md",
       "farplane/README.md",
       "farplane/manifest.json",
-      "farplane/harness.md",
-      "farplane/goals.md",
-      "farplane/products.md",
+      "farplane/harness.yaml",
+      "farplane/metrics.yaml",
       "farplane/automations.toml",
-      "farplane/bindings.md",
-      "farplane/hooks.json",
+      "farplane/bindings.yaml",
       ".agents/skills/README.md",
       "docs/bootstrap-brief.md",
       "docs/prd.md",
@@ -43,7 +41,9 @@
     ],
     "ignored": [
       ".farplane/README.md",
-      ".farplane/state/run-ledger.json",
+      ".farplane/content/",
+      ".farplane/metrics/daily/",
+      ".farplane/project/ui/",
       ".farplane/reports/",
       ".farplane/evals/runs/",
       ".farplane/logs/"
@@ -51,6 +51,7 @@
   },
   "optional": {
     "tracked": [
+      "farplane/hooks.json",
       "farplane/pm.json",
       ".githooks/README.md",
       ".githooks/pre-commit",
@@ -63,9 +64,7 @@
       "scripts/codex_review_agent.ts",
       "scripts/run_pre_push_review.sh"
     ],
-    "ignored": [
-      ".farplane/reviews/"
-    ]
+    "ignored": []
   },
   "farplane_graph": {
     "framework_core": {
@@ -77,13 +76,11 @@
         "docs/prd.md",
         "docs/features/README.md",
         "docs/systems/README.md",
-        "docs/features/FEAT-0002-harness-product-model.md",
         "farplane/README.md",
-        "farplane/harness.md",
-        "farplane/goals.md",
-        "farplane/products.md",
+        "farplane/harness.yaml",
+        "farplane/metrics.yaml",
         "farplane/automations.toml",
-        "farplane/bindings.md",
+        "farplane/bindings.yaml",
         "farplane/hooks.json",
         "tickets/README.md"
       ],

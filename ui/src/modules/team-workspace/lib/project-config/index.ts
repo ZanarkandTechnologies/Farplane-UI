@@ -1,4 +1,9 @@
-export { findConfigFile, getConfigSection, parseMarkdownTable } from "./config-parsing";
+export {
+  findConfigFile,
+  getConfigSection,
+  getConfigStringList,
+  parseMarkdownTable,
+} from "./config-parsing";
 export type {
   FarplaneConfigFile,
   FarplaneConfigSection,
