@@ -26,7 +26,12 @@ export function ProjectCharterTab({ config, error, state }: ContractTabProps): R
   return (
     <ScrollArea className="h-full pr-3">
       <div className="space-y-4">
-        <TabHeader title="Charter" subtitle="Human mission, thesis, principles, and hard constraints." state={state} error={error} />
+        <TabHeader
+          title="Charter"
+          subtitle="Human mission, thesis, principles, and hard constraints."
+          state={state}
+          error={error}
+        />
         {charter?.mission ? (
           <div className="grid gap-3 lg:grid-cols-2">
             <ContractCard title="Mission" values={[charter.mission]} />
@@ -55,10 +60,20 @@ export function ProjectObjectivesTab({ config, error, state }: ContractTabProps)
   return (
     <ScrollArea className="h-full pr-3">
       <div className="space-y-4">
-        <TabHeader title="Objectives" subtitle="Optimization objectives, hard guards, and freshness-aware readings." state={state} error={error} />
-        {!objectives ? <GapCard text="tabs.objectives is missing from the project snapshot." /> : null}
+        <TabHeader
+          title="Objectives"
+          subtitle="Optimization objectives, hard guards, and freshness-aware readings."
+          state={state}
+          error={error}
+        />
+        {!objectives ? (
+          <GapCard text="tabs.objectives is missing from the project snapshot." />
+        ) : null}
         {(objectives?.sourceGapIds ?? []).map((id) => (
-          <GapCard key={id} text={snapshot?.sourceGaps.find((gap) => gap.id === id)?.message ?? id} />
+          <GapCard
+            key={id}
+            text={snapshot?.sourceGaps.find((gap) => gap.id === id)?.message ?? id}
+          />
         ))}
 
         <MetricSection
@@ -68,7 +83,12 @@ export function ProjectObjectivesTab({ config, error, state }: ContractTabProps)
             definition: definitionById.get(selection.metricId),
             sourceGaps: snapshot?.sourceGaps ?? [],
             metricId: selection.metricId,
-            meta: [selection.scope, selection.priority === null ? "" : `priority ${selection.priority}`].filter(Boolean).join(" · "),
+            meta: [
+              selection.scope,
+              selection.priority === null ? "" : `priority ${selection.priority}`,
+            ]
+              .filter(Boolean)
+              .join(" · "),
           }))}
         />
         <MetricSection
@@ -93,7 +113,13 @@ function MetricSection({
   title,
 }: {
   hardGuard?: boolean;
-  rows: Array<{ card?: ProjectUiMetricCard; definition?: ProjectUiMetricCard; metricId: string; meta: string; sourceGaps: Array<{ id: string; message: string }> }>;
+  rows: Array<{
+    card?: ProjectUiMetricCard;
+    definition?: ProjectUiMetricCard;
+    metricId: string;
+    meta: string;
+    sourceGaps: Array<{ id: string; message: string }>;
+  }>;
   title: string;
 }): ReactElement {
   return (
@@ -102,15 +128,32 @@ function MetricSection({
       {rows.length ? (
         <div className="grid gap-3 lg:grid-cols-2">
           {rows.map(({ card, definition, metricId, meta, sourceGaps }) => (
-            <MetricStatusCard key={metricId} card={card} definition={definition} hardGuard={hardGuard} meta={meta} metricId={metricId} sourceGaps={sourceGaps} />
+            <MetricStatusCard
+              key={metricId}
+              card={card}
+              definition={definition}
+              hardGuard={hardGuard}
+              meta={meta}
+              metricId={metricId}
+              sourceGaps={sourceGaps}
+            />
           ))}
         </div>
-      ) : <Badge variant="secondary">none projected</Badge>}
+      ) : (
+        <Badge variant="secondary">none projected</Badge>
+      )}
     </section>
   );
 }
 
-function MetricStatusCard({ card, definition, hardGuard, meta, metricId, sourceGaps }: {
+function MetricStatusCard({
+  card,
+  definition,
+  hardGuard,
+  meta,
+  metricId,
+  sourceGaps,
+}: {
   card?: ProjectUiMetricCard;
   definition?: ProjectUiMetricCard;
   hardGuard: boolean;
@@ -120,32 +163,67 @@ function MetricStatusCard({ card, definition, hardGuard, meta, metricId, sourceG
 }): ReactElement {
   const status = card?.status || "missing";
   const usable = status === "available" || status === "not_applicable";
-  const value = usable && card?.current !== null && card?.current !== undefined
-    ? `${card.current} ${card.unit}`.trim()
-    : status;
+  const value =
+    usable && card?.current !== null && card?.current !== undefined
+      ? `${card.current} ${card.unit}`.trim()
+      : status;
   const gaps = card?.sourceGaps.map((gap) => gap.reason) ?? [];
   const definitionGaps = card?.sourceGapIds ?? [];
   const guard = definition?.guard;
-  const freshness = definition?.maxAgeDays === null || definition?.maxAgeDays === undefined
-    ? "freshness not bounded"
-    : `max age ${definition.maxAgeDays}d`;
+  const freshness =
+    definition?.maxAgeDays === null || definition?.maxAgeDays === undefined
+      ? "freshness not bounded"
+      : `max age ${definition.maxAgeDays}d`;
 
   return (
-    <Card className={hardGuard && !usable ? "rounded-md border-destructive/60 bg-destructive/5" : "rounded-md"}>
+    <Card
+      className={
+        hardGuard && !usable ? "rounded-md border-destructive/60 bg-destructive/5" : "rounded-md"
+      }
+    >
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
-          <div><CardTitle className="text-sm">{card?.label || definition?.label || metricId}</CardTitle><p className="mt-1 text-xs text-muted-foreground">{meta}</p></div>
+          <div>
+            <CardTitle className="text-sm">
+              {card?.label || definition?.label || metricId}
+            </CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">{meta}</p>
+          </div>
           <Badge variant={usable ? "outline" : "destructive"}>{status}</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
-        <p className={usable ? "text-xl font-semibold" : "text-base font-semibold text-destructive"}>{value}</p>
-        {!usable && card?.series.length ? <p className="text-xs text-muted-foreground">Historical observations exist but are not current.</p> : null}
-        <p className="text-muted-foreground">{definition?.description || card?.description || "Definition not projected."}</p>
-        <p className="text-xs text-muted-foreground">Direction: {definition?.direction || card?.direction || "unspecified"} · {freshness}</p>
-        {guard ? <p className="text-xs font-medium">Guard: {humanizeGuard(guard.operator)} {guard.threshold ?? "threshold missing"}</p> : null}
-        {gaps.map((gap) => <p key={gap} className="text-xs text-destructive">{gap}</p>)}
-        {definitionGaps.map((gap) => <p key={gap} className="text-xs text-destructive">{sourceGaps.find((row) => row.id === gap)?.message ?? gap}</p>)}
+        <p
+          className={usable ? "text-xl font-semibold" : "text-base font-semibold text-destructive"}
+        >
+          {value}
+        </p>
+        {!usable && card?.series.length ? (
+          <p className="text-xs text-muted-foreground">
+            Historical observations exist but are not current.
+          </p>
+        ) : null}
+        <p className="text-muted-foreground">
+          {definition?.description || card?.description || "Definition not projected."}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Direction: {definition?.direction || card?.direction || "unspecified"} · {freshness}
+        </p>
+        {guard ? (
+          <p className="text-xs font-medium">
+            Guard: {humanizeGuard(guard.operator)} {guard.threshold ?? "threshold missing"}
+          </p>
+        ) : null}
+        {gaps.map((gap) => (
+          <p key={gap} className="text-xs text-destructive">
+            {gap}
+          </p>
+        ))}
+        {definitionGaps.map((gap) => (
+          <p key={gap} className="text-xs text-destructive">
+            {sourceGaps.find((row) => row.id === gap)?.message ?? gap}
+          </p>
+        ))}
       </CardContent>
     </Card>
   );
@@ -157,15 +235,54 @@ function humanizeGuard(operator: string): string {
   return operator.replace(/_/g, " ");
 }
 
-function TabHeader({ title, subtitle, state, error }: { title: string; subtitle: string; state: ProjectConfigLoadState; error: string | null }): ReactElement {
-  return <div className="flex items-center justify-between gap-2"><div><h3 className="text-sm font-semibold">{title}</h3><p className="text-xs text-muted-foreground">{subtitle}</p></div><ConfigLoadingState state={state} error={error} /></div>;
+function TabHeader({
+  title,
+  subtitle,
+  state,
+  error,
+}: {
+  title: string;
+  subtitle: string;
+  state: ProjectConfigLoadState;
+  error: string | null;
+}): ReactElement {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div>
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <p className="text-xs text-muted-foreground">{subtitle}</p>
+      </div>
+      <ConfigLoadingState state={state} error={error} />
+    </div>
+  );
 }
 
 function GapCard({ text }: { text: string }): ReactElement {
-  return <Card className="rounded-md border-dashed"><CardContent className="p-4 text-sm text-muted-foreground">{text}</CardContent></Card>;
+  return (
+    <Card className="rounded-md border-dashed">
+      <CardContent className="p-4 text-sm text-muted-foreground">{text}</CardContent>
+    </Card>
+  );
 }
 
 function ContractCard({ title, values }: { title: string; values: string[] }): ReactElement {
   const visible = values.filter(Boolean);
-  return <Card className="rounded-md"><CardHeader className="pb-2"><CardTitle className="text-sm">{title}</CardTitle></CardHeader><CardContent className="space-y-2">{visible.length ? visible.map((value) => <p key={value} className="text-sm leading-6 text-muted-foreground">{value}</p>) : <Badge variant="secondary">not projected</Badge>}</CardContent></Card>;
+  return (
+    <Card className="rounded-md">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {visible.length ? (
+          visible.map((value) => (
+            <p key={value} className="text-sm leading-6 text-muted-foreground">
+              {value}
+            </p>
+          ))
+        ) : (
+          <Badge variant="secondary">not projected</Badge>
+        )}
+      </CardContent>
+    </Card>
+  );
 }

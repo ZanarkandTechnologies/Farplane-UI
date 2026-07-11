@@ -4,16 +4,11 @@
  * render-ready objective axes. It is read-only and never invents source data.
  */
 
-import { parseMarkdownTable } from "@/modules/team-workspace/lib/project-config";
 import type {
   FarplaneConfigFile,
   FarplaneProjectConfig,
 } from "@/modules/team-workspace/lib/project-config";
-import {
-  findProjectUiSnapshot,
-  type ProjectUiMetricCard,
-  type ProjectUiMetricTarget,
-} from "./project-ui-snapshot";
+import { parseMarkdownTable } from "@/modules/team-workspace/lib/project-config";
 import type {
   ContentMetricRow,
   ContentMetricSeriesPoint,
@@ -23,10 +18,15 @@ import type {
   KpiMetricRow,
   MetricBreakdownItem,
   MetricSeriesPoint,
-  MetricsContentRow,
   MetricSourceGap,
+  MetricsContentRow,
   MetricsUiSnapshot,
 } from "./goal-kpi-types";
+import {
+  findProjectUiSnapshot,
+  type ProjectUiMetricCard,
+  type ProjectUiMetricTarget,
+} from "./project-ui-snapshot";
 
 export type {
   ContentMetricRow,
@@ -36,10 +36,10 @@ export type {
   GoalSmartGoal,
   KpiMetricRow,
   MetricBreakdownItem,
-  MetricsContentRow,
   MetricSeriesPoint,
-  MetricsUiSnapshot,
   MetricSourceGap,
+  MetricsContentRow,
+  MetricsUiSnapshot,
   SmartGoalView,
 } from "./goal-kpi-types";
 
@@ -283,7 +283,8 @@ function parseBreakdownItems(value: unknown): MetricBreakdownItem[] {
     .map((item): MetricBreakdownItem | null => {
       if (!item || typeof item !== "object") return null;
       const row = item as Record<string, unknown>;
-      const id = toStringValue(row.id) || toStringValue(row.content_id) || toStringValue(row.ticket_id);
+      const id =
+        toStringValue(row.id) || toStringValue(row.content_id) || toStringValue(row.ticket_id);
       return {
         id,
         kind: toStringValue(row.kind) || undefined,
@@ -305,9 +306,12 @@ function parseSeries(value: unknown): MetricSeriesPoint[] {
       return {
         date,
         value: toNumberOrNull(row.value),
-        current: toNumberOrNull(row.current) ?? toNumberOrNull(row.cumulative) ?? toNumberOrNull(row.value),
+        current:
+          toNumberOrNull(row.current) ??
+          toNumberOrNull(row.cumulative) ??
+          toNumberOrNull(row.value),
         dailyDiff: toNumberOrNull(row.daily_diff),
-        items: parseBreakdownItems(row.items ?? (recordPayload(row.payload).items ?? [])),
+        items: parseBreakdownItems(row.items ?? recordPayload(row.payload).items ?? []),
       };
     })
     .filter((point): point is MetricSeriesPoint => Boolean(point));
@@ -329,7 +333,10 @@ function parseContentMetricSeries(value: unknown): ContentMetricSeriesPoint[] {
       if (!date) return null;
       return {
         date,
-        value: toNumberOrNull(row.value) ?? toNumberOrNull(row.current) ?? toNumberOrNull(row.cumulative),
+        value:
+          toNumberOrNull(row.value) ??
+          toNumberOrNull(row.current) ??
+          toNumberOrNull(row.cumulative),
       };
     })
     .filter((point): point is ContentMetricSeriesPoint => Boolean(point));
@@ -373,7 +380,9 @@ function parseContentRows(value: unknown): MetricsContentRow[] {
         externalId: toStringValue(row.external_id) || undefined,
         kind: toStringValue(row.kind) || undefined,
         kpis: Array.isArray(row.kpis)
-          ? row.kpis.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          ? row.kpis.filter(
+              (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+            )
           : [],
         mediaProductType: toStringValue(row.media_product_type) || undefined,
         mediaType: toStringValue(row.media_type) || undefined,
@@ -414,7 +423,13 @@ export function parseMetricsUiSnapshot(value: unknown): MetricsUiSnapshot | null
       return {
         metricId,
         label: toStringValue(row.label) || humanizeId(metricId),
-        description: toStringValue(row.description ?? row.tooltip ?? row.calculation_description ?? row.calculationDescription) || undefined,
+        description:
+          toStringValue(
+            row.description ??
+              row.tooltip ??
+              row.calculation_description ??
+              row.calculationDescription,
+          ) || undefined,
         axis: toStringValue(row.axis),
         product: toStringValue(row.product),
         sourceId: toStringValue(row.source_id) || toStringValue(row.product) || metricId,
@@ -460,18 +475,18 @@ export function parseMetricsUiSnapshot(value: unknown): MetricsUiSnapshot | null
     contents: parseContentRows(source.contents),
     sourceGaps: uniqueSourceGaps([
       ...rawGaps
-      .map((gap): MetricSourceGap | null => {
-        if (!gap || typeof gap !== "object") return null;
-        const row = gap as Record<string, unknown>;
-        const metricId = toStringValue(row.metric_id);
-        if (!metricId) return null;
-        return {
-          metricId,
-          sourceId: toStringValue(row.source_id),
-          reason: toStringValue(row.reason) || "not connected yet",
-        };
-      })
-      .filter((gap): gap is MetricSourceGap => Boolean(gap)),
+        .map((gap): MetricSourceGap | null => {
+          if (!gap || typeof gap !== "object") return null;
+          const row = gap as Record<string, unknown>;
+          const metricId = toStringValue(row.metric_id);
+          if (!metricId) return null;
+          return {
+            metricId,
+            sourceId: toStringValue(row.source_id),
+            reason: toStringValue(row.reason) || "not connected yet",
+          };
+        })
+        .filter((gap): gap is MetricSourceGap => Boolean(gap)),
       ...nestedGaps,
     ]),
   };

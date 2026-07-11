@@ -179,7 +179,7 @@ export function OverviewCeoSummary({
           <p className="text-base font-medium leading-6">{projectSummary}</p>
           <div className="rounded-md border bg-background/50 p-3">
             <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-                Selected Commitments
+              Selected Commitments
             </p>
             <p className="mt-1 text-sm text-muted-foreground">{commitmentSummary}</p>
           </div>

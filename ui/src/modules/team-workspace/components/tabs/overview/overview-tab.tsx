@@ -12,11 +12,8 @@ import { cn } from "@/lib/utils";
 import { buildOverviewSummarySurface } from "@/modules/team-workspace/lib/dashboard-projections/overview-summary-surface";
 import type { OverviewSurface } from "@/modules/team-workspace/lib/dashboard-projections/overview-surface";
 import { findProjectUiSnapshot } from "@/modules/team-workspace/lib/dashboard-projections/project-ui-snapshot";
-import {
-  type FarplaneProjectConfig,
-  type ProjectConfigLoadState,
-} from "../project-config";
-import { ReportReader, OverviewReportsCard } from "./overview-reports";
+import type { FarplaneProjectConfig, ProjectConfigLoadState } from "../project-config";
+import { OverviewReportsCard, ReportReader } from "./overview-reports";
 import {
   OverviewAttentionCard,
   OverviewCeoSummary,
@@ -165,8 +162,13 @@ export function OverviewTab({
             optimizationProjected={Boolean(projectUiSnapshot?.tabs.objectives.objectives.length)}
             harnessFileExists={Boolean(projectUiSnapshot)}
             hasBusinessConfig={hasBusinessConfig}
-            mission={charter?.mission || "Harness mission is not projected by the current snapshot."}
-            projectSummary={teamBusinessDescription || String(projectUiSnapshot?.project.description ?? project?.name ?? "Project")}
+            mission={
+              charter?.mission || "Harness mission is not projected by the current snapshot."
+            }
+            projectSummary={
+              teamBusinessDescription ||
+              String(projectUiSnapshot?.project.description ?? project?.name ?? "Project")
+            }
             principles={charter?.operatingPrinciples ?? []}
             projectConfigReady={projectConfigState === "ready"}
             projectStatus={project?.status ?? "active"}

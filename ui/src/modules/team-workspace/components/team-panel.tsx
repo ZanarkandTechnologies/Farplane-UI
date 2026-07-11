@@ -399,7 +399,6 @@ export function TeamPanel({
             </ScrollArea>
           </TabsContent>
 
-
           <TabsContent value="distribution" className="mt-4 min-h-0 flex-1 overflow-hidden">
             <DistributionTab snapshot={metricsSnapshot} socialContent={socialContent} />
           </TabsContent>

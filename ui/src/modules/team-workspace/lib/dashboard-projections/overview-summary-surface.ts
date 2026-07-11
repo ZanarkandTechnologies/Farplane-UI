@@ -114,12 +114,14 @@ export function buildOverviewSummarySurface({
   );
   const metricSeries = projectUiSnapshot?.metrics.series ?? [];
   const socialContent = buildSocialContentInsightsModel(projectConfig, null);
-  const availableMetricCount =
-    metricSeries.filter((metric) => metric.status === "available").length;
-  const actionableSourceGaps = projectUiSnapshot?.sourceGaps.map((gap) => ({
-    metricId: gap.id,
-    ...sourceGapCopy(gap.id.replace(/^metric_source_gap:/, ""), gap.message),
-  })) ?? [];
+  const availableMetricCount = metricSeries.filter(
+    (metric) => metric.status === "available",
+  ).length;
+  const actionableSourceGaps =
+    projectUiSnapshot?.sourceGaps.map((gap) => ({
+      metricId: gap.id,
+      ...sourceGapCopy(gap.id.replace(/^metric_source_gap:/, ""), gap.message),
+    })) ?? [];
   const sourceGapCount = actionableSourceGaps.length;
   const distributionViews = socialContent.items.reduce(
     (total, item) => total + (item.content_metrics.views ?? 0),

@@ -136,7 +136,11 @@ describe("overview summary surface", () => {
             pinned_metric_cards: [],
             source_gap_ids: [],
           },
-          objectives: { selection: { objectives: [], guards: [] }, metric_cards: [], source_gap_ids: [] },
+          objectives: {
+            selection: { objectives: [], guards: [] },
+            metric_cards: [],
+            source_gap_ids: [],
+          },
           distribution: {
             content_items: [],
             content_metric_cards: [],
@@ -199,7 +203,11 @@ describe("overview summary surface", () => {
             ],
             source_gap_ids: ["metric_source_gap:evidence_distribution_reach"],
           },
-          objectives: { selection: { objectives: [], guards: [] }, metric_cards: [], source_gap_ids: [] },
+          objectives: {
+            selection: { objectives: [], guards: [] },
+            metric_cards: [],
+            source_gap_ids: [],
+          },
           distribution: {
             content_items: [],
             content_metric_cards: [],

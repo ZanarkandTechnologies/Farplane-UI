@@ -1,5 +1,5 @@
 import { Activity, CalendarClock } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { type ReactElement, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,9 +92,7 @@ export function ProjectAutomationsTab({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <CardTitle className="truncate text-base">{selected?.name}</CardTitle>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">
-                      {selected?.id}
-                    </p>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">{selected?.id}</p>
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     <Badge variant="secondary">{selected?.kind}</Badge>
@@ -110,7 +108,8 @@ export function ProjectAutomationsTab({
                     <p className="text-sm text-muted-foreground">{selected.target}</p>
                     <p className="mt-3 text-xs text-muted-foreground">Source: {selected.source}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Schedule, prompt, and target details are not projected by the current snapshot.
+                      Schedule, prompt, and target details are not projected by the current
+                      snapshot.
                     </p>
                   </div>
                 ) : (
