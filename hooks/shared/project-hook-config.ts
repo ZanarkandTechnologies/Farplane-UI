@@ -33,17 +33,16 @@ export type ResolvedProjectHookConfig = ProjectHookConfig & {
 };
 
 const DEFAULT_TRACKED_PATH_PATTERNS = [
-  "progress.md",
-  "goals.md",
   "tickets/*/ticket.md",
   "tickets/*/progress.md",
   "tickets/*/program.md",
-  "farplane/*.md",
+  "farplane/*.yaml",
+  "farplane/*.yml",
   "farplane/*.json",
-  "docs/*.md",
-  "docs/**/*.md",
-  "evals/**",
-  "skills/*/memory.md",
+  "docs/MEMORY.md",
+  "docs/LESSONS.md",
+  "docs/TROUBLES.md",
+  "docs/HISTORY.md",
 ] as const;
 
 export function defaultTrackedPathPatterns(): string[] {

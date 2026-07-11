@@ -14,8 +14,9 @@ describe("file-change-listener", () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
     const nowSpy = vi.spyOn(Date, "now").mockReturnValue(2_000);
     try {
+      mkdirSync(path.join(repo, "tickets", "TASK-0001"), { recursive: true });
       writeFileSync(
-        path.join(repo, "progress.md"),
+        path.join(repo, "tickets", "TASK-0001", "progress.md"),
         "# Progress\n\n- Chose acquisition research next.\n",
       );
 
@@ -26,7 +27,7 @@ describe("file-change-listener", () => {
           cwd: repo,
           sessionId: "thread-1",
           toolInput:
-            "*** Begin Patch\n*** Update File: progress.md\n@@\n+Chose acquisition research next.\n*** End Patch\n",
+            "*** Begin Patch\n*** Update File: tickets/TASK-0001/progress.md\n@@\n+Chose acquisition research next.\n*** End Patch\n",
         },
         1_000,
         { summaryDebounceMs: 0, codexSummary: { runner: testSummaryRunner } },
@@ -35,7 +36,7 @@ describe("file-change-listener", () => {
       expect(rows).toEqual([
         expect.objectContaining({
           threadId: "thread-1",
-          filePath: "progress.md",
+          filePath: "tickets/TASK-0001/progress.md",
           message: "Summarized tracked file update",
           eventAt: 2_000,
         }),
@@ -105,14 +106,18 @@ describe("file-change-listener", () => {
     const debounceStateDir = path.join(repo, ".farplane", "summary-debounce-test");
     let summaryRuns = 0;
     try {
-      writeFileSync(path.join(repo, "progress.md"), "# Progress\n\n- First update.\n");
+      mkdirSync(path.join(repo, "tickets", "TASK-0001"), { recursive: true });
+      writeFileSync(
+        path.join(repo, "tickets", "TASK-0001", "progress.md"),
+        "# Progress\n\n- First update.\n",
+      );
       const payload = {
         event: "PostToolUse",
         toolName: "apply_patch",
         cwd: repo,
         sessionId: "thread-1",
         toolInput:
-          "*** Begin Patch\n*** Update File: progress.md\n@@\n+First update.\n*** End Patch\n",
+          "*** Begin Patch\n*** Update File: tickets/TASK-0001/progress.md\n@@\n+First update.\n*** End Patch\n",
       };
 
       const firstPromise = parseFileChangeBubbleCandidatesFromPayload(payload, 10_000, {
@@ -150,14 +155,18 @@ describe("file-change-listener", () => {
     const debounceStateDir = path.join(repo, ".farplane", "summary-debounce-test");
     let summaryRuns = 0;
     try {
-      writeFileSync(path.join(repo, "progress.md"), "# Progress\n\n- Later update.\n");
+      mkdirSync(path.join(repo, "tickets", "TASK-0001"), { recursive: true });
+      writeFileSync(
+        path.join(repo, "tickets", "TASK-0001", "progress.md"),
+        "# Progress\n\n- Later update.\n",
+      );
       const payload = {
         event: "PostToolUse",
         toolName: "apply_patch",
         cwd: repo,
         sessionId: "thread-1",
         toolInput:
-          "*** Begin Patch\n*** Update File: progress.md\n@@\n+Later update.\n*** End Patch\n",
+          "*** Begin Patch\n*** Update File: tickets/TASK-0001/progress.md\n@@\n+Later update.\n*** End Patch\n",
       };
 
       await parseFileChangeBubbleCandidatesFromPayload(payload, 10_000, {
@@ -191,14 +200,15 @@ describe("file-change-listener", () => {
   it("detects top-level changedFiles payloads", async () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
     try {
-      writeFileSync(path.join(repo, "goals.md"), "# Goals\n\n- Harden telemetry hooks.\n");
+      mkdirSync(path.join(repo, "farplane"), { recursive: true });
+      writeFileSync(path.join(repo, "farplane", "harness.yaml"), "kind: project-harness\n");
       const rows = await parseFileChangeBubbleCandidatesFromPayload(
         {
           event: "PostToolUse",
           toolName: "write",
           cwd: repo,
           sessionId: "thread-1",
-          changedFiles: ["goals.md"],
+          changedFiles: ["farplane/harness.yaml"],
         },
         1_000,
         { summaryDebounceMs: 0, codexSummary: { runner: testSummaryRunner } },
@@ -206,7 +216,7 @@ describe("file-change-listener", () => {
 
       expect(rows).toEqual([
         expect.objectContaining({
-          filePath: "goals.md",
+          filePath: "farplane/harness.yaml",
           message: "Summarized tracked file update",
         }),
       ]);
@@ -218,10 +228,10 @@ describe("file-change-listener", () => {
   it("detects tracked docs paths from bash command payloads", async () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
     try {
-      const docsDir = path.join(repo, "docs", "specs");
+      const docsDir = path.join(repo, "docs");
       mkdirSync(docsDir, { recursive: true });
-      writeFileSync(path.join(repo, "docs", "prd.md"), "# PRD\n\n- Define PM founder loop.\n");
-      writeFileSync(path.join(docsDir, "telemetry.md"), "# Telemetry\n\n- Track hook bubbles.\n");
+      writeFileSync(path.join(docsDir, "MEMORY.md"), "# Memory\n\n- Define PM founder loop.\n");
+      writeFileSync(path.join(docsDir, "LESSONS.md"), "# Lessons\n\n- Track hook bubbles.\n");
       const rows = await parseFileChangeBubbleCandidatesFromPayload(
         {
           event: "PostToolUse",
@@ -229,7 +239,7 @@ describe("file-change-listener", () => {
           cwd: repo,
           sessionId: "thread-1",
           command:
-            "printf '%s\\n' update > docs/prd.md && printf '%s\\n' update | tee docs/specs/telemetry.md",
+            "printf '%s\\n' update > docs/MEMORY.md && printf '%s\\n' update | tee docs/LESSONS.md",
         },
         1_000,
         { summaryDebounceMs: 0, codexSummary: { runner: testSummaryRunner } },
@@ -237,11 +247,11 @@ describe("file-change-listener", () => {
 
       expect(rows).toEqual([
         expect.objectContaining({
-          filePath: "docs/prd.md",
+          filePath: "docs/MEMORY.md",
           message: "Summarized tracked file update",
         }),
         expect.objectContaining({
-          filePath: "docs/specs/telemetry.md",
+          filePath: "docs/LESSONS.md",
           message: "Summarized tracked file update",
         }),
       ]);
@@ -254,14 +264,14 @@ describe("file-change-listener", () => {
     const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
     try {
       mkdirSync(path.join(repo, "docs"), { recursive: true });
-      writeFileSync(path.join(repo, "docs", "prd.md"), "# PRD\n\n- Existing plan.\n");
+      writeFileSync(path.join(repo, "docs", "MEMORY.md"), "# Memory\n\n- Existing plan.\n");
       const rows = await parseFileChangeBubbleCandidatesFromPayload(
         {
           event: "PostToolUse",
           toolName: "bash",
           cwd: repo,
           sessionId: "thread-1",
-          command: "cat docs/prd.md && rg Existing docs/prd.md",
+          command: "cat docs/MEMORY.md && rg Existing docs/MEMORY.md",
         },
         1_000,
         { summaryDebounceMs: 0, codexSummary: { runner: testSummaryRunner } },

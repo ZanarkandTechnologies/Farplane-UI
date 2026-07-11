@@ -1,7 +1,7 @@
 /**
  * Team Workspace goal KPI model.
- * Inputs are farplane/goals.md plus the daily metrics UI snapshot; outputs are
- * render-ready goal axes. It is read-only and never invents source data.
+ * Inputs are the Core project snapshot plus metric observations; outputs are
+ * render-ready objective axes. It is read-only and never invents source data.
  */
 
 import { parseMarkdownTable } from "@/modules/team-workspace/lib/project-config";

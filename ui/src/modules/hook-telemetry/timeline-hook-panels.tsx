@@ -54,17 +54,16 @@ type BusyState = "" | "saving" | "installing" | "reloading";
 
 const HOOK_INSTALL_COMMAND = "npm run hooks:install";
 const DEFAULT_FILE_PATTERNS = [
-  "progress.md",
-  "goals.md",
   "tickets/*/ticket.md",
   "tickets/*/progress.md",
   "tickets/*/program.md",
-  "farplane/*.md",
+  "farplane/*.yaml",
+  "farplane/*.yml",
   "farplane/*.json",
-  "docs/*.md",
-  "docs/**/*.md",
-  "evals/**",
-  "skills/*/memory.md",
+  "docs/MEMORY.md",
+  "docs/LESSONS.md",
+  "docs/TROUBLES.md",
+  "docs/HISTORY.md",
 ].join("\n");
 
 const HOOK_DEFINITIONS: HookDefinition[] = [

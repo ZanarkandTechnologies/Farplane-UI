@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { chmod, cp, mkdir, readdir, readFile, rm, writeFile, stat } from "node:fs/promises";
 import { promisify } from "node:util";
 import { defineConfig } from "vite";
+import { parse as parseYaml } from "yaml";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import {
@@ -117,12 +118,10 @@ const PROJECT_MEMORY_FILES = [
 const FARPLANE_PROJECT_CONFIG_FILES = [
   { path: "farplane/manifest.json", title: "Manifest", kind: "manifest", format: "json" },
   { path: "farplane/README.md", title: "Config Index", kind: "config-index", format: "markdown" },
-  { path: "farplane/harness.md", title: "Harness", kind: "harness", format: "markdown" },
-  { path: "farplane/goals.md", title: "Goals", kind: "goals", format: "markdown" },
-  { path: "farplane/products.json", title: "Products Index", kind: "products-index", format: "json" },
+  { path: "farplane/harness.yaml", title: "Harness", kind: "harness", format: "yaml" },
+  { path: "farplane/metrics.yaml", title: "Metrics", kind: "metrics", format: "markdown" },
   { path: "farplane/automations.toml", title: "Automations", kind: "automations", format: "toml" },
   { path: "farplane/bindings.yaml", title: "Bindings", kind: "bindings", format: "markdown" },
-  { path: "farplane/bindings.md", title: "Bindings", kind: "bindings", format: "markdown" },
   { path: "farplane/evals.md", title: "Evals", kind: "evals", format: "markdown" },
   { path: "farplane/hooks.json", title: "Hooks", kind: "hooks", format: "json" },
   { path: "farplane/pm.json", title: "Project PM", kind: "pm", format: "json" },
@@ -182,17 +181,8 @@ const TEMPLATE_TRACKING_FAMILIES: TemplateTrackingFamilyConfig[] = [
     scope: "project-config",
     source: "frontmatter",
     description: "Project mission, values, modes, systems, and feedback loops.",
-    paths: ["farplane/harness.md"],
+    paths: ["farplane/harness.yaml"],
     owner: "harness",
-  },
-  {
-    familyId: "goal-portfolio",
-    label: "Goal Portfolio",
-    scope: "project-config",
-    source: "frontmatter",
-    description: "North star, KPI axes, milestones, and holds.",
-    paths: ["farplane/goals.md"],
-    owner: "project-pm-automation",
   },
   {
     familyId: "project-automations",
@@ -209,7 +199,7 @@ const TEMPLATE_TRACKING_FAMILIES: TemplateTrackingFamilyConfig[] = [
     scope: "project-config",
     source: "frontmatter",
     description: "Non-secret project IDs, URLs, labels, and aliases.",
-    paths: ["farplane/bindings.md"],
+    paths: ["farplane/bindings.yaml"],
     owner: "project-pm-automation",
   },
   {
@@ -2743,24 +2733,14 @@ function normalizeRelativeConfigPath(value: unknown, fallback: string): string {
   return normalized;
 }
 
-function parseSimpleConfigBlock(markdown: string, blockName: string): Record<string, string> {
-  const match = markdown.match(new RegExp(`(?:^|\\n)${blockName}\\s*\\{([\\s\\S]*?)\\n\\}`, "m"));
-  if (!match) return {};
-  const parsed: Record<string, string> = {};
-  for (const line of match[1].split(/\r?\n/g)) {
-    const row = line.trim();
-    if (!row || row.startsWith("#")) continue;
-    const field = row.match(/^([A-Za-z0-9_-]+):\s*(.+)$/);
-    if (!field) continue;
-    parsed[field[1].trim()] = field[2].trim().replace(/^["']|["']$/g, "");
-  }
-  return parsed;
-}
-
 async function readProjectKanbanProviderConfig(projectPath: string): Promise<JsonObject> {
-  const bindingsPath = path.join(path.resolve(projectPath), "farplane", "bindings.md");
-  const markdown = await readFile(bindingsPath, "utf-8").catch(() => "");
-  const block = parseSimpleConfigBlock(markdown, "kanban");
+  const bindingsPath = path.join(path.resolve(projectPath), "farplane", "bindings.yaml");
+  const source = await readFile(bindingsPath, "utf-8").catch(() => "");
+  const parsed = source.trim() ? parseYaml(source) : {};
+  const block =
+    parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? ((parsed as JsonObject).kanban as JsonObject | undefined) ?? {}
+      : {};
   const pollSeconds = Number(block.poll_seconds ?? Number.NaN);
   return {
     provider: normalizeKanbanProvider(block.provider),
@@ -2770,8 +2750,8 @@ async function readProjectKanbanProviderConfig(projectPath: string): Promise<Jso
     pollSeconds: Number.isFinite(pollSeconds)
       ? Math.max(10, Math.min(300, Math.floor(pollSeconds)))
       : 60,
-    configPath: "farplane/bindings.md",
-    exists: markdown.trim().length > 0,
+    configPath: "farplane/bindings.yaml",
+    exists: source.trim().length > 0,
   };
 }
 

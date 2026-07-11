@@ -32,13 +32,13 @@ describe("project-hook-config", () => {
       writeFileSync(
         path.join(repo, "farplane", "manifest.json"),
         JSON.stringify({
-          standard: { tracked: ["farplane/goals.md", "docs/MEMORY.md", "tickets/archive/"] },
+          standard: { tracked: ["farplane/harness.yaml", "docs/MEMORY.md", "tickets/archive/"] },
           optional: { tracked: ["scripts/pre_push_check.sh"] },
         }),
       );
 
       expect(readFarplaneManifestTracked(repo)).toEqual([
-        "farplane/goals.md",
+        "farplane/harness.yaml",
         "docs/MEMORY.md",
         "scripts/pre_push_check.sh",
       ]);
@@ -87,7 +87,7 @@ describe("project-hook-config", () => {
         expect.arrayContaining([
           "tickets/*/ticket.md",
           "tickets/*/progress.md",
-          "farplane/*.md",
+          "farplane/*.yaml",
           "docs/MEMORY.md",
           "custom/*.md",
         ]),
