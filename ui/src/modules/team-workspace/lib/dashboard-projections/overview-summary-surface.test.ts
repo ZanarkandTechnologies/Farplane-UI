@@ -106,7 +106,7 @@ describe("overview summary surface", () => {
       aiBurn24hUsd: 0,
       projectConfig: projectConfigWithSnapshot({
         generated_at: "2026-07-03T00:00:00Z",
-        schema_version: 1,
+        schema_version: 2,
         source_gaps: [],
         metrics: {
           contents: [],
@@ -131,13 +131,12 @@ describe("overview summary surface", () => {
         },
         tabs: {
           overview: {
+            charter: {},
             pinned_metrics: ["accepted_evidence_cycles"],
             pinned_metric_cards: [],
             source_gap_ids: [],
-            team_focus: {},
           },
-          goals: { axes: [], source_gap_ids: [] },
-          products: { products: [], source_gap_ids: [] },
+          objectives: { selection: { objectives: [], guards: [] }, metric_cards: [], source_gap_ids: [] },
           distribution: {
             content_items: [],
             content_metric_cards: [],
@@ -161,7 +160,7 @@ describe("overview summary surface", () => {
       aiBurn24hUsd: 0,
       projectConfig: projectConfigWithSnapshot({
         generated_at: "2026-07-03T00:00:00Z",
-        schema_version: 1,
+        schema_version: 2,
         source_gaps: [
           {
             id: "metric_source_gap:evidence_distribution_reach",
@@ -174,6 +173,7 @@ describe("overview summary surface", () => {
         metrics: { contents: [], primitives: {}, readings: {}, series: [] },
         tabs: {
           overview: {
+            charter: {},
             pinned_metrics: ["evidence_distribution_reach"],
             pinned_metric_cards: [
               {
@@ -198,10 +198,8 @@ describe("overview summary surface", () => {
               },
             ],
             source_gap_ids: ["metric_source_gap:evidence_distribution_reach"],
-            team_focus: {},
           },
-          goals: { axes: [], source_gap_ids: [] },
-          products: { products: [], source_gap_ids: [] },
+          objectives: { selection: { objectives: [], guards: [] }, metric_cards: [], source_gap_ids: [] },
           distribution: {
             content_items: [],
             content_metric_cards: [],

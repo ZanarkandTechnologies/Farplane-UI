@@ -11,8 +11,8 @@ export {
   ProjectAutomationsTab,
   ProjectCadenceTab,
   ProjectConfigTab,
-  ProjectGoalsTab,
-  ProjectProductsTab,
+  ProjectCharterTab,
+  ProjectObjectivesTab,
   parseMarkdownTable,
   useFarplaneProjectConfig,
 } from "./tabs/project-config";

@@ -520,63 +520,6 @@ export function findMetricsSnapshot(
   return null;
 }
 
-export function buildGoalAxisViewsFromProjectUi(
-  config: FarplaneProjectConfig | null,
-): GoalAxisView[] {
-  const snapshot = findProjectUiSnapshot(config);
-  if (!snapshot) return [];
-  const metricById = new Map(
-    snapshot.metrics.series.map((metric) => [metric.metricId, metricRowFromProjectUi(metric)]),
-  );
-  const gapById = new Map(
-    snapshot.sourceGaps.map((gap) => [
-      gap.id,
-      { metricId: gap.id, sourceId: gap.owner, reason: gap.message },
-    ]),
-  );
-  return snapshot.tabs.goals.axes.map((axis) => ({
-    id: axis.id,
-    label: axis.label,
-    question: axis.question,
-    evidenceHints: axis.evidenceHints,
-    smartGoals: axis.smartGoals.map((goal) => ({
-      id: goal.id,
-      target: goal.target,
-      kpis: goal.kpis.map((kpi) => kpi.metricId),
-      updateHint: goal.updateHint ?? "",
-      interpretation: goal.interpretation,
-      metrics: goal.kpis.map((kpi) => {
-        const target = targetLabel(kpi.target);
-        return {
-          metricId: kpi.metricId,
-          metric: metricById.get(kpi.metricId) ?? {
-            metricId: kpi.metricId,
-            label: kpi.label,
-            description: kpi.description,
-            axis: axis.id,
-            product: "",
-            sourceId: kpi.primitiveId,
-            status: kpi.status,
-            current: kpi.current,
-            unit: kpi.unit,
-            target: target.label,
-            targetDirection: target.direction,
-            targetUnit: target.unit || kpi.unit,
-            targetDeadline: target.deadline,
-            targetHit: kpi.targetHit,
-            sourceGapIds: kpi.sourceGapIds,
-            aggregation: "",
-            cumulative: false,
-            display: kpi.display,
-            series: [],
-          },
-          gap: kpi.sourceGapIds.map((id) => gapById.get(id)).find(Boolean) ?? null,
-        };
-      }),
-    })),
-  }));
-}
-
 export function buildGoalAxisViews(
   axes: GoalAxisContract[],
   snapshot: MetricsUiSnapshot | null,

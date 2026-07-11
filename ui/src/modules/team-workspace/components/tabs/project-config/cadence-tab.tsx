@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { findProjectUiSnapshot } from "@/modules/team-workspace/lib/dashboard-projections/project-ui-snapshot";
 import { findConfigFile } from "./config-parsing";
 import type { FarplaneProjectConfig } from "./config-types";
 import { statusBadge } from "./shared";
@@ -17,6 +18,7 @@ type AutomationEntry = {
   schedule: string;
   target: string;
   source: string;
+  status: string;
 };
 
 export function ProjectAutomationsTab({
@@ -25,7 +27,21 @@ export function ProjectAutomationsTab({
   config: FarplaneProjectConfig | null;
 }): ReactElement {
   const automations = findConfigFile(config, "automations");
-  const entries = useMemo(() => parseAutomationEntries(automations?.content ?? ""), [automations]);
+  const snapshot = findProjectUiSnapshot(config);
+  const entries = useMemo(
+    () =>
+      (snapshot?.tabs.cadence.automations ?? []).map((automation) => ({
+        id: automation.id,
+        title: automation.name,
+        name: automation.name,
+        kind: automation.kind,
+        schedule: "schedule not projected",
+        target: automation.kind,
+        source: automation.sourceRef?.path ?? ".farplane/project/ui/latest.json",
+        status: automation.status,
+      })),
+    [snapshot],
+  );
   const [selectedId, setSelectedId] = useState<string | null>(entries[0]?.id ?? null);
   const selected = entries.find((entry) => entry.id === selectedId) ?? entries[0] ?? null;
 
@@ -82,6 +98,7 @@ export function ProjectAutomationsTab({
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     <Badge variant="secondary">{selected?.kind}</Badge>
+                    <Badge variant="outline">{selected?.status}</Badge>
                     <Badge variant="outline">{selected?.schedule}</Badge>
                   </div>
                 </div>
@@ -89,10 +106,12 @@ export function ProjectAutomationsTab({
               <CardContent>
                 {selected?.source ? (
                   <div className="rounded-md border bg-muted/20 p-3">
-                    <p className="mb-2 text-sm font-medium">Automation config</p>
-                    <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap rounded-md bg-background p-3 text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
-                      {selected.source}
-                    </pre>
+                    <p className="mb-2 text-sm font-medium">Projected kind</p>
+                    <p className="text-sm text-muted-foreground">{selected.target}</p>
+                    <p className="mt-3 text-xs text-muted-foreground">Source: {selected.source}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Schedule, prompt, and target details are not projected by the current snapshot.
+                    </p>
                   </div>
                 ) : (
                   <div className="rounded-md border bg-muted/20 p-3">
@@ -108,7 +127,7 @@ export function ProjectAutomationsTab({
           <Card className="rounded-md">
             <CardContent className="p-6">
               <p className="text-sm text-muted-foreground">
-                No automation configs found in farplane/automations.toml.
+                No automations are available in the project UI snapshot.
               </p>
             </CardContent>
           </Card>
@@ -139,96 +158,4 @@ function AutomationListItem({ entry }: { entry: AutomationEntry }): ReactElement
       </div>
     </div>
   );
-}
-
-function parseAutomationEntries(toml: string): AutomationEntry[] {
-  return splitAutomationBlocks(toml).map((block) => {
-    const config = parseAutomationTomlConfig(block);
-    const source = `[[automations]]\n${block.trim()}`;
-      return {
-        id: config.id ?? config.name ?? "automation",
-        title: config.name ?? config.id ?? "Automation",
-        name: config.name ?? config.id ?? "Automation",
-        kind: config.kind ?? "kind missing",
-        schedule: humanizeRrule(config.rrule ?? "", config),
-        target: config.targetThread ?? config.workspace ?? "target missing",
-        source,
-      };
-    });
-}
-
-function splitAutomationBlocks(toml: string): string[] {
-  return toml
-    .split(/^\s*\[\[automations\]\]\s*$/m)
-    .slice(1)
-    .map((block) => block.trim())
-    .filter(Boolean);
-}
-
-type AutomationTomlConfig = {
-  id?: string;
-  name?: string;
-  kind?: string;
-  rrule?: string;
-  targetThread?: string;
-  workspace?: string;
-  intervalMinutes?: string;
-  scheduleType?: string;
-  timezone?: string;
-  time?: string;
-  days?: string;
-};
-
-function parseAutomationTomlConfig(toml: string): AutomationTomlConfig {
-  const readString = (key: string): string | undefined =>
-    toml.match(new RegExp(`^${key}\\s*=\\s*"([^"]*)"`, "m"))?.[1]?.trim();
-  const readNumber = (key: string): string | undefined =>
-    toml.match(new RegExp(`^${key}\\s*=\\s*(\\d+)`, "m"))?.[1]?.trim();
-  const readArray = (key: string): string | undefined =>
-    toml.match(new RegExp(`^${key}\\s*=\\s*\\[([^\\]]*)\\]`, "m"))?.[1]?.replace(/"/g, "").trim();
-  return {
-    id: readString("id"),
-    name: readString("name"),
-    kind: readString("kind"),
-    rrule: readString("rrule"),
-    targetThread: readString("thread_id") ?? readString("target_thread"),
-    workspace: readString("workspace"),
-    intervalMinutes: readNumber("interval_minutes"),
-    scheduleType: readString("type"),
-    timezone: readString("timezone"),
-    time: readString("time"),
-    days: readArray("days"),
-  };
-}
-
-function humanizeRrule(rrule: string, config?: AutomationTomlConfig): string {
-  if (!rrule && config?.scheduleType) return humanizeScheduleConfig(config);
-  if (!rrule) return "schedule missing";
-  const interval = rrule.match(/INTERVAL=(\d+)/)?.[1];
-  if (rrule.includes("FREQ=MINUTELY")) return interval ? `every ${interval}m` : "minutely";
-  const hour = rrule.match(/BYHOUR=(\d+)/)?.[1]?.padStart(2, "0");
-  const minute = rrule.match(/BYMINUTE=(\d+)/)?.[1]?.padStart(2, "0");
-  const time = hour && minute ? `${hour}:${minute}` : "time unavailable";
-  if (rrule.includes("FREQ=DAILY")) return `daily ${time}`;
-  if (rrule.includes("FREQ=WEEKLY")) {
-    const day = rrule.match(/BYDAY=([^;]+)/)?.[1] ?? "weekly";
-    return `${day} ${time}`;
-  }
-  return rrule;
-}
-
-function humanizeScheduleConfig(config: AutomationTomlConfig): string {
-  if (config.scheduleType === "interval" && config.intervalMinutes) {
-    return `every ${config.intervalMinutes}m`;
-  }
-  if (config.scheduleType === "active_hours_interval" && config.intervalMinutes) {
-    return `active hours every ${config.intervalMinutes}m`;
-  }
-  if (config.scheduleType === "daily" && config.time) return `daily ${config.time}`;
-  if (config.scheduleType === "weekly" && config.time) {
-    const days = config.days ? `${config.days} ` : "";
-    return `${days}${config.time}`;
-  }
-  if (config.scheduleType === "monthly" && config.time) return `monthly ${config.time}`;
-  return config.scheduleType ?? "schedule missing";
 }

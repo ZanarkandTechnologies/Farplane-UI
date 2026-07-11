@@ -126,25 +126,25 @@ export function OverviewAttentionCard({
 
 export function OverviewCeoSummary({
   configBadge,
-  currentBet,
-  evalsFileExists,
-  goalsFileExists,
+  commitmentSummary,
+  metricsProjected,
+  optimizationProjected,
   harnessFileExists,
   hasBusinessConfig,
   mission,
-  northStar,
+  projectSummary,
   principles,
   projectStatus,
   projectConfigReady,
 }: {
   configBadge: string;
-  currentBet: string;
-  evalsFileExists: boolean;
-  goalsFileExists: boolean;
+  commitmentSummary: string;
+  metricsProjected: boolean;
+  optimizationProjected: boolean;
   harnessFileExists: boolean;
   hasBusinessConfig: boolean;
   mission: string;
-  northStar: string;
+  projectSummary: string;
   principles: string[];
   projectStatus: string;
   projectConfigReady: boolean;
@@ -155,7 +155,7 @@ export function OverviewCeoSummary({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-sm">
             <Target className="h-4 w-4" />
-            Team Focus
+            Project Contract
           </CardTitle>
           <div className="flex items-center gap-2">
             {hasBusinessConfig ? (
@@ -173,29 +173,29 @@ export function OverviewCeoSummary({
           <div className="flex items-center gap-2">
             <Flag className="h-4 w-4 text-muted-foreground" />
             <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-              Current Focus
+              Project
             </p>
           </div>
-          <p className="text-base font-medium leading-6">{northStar}</p>
+          <p className="text-base font-medium leading-6">{projectSummary}</p>
           <div className="rounded-md border bg-background/50 p-3">
             <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-                Current Bet
+                Selected Commitments
             </p>
-            <p className="mt-1 text-sm text-muted-foreground">{currentBet}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{commitmentSummary}</p>
           </div>
         </div>
         <div className="space-y-3 rounded-md border bg-muted/20 p-3">
           <div className="flex items-center gap-2">
             <Gauge className="h-4 w-4 text-muted-foreground" />
             <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-              Active Milestone
+              Harness Mission
             </p>
           </div>
           <p className="text-sm leading-6 text-muted-foreground">{mission}</p>
           <div className="flex flex-wrap gap-2">
             <Badge variant={harnessFileExists ? "outline" : "secondary"}>snapshot</Badge>
-            <Badge variant={goalsFileExists ? "outline" : "secondary"}>goals</Badge>
-            <Badge variant={evalsFileExists ? "outline" : "secondary"}>products</Badge>
+            <Badge variant={optimizationProjected ? "outline" : "secondary"}>optimization</Badge>
+            <Badge variant={metricsProjected ? "outline" : "secondary"}>metrics</Badge>
           </div>
           {principles.length > 0 ? (
             <div className="space-y-1">

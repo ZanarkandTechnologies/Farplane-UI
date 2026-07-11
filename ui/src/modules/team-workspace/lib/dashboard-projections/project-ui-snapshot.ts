@@ -9,43 +9,33 @@ import type { FarplaneProjectConfig } from "@/modules/team-workspace/lib/project
 import type {
   ProjectUiContentItem,
   ProjectUiContentMetricCard,
-  ProjectUiGoalAxis,
+  ProjectUiCharter,
   ProjectUiMetricCard,
   ProjectUiMetricPoint,
   ProjectUiMetricSourceGap,
   ProjectUiMetricTarget,
-  ProjectUiProduct,
-  ProjectUiProductArtifactWorkflow,
-  ProjectUiProductGoal,
-  ProjectUiProductKpis,
-  ProjectUiSmartGoal,
-  ProjectUiSmartGoalKpi,
+  ProjectUiObjectives,
+  ProjectUiSelectionMetric,
   ProjectUiSnapshot,
   ProjectUiSourceGap,
   ProjectUiSourceRef,
-  ProjectUiTeamFocus,
-  ProjectUiWorkLane,
+  ProjectUiAutomation,
 } from "./project-ui-snapshot-types";
 
 export type {
   ProjectUiContentItem,
   ProjectUiContentMetricCard,
-  ProjectUiGoalAxis,
+  ProjectUiCharter,
   ProjectUiMetricCard,
   ProjectUiMetricPoint,
   ProjectUiMetricSourceGap,
   ProjectUiMetricTarget,
-  ProjectUiProduct,
-  ProjectUiProductArtifactWorkflow,
-  ProjectUiProductGoal,
-  ProjectUiProductKpis,
-  ProjectUiSmartGoal,
-  ProjectUiSmartGoalKpi,
+  ProjectUiObjectives,
+  ProjectUiSelectionMetric,
   ProjectUiSnapshot,
   ProjectUiSourceGap,
   ProjectUiSourceRef,
-  ProjectUiTeamFocus,
-  ProjectUiWorkLane,
+  ProjectUiAutomation,
 } from "./project-ui-snapshot-types";
 
 function record(value: unknown): Record<string, unknown> {
@@ -195,8 +185,19 @@ function parseMetricCard(value: unknown): ProjectUiMetricCard | null {
       .filter((gap): gap is ProjectUiMetricSourceGap => Boolean(gap)),
     unit: stringValue(row.unit),
     display: stringValue(row.display),
+    direction: stringValue(row.direction ?? row.target_direction ?? row.targetDirection),
+    guard: parseMetricGuard(row.guard),
+    maxAgeDays: nullableNumber(row.max_age_days ?? row.maxAgeDays),
     pinned: row.pinned === true,
+    selectionRole: stringValue(row.selection_role ?? row.selectionRole),
   };
+}
+
+function parseMetricGuard(value: unknown): ProjectUiMetricCard["guard"] {
+  const row = record(value);
+  const operator = stringValue(row.operator).trim();
+  if (!operator) return null;
+  return { operator, threshold: nullableNumber(row.threshold) };
 }
 
 function parseContentMetricCard(value: unknown): ProjectUiContentMetricCard | null {
@@ -246,147 +247,56 @@ function parseContentItem(value: unknown): ProjectUiContentItem | null {
   };
 }
 
-function parseSmartGoalKpi(value: unknown): ProjectUiSmartGoalKpi | null {
+function parseSelectionMetric(value: unknown): ProjectUiSelectionMetric | null {
   const row = record(value);
-  const metricId = stringValue(row.metric_id ?? row.metricId).trim();
+  const metricId = stringValue(row.metric_id ?? row.metricId ?? row.id).trim();
   if (!metricId) return null;
   return {
     metricId,
-    label: stringValue(row.label) || metricId,
-    description: optionalString(
-      row.description ?? row.tooltip ?? row.calculation_description ?? row.calculationDescription,
-    ),
-    current: nullableNumber(row.current),
-    display: stringValue(row.display),
-    status: stringValue(row.status) || "missing",
-    primitiveId: stringValue(row.primitive_id ?? row.primitiveId),
+    priority: nullableNumber(row.priority),
+    scope: stringValue(row.scope),
+  };
+}
+
+function parseCharter(value: unknown): ProjectUiCharter {
+  const row = record(value);
+  return {
+    mission: stringValue(row.mission),
+    northStar: stringValue(row.north_star ?? row.northStar),
+    humanThesis: stringValue(row.human_thesis ?? row.humanThesis),
+    operatingPrinciples: stringList(row.operating_principles ?? row.operatingPrinciples),
+    nonTradeoffs: stringList(row.non_tradeoffs ?? row.nonTradeoffs),
+    stableCapabilities: stringList(row.stable_capabilities ?? row.stableCapabilities),
+  };
+}
+
+function parseObjectives(value: unknown): ProjectUiObjectives {
+  const row = record(value);
+  const selection = record(row.selection);
+  return {
+    metricCards: arrayValue(row.metric_cards ?? row.metricCards)
+      .map(parseMetricCard)
+      .filter((metric): metric is ProjectUiMetricCard => Boolean(metric)),
+    objectives: arrayValue(selection.objectives)
+      .map(parseSelectionMetric)
+      .filter((metric): metric is ProjectUiSelectionMetric => Boolean(metric)),
+    guards: arrayValue(selection.guards)
+      .map(parseSelectionMetric)
+      .filter((metric): metric is ProjectUiSelectionMetric => Boolean(metric)),
     sourceGapIds: stringList(row.source_gap_ids ?? row.sourceGapIds),
-    target: parseTarget(row.target ?? row.target_spec ?? row.targetSpec),
-    targetHit: typeof row.target_hit === "boolean" ? row.target_hit : null,
-    unit: stringValue(row.unit),
   };
 }
 
-function parseGoalAxis(value: unknown): ProjectUiGoalAxis | null {
-  const row = record(value);
-  const id = stringValue(row.id).trim();
-  if (!id) return null;
-  const rawSmartGoals = row.smart_goals ?? row.smartGoals;
-  const smartGoals: unknown[] = Array.isArray(rawSmartGoals) ? rawSmartGoals : [];
-  return {
-    id,
-    label: stringValue(row.label) || id,
-    question: stringValue(row.question),
-    evidenceHints: stringList(row.evidence_hints ?? row.evidenceHints),
-    smartGoals: smartGoals
-      .map((entry): ProjectUiSmartGoal | null => {
-        const goal = record(entry);
-        const goalId = stringValue(goal.id).trim();
-        if (!goalId) return null;
-        const kpis: unknown[] = Array.isArray(goal.kpis) ? goal.kpis : [];
-        return {
-          id: goalId,
-          target: stringValue(goal.target),
-          kpis: kpis
-            .map(parseSmartGoalKpi)
-            .filter((kpi): kpi is ProjectUiSmartGoalKpi => Boolean(kpi)),
-          updateHint: optionalString(goal.update_hint ?? goal.updateHint),
-          interpretation: optionalString(goal.interpretation),
-        };
-      })
-      .filter((goal): goal is ProjectUiSmartGoal => Boolean(goal)),
-  };
-}
-
-function parseProduct(value: unknown): ProjectUiProduct | null {
-  const row = record(value);
-  const productId = stringValue(row.product_id ?? row.productId ?? row.id).trim();
-  if (!productId) return null;
-  const artifactWorkflows = arrayValue(row.artifact_workflows ?? row.artifactWorkflows);
-  return {
-    artifactWorkflows: artifactWorkflows
-      .map(parseProductArtifactWorkflow)
-      .filter((workflow): workflow is ProjectUiProductArtifactWorkflow => Boolean(workflow)),
-    audience: stringValue(row.audience),
-    goals: (Array.isArray(row.goals) ? row.goals : [])
-      .map(parseProductGoal)
-      .filter((goal): goal is ProjectUiProductGoal => Boolean(goal)),
-    kpis: parseProductKpis(row.kpis),
-    kpiIds: stringList(row.kpi_ids ?? row.kpiIds),
-    lane: stringValue(row.lane),
-    laneWeight: nullableNumber(
-      row.default_weight ?? row.defaultWeight ?? row.lane_weight ?? row.laneWeight,
-    ),
-    metricIds: stringList(row.metric_ids ?? row.metricIds),
-    name: stringValue(row.name ?? row.label) || productId,
-    output: stringValue(row.output),
-    ownerSkill: stringValue(row.owner_skill ?? row.ownerSkill),
-    productId,
-    proofState: stringValue(row.proof_state ?? row.proofState) || "unknown",
-    reward: stringValue(row.reward),
-    sourceGapIds: stringList(row.source_gap_ids ?? row.sourceGapIds),
-    sourceRef: sourceRef(row.source_ref ?? row.sourceRef ?? record(row.refs).product),
-    ticketCount: nullableNumber(row.ticket_count ?? row.ticketCount),
-  };
-}
-
-function parseProductKpis(value: unknown): ProjectUiProductKpis {
-  const row = record(value);
-  return {
-    all: stringList(row.all),
-    guardrail: stringList(row.guardrail),
-    primary: stringList(row.primary),
-    supporting: stringList(row.supporting),
-  };
-}
-
-function parseProductGoal(value: unknown): ProjectUiProductGoal | null {
+function parseAutomation(value: unknown): ProjectUiAutomation | null {
   const row = record(value);
   const id = stringValue(row.id).trim();
   if (!id) return null;
   return {
     id,
-    interpretation: optionalString(row.interpretation),
-    kpis: stringList(row.kpis),
-    scope: optionalString(row.scope),
-    target: stringValue(row.target),
-  };
-}
-
-function parseProductArtifactWorkflow(value: unknown): ProjectUiProductArtifactWorkflow | null {
-  const row = record(value);
-  const id = stringValue(row.id).trim();
-  if (!id) return null;
-  return {
-    executionArtifact: stringValue(row.execution_artifact ?? row.executionArtifact),
-    feedbackQuestion: stringValue(row.feedback_question ?? row.feedbackQuestion),
-    id,
-    lane: stringValue(row.lane),
-    owner: stringValue(row.owner),
-    planningArtifact: stringValue(row.planning_artifact ?? row.planningArtifact),
-  };
-}
-
-function parseWorkLane(value: unknown): ProjectUiWorkLane | null {
-  const row = record(value);
-  const laneId = stringValue(row.lane_id ?? row.laneId ?? row.id).trim();
-  if (!laneId) return null;
-  return {
-    defaultWeight: nullableNumber(row.default_weight ?? row.defaultWeight),
-    laneId,
-    purpose: stringValue(row.purpose),
-  };
-}
-
-function parseTeamFocus(value: unknown): ProjectUiTeamFocus {
-  const row = record(value);
-  return {
-    activeMilestone: stringValue(row.active_milestone ?? row.activeMilestone) || null,
-    activeProductIds: stringList(row.active_product_ids ?? row.activeProductIds),
-    blockers: stringList(row.blockers),
-    currentBet: stringValue(row.current_bet ?? row.currentBet) || null,
-    currentFocus: stringValue(row.current_focus ?? row.currentFocus) || null,
-    topGoalId: stringValue(row.top_goal_id ?? row.topGoalId) || null,
+    kind: stringValue(row.kind) || "unknown",
+    name: stringValue(row.name) || id,
+    status: stringValue(row.status) || "unknown",
+    sourceRef: sourceRef(row.source_ref ?? row.sourceRef),
   };
 }
 
@@ -395,16 +305,18 @@ export function parseProjectUiSnapshot(value: unknown): ProjectUiSnapshot | null
   const tabs = record(source.tabs);
   const metrics = record(source.metrics);
   if (!source.generated_at && !source.generatedAt) return null;
+  if (source.schema_version !== 2) return null;
   const overview = record(tabs.overview);
-  const goals = record(tabs.goals);
-  const products = record(tabs.products);
+  if (!("charter" in overview) || !("objectives" in tabs)) return null;
+  const objectives = record(tabs.objectives);
+  const cadence = record(tabs.cadence);
   const distribution = record(tabs.distribution);
   const series = Array.isArray(metrics.series) ? metrics.series : [];
+  const definitions = Object.values(record(metrics.definitions));
   const metricContents = Array.isArray(metrics.contents) ? metrics.contents : [];
   const distributionContent = Array.isArray(distribution.content_items)
     ? distribution.content_items
     : [];
-  const workLanes = arrayValue(products.work_lanes ?? products.workLanes);
   return {
     generatedAt: stringValue(source.generated_at ?? source.generatedAt),
     schemaVersion: typeof source.schema_version === "number" ? source.schema_version : 1,
@@ -420,6 +332,9 @@ export function parseProjectUiSnapshot(value: unknown): ProjectUiSnapshot | null
       contents: metricContents
         .map(parseContentItem)
         .filter((item): item is ProjectUiContentItem => Boolean(item)),
+      definitions: definitions
+        .map(parseMetricCard)
+        .filter((metric): metric is ProjectUiMetricCard => Boolean(metric)),
       primitives: record(metrics.primitives),
       readings: record(metrics.readings ?? metrics.latest),
       series: series
@@ -428,6 +343,7 @@ export function parseProjectUiSnapshot(value: unknown): ProjectUiSnapshot | null
     },
     tabs: {
       overview: {
+        charter: parseCharter(overview.charter),
         pinnedMetrics: stringList(overview.pinned_metrics ?? overview.pinnedMetrics),
         pinnedMetricCards: (Array.isArray(overview.pinned_metric_cards)
           ? overview.pinned_metric_cards
@@ -437,22 +353,13 @@ export function parseProjectUiSnapshot(value: unknown): ProjectUiSnapshot | null
           .filter((metric): metric is ProjectUiMetricCard => Boolean(metric)),
         primitiveSummary: record(overview.primitive_summary ?? overview.primitiveSummary),
         sourceGapIds: stringList(overview.source_gap_ids ?? overview.sourceGapIds),
-        teamFocus: parseTeamFocus(overview.team_focus ?? overview.teamFocus),
       },
-      goals: {
-        axes: (Array.isArray(goals.axes) ? goals.axes : [])
-          .map(parseGoalAxis)
-          .filter((axis): axis is ProjectUiGoalAxis => Boolean(axis)),
-        sourceGapIds: stringList(goals.source_gap_ids ?? goals.sourceGapIds),
-      },
-      products: {
-        products: (Array.isArray(products.products) ? products.products : [])
-          .map(parseProduct)
-          .filter((product): product is ProjectUiProduct => Boolean(product)),
-        sourceGapIds: stringList(products.source_gap_ids ?? products.sourceGapIds),
-        workLanes: workLanes
-          .map(parseWorkLane)
-          .filter((lane): lane is ProjectUiWorkLane => Boolean(lane)),
+      objectives: parseObjectives(objectives),
+      cadence: {
+        automations: arrayValue(cadence.automations)
+          .map(parseAutomation)
+          .filter((automation): automation is ProjectUiAutomation => Boolean(automation)),
+        sourceGapIds: stringList(cadence.source_gap_ids ?? cadence.sourceGapIds),
       },
       distribution: {
         contentItems: distributionContent

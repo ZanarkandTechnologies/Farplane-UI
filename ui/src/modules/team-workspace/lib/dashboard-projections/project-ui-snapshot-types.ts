@@ -63,7 +63,11 @@ export type ProjectUiMetricCard = {
   sourceGaps: ProjectUiMetricSourceGap[];
   unit: string;
   display: string;
+  direction: string;
+  guard: { operator: string; threshold: number | null } | null;
+  maxAgeDays: number | null;
   pinned: boolean;
+  selectionRole: string;
 };
 
 export type ProjectUiContentMetricCard = {
@@ -92,93 +96,34 @@ export type ProjectUiContentItem = {
   sourceGapIds: string[];
 };
 
-export type ProjectUiSmartGoalKpi = {
+export type ProjectUiCharter = {
+  mission: string;
+  northStar: string;
+  humanThesis: string;
+  operatingPrinciples: string[];
+  nonTradeoffs: string[];
+  stableCapabilities: string[];
+};
+
+export type ProjectUiSelectionMetric = {
   metricId: string;
-  label: string;
-  description?: string;
-  current: number | null;
-  display: string;
-  status: string;
-  primitiveId: string;
+  priority: number | null;
+  scope: string;
+};
+
+export type ProjectUiObjectives = {
+  metricCards: ProjectUiMetricCard[];
+  objectives: ProjectUiSelectionMetric[];
+  guards: ProjectUiSelectionMetric[];
   sourceGapIds: string[];
-  target: ProjectUiMetricTarget | number | string | null;
-  targetHit: boolean | null;
-  unit: string;
 };
 
-export type ProjectUiSmartGoal = {
+export type ProjectUiAutomation = {
   id: string;
-  target: string;
-  kpis: ProjectUiSmartGoalKpi[];
-  updateHint?: string;
-  interpretation?: string;
-};
-
-export type ProjectUiGoalAxis = {
-  id: string;
-  label: string;
-  question: string;
-  evidenceHints: string[];
-  smartGoals: ProjectUiSmartGoal[];
-};
-
-export type ProjectUiProductKpis = {
-  all: string[];
-  guardrail: string[];
-  primary: string[];
-  supporting: string[];
-};
-
-export type ProjectUiProductGoal = {
-  id: string;
-  interpretation?: string;
-  kpis: string[];
-  scope?: string;
-  target: string;
-};
-
-export type ProjectUiProductArtifactWorkflow = {
-  executionArtifact: string;
-  feedbackQuestion: string;
-  id: string;
-  lane: string;
-  owner: string;
-  planningArtifact: string;
-};
-
-export type ProjectUiProduct = {
-  artifactWorkflows: ProjectUiProductArtifactWorkflow[];
-  audience: string;
-  goals: ProjectUiProductGoal[];
-  kpis: ProjectUiProductKpis;
-  kpiIds: string[];
-  lane: string;
-  laneWeight: number | null;
-  metricIds: string[];
+  kind: string;
   name: string;
-  output: string;
-  ownerSkill: string;
-  productId: string;
-  proofState: string;
-  reward: string;
-  sourceGapIds: string[];
+  status: string;
   sourceRef?: ProjectUiSourceRef;
-  ticketCount: number | null;
-};
-
-export type ProjectUiWorkLane = {
-  defaultWeight: number | null;
-  laneId: string;
-  purpose: string;
-};
-
-export type ProjectUiTeamFocus = {
-  activeMilestone?: string | null;
-  activeProductIds: string[];
-  blockers: string[];
-  currentBet?: string | null;
-  currentFocus?: string | null;
-  topGoalId?: string | null;
 };
 
 export type ProjectUiSnapshot = {
@@ -190,26 +135,23 @@ export type ProjectUiSnapshot = {
   sourceGaps: ProjectUiSourceGap[];
   metrics: {
     contents: ProjectUiContentItem[];
+    definitions: ProjectUiMetricCard[];
     primitives: Record<string, unknown>;
     readings: Record<string, unknown>;
     series: ProjectUiMetricCard[];
   };
   tabs: {
     overview: {
+      charter: ProjectUiCharter;
       pinnedMetrics: string[];
       pinnedMetricCards: ProjectUiMetricCard[];
       primitiveSummary: Record<string, unknown>;
       sourceGapIds: string[];
-      teamFocus: ProjectUiTeamFocus;
     };
-    goals: {
-      axes: ProjectUiGoalAxis[];
+    objectives: ProjectUiObjectives;
+    cadence: {
+      automations: ProjectUiAutomation[];
       sourceGapIds: string[];
-    };
-    products: {
-      products: ProjectUiProduct[];
-      sourceGapIds: string[];
-      workLanes: ProjectUiWorkLane[];
     };
     distribution: {
       contentItems: ProjectUiContentItem[];

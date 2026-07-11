@@ -5,6 +5,17 @@
 Team-level operator surfaces for overview, kanban, timeline, memory,
 operator intelligence, and ledger workflows.
 
+Farplane harness, optimization, metrics, and cadence render from the generated
+`.farplane/project/ui/latest.json` read model. Tracked project files remain
+canonical; the browser does not reinterpret YAML/TOML semantics for these
+dashboard surfaces. Tickets remain the work/proof state shown by Kanban.
+
+The required schema-v2 boundary is `tabs.overview.charter`, `tabs.objectives`,
+and `metrics.definitions/series`. Charter projects mission, thesis, principles,
+non-tradeoffs, and stable capabilities. Objectives projects ordered objectives,
+hard guards, freshness-aware readings, and source gaps. The UI has no Goals or
+Products navigation/schema and does not fall back to `goals.yaml`.
+
 ## Public API / Entrypoints
 
 - `index.ts`

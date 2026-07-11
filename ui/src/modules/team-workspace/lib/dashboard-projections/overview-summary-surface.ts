@@ -8,7 +8,6 @@ import type {
   FarplaneProjectConfig,
   FarplaneRuntimeReport,
 } from "@/modules/team-workspace/lib/project-config";
-import { findMetricsSnapshot } from "./goal-kpi-model";
 import type { OverviewReportLink, OverviewSurface } from "./overview-surface";
 import {
   findProjectUiSnapshot,
@@ -44,10 +43,9 @@ function targetText(target: ProjectUiMetricTarget | number | string | null): str
 }
 
 function metricCardValue(metric: ProjectUiMetricCard): string {
+  if (metric.status === "stale") return "stale";
+  if (metric.status === "missing") return "missing";
   if (typeof metric.current === "number") return numberText(metric.current);
-  const latest = metric.series.at(-1);
-  if (typeof latest?.current === "number") return numberText(latest.current);
-  if (typeof latest?.value === "number") return numberText(latest.value);
   if (
     metric.status === "source_gap" ||
     metric.sourceGaps.length > 0 ||
@@ -114,19 +112,21 @@ export function buildOverviewSummarySurface({
     projectUiSnapshot,
     projectUiSnapshot?.tabs.overview.sourceGapIds ?? [],
   );
-  const teamFocus = projectUiSnapshot?.tabs.overview.teamFocus;
-  const metricsSnapshot = findMetricsSnapshot(projectConfig);
-  const socialContent = buildSocialContentInsightsModel(projectConfig, metricsSnapshot);
+  const metricSeries = projectUiSnapshot?.metrics.series ?? [];
+  const socialContent = buildSocialContentInsightsModel(projectConfig, null);
   const availableMetricCount =
-    metricsSnapshot?.metrics.filter((metric) => metric.status === "available").length ?? 0;
-  const actionableSourceGaps = metricsSnapshot ? visibleOverviewSourceGaps(metricsSnapshot) : [];
-  const sourceGapCount = metricsSnapshot ? actionableSourceGaps.length : 0;
+    metricSeries.filter((metric) => metric.status === "available").length;
+  const actionableSourceGaps = projectUiSnapshot?.sourceGaps.map((gap) => ({
+    metricId: gap.id,
+    ...sourceGapCopy(gap.id.replace(/^metric_source_gap:/, ""), gap.message),
+  })) ?? [];
+  const sourceGapCount = actionableSourceGaps.length;
   const distributionViews = socialContent.items.reduce(
     (total, item) => total + (item.content_metrics.views ?? 0),
     0,
   );
   const distributionGaps = socialContent.items.reduce((total, item) => total + item.gaps.length, 0);
-  const latestDailyDiff = metricsSnapshot?.metrics
+  const latestDailyDiff = metricSeries
     .flatMap((metric) => metric.series.slice(-1).map((point) => point.dailyDiff))
     .filter((value): value is number => typeof value === "number")
     .reduce((total, value) => total + value, 0);
@@ -165,24 +165,26 @@ export function buildOverviewSummarySurface({
             target: metric.productId || targetText(metric.target),
             provider: metricCardProvider(metric),
             status:
-              metric.status === "available" || metric.status === "source_gap"
-                ? metric.status
-                : "missing",
+              metric.status === "available"
+                ? "available"
+                : metric.status === "source_gap" || metric.status === "stale"
+                  ? "source_gap"
+                  : "missing",
             priority: index + 1,
             cardKind: "number",
           }))
         : [
             {
-              id: "goal_health",
-              label: "Goal Health",
-              value: metricsSnapshot ? `${availableMetricCount} live` : "missing",
+              id: "objective_health",
+              label: "Objective Health",
+              value: projectUiSnapshot ? `${availableMetricCount} live` : "missing",
               detail:
                 sourceGapCount > 0
                   ? `${sourceGapCount} source gap${sourceGapCount === 1 ? "" : "s"}`
                   : "no metric source gaps",
               target: "strategy contract",
-              provider: metricsSnapshot ? "project snapshot" : "provider_missing",
-              status: metricsSnapshot ? "available" : "missing",
+              provider: projectUiSnapshot ? "project snapshot" : "provider_missing",
+              status: projectUiSnapshot ? "available" : "missing",
               priority: 1,
               cardKind: "status",
             },
@@ -195,8 +197,8 @@ export function buildOverviewSummarySurface({
                   : "n/a",
               detail: "sum of latest daily KPI diffs",
               target: "daily motion",
-              provider: metricsSnapshot ? "metrics.series" : "provider_missing",
-              status: metricsSnapshot ? "available" : "missing",
+              provider: projectUiSnapshot ? "metrics.series" : "provider_missing",
+              status: projectUiSnapshot ? "available" : "missing",
               priority: 2,
               cardKind: "trend",
             },
@@ -231,13 +233,6 @@ export function buildOverviewSummarySurface({
         kind: "gap" as const,
         title: gap.owner,
         attentionReason: gap.path ? `${gap.message} | ${gap.path}` : gap.message,
-        owner: "system" as const,
-      })),
-      ...(teamFocus?.blockers ?? []).map((blocker) => ({
-        id: `team-focus:${blocker}`,
-        kind: "human_action" as const,
-        title: "Team focus blocker",
-        attentionReason: blocker,
         owner: "system" as const,
       })),
       ...openGaps.map((gap) => ({
@@ -302,35 +297,6 @@ export function reportCadence(report: OverviewReportLink): string | null {
   if (source.includes("daily_interval")) return "daily_interval";
   if (source.includes("weekly_interval")) return "weekly_interval";
   return null;
-}
-
-function visibleOverviewSourceGaps(
-  snapshot: NonNullable<ReturnType<typeof findMetricsSnapshot>>,
-): Array<{ detail: string; label: string; metricId: string }> {
-  const hasReach = hasAvailableMetric(snapshot, /(?:^|_)reach$/i);
-  const hasWatchTime = hasAvailableMetric(snapshot, /(?:avg|total)_watch_time/i);
-  return snapshot.sourceGaps
-    .filter((gap) => {
-      if (gap.metricId === "evidence_distribution_reach" && hasReach) return false;
-      if (gap.metricId === "instagram_retention_score" && hasWatchTime) return false;
-      return true;
-    })
-    .map((gap) => ({
-      metricId: gap.metricId,
-      ...sourceGapCopy(gap.metricId, gap.reason || "not connected yet"),
-    }));
-}
-
-function hasAvailableMetric(
-  snapshot: NonNullable<ReturnType<typeof findMetricsSnapshot>>,
-  pattern: RegExp,
-): boolean {
-  return snapshot.metrics.some(
-    (metric) =>
-      pattern.test(metric.metricId) &&
-      metric.status === "available" &&
-      typeof metric.current === "number",
-  );
 }
 
 function sourceGapCopy(metricId: string, reason: string): { detail: string; label: string } {

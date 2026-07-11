@@ -42,8 +42,8 @@ import { OverviewTab } from "./tabs/overview";
 import { TeamMembersSection } from "./tabs/overview/team-members-section";
 import {
   ProjectAutomationsTab,
-  ProjectGoalsTab,
-  ProjectProductsTab,
+  ProjectCharterTab,
+  ProjectObjectivesTab,
   useFarplaneProjectConfig,
 } from "./tabs/project-config";
 import { ReportsTab } from "./tabs/reports";
@@ -79,9 +79,9 @@ const TAB_GROUPS: TabGroup[] = [
     id: "work",
     label: "Work",
     children: [
-      { label: "Goals", value: "goals" },
+      { label: "Charter", value: "charter" },
+      { label: "Objectives", value: "objectives" },
       { label: "Kanban", value: "kanban" },
-      { label: "Products", value: "products" },
       { label: "Distribution", value: "distribution" },
     ],
   },
@@ -327,11 +327,20 @@ export function TeamPanel({
               projectConfig={projectConfigState.config}
               projectConfigState={projectConfigState.state}
               projectConfigError={projectConfigState.error}
+              projectTasks={projectTasks}
             />
           </TabsContent>
 
-          <TabsContent value="goals" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ProjectGoalsTab
+          <TabsContent value="charter" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <ProjectCharterTab
+              config={projectConfigState.config}
+              state={projectConfigState.state}
+              error={projectConfigState.error}
+            />
+          </TabsContent>
+
+          <TabsContent value="objectives" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <ProjectObjectivesTab
               config={projectConfigState.config}
               state={projectConfigState.state}
               error={projectConfigState.error}
@@ -390,9 +399,6 @@ export function TeamPanel({
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="products" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ProjectProductsTab config={projectConfigState.config} />
-          </TabsContent>
 
           <TabsContent value="distribution" className="mt-4 min-h-0 flex-1 overflow-hidden">
             <DistributionTab snapshot={metricsSnapshot} socialContent={socialContent} />

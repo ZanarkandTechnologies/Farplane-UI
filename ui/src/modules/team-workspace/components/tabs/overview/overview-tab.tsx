@@ -51,6 +51,7 @@ interface OverviewTabProps {
   projectConfig: FarplaneProjectConfig | null;
   projectConfigState: ProjectConfigLoadState;
   projectConfigError: string | null;
+  projectTasks: Array<{ status: string }>;
 }
 
 const EMPTY_OVERVIEW_SURFACE: OverviewSurface = {
@@ -72,6 +73,7 @@ export function OverviewTab({
   projectConfig,
   projectConfigError,
   projectConfigState,
+  projectTasks,
   setSelectedProjectId,
   team,
 }: OverviewTabProps): ReactElement {
@@ -109,13 +111,8 @@ export function OverviewTab({
     cleanedTeamDescription.length > 0 && cleanedTeamDescription !== normalizedProjectGoal
       ? cleanedTeamDescription
       : "";
-  const teamFocus = projectUiSnapshot?.tabs.overview.teamFocus;
-  const activeProducts = teamFocus?.activeProductIds.slice(0, 4).join(", ");
-  const focusSummary =
-    teamFocus?.currentFocus ||
-    teamFocus?.currentBet ||
-    activeProducts ||
-    "No current team focus is configured in the project snapshot.";
+  const charter = projectUiSnapshot?.tabs.overview.charter;
+  const openCommitmentCount = projectTasks.filter((task) => task.status !== "done").length;
 
   return (
     <ScrollArea className="h-full pr-3">
@@ -163,20 +160,14 @@ export function OverviewTab({
 
           <OverviewCeoSummary
             configBadge={configBadge(projectConfigState, projectConfigError)}
-            currentBet={teamFocus?.currentBet ?? "No current bet in project snapshot."}
-            evalsFileExists={Boolean(projectUiSnapshot)}
-            goalsFileExists={Boolean(projectUiSnapshot)}
+            commitmentSummary={`${openCommitmentCount} open ticket${openCommitmentCount === 1 ? "" : "s"}`}
+            metricsProjected={Boolean(projectUiSnapshot?.metrics.series.length)}
+            optimizationProjected={Boolean(projectUiSnapshot?.tabs.objectives.objectives.length)}
             harnessFileExists={Boolean(projectUiSnapshot)}
             hasBusinessConfig={hasBusinessConfig}
-            mission={
-              teamFocus?.activeMilestone ??
-              (teamBusinessDescription || "No active milestone in snapshot.")
-            }
-            northStar={focusSummary}
-            principles={[
-              teamFocus?.topGoalId ? `Top goal: ${teamFocus.topGoalId}` : "",
-              activeProducts ? `Active products: ${activeProducts}` : "",
-            ].filter(Boolean)}
+            mission={charter?.mission || "Harness mission is not projected by the current snapshot."}
+            projectSummary={teamBusinessDescription || String(projectUiSnapshot?.project.description ?? project?.name ?? "Project")}
+            principles={charter?.operatingPrinciples ?? []}
             projectConfigReady={projectConfigState === "ready"}
             projectStatus={project?.status ?? "active"}
           />

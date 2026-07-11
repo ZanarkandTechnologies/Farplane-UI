@@ -17,11 +17,11 @@
 export type TabKey =
   | "overview"
   | "reports"
-  | "goals"
+  | "charter"
+  | "objectives"
   | "kanban"
   | "timeline"
   | "members"
-  | "products"
   | "distribution"
   | "news"
   | "skills"

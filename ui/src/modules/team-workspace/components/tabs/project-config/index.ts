@@ -7,7 +7,6 @@ export type {
   FarplaneRuntimeSource,
   ProjectConfigLoadState,
 } from "./config-types";
-export { ProjectGoalsTab } from "./goals-tab";
-export { ProjectProductsTab } from "./products-tab";
+export { ProjectCharterTab, ProjectObjectivesTab } from "./project-contract-tabs";
 export { ProjectConfigTab } from "./source-config-tab";
 export { useFarplaneProjectConfig } from "./use-farplane-project-config";
