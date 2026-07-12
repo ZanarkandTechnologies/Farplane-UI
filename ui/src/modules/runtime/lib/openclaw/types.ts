@@ -426,6 +426,7 @@ export interface CompanyOfficeObjectModel {
     | "couch"
     | "bookshelf"
     | "pantry"
+    | "activity-landmark"
     | "glass-wall"
     | "office-divider"
     | "custom-mesh"

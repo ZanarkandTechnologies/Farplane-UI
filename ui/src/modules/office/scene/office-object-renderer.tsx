@@ -26,13 +26,9 @@ import Pantry from "@/modules/office/components/pantry";
 import Plant from "@/modules/office/components/plant";
 import TeamCluster from "@/modules/office/components/team-cluster";
 import WallArt from "@/modules/office/components/wall-art";
+import ActivityLandmark from "@/modules/office/components/activity-landmark";
 import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
-import type {
-  DeskLayoutData,
-  OfficeId,
-  OfficeObject,
-  TeamData,
-} from "@/modules/office/lib/types";
+import type { DeskLayoutData, OfficeId, OfficeObject, TeamData } from "@/modules/office/lib/types";
 import { shouldUseRoundTeamTable } from "@/modules/office/utils/layout";
 
 export function OfficeObjectRenderer(props: {
@@ -71,11 +67,7 @@ export function OfficeObjectRenderer(props: {
     switch (object.meshType) {
       case "plant":
         return (
-          <group
-            key={object._id}
-            ref={setRef}
-            name={`obstacle-plant-${object._id}`}
-          >
+          <group key={object._id} ref={setRef} name={`obstacle-plant-${object._id}`}>
             <Plant
               objectId={object._id}
               position={object.position as [number, number, number]}
@@ -89,11 +81,7 @@ export function OfficeObjectRenderer(props: {
 
       case "couch":
         return (
-          <group
-            key={object._id}
-            ref={setRef}
-            name={`obstacle-couch-${object._id}`}
-          >
+          <group key={object._id} ref={setRef} name={`obstacle-couch-${object._id}`}>
             <Couch
               objectId={object._id}
               position={object.position as [number, number, number]}
@@ -107,11 +95,7 @@ export function OfficeObjectRenderer(props: {
 
       case "bookshelf":
         return (
-          <group
-            key={object._id}
-            ref={setRef}
-            name={`obstacle-bookshelf-${object._id}`}
-          >
+          <group key={object._id} ref={setRef} name={`obstacle-bookshelf-${object._id}`}>
             <Bookshelf
               objectId={object._id}
               position={object.position as [number, number, number]}
@@ -125,12 +109,22 @@ export function OfficeObjectRenderer(props: {
 
       case "pantry":
         return (
-          <group
-            key={object._id}
-            ref={setRef}
-            name={`obstacle-pantry-${object._id}`}
-          >
+          <group key={object._id} ref={setRef} name={`obstacle-pantry-${object._id}`}>
             <Pantry
+              objectId={object._id}
+              position={object.position as [number, number, number]}
+              rotation={object.rotation as [number, number, number]}
+              scale={object.scale as [number, number, number] | undefined}
+              companyId={companyId}
+              metadata={object.metadata}
+            />
+          </group>
+        );
+
+      case "activity-landmark":
+        return (
+          <group key={object._id} ref={setRef} name={`obstacle-activity-landmark-${object._id}`}>
+            <ActivityLandmark
               objectId={object._id}
               position={object.position as [number, number, number]}
               rotation={object.rotation as [number, number, number]}
@@ -143,19 +137,13 @@ export function OfficeObjectRenderer(props: {
 
       case "team-cluster": {
         const metadataTeamId =
-          typeof object.metadata?.teamId === "string"
-            ? object.metadata.teamId
-            : "";
+          typeof object.metadata?.teamId === "string" ? object.metadata.teamId : "";
         const team = teamById.get(metadataTeamId);
 
         if (!team) return null;
 
         const teamDesks = desksByTeamId.get(team._id) ?? [];
-        const stationCount = Math.max(
-          teamDesks.length,
-          team.employees.length,
-          1,
-        );
+        const stationCount = Math.max(teamDesks.length, team.employees.length, 1);
         const obstacleName = shouldUseRoundTeamTable(stationCount)
           ? `obstacle-round-table-${team.name}`
           : `obstacle-cluster-${team.name}`;
@@ -166,11 +154,7 @@ export function OfficeObjectRenderer(props: {
               team={team}
               desks={teamDesks}
               handleTeamClick={handleTeamClick}
-              onPrimaryAction={
-                team._id === "team-management"
-                  ? handleManagementClick
-                  : undefined
-              }
+              onPrimaryAction={team._id === "team-management" ? handleManagementClick : undefined}
               companyId={companyId}
               objectId={object._id}
               position={object.position as [number, number, number]}
@@ -183,11 +167,7 @@ export function OfficeObjectRenderer(props: {
 
       case "glass-wall":
         return (
-          <group
-            key={object._id}
-            ref={setRef}
-            name={`obstacle-glass-wall-${object._id}`}
-          >
+          <group key={object._id} ref={setRef} name={`obstacle-glass-wall-${object._id}`}>
             <GlassWall
               objectId={object._id}
               position={object.position as [number, number, number]}
@@ -201,11 +181,7 @@ export function OfficeObjectRenderer(props: {
 
       case "office-divider":
         return (
-          <group
-            key={object._id}
-            ref={setRef}
-            name={`obstacle-office-divider-${object._id}`}
-          >
+          <group key={object._id} ref={setRef} name={`obstacle-office-divider-${object._id}`}>
             <OfficeDividerWall
               objectId={object._id}
               position={object.position as [number, number, number]}
@@ -219,11 +195,7 @@ export function OfficeObjectRenderer(props: {
 
       case "custom-mesh":
         return (
-          <group
-            key={object._id}
-            ref={setRef}
-            name={`obstacle-custom-mesh-${object._id}`}
-          >
+          <group key={object._id} ref={setRef} name={`obstacle-custom-mesh-${object._id}`}>
             <CustomMeshObject
               objectId={object._id}
               position={object.position as [number, number, number]}

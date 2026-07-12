@@ -76,9 +76,14 @@ export function buildSkillTargetObjectMap(
   const map = new Map<string, OfficeObject>();
   for (const object of officeObjects) {
     const skillBinding = parseOfficeObjectInteractionConfig(object.metadata).skillBinding;
-    const skillId = skillBinding?.skillId?.trim();
-    if (!skillId || map.has(skillId)) continue;
-    map.set(skillId, object);
+    const skillIds = skillBinding
+      ? [skillBinding.skillId, ...(skillBinding.skillIds ?? [])]
+          .map((skillId) => skillId.trim())
+          .filter(Boolean)
+      : [];
+    for (const skillId of skillIds) {
+      if (!map.has(skillId)) map.set(skillId, object);
+    }
   }
   return map;
 }

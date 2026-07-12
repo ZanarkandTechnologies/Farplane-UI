@@ -50,7 +50,12 @@ describe("office skill targeting", () => {
         meshType: "custom-mesh",
         position: [1, 0, 2],
         rotation: [0, 0, 0],
-        metadata: { skillBinding: { skillId: "world-monitor" } },
+        metadata: {
+          skillBinding: {
+            skillId: "world-monitor",
+            skillIds: ["research", "summarize"],
+          },
+        },
       },
       {
         _id: "monitor-2",
@@ -69,6 +74,8 @@ describe("office skill targeting", () => {
 
     const map = buildSkillTargetObjectMap(objects);
     expect(map.get("world-monitor")?._id).toBe("monitor-1");
-    expect(map.size).toBe(1);
+    expect(map.get("research")?._id).toBe("monitor-1");
+    expect(map.get("summarize")?._id).toBe("monitor-1");
+    expect(map.size).toBe(3);
   });
 });

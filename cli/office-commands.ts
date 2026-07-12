@@ -29,10 +29,7 @@ import {
   findLiveLayoutPlacementViolations,
   getOfficeLayoutCandidatePositions,
 } from "./office-layout-placement.js";
-import {
-  arrangeOfficeObjectsForStudio,
-  shuffleOfficeObjects,
-} from "./office-arrange.js";
+import { arrangeOfficeObjectsForStudio, shuffleOfficeObjects } from "./office-arrange.js";
 import { renderOfficeAscii } from "./office-renderer.js";
 import {
   type CompanyModel,
@@ -54,6 +51,7 @@ const MESH_TYPES = new Set([
   "couch",
   "bookshelf",
   "pantry",
+  "activity-landmark",
   "glass-wall",
   "custom-mesh",
   "wall-art",
@@ -249,7 +247,16 @@ function parseMetadata(values: string[]): Record<string, unknown> {
     const key = entry.slice(0, idx).trim();
     const value = entry.slice(idx + 1).trim();
     if (!key || !value) fail(`invalid_metadata:${entry}:expected_key_equals_value`);
-    entries[key] = value;
+    if (value.startsWith("{") || value.startsWith("[") || value === "true" || value === "false") {
+      try {
+        entries[key] = JSON.parse(value) as unknown;
+        continue;
+      } catch {
+        fail(`invalid_metadata_json:${key}`);
+      }
+    }
+    const numericValue = Number(value);
+    entries[key] = value.trim() !== "" && Number.isFinite(numericValue) ? numericValue : value;
   }
   return entries;
 }
@@ -834,7 +841,7 @@ export function registerOfficeCommands(program: Command): void {
             (entry) =>
               `${entry.teamId || "(unlinked)"} | ${entry.name || "Unnamed"} | agents=${entry.agentCount}`,
           )
-        .join("\n"),
+          .join("\n"),
       );
     });
 
@@ -1277,9 +1284,7 @@ export function registerOfficeCommands(program: Command): void {
       );
     });
 
-  const decorBackground = decor
-    .command("background")
-    .description("Manage scene background decor");
+  const decorBackground = decor.command("background").description("Manage scene background decor");
   decorBackground
     .command("list")
     .option("--json", "Output JSON", false)

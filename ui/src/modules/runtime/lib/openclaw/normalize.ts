@@ -1007,7 +1007,14 @@ function toSkillEvalFarplaneMetadata(value: unknown): SkillEvalFarplaneMetadata 
 function toSkillEvalCase(value: unknown): SkillEvalCase | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Json;
-  const allowedKeys = new Set(["id", "prompt", "expected_output", "files", "assertions", "metadata"]);
+  const allowedKeys = new Set([
+    "id",
+    "prompt",
+    "expected_output",
+    "files",
+    "assertions",
+    "metadata",
+  ]);
   if (Object.keys(row).some((key) => !allowedKeys.has(key))) return null;
   const files = toStringArray(row.files);
   const assertions = toStringArray(row.assertions);
@@ -1940,6 +1947,7 @@ export function toOfficeObject(entry: unknown): CompanyOfficeObjectModel | null 
     meshType !== "couch" &&
     meshType !== "bookshelf" &&
     meshType !== "pantry" &&
+    meshType !== "activity-landmark" &&
     meshType !== "glass-wall" &&
     meshType !== "office-divider" &&
     meshType !== "custom-mesh" &&
@@ -1992,6 +2000,7 @@ export function toOfficeObjectSidecar(entry: unknown): OfficeObjectSidecarModel 
     meshType !== "couch" &&
     meshType !== "bookshelf" &&
     meshType !== "pantry" &&
+    meshType !== "activity-landmark" &&
     meshType !== "glass-wall" &&
     meshType !== "office-divider" &&
     meshType !== "custom-mesh" &&

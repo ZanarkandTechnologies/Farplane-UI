@@ -25,6 +25,8 @@ type SkillTargetBindingCardProps = {
   setEnabled: (enabled: boolean) => void;
   skillId: string;
   setSkillId: (value: string) => void;
+  skillIdsText: string;
+  setSkillIdsText: (value: string) => void;
   skillLabel: string;
   setSkillLabel: (value: string) => void;
   effectMode: OfficeObjectSkillEffectMode;
@@ -44,6 +46,8 @@ export function SkillTargetBindingCard({
   setEnabled,
   skillId,
   setSkillId,
+  skillIdsText,
+  setSkillIdsText,
   skillLabel,
   setSkillLabel,
   effectMode,
@@ -76,6 +80,19 @@ export function SkillTargetBindingCard({
           />
           <Label htmlFor="object-skill-binding-enabled">Enabled</Label>
         </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="object-skill-ids">Also route these skills</Label>
+        <Input
+          id="object-skill-ids"
+          value={skillIdsText}
+          onChange={(event) => setSkillIdsText(event.target.value)}
+          placeholder="research, summarize, reference-grounding"
+          disabled={!enabled}
+        />
+        <p className="text-xs text-muted-foreground">
+          Comma-separated skills share this activity landmark.
+        </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">

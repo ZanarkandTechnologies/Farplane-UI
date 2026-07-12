@@ -91,6 +91,7 @@ function toPersistedMeshType(meshType: string) {
     | "couch"
     | "bookshelf"
     | "pantry"
+    | "activity-landmark"
     | "glass-wall"
     | "office-divider"
     | "custom-mesh"
@@ -154,6 +155,7 @@ export function ObjectBindingInspector() {
   const [internalPanelId, setInternalPanelId] = useState<OfficeInternalPanelId>("document-library");
   const [isSkillBindingEnabled, setIsSkillBindingEnabled] = useState(false);
   const [skillId, setSkillId] = useState("");
+  const [skillIdsText, setSkillIdsText] = useState("");
   const [skillLabel, setSkillLabel] = useState("");
   const [skillEffectMode, setSkillEffectMode] = useState<OfficeObjectSkillEffectMode>("fixed");
   const [skillEffectVariant, setSkillEffectVariant] =
@@ -214,6 +216,7 @@ export function ObjectBindingInspector() {
     );
     setIsSkillBindingEnabled(Boolean(parsedConfig.skillBinding?.skillId));
     setSkillId(parsedConfig.skillBinding?.skillId ?? "");
+    setSkillIdsText((parsedConfig.skillBinding?.skillIds ?? []).join(", "));
     setSkillLabel(parsedConfig.skillBinding?.label ?? "");
     setSkillEffectMode(parsedConfig.skillBinding?.effectMode ?? "fixed");
     setSkillEffectVariant(parsedConfig.skillBinding?.effectVariant ?? "ghost");
@@ -282,6 +285,7 @@ export function ObjectBindingInspector() {
     const skillBinding: OfficeObjectSkillBinding = isSkillBindingEnabled
       ? {
           skillId: skillId.trim(),
+          skillIds: parseSkillIdsText(skillIdsText).filter((id) => id !== skillId.trim()),
           label: skillLabel.trim() || undefined,
           effectMode: skillEffectMode,
           effectVariant: skillEffectMode === "fixed" ? skillEffectVariant : undefined,
@@ -472,6 +476,8 @@ export function ObjectBindingInspector() {
               setEnabled={setIsSkillBindingEnabled}
               skillId={skillId}
               setSkillId={setSkillId}
+              skillIdsText={skillIdsText}
+              setSkillIdsText={setSkillIdsText}
               skillLabel={skillLabel}
               setSkillLabel={setSkillLabel}
               effectMode={skillEffectMode}

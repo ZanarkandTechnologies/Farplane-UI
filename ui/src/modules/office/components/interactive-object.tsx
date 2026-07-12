@@ -40,6 +40,7 @@ interface InteractiveObjectProps {
   initialRotation?: [number, number, number];
   initialScale?: [number, number, number];
   showHoverEffect?: boolean;
+  hoverLabel?: string | null;
   customActions?: MenuAction[];
   onSettings?: () => void;
   metadata?: Record<string, unknown>;
@@ -58,7 +59,7 @@ interface InteractiveObjectProps {
   };
 }
 
-function getRuntimeHoverLabel(
+export function getRuntimeHoverLabel(
   config: ReturnType<typeof parseOfficeObjectInteractionConfig>,
 ): string | null {
   switch (config.uiBinding.kind) {
@@ -99,6 +100,7 @@ export function InteractiveObject({
   initialRotation = DEFAULT_INTERACTIVE_OBJECT_ROTATION,
   initialScale = DEFAULT_INTERACTIVE_OBJECT_SCALE,
   showHoverEffect = true,
+  hoverLabel,
   customActions,
   onSettings,
   metadata,
@@ -146,10 +148,8 @@ export function InteractiveObject({
     [objectType],
   );
   const objectTitle = interactionConfig.displayName ?? formattedName;
-  const runtimeHoverLabel = useMemo(
-    () => getRuntimeHoverLabel(interactionConfig),
-    [interactionConfig],
-  );
+  const runtimeHoverLabel =
+    hoverLabel === undefined ? getRuntimeHoverLabel(interactionConfig) : hoverLabel;
   const setGroupRef = useCallback(
     (element: THREE.Group | null) => {
       groupRef.current = element;

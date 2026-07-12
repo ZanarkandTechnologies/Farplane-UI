@@ -9,6 +9,23 @@ The Office System provides the 3D office environment where employees, teams, and
 
 ## Core Components
 
+### Skill Activity Landmarks ✅
+
+**Status**: Active (Jul 2026)
+
+Native low-poly `activity-landmark` objects provide gym, library, content
+studio, planning, QA arcade, and engineering workshop destinations. A landmark
+can bind one primary `skillId` plus multiple `skillIds`; every alias resolves to
+the same transient avatar anchor while the object remains movable through the
+normal builder pipeline. The operator's live sidecar owns placement and mapping.
+
+**Key files**:
+
+- `components/activity-landmark.tsx`: six procedural Three.js prop clusters
+- `prefabs/activity-landmark-prefab.tsx`: builder placement registration
+- `skill-targeting.ts`: primary and alias skill lookup
+- `object-ui/metadata.ts`: backward-compatible multi-skill normalization
+
 ### Office World Store And Reconciliation ✅
 
 **Status**: Active (Jun 2026)

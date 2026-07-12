@@ -56,6 +56,7 @@ export type OfficeObjectSkillEffectMode = "fixed" | "random";
 
 export type OfficeObjectSkillBinding = {
   skillId: string;
+  skillIds?: string[];
   label?: string;
   effectMode?: OfficeObjectSkillEffectMode;
   effectVariant?: OfficeObjectSkillEffectVariant;

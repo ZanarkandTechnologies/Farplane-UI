@@ -23,6 +23,7 @@ export const OBJECT_FOOTPRINT_BY_MESH_TYPE: Record<string, ObjectFootprint> = {
   couch: { width: 3.4, depth: 2.2, clearance: 0.8 },
   bookshelf: { width: 3.1, depth: 1.4, clearance: 0.65 },
   pantry: { width: 7.2, depth: 2.4, clearance: 0.65 },
+  "activity-landmark": { width: 4.6, depth: 3.6, clearance: 0.5 },
   "glass-wall": { width: 4, depth: 0.35, clearance: 0.05 },
   "office-divider": { width: 4, depth: 0.32, clearance: 0.05 },
   "custom-mesh": DEFAULT_OBJECT_FOOTPRINT,
@@ -44,7 +45,10 @@ export function getObjectFootprint(input: {
   const base = OBJECT_FOOTPRINT_BY_MESH_TYPE[input.meshType] ?? DEFAULT_OBJECT_FOOTPRINT;
   const width = Math.max(0.1, getMetadataNumber(input.metadata, "footprintWidth") ?? base.width);
   const depth = Math.max(0.1, getMetadataNumber(input.metadata, "footprintDepth") ?? base.depth);
-  const clearance = Math.max(0, getMetadataNumber(input.metadata, "footprintClearance") ?? base.clearance);
+  const clearance = Math.max(
+    0,
+    getMetadataNumber(input.metadata, "footprintClearance") ?? base.clearance,
+  );
   const rotationY = input.rotation?.[1] ?? 0;
   if (!Number.isFinite(rotationY)) return { width, depth, clearance };
 

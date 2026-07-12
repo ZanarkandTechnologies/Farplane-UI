@@ -154,6 +154,7 @@ export function parseOfficeObjectSkillBinding(
     : undefined;
   return {
     skillId: raw.skillId.trim(),
+    skillIds: normalizeSkillIds(raw.skillIds),
     label: normalizeOptionalText(raw.label),
     effectMode,
     effectVariant,

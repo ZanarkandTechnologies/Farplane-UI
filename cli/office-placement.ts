@@ -65,6 +65,7 @@ const FOOTPRINT_BY_MESH: Record<string, PlacementFootprint> = {
   couch: { width: 3.4, depth: 2.2, clearance: 0.8 },
   bookshelf: { width: 3.1, depth: 1.4, clearance: 0.65 },
   pantry: { width: 7.2, depth: 2.4, clearance: 0.65 },
+  "activity-landmark": { width: 4.6, depth: 3.6, clearance: 0.5 },
   "glass-wall": { width: 4, depth: 0.35, clearance: 0.05 },
   "custom-mesh": { width: 2, depth: 2, clearance: 0.25 },
 };
@@ -84,7 +85,10 @@ function normalizeGridStep(raw: number | undefined): number {
   return raw;
 }
 
-export function getMeshFootprint(meshType: string, metadata?: Record<string, unknown>): PlacementFootprint {
+export function getMeshFootprint(
+  meshType: string,
+  metadata?: Record<string, unknown>,
+): PlacementFootprint {
   const base = FOOTPRINT_BY_MESH[meshType] ?? DEFAULT_FOOTPRINT;
   const meta = metadata ?? {};
   const width = asFinitePositive(meta.footprintWidth) ?? base.width;
@@ -110,7 +114,10 @@ export function getObjectFootprint(object: {
   };
 }
 
-function getMeshFootprintOffset(meshType: string, metadata?: Record<string, unknown>): { x: number; z: number } {
+function getMeshFootprintOffset(
+  meshType: string,
+  metadata?: Record<string, unknown>,
+): { x: number; z: number } {
   const metadataOffsetX = metadata?.footprintOffsetX;
   const metadataOffsetZ = metadata?.footprintOffsetZ;
   const x =
@@ -128,7 +135,10 @@ function getMeshFootprintOffset(meshType: string, metadata?: Record<string, unkn
   return { x, z };
 }
 
-function rotateOffset(offset: { x: number; z: number }, rotationY: number): { x: number; z: number } {
+function rotateOffset(
+  offset: { x: number; z: number },
+  rotationY: number,
+): { x: number; z: number } {
   const cos = Math.cos(rotationY);
   const sin = Math.sin(rotationY);
   return {
@@ -207,12 +217,7 @@ export function findPlacementViolations(input: {
       const left = input.objects[leftIndex];
       const right = input.objects[rightIndex];
       if (canSharePlacementContact(left.meshType, right.meshType)) continue;
-      if (
-        intersectsXZ(
-          getObjectPlacementAabb(left),
-          getObjectPlacementAabb(right),
-        )
-      ) {
+      if (intersectsXZ(getObjectPlacementAabb(left), getObjectPlacementAabb(right))) {
         violations.push({
           type: "collision",
           objectId: left.id,
@@ -266,7 +271,11 @@ export function findFirstOpenPlacement(input: AutoPlacementInput): [number, numb
     for (let dz = -ring; dz <= ring; dz += 1) {
       for (let dx = -ring; dx <= ring; dx += 1) {
         if (Math.max(Math.abs(dx), Math.abs(dz)) !== ring) continue;
-        const candidate: [number, number, number] = [snap(originX + dx * step, step), 0, snap(originZ + dz * step, step)];
+        const candidate: [number, number, number] = [
+          snap(originX + dx * step, step),
+          0,
+          snap(originZ + dz * step, step),
+        ];
         if (
           isPlacementAreaFree({
             position: candidate,

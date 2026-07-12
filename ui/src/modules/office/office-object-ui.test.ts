@@ -200,6 +200,7 @@ describe("office object ui helpers", () => {
         },
         skillBinding: {
           skillId: "world-monitor",
+          skillIds: ["research", "summarize", "research", ""],
           label: "World Monitor",
           effectMode: "random",
           effectPool: ["ghost", "blink"],
@@ -216,11 +217,26 @@ describe("office object ui helpers", () => {
       },
       skillBinding: {
         skillId: "world-monitor",
+        skillIds: ["research", "summarize"],
         label: "World Monitor",
         effectMode: "random",
         effectVariant: undefined,
         effectPool: ["ghost", "blink"],
       },
+    });
+  });
+
+  it("normalizes multiple skills on one activity target", () => {
+    expect(
+      parseOfficeObjectInteractionConfig({
+        skillBinding: {
+          skillId: "self-improve",
+          skillIds: ["eval", "agent-behavior-test", "eval", ""],
+        },
+      }).skillBinding,
+    ).toMatchObject({
+      skillId: "self-improve",
+      skillIds: ["eval", "agent-behavior-test"],
     });
   });
 
