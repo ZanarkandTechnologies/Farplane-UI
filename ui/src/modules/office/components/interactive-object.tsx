@@ -205,9 +205,8 @@ export function InteractiveObject({
     [adapter, initialRotation, initialScale, metadata, objectType, refresh],
   );
 
-  useEffect(() => {
-    if (!groupRef.current || !isDragEnabled) return;
-
+  const createDragController = useCallback((): DraggableController | null => {
+    if (!groupRef.current || !isDragEnabled) return null;
     const handleDragEnd = async (newPosition: THREE.Vector3) => {
       const newPosArray: [number, number, number] = [newPosition.x, newPosition.y, newPosition.z];
       setLocalPosition(newPosArray);
@@ -228,7 +227,7 @@ export function InteractiveObject({
       setGlobalDragging(dragging);
     };
 
-    controllerRef.current = new DraggableController(
+    return new DraggableController(
       groupRef.current,
       camera,
       gl.domElement,
@@ -256,24 +255,32 @@ export function InteractiveObject({
         return new THREE.Vector3(...constrained);
       },
     );
-
-    return () => {
-      controllerRef.current?.destroy();
-      controllerRef.current = null;
-    };
   }, [
     camera,
     gl.domElement,
     isDragEnabled,
+    localRotation,
+    metadata,
     objectId,
     objectType,
     officeObjects,
     officeSettings.officeLayout,
-    metadata,
-    localRotation,
     persistOfficeObject,
     setGlobalDragging,
   ]);
+
+  useEffect(() => {
+    if (isDragEnabled) return;
+    controllerRef.current?.destroy();
+    controllerRef.current = null;
+  }, [isDragEnabled]);
+
+  useEffect(() => {
+    return () => {
+      controllerRef.current?.destroy();
+      controllerRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isLocallyDragging && groupRef.current) {
@@ -406,11 +413,12 @@ export function InteractiveObject({
       e.preventDefault();
       e.stopPropagation();
 
-      if (controllerRef.current && isDragEnabled) {
-        controllerRef.current.startDrag(e.nativeEvent);
-      }
+      if (!isDragEnabled) return;
+      controllerRef.current?.destroy();
+      controllerRef.current = createDragController();
+      controllerRef.current?.startDrag(e.nativeEvent);
     },
-    [isDragEnabled],
+    [createDragController, isDragEnabled],
   );
 
   const handleSettings = useCallback(() => {

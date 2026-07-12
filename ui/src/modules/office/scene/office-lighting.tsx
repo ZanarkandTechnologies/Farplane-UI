@@ -21,9 +21,8 @@ export function OfficeLighting(props: {
   officeTheme: ReturnType<typeof getOfficeTheme>;
   officeLayout: OfficeLayoutModel;
   officeViewSettings: OfficeSceneViewSettings;
-  sceneBuilderMode: boolean;
-}): JSX.Element {
-  const { officeTheme, officeLayout, officeViewSettings, sceneBuilderMode } = props;
+}): React.JSX.Element {
+  const { officeTheme, officeLayout, officeViewSettings } = props;
   const bounds = getOfficeLayoutBounds(officeLayout);
   const isIsometricView = officeViewSettings.viewProfile === "fixed_2_5d";
 
@@ -35,8 +34,8 @@ export function OfficeLighting(props: {
         intensity={isIsometricView ? 1.15 : 1.5}
         color={officeTheme.lighting.directional}
         castShadow
-        shadow-mapSize-width={sceneBuilderMode ? 1024 : 2048}
-        shadow-mapSize-height={sceneBuilderMode ? 1024 : 2048}
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
         shadow-camera-far={50}
         shadow-camera-left={bounds.minWorldX - 5}
         shadow-camera-right={bounds.maxWorldX + 5}

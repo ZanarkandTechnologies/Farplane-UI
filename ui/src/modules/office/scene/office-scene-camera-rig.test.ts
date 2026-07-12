@@ -1,0 +1,57 @@
+import * as THREE from "three";
+import { describe, expect, it } from "vitest";
+import {
+  applyOfficeSceneCameraConfig,
+  type OfficeSceneCameraConfig,
+  selectOfficeSceneCamera,
+} from "./office-scene-camera-rig";
+
+const perspectiveConfig: OfficeSceneCameraConfig = {
+  projection: "perspective",
+  position: [2, 10, 12],
+  target: [1, 0, -2],
+  fov: 42,
+  zoom: 1,
+};
+
+describe("office scene camera rig", () => {
+  it("selects the camera matching the active projection", () => {
+    const perspective = new THREE.PerspectiveCamera();
+    const orthographic = new THREE.OrthographicCamera();
+
+    expect(selectOfficeSceneCamera("perspective", { perspective, orthographic })).toBe(perspective);
+    expect(selectOfficeSceneCamera("orthographic", { perspective, orthographic })).toBe(
+      orthographic,
+    );
+  });
+
+  it("configures a destination camera before it becomes active", () => {
+    const camera = new THREE.PerspectiveCamera();
+
+    applyOfficeSceneCameraConfig(camera, perspectiveConfig);
+
+    expect(camera.position.toArray()).toEqual(perspectiveConfig.position);
+    expect(camera.fov).toBe(42);
+    expect(camera.near).toBe(0.1);
+    expect(camera.far).toBe(1000);
+    const expectedDirection = new THREE.Vector3(...perspectiveConfig.target)
+      .sub(new THREE.Vector3(...perspectiveConfig.position))
+      .normalize();
+    expect(
+      camera.getWorldDirection(new THREE.Vector3()).distanceTo(expectedDirection),
+    ).toBeLessThan(0.0001);
+  });
+
+  it("applies orthographic zoom without changing the camera type", () => {
+    const camera = new THREE.OrthographicCamera();
+
+    applyOfficeSceneCameraConfig(camera, {
+      ...perspectiveConfig,
+      projection: "orthographic",
+      zoom: 28,
+    });
+
+    expect(camera.isOrthographicCamera).toBe(true);
+    expect(camera.zoom).toBe(28);
+  });
+});

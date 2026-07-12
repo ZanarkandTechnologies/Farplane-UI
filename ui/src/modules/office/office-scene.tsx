@@ -17,18 +17,18 @@
  * - MEM-0150
  */
 
-import { memo, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
-import * as THREE from "three";
+import { memo, useMemo } from "react";
 import { useChatStore } from "@/modules/chat/chat-store";
-import { useAppStore } from "@/store";
 import { getOfficeLayoutBounds } from "@/modules/office/lib/office-layout";
+import { OfficeSceneCameraRig } from "@/modules/office/scene/office-scene-camera-rig";
 import { SceneContents } from "@/modules/office/scene/scene-contents";
+import type { OfficeSceneProps } from "@/modules/office/scene/types";
 import {
   getInitialOfficeCameraConfig,
   useOfficeSceneBackground,
 } from "@/modules/office/scene/use-office-scene-camera";
-import type { OfficeSceneProps } from "@/modules/office/scene/types";
+import { useAppStore } from "@/store";
 
 const OfficeScene = memo((props: OfficeSceneProps) => {
   const background = useOfficeSceneBackground(props.officeDecorSettings);
@@ -38,26 +38,20 @@ const OfficeScene = memo((props: OfficeSceneProps) => {
   const shouldForceBuilderPerspective =
     isBuilderMode && props.officeViewSettings.viewProfile === "fixed_2_5d";
   const forcePerspective =
-    (isChatOpen && presentationMode === "story") ||
-    shouldForceBuilderPerspective;
+    (isChatOpen && presentationMode === "story") || shouldForceBuilderPerspective;
   const layoutCenter = useMemo(() => {
     const bounds = getOfficeLayoutBounds(props.officeLayout);
     return { x: bounds.centerX, z: bounds.centerZ };
   }, [props.officeLayout]);
-  const initialCameraConfig = getInitialOfficeCameraConfig(
-    props.officeViewSettings,
-    {
-      forcePerspective,
-      isBuilderMode,
-      layoutCenter,
-    },
-  );
+  const initialCameraConfig = getInitialOfficeCameraConfig(props.officeViewSettings, {
+    forcePerspective,
+    isBuilderMode,
+    layoutCenter,
+  });
 
   return (
     <Canvas
-      key={initialCameraConfig.projection}
       shadows="percentage"
-      orthographic={initialCameraConfig.projection === "orthographic"}
       camera={{
         position: initialCameraConfig.position,
         fov: initialCameraConfig.fov,
@@ -65,13 +59,9 @@ const OfficeScene = memo((props: OfficeSceneProps) => {
         near: 0.1,
         far: 1000,
       }}
-      onCreated={({ camera }) => {
-        camera.position.set(...initialCameraConfig.position);
-        camera.lookAt(new THREE.Vector3(...initialCameraConfig.target));
-        camera.updateProjectionMatrix();
-      }}
       style={{ background, transition: "background 0.3s ease" }}
     >
+      <OfficeSceneCameraRig config={initialCameraConfig} />
       <SceneContents {...props} />
     </Canvas>
   );

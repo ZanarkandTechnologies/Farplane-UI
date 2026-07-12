@@ -244,7 +244,10 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
       enabled: enableOfficeObjects,
     });
   }, [officeObjects, teamById]);
-  const navigableOfficeObjectCount = navigableOfficeObjects.length;
+  const navigableOfficeObjectIds = useMemo(
+    () => navigableOfficeObjects.map((object) => String(object._id)),
+    [navigableOfficeObjects],
+  );
   const navigableOfficeObjectSignature = useMemo(
     () =>
       buildNavigableOfficeObjectSignature({
@@ -275,18 +278,14 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
     selectedAgentId,
   ]);
 
-  const {
-    orbitControlsRef,
-    floorRef,
-    createRegisteredObjectRef,
-    getObjectRef,
-  } = useOfficeSceneBootstrap({
-    officeLayout,
-    officeObjectCount: navigableOfficeObjectCount,
-    officeObjectSignature: navigableOfficeObjectSignature,
-    onNavigationReady,
-    onNavigationReset,
-  });
+  const { orbitControlsRef, floorRef, createRegisteredObjectRef, getObjectRef } =
+    useOfficeSceneBootstrap({
+      officeLayout,
+      officeObjectIds: navigableOfficeObjectIds,
+      officeObjectSignature: navigableOfficeObjectSignature,
+      onNavigationReady,
+      onNavigationReset,
+    });
 
   const {
     handleBackgroundClick,
@@ -338,7 +337,6 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
         officeTheme={officeTheme}
         officeLayout={officeLayout}
         officeViewSettings={officeViewSettings}
-        sceneBuilderMode={sceneBuilderMode}
       />
 
       {isFixed25 && viewState.minZoom != null && viewState.maxZoom != null ? (

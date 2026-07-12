@@ -16,8 +16,8 @@
  * - MEM-0150
  */
 
-import { createRef, useCallback, useEffect, useRef } from "react";
 import type { OrbitControls } from "@react-three/drei";
+import { createRef, useCallback, useEffect, useMemo, useRef } from "react";
 import type * as THREE from "three";
 import { initializeGrid } from "@/modules/navigation/pathfinding/a-star-pathfinding";
 import type { OfficeLayoutModel } from "@/modules/office/lib/office-layout";
@@ -25,14 +25,12 @@ import { useObjectRegistrationStore } from "@/modules/office/store/object-regist
 
 export function useOfficeSceneBootstrap(params: {
   officeLayout: OfficeLayoutModel;
-  officeObjectCount: number;
+  officeObjectIds: string[];
   officeObjectSignature: string;
   onNavigationReady?: () => void;
   onNavigationReset?: () => void;
 }): {
-  orbitControlsRef: React.RefObject<React.ElementRef<
-    typeof OrbitControls
-  > | null>;
+  orbitControlsRef: React.RefObject<React.ElementRef<typeof OrbitControls> | null>;
   floorRef: React.RefObject<THREE.Mesh | null>;
   createRegisteredObjectRef: (
     objectId: string,
@@ -42,43 +40,49 @@ export function useOfficeSceneBootstrap(params: {
 } {
   const {
     officeLayout,
-    officeObjectCount,
+    officeObjectIds,
     officeObjectSignature,
     onNavigationReady,
     onNavigationReset,
   } = params;
   const orbitControlsRef = useRef<React.ElementRef<typeof OrbitControls>>(null);
   const floorRef = useRef<THREE.Mesh>(null);
-  const officeObjectRefs = useRef<
-    Map<string, React.RefObject<THREE.Group | null>>
-  >(new Map());
-  const registeredRefCallbacks = useRef<
-    Map<string, (element: THREE.Group | null) => void>
-  >(new Map());
+  const officeObjectRefs = useRef<Map<string, React.RefObject<THREE.Group | null>>>(new Map());
+  const registeredRefCallbacks = useRef<Map<string, (element: THREE.Group | null) => void>>(
+    new Map(),
+  );
 
-  const registerObject = useObjectRegistrationStore(
-    (state) => state.registerObject,
+  const registerObject = useObjectRegistrationStore((state) => state.registerObject);
+  const unregisterObject = useObjectRegistrationStore((state) => state.unregisterObject);
+  const expectedObjectIdSignature = useMemo(
+    () => [...officeObjectIds].sort().join("|"),
+    [officeObjectIds],
   );
-  const unregisterObject = useObjectRegistrationStore(
-    (state) => state.unregisterObject,
+  const navigationEpoch = useMemo(
+    () =>
+      buildOfficeNavigationEpoch({
+        officeLayout,
+        officeObjectSignature,
+        expectedObjectIdSignature,
+      }),
+    [expectedObjectIdSignature, officeLayout, officeObjectSignature],
   );
-  const getObjects = useObjectRegistrationStore((state) => state.getObjects);
-  const registeredObjectCount = useObjectRegistrationStore(
-    (state) => state.registeredObjects.size,
+  const expectedObjectsRegistered = useObjectRegistrationStore((state) =>
+    officeObjectIds.every((objectId) => state.registeredObjects.has(objectId)),
   );
+  const resetEpochRef = useRef<string | null>(null);
+  const initializedEpochRef = useRef<string | null>(null);
 
   const getObjectRef = useCallback((objectId: string) => {
-    if (!officeObjectRefs.current.has(objectId)) {
-      officeObjectRefs.current.set(objectId, createRef<THREE.Group>());
-    }
-    return officeObjectRefs.current.get(objectId)!;
+    const existing = officeObjectRefs.current.get(objectId);
+    if (existing) return existing;
+    const created = createRef<THREE.Group>();
+    officeObjectRefs.current.set(objectId, created);
+    return created;
   }, []);
 
   const createRegisteredObjectRef = useCallback(
-    (
-      objectId: string,
-      objectRef: React.MutableRefObject<THREE.Group | null>,
-    ) => {
+    (objectId: string, objectRef: React.MutableRefObject<THREE.Group | null>) => {
       const cached = registeredRefCallbacks.current.get(objectId);
       if (cached) return cached;
       const callback = (element: THREE.Group | null) => {
@@ -96,34 +100,29 @@ export function useOfficeSceneBootstrap(params: {
   );
 
   useEffect(() => {
-    onNavigationReset?.();
-    const timer = setTimeout(() => {
-      const objects = getObjects();
-      const expectedCount = officeObjectCount;
+    if (resetEpochRef.current !== navigationEpoch) {
+      resetEpochRef.current = navigationEpoch;
+      initializedEpochRef.current = null;
+      onNavigationReset?.();
+    }
+    if (!expectedObjectsRegistered || initializedEpochRef.current === navigationEpoch) return;
 
-      if (expectedCount > 0 && objects.length >= expectedCount) {
-        initializeGrid(officeLayout, objects, 2, 3);
-        onNavigationReady?.();
-      } else if (expectedCount === 0) {
-        initializeGrid(officeLayout, [], 2, 3);
-        onNavigationReady?.();
-      } else {
-        // Architecture seam:
-        // registration can trail initial render by a tick. This effect intentionally
-        // re-runs on registration-count changes so future scene bootstrap phases can
-        // compose through the same readiness model instead of adding bespoke retry loops.
-      }
-    }, 500);
+    const objects = selectRegisteredNavigationObjects(
+      officeObjectIds,
+      useObjectRegistrationStore.getState().registeredObjects,
+    );
+    if (!objects) return;
 
-    return () => clearTimeout(timer);
+    initializeGrid(officeLayout, objects, 2, 3);
+    initializedEpochRef.current = navigationEpoch;
+    onNavigationReady?.();
   }, [
-    getObjects,
+    expectedObjectsRegistered,
+    navigationEpoch,
     officeLayout,
-    officeObjectCount,
-    officeObjectSignature,
+    officeObjectIds,
     onNavigationReady,
     onNavigationReset,
-    registeredObjectCount,
   ]);
 
   return {
@@ -132,4 +131,29 @@ export function useOfficeSceneBootstrap(params: {
     createRegisteredObjectRef,
     getObjectRef,
   };
+}
+
+export function buildOfficeNavigationEpoch(input: {
+  officeLayout: OfficeLayoutModel;
+  officeObjectSignature: string;
+  expectedObjectIdSignature: string;
+}): string {
+  return [
+    input.officeLayout.tiles.join(","),
+    input.officeObjectSignature,
+    input.expectedObjectIdSignature,
+  ].join("::");
+}
+
+export function selectRegisteredNavigationObjects(
+  expectedObjectIds: string[],
+  registeredObjects: ReadonlyMap<string, THREE.Object3D>,
+): THREE.Object3D[] | null {
+  const objects: THREE.Object3D[] = [];
+  for (const objectId of expectedObjectIds) {
+    const object = registeredObjects.get(objectId);
+    if (!object) return null;
+    objects.push(object);
+  }
+  return objects;
 }

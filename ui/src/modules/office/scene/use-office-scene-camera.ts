@@ -16,11 +16,11 @@
  * - MEM-0168
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { getOfficeTheme } from "@/config/office-theme";
-import type { OfficeSettingsModel } from "@/modules/runtime";
 import { getBackgroundPreset, type OfficeDecorSettings } from "@/modules/office/lib/office-decor";
+import type { OfficeSettingsModel } from "@/modules/runtime";
 import { buildConsultCameraState } from "./consult-camera";
 import {
   getOfficeSceneViewState,
@@ -96,11 +96,32 @@ export function getInitialOfficeCameraConfig(
   };
 }
 
+export const BUILDER_CAMERA_TRANSITION_MS = 180;
+export const DEFAULT_CAMERA_TRANSITION_MS = 500;
+
+export function getOfficeCameraTransitionDuration(input: {
+  previousProjection?: "perspective" | "orthographic";
+  nextProjection: "perspective" | "orthographic";
+  previousBuilderMode?: boolean;
+  isBuilderMode: boolean;
+}): number {
+  if (input.previousProjection === undefined || input.previousProjection !== input.nextProjection) {
+    return 0;
+  }
+  if (
+    input.previousBuilderMode !== undefined &&
+    input.previousBuilderMode !== input.isBuilderMode
+  ) {
+    return BUILDER_CAMERA_TRANSITION_MS;
+  }
+  return DEFAULT_CAMERA_TRANSITION_MS;
+}
+
 export function useOfficeSceneCameraTransition(params: {
   isBuilderMode: boolean;
   settings: OfficeSceneViewSettings;
   orbitControlsRef: React.RefObject<{
-    object: THREE.Camera;
+    object: THREE.PerspectiveCamera | THREE.OrthographicCamera;
     target: THREE.Vector3;
     update: () => void;
   } | null>;
@@ -118,6 +139,8 @@ export function useOfficeSceneCameraTransition(params: {
     forcePerspective,
     layoutCenter,
   } = params;
+  const previousProjectionRef = useRef<"perspective" | "orthographic" | undefined>(undefined);
+  const previousBuilderModeRef = useRef<boolean | undefined>(undefined);
 
   useEffect(() => {
     const controls = orbitControlsRef.current;
@@ -138,6 +161,17 @@ export function useOfficeSceneCameraTransition(params: {
           forcePerspective,
           layoutCenter,
         });
+    const nextProjection = consultCameraState
+      ? "perspective"
+      : (nextViewState?.cameraProjection ?? "perspective");
+    const duration = getOfficeCameraTransitionDuration({
+      previousProjection: previousProjectionRef.current,
+      nextProjection,
+      previousBuilderMode: previousBuilderModeRef.current,
+      isBuilderMode,
+    });
+    previousProjectionRef.current = nextProjection;
+    previousBuilderModeRef.current = isBuilderMode;
     const endPos = new THREE.Vector3(
       ...(consultCameraState?.position ?? nextViewState?.cameraPosition ?? [0, 25, 30]),
     );
@@ -152,9 +186,19 @@ export function useOfficeSceneCameraTransition(params: {
       return;
     }
 
+    if (duration === 0) {
+      camera.position.copy(endPos);
+      controls.target.copy(endTarget);
+      camera.lookAt(controls.target);
+      camera.updateProjectionMatrix();
+      controls.update();
+      setAnimatingCamera(false);
+      return;
+    }
+
     setAnimatingCamera(true);
-    const duration = 500;
     const startTime = performance.now();
+    let animationFrameId: number | undefined;
 
     const animateCamera = (): void => {
       const elapsed = performance.now() - startTime;
@@ -164,19 +208,25 @@ export function useOfficeSceneCameraTransition(params: {
       camera.position.lerpVectors(startPos, endPos, eased);
       controls.target.lerpVectors(startTarget, endTarget, eased);
       camera.lookAt(controls.target);
-      if ("updateProjectionMatrix" in camera && typeof camera.updateProjectionMatrix === "function") {
+      if (
+        "updateProjectionMatrix" in camera &&
+        typeof camera.updateProjectionMatrix === "function"
+      ) {
         camera.updateProjectionMatrix();
       }
       controls.update();
 
       if (progress < 1) {
-        requestAnimationFrame(animateCamera);
+        animationFrameId = requestAnimationFrame(animateCamera);
       } else {
         setAnimatingCamera(false);
       }
     };
 
     animateCamera();
+    return () => {
+      if (animationFrameId !== undefined) cancelAnimationFrame(animationFrameId);
+    };
   }, [
     consultCameraTarget,
     forcePerspective,

@@ -15,22 +15,20 @@
  * - MEM-0165
  */
 
-import { Box } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import { useMemo } from "react";
 import type * as THREE from "three";
 import type { getOfficeTheme } from "@/config/office-theme";
 import { WALL_HEIGHT } from "@/constants";
-import { getFloorPatternPreset, getWallColorPreset } from "@/modules/office/lib/office-decor";
+import { getWallColorPreset } from "@/modules/office/lib/office-decor";
 import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
 import {
   getOfficeLayoutBounds,
-  getOfficeLayoutTileSet,
   getOfficeLayoutWallSegments,
   type OfficeLayoutModel,
-  parseOfficeLayoutTileKey,
 } from "@/modules/office/lib/office-layout";
 import type { OfficeSettingsModel } from "@/modules/runtime";
+import { OfficeInstancedFloor } from "./office-instanced-floor";
 import type { OfficeSceneViewSettings } from "./view-profile";
 
 export interface WallFadeMask {
@@ -143,24 +141,6 @@ export function getOrbitWallFadeMask(
   };
 }
 
-function resolveFloorTileColor(
-  patternId: OfficeSettingsModel["decor"]["floorPatternId"],
-  x: number,
-  z: number,
-  sceneBuilderMode: boolean,
-): string {
-  if (sceneBuilderMode) return "#d9ddd8";
-  const preset = getFloorPatternPreset(patternId);
-  const [base, accent, line] = preset.colors;
-  if (patternId === "sandstone_tiles") {
-    return (x + z) % 2 === 0 ? accent : base;
-  }
-  if (patternId === "graphite_grid") {
-    return x % 3 === 0 || z % 3 === 0 ? line : accent;
-  }
-  return z % 2 === 0 ? accent : base;
-}
-
 export function OfficeRoomShell(props: {
   floorRef: React.RefObject<THREE.Mesh | null>;
   officeFootprint: OfficeFootprint;
@@ -190,7 +170,6 @@ export function OfficeRoomShell(props: {
     orbitWallFadeMask,
   } = props;
   const bounds = useMemo(() => getOfficeLayoutBounds(officeLayout), [officeLayout]);
-  const tileSet = useMemo(() => getOfficeLayoutTileSet(officeLayout), [officeLayout]);
   const wallSegments = useMemo(() => getOfficeLayoutWallSegments(officeLayout), [officeLayout]);
   const wallColor = getWallColorPreset(officeDecorSettings.wallColorId).color;
   const baseWallOpacity = sceneBuilderMode
@@ -230,31 +209,12 @@ export function OfficeRoomShell(props: {
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      {[...tileSet].map((tileKey) => {
-        const tile = parseOfficeLayoutTileKey(tileKey);
-        if (!tile) return null;
-        return (
-          <Box
-            key={tileKey}
-            args={[1, 0.08, 1]}
-            position={[tile.x, -0.04, tile.z]}
-            receiveShadow
-            name={`floor-tile-${tileKey}`}
-            onClick={onBackgroundClick}
-          >
-            <meshStandardMaterial
-              color={resolveFloorTileColor(
-                officeDecorSettings.floorPatternId,
-                tile.x,
-                tile.z,
-                sceneBuilderMode,
-              )}
-              roughness={0.9}
-              metalness={0.03}
-            />
-          </Box>
-        );
-      })}
+      <OfficeInstancedFloor
+        officeLayout={officeLayout}
+        floorPatternId={officeDecorSettings.floorPatternId}
+        sceneBuilderMode={sceneBuilderMode}
+        onClick={onBackgroundClick}
+      />
 
       {wallSegments.map((segment) => {
         const isFront =
