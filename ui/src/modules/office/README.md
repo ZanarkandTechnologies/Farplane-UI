@@ -9,20 +9,31 @@ The Office System provides the 3D office environment where employees, teams, and
 
 ## Core Components
 
-### Skill Activity Landmarks ✅
+### Activity Destination Landmarks ✅
 
 **Status**: Active (Jul 2026)
 
-Native low-poly `activity-landmark` objects provide gym, library, content
-studio, planning, QA arcade, and engineering workshop destinations. A landmark
-can bind one primary `skillId` plus multiple `skillIds`; every alias resolves to
-the same transient avatar anchor while the object remains movable through the
-normal builder pipeline. The operator's live sidecar owns placement and mapping.
+Native low-poly `activity-landmark` objects are curated navigation destinations,
+not a mirror of every radial-dial action or panel tab. The live office maps Skill
+Lab, Organization Hall, QA Arcade, Harness Workshop, Resource Archive, Research
+Library, Comms Hub, Telemetry Console, and Thread Data Lab to their matching
+top-level panels. World uses a dedicated glowing orb landmark; Builder,
+Settings, decoration, secondary/raw views, and leaf tabs stay launcher-only.
+
+Landmark panel routing and avatar activity targeting are independent metadata
+bindings. `uiBinding` opens one registered top-level panel, while `skillBinding`
+can bind one primary `skillId` plus aliases to the same transient avatar anchor.
+The operator's live sidecar owns placement and mapping, and compact destination
+stations use explicit layout-aware positions rather than rectangular
+auto-placement.
 
 **Key files**:
 
-- `components/activity-landmark.tsx`: six procedural Three.js prop clusters
+- `components/activity-landmark.tsx`: landmark kind routing and original procedural props
+- `components/activity-landmark-destinations.tsx`: curated destination-specific procedural props
 - `prefabs/activity-landmark-prefab.tsx`: builder placement registration
+- `panels/internal-panel-catalog.ts`: canonical internal-panel identifiers
+- `panels/use-internal-panel-launcher.ts`: shared landmark/launcher panel routing
 - `skill-targeting.ts`: primary and alias skill lookup
 - `object-ui/metadata.ts`: backward-compatible multi-skill normalization
 

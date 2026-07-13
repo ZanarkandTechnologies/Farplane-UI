@@ -32,6 +32,12 @@ export const moduleRegistry = {
       "Saved media references, analysis, extracted skill findings, and retrieval handles.",
     surfaces: ["nav", "panel", "hud", "office-object"],
   },
+  world: {
+    id: "world",
+    label: "World",
+    description: "Project CRM entities, locations, and sentence-backed associations on a map.",
+    surfaces: ["nav", "panel", "hud", "office-object"],
+  },
   "thread-data": {
     id: "thread-data",
     label: "Thread Data",

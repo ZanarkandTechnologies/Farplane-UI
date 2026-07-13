@@ -92,6 +92,8 @@ interface AppState {
   setIsChatModalOpen: (isOpen: boolean) => void;
   isUserTasksModalOpen: boolean;
   setIsUserTasksModalOpen: (isOpen: boolean) => void;
+  isOrganizationPanelOpen: boolean;
+  setIsOrganizationPanelOpen: (isOpen: boolean) => void;
   isCeoWorkbenchOpen: boolean;
   setIsCeoWorkbenchOpen: (isOpen: boolean) => void;
   ceoWorkbenchView: CeoWorkbenchView;
@@ -163,6 +165,8 @@ interface AppState {
   setIsSkillInvocationsPanelOpen: (isOpen: boolean) => void;
   isResourceBankPanelOpen: boolean;
   setIsResourceBankPanelOpen: (isOpen: boolean) => void;
+  isWorldMapPanelOpen: boolean;
+  setIsWorldMapPanelOpen: (isOpen: boolean) => void;
   isDocumentLibraryPanelOpen: boolean;
   setIsDocumentLibraryPanelOpen: (isOpen: boolean) => void;
   selectedSkillStudioSkillId: string | null;
@@ -197,6 +201,8 @@ export const useAppStore = create<AppState>()(
     setIsChatModalOpen: (isOpen) => set({ isChatModalOpen: isOpen }),
     isUserTasksModalOpen: false,
     setIsUserTasksModalOpen: (isOpen) => set({ isUserTasksModalOpen: isOpen }),
+    isOrganizationPanelOpen: false,
+    setIsOrganizationPanelOpen: (isOpen) => set({ isOrganizationPanelOpen: isOpen }),
     isCeoWorkbenchOpen: false,
     setIsCeoWorkbenchOpen: (isOpen) => set({ isCeoWorkbenchOpen: isOpen }),
     ceoWorkbenchView: "board",
@@ -311,6 +317,8 @@ export const useAppStore = create<AppState>()(
     setIsSkillInvocationsPanelOpen: (isOpen) => set({ isSkillInvocationsPanelOpen: isOpen }),
     isResourceBankPanelOpen: false,
     setIsResourceBankPanelOpen: (isOpen) => set({ isResourceBankPanelOpen: isOpen }),
+    isWorldMapPanelOpen: false,
+    setIsWorldMapPanelOpen: (isOpen) => set({ isWorldMapPanelOpen: isOpen }),
     isDocumentLibraryPanelOpen: false,
     setIsDocumentLibraryPanelOpen: (isOpen) => set({ isDocumentLibraryPanelOpen: isOpen }),
     selectedSkillStudioSkillId: null,

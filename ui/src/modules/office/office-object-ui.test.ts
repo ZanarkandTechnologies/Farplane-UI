@@ -189,6 +189,42 @@ describe("office object ui helpers", () => {
     });
   });
 
+  it("parses a World activity-landmark binding through the shared panel contract", () => {
+    expect(
+      parseOfficeObjectUiBinding({
+        landmarkKind: "library",
+        uiBinding: {
+          kind: "internalPanel",
+          panelId: "world",
+          title: "World",
+        },
+      }),
+    ).toEqual({
+      kind: "internalPanel",
+      panelId: "world",
+      title: "World",
+      openMode: "panel",
+    });
+  });
+
+  it("parses an Organization activity-landmark binding through the shared panel contract", () => {
+    expect(
+      parseOfficeObjectUiBinding({
+        landmarkKind: "organization-hall",
+        uiBinding: {
+          kind: "internalPanel",
+          panelId: "organization",
+          title: "Organization",
+        },
+      }),
+    ).toEqual({
+      kind: "internalPanel",
+      panelId: "organization",
+      title: "Organization",
+      openMode: "panel",
+    });
+  });
+
   it("parses full interaction config", () => {
     expect(
       parseOfficeObjectInteractionConfig({

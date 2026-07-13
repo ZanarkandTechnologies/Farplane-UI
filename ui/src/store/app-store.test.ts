@@ -52,6 +52,11 @@ describe("app store perf guards", () => {
     expect(useAppStore.getState().isThreadDataPanelOpen).toBe(true);
   });
 
+  it("stores organization panel open state for shared launch surfaces", () => {
+    useAppStore.getState().setIsOrganizationPanelOpen(true);
+    expect(useAppStore.getState().isOrganizationPanelOpen).toBe(true);
+  });
+
   it("stores builder transform target", () => {
     useAppStore.getState().setActiveObjectTransformId("plant-1" as never);
     expect(useAppStore.getState().activeObjectTransformId).toBe("plant-1");

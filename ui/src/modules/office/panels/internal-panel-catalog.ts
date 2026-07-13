@@ -12,11 +12,13 @@
  */
 
 export type OfficeInternalPanelId =
+  | "organization"
   | "team-workspace"
   | "telemetry"
   | "raw-telemetry"
   | "thread-data"
   | "resource-bank"
+  | "world"
   | "document-library"
   | "skill-os"
   | "skill-rollout"
@@ -41,6 +43,12 @@ export type OfficeInternalPanelCatalogEntry = {
 };
 
 export const OFFICE_INTERNAL_PANEL_CATALOG: OfficeInternalPanelCatalogEntry[] = [
+  {
+    id: "organization",
+    label: "Organization",
+    description: "Open the organization overview and people operations panel.",
+    keywords: ["organization", "org chart", "teams", "people", "directory"],
+  },
   {
     id: "team-workspace",
     label: "Team Workspace",
@@ -70,6 +78,12 @@ export const OFFICE_INTERNAL_PANEL_CATALOG: OfficeInternalPanelCatalogEntry[] = 
     label: "Resource Bank",
     description: "Open saved media references, analysis, and extracted skill findings.",
     keywords: ["resource", "bank", "assets", "references", "ingestion"],
+  },
+  {
+    id: "world",
+    label: "World",
+    description: "Inspect project entities, locations, and explicit associations on a map.",
+    keywords: ["world", "map", "knowledge graph", "crm", "supply chain", "entities"],
   },
   {
     id: "document-library",

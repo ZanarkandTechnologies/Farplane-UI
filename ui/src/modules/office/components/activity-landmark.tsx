@@ -11,6 +11,15 @@
 import { Box, Cylinder, Sphere } from "@react-three/drei";
 import type { Id } from "@/lib/entity-types";
 import { parseOfficeObjectInteractionConfig } from "../office-object-ui";
+import {
+  CommsHubLandmark,
+  OrganizationHallLandmark,
+  ResourceArchiveLandmark,
+  SkillLabLandmark,
+  TelemetryConsoleLandmark,
+  ThreadDataLabLandmark,
+  WorldOrbLandmark,
+} from "./activity-landmark-destinations";
 import { InteractiveObject } from "./interactive-object";
 
 export const ACTIVITY_LANDMARK_KINDS = [
@@ -20,9 +29,23 @@ export const ACTIVITY_LANDMARK_KINDS = [
   "planning",
   "qa-arcade",
   "workshop",
+  "skill-lab",
+  "organization-hall",
+  "resource-archive",
+  "comms-hub",
+  "telemetry-console",
+  "thread-data-lab",
+  "world-orb",
 ] as const;
 
 export type ActivityLandmarkKind = (typeof ACTIVITY_LANDMARK_KINDS)[number];
+
+export function normalizeActivityLandmarkKind(value: unknown): ActivityLandmarkKind {
+  return typeof value === "string" &&
+    ACTIVITY_LANDMARK_KINDS.includes(value as ActivityLandmarkKind)
+    ? (value as ActivityLandmarkKind)
+    : "gym";
+}
 
 function material(color: string, emissive?: string) {
   return (
@@ -275,6 +298,20 @@ export function ActivityLandmarkVisual({ kind }: { kind: ActivityLandmarkKind })
       return <QaArcadeLandmark />;
     case "workshop":
       return <WorkshopLandmark />;
+    case "skill-lab":
+      return <SkillLabLandmark />;
+    case "organization-hall":
+      return <OrganizationHallLandmark />;
+    case "resource-archive":
+      return <ResourceArchiveLandmark />;
+    case "comms-hub":
+      return <CommsHubLandmark />;
+    case "telemetry-console":
+      return <TelemetryConsoleLandmark />;
+    case "thread-data-lab":
+      return <ThreadDataLabLandmark />;
+    case "world-orb":
+      return <WorldOrbLandmark />;
     default:
       return <GymLandmark />;
   }
@@ -295,10 +332,7 @@ export default function ActivityLandmark({
   companyId?: Id<"companies">;
   metadata?: Record<string, unknown>;
 }) {
-  const rawKind = typeof metadata?.landmarkKind === "string" ? metadata.landmarkKind : "gym";
-  const kind = ACTIVITY_LANDMARK_KINDS.includes(rawKind as ActivityLandmarkKind)
-    ? (rawKind as ActivityLandmarkKind)
-    : "gym";
+  const kind = normalizeActivityLandmarkKind(metadata?.landmarkKind);
   const interactionConfig = parseOfficeObjectInteractionConfig(metadata);
   const hoverLabel =
     interactionConfig.displayName ??

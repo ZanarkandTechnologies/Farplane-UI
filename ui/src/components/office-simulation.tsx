@@ -24,6 +24,7 @@ import { SkillInvocationsPanel } from "@/modules/skill-invocations";
 import { TeamPanel } from "@/modules/team-workspace";
 import { TelemetryPanel } from "@/modules/telemetry";
 import { ThreadDataDialog } from "@/modules/thread-data";
+import { WorldMapPanel } from "@/modules/world-map";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import { OfficeDataProvider, useOptionalOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
@@ -97,6 +98,8 @@ function OfficeSimulationContent() {
   );
   const isResourceBankPanelOpen = useAppStore((state) => state.isResourceBankPanelOpen);
   const setIsResourceBankPanelOpen = useAppStore((state) => state.setIsResourceBankPanelOpen);
+  const isWorldMapPanelOpen = useAppStore((state) => state.isWorldMapPanelOpen);
+  const setIsWorldMapPanelOpen = useAppStore((state) => state.setIsWorldMapPanelOpen);
   const [isLogsDrawerOpen, setIsLogsDrawerOpen] = useState(false);
   const [navigationReady, setNavigationReady] = useState(false);
   const [hasNavigationReadyOnce, setHasNavigationReadyOnce] = useState(false);
@@ -265,6 +268,7 @@ function OfficeSimulationContent() {
               open={isResourceBankPanelOpen}
               onOpenChange={setIsResourceBankPanelOpen}
             />
+            <WorldMapPanel open={isWorldMapPanelOpen} onOpenChange={setIsWorldMapPanelOpen} />
             <ProjectDocumentLibraryPanel />
 
             <div className="pointer-events-none absolute top-4 left-4 z-[70]">

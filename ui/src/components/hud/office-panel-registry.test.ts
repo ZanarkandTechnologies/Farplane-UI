@@ -54,8 +54,10 @@ describe("office panel registry", () => {
     const openHarness = vi.fn();
     const openRollout = vi.fn();
     const openGlobalTeamWorkspace = vi.fn();
+    const openOrganization = vi.fn();
     const openDocumentLibrary = vi.fn();
     const openResourceBank = vi.fn();
+    const openWorld = vi.fn();
     const openSkillInvocations = vi.fn();
     const openSkillOs = vi.fn();
     const openRawTelemetry = vi.fn();
@@ -73,9 +75,10 @@ describe("office panel registry", () => {
       openHarness,
       openRollout,
       openGlobalTeamWorkspace,
-      openOrganization: vi.fn(),
+      openOrganization,
       openDocumentLibrary,
       openResourceBank,
+      openWorld,
       openSettings: vi.fn(),
       openSkillInvocations,
       openSkillOs,
@@ -88,8 +91,10 @@ describe("office panel registry", () => {
     });
 
     actions.find((action) => action.id === "team-workspace")?.perform();
+    actions.find((action) => action.id === "organization")?.perform();
     actions.find((action) => action.id === "document-library")?.perform();
     actions.find((action) => action.id === "resource-bank")?.perform();
+    actions.find((action) => action.id === "world")?.perform();
     actions.find((action) => action.id === "skill-os")?.perform();
     actions.find((action) => action.id === "template-tracking")?.perform();
     actions.find((action) => action.id === "evals")?.perform();
@@ -101,8 +106,10 @@ describe("office panel registry", () => {
     actions.find((action) => action.id === "builder-mode")?.perform();
 
     expect(openGlobalTeamWorkspace).toHaveBeenCalledTimes(1);
+    expect(openOrganization).toHaveBeenCalledTimes(1);
     expect(openDocumentLibrary).toHaveBeenCalledTimes(1);
     expect(openResourceBank).toHaveBeenCalledTimes(1);
+    expect(openWorld).toHaveBeenCalledTimes(1);
     expect(actions.some((action) => String(action.id) === "skill-invocations")).toBe(false);
     expect(openSkillInvocations).not.toHaveBeenCalled();
     expect(openSkillOs).toHaveBeenCalledTimes(1);
@@ -129,6 +136,7 @@ describe("office panel registry", () => {
       openOrganization: vi.fn(),
       openDocumentLibrary: vi.fn(),
       openResourceBank: vi.fn(),
+      openWorld: vi.fn(),
       openSettings: vi.fn(),
       openSkillInvocations: vi.fn(),
       openSkillOs: vi.fn(),
@@ -152,6 +160,7 @@ describe("office panel registry", () => {
       "skill-os",
       "evals",
       "resource-bank",
+      "world",
       "document-library",
       "telemetry",
       "raw-telemetry",
@@ -190,6 +199,7 @@ describe("office panel registry", () => {
       openOrganization: vi.fn(),
       openDocumentLibrary: vi.fn(),
       openResourceBank: vi.fn(),
+      openWorld: vi.fn(),
       openSettings: vi.fn(),
       openSkillInvocations: vi.fn(),
       openSkillOs: vi.fn(),
@@ -227,6 +237,7 @@ describe("office panel registry", () => {
       openOrganization: vi.fn(),
       openDocumentLibrary: vi.fn(),
       openResourceBank: vi.fn(),
+      openWorld: vi.fn(),
       openSettings,
       openSkillInvocations: vi.fn(),
       openSkillOs: vi.fn(),

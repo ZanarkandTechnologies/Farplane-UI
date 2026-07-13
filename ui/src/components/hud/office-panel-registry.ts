@@ -25,6 +25,7 @@ import {
   Database,
   FileCode2,
   GitPullRequestArrow,
+  Globe2,
   Hammer,
   LibraryBig,
   type LucideIcon,
@@ -63,6 +64,7 @@ export type OfficePanelActionId =
   | "raw-telemetry"
   | "thread-data"
   | "resource-bank"
+  | "world"
   | "document-library"
   | "skill-os"
   | "rollout"
@@ -110,6 +112,7 @@ export type OfficePanelRegistryDependencies = {
   openSettings: () => void;
   openSkillInvocations: () => void;
   openResourceBank: () => void;
+  openWorld: () => void;
   openDocumentLibrary: () => void;
   openTelemetry: () => void;
   openRawTelemetry: () => void;
@@ -130,6 +133,7 @@ const OFFICE_LAUNCHER_ACTION_ORDER: OfficePanelActionId[] = [
   "skill-os",
   "evals",
   "resource-bank",
+  "world",
   "document-library",
   "telemetry",
   "raw-telemetry",
@@ -207,6 +211,7 @@ export function createOfficePanelActions(
   const rawTelemetryPanel = getOfficeInternalPanelEntry("raw-telemetry");
   const threadDataPanel = getOfficeInternalPanelEntry("thread-data");
   const resourceBankPanel = getOfficeInternalPanelEntry("resource-bank");
+  const worldPanel = getOfficeInternalPanelEntry("world");
   const documentLibraryPanel = getOfficeInternalPanelEntry("document-library");
   const skillOsPanel = getOfficeInternalPanelEntry("skill-os");
   const rolloutPanel = getOfficeInternalPanelEntry("rollout");
@@ -292,6 +297,17 @@ export function createOfficePanelActions(
       shortcut: { key: "r", label: "Alt+Shift+R", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openResourceBank,
+    },
+    {
+      id: "world",
+      label: worldPanel.label,
+      description: worldPanel.description,
+      group: "panel",
+      icon: Globe2,
+      keywords: [...worldPanel.keywords, "map", "graph", "supply chain"],
+      shortcut: { key: "w", label: "Alt+Shift+W", altKey: true, shiftKey: true },
+      color: SECONDARY_BUTTON_COLOR,
+      perform: deps.openWorld,
     },
     {
       id: "document-library",

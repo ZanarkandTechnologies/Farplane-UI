@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { getRegisteredModuleIds } from "./module-registry";
-import {
-  DEFAULT_FARPLANE_UI_CONFIG,
-  normalizeFarplaneUiConfig,
-} from "./shell-config";
+import { getRegisteredModuleIds, moduleRegistry } from "./module-registry";
+import { DEFAULT_FARPLANE_UI_CONFIG, normalizeFarplaneUiConfig } from "./shell-config";
 
 describe("Farplane shell config", () => {
   it("uses office3d local defaults with registered modules", () => {
@@ -14,6 +11,10 @@ describe("Farplane shell config", () => {
       persistence: "local",
       modules: getRegisteredModuleIds(),
     });
+  });
+
+  it("exposes World through office-object entry surfaces", () => {
+    expect(moduleRegistry.world.surfaces).toContain("office-object");
   });
 
   it("keeps valid renderer, persistence, and registered module ids", () => {

@@ -2573,6 +2573,68 @@ function isSafeProjectPath(value: unknown): value is string {
   return path.isAbsolute(projectPath);
 }
 
+async function readProjectWorldProjection(projectPath: string): Promise<JsonObject> {
+  const rootPath = path.resolve(projectPath);
+  const projectionPath = path.join(rootPath, ".farplane", "crm", "world.json");
+  const registryPath = path.join(rootPath, ".farplane", "crm", "entities.json");
+  try {
+    const [raw, fileStat] = await Promise.all([
+      readFile(projectionPath, "utf8"),
+      stat(projectionPath),
+    ]);
+    const projection = JSON.parse(raw) as unknown;
+    if (!projection || typeof projection !== "object" || Array.isArray(projection)) {
+      return {
+        ok: false,
+        state: "ready",
+        projectPath: rootPath,
+        projection: null,
+        error: "world_projection_invalid",
+      };
+    }
+    const row = projection as JsonObject;
+    let registryFingerprint = "";
+    try {
+      const registry = JSON.parse(await readFile(registryPath, "utf8")) as JsonObject;
+      registryFingerprint = String(registry.source_fingerprint ?? "").trim();
+    } catch {
+      registryFingerprint = "";
+    }
+    const worldFingerprint = String(row.source_fingerprint ?? "").trim();
+    return {
+      ok: true,
+      state: "ready",
+      projectPath: rootPath,
+      projection: row,
+      stale:
+        row.stale === true ||
+        !worldFingerprint ||
+        !registryFingerprint ||
+        worldFingerprint !== registryFingerprint,
+      issues: Array.isArray(row.issues) ? row.issues : [],
+      modifiedAt: fileStat.mtime.toISOString(),
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return {
+        ok: true,
+        state: "missing",
+        projectPath: rootPath,
+        projection: null,
+        stale: false,
+        issues: [],
+      };
+    }
+    return {
+      ok: false,
+      state: "ready",
+      projectPath: rootPath,
+      projection: null,
+      error: error instanceof SyntaxError ? "world_projection_invalid_json" : "world_projection_read_failed",
+    };
+  }
+}
+
 const DASHBOARD_RUNTIME_SOURCE_CANDIDATES = readDashboardRuntimeSourceCandidates(REPO_ROOT);
 
 function parseSimpleFrontMatter(markdown: string): Record<string, string> {
@@ -4380,6 +4442,22 @@ function farplaneStateBridge() {
             return;
           }
           writeJson(res, 200, await readFarplaneProjectConfig(projectPath));
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/world") {
+          const projectPath = url.searchParams.get("projectPath")?.trim() ?? "";
+          if (!isSafeProjectPath(projectPath)) {
+            writeJson(res, 400, {
+              ok: false,
+              state: "missing",
+              error: "project_path_required",
+              projection: null,
+            });
+            return;
+          }
+          const payload = await readProjectWorldProjection(projectPath);
+          writeJson(res, payload.ok === false ? 422 : 200, payload);
           return;
         }
 

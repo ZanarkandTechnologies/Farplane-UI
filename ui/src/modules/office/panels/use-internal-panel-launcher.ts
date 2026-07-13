@@ -16,11 +16,13 @@ import { useAppStore } from "@/store";
 import type { OfficeInternalPanelId } from "./internal-panel-catalog";
 
 export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelId) => void {
+  const setIsOrganizationPanelOpen = useAppStore((state) => state.setIsOrganizationPanelOpen);
   const setIsGlobalTeamPanelOpen = useAppStore((state) => state.setIsGlobalTeamPanelOpen);
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
   const setIsRawTelemetryPanelOpen = useAppStore((state) => state.setIsRawTelemetryPanelOpen);
   const setIsThreadDataPanelOpen = useAppStore((state) => state.setIsThreadDataPanelOpen);
   const setIsResourceBankPanelOpen = useAppStore((state) => state.setIsResourceBankPanelOpen);
+  const setIsWorldMapPanelOpen = useAppStore((state) => state.setIsWorldMapPanelOpen);
   const setIsDocumentLibraryPanelOpen = useAppStore((state) => state.setIsDocumentLibraryPanelOpen);
   const setIsSkillsPanelOpen = useAppStore((state) => state.setIsSkillsPanelOpen);
   const setSkillStudioSurface = useAppStore((state) => state.setSkillStudioSurface);
@@ -38,6 +40,9 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
   return useCallback(
     (panelId: OfficeInternalPanelId) => {
       switch (panelId) {
+        case "organization":
+          setIsOrganizationPanelOpen(true);
+          break;
         case "team-workspace":
           setActiveTeamId(null);
           setSelectedTeamId(null);
@@ -55,6 +60,9 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
           break;
         case "resource-bank":
           setIsResourceBankPanelOpen(true);
+          break;
+        case "world":
+          setIsWorldMapPanelOpen(true);
           break;
         case "document-library":
           setIsDocumentLibraryPanelOpen(true);
@@ -108,6 +116,7 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
       }
     },
     [
+      setIsOrganizationPanelOpen,
       setActiveTeamId,
       setCeoWorkbenchView,
       setIsCeoWorkbenchOpen,
@@ -115,6 +124,7 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
       setIsFurnitureShopOpen,
       setIsGlobalTeamPanelOpen,
       setIsResourceBankPanelOpen,
+      setIsWorldMapPanelOpen,
       setIsRawTelemetryPanelOpen,
       setIsSettingsModalOpen,
       setIsSkillsPanelOpen,

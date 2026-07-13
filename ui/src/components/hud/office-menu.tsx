@@ -56,6 +56,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
     (state) => state.setIsSkillInvocationsPanelOpen,
   );
   const setIsResourceBankPanelOpen = useAppStore((state) => state.setIsResourceBankPanelOpen);
+  const setIsWorldMapPanelOpen = useAppStore((state) => state.setIsWorldMapPanelOpen);
   const setIsDocumentLibraryPanelOpen = useAppStore((state) => state.setIsDocumentLibraryPanelOpen);
   const setSelectedSkillStudioSkillId = useAppStore((state) => state.setSelectedSkillStudioSkillId);
   const setSkillStudioFocusAgentId = useAppStore((state) => state.setSkillStudioFocusAgentId);
@@ -67,10 +68,11 @@ export function OfficeMenu({ className }: SpeedDialProps) {
   const setIsUserTasksModalOpen = useAppStore((state) => state.setIsUserTasksModalOpen);
   const isFurnitureShopOpen = useAppStore((state) => state.isFurnitureShopOpen);
   const setIsFurnitureShopOpen = useAppStore((state) => state.setIsFurnitureShopOpen);
+  const isOrganizationPanelOpen = useAppStore((state) => state.isOrganizationPanelOpen);
+  const setIsOrganizationPanelOpen = useAppStore((state) => state.setIsOrganizationPanelOpen);
   const isOfficeOnboardingVisible = useAppStore((state) => state.isOfficeOnboardingVisible);
   const officeOnboardingStep = useAppStore((state) => state.officeOnboardingStep);
 
-  const [isOrganizationOpen, setIsOrganizationOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   // Legacy team/agent manager dialogs were intentionally stripped from this UI flow.
   const canOpenAgentManager = false;
@@ -78,8 +80,8 @@ export function OfficeMenu({ className }: SpeedDialProps) {
   useEffect(() => {
     if (!placementMode.active) return;
     setIsFurnitureShopOpen(false);
-    setIsOrganizationOpen(false);
-  }, [placementMode.active, setIsFurnitureShopOpen]);
+    setIsOrganizationPanelOpen(false);
+  }, [placementMode.active, setIsFurnitureShopOpen, setIsOrganizationPanelOpen]);
 
   // Handle builder mode toggle - let the scene handle animation
   const handleBuilderModeToggle = useCallback(() => {
@@ -145,10 +147,11 @@ export function OfficeMenu({ className }: SpeedDialProps) {
           setIsSkillsPanelOpen(true);
         },
         openGlobalTeamWorkspace,
-        openOrganization: () => setIsOrganizationOpen(true),
+        openOrganization: () => setIsOrganizationPanelOpen(true),
         openSettings: () => setIsSettingsModalOpen(true),
         openSkillInvocations: () => setIsSkillInvocationsPanelOpen(true),
         openResourceBank: () => setIsResourceBankPanelOpen(true),
+        openWorld: () => setIsWorldMapPanelOpen(true),
         openDocumentLibrary: () => setIsDocumentLibraryPanelOpen(true),
         openTelemetry: () => setIsTelemetryPanelOpen(true),
         openRawTelemetry: () => setIsRawTelemetryPanelOpen(true),
@@ -167,8 +170,10 @@ export function OfficeMenu({ className }: SpeedDialProps) {
       setIsSkillsPanelOpen,
       openGlobalTeamWorkspace,
       setIsSettingsModalOpen,
+      setIsOrganizationPanelOpen,
       setIsSkillInvocationsPanelOpen,
       setIsResourceBankPanelOpen,
+      setIsWorldMapPanelOpen,
       setIsDocumentLibraryPanelOpen,
       setIsTelemetryPanelOpen,
       setIsRawTelemetryPanelOpen,
@@ -295,8 +300,8 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         onOpenChange={setIsCommandPaletteOpen}
       />
       <OrganizationPanel
-        isOpen={isOrganizationOpen}
-        onOpenChange={setIsOrganizationOpen}
+        isOpen={isOrganizationPanelOpen}
+        onOpenChange={setIsOrganizationPanelOpen}
         canOpenTeamManager={canOpenTeamManager}
         canOpenAgentManager={canOpenAgentManager}
       />

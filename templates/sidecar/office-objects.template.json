@@ -143,9 +143,9 @@
   {
     "id": "farplane-map-console",
     "identifier": "farplane-map-console",
-    "meshType": "bookshelf",
+    "meshType": "activity-landmark",
     "position": [
-      7,
+      6,
       0,
       -5
     ],
@@ -155,13 +155,14 @@
       0
     ],
     "metadata": {
+      "placementLocked": true,
+      "landmarkKind": "world-orb",
       "displayName": "Farplane Map",
       "uiBinding": {
-        "kind": "embed",
-        "title": "Farplane Map",
-        "url": "http://localhost:3002/?lat=20.0000&lon=0.0000&zoom=1.00&view=global&timeRange=7d&layers=conflicts%2Cbases%2Chotspots%2Cnuclear%2Csanctions%2Cweather%2Ceconomic%2Cwaterways%2Coutages%2Cmilitary%2Cnatural%2CiranAttacks",
-        "openMode": "panel",
-        "aspectRatio": "wide"
+        "kind": "internalPanel",
+        "panelId": "world",
+        "title": "World",
+        "openMode": "panel"
       },
       "skillBinding": {
         "skillId": "farplane-map",
@@ -171,7 +172,51 @@
           "ghost",
           "blink"
         ]
-      }
+      },
+      "footprintWidth": 4.6,
+      "footprintDepth": 3.6
+    }
+  },
+  {
+    "id": "activity-research-library",
+    "identifier": "activity-research-library",
+    "meshType": "activity-landmark",
+    "position": [
+      0,
+      0,
+      -8
+    ],
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "metadata": {
+      "placementLocked": true,
+      "landmarkKind": "library",
+      "displayName": "Research Library",
+      "uiBinding": {
+        "kind": "internalPanel",
+        "panelId": "document-library",
+        "title": "Docs Library",
+        "openMode": "panel"
+      },
+      "skillBinding": {
+        "skillId": "research",
+        "label": "Research Library",
+        "aliases": [
+          "reference-grounding",
+          "summarize",
+          "customer-research"
+        ],
+        "effectMode": "random",
+        "effectPool": [
+          "ghost",
+          "blink"
+        ]
+      },
+      "footprintWidth": 4.6,
+      "footprintDepth": 3.6
     }
   }
 ]

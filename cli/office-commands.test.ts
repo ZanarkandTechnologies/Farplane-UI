@@ -1,8 +1,8 @@
 import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
 import { Command } from "commander";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { registerOfficeCommands } from "./office-commands.js";
 
 const baseCompany = {
@@ -165,11 +165,33 @@ describe("office CLI", () => {
     const objectsRaw = await readFile(path.join(stateDir, "office-objects.json"), "utf-8");
     const objects = JSON.parse(objectsRaw) as Array<{
       id: string;
-      metadata?: { displayName?: string; skillBinding?: { skillId?: string } };
+      meshType?: string;
+      metadata?: {
+        displayName?: string;
+        landmarkKind?: string;
+        skillBinding?: { skillId?: string };
+        uiBinding?: { kind?: string; panelId?: string };
+      };
     }>;
-    expect(objects.some((entry) => entry.id === "farplane-map-console")).toBe(true);
     expect(
-      objects.some((entry) => entry.metadata?.skillBinding?.skillId === "farplane-map"),
+      objects.some(
+        (entry) =>
+          entry.id === "farplane-map-console" &&
+          entry.meshType === "activity-landmark" &&
+          entry.metadata?.landmarkKind === "world-orb" &&
+          entry.metadata?.skillBinding?.skillId === "farplane-map" &&
+          entry.metadata?.uiBinding?.kind === "internalPanel" &&
+          entry.metadata.uiBinding.panelId === "world",
+      ),
+    ).toBe(true);
+    expect(
+      objects.some(
+        (entry) =>
+          entry.id === "activity-research-library" &&
+          entry.meshType === "activity-landmark" &&
+          entry.metadata?.uiBinding?.kind === "internalPanel" &&
+          entry.metadata.uiBinding.panelId === "document-library",
+      ),
     ).toBe(true);
 
     await runCommand(["office", "doctor", "--json"]);
@@ -410,9 +432,7 @@ describe("office CLI", () => {
     const raw = await readFile(path.join(stateDir, "office-objects.json"), "utf-8");
     const objects = JSON.parse(raw) as Array<{ id: string; position: [number, number, number] }>;
     expect(objects.find((entry) => entry.id === "team-cluster-team-management")?.position).toEqual([
-      0,
-      0,
-      13,
+      0, 0, 13,
     ]);
     expect(objects.find((entry) => entry.id === "plant-a")?.position).toEqual([-16, 0, 15]);
   });
