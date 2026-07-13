@@ -13,9 +13,9 @@ import {
   fillEnclosedOfficeLayoutGaps,
   getOfficeLayoutBounds,
   getOfficeLayoutTileSet,
+  type OfficeLayoutModel,
   officeLayoutTileKey,
   parseOfficeLayoutTileKey,
-  type OfficeLayoutModel,
 } from "@/modules/office/lib/office-layout";
 import {
   evaluateOfficeLayoutQuality,
@@ -99,6 +99,7 @@ const DEFAULT_TARGET_EMPTY_PERCENT = 0.3;
 const DEFAULT_OBJECT_GAP_TILES = 1;
 const DEFAULT_OVERFLOW_SEARCH_RADIUS_TILES = 14;
 const DEFAULT_OVERFLOW_CANDIDATE_LIMIT = 900;
+const DEFAULT_DESTINATION_OVERFLOW_CANDIDATE_LIMIT = 96;
 const CONNECTIVITY_LOOP_EDGE_RATIO = 0.2;
 
 function normalizeTileRadius(value: number | undefined, fallback: number): number {
@@ -139,10 +140,7 @@ function neighborsOf(point: TilePoint): TilePoint[] {
   ];
 }
 
-function bfsWalkableComponent(
-  start: TilePoint,
-  walkableTiles: Set<string>,
-): Set<string> {
+function bfsWalkableComponent(start: TilePoint, walkableTiles: Set<string>): Set<string> {
   const startKey = officeLayoutTileKey(start.x, start.z);
   const visited = new Set<string>([startKey]);
   const queue = [start];
@@ -176,12 +174,7 @@ function findLargestWalkableComponent(walkableTiles: Set<string>): Set<string> {
   return largest;
 }
 
-function addPaddedTile(
-  tileSet: Set<string>,
-  x: number,
-  z: number,
-  radius: number,
-): void {
+function addPaddedTile(tileSet: Set<string>, x: number, z: number, radius: number): void {
   for (let dx = -radius; dx <= radius; dx += 1) {
     for (let dz = -radius; dz <= radius; dz += 1) {
       tileSet.add(officeLayoutTileKey(x + dx, z + dz));
@@ -199,6 +192,22 @@ function getObjectAccessTile(object: OfficeObject): TilePoint | null {
   const maxZ = Math.max(...cells.map((cell) => cell.z));
   const centerX = Math.round(object.position[0]);
   const centerZ = Math.round(object.position[2]);
+  if (object.meshType === "activity-landmark") {
+    const rotationY = object.rotation?.[1] ?? 0;
+    const normalizedRotation = Math.atan2(Math.sin(rotationY), Math.cos(rotationY));
+    if (Math.abs(normalizedRotation) < 0.001) {
+      return { x: centerX, z: maxZ + 1 };
+    }
+    if (Math.abs(normalizedRotation - Math.PI / 2) < 0.001) {
+      return { x: minX - 1, z: centerZ };
+    }
+    if (Math.abs(Math.abs(normalizedRotation) - Math.PI) < 0.001) {
+      return { x: centerX, z: minZ - 1 };
+    }
+    if (Math.abs(normalizedRotation + Math.PI / 2) < 0.001) {
+      return { x: maxX + 1, z: centerZ };
+    }
+  }
   const candidates = [
     { x: maxX + 1, z: centerZ },
     { x: minX - 1, z: centerZ },
@@ -206,10 +215,8 @@ function getObjectAccessTile(object: OfficeObject): TilePoint | null {
     { x: centerX, z: minZ - 1 },
   ];
   return (
-    candidates.find(
-      (candidate) =>
-        !occupied.has(officeLayoutTileKey(candidate.x, candidate.z)),
-    ) ?? null
+    candidates.find((candidate) => !occupied.has(officeLayoutTileKey(candidate.x, candidate.z))) ??
+    null
   );
 }
 
@@ -291,19 +298,12 @@ function addReservedCorridor(input: {
       { x: current.x, z: current.z + 1 },
       { x: current.x, z: current.z - 1 },
     ].sort((left, right) => {
-      const leftDistance =
-        Math.abs(left.x - input.to.x) + Math.abs(left.z - input.to.z);
-      const rightDistance =
-        Math.abs(right.x - input.to.x) + Math.abs(right.z - input.to.z);
+      const leftDistance = Math.abs(left.x - input.to.x) + Math.abs(left.z - input.to.z);
+      const rightDistance = Math.abs(right.x - input.to.x) + Math.abs(right.z - input.to.z);
       return leftDistance - rightDistance;
     });
     for (const neighbor of neighbors) {
-      if (
-        neighbor.x < minX ||
-        neighbor.x > maxX ||
-        neighbor.z < minZ ||
-        neighbor.z > maxZ
-      ) {
+      if (neighbor.x < minX || neighbor.x > maxX || neighbor.z < minZ || neighbor.z > maxZ) {
         continue;
       }
       const key = officeLayoutTileKey(neighbor.x, neighbor.z);
@@ -333,12 +333,7 @@ function addReservedCorridor(input: {
   while (currentKey) {
     const parsed = parseOfficeLayoutTileKey(currentKey);
     if (parsed) {
-      addPaddedTile(
-        input.reservedWalkTiles,
-        parsed.x,
-        parsed.z,
-        input.radius,
-      );
+      addPaddedTile(input.reservedWalkTiles, parsed.x, parsed.z, input.radius);
       addPaddedTile(input.floorTiles, parsed.x, parsed.z, input.radius);
     }
     currentKey = previous.get(currentKey) ?? null;
@@ -382,12 +377,7 @@ function buildReservedWalkTiles(input: {
     const accessTile = getObjectAccessTile(object);
     if (!accessTile) continue;
     centers.push(accessTile);
-    addPaddedTile(
-      reservedWalkTiles,
-      accessTile.x,
-      accessTile.z,
-      input.radius,
-    );
+    addPaddedTile(reservedWalkTiles, accessTile.x, accessTile.z, input.radius);
     addPaddedTile(input.floorTiles, accessTile.x, accessTile.z, input.radius);
   }
 
@@ -410,9 +400,7 @@ function buildReservedWalkTiles(input: {
   return reservedWalkTiles;
 }
 
-function toReservedWalkBlockers(
-  reservedWalkTiles: Iterable<string>,
-): OfficePlacementObject[] {
+function toReservedWalkBlockers(reservedWalkTiles: Iterable<string>): OfficePlacementObject[] {
   return [...reservedWalkTiles].flatMap((tile) => {
     const parsed = parseOfficeLayoutTileKey(tile);
     if (!parsed) return [];
@@ -449,16 +437,183 @@ interface OptionalObjectPlacementResult {
   expansionTileCount: number;
 }
 
+interface DestinationFacing {
+  rotationY: number;
+  exteriorOffset: TilePoint;
+}
+
+const DESTINATION_FACINGS: DestinationFacing[] = [
+  { rotationY: 0, exteriorOffset: { x: 0, z: -1 } },
+  { rotationY: Math.PI / 2, exteriorOffset: { x: 1, z: 0 } },
+  { rotationY: Math.PI, exteriorOffset: { x: 0, z: 1 } },
+  { rotationY: -Math.PI / 2, exteriorOffset: { x: -1, z: 0 } },
+];
+
+function findWalkPathToNetwork(input: {
+  start: TilePoint;
+  floorTiles: Set<string>;
+  occupiedTiles: Set<string>;
+  networkTiles: Set<string>;
+  fallbackTarget: TilePoint;
+}): TilePoint[] | null {
+  const startKey = officeLayoutTileKey(input.start.x, input.start.z);
+  if (!input.floorTiles.has(startKey) || input.occupiedTiles.has(startKey)) return null;
+  const reachableTargets = new Set(
+    [...input.networkTiles].filter(
+      (tile) => input.floorTiles.has(tile) && !input.occupiedTiles.has(tile),
+    ),
+  );
+  if (reachableTargets.size === 0) {
+    const fallbackKey = officeLayoutTileKey(input.fallbackTarget.x, input.fallbackTarget.z);
+    if (input.floorTiles.has(fallbackKey) && !input.occupiedTiles.has(fallbackKey)) {
+      reachableTargets.add(fallbackKey);
+    }
+  }
+  if (reachableTargets.size === 0) return null;
+
+  const previous = new Map<string, string | null>([[startKey, null]]);
+  const queue = [input.start];
+  let targetKey: string | null = reachableTargets.has(startKey) ? startKey : null;
+  for (let index = 0; index < queue.length && targetKey === null; index += 1) {
+    const current = queue[index];
+    for (const neighbor of neighborsOf(current)) {
+      const key = officeLayoutTileKey(neighbor.x, neighbor.z);
+      if (previous.has(key) || !input.floorTiles.has(key) || input.occupiedTiles.has(key)) {
+        continue;
+      }
+      previous.set(key, officeLayoutTileKey(current.x, current.z));
+      if (reachableTargets.has(key)) {
+        targetKey = key;
+        break;
+      }
+      queue.push(neighbor);
+    }
+  }
+  if (targetKey === null) return null;
+
+  const path: TilePoint[] = [];
+  let currentKey: string | null = targetKey;
+  while (currentKey) {
+    const point = parseOfficeLayoutTileKey(currentKey);
+    if (point) path.push(point);
+    currentKey = previous.get(currentKey) ?? null;
+  }
+  return path.reverse();
+}
+
+function addDestinationRouteReservation(input: {
+  path: TilePoint[];
+  floorTiles: Set<string>;
+  reservedWalkTiles: Set<string>;
+  occupiedTiles: Set<string>;
+  radius: number;
+}): string[] {
+  const added: string[] = [];
+  for (const point of input.path) {
+    for (let dx = -input.radius; dx <= input.radius; dx += 1) {
+      for (let dz = -input.radius; dz <= input.radius; dz += 1) {
+        const key = officeLayoutTileKey(point.x + dx, point.z + dz);
+        if (
+          !input.floorTiles.has(key) ||
+          input.occupiedTiles.has(key) ||
+          input.reservedWalkTiles.has(key)
+        ) {
+          continue;
+        }
+        input.reservedWalkTiles.add(key);
+        added.push(key);
+      }
+    }
+  }
+  return added;
+}
+
+function findBestDestinationPlacement(input: {
+  layout: OfficeLayoutModel;
+  reservation: ReturnType<typeof createOfficePlacementReservation>;
+  object: OfficePlacementObject;
+  reservedWalkTiles: Set<string>;
+  centroid: TilePoint;
+  placedDestinations: OfficeObject[];
+}): { object: OfficePlacementObject; accessTile: TilePoint; path: TilePoint[] } | null {
+  const floorTiles = getOfficeLayoutTileSet(input.layout);
+  const exteriorVoid = getExteriorVoidTiles(floorTiles);
+  let best: {
+    object: OfficePlacementObject;
+    accessTile: TilePoint;
+    path: TilePoint[];
+    score: number;
+  } | null = null;
+
+  for (const position of getOfficeLayoutCandidatePositions({
+    layout: input.layout,
+    y: input.object.position[1],
+  })) {
+    for (const facing of DESTINATION_FACINGS) {
+      const candidate: OfficePlacementObject = {
+        ...input.object,
+        position,
+        rotation: [
+          input.object.rotation?.[0] ?? 0,
+          facing.rotationY,
+          input.object.rotation?.[2] ?? 0,
+        ],
+      };
+      const footprintCells = getObjectFootprintCells(candidate);
+      if (
+        !canReserveOfficeObject({
+          object: candidate,
+          layout: input.layout,
+          reservation: input.reservation,
+        })
+      ) {
+        continue;
+      }
+      const exposedCount = footprintCells.filter((cell) =>
+        exteriorVoid.has(
+          officeLayoutTileKey(cell.x + facing.exteriorOffset.x, cell.z + facing.exteriorOffset.z),
+        ),
+      ).length;
+      if (exposedCount === 0) continue;
+
+      const candidateOfficeObject = toSolverOfficeObject(candidate);
+      const accessTile = getObjectAccessTile(candidateOfficeObject);
+      if (!accessTile) continue;
+      const occupiedTiles = buildOccupiedTileSet([...input.reservation.objects, candidate]);
+      const path = findWalkPathToNetwork({
+        start: accessTile,
+        floorTiles,
+        occupiedTiles,
+        networkTiles: input.reservedWalkTiles,
+        fallbackTarget: input.centroid,
+      });
+      if (!path) continue;
+
+      const preferredDistance =
+        (position[0] - input.object.position[0]) ** 2 +
+        (position[2] - input.object.position[2]) ** 2;
+      const separation = input.placedDestinations.reduce(
+        (total, placed) =>
+          total + (position[0] - placed.position[0]) ** 2 + (position[2] - placed.position[2]) ** 2,
+        0,
+      );
+      const score = preferredDistance * 10 + path.length - exposedCount * 4 - separation;
+      if (!best || score < best.score) {
+        best = { object: candidate, accessTile, path, score };
+      }
+    }
+  }
+
+  return best ? { object: best.object, accessTile: best.accessTile, path: best.path } : null;
+}
+
 function getOrderedOptionalObjects(
   optionalObjects: OfficeObject[],
   objectGapTiles: number,
 ): OrderedOptionalPlacementObject[] {
   return optionalObjects
     .map((object, sourceIndex) => {
-      const placementObject = withMinimumPlacementGap(
-        toPlacementObject(object),
-        objectGapTiles,
-      );
+      const placementObject = withMinimumPlacementGap(toPlacementObject(object), objectGapTiles);
       return {
         object,
         sourceIndex,
@@ -493,15 +648,78 @@ function placeOptionalObjects(input: {
   ]);
   const reservedWalkBlockerKeys = new Set(input.reservedWalkTiles);
   const centroid = getRequiredObjectCentroid(input.requiredObjects, input.layout);
-  const orderedObjects = getOrderedOptionalObjects(
-    input.optionalObjects,
-    input.objectGapTiles,
+  const destinationObjects = input.optionalObjects.filter(
+    (object) => object.meshType === "activity-landmark",
   );
+  const decorObjects = input.optionalObjects.filter(
+    (object) => object.meshType !== "activity-landmark",
+  );
+  const orderedDestinations = getOrderedOptionalObjects(destinationObjects, input.objectGapTiles);
+  const orderedObjects = getOrderedOptionalObjects(decorObjects, input.objectGapTiles);
   const placedOptionalObjects: OfficeObject[] = [];
   const overflowCandidates: OrderedOptionalPlacementObject[] = [];
   let insidePlacedObjectCount = 0;
   let overflowPlacedObjectCount = 0;
   let expansionTileCount = 0;
+  let destinationOverflowStarted = false;
+
+  for (const { object, placementObject } of orderedDestinations) {
+    const insideResult = destinationOverflowStarted
+      ? null
+      : findBestDestinationPlacement({
+          layout: workingLayout,
+          reservation,
+          object: placementObject,
+          reservedWalkTiles: workingReservedWalkTiles,
+          centroid,
+          placedDestinations: placedOptionalObjects,
+        });
+    const overflowResult = insideResult
+      ? null
+      : findBestOverflowDestinationPosition({
+          layout: workingLayout,
+          floorTiles: workingFloorTiles,
+          reservedWalkTiles: workingReservedWalkTiles,
+          reservation,
+          object: placementObject,
+          centroid,
+          paddingTiles: input.paddingTiles,
+          corridorRadiusTiles: input.corridorRadiusTiles,
+          placedDestinations: placedOptionalObjects,
+        });
+    const result = insideResult ?? overflowResult;
+    if (!result) continue;
+    if (overflowResult) {
+      destinationOverflowStarted = true;
+      workingFloorTiles = overflowResult.floorTiles;
+      workingReservedWalkTiles = overflowResult.reservedWalkTiles;
+      workingLayout = overflowResult.layout;
+      expansionTileCount += overflowResult.newTileCount;
+      overflowPlacedObjectCount += 1;
+    }
+    reservation.objects.push(result.object);
+    const occupiedTiles = buildOccupiedTileSet(reservation.objects);
+    const newReservedWalkTiles = insideResult
+      ? addDestinationRouteReservation({
+          path: insideResult.path,
+          floorTiles: workingFloorTiles,
+          reservedWalkTiles: workingReservedWalkTiles,
+          occupiedTiles,
+          radius: input.corridorRadiusTiles,
+        })
+      : [...workingReservedWalkTiles].filter(
+          (tile) => !reservedWalkBlockerKeys.has(tile) && !occupiedTiles.has(tile),
+        );
+    for (const tile of newReservedWalkTiles) reservedWalkBlockerKeys.add(tile);
+    reservation.objects.push(...toReservedWalkBlockers(newReservedWalkTiles));
+    placedOptionalObjects.push({
+      ...object,
+      position: result.object.position,
+      rotation: result.object.rotation ?? object.rotation,
+      metadata: result.object.metadata,
+    });
+    if (insideResult) insidePlacedObjectCount += 1;
+  }
 
   for (const orderedObject of orderedObjects) {
     const { object, placementObject } = orderedObject;
@@ -643,8 +861,7 @@ function findBestOptionalObjectPosition(input: {
     const centroidDistance =
       (position[0] - input.centroid.x) ** 2 + (position[2] - input.centroid.z) ** 2;
     const preferredDistance =
-      (position[0] - input.object.position[0]) ** 2 +
-      (position[2] - input.object.position[2]) ** 2;
+      (position[0] - input.object.position[0]) ** 2 + (position[2] - input.object.position[2]) ** 2;
     const score = centroidDistance * 10 + preferredDistance;
     if (!best || score < best.score) {
       best = { position, score };
@@ -662,7 +879,7 @@ function toSolverOfficeObject(
     _id: id,
     meshType: object.meshType,
     position: object.position,
-    rotation: object.rotation,
+    rotation: object.rotation ?? [0, 0, 0],
     metadata: object.metadata,
   };
 }
@@ -677,16 +894,8 @@ function getOverflowCandidatePositions(input: {
     position: [number, number, number];
     boundaryDistance: number;
   }> = [];
-  for (
-    let x = bounds.minTileX - input.radius;
-    x <= bounds.maxTileX + input.radius;
-    x += 1
-  ) {
-    for (
-      let z = bounds.minTileZ - input.radius;
-      z <= bounds.maxTileZ + input.radius;
-      z += 1
-    ) {
+  for (let x = bounds.minTileX - input.radius; x <= bounds.maxTileX + input.radius; x += 1) {
+    for (let z = bounds.minTileZ - input.radius; z <= bounds.maxTileZ + input.radius; z += 1) {
       const outsideX =
         x < bounds.minTileX ? bounds.minTileX - x : x > bounds.maxTileX ? x - bounds.maxTileX : 0;
       const outsideZ =
@@ -724,11 +933,7 @@ function findNearestFloorTile(
   point: TilePoint,
   floorTiles: Set<string>,
 ): { tile: TilePoint; distance: number } | null {
-  for (
-    let radius = 0;
-    radius <= DEFAULT_OVERFLOW_SEARCH_RADIUS_TILES + 4;
-    radius += 1
-  ) {
+  for (let radius = 0; radius <= DEFAULT_OVERFLOW_SEARCH_RADIUS_TILES + 4; radius += 1) {
     let bestAtRadius: { tile: TilePoint; distance: number } | null = null;
     for (let dx = -radius; dx <= radius; dx += 1) {
       for (let dz = -radius; dz <= radius; dz += 1) {
@@ -776,10 +981,7 @@ function buildOverflowCandidateLayout(input: {
   if (accessTile && attach) {
     reservedWalkTiles.add(officeLayoutTileKey(accessTile.x, accessTile.z));
     floorTiles.add(officeLayoutTileKey(accessTile.x, accessTile.z));
-    const occupiedTiles = buildOccupiedTileSet([
-      ...input.reservation.objects,
-      input.object,
-    ]);
+    const occupiedTiles = buildOccupiedTileSet([...input.reservation.objects, input.object]);
     addDirectReservedCorridor({
       floorTiles,
       reservedWalkTiles,
@@ -799,6 +1001,195 @@ function buildOverflowCandidateLayout(input: {
   };
 }
 
+function getDestinationOverflowCandidates(input: {
+  layout: OfficeLayoutModel;
+  y: number;
+}): Array<{
+  position: [number, number, number];
+  facing: DestinationFacing;
+  boundaryDistance: number;
+}> {
+  const bounds = getOfficeLayoutBounds(input.layout);
+  const candidates: Array<{
+    position: [number, number, number];
+    facing: DestinationFacing;
+    boundaryDistance: number;
+  }> = [];
+  const [north, east, south, west] = DESTINATION_FACINGS;
+  if (!north || !east || !south || !west) return candidates;
+
+  for (let distance = 1; distance <= DEFAULT_OVERFLOW_SEARCH_RADIUS_TILES; distance += 1) {
+    const minX = bounds.minTileX - distance;
+    const maxX = bounds.maxTileX + distance;
+    const minZ = bounds.minTileZ - distance;
+    const maxZ = bounds.maxTileZ + distance;
+    const sideLength = Math.max(maxX - minX, maxZ - minZ) + 1;
+    for (let offset = 0; offset < sideLength; offset += 1) {
+      if (minX + offset <= maxX) {
+        candidates.push({
+          position: [minX + offset, input.y, minZ],
+          facing: north,
+          boundaryDistance: distance,
+        });
+      }
+      if (minZ + offset <= maxZ) {
+        candidates.push({
+          position: [maxX, input.y, minZ + offset],
+          facing: east,
+          boundaryDistance: distance,
+        });
+      }
+      if (maxX - offset >= minX) {
+        candidates.push({
+          position: [maxX - offset, input.y, maxZ],
+          facing: south,
+          boundaryDistance: distance,
+        });
+      }
+      if (maxZ - offset >= minZ) {
+        candidates.push({
+          position: [minX, input.y, maxZ - offset],
+          facing: west,
+          boundaryDistance: distance,
+        });
+      }
+      if (candidates.length >= DEFAULT_DESTINATION_OVERFLOW_CANDIDATE_LIMIT) {
+        return candidates;
+      }
+    }
+  }
+  return candidates;
+}
+
+function hasReservedConnectionToFloor(input: {
+  accessTile: TilePoint;
+  reservedWalkTiles: Set<string>;
+  originalFloorTiles: Set<string>;
+}): boolean {
+  const startKey = officeLayoutTileKey(input.accessTile.x, input.accessTile.z);
+  if (!input.reservedWalkTiles.has(startKey)) return false;
+  const visited = new Set<string>([startKey]);
+  const queue = [input.accessTile];
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index];
+    const currentKey = officeLayoutTileKey(current.x, current.z);
+    if (input.originalFloorTiles.has(currentKey)) return true;
+    for (const neighbor of neighborsOf(current)) {
+      const key = officeLayoutTileKey(neighbor.x, neighbor.z);
+      if (visited.has(key) || !input.reservedWalkTiles.has(key)) continue;
+      visited.add(key);
+      queue.push(neighbor);
+    }
+  }
+  return false;
+}
+
+function findBestOverflowDestinationPosition(input: {
+  layout: OfficeLayoutModel;
+  floorTiles: Set<string>;
+  reservedWalkTiles: Set<string>;
+  reservation: ReturnType<typeof createOfficePlacementReservation>;
+  object: OfficePlacementObject;
+  centroid: TilePoint;
+  paddingTiles: number;
+  corridorRadiusTiles: number;
+  placedDestinations: OfficeObject[];
+}): {
+  object: OfficePlacementObject;
+  layout: OfficeLayoutModel;
+  floorTiles: Set<string>;
+  reservedWalkTiles: Set<string>;
+  newTileCount: number;
+} | null {
+  const blockedTiles = new Set(
+    input.reservation.objects.flatMap((reservedObject) =>
+      getObjectFootprintCells(reservedObject).map((cell) => cell.key),
+    ),
+  );
+  const rankedCandidates = getDestinationOverflowCandidates({
+    layout: input.layout,
+    y: input.object.position[1],
+  })
+    .flatMap(({ position, facing, boundaryDistance }) => {
+      const object: OfficePlacementObject = {
+        ...input.object,
+        position,
+        rotation: [
+          input.object.rotation?.[0] ?? 0,
+          facing.rotationY,
+          input.object.rotation?.[2] ?? 0,
+        ],
+      };
+      if (getObjectFootprintCells(object).some((cell) => blockedTiles.has(cell.key))) return [];
+      const accessTile = getObjectAccessTile(toSolverOfficeObject(object));
+      if (!accessTile) return [];
+      const attach = findNearestFloorTile(accessTile, input.floorTiles);
+      if (!attach) return [];
+      const preferredDistance =
+        (position[0] - input.object.position[0]) ** 2 +
+        (position[2] - input.object.position[2]) ** 2;
+      const nearestDestinationDistance = input.placedDestinations.reduce(
+        (nearest, placed) =>
+          Math.min(
+            nearest,
+            (position[0] - placed.position[0]) ** 2 +
+              (position[2] - placed.position[2]) ** 2,
+          ),
+        Number.POSITIVE_INFINITY,
+      );
+      return [
+        {
+          object,
+          accessTile,
+          score:
+            boundaryDistance * 1_000_000 +
+            attach.distance * 10_000 +
+            preferredDistance -
+            Math.min(10_000, nearestDestinationDistance),
+        },
+      ];
+    })
+    .sort((left, right) => left.score - right.score);
+
+  for (const { object, accessTile } of rankedCandidates) {
+      const expanded = buildOverflowCandidateLayout({
+        floorTiles: input.floorTiles,
+        reservedWalkTiles: input.reservedWalkTiles,
+        reservation: input.reservation,
+        object,
+        paddingTiles: input.paddingTiles,
+        corridorRadiusTiles: input.corridorRadiusTiles,
+      });
+      if (
+        !expanded ||
+        !canReserveOfficeObject({
+          object,
+          layout: expanded.layout,
+          reservation: input.reservation,
+        })
+      ) {
+        continue;
+      }
+      if (
+        !hasReservedConnectionToFloor({
+          accessTile,
+          reservedWalkTiles: expanded.reservedWalkTiles,
+          originalFloorTiles: input.floorTiles,
+        })
+      ) {
+        continue;
+      }
+      return {
+        object,
+        layout: expanded.layout,
+        floorTiles: expanded.floorTiles,
+        reservedWalkTiles: expanded.reservedWalkTiles,
+        newTileCount: expanded.newTileCount,
+      };
+  }
+  return null;
+}
+
 function findBestOverflowObjectPosition(input: {
   layout: OfficeLayoutModel;
   floorTiles: Set<string>;
@@ -815,16 +1206,14 @@ function findBestOverflowObjectPosition(input: {
   reservedWalkTiles: Set<string>;
   newTileCount: number;
 } | null {
-  let best:
-    | {
-        position: [number, number, number];
-        layout: OfficeLayoutModel;
-        floorTiles: Set<string>;
-        reservedWalkTiles: Set<string>;
-        newTileCount: number;
-        score: number;
-      }
-    | null = null;
+  let best: {
+    position: [number, number, number];
+    layout: OfficeLayoutModel;
+    floorTiles: Set<string>;
+    reservedWalkTiles: Set<string>;
+    newTileCount: number;
+    score: number;
+  } | null = null;
   let evaluatedCandidateCount = 0;
 
   for (const position of getOverflowCandidatePositions({
@@ -860,8 +1249,7 @@ function findBestOverflowObjectPosition(input: {
     const centroidDistance =
       (position[0] - input.centroid.x) ** 2 + (position[2] - input.centroid.z) ** 2;
     const preferredDistance =
-      (position[0] - input.object.position[0]) ** 2 +
-      (position[2] - input.object.position[2]) ** 2;
+      (position[0] - input.object.position[0]) ** 2 + (position[2] - input.object.position[2]) ** 2;
     const score =
       expanded.newTileCount * 1_000 +
       expanded.attachDistance * 100 +
@@ -1060,10 +1448,7 @@ function getExteriorVoidTiles(tileSet: Set<string>): Set<string> {
   return exteriorVoid;
 }
 
-function isExteriorBoundaryLayoutTile(input: {
-  tile: string;
-  exteriorVoid: Set<string>;
-}): boolean {
+function isExteriorBoundaryLayoutTile(input: { tile: string; exteriorVoid: Set<string> }): boolean {
   const parsed = parseOfficeLayoutTileKey(input.tile);
   if (!parsed) return false;
   return (
@@ -1111,17 +1496,13 @@ function pruneEmptyLayoutTiles(input: {
     const exteriorVoid = getExteriorVoidTiles(currentTileSet);
     const removableTiles = current.tiles
       .filter(
-        (tile) =>
-          !protectedTiles.has(tile) &&
-          isExteriorBoundaryLayoutTile({ tile, exteriorVoid }),
+        (tile) => !protectedTiles.has(tile) && isExteriorBoundaryLayoutTile({ tile, exteriorVoid }),
       )
       .sort((left, right) => {
         const leftParsed = parseOfficeLayoutTileKey(left);
         const rightParsed = parseOfficeLayoutTileKey(right);
-        const leftDistance =
-          Math.abs(leftParsed?.x ?? 0) + Math.abs(leftParsed?.z ?? 0);
-        const rightDistance =
-          Math.abs(rightParsed?.x ?? 0) + Math.abs(rightParsed?.z ?? 0);
+        const leftDistance = Math.abs(leftParsed?.x ?? 0) + Math.abs(leftParsed?.z ?? 0);
+        const rightDistance = Math.abs(rightParsed?.x ?? 0) + Math.abs(rightParsed?.z ?? 0);
         return rightDistance - leftDistance;
       });
 
@@ -1163,18 +1544,12 @@ function removeDisconnectedWalkablePockets(input: {
       if (layoutTiles.has(cell.key)) occupiedTiles.add(cell.key);
     }
   }
-  const walkableTiles = new Set(
-    [...layoutTiles].filter((tile) => !occupiedTiles.has(tile)),
-  );
+  const walkableTiles = new Set([...layoutTiles].filter((tile) => !occupiedTiles.has(tile)));
   const largestWalkable = findLargestWalkableComponent(walkableTiles);
   const keptTiles = new Set(
-    [...layoutTiles].filter(
-      (tile) => protectedTiles.has(tile) || largestWalkable.has(tile),
-    ),
+    [...layoutTiles].filter((tile) => protectedTiles.has(tile) || largestWalkable.has(tile)),
   );
-  return keptTiles.size === layoutTiles.size
-    ? input.layout
-    : createTileMaskLayout(keptTiles);
+  return keptTiles.size === layoutTiles.size ? input.layout : createTileMaskLayout(keptTiles);
 }
 
 function pruneEmptyEdges(input: {
@@ -1204,17 +1579,12 @@ function pruneEmptyEdges(input: {
       name: "prune_empty_edges",
       inputTileCount: input.expandedLayout.tiles.length,
       outputTileCount: officeLayout.tiles.length,
-      prunedTileCount: Math.max(
-        0,
-        input.expandedLayout.tiles.length - officeLayout.tiles.length,
-      ),
+      prunedTileCount: Math.max(0, input.expandedLayout.tiles.length - officeLayout.tiles.length),
     },
   };
 }
 
-export function solveOfficeAutoLayout(
-  input: OfficeLayoutSolverInput,
-): OfficeLayoutSolution {
+export function solveOfficeAutoLayout(input: OfficeLayoutSolverInput): OfficeLayoutSolution {
   const paddingTiles = normalizeTileRadius(input.paddingTiles, DEFAULT_PADDING_TILES);
   const corridorRadiusTiles = normalizeTileRadius(
     input.corridorRadiusTiles,
@@ -1260,9 +1630,7 @@ export function solveOfficeAutoLayout(
     radius: corridorRadiusTiles,
   });
   const expandedLayout =
-    finalFloorTiles.size > 0
-      ? createTileMaskLayout(finalFloorTiles)
-      : packed.layout;
+    finalFloorTiles.size > 0 ? createTileMaskLayout(finalFloorTiles) : packed.layout;
   const pruned = pruneEmptyEdges({
     expandedLayout,
     objects: allObjects,
