@@ -16,103 +16,126 @@
  * - MEM-0153
  */
 
-import { useCallback } from 'react';
-import type { ThreeEvent } from '@react-three/fiber';
-import { useAppStore } from '@/store';
-import { useChatActions } from '@/modules/chat';
-import type { EmployeeData, TeamData } from '@/modules/office/lib/types';
+import { useCallback } from "react";
+import type { ThreeEvent } from "@react-three/fiber";
+import { useAppStore } from "@/store";
+import { TOTAL_HEIGHT } from "@/constants";
+import { useChatActions } from "@/modules/chat";
+import type { EmployeeData, TeamData } from "@/modules/office/lib/types";
 
-export function useOfficeSceneInteractions(params: {
-    employees: EmployeeData[];
-}): {
-    handleBackgroundClick: (event: ThreeEvent<MouseEvent>) => void;
-    handleEmployeeClick: (employeeId: EmployeeData['_id']) => Promise<void>;
-    handleTeamClick: (team: TeamData) => Promise<void>;
-    handleCeoDeskClick: (event: ThreeEvent<MouseEvent>) => void;
+export function useOfficeSceneInteractions(params: { employees: EmployeeData[] }): {
+  handleBackgroundClick: (event: ThreeEvent<MouseEvent>) => void;
+  handleBackgroundContextMenu: (event: ThreeEvent<MouseEvent>) => void;
+  handleEmployeeClick: (employeeId: EmployeeData["_id"]) => Promise<void>;
+  handleTeamClick: (team: TeamData) => Promise<void>;
+  handleCeoDeskClick: (event: ThreeEvent<MouseEvent>) => void;
 } {
-    const { employees } = params;
-    const { openEmployeeChat } = useChatActions();
+  const { employees } = params;
+  const { openEmployeeChat } = useChatActions();
 
-    const setActiveChatParticipant = useAppStore((state) => state.setActiveChatParticipant);
-    const setIsTeamPanelOpen = useAppStore((state) => state.setIsTeamPanelOpen);
-    const setActiveTeamId = useAppStore((state) => state.setActiveTeamId);
-    const setSelectedTeamId = useAppStore((state) => state.setSelectedTeamId);
-    const setSelectedProjectId = useAppStore((state) => state.setSelectedProjectId);
-    const setKanbanFocusAgentId = useAppStore((state) => state.setKanbanFocusAgentId);
-    const setIsCeoWorkbenchOpen = useAppStore((state) => state.setIsCeoWorkbenchOpen);
-    const placementMode = useAppStore((state) => state.placementMode);
-    const isDragging = useAppStore((state) => state.isDragging);
-    const setSelectedObjectId = useAppStore((state) => state.setSelectedObjectId);
+  const setActiveChatParticipant = useAppStore((state) => state.setActiveChatParticipant);
+  const setIsTeamPanelOpen = useAppStore((state) => state.setIsTeamPanelOpen);
+  const setActiveTeamId = useAppStore((state) => state.setActiveTeamId);
+  const setSelectedTeamId = useAppStore((state) => state.setSelectedTeamId);
+  const setSelectedProjectId = useAppStore((state) => state.setSelectedProjectId);
+  const setKanbanFocusAgentId = useAppStore((state) => state.setKanbanFocusAgentId);
+  const setIsCeoWorkbenchOpen = useAppStore((state) => state.setIsCeoWorkbenchOpen);
+  const placementMode = useAppStore((state) => state.placementMode);
+  const isDragging = useAppStore((state) => state.isDragging);
+  const setSelectedObjectId = useAppStore((state) => state.setSelectedObjectId);
+  const setControlledEmployeeDestination = useAppStore(
+    (state) => state.setControlledEmployeeDestination,
+  );
 
-    const handleEmployeeClick = useCallback(
-        async (employeeId: EmployeeData['_id']) => {
-            const employee = employees.find((entry) => entry._id === employeeId);
-            if (!employee) return;
-            if (useAppStore.getState().placementMode.active) return;
-            if (!employee.companyId) return;
+  const handleEmployeeClick = useCallback(
+    async (employeeId: EmployeeData["_id"]) => {
+      const employee = employees.find((entry) => entry._id === employeeId);
+      if (!employee) return;
+      if (useAppStore.getState().placementMode.active) return;
+      if (!employee.companyId) return;
 
-            setActiveChatParticipant({
-                type: 'employee',
-                companyId: employee.companyId,
-                employeeId: employee._id,
-                teamId: employee.teamId,
-                builtInRole: employee.builtInRole,
-            });
-            await openEmployeeChat(employee._id, true);
-        },
-        [employees, openEmployeeChat, setActiveChatParticipant],
-    );
+      setActiveChatParticipant({
+        type: "employee",
+        companyId: employee.companyId,
+        employeeId: employee._id,
+        teamId: employee.teamId,
+        builtInRole: employee.builtInRole,
+      });
+      await openEmployeeChat(employee._id, true);
+    },
+    [employees, openEmployeeChat, setActiveChatParticipant],
+  );
 
-    const handleTeamClick = useCallback(
-        async (team: TeamData) => {
-            if (useAppStore.getState().placementMode.active) return;
+  const handleTeamClick = useCallback(
+    async (team: TeamData) => {
+      if (useAppStore.getState().placementMode.active) return;
 
-            if (!team.companyId) {
-                console.error('Team has no company:', team);
-                return;
-            }
+      if (!team.companyId) {
+        console.error("Team has no company:", team);
+        return;
+      }
 
-            setActiveTeamId(team._id);
-            setSelectedTeamId(team._id);
-            if (String(team._id).startsWith('team-')) {
-                setSelectedProjectId(String(team._id).replace(/^team-/, ''));
-            }
-            setKanbanFocusAgentId(null);
-            setIsTeamPanelOpen(true);
-        },
-        [
-            setActiveTeamId,
-            setIsTeamPanelOpen,
-            setKanbanFocusAgentId,
-            setSelectedProjectId,
-            setSelectedTeamId,
-        ],
-    );
+      setActiveTeamId(team._id);
+      setSelectedTeamId(team._id);
+      if (String(team._id).startsWith("team-")) {
+        setSelectedProjectId(String(team._id).replace(/^team-/, ""));
+      }
+      setKanbanFocusAgentId(null);
+      setIsTeamPanelOpen(true);
+    },
+    [
+      setActiveTeamId,
+      setIsTeamPanelOpen,
+      setKanbanFocusAgentId,
+      setSelectedProjectId,
+      setSelectedTeamId,
+    ],
+  );
 
-    const handleBackgroundClick = useCallback(
-        (event: ThreeEvent<MouseEvent>) => {
-            if (!placementMode.active && !isDragging) {
-                event.stopPropagation();
-                setSelectedObjectId(null);
-            }
-        },
-        [isDragging, placementMode.active, setSelectedObjectId],
-    );
+  const handleBackgroundClick = useCallback(
+    (event: ThreeEvent<MouseEvent>) => {
+      if (!placementMode.active && !isDragging) {
+        event.stopPropagation();
+        setSelectedObjectId(null);
+      }
+    },
+    [isDragging, placementMode.active, setSelectedObjectId],
+  );
 
-    const handleCeoDeskClick = useCallback(
-        (event: ThreeEvent<MouseEvent>) => {
-            if (useAppStore.getState().placementMode.active) return;
-            event.stopPropagation();
-            setSelectedObjectId(null);
-            setIsCeoWorkbenchOpen(true);
-        },
-        [setIsCeoWorkbenchOpen, setSelectedObjectId],
-    );
+  const handleBackgroundContextMenu = useCallback(
+    (event: ThreeEvent<MouseEvent>) => {
+      const state = useAppStore.getState();
+      if (
+        !state.controlledEmployeeId ||
+        state.placementMode.active ||
+        state.isDragging ||
+        state.isBuilderMode
+      ) {
+        return;
+      }
 
-    return {
-        handleBackgroundClick,
-        handleEmployeeClick,
-        handleTeamClick,
-        handleCeoDeskClick,
-    };
+      event.stopPropagation();
+      event.nativeEvent.preventDefault();
+      setControlledEmployeeDestination([event.point.x, TOTAL_HEIGHT / 2, event.point.z]);
+    },
+    [setControlledEmployeeDestination],
+  );
+
+  const handleCeoDeskClick = useCallback(
+    (event: ThreeEvent<MouseEvent>) => {
+      if (useAppStore.getState().placementMode.active) return;
+      event.stopPropagation();
+      setSelectedObjectId(null);
+      setIsCeoWorkbenchOpen(true);
+    },
+    [setIsCeoWorkbenchOpen, setSelectedObjectId],
+  );
+
+  return {
+    handleBackgroundClick,
+    handleBackgroundContextMenu,
+    handleEmployeeClick,
+    handleTeamClick,
+    handleCeoDeskClick,
+  };
 }

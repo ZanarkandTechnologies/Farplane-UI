@@ -11,6 +11,7 @@ type PlacementMode = {
   data: Record<string, unknown> | null;
 };
 
+export type ControlledEmployeeDestination = [number, number, number];
 export type BuilderTool = "paint-floor" | "remove-floor" | null;
 export type OfficeOverlayKey = "grid" | "occupancy" | "paths" | "destinations" | "areas" | "layout";
 export type OfficeOverlaySettings = Record<OfficeOverlayKey, boolean>;
@@ -117,6 +118,10 @@ interface AppState {
   setPlacementMode: (mode: PlacementMode) => void;
   selectedObjectId: string | null;
   setSelectedObjectId: (id: string | null) => void;
+  controlledEmployeeId: OfficeId<"employees"> | null;
+  controlledEmployeeDestination: ControlledEmployeeDestination | null;
+  setControlledEmployeeId: (id: OfficeId<"employees"> | null) => void;
+  setControlledEmployeeDestination: (destination: ControlledEmployeeDestination | null) => void;
   activeObjectConfigId: OfficeId<"officeObjects"> | null;
   setActiveObjectConfigId: (id: OfficeId<"officeObjects"> | null) => void;
   activeObjectTransformId: OfficeId<"officeObjects"> | null;
@@ -232,6 +237,26 @@ export const useAppStore = create<AppState>()(
     // Keep no-op writes from fanning out through the whole scene tree.
     setSelectedObjectId: (id) =>
       set((state) => (state.selectedObjectId === id ? state : { selectedObjectId: id })),
+    controlledEmployeeId: null,
+    controlledEmployeeDestination: null,
+    setControlledEmployeeId: (id) =>
+      set((state) =>
+        state.controlledEmployeeId === id
+          ? state
+          : { controlledEmployeeId: id, controlledEmployeeDestination: null },
+      ),
+    setControlledEmployeeDestination: (destination) =>
+      set((state) => {
+        const current = state.controlledEmployeeDestination;
+        const same =
+          current === destination ||
+          (current &&
+            destination &&
+            current[0] === destination[0] &&
+            current[1] === destination[1] &&
+            current[2] === destination[2]);
+        return same ? state : { controlledEmployeeDestination: destination };
+      }),
     activeObjectConfigId: null,
     setActiveObjectConfigId: (id) =>
       set((state) => (state.activeObjectConfigId === id ? state : { activeObjectConfigId: id })),

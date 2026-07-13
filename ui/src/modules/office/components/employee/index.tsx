@@ -116,6 +116,8 @@ const Employee = memo(function Employee({
 }: EmployeeProps) {
   const employeeIdString = `employee-${id}`;
   const isSelected = useAppStore((state) => state.selectedObjectId === employeeIdString);
+  const controlledEmployeeId = useAppStore((state) => state.controlledEmployeeId);
+  const controlledEmployeeDestination = useAppStore((state) => state.controlledEmployeeDestination);
   const setSelectedObjectId = useAppStore((state) => state.setSelectedObjectId);
   const highlightedEmployeeIds = useAppStore((state) => state.highlightedEmployeeIds);
   const isOfficeOnboardingVisible = useAppStore((state) => state.isOfficeOnboardingVisible);
@@ -123,6 +125,7 @@ const Employee = memo(function Employee({
 
   const [isHovered, setIsHovered] = useState(false);
   const isHighlighted = highlightedEmployeeIds.has(id);
+  const isManuallyControlled = controlledEmployeeId === id;
   const isCodexThreadEmployee = String(id).startsWith("employee-codex-thread:");
   const {
     visibleActivityState,
@@ -156,6 +159,8 @@ const Employee = memo(function Employee({
     wantsToWander,
     heartbeatState,
     idleInteractionTargets,
+    manualControlActive: isManuallyControlled,
+    manualControlDestination: isManuallyControlled ? controlledEmployeeDestination : null,
     debugMode,
   });
   const finalColors = useEmployeeAvatarPalette({ isCEO, appearance });
@@ -278,11 +283,11 @@ const Employee = memo(function Employee({
           </mesh>
         ) : null}
 
-        {(isHovered || isSelected) && (
+        {(isHovered || isSelected || isManuallyControlled) && (
           <Edges
             scale={1.1}
-            color={isSelected ? "#00ff00" : "#ffffff"}
-            lineWidth={isSelected ? 2 : 1}
+            color={isManuallyControlled ? "#38bdf8" : isSelected ? "#00ff00" : "#ffffff"}
+            lineWidth={isManuallyControlled || isSelected ? 2 : 1}
           />
         )}
 
@@ -390,12 +395,17 @@ const Employee = memo(function Employee({
         </mesh>
       ) : null}
 
-      {debugPathOverlay && (debugPathData.originalPath || debugPathData.remainingPath) ? (
+      {(debugPathOverlay || isManuallyControlled) &&
+      (debugPathData.originalPath ||
+        debugPathData.remainingPath ||
+        (isManuallyControlled && controlledEmployeeDestination)) ? (
         <PathVisualizer
           originalPath={debugPathData.originalPath}
           remainingPath={debugPathData.remainingPath}
           isGoingToDesk={isGoingToDesk}
           employeeId={id}
+          variant={isManuallyControlled ? "manual" : "debug"}
+          destination={isManuallyControlled ? controlledEmployeeDestination : null}
         />
       ) : null}
     </>

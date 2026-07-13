@@ -94,8 +94,9 @@ export function OfficeInstancedFloor(props: {
   floorPatternId: OfficeFloorPatternId;
   sceneBuilderMode: boolean;
   onClick: (event: ThreeEvent<MouseEvent>) => void;
+  onContextMenu: (event: ThreeEvent<MouseEvent>) => void;
 }): React.JSX.Element {
-  const { officeLayout, floorPatternId, sceneBuilderMode, onClick } = props;
+  const { officeLayout, floorPatternId, sceneBuilderMode, onClick, onContextMenu } = props;
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const plan = useMemo(
     () => buildOfficeFloorInstancePlan(officeLayout, floorPatternId, sceneBuilderMode),
@@ -131,6 +132,7 @@ export function OfficeInstancedFloor(props: {
       receiveShadow
       name="office-instanced-floor"
       onClick={onClick}
+      onContextMenu={onContextMenu}
       userData={userData}
     >
       <boxGeometry args={[1, FLOOR_TILE_HEIGHT, 1]} />

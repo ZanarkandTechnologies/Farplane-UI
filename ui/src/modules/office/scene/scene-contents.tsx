@@ -289,6 +289,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
 
   const {
     handleBackgroundClick,
+    handleBackgroundContextMenu,
     handleEmployeeClick,
     handleTeamClick,
     handleCeoDeskClick,
@@ -368,6 +369,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
         officeTheme={officeTheme}
         sceneBuilderMode={sceneBuilderMode}
         onBackgroundClick={handleBackgroundClick}
+        onBackgroundContextMenu={handleBackgroundContextMenu}
         cameraZoom={isFixed25 ? cameraZoom : undefined}
         zoomRange={isFixed25 ? { minZoom, maxZoom } : undefined}
         orbitWallFadeMask={orbitWallFadeMask}

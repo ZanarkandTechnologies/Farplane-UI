@@ -10,7 +10,7 @@
  */
 
 import { useMemo } from "react";
-import { Book, Brain, MessageSquare, Monitor, UserCog } from "lucide-react";
+import { Book, Brain, Gamepad2, MessageSquare, Monitor, UserCog } from "lucide-react";
 import { toast } from "sonner";
 import type { Id } from "@/lib/entity-types";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
@@ -24,6 +24,8 @@ export function useEmployeeActions(input: {
 }): MenuAction[] {
   const { id, isCEO, onClick } = input;
   const setSelectedObjectId = useAppStore((state) => state.setSelectedObjectId);
+  const controlledEmployeeId = useAppStore((state) => state.controlledEmployeeId);
+  const setControlledEmployeeId = useAppStore((state) => state.setControlledEmployeeId);
   const setManageAgentEmployeeId = useAppStore((state) => state.setManageAgentEmployeeId);
   const setMemoryPanelEmployeeId = useAppStore((state) => state.setMemoryPanelEmployeeId);
   const setKanbanFocusAgentId = useAppStore((state) => state.setKanbanFocusAgentId);
@@ -33,6 +35,7 @@ export function useEmployeeActions(input: {
   const isOfficeOnboardingVisible = useAppStore((state) => state.isOfficeOnboardingVisible);
   const officeOnboardingStep = useAppStore((state) => state.officeOnboardingStep);
   const runtimeAdapter = useOfficeRuntimeAdapter();
+  const isControlled = controlledEmployeeId === id;
 
   return useMemo(
     () =>
@@ -86,6 +89,15 @@ export function useEmployeeActions(input: {
           },
         },
         {
+          id: "control",
+          label: isControlled ? "Release" : "Control",
+          icon: Gamepad2,
+          color: isControlled ? "red" : "green",
+          onClick: () => {
+            setControlledEmployeeId(isControlled ? null : id);
+          },
+        },
+        {
           id: "memory",
           label: "Context",
           icon: Brain,
@@ -106,11 +118,13 @@ export function useEmployeeActions(input: {
       ),
     [
       id,
+      isControlled,
       isCEO,
       isOfficeOnboardingVisible,
       officeOnboardingStep,
       onClick,
       runtimeAdapter.capabilities.employeeSkillEquip,
+      setControlledEmployeeId,
       setIsSkillsPanelOpen,
       setKanbanFocusAgentId,
       setManageAgentEmployeeId,

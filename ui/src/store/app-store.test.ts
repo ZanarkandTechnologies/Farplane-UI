@@ -57,6 +57,28 @@ describe("app store perf guards", () => {
     expect(useAppStore.getState().activeObjectTransformId).toBe("plant-1");
   });
 
+  it("stores manual employee control and clears destinations when control changes", () => {
+    useAppStore.getState().setControlledEmployeeId("employee-main" as never);
+    useAppStore.getState().setControlledEmployeeDestination([1, 0.5, 2]);
+
+    expect(useAppStore.getState().controlledEmployeeId).toBe("employee-main");
+    expect(useAppStore.getState().controlledEmployeeDestination).toEqual([1, 0.5, 2]);
+
+    useAppStore.getState().setControlledEmployeeId("employee-pm" as never);
+    expect(useAppStore.getState().controlledEmployeeId).toBe("employee-pm");
+    expect(useAppStore.getState().controlledEmployeeDestination).toBeNull();
+  });
+
+  it("keeps the same state object when manual destination is unchanged", () => {
+    useAppStore.getState().setControlledEmployeeId("employee-main" as never);
+    useAppStore.getState().setControlledEmployeeDestination([1, 0.5, 2]);
+
+    const before = useAppStore.getState();
+    before.setControlledEmployeeDestination([1, 0.5, 2]);
+
+    expect(useAppStore.getState()).toBe(before);
+  });
+
   it("stores office onboarding state", () => {
     useAppStore.getState().setIsOfficeOnboardingVisible(true);
     useAppStore.getState().setOfficeOnboardingStep("open-shop");

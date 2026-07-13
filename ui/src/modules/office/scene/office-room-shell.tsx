@@ -150,6 +150,7 @@ export function OfficeRoomShell(props: {
   officeTheme: ReturnType<typeof getOfficeTheme>;
   sceneBuilderMode: boolean;
   onBackgroundClick: (event: ThreeEvent<MouseEvent>) => void;
+  onBackgroundContextMenu: (event: ThreeEvent<MouseEvent>) => void;
   /** When in fixed 2.5D, current orthographic zoom for front-wall opacity. */
   cameraZoom?: number;
   /** When in fixed 2.5D, zoom range so front walls fade from full to transparent as you zoom in. */
@@ -165,6 +166,7 @@ export function OfficeRoomShell(props: {
     officeTheme,
     sceneBuilderMode,
     onBackgroundClick,
+    onBackgroundContextMenu,
     cameraZoom,
     zoomRange,
     orbitWallFadeMask,
@@ -204,6 +206,7 @@ export function OfficeRoomShell(props: {
         receiveShadow
         name="floor"
         onClick={onBackgroundClick}
+        onContextMenu={onBackgroundContextMenu}
       >
         <planeGeometry args={[bounds.width, bounds.depth]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
@@ -214,6 +217,7 @@ export function OfficeRoomShell(props: {
         floorPatternId={officeDecorSettings.floorPatternId}
         sceneBuilderMode={sceneBuilderMode}
         onClick={onBackgroundClick}
+        onContextMenu={onBackgroundContextMenu}
       />
 
       {wallSegments.map((segment) => {

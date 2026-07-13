@@ -71,6 +71,13 @@ export function shouldEmployeeRouteToDesk(input: {
   );
 }
 
+export function shouldManualControlOverride(input: {
+  isControlled: boolean;
+  destination?: EmployeeTargetPosition | null;
+}): boolean {
+  return input.isControlled && Array.isArray(input.destination);
+}
+
 export function shouldSnapEmployeeToUpdatedDeskTarget(input: {
   currentPosition: EmployeeTargetPosition;
   previousDeskTarget: EmployeeTargetPosition;

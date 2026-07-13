@@ -37,6 +37,7 @@ import type { AgentState } from "@/modules/runtime";
 import {
   hasEmployeeDeskTargetChanged,
   shouldEmployeeRouteToDesk,
+  shouldManualControlOverride,
   shouldSnapEmployeeToUpdatedDeskTarget,
   toEmployeeDeskTarget,
 } from "./employee-locomotion-targets";
@@ -68,6 +69,8 @@ type UseEmployeeLocomotionOptions = {
   wantsToWander: boolean;
   heartbeatState?: AgentState;
   idleInteractionTargets?: EmployeeIdleInteractionTarget[];
+  manualControlActive?: boolean;
+  manualControlDestination?: [number, number, number] | null;
   debugMode: boolean;
 };
 
@@ -100,6 +103,8 @@ export function useEmployeeLocomotion({
   wantsToWander,
   heartbeatState,
   idleInteractionTargets,
+  manualControlActive,
+  manualControlDestination,
   debugMode,
 }: UseEmployeeLocomotionOptions): UseEmployeeLocomotionResult {
   const groupRef = useRef<Group>(null);
@@ -329,6 +334,18 @@ export function useEmployeeLocomotion({
     currentPos.y = desiredY;
 
     const hasActivityTarget = Boolean(activityTargetRef.current);
+    const manualDestination = manualControlDestination
+      ? new THREE.Vector3(
+          manualControlDestination[0],
+          TOTAL_HEIGHT / 2,
+          manualControlDestination[2],
+        )
+      : null;
+    const hasManualControl = Boolean(manualControlActive);
+    const hasManualOverride = shouldManualControlOverride({
+      isControlled: hasManualControl,
+      destination: manualControlDestination,
+    });
     const shouldBeAtDesk = shouldEmployeeRouteToDesk({
       hasActivityTarget,
       heartbeatState,
@@ -357,155 +374,211 @@ export function useEmployeeLocomotion({
     let isMoving = false;
 
     if (debugMode) {
-      const nextDecision = hasActivityTarget
-        ? `${activityTargetSkillId ?? "skill"} -> object`
-        : `${heartbeatState ?? "none"} -> ${shouldBeAtDesk ? "desk" : "wander"}`;
+      const nextDecision = hasManualControl
+        ? hasManualOverride
+          ? "manual -> destination"
+          : "manual -> waiting"
+        : hasActivityTarget
+          ? `${activityTargetSkillId ?? "skill"} -> object`
+          : `${heartbeatState ?? "none"} -> ${shouldBeAtDesk ? "desk" : "wander"}`;
       setDebugDeskDecision((prev) => (prev === nextDecision ? prev : nextDecision));
     }
 
-    if (
-      shouldBeAtDesk &&
-      !path &&
-      !isGoingToDesk &&
-      currentDestination === null &&
-      currentPos.distanceTo(activityTargetRef.current ?? initialPositionRef.current) <=
-        arrivalThreshold
-    ) {
-      return;
-    }
-
-    if (shouldBeAtDesk) {
-      if (idleInteractionTargetRef.current) {
+    if (hasManualControl) {
+      if (idleInteractionTargetRef.current || idleInteractionMessage) {
         clearIdleInteraction();
       }
+      idleTimerRef.current = 0;
       if (idleState !== "wandering") {
         setIdleState("wandering");
       }
-      idleTimerRef.current = 0;
+      if (isGoingToDesk) {
+        setIsGoingToDesk(false);
+      }
 
-      const distanceToDesk = currentPos.distanceTo(deskPosition);
-
-      if (distanceToDesk > arrivalThreshold) {
-        const needsNewPath = !path || !isGoingToDesk;
-        if (needsNewPath) {
-          const now = performance.now();
-          const pathKey = getDestinationKey(deskPosition, "desk");
-          const recentFailure = failedPathRef.current;
-          const canRetry =
-            !recentFailure || recentFailure.key !== pathKey || now >= recentFailure.retryAfter;
-
-          if (canRetry) {
-            if (!isGoingToDesk) {
-              setIsGoingToDesk(true);
-            }
-            const nextPath = findAndSetPath(currentPos.clone(), deskPosition.clone(), true);
-            setCurrentDestination(deskPosition);
-            if (!nextPath) {
-              failedPathRef.current = {
-                key: pathKey,
-                retryAfter: now + PATH_RETRY_COOLDOWN_MS,
-              };
-              setIsGoingToDesk(false);
-              setCurrentDestination(null);
-            }
-          }
-        }
-
-        if (path && pathIndex < path.length) {
-          targetPathNode = path[pathIndex];
-          isMoving = true;
-        }
-      } else {
+      if (!hasManualOverride || !manualDestination) {
         if (path) {
           setPath(null);
           releaseEmployeeReservations(id);
         }
-        if (isGoingToDesk) {
-          setIsGoingToDesk(false);
-        }
         if (currentDestination !== null) {
           setCurrentDestination(null);
         }
-        if (currentPos.distanceTo(deskPosition) > 0.01) {
-          currentPos.lerp(deskPosition, 0.1);
-        }
-      }
-    } else if (idleInteractionMessage && idleInteractionTargetRef.current) {
-      idleInteractionPhraseTimerRef.current = Math.max(
-        0,
-        idleInteractionPhraseTimerRef.current - delta,
-      );
-      if (idleInteractionPhraseTimerRef.current <= 0) {
-        const target = idleInteractionTargetRef.current;
-        const nextPhraseIndex = idleInteractionPhraseIndexRef.current + 1;
-        if (
-          nextPhraseIndex >= target.phrases.length ||
-          nextPhraseIndex >= IDLE_INTERACTION_MAX_PHRASES
-        ) {
-          clearIdleInteraction();
-          setIdleState("waiting");
-          idleTimerRef.current = getRandomWaitTime();
+      } else {
+        const distanceToManualDestination = currentPos.distanceTo(manualDestination);
+        if (distanceToManualDestination > arrivalThreshold) {
+          const needsNewPath =
+            !path ||
+            !currentDestination ||
+            currentDestination.distanceTo(manualDestination) > arrivalThreshold;
+
+          if (needsNewPath) {
+            const nextPath = findAndSetPath(currentPos.clone(), manualDestination.clone(), true);
+            setCurrentDestination(nextPath ? manualDestination : null);
+          }
+
+          if (path && pathIndex < path.length) {
+            targetPathNode = path[pathIndex];
+            isMoving = true;
+          }
         } else {
-          idleInteractionPhraseIndexRef.current = nextPhraseIndex;
-          idleInteractionPhraseTimerRef.current = IDLE_INTERACTION_PHRASE_SECONDS;
-          setIdleInteractionMessage({
-            threadId: `idle:${id}:${target.objectId}`,
-            message: target.phrases[nextPhraseIndex] ?? target.label,
-            eventAt: idleInteractionStartedAtRef.current + nextPhraseIndex,
-          });
+          if (path) {
+            setPath(null);
+            releaseEmployeeReservations(id);
+          }
+          if (currentDestination !== null) {
+            setCurrentDestination(null);
+          }
+          if (currentPos.distanceTo(manualDestination) > 0.01) {
+            currentPos.lerp(manualDestination, 0.1);
+          }
         }
       }
-    } else if (idleState === "wandering") {
-      if (!path) {
-        const interactionTarget = chooseIdleInteractionTarget(currentPos);
-        const interactionDestination = interactionTarget
-          ? new THREE.Vector3(...interactionTarget.position)
-          : null;
-        const newDest =
-          interactionTarget && interactionDestination
-            ? findAndSetPath(currentPos.clone(), interactionDestination, false)
-              ? interactionDestination
-              : null
-            : findAndSetIdlePath(currentPos);
-        if (newDest) {
-          idleInteractionTargetRef.current = interactionTarget;
+    } else {
+      if (
+        shouldBeAtDesk &&
+        !path &&
+        !isGoingToDesk &&
+        currentDestination === null &&
+        currentPos.distanceTo(activityTargetRef.current ?? initialPositionRef.current) <=
+          arrivalThreshold
+      ) {
+        return;
+      }
+
+      if (shouldBeAtDesk) {
+        if (idleInteractionTargetRef.current) {
+          clearIdleInteraction();
+        }
+        if (idleState !== "wandering") {
+          setIdleState("wandering");
+        }
+        idleTimerRef.current = 0;
+
+        const distanceToDesk = currentPos.distanceTo(deskPosition);
+
+        if (distanceToDesk > arrivalThreshold) {
+          const needsNewPath = !path || !isGoingToDesk;
+          if (needsNewPath) {
+            const now = performance.now();
+            const pathKey = getDestinationKey(deskPosition, "desk");
+            const recentFailure = failedPathRef.current;
+            const canRetry =
+              !recentFailure || recentFailure.key !== pathKey || now >= recentFailure.retryAfter;
+
+            if (canRetry) {
+              if (!isGoingToDesk) {
+                setIsGoingToDesk(true);
+              }
+              const nextPath = findAndSetPath(currentPos.clone(), deskPosition.clone(), true);
+              setCurrentDestination(deskPosition);
+              if (!nextPath) {
+                failedPathRef.current = {
+                  key: pathKey,
+                  retryAfter: now + PATH_RETRY_COOLDOWN_MS,
+                };
+                setIsGoingToDesk(false);
+                setCurrentDestination(null);
+              }
+            }
+          }
+
+          if (path && pathIndex < path.length) {
+            targetPathNode = path[pathIndex];
+            isMoving = true;
+          }
+        } else {
+          if (path) {
+            setPath(null);
+            releaseEmployeeReservations(id);
+          }
           if (isGoingToDesk) {
             setIsGoingToDesk(false);
           }
-          setCurrentDestination(newDest);
-        } else {
-          setCurrentDestination(null);
-          setIdleState("waiting");
-          idleTimerRef.current = getRandomWaitTime();
+          if (currentDestination !== null) {
+            setCurrentDestination(null);
+          }
+          if (currentPos.distanceTo(deskPosition) > 0.01) {
+            currentPos.lerp(deskPosition, 0.1);
+          }
         }
-      } else if (pathIndex < path.length) {
-        targetPathNode = path[pathIndex];
-        isMoving = true;
-      } else {
-        if (idleInteractionTargetRef.current) {
+      } else if (idleInteractionMessage && idleInteractionTargetRef.current) {
+        idleInteractionPhraseTimerRef.current = Math.max(
+          0,
+          idleInteractionPhraseTimerRef.current - delta,
+        );
+        if (idleInteractionPhraseTimerRef.current <= 0) {
           const target = idleInteractionTargetRef.current;
-          const startedAt = Date.now();
-          idleInteractionStartedAtRef.current = startedAt;
-          idleInteractionPhraseIndexRef.current = 0;
-          idleInteractionPhraseTimerRef.current = IDLE_INTERACTION_PHRASE_SECONDS;
-          setIdleInteractionMessage({
-            threadId: `idle:${id}:${target.objectId}`,
-            message: target.phrases[0] ?? target.label,
-            eventAt: startedAt,
-          });
+          const nextPhraseIndex = idleInteractionPhraseIndexRef.current + 1;
+          if (
+            nextPhraseIndex >= target.phrases.length ||
+            nextPhraseIndex >= IDLE_INTERACTION_MAX_PHRASES
+          ) {
+            clearIdleInteraction();
+            setIdleState("waiting");
+            idleTimerRef.current = getRandomWaitTime();
+          } else {
+            idleInteractionPhraseIndexRef.current = nextPhraseIndex;
+            idleInteractionPhraseTimerRef.current = IDLE_INTERACTION_PHRASE_SECONDS;
+            setIdleInteractionMessage({
+              threadId: `idle:${id}:${target.objectId}`,
+              message: target.phrases[nextPhraseIndex] ?? target.label,
+              eventAt: idleInteractionStartedAtRef.current + nextPhraseIndex,
+            });
+          }
         }
-        setPath(null);
-        setCurrentDestination(null);
-        if (!idleInteractionTargetRef.current) {
-          setIdleState("waiting");
-          idleTimerRef.current = getRandomWaitTime();
+      } else if (idleState === "wandering") {
+        if (!path) {
+          const interactionTarget = chooseIdleInteractionTarget(currentPos);
+          const interactionDestination = interactionTarget
+            ? new THREE.Vector3(...interactionTarget.position)
+            : null;
+          const newDest =
+            interactionTarget && interactionDestination
+              ? findAndSetPath(currentPos.clone(), interactionDestination, false)
+                ? interactionDestination
+                : null
+              : findAndSetIdlePath(currentPos);
+          if (newDest) {
+            idleInteractionTargetRef.current = interactionTarget;
+            if (isGoingToDesk) {
+              setIsGoingToDesk(false);
+            }
+            setCurrentDestination(newDest);
+          } else {
+            setCurrentDestination(null);
+            setIdleState("waiting");
+            idleTimerRef.current = getRandomWaitTime();
+          }
+        } else if (pathIndex < path.length) {
+          targetPathNode = path[pathIndex];
+          isMoving = true;
+        } else {
+          if (idleInteractionTargetRef.current) {
+            const target = idleInteractionTargetRef.current;
+            const startedAt = Date.now();
+            idleInteractionStartedAtRef.current = startedAt;
+            idleInteractionPhraseIndexRef.current = 0;
+            idleInteractionPhraseTimerRef.current = IDLE_INTERACTION_PHRASE_SECONDS;
+            setIdleInteractionMessage({
+              threadId: `idle:${id}:${target.objectId}`,
+              message: target.phrases[0] ?? target.label,
+              eventAt: startedAt,
+            });
+          }
+          setPath(null);
+          setCurrentDestination(null);
+          if (!idleInteractionTargetRef.current) {
+            setIdleState("waiting");
+            idleTimerRef.current = getRandomWaitTime();
+          }
         }
-      }
-    } else if (idleState === "waiting") {
-      idleTimerRef.current = Math.max(0, idleTimerRef.current - delta);
-      if (idleTimerRef.current <= 0) {
-        releaseEmployeeReservations(id);
-        setIdleState("wandering");
+      } else if (idleState === "waiting") {
+        idleTimerRef.current = Math.max(0, idleTimerRef.current - delta);
+        if (idleTimerRef.current <= 0) {
+          releaseEmployeeReservations(id);
+          setIdleState("wandering");
+        }
       }
     }
 
@@ -531,12 +604,20 @@ export function useEmployeeLocomotion({
       setMovementDirection((prev) => (prev === "none" ? prev : "none"));
     }
 
-    const nextAnimationMode = isMoving ? "walking" : shouldBeAtDesk ? "working" : "idle";
+    const nextAnimationMode = isMoving
+      ? "walking"
+      : hasManualControl
+        ? "idle"
+        : shouldBeAtDesk
+          ? "working"
+          : "idle";
     setAnimationMode((prev) => (prev === nextAnimationMode ? prev : nextAnimationMode));
 
-    if (debugMode && path && path.length > 0) {
+    const shouldVisualizePath = debugMode || hasManualControl;
+    if (shouldVisualizePath && path && path.length > 0) {
       const now = performance.now();
-      if (now - debugPathUpdateRef.current > 500) {
+      const updateInterval = hasManualControl ? 100 : 500;
+      if (now - debugPathUpdateRef.current > updateInterval) {
         debugPathUpdateRef.current = now;
 
         const currentPosClone = groupRef.current.position.clone();
@@ -544,22 +625,21 @@ export function useEmployeeLocomotion({
           path.length > pathIndex ? [currentPosClone, ...path.slice(pathIndex)] : null;
 
         if (newRemainPath && newRemainPath.length > 1) {
-          setDebugPathData((prev) => {
-            if (prev.remainingPath?.length === newRemainPath.length) {
-              return prev;
-            }
-            return { originalPath: null, remainingPath: newRemainPath };
-          });
+          setDebugPathData({ originalPath: null, remainingPath: newRemainPath });
+        } else if (debugPathData.originalPath || debugPathData.remainingPath) {
+          setDebugPathData({ originalPath: null, remainingPath: null });
         }
       }
+    } else if (shouldVisualizePath && (debugPathData.originalPath || debugPathData.remainingPath)) {
+      setDebugPathData({ originalPath: null, remainingPath: null });
     }
   });
 
   useEffect(() => {
-    if (!debugMode) {
+    if (!debugMode && !manualControlActive) {
       setDebugPathData({ originalPath: null, remainingPath: null });
     }
-  }, [debugMode]);
+  }, [debugMode, manualControlActive]);
 
   return {
     groupRef,

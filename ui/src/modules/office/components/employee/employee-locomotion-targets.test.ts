@@ -5,6 +5,7 @@ import {
   hasActiveEmployeeThread,
   hasEmployeeDeskTargetChanged,
   shouldEmployeeRouteToDesk,
+  shouldManualControlOverride,
   shouldSnapEmployeeToUpdatedDeskTarget,
   toEmployeeDeskTarget,
 } from "./employee-locomotion-targets";
@@ -39,6 +40,22 @@ describe("employee locomotion targets", () => {
         hasActivityTarget: false,
         heartbeatState: "idle",
         wantsToWander: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("lets manual control override autonomous route sources only with a destination", () => {
+    expect(
+      shouldManualControlOverride({
+        isControlled: true,
+        destination: [4, TOTAL_HEIGHT / 2, -2],
+      }),
+    ).toBe(true);
+    expect(shouldManualControlOverride({ isControlled: true, destination: null })).toBe(false);
+    expect(
+      shouldManualControlOverride({
+        isControlled: false,
+        destination: [4, TOTAL_HEIGHT / 2, -2],
       }),
     ).toBe(false);
   });
