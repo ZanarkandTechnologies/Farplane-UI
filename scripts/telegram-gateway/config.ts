@@ -14,6 +14,9 @@ import { promisify } from "node:util";
 import { readFarplaneConfigFileObject, readFarplaneConfigValue } from "../../cli/runtime-config.js";
 import type { ResolvedTelegramGatewayConfig, TelegramGatewayFileConfig } from "./types";
 
+const DEFAULT_RESPONSE_TIMEOUT_MS = 180000;
+const DEFAULT_REVIEW_RELAY_PORT = 8789;
+
 const execFileAsync = promisify(execFile);
 
 export function defaultConfigPath(): string {
@@ -25,9 +28,15 @@ export async function loadGatewayFileConfig(
   configPath = defaultConfigPath(),
 ): Promise<TelegramGatewayFileConfig> {
   const telegram = readFarplaneConfigFileObject(configPath, ["telegram"]);
-  return telegram && typeof telegram === "object" && !Array.isArray(telegram)
-    ? { telegram: normalizeTelegramConfig(telegram as Record<string, unknown>) }
-    : {};
+  const runtime = readFarplaneConfigFileObject(configPath, ["runtime"]);
+  return {
+    ...(runtime && typeof runtime === "object" && !Array.isArray(runtime)
+      ? { runtime: normalizeRuntimeConfig(runtime as Record<string, unknown>) }
+      : {}),
+    ...(telegram && typeof telegram === "object" && !Array.isArray(telegram)
+      ? { telegram: normalizeTelegramConfig(telegram as Record<string, unknown>) }
+      : {}),
+  };
 }
 
 export async function resolveGatewayConfig(): Promise<ResolvedTelegramGatewayConfig> {
@@ -45,19 +54,29 @@ export async function resolveGatewayConfig(): Promise<ResolvedTelegramGatewayCon
             .filter(Boolean);
   const envToken = await readTelegramToken();
   const responseTimeoutMs = Number(
-    readFarplaneConfigValue("TELEGRAM_RESPONSE_TIMEOUT_MS") || "300000",
+    readFarplaneConfigValue("TELEGRAM_RESPONSE_TIMEOUT_MS") || String(DEFAULT_RESPONSE_TIMEOUT_MS),
   );
   return {
     enabled: fileConfig.telegram?.enabled !== false,
     botToken: envToken ?? fileConfig.telegram?.botToken?.trim() ?? "",
     responseTimeoutMs:
-      Number.isFinite(responseTimeoutMs) && responseTimeoutMs >= 0 ? responseTimeoutMs : 300000,
+      Number.isFinite(responseTimeoutMs) && responseTimeoutMs >= 0 ? responseTimeoutMs : DEFAULT_RESPONSE_TIMEOUT_MS,
+    appServerUrl:
+      process.env.CODEX_APP_SERVER_URL?.trim() ||
+      process.env.VITE_CODEX_APP_SERVER_URL?.trim() ||
+      process.env.FARPLANE_CODEX_APP_SERVER_URL?.trim() ||
+      fileConfig.runtime?.appServerUrl?.trim() ||
+      "ws://127.0.0.1:47892",
     allowedChatIds,
-    coordinatorThreadId:
-      process.env.TELEGRAM_COORDINATOR_THREAD_ID?.trim() ||
-      fileConfig.telegram?.mainThreadId?.trim() ||
-      fileConfig.mainThreadId?.trim() ||
+    defaultThreadId:
+      process.env.TELEGRAM_DEFAULT_THREAD_ID?.trim() ||
+      fileConfig.telegram?.defaultThreadId?.trim() ||
       undefined,
+    reviewRelayPort: parsePositiveInt(
+      process.env.FARPLANE_REVIEW_RELAY_PORT ||
+        String(fileConfig.telegram?.reviewRelay?.port ?? DEFAULT_REVIEW_RELAY_PORT),
+      DEFAULT_REVIEW_RELAY_PORT,
+    ),
   };
 }
 
@@ -91,10 +110,33 @@ function normalizeTelegramConfig(
       stringList(row.allow_from).length > 0
         ? stringList(row.allow_from)
         : stringList(row.allowFrom),
-    mainThreadId: stringValue(row.main_thread_id) || stringValue(row.mainThreadId),
+    defaultThreadId: stringValue(row.default_thread_id) || stringValue(row.defaultThreadId),
     streaming: {
       mode: streaming.mode === "off" ? "off" : undefined,
     },
+    reviewRelay: {
+      port: parsePositiveInt(
+        stringValue(row.review_relay_port) || stringValue(row.reviewRelayPort),
+        DEFAULT_REVIEW_RELAY_PORT,
+      ),
+    },
+  };
+}
+
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeRuntimeConfig(
+  row: Record<string, unknown>,
+): NonNullable<TelegramGatewayFileConfig["runtime"]> {
+  return {
+    appServerUrl:
+      stringValue(row.codex_app_server_url) ||
+      stringValue(row.codexAppServerUrl) ||
+      stringValue(row.app_server_url) ||
+      stringValue(row.appServerUrl),
   };
 }
 

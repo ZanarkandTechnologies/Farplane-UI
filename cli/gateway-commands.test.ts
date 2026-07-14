@@ -134,6 +134,69 @@ describe("gateway CLI", () => {
     );
   });
 
+  it("runs Phone Chaser review binding through the gateway script entrypoint", async () => {
+    const child = new MockChild();
+    const spawnMock = vi.fn(() => child);
+    vi.doMock("node:child_process", () => ({ spawn: spawnMock }));
+    const { registerGatewayCommands } = await import("./gateway-commands.js");
+
+    const program = new Command();
+    registerGatewayCommands(program);
+    const parsePromise = program.parseAsync(
+      [
+        "gateway",
+        "telegram",
+        "review-bind",
+        "--thread-id",
+        "thread-source",
+        "--title",
+        "Review request",
+        "--ttl-minutes",
+        "15",
+      ],
+      { from: "user" },
+    );
+    child.emit("exit", 0, null);
+    await parsePromise;
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.stringContaining("node_modules/.bin/tsx"),
+      [
+        "scripts/telegram-gateway.ts",
+        "review-bind",
+        "--thread-id",
+        "thread-source",
+        "--title",
+        "Review request",
+        "--ttl-minutes",
+        "15",
+      ],
+      expect.objectContaining({ cwd: process.cwd(), stdio: "inherit" }),
+    );
+  });
+
+  it("runs the Phone Chaser review relay through the gateway script entrypoint", async () => {
+    const child = new MockChild();
+    const spawnMock = vi.fn(() => child);
+    vi.doMock("node:child_process", () => ({ spawn: spawnMock }));
+    const { registerGatewayCommands } = await import("./gateway-commands.js");
+
+    const program = new Command();
+    registerGatewayCommands(program);
+    const parsePromise = program.parseAsync(
+      ["gateway", "telegram", "review-relay", "--port", "8790"],
+      { from: "user" },
+    );
+    child.emit("exit", 0, null);
+    await parsePromise;
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.stringContaining("node_modules/.bin/tsx"),
+      ["scripts/telegram-gateway.ts", "review-relay", "--port", "8790"],
+      expect.objectContaining({ cwd: process.cwd(), stdio: "inherit" }),
+    );
+  });
+
   it("installs Telegram daemon LaunchAgent files from the CLI", async () => {
     const home = await mkdtemp(path.join(os.tmpdir(), "farplane-telegram-daemon-"));
     vi.stubEnv("HOME", home);

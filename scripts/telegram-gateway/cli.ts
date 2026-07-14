@@ -12,6 +12,7 @@ import path from "node:path";
 
 import { defaultConfigPath, resolveGatewayConfig } from "./config";
 import { processPendingMessages, processTelegramUpdate } from "./processor";
+import { createReviewRelayBinding, startReviewRelayServer } from "./review-relay";
 import {
   defaultStatePath,
   loadGatewayState,
@@ -101,6 +102,8 @@ export async function runTelegramGatewayCli(rawArgs = process.argv.slice(2)): Pr
     console.log("Usage: npm run cli -- gateway telegram [--once] [--dry-run] [--check-config]");
     console.log("       npm run cli -- gateway telegram send --thread-id <id> --text <message>");
     console.log("       npm run cli -- gateway telegram send --thread-id <id> --document <path> [--text <caption>]");
+    console.log("       npm run cli -- gateway telegram review-bind --thread-id <id> [--title <title>]");
+    console.log("       npm run cli -- gateway telegram review-relay [--port <port>]");
     return;
   }
   const statePath = defaultStatePath();
@@ -115,11 +118,67 @@ export async function runTelegramGatewayCli(rawArgs = process.argv.slice(2)): Pr
         enabled: config.enabled,
         hasBotToken: Boolean(config.botToken),
         allowedChatIds: config.allowedChatIds.length,
-        hasCoordinatorThread: Boolean(config.coordinatorThreadId),
+        hasDefaultThread: Boolean(config.defaultThreadId),
+        reviewRelayPort: config.reviewRelayPort,
         configPath: defaultConfigPath(),
         statePath,
       }),
     );
+    return;
+  }
+  if (args.has("--create-review-binding") || rawArgs[0] === "review-bind") {
+    try {
+      const ttlMinutes = Number(argValue(rawArgs, "--ttl-minutes") ?? "1440");
+      const result = createReviewRelayBinding({
+        state,
+        threadId: required(argValue(rawArgs, "--thread-id") ?? argValue(rawArgs, "--session-id"), "thread_id"),
+        title: argValue(rawArgs, "--title"),
+        cycle: argValue(rawArgs, "--cycle"),
+        ttlMs: Number.isFinite(ttlMinutes) && ttlMinutes > 0 ? ttlMinutes * 60_000 : undefined,
+      });
+      if (!dryRun) await saveGatewayState(result.state, statePath);
+      console.log(
+        JSON.stringify({
+          ok: true,
+          reviewId: result.reviewId,
+          capability: result.capability,
+          expiresAt: result.expiresAt,
+          webhookUrl: `http://127.0.0.1:${config.reviewRelayPort ?? 8789}/phone-chaser/review`,
+          statePath,
+        }),
+      );
+    } catch (error) {
+      console.log(
+        JSON.stringify({
+          ok: false,
+          error: error instanceof Error ? error.message : "review_binding_failed",
+          statePath,
+        }),
+      );
+      process.exitCode = 1;
+    }
+    return;
+  }
+  if (args.has("--serve-review-relay") || rawArgs[0] === "review-relay") {
+    const port = Number(argValue(rawArgs, "--port") ?? config.reviewRelayPort ?? 8789);
+    const relay = startReviewRelayServer({
+      state,
+      config,
+      port: Number.isInteger(port) && port > 0 ? port : config.reviewRelayPort,
+      saveState: async (nextState) => {
+        state = mergeGatewayState(state, nextState);
+        await saveGatewayState(state, statePath);
+      },
+    });
+    console.log(JSON.stringify({ ok: true, reviewRelayUrl: relay.url, statePath }));
+    await new Promise<void>((resolve) => {
+      process.once("SIGINT", () => {
+        relay.server.close(() => resolve());
+      });
+      process.once("SIGTERM", () => {
+        relay.server.close(() => resolve());
+      });
+    });
     return;
   }
   if (!config.enabled) {

@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   appendHistory,
+  createReviewRelayBinding,
   defaultStatePath,
   emptyGatewayState,
   fetchTelegramUpdates,
@@ -23,6 +24,8 @@ import {
   isTerminalCodexDeliveryError,
   processPendingMessages,
   queuePendingMessage,
+  submitReviewRelayResponse,
+  telegramGatewayCodexExecTestInternals,
   validateTelegramArtifactPath,
 } from "./telegram-gateway";
 import { runTelegramGatewayCli } from "./telegram-gateway/cli";
@@ -53,7 +56,7 @@ describe("telegram gateway routing", () => {
         },
       },
       state,
-      { allowedChatIds: ["100"], coordinatorThreadId: "thread-coordinator" },
+      { allowedChatIds: ["100"], defaultThreadId: "thread-ceo" },
     );
 
     expect(route).toEqual(expect.objectContaining({ kind: "source_thread", threadId: "thread-source" }));
@@ -74,7 +77,7 @@ describe("telegram gateway routing", () => {
         },
       },
       emptyGatewayState(),
-      { allowedChatIds: ["100"], coordinatorThreadId: "thread-coordinator" },
+      { allowedChatIds: ["100"], defaultThreadId: "thread-ceo" },
     );
 
     expect(route).toEqual(
@@ -101,7 +104,7 @@ describe("telegram gateway routing", () => {
         },
       },
       emptyGatewayState(),
-      { allowedChatIds: ["100"], coordinatorThreadId: "thread-coordinator" },
+      { allowedChatIds: ["100"], defaultThreadId: "thread-ceo" },
     );
 
     expect(route).toEqual(expect.objectContaining({ kind: "source_thread", threadId }));
@@ -118,7 +121,7 @@ describe("telegram gateway routing", () => {
     ).toBe("Answer\n\n---\nCodex: Gateway Smoke\nThread: thread-source\nSession: session-source");
   });
 
-  it("routes standalone owner messages to the coordinator with recent context", () => {
+  it("routes standalone owner messages to the default CEO thread", () => {
     const state = appendHistory(
       recordOutboundMapping(emptyGatewayState(), {
         telegramMessageId: 10,
@@ -137,12 +140,71 @@ describe("telegram gateway routing", () => {
     const route = resolveTelegramRoute(
       { update_id: 2, message: { message_id: 11, chat: { id: "100" }, text: "what needs me?" } },
       state,
-      { allowedChatIds: ["100"], coordinatorThreadId: "thread-coordinator" },
+      {
+        allowedChatIds: ["100"],
+        defaultThreadId: "thread-ceo",
+      },
     );
 
     expect(route.kind).toBe("coordinator");
-    expect(route).toEqual(expect.objectContaining({ threadId: "thread-coordinator" }));
-    expect(route.kind === "coordinator" ? route.prompt : "").toContain("Question A");
+    expect(route).toEqual(
+      expect.objectContaining({ threadId: "thread-ceo", text: "what needs me?" }),
+    );
+    expect(route.kind === "coordinator" ? route.prompt : "").toBe("what needs me?");
+  });
+
+  it("keeps project labels as CEO routing context", () => {
+    const route = resolveTelegramRoute(
+      { update_id: 2, message: { message_id: 11, chat: { id: "100" }, text: "[UI] fix the panel" } },
+      emptyGatewayState(),
+      {
+        allowedChatIds: ["100"],
+        defaultThreadId: "thread-ceo",
+      },
+    );
+
+    expect(route).toEqual(
+      expect.objectContaining({
+        kind: "coordinator",
+        text: "[UI] fix the panel",
+        threadId: "thread-ceo",
+      }),
+    );
+    expect(route.kind === "coordinator" ? route.prompt : "").toBe("[UI] fix the panel");
+  });
+
+  it("keeps replies on the mapped source thread even when the text has a label", () => {
+    const state = recordOutboundMapping(emptyGatewayState(), {
+      telegramMessageId: 42,
+      chatId: "100",
+      threadId: "thread-farplane",
+      title: "Farplane thread",
+    });
+
+    const route = resolveTelegramRoute(
+      {
+        update_id: 2,
+        message: {
+          message_id: 43,
+          chat: { id: "100" },
+          text: "[Spira] Whats the status update right now?",
+          reply_to_message: { message_id: 42 },
+        },
+      },
+      state,
+      {
+        allowedChatIds: ["100"],
+        defaultThreadId: "thread-ceo",
+      },
+    );
+
+    expect(route).toEqual(
+      expect.objectContaining({
+        kind: "source_thread",
+        text: "[Spira] Whats the status update right now?",
+        threadId: "thread-farplane",
+      }),
+    );
   });
 
   it("delivers Codex messages through codex exec resume", async () => {
@@ -196,6 +258,39 @@ describe("telegram gateway routing", () => {
     });
 
     expect(result).toEqual({ ok: false, error: "Codex Exec exited with code 1: auth failed" });
+  });
+
+  it("does not select a stale app-server turn when Telegram turn id is missing", () => {
+    const { findAppServerTurn } = telegramGatewayCodexExecTestInternals;
+    const thread = {
+      turns: [
+        { id: "turn-app", status: "completed", items: [{ type: "agentMessage", text: "stale app answer" }] },
+      ],
+    };
+
+    expect(findAppServerTurn(thread, undefined, "turn-app")).toBeUndefined();
+  });
+
+  it("selects the first app-server turn after the Telegram baseline", () => {
+    const { findAppServerTurn } = telegramGatewayCodexExecTestInternals;
+    const thread = {
+      turns: [
+        { id: "turn-app", status: "completed", items: [{ type: "agentMessage", text: "stale app answer" }] },
+        { id: "turn-telegram", status: "completed", items: [{ type: "agentMessage", text: "fresh telegram answer" }] },
+      ],
+    };
+
+    expect(findAppServerTurn(thread, undefined, "turn-app")).toEqual(
+      expect.objectContaining({ id: "turn-telegram" }),
+    );
+  });
+
+  it("treats blank app-server response text as missing", () => {
+    const { normalizeAppServerResponseText } = telegramGatewayCodexExecTestInternals;
+
+    expect(normalizeAppServerResponseText("")).toBeUndefined();
+    expect(normalizeAppServerResponseText("   ")).toBeUndefined();
+    expect(normalizeAppServerResponseText(" answer ")).toBe("answer");
   });
 
   it("surfaces codex exec turn failures as send errors", async () => {
@@ -474,6 +569,10 @@ describe("telegram gateway routing", () => {
       fetchImpl: fetchUpdates,
     });
     expect(updates).toHaveLength(1);
+    const pollUrl = fetchUpdates.mock.calls[0]?.[0] as URL;
+    expect(pollUrl.pathname).toBe("/bottoken/getUpdates");
+    expect(pollUrl.searchParams.get("timeout")).toBe("0");
+    expect(pollUrl.searchParams.get("allowed_updates")).toBe("[\"message\"]");
 
     const state = recordOutboundMapping(emptyGatewayState(), {
       telegramMessageId: 77,
@@ -485,15 +584,65 @@ describe("telegram gateway routing", () => {
     const processed = await processTelegramUpdate({
       update: updates[0]!,
       state,
-      config: { allowedChatIds: ["100"], coordinatorThreadId: "thread-coordinator", responseTimeoutMs: 0 },
+      config: { allowedChatIds: ["100"], defaultThreadId: "thread-ceo", responseTimeoutMs: 0 },
       codexImpl,
     });
 
     expect(processed.delivered).toBe(true);
     expect(processed.state.updateOffset).toBe(11);
     expect(codexImpl.mock.calls[0]?.[0].threadId).toBe("thread-source");
-    expect(codexImpl.mock.calls[0]?.[0].text).toContain("Kenji is messaging from Telegram.");
-    expect(codexImpl.mock.calls[0]?.[0].text).toContain("The local Telegram gateway will send your assistant response back");
+    expect(codexImpl.mock.calls[0]?.[0].text).toBe("Approved");
+  });
+
+  it("routes standalone Telegram messages to the CEO thread and maps the response", async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true, result: { message_id: 99 } })),
+    );
+    const codexImpl = vi.fn().mockResolvedValueOnce({ turnId: "thread-ceo", responseText: "CEO answer" });
+
+    const processed = await processTelegramUpdate({
+      update: {
+        update_id: 10,
+        message: {
+          message_id: 78,
+          chat: { id: "100" },
+          text: "start a fresh topic",
+        },
+      },
+      state: emptyGatewayState(),
+      config: {
+        allowedChatIds: ["100"],
+        defaultThreadId: "thread-ceo",
+        botToken: "token",
+        responseTimeoutMs: 1000,
+      },
+      fetchImpl,
+      codexImpl,
+    });
+
+    expect(processed.delivered).toBe(true);
+    expect(processed.telegramReplied).toBe(true);
+    expect(processed.route.kind).toBe("coordinator");
+    expect(codexImpl.mock.calls[0]?.[0].threadId).toBe("thread-ceo");
+    expect(codexImpl.mock.calls[0]?.[0].text).toBe("start a fresh topic");
+    expect(processed.state.mappings[0]).toEqual(
+      expect.objectContaining({
+        telegramMessageId: 99,
+        chatId: "100",
+        threadId: "thread-ceo",
+        title: "Telegram coordinator",
+      }),
+    );
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual(
+      expect.objectContaining({
+        chat_id: "100",
+        text: expect.stringContaining("CEO answer"),
+        reply_parameters: { message_id: 78 },
+      }),
+    );
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)).text).toContain(
+      "Thread: thread-ceo",
+    );
   });
 
   it("does not persist offsets or history during dry-run polling", async () => {
@@ -601,7 +750,7 @@ describe("telegram gateway routing", () => {
         },
       },
       state,
-      config: { allowedChatIds: ["100"], coordinatorThreadId: "thread-coordinator", responseTimeoutMs: 0 },
+      config: { allowedChatIds: ["100"], defaultThreadId: "thread-ceo", responseTimeoutMs: 0 },
       codexImpl: vi.fn().mockRejectedValueOnce(new TypeError("fetch failed")),
     });
 
@@ -616,7 +765,7 @@ describe("telegram gateway routing", () => {
         lastError: "fetch failed",
       }),
     );
-    expect(processed.state.pending[0]?.promptText).toContain("Kenji is messaging from Telegram.");
+    expect(processed.state.pending[0]?.promptText).toBe("Question");
     expect(processed.state.history[0]).toEqual(
       expect.objectContaining({
         telegramMessageId: 78,
@@ -673,7 +822,7 @@ describe("telegram gateway routing", () => {
 
     const result = await processPendingMessages({
       state,
-      config: { allowedChatIds: ["100"], coordinatorThreadId: "thread-coordinator", botToken: "token" },
+      config: { allowedChatIds: ["100"], defaultThreadId: "thread-ceo", botToken: "token" },
       fetchImpl,
       codexImpl: vi.fn().mockRejectedValueOnce(new Error(error)),
     });
@@ -714,7 +863,7 @@ describe("telegram gateway routing", () => {
       state,
       config: {
         allowedChatIds: ["100"],
-        coordinatorThreadId: "thread-coordinator",
+        defaultThreadId: "thread-ceo",
         botToken: "token",
         responseTimeoutMs: 1000,
       },
@@ -740,5 +889,217 @@ describe("telegram gateway routing", () => {
       }),
     );
     expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)).text).toContain("Thread: thread-source");
+  });
+
+  it("submits a scoped Phone Chaser review response to the bound Codex thread", async () => {
+    const binding = createReviewRelayBinding({
+      state: emptyGatewayState(),
+      threadId: "thread-source",
+      title: "TASK-0351 artifact review",
+      reviewId: "review-task-0351",
+      capability: "capability-secret",
+      now: 1000,
+      ttlMs: 60_000,
+    });
+    const codexImpl = vi.fn().mockResolvedValueOnce({ turnId: "turn-review" });
+
+    const result = await submitReviewRelayResponse({
+      state: binding.state,
+      config: { allowedChatIds: [], responseTimeoutMs: 0 },
+      reviewId: binding.reviewId,
+      capability: binding.capability,
+      decision: "approve",
+      reason: "ready to use",
+      idempotencyKey: "call-1",
+      now: 2000,
+      codexImpl,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe("delivered");
+    expect(codexImpl.mock.calls[0]?.[0].threadId).toBe("thread-source");
+    expect(codexImpl.mock.calls[0]?.[0].appServerUrl).toBeUndefined();
+    expect(codexImpl.mock.calls[0]?.[0].text).toContain("Decision: approve");
+    expect(codexImpl.mock.calls[0]?.[0].text).toContain("Do not publish, spend, deploy");
+    expect(result.state.reviewBindings[0]?.usedAt).toBe(2000);
+    expect(result.state.reviewReceipts[0]).toEqual(
+      expect.objectContaining({
+        reviewId: "review-task-0351",
+        idempotencyKey: "call-1",
+        status: "delivered",
+        decision: "approve",
+      }),
+    );
+  });
+
+  it("rejects Phone Chaser review submissions with the wrong capability", async () => {
+    const binding = createReviewRelayBinding({
+      state: emptyGatewayState(),
+      threadId: "thread-source",
+      reviewId: "review-task-0351",
+      capability: "capability-secret",
+      now: 1000,
+      ttlMs: 60_000,
+    });
+
+    const result = await submitReviewRelayResponse({
+      state: binding.state,
+      config: { allowedChatIds: [], responseTimeoutMs: 0 },
+      reviewId: binding.reviewId,
+      capability: "wrong",
+      decision: "approve",
+      reason: "ready",
+      idempotencyKey: "call-1",
+      now: 2000,
+      codexImpl: vi.fn(),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe("invalid_capability");
+    expect(result.state.reviewReceipts[0]).toEqual(expect.objectContaining({ status: "rejected" }));
+  });
+
+  it("keeps Phone Chaser review submissions idempotent", async () => {
+    const binding = createReviewRelayBinding({
+      state: emptyGatewayState(),
+      threadId: "thread-source",
+      reviewId: "review-task-0351",
+      capability: "capability-secret",
+      now: 1000,
+      ttlMs: 60_000,
+    });
+    const first = await submitReviewRelayResponse({
+      state: binding.state,
+      config: { allowedChatIds: [], responseTimeoutMs: 0 },
+      reviewId: binding.reviewId,
+      capability: binding.capability,
+      decision: "revise",
+      reason: "tighten the lead",
+      idempotencyKey: "call-1",
+      now: 2000,
+      codexImpl: vi.fn().mockResolvedValueOnce({ turnId: "turn-review" }),
+    });
+
+    const replay = await submitReviewRelayResponse({
+      state: first.state,
+      config: { allowedChatIds: [], responseTimeoutMs: 0 },
+      reviewId: binding.reviewId,
+      capability: binding.capability,
+      decision: "revise",
+      reason: "tighten the lead",
+      idempotencyKey: "call-1",
+      now: 3000,
+      codexImpl: vi.fn(),
+    });
+
+    expect(replay.ok).toBe(true);
+    expect(replay.idempotent).toBe(true);
+    expect(replay.state.reviewReceipts).toHaveLength(1);
+  });
+
+  it("rejects expired, reused, invalid-decision, and oversized Phone Chaser review submissions", async () => {
+    const binding = createReviewRelayBinding({
+      state: emptyGatewayState(),
+      threadId: "thread-source",
+      reviewId: "review-task-0351",
+      capability: "capability-secret",
+      now: 1000,
+      ttlMs: 10,
+    });
+
+    await expect(
+      submitReviewRelayResponse({
+        state: binding.state,
+        config: { allowedChatIds: [], responseTimeoutMs: 0 },
+        reviewId: binding.reviewId,
+        capability: binding.capability,
+        decision: "maybe",
+        reason: "ready",
+        idempotencyKey: "call-1",
+        now: 1001,
+      }),
+    ).rejects.toThrow(/invalid_decision/);
+
+    await expect(
+      submitReviewRelayResponse({
+        state: binding.state,
+        config: { allowedChatIds: [], responseTimeoutMs: 0 },
+        reviewId: binding.reviewId,
+        capability: binding.capability,
+        decision: "approve",
+        reason: "x".repeat(501),
+        idempotencyKey: "call-1",
+        now: 1001,
+      }),
+    ).rejects.toThrow(/reason_too_large/);
+
+    const expired = await submitReviewRelayResponse({
+      state: binding.state,
+      config: { allowedChatIds: [], responseTimeoutMs: 0 },
+      reviewId: binding.reviewId,
+      capability: binding.capability,
+      decision: "approve",
+      reason: "ready",
+      idempotencyKey: "call-1",
+      now: 2000,
+    });
+
+    expect(expired.ok).toBe(false);
+    expect(expired.error).toBe("review_expired");
+  });
+
+  it("queues Phone Chaser review responses when Codex delivery is temporarily unavailable", async () => {
+    const binding = createReviewRelayBinding({
+      state: emptyGatewayState(),
+      threadId: "thread-source",
+      reviewId: "review-task-0351",
+      capability: "capability-secret",
+      now: 1000,
+      ttlMs: 60_000,
+    });
+
+    const result = await submitReviewRelayResponse({
+      state: binding.state,
+      config: { allowedChatIds: [], responseTimeoutMs: 0 },
+      reviewId: binding.reviewId,
+      capability: binding.capability,
+      decision: "reject",
+      reason: "wrong artifact",
+      idempotencyKey: "call-1",
+      now: 2000,
+      codexImpl: vi.fn().mockRejectedValueOnce(new TypeError("fetch failed")),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe("queued");
+    expect(result.state.pending[0]).toEqual(
+      expect.objectContaining({
+        route: "review_relay",
+        threadId: "thread-source",
+        reviewId: "review-task-0351",
+        reviewDecision: "reject",
+        reviewReason: "wrong artifact",
+        idempotencyKey: "call-1",
+        lastError: "fetch failed",
+      }),
+    );
+    expect(result.state.reviewReceipts[0]).toEqual(expect.objectContaining({ status: "queued" }));
+
+    const retried = await processPendingMessages({
+      state: result.state,
+      config: { allowedChatIds: [], responseTimeoutMs: 0 },
+      codexImpl: vi.fn().mockResolvedValueOnce({ turnId: "turn-after-retry" }),
+    });
+
+    expect(retried.processed).toBe(1);
+    expect(retried.state.pending).toEqual([]);
+    expect(retried.state.reviewReceipts[0]).toEqual(
+      expect.objectContaining({
+        reviewId: "review-task-0351",
+        idempotencyKey: "call-1",
+        status: "delivered",
+        turnId: "turn-after-retry",
+      }),
+    );
   });
 });

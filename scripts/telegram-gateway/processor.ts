@@ -1,5 +1,5 @@
 /**
- * Telegram update processor for source-thread and coordinator routing.
+ * Telegram update processor for source-thread and new-thread routing.
  *
  * Inputs: Telegram updates, resolved config, local gateway state, and Codex
  * delivery options.
@@ -17,6 +17,7 @@ import {
 import {
   appendHistory,
   queuePendingMessage,
+  recordReviewRelayReceipt,
   recordOutboundMapping,
   removePendingMessage,
   updatePendingMessage,
@@ -33,6 +34,7 @@ import type {
 type CodexDeliveryImpl = (input: {
   threadId: string;
   text: string;
+  appServerUrl?: string;
   responseTimeoutMs?: number;
 }) => Promise<{ turnId?: string; responseText?: string }>;
 
@@ -72,6 +74,7 @@ export async function processTelegramUpdate(input: {
     const sent = await sendCodexMessage({
       threadId: route.threadId,
       text: promptText,
+      appServerUrl: input.config.appServerUrl,
       responseTimeoutMs: input.config.responseTimeoutMs,
       codexImpl: input.codexImpl,
     });
@@ -207,6 +210,7 @@ export async function processPendingMessages(input: {
     const sent = await sendCodexMessage({
       threadId: pending.threadId,
       text: pending.promptText ?? pending.text,
+      appServerUrl: input.config.appServerUrl,
       responseTimeoutMs: input.config.responseTimeoutMs,
       codexImpl: input.codexImpl,
     });
@@ -238,6 +242,7 @@ export async function processPendingMessages(input: {
         status: "failed",
         error: sent.error,
       });
+      nextState = recordReviewRelayPendingReceipt(nextState, pending, "failed", sent.error, sent.turnId);
       if (isTerminalCodexDeliveryError(sent.error) && input.config.botToken) {
         await sendTelegramReply({
           token: input.config.botToken,
@@ -253,6 +258,7 @@ export async function processPendingMessages(input: {
 
     processed += 1;
     nextState = removePendingMessage(nextState, pending);
+    nextState = recordReviewRelayPendingReceipt(nextState, pending, "delivered", undefined, sent.turnId);
     if (sent.responseText && input.config.botToken) {
       const source = sourceContextForPending(pending);
       const formatted = formatTelegramGatewayMessage({ text: sent.responseText, ...source }).text;
@@ -311,6 +317,39 @@ export async function processPendingMessages(input: {
     });
   }
   return { state: nextState, processed, replied, queued, failed };
+}
+
+function recordReviewRelayPendingReceipt(
+  state: TelegramGatewayState,
+  pending: {
+    route: string;
+    reviewId?: string;
+    reviewDecision?: "approve" | "revise" | "reject";
+    reviewReason?: string;
+    idempotencyKey?: string;
+  },
+  status: "delivered" | "failed",
+  error?: string,
+  turnId?: string,
+): TelegramGatewayState {
+  if (
+    pending.route !== "review_relay" ||
+    !pending.reviewId ||
+    !pending.reviewDecision ||
+    !pending.reviewReason ||
+    !pending.idempotencyKey
+  ) {
+    return state;
+  }
+  return recordReviewRelayReceipt(state, {
+    reviewId: pending.reviewId,
+    idempotencyKey: pending.idempotencyKey,
+    decision: pending.reviewDecision,
+    reason: pending.reviewReason,
+    status,
+    error,
+    turnId,
+  });
 }
 
 function buildDeliveryFailureReply(error: string | undefined): string {

@@ -11,9 +11,18 @@ import { fileURLToPath } from "node:url";
 
 import { runTelegramGatewayCli } from "./telegram-gateway/cli";
 
-export { sendCodexMessage } from "./telegram-gateway/codex-exec";
+export {
+  sendCodexMessage,
+  startCodexThread,
+  telegramGatewayCodexExecTestInternals,
+} from "./telegram-gateway/codex-exec";
 export { defaultConfigPath, loadGatewayFileConfig, resolveGatewayConfig } from "./telegram-gateway/config";
 export { processPendingMessages, processTelegramUpdate } from "./telegram-gateway/processor";
+export {
+  createReviewRelayBinding,
+  startReviewRelayServer,
+  submitReviewRelayResponse,
+} from "./telegram-gateway/review-relay";
 export {
   buildCoordinatorPrompt,
   buildSourceThreadPrompt,
@@ -28,6 +37,8 @@ export {
   loadGatewayState,
   mergeGatewayState,
   queuePendingMessage,
+  recordReviewRelayBinding,
+  recordReviewRelayReceipt,
   recordOutboundMapping,
   removePendingMessage,
   saveGatewayState,
@@ -44,6 +55,9 @@ export {
 } from "./telegram-gateway/telegram-api";
 export type {
   CodexTurnItem,
+  ReviewRelayBinding,
+  ReviewRelayDecision,
+  ReviewRelayReceipt,
   ResolvedTelegramGatewayConfig,
   TelegramApiResponse,
   TelegramGatewayConfig,

@@ -12,13 +12,17 @@ describe("telegram gateway config", () => {
     await writeFile(
       configPath,
       [
+        "[runtime]",
+        'codex_app_server_url = "ws://127.0.0.1:47892"',
+        "",
         "[telegram]",
         "enabled = true",
         'bot_token = "secret-token"',
         'allow_from = ["100", "200"]',
-        'main_thread_id = "thread-main"',
+        'default_thread_id = "thread-ceo"',
         'dm_policy = "allowlist"',
         'group_policy = "allowlist"',
+        'review_relay_port = "8790"',
         "",
         "[telegram.streaming]",
         'mode = "off"',
@@ -28,14 +32,18 @@ describe("telegram gateway config", () => {
     );
 
     await expect(loadGatewayFileConfig(configPath)).resolves.toEqual({
+      runtime: {
+        appServerUrl: "ws://127.0.0.1:47892",
+      },
       telegram: {
         enabled: true,
         botToken: "secret-token",
         allowFrom: ["100", "200"],
-        mainThreadId: "thread-main",
+        defaultThreadId: "thread-ceo",
         dmPolicy: "allowlist",
         groupPolicy: "allowlist",
         streaming: { mode: "off" },
+        reviewRelay: { port: 8790 },
       },
     });
   });

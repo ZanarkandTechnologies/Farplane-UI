@@ -42,6 +42,16 @@ export type StartTelegramGatewayOptions = {
     threadId?: string;
     title?: string;
   };
+  reviewBind?: {
+    cycle?: string;
+    sessionId?: string;
+    threadId?: string;
+    title?: string;
+    ttlMinutes?: string;
+  };
+  reviewRelay?: {
+    port?: string;
+  };
   once?: boolean;
   dryRun?: boolean;
   checkConfig?: boolean;
@@ -258,6 +268,18 @@ export async function startTelegramGateway(
     if (options.send.title) args.push("--title", options.send.title);
     if (options.send.parseMode) args.push("--parse-mode", options.send.parseMode);
   }
+  if (options.reviewBind) {
+    args.push("review-bind");
+    if (options.reviewBind.threadId) args.push("--thread-id", options.reviewBind.threadId);
+    if (options.reviewBind.sessionId) args.push("--session-id", options.reviewBind.sessionId);
+    if (options.reviewBind.title) args.push("--title", options.reviewBind.title);
+    if (options.reviewBind.cycle) args.push("--cycle", options.reviewBind.cycle);
+    if (options.reviewBind.ttlMinutes) args.push("--ttl-minutes", options.reviewBind.ttlMinutes);
+  }
+  if (options.reviewRelay) {
+    args.push("review-relay");
+    if (options.reviewRelay.port) args.push("--port", options.reviewRelay.port);
+  }
   if (options.once) args.push("--once");
   if (options.dryRun) args.push("--dry-run");
   if (options.checkConfig) args.push("--check-config");
@@ -327,6 +349,26 @@ export function registerGatewayCommands(program: Command): void {
     )
     .action(async (opts: NonNullable<StartTelegramGatewayOptions["send"]>) => {
       await startTelegramGateway({ send: opts });
+    });
+
+  telegram
+    .command("review-bind")
+    .description("Mint a one-review Phone Chaser relay binding for a Codex thread")
+    .option("--thread-id <threadId>", "Codex thread id to bind")
+    .option("--session-id <sessionId>", "Alias for --thread-id")
+    .option("--title <title>", "Short review title")
+    .option("--cycle <cycle>", "Review cycle label")
+    .option("--ttl-minutes <minutes>", "Capability lifetime in minutes")
+    .action(async (opts: NonNullable<StartTelegramGatewayOptions["reviewBind"]>) => {
+      await startTelegramGateway({ reviewBind: opts });
+    });
+
+  telegram
+    .command("review-relay")
+    .description("Serve the local Phone Chaser review relay webhook")
+    .option("--port <port>", "Local relay port")
+    .action(async (opts: NonNullable<StartTelegramGatewayOptions["reviewRelay"]>) => {
+      await startTelegramGateway({ reviewRelay: opts });
     });
 
   const daemon = telegram

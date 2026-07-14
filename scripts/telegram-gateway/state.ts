@@ -11,6 +11,8 @@ import os from "node:os";
 import path from "node:path";
 
 import type {
+  ReviewRelayBinding,
+  ReviewRelayReceipt,
   TelegramGatewayHistoryEntry,
   TelegramGatewayMapping,
   TelegramGatewayPendingMessage,
@@ -18,7 +20,7 @@ import type {
 } from "./types";
 
 export function emptyGatewayState(): TelegramGatewayState {
-  return { updateOffset: 0, mappings: [], history: [], pending: [] };
+  return { updateOffset: 0, mappings: [], history: [], pending: [], reviewBindings: [], reviewReceipts: [] };
 }
 
 export function mergeGatewayState(
@@ -37,6 +39,14 @@ export function mergeGatewayState(
   for (const entry of [...incoming.pending, ...base.pending]) {
     pendingRows.set(`${entry.chatId}:${entry.telegramMessageId}`, entry);
   }
+  const bindingRows = new Map<string, ReviewRelayBinding>();
+  for (const binding of [...incoming.reviewBindings, ...base.reviewBindings]) {
+    bindingRows.set(binding.reviewId, binding);
+  }
+  const receiptRows = new Map<string, ReviewRelayReceipt>();
+  for (const receipt of [...incoming.reviewReceipts, ...base.reviewReceipts]) {
+    receiptRows.set(`${receipt.reviewId}:${receipt.idempotencyKey}`, receipt);
+  }
   for (const entry of historyRows.values()) {
     if (entry.direction === "inbound" && entry.status === "delivered") {
       pendingRows.delete(`${entry.chatId}:${entry.telegramMessageId}`);
@@ -50,6 +60,10 @@ export function mergeGatewayState(
     mappings: [...mappingRows.values()].sort((left, right) => right.createdAt - left.createdAt).slice(0, 500),
     history: [...historyRows.values()].sort((left, right) => right.occurredAt - left.occurredAt).slice(0, 200),
     pending: [...pendingRows.values()].sort((left, right) => left.createdAt - right.createdAt).slice(0, 200),
+    reviewBindings: [...bindingRows.values()].sort((left, right) => right.createdAt - left.createdAt).slice(0, 500),
+    reviewReceipts: [...receiptRows.values()]
+      .sort((left, right) => right.occurredAt - left.occurredAt)
+      .slice(0, 500),
   };
 }
 
@@ -128,6 +142,48 @@ export function updatePendingMessage(
   };
 }
 
+export function recordReviewRelayBinding(
+  state: TelegramGatewayState,
+  binding: ReviewRelayBinding,
+): TelegramGatewayState {
+  return {
+    ...state,
+    reviewBindings: [
+      binding,
+      ...state.reviewBindings.filter((candidate) => candidate.reviewId !== binding.reviewId),
+    ].slice(0, 500),
+  };
+}
+
+export function recordReviewRelayReceipt(
+  state: TelegramGatewayState,
+  receipt: Omit<ReviewRelayReceipt, "occurredAt"> & { occurredAt?: number },
+): TelegramGatewayState {
+  return {
+    ...state,
+    reviewReceipts: [
+      { ...receipt, occurredAt: receipt.occurredAt ?? Date.now() },
+      ...state.reviewReceipts.filter(
+        (candidate) =>
+          !(candidate.reviewId === receipt.reviewId && candidate.idempotencyKey === receipt.idempotencyKey),
+      ),
+    ].slice(0, 500),
+  };
+}
+
+export function markReviewRelayBindingUsed(
+  state: TelegramGatewayState,
+  reviewId: string,
+  usedAt = Date.now(),
+): TelegramGatewayState {
+  return {
+    ...state,
+    reviewBindings: state.reviewBindings.map((binding) =>
+      binding.reviewId === reviewId ? { ...binding, usedAt } : binding,
+    ),
+  };
+}
+
 export async function loadGatewayState(statePath = defaultStatePath()): Promise<TelegramGatewayState> {
   try {
     const raw = await readFile(statePath, "utf8");
@@ -137,6 +193,8 @@ export async function loadGatewayState(statePath = defaultStatePath()): Promise<
       mappings: Array.isArray(parsed.mappings) ? parsed.mappings : [],
       history: Array.isArray(parsed.history) ? parsed.history : [],
       pending: Array.isArray(parsed.pending) ? parsed.pending : [],
+      reviewBindings: Array.isArray(parsed.reviewBindings) ? parsed.reviewBindings : [],
+      reviewReceipts: Array.isArray(parsed.reviewReceipts) ? parsed.reviewReceipts : [],
     };
   } catch {
     return emptyGatewayState();

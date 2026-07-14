@@ -22,7 +22,7 @@ export type TelegramGatewayHistoryEntry = {
   direction: "inbound" | "outbound";
   text: string;
   occurredAt: number;
-  route?: "source_thread" | "coordinator" | "unknown_reply";
+  route?: "source_thread" | "new_thread" | "coordinator" | "unknown_reply" | "review_relay";
   threadId?: string;
   status?: "delivered" | "queued" | "failed";
   turnId?: string;
@@ -35,14 +35,42 @@ export type TelegramGatewayPendingMessage = {
   chatId: string;
   text: string;
   promptText?: string;
-  route: "source_thread" | "coordinator";
+  route: "source_thread" | "coordinator" | "review_relay";
   threadId: string;
   sessionId?: string;
   title?: string;
+  reviewId?: string;
+  reviewDecision?: ReviewRelayDecision;
+  reviewReason?: string;
+  idempotencyKey?: string;
   createdAt: number;
   attempts: number;
   lastAttemptAt?: number;
   lastError?: string;
+};
+
+export type ReviewRelayDecision = "approve" | "revise" | "reject";
+
+export type ReviewRelayBinding = {
+  reviewId: string;
+  capabilityHash: string;
+  threadId: string;
+  title?: string;
+  createdAt: number;
+  expiresAt: number;
+  usedAt?: number;
+  cycle: string;
+};
+
+export type ReviewRelayReceipt = {
+  reviewId: string;
+  idempotencyKey: string;
+  decision: ReviewRelayDecision;
+  reason: string;
+  status: "delivered" | "queued" | "failed" | "rejected";
+  turnId?: string;
+  error?: string;
+  occurredAt: number;
 };
 
 export type TelegramGatewayState = {
@@ -50,27 +78,36 @@ export type TelegramGatewayState = {
   mappings: TelegramGatewayMapping[];
   history: TelegramGatewayHistoryEntry[];
   pending: TelegramGatewayPendingMessage[];
+  reviewBindings: ReviewRelayBinding[];
+  reviewReceipts: ReviewRelayReceipt[];
 };
 
 export type TelegramGatewayConfig = {
   allowedChatIds: string[];
-  coordinatorThreadId?: string;
+  defaultThreadId?: string;
   botToken?: string;
   responseTimeoutMs?: number;
+  appServerUrl?: string;
+  reviewRelayPort?: number;
 };
 
 export type TelegramGatewayFileConfig = {
   version?: number;
-  mainThreadId?: string;
+  runtime?: {
+    appServerUrl?: string;
+  };
   telegram?: {
     enabled?: boolean;
     dmPolicy?: "allowlist";
     botToken?: string;
     allowFrom?: string[];
-    mainThreadId?: string;
+    defaultThreadId?: string;
     groupPolicy?: "allowlist";
     streaming?: {
       mode?: "off";
+    };
+    reviewRelay?: {
+      port?: number;
     };
   };
 };
