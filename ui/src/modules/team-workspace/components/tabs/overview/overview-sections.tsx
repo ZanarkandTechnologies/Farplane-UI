@@ -5,11 +5,12 @@
  * Keeps tab orchestration separate from repeated card markup and loading states.
  */
 
-import { AlertTriangle, Flag, Gauge, Loader2, Target } from "lucide-react";
+import { AlertTriangle, Clock3, Flag, Gauge, Loader2, Target } from "lucide-react";
 import type { ReactElement } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { OverviewAutonomySavings as OverviewAutonomySavingsModel } from "@/modules/team-workspace/lib/dashboard-projections/overview-surface";
 import { SignalCard } from "./overview-cards";
 
 export type OverviewPinnedSignal = {
@@ -26,6 +27,63 @@ export type OverviewAttentionSignal = {
   label: string;
   detail: string;
 };
+
+export function OverviewAutonomySavings({
+  presentation,
+}: {
+  presentation: OverviewAutonomySavingsModel;
+}): ReactElement {
+  const coverage =
+    presentation.attributionCoverage === null
+      ? "Coverage unavailable"
+      : `${Math.round(presentation.attributionCoverage * 100)}% attribution coverage`;
+  return (
+    <Card className="rounded-md" data-testid="autonomy-savings">
+      <CardHeader className="pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Clock3 className="h-4 w-4" />
+            Autonomy &amp; savings
+          </CardTitle>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={presentation.attributionCoverage === null ? "secondary" : "outline"}>
+              {coverage}
+            </Badge>
+            <Badge variant="secondary">Runtime truth: Harness Usage</Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          {presentation.metrics.map((metric) => (
+            <div key={metric.id} className="min-w-0 rounded-md border bg-muted/20 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <p className="break-words text-xs font-medium text-muted-foreground [overflow-wrap:anywhere]">
+                  {metric.label}
+                </p>
+                <Badge variant={metric.status === "available" ? "outline" : "secondary"}>
+                  {metric.evidenceKind === "estimated" ? "estimated" : metric.evidenceKind}
+                </Badge>
+              </div>
+              <p className="mt-3 break-words text-2xl font-semibold tabular-nums [overflow-wrap:anywhere]">
+                {metric.value}
+              </p>
+              <p className="mt-2 break-words text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">
+                {metric.detail}
+              </p>
+            </div>
+          ))}
+        </div>
+        {presentation.sourceGaps.length > 0 ? (
+          <div className="rounded-md border border-dashed bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
+            {presentation.sourceGaps.length} source gap
+            {presentation.sourceGaps.length === 1 ? "" : "s"}; unavailable readings remain unknown.
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
 
 export function OverviewPinnedSignals({
   loading,

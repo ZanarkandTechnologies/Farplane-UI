@@ -8,7 +8,12 @@ import type {
   FarplaneProjectConfig,
   FarplaneRuntimeReport,
 } from "@/modules/team-workspace/lib/project-config";
-import type { OverviewReportLink, OverviewSurface } from "./overview-surface";
+import type {
+  OverviewAutonomyMetric,
+  OverviewAutonomySavings,
+  OverviewReportLink,
+  OverviewSurface,
+} from "./overview-surface";
 import {
   findProjectUiSnapshot,
   type ProjectUiMetricCard,
@@ -76,6 +81,105 @@ function metricSourceGapDetail(metric: ProjectUiMetricCard): string | null {
     return `${metric.sourceGapIds.length} source gap${metric.sourceGapIds.length === 1 ? "" : "s"}`;
   }
   return null;
+}
+
+const AUTONOMY_METRIC_IDS = [
+  "clone_hours",
+  "concurrent_agent_wall_hours",
+  "accepted_clone_hours",
+  "nonaccepted_clone_hours",
+  "potential_human_time_saved_hours_estimated",
+] as const;
+
+const AUTONOMY_METRIC_COPY: Record<
+  (typeof AUTONOMY_METRIC_IDS)[number],
+  Pick<OverviewAutonomyMetric, "label" | "detail" | "evidenceKind">
+> = {
+  clone_hours: {
+    label: "Parallel clone hours",
+    detail: "Measured elapsed agent work; parallel threads accumulate.",
+    evidenceKind: "measured",
+  },
+  concurrent_agent_wall_hours: {
+    label: "Wall-clock coverage",
+    detail: "Measured union of agent intervals without parallel double counting.",
+    evidenceKind: "measured",
+  },
+  accepted_clone_hours: {
+    label: "Accepted clone hours",
+    detail: "Attributed only to terminal work with completion proof and TAS-A acceptance.",
+    evidenceKind: "attributed",
+  },
+  nonaccepted_clone_hours: {
+    label: "Non-accepted clone hours",
+    detail: "Attributed terminal recoverable cost; ongoing work is excluded.",
+    evidenceKind: "attributed",
+  },
+  potential_human_time_saved_hours_estimated: {
+    label: "Potential human time saved",
+    detail: "Estimated from accepted clone-hours minus estimated human attention.",
+    evidenceKind: "estimated",
+  },
+};
+
+function autonomyStatus(metric: ProjectUiMetricCard): OverviewAutonomyMetric["status"] {
+  if (metric.status === "available" && typeof metric.current === "number") return "available";
+  if (metric.status === "stale") return "stale";
+  if (metric.status === "source_gap" || metric.sourceGaps.length || metric.sourceGapIds.length) {
+    return "source_gap";
+  }
+  return "missing";
+}
+
+function autonomyValue(metric: ProjectUiMetricCard): string {
+  const status = autonomyStatus(metric);
+  if (status !== "available" || typeof metric.current !== "number") return status.replace("_", " ");
+  return `${numberText(metric.current)}h`;
+}
+
+function attributionCoverage(metrics: ProjectUiMetricCard[]): number | null {
+  for (const metric of metrics) {
+    for (const point of [...metric.series].reverse()) {
+      const coverage = point.payload.attribution_coverage ?? point.payload.attributionCoverage;
+      if (typeof coverage === "number" && Number.isFinite(coverage)) {
+        return Math.max(0, Math.min(1, coverage));
+      }
+    }
+  }
+  return null;
+}
+
+export function buildAutonomySavingsPresentation(
+  metrics: ProjectUiMetricCard[],
+): OverviewAutonomySavings | undefined {
+  const metricById = new Map(metrics.map((metric) => [metric.metricId, metric]));
+  const autonomyMetrics = AUTONOMY_METRIC_IDS.flatMap((metricId) => {
+    const metric = metricById.get(metricId);
+    if (!metric) return [];
+    const copy = AUTONOMY_METRIC_COPY[metricId];
+    const gapDetail = metricSourceGapDetail(metric);
+    return [
+      {
+        id: metricId,
+        label: copy.label,
+        value: autonomyValue(metric),
+        detail: gapDetail ?? copy.detail,
+        status: autonomyStatus(metric),
+        evidenceKind: copy.evidenceKind,
+      } satisfies OverviewAutonomyMetric,
+    ];
+  });
+  if (autonomyMetrics.length === 0) return undefined;
+
+  return {
+    metrics: autonomyMetrics,
+    attributionCoverage: attributionCoverage(
+      metrics.filter((metric) => AUTONOMY_METRIC_IDS.includes(metric.metricId as never)),
+    ),
+    sourceGaps: autonomyMetrics
+      .filter((metric) => metric.status !== "available")
+      .map((metric) => `${metric.label}: ${metric.detail}`),
+  };
 }
 
 function componentList(components: string[]): string {
@@ -254,6 +358,7 @@ export function buildOverviewSummarySurface({
         exists: source.exists,
         updatedAtMs: source.updatedAtMs,
       })) ?? [],
+    autonomySavings: buildAutonomySavingsPresentation(metricSeries),
   };
 }
 

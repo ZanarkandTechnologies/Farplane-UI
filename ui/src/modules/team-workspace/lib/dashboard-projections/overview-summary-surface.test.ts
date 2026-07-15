@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FarplaneProjectConfig } from "@/modules/team-workspace/lib/project-config";
+import autonomySnapshot from "./fixtures/autonomy-savings-snapshot-v2.json";
 import { buildOverviewSummarySurface } from "./overview-summary-surface";
 
 function projectConfigWithSnapshot(parsedJson: unknown): FarplaneProjectConfig {
@@ -25,6 +26,69 @@ function projectConfigWithSnapshot(parsedJson: unknown): FarplaneProjectConfig {
 }
 
 describe("overview summary surface", () => {
+  it("projects flat autonomy cards into measured, attributed, and estimated states", () => {
+    const surface = buildOverviewSummarySurface({
+      aiBurn24hUsd: 0,
+      projectConfig: projectConfigWithSnapshot(autonomySnapshot),
+    });
+
+    expect(surface.autonomySavings?.attributionCoverage).toBe(0.75);
+    expect(surface.autonomySavings?.metrics).toHaveLength(5);
+    expect(surface.autonomySavings?.metrics[0]).toMatchObject({
+      id: "clone_hours",
+      value: "8h",
+      evidenceKind: "measured",
+    });
+    expect(surface.autonomySavings?.metrics[4]).toMatchObject({
+      id: "potential_human_time_saved_hours_estimated",
+      value: "5.5h",
+      evidenceKind: "estimated",
+    });
+  });
+
+  it("keeps partial, stale, and source-gap autonomy readings unknown", () => {
+    const partial = structuredClone(autonomySnapshot);
+    partial.metrics.series = partial.metrics.series.slice(0, 3).map((metric, index) => {
+      if (index === 1) return { ...metric, status: "stale", current: null } as never;
+      if (index === 2) {
+        return {
+          ...metric,
+          status: "source_gap",
+          current: null,
+          source_gaps: [
+            {
+              date: "2026-07-12",
+              status: "source_gap",
+              reason: "missing_acceptance_evidence",
+            },
+          ],
+        } as never;
+      }
+      return metric;
+    });
+
+    const surface = buildOverviewSummarySurface({
+      aiBurn24hUsd: 0,
+      projectConfig: projectConfigWithSnapshot(partial),
+    });
+
+    expect(surface.autonomySavings?.metrics.map((metric) => [metric.id, metric.value])).toEqual([
+      ["clone_hours", "8h"],
+      ["concurrent_agent_wall_hours", "stale"],
+      ["accepted_clone_hours", "source gap"],
+    ]);
+    expect(surface.autonomySavings?.sourceGaps).toHaveLength(2);
+  });
+
+  it("omits the autonomy presentation when none of its flat cards exist", () => {
+    const snapshot = structuredClone(autonomySnapshot);
+    snapshot.metrics.series = [];
+    const surface = buildOverviewSummarySurface({
+      aiBurn24hUsd: 0,
+      projectConfig: projectConfigWithSnapshot(snapshot),
+    });
+    expect(surface.autonomySavings).toBeUndefined();
+  });
   it("keeps overview reports limited to latest daily and weekly cadence rows", () => {
     const config: FarplaneProjectConfig = {
       ok: true,

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import autonomySnapshot from "./fixtures/autonomy-savings-snapshot-v2.json";
 import { parseProjectUiSnapshot, sourceGapText } from "./project-ui-snapshot";
 
 function contractSnapshot() {
@@ -113,5 +114,12 @@ describe("project UI snapshot model", () => {
     expect(
       parseProjectUiSnapshot({ generated_at: "2026-07-12T00:00:00Z", tabs: { goals: {} } }),
     ).toBeNull();
+  });
+
+  it("preserves generic observation payload provenance on flat schema-v2 cards", () => {
+    const snapshot = parseProjectUiSnapshot(autonomySnapshot);
+    expect(snapshot?.metrics.series[0]?.series[0]?.payload).toMatchObject({
+      attribution_coverage: 0.75,
+    });
   });
 });

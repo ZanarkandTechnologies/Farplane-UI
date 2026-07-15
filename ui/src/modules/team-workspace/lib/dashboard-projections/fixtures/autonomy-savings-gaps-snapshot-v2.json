@@ -1,0 +1,91 @@
+{
+  "generated_at": "2026-07-12T12:00:00Z",
+  "schema_version": 2,
+  "project": { "id": "farplane-ui", "name": "Farplane UI" },
+  "source_gaps": [],
+  "metrics": {
+    "contents": [],
+    "primitives": {},
+    "readings": {},
+    "definitions": {},
+    "series": [
+      {
+        "metric_id": "clone_hours",
+        "label": "Parallel clone hours",
+        "status": "available",
+        "current": 8,
+        "unit": "hours",
+        "series": [
+          { "date": "2026-07-12", "value": 8, "payload": { "attribution_coverage": 0.4 } }
+        ],
+        "source_gaps": []
+      },
+      {
+        "metric_id": "concurrent_agent_wall_hours",
+        "label": "Concurrent agent wall hours",
+        "status": "stale",
+        "current": null,
+        "unit": "hours",
+        "series": [{ "date": "2026-07-01", "value": 5.5, "payload": {} }],
+        "source_gaps": [
+          { "date": "2026-07-01", "status": "stale", "reason": "latest observation is stale" }
+        ]
+      },
+      {
+        "metric_id": "accepted_clone_hours",
+        "label": "Accepted clone hours",
+        "status": "source_gap",
+        "current": null,
+        "unit": "hours",
+        "series": [],
+        "source_gaps": [
+          { "date": "2026-07-12", "status": "source_gap", "reason": "missing_acceptance_evidence" }
+        ]
+      },
+      {
+        "metric_id": "nonaccepted_clone_hours",
+        "label": "Non-accepted clone hours",
+        "status": "missing",
+        "current": null,
+        "unit": "hours",
+        "series": [],
+        "source_gaps": []
+      },
+      {
+        "metric_id": "potential_human_time_saved_hours_estimated",
+        "label": "Potential human time saved",
+        "status": "source_gap",
+        "current": null,
+        "unit": "hours",
+        "series": [],
+        "source_gaps": [
+          {
+            "date": "2026-07-12",
+            "status": "source_gap",
+            "reason": "missing_human_attention_estimate"
+          }
+        ]
+      }
+    ]
+  },
+  "tabs": {
+    "overview": {
+      "charter": {},
+      "pinned_metrics": [],
+      "pinned_metric_cards": [],
+      "source_gap_ids": []
+    },
+    "objectives": {
+      "selection": { "objectives": [], "guards": [] },
+      "metric_cards": [],
+      "source_gap_ids": []
+    },
+    "cadence": { "automations": [], "source_gap_ids": [] },
+    "distribution": {
+      "content_items": [],
+      "content_metric_cards": [],
+      "content_metric_ids": [],
+      "source_gap_ids": []
+    }
+  }
+}

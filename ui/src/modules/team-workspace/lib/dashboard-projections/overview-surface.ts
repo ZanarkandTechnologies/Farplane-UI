@@ -59,6 +59,21 @@ export type OverviewSourceRef = {
   updatedAtMs: number | null;
 };
 
+export type OverviewAutonomyMetric = {
+  id: string;
+  label: string;
+  value: string;
+  detail: string;
+  status: "available" | "source_gap" | "missing" | "stale";
+  evidenceKind: "measured" | "attributed" | "estimated";
+};
+
+export type OverviewAutonomySavings = {
+  metrics: OverviewAutonomyMetric[];
+  attributionCoverage: number | null;
+  sourceGaps: string[];
+};
+
 export type OverviewSurface = {
   generatedAt: string;
   projectId: string;
@@ -66,6 +81,7 @@ export type OverviewSurface = {
   attention: OverviewAttentionItem[];
   reports: OverviewReportLink[];
   sources: OverviewSourceRef[];
+  autonomySavings?: OverviewAutonomySavings;
 };
 
 function record(value: unknown): Record<string, unknown> | null {

@@ -16,6 +16,7 @@ import type { FarplaneProjectConfig, ProjectConfigLoadState } from "../project-c
 import { OverviewReportsCard, ReportReader } from "./overview-reports";
 import {
   OverviewAttentionCard,
+  OverviewAutonomySavings,
   OverviewCeoSummary,
   OverviewPinnedSignals,
   ProjectScopeCard,
@@ -136,6 +137,10 @@ export function OverviewTab({
               provider: pin.provider || "overview_surface",
             }))}
           />
+
+          {effectiveSurface.autonomySavings ? (
+            <OverviewAutonomySavings presentation={effectiveSurface.autonomySavings} />
+          ) : null}
 
           <OverviewAttentionCard
             items={effectiveSurface.attention.map((item) => ({

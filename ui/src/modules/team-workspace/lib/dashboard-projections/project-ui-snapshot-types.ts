@@ -36,6 +36,7 @@ export type ProjectUiMetricPoint = {
   value: number | null;
   current: number | null;
   dailyDiff: number | null;
+  payload: Record<string, unknown>;
   items: Array<{ id: string; kind?: string; url?: string; value: number | null }>;
 };
 

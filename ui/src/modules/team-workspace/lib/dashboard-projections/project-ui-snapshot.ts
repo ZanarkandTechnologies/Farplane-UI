@@ -7,9 +7,10 @@
 
 import type { FarplaneProjectConfig } from "@/modules/team-workspace/lib/project-config";
 import type {
+  ProjectUiAutomation,
+  ProjectUiCharter,
   ProjectUiContentItem,
   ProjectUiContentMetricCard,
-  ProjectUiCharter,
   ProjectUiMetricCard,
   ProjectUiMetricPoint,
   ProjectUiMetricSourceGap,
@@ -19,13 +20,13 @@ import type {
   ProjectUiSnapshot,
   ProjectUiSourceGap,
   ProjectUiSourceRef,
-  ProjectUiAutomation,
 } from "./project-ui-snapshot-types";
 
 export type {
+  ProjectUiAutomation,
+  ProjectUiCharter,
   ProjectUiContentItem,
   ProjectUiContentMetricCard,
-  ProjectUiCharter,
   ProjectUiMetricCard,
   ProjectUiMetricPoint,
   ProjectUiMetricSourceGap,
@@ -35,7 +36,6 @@ export type {
   ProjectUiSnapshot,
   ProjectUiSourceGap,
   ProjectUiSourceRef,
-  ProjectUiAutomation,
 } from "./project-ui-snapshot-types";
 
 function record(value: unknown): Record<string, unknown> {
@@ -143,6 +143,7 @@ function parseMetricPoint(value: unknown): ProjectUiMetricPoint | null {
     value: nullableNumber(row.value),
     current: nullableNumber(row.current ?? row.cumulative ?? row.value),
     dailyDiff: nullableNumber(row.daily_diff ?? row.dailyDiff),
+    payload: record(row.payload),
     items: items
       .map((entry): ProjectUiMetricPoint["items"][number] | null => {
         const item = record(entry);
