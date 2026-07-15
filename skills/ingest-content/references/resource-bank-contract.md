@@ -16,12 +16,19 @@ operator supplies another vault:
   scope, tags, status, and project/task links.
 - `resourceBankAssets`: retained source references and derived evidence assets.
   Primary assets carry retrieval facets for Tasty Packs.
+  Browser-displayable previews for URL/video/social sources should be stored as
+  derived `thumbnail`, `frame`, or `evidence` image assets with `storageId`,
+  `localPath`, or a direct image URL.
 - `resourceBankAnalyses`: source-backed and inferred breakdowns, including
   why-it-works, hook/retention notes, takeaways, prompt guesses, remix
   constraints, confidence, and embedding text.
 - `resourceBankCreativeElements`: reusable production ingredients extracted
-  from the source. `pinned` marks elements grounded in the operator's ingestion
-  note; downstream content planning should focus more on these elements.
+  from the source. Valid kinds are `visual`, `audio`, `hook`, `storyboard`,
+  `editing`, `copy`, `character`, `format`, and `constraint`. `character`
+  covers distinctive personas, archetypes, guides, hosts, mascots, or recurring
+  figures that carry the creative premise without copying protected identity.
+  `pinned` marks elements grounded in the operator's ingestion note; downstream
+  content planning should focus more on these elements.
 - `resourceBankSkillFindings`: reusable techniques, existing-skill matches,
   skill updates, and skill candidates extracted from a source.
 
@@ -68,16 +75,35 @@ Store these details in `whyItWorks`, `takeaways`, `frameNotes`, `promptGuess`,
    `modules/resourceBank/jobs:createIngestionJob`.
 2. Add the primary retained asset:
    `modules/resourceBank/assets:addResourceAsset`.
-3. Add one or more analyses:
+3. For any visual, video, or social primary asset that is not itself a direct
+   image URL or uploaded file, add a derived preview asset when available:
+   - use `npm run resource-bank:upload-thumbnail -- --job-id <jobId>
+     --parent-asset-id <assetId> --file <image>` for a local thumbnail, frame,
+     screenshot, or contact sheet;
+   - set `assetRole` to `thumbnail` for the best card preview, or `evidence`
+     for supporting frame/contact-sheet proof;
+   - if source access is blocked, store that fact in the primary asset
+     `retentionNote` and tag it `limited-source-read`.
+4. Add one or more analyses:
    `modules/resourceBank/analyses:addResourceAnalysis`.
-4. Add creative elements:
+5. Add creative elements:
    `modules/resourceBank/creativeElements:addCreativeElement`.
-5. Add optional skill findings:
+6. Add optional skill findings:
    `modules/resourceBank/skillFindings:addSkillFinding`.
-6. Query `modules/resourceBank/assets:getResourceAsset` to verify the asset and
+7. Query `modules/resourceBank/assets:getResourceAsset` to verify the asset and
    attached records.
-7. Query `modules/resourceBank/retrieval:createTastyPack` with the likely
+8. Query `modules/resourceBank/retrieval:createTastyPack` with the likely
    timeframe and facets to verify future pack retrieval.
+
+Preview verification is part of storage verification for visual/social/video
+captures:
+
+```text
+if primary asset is visual/social/video:
+  pass when derivedAssets contains a browser-displayable thumbnail/frame/contact sheet
+  pass with limitation when retentionNote explains the source blocked preview extraction
+  fail when neither preview evidence nor limitation is present
+```
 
 ## Convex Function Map
 
@@ -202,6 +228,18 @@ createTastyPack({
 }) -> TastyPack
 ```
 
+For character/persona elements, prefer fields like:
+
+```text
+kind: "character"
+title: "Deadpan legacy-office guide"
+description: "A dry corporate-training host makes the AI product premise feel familiar."
+anchor: "opening host / recurring narrator"
+pinned: true only when the note explicitly liked that host/persona
+embeddingText: "deadpan old-school corporate guide character for AI office advert"
+tags: ["character:corporate-guide", "persona:deadpan-host"]
+```
+
 ## Source Kind Mapping
 
 - `url`: generic link, webpage, profile, or social URL.
@@ -240,7 +278,17 @@ the start," save:
 - attribution and remix boundaries as `remixConstraints`;
 - note-backed reusable ingredients as creative elements, with `pinned=true`
   only for elements the operator explicitly liked or selected;
+- distinctive hosts, guides, mascots, or archetypes as `kind="character"` when
+  the persona is a reusable creative ingredient;
 - retrieval facets for audience/output/industry/customer filters.
+
+When a character/persona is tied to a real performer, copyrighted character,
+brand mascot, or recognizable public identity, store a rights-safe remix
+constraint such as "reuse the guide archetype, dry delivery, and role contrast;
+do not copy the person's likeness, name, catchphrases, voice, or exact costume."
+When the operator note praises the character directly, pin the `character`
+element. When the character is merely visible but not part of the stated taste,
+leave it unpinned and keep it as context.
 
 ## Verification Standard
 
@@ -249,6 +297,8 @@ Storage is not done until Resource Bank returns:
 - the job and primary asset with expected source, title, status, tags, and
   retrieval facets;
 - at least one retained asset or an explicit note-only reason;
+- for visual/social/video captures, either a derived preview/evidence asset or a
+  source-access blocker in `retentionNote`;
 - at least one analysis from `ingest-content`;
 - at least one creative element for creative/video/social inspiration sources;
 - optional skill findings only when evidence supports them;

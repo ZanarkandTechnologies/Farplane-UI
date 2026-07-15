@@ -9,13 +9,15 @@ Each saved reference should answer:
 
 - `what_it_is`: the source format and visible subject.
 - `why_it_works`: the first 0-3s hook, contrast, novelty, emotional promise,
-  craft move, or audience fit.
+  craft move, character/persona, or audience fit.
 - `retention_beats`: what makes the viewer stay after the first few seconds.
 - `reusable_levers`: the repeatable parts that can inspire new work.
 - `reusable_elements`: first-class candidates such as style, layout, segment,
   asset, pattern, recipe, or remix constraint.
 - `asset_recipe`: what assets a future agent would need to recreate the
   pattern.
+- `character_recipe`: the reusable persona/archetype/host/guide role when a
+  distinctive character carries the idea.
 - `prompt_guess`: a compact generation or editing prompt when useful.
 - `remix_constraints`: what to avoid copying literally.
 - `best_for`: future project, content type, campaign, product surface, or vibe.
@@ -74,8 +76,18 @@ Write reusable levers as action-ready phrases:
 - `asset`: "messy desk background, black caption bar, yellow subtitle strip."
 - `pattern`: "contrarian claim over visual proof collage."
 - `recipe`: "generate four study-chaos panels, crop to 9:16 grid, overlay face."
+- `character`: "deadpan legacy-office guide who makes the AI product premise
+  feel familiar and absurdly credible."
 - `constraint`: "do not copy the creator identity, exact caption, or source
   frames; reuse the composition pattern."
+
+Use `character` for distinctive personas, archetypes, guides, hosts, mascots, or
+recurring figures when that role is part of why the reference is useful. Capture
+the reusable function: attitude, role in the story, contrast with the product,
+audience signal, performance style, and how future work can remix the archetype.
+If the source character is a real person, protected fictional character, brand
+mascot, or otherwise recognizable identity, add rights-safe constraints that
+avoid likeness, name, voice, catchphrases, exact costume, and direct continuity.
 
 ## Future Retrieval Query Shape
 

@@ -75,6 +75,8 @@ Breakdown variants:
 - `video`: first 0-3s hook, retention beats, pacing, shot structure, segment
   timing, editing pattern.
 - `copy`: caption, headline, claim, CTA, on-screen text, meme wording.
+- `character`: distinctive persona, guide, host, archetype, mascot, or recurring
+  figure carrying the creative premise.
 - `style`: mood, texture, genre, cultural pattern, audience signal.
 - `prompt`: likely generation/editing prompt or recreation instructions.
 
@@ -94,6 +96,8 @@ Reusable element candidates:
 - `segment`: time range, selected frame set, scene, quote, or audio moment.
 - `asset`: background image, cutout, thumbnail, frame, transcript, prompt.
 - `pattern`: hook, meme structure, before/after, contrast, pacing.
+- `character`: reusable persona, archetype, guide, host, mascot, or recurring
+  figure, captured as role/behavior/audience function rather than identity copy.
 - `recipe`: steps to regenerate something similar.
 - `constraint`: attribution, avoid-copying note, remix boundary.
 
@@ -131,9 +135,9 @@ Current Resource Bank storage can represent elements through:
   hook/retention notes, takeaways, prompt guess, remix constraints, confidence,
   and embedding text.
 - `resourceBankCreativeElements`: first-class reusable visual, audio, hook,
-  storyboard, editing, copy, format, and constraint elements. Pin only the
-  elements grounded in the operator note so downstream content planning can
-  focus more on them.
+  storyboard, editing, copy, character, format, and constraint elements. Pin
+  only the elements grounded in the operator note so downstream content planning
+  can focus more on them.
 - `resourceBankSkillFindings`: reusable techniques, skill updates, existing
   skill matches, and skill candidates.
 
