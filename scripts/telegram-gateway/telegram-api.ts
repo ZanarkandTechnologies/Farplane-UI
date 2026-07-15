@@ -87,17 +87,17 @@ export async function fetchTelegramUpdates(input: {
   timeoutSeconds?: number;
   fetchImpl?: typeof fetch;
 }): Promise<TelegramUpdate[]> {
-  const result = await telegramApi<TelegramUpdate[]>(
-    input.token,
-    "getUpdates",
-    {
-      offset: input.offset || undefined,
-      timeout: input.timeoutSeconds ?? 20,
-      allowed_updates: ["message"],
-    },
-    input.fetchImpl ?? fetch,
-  );
-  return result;
+  const url = new URL(`https://api.telegram.org/bot${input.token}/getUpdates`);
+  if (input.offset > 0) url.searchParams.set("offset", String(input.offset));
+  url.searchParams.set("timeout", String(input.timeoutSeconds ?? 20));
+  url.searchParams.set("allowed_updates", JSON.stringify(["message"]));
+
+  const response = await (input.fetchImpl ?? fetch)(url);
+  const body = (await response.json()) as TelegramApiResponse<TelegramUpdate[]>;
+  if (!response.ok || !body.ok || body.result === undefined) {
+    throw new Error(body.description ?? `telegram_getUpdates_failed:${response.status}`);
+  }
+  return body.result;
 }
 
 export async function sendTelegramReply(input: {
