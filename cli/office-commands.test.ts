@@ -157,10 +157,10 @@ describe("office CLI", () => {
       viewProfile?: string;
       cameraOrientation?: string;
     };
-    expect(settings.decor?.wallColorId).toBe("clay_rose");
+    expect(settings.decor?.wallColorId).toBe("command_charcoal");
     expect(settings.decor?.backgroundId).toBe("estuary_glow");
     expect(settings.viewProfile).toBe("fixed_2_5d");
-    expect(settings.cameraOrientation).toBe("south_west");
+    expect(settings.cameraOrientation).toBe("south_east");
 
     const objectsRaw = await readFile(path.join(stateDir, "office-objects.json"), "utf-8");
     const objects = JSON.parse(objectsRaw) as Array<{
