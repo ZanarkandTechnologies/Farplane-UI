@@ -1,8 +1,8 @@
 {
   "schema": "farplane_project",
-  "spec_version": "1.9.1",
+  "spec_version": "2.0.3",
   "template_uses": {
-    "farplane-framework": "1.9.1"
+    "farplane-framework": "2.0.3"
   },
   "project": {
     "name": "Farplane UI",
@@ -45,8 +45,12 @@
       ".farplane/metrics/daily/",
       ".farplane/project/ui/",
       ".farplane/reports/",
+      ".farplane/crm/",
       ".farplane/evals/runs/",
-      ".farplane/logs/"
+      ".farplane/events/",
+      ".farplane/logs/",
+      ".farplane/mine/",
+      ".farplane/state/"
     ]
   },
   "optional": {
