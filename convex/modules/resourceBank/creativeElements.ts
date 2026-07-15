@@ -13,7 +13,9 @@ import {
   buildCreativeElementEmbeddingText,
   clampLimit,
   cleanText,
+  includesAllTags,
   mergeTags,
+  normalizeTags,
 } from "./resourceBank";
 import {
   getAnalysisOrThrow,
@@ -26,6 +28,7 @@ import {
 } from "./records";
 import {
   addCreativeElementArgsValidator,
+  listCreativeElementsArgsValidator,
   listCreativeElementsByAssetArgsValidator,
   listCreativeElementsByJobArgsValidator,
   updateCreativeElementArgsValidator,
@@ -88,6 +91,61 @@ export const listCreativeElementsByAsset = query({
       .filter((row) => !args.kind || row.kind === args.kind)
       .slice(0, limit)
       .map(toCreativeElementRow);
+  },
+});
+
+export const listCreativeElements = query({
+  args: listCreativeElementsArgsValidator,
+  handler: async (ctx, args) => {
+    const limit = clampLimit(args.limit, 80, 200);
+    const queryText = cleanText(args.query, 500);
+    const kind = args.kind;
+    const rows = queryText
+      ? await ctx.db
+          .query("resourceBankCreativeElements")
+          .withSearchIndex("search_creative_elements", (q) => q.search("embeddingText", queryText))
+          .take(limit * 4)
+      : kind
+        ? await ctx.db
+            .query("resourceBankCreativeElements")
+            .withIndex("by_kind_createdAtMs", (q) => q.eq("kind", kind))
+            .order("desc")
+            .take(limit * 4)
+        : args.projectId
+          ? await ctx.db
+              .query("resourceBankCreativeElements")
+              .withIndex("by_project_createdAtMs", (q) => q.eq("projectId", args.projectId))
+              .order("desc")
+              .take(limit * 4)
+          : args.taskId
+            ? await ctx.db
+                .query("resourceBankCreativeElements")
+                .withIndex("by_task_createdAtMs", (q) => q.eq("taskId", args.taskId))
+                .order("desc")
+                .take(limit * 4)
+            : await ctx.db
+                .query("resourceBankCreativeElements")
+                .withIndex("by_createdAtMs")
+                .order("desc")
+                .take(limit * 4);
+    const tags = normalizeTags(args.tags);
+    const filteredRows = rows
+      .filter((row) => !args.kind || row.kind === args.kind)
+      .filter((row) => !args.projectId || row.projectId === args.projectId)
+      .filter((row) => !args.taskId || row.taskId === args.taskId)
+      .filter((row) => includesAllTags(row.tags, tags))
+      .slice(0, limit);
+    const assets = await Promise.all(filteredRows.map((row) => ctx.db.get(row.assetId)));
+    return filteredRows.map((row, index) => {
+      const asset = assets[index];
+      return {
+        ...toCreativeElementRow(row),
+        assetTitle: asset?.title,
+        assetKind: asset?.assetKind,
+        assetSourceUrl: asset?.sourceUrl,
+        assetCanonicalUrl: asset?.canonicalUrl,
+      };
+    });
   },
 });
 

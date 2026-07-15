@@ -229,6 +229,7 @@ export const resourceBankTables = {
     taskId: v.optional(v.string()),
     createdAtMs: v.number(),
   })
+    .index("by_createdAtMs", ["createdAtMs"])
     .index("by_asset", ["assetId"])
     .index("by_job", ["ingestionJobId"])
     .index("by_kind_createdAtMs", ["kind", "createdAtMs"])

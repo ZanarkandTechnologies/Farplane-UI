@@ -249,6 +249,15 @@ export const listCreativeElementsByJobArgsValidator = {
   limit: v.optional(v.number()),
 };
 
+export const listCreativeElementsArgsValidator = {
+  query: v.optional(v.string()),
+  kind: v.optional(creativeElementKindValidator),
+  tags: v.optional(v.array(v.string())),
+  projectId: v.optional(v.string()),
+  taskId: v.optional(v.string()),
+  limit: v.optional(v.number()),
+};
+
 export const dashboardArgsValidator = {
   query: v.optional(v.string()),
   tags: v.optional(v.array(v.string())),

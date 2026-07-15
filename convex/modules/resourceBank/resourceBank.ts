@@ -42,10 +42,17 @@ export type ResourceBankAnalysisRow = {
   _id?: string;
   assetId: string;
   analysisType: string;
+  sourceSkill?: string;
+  facts?: string[];
+  interpretation?: string[];
+  userIntent?: string;
   whyItWorks: string[];
   takeaways: string[];
+  transcriptText?: string;
+  frameNotes?: string;
   promptGuess?: string;
   remixConstraints: string[];
+  confidence?: string;
   embeddingText: string;
   tags: string[];
   createdAtMs: number;
@@ -97,7 +104,13 @@ export type ResourceBankAssetDetail = ResourceBankAssetRow & {
   creativeElements: ResourceBankCreativeElementRow[];
   derivedAssets: ResourceBankAssetRow[];
   previewAsset?: ResourceBankAssetRow;
+  previewStatus: ResourceBankPreviewStatus;
   skillFindings: ResourceBankSkillFindingRow[];
+};
+
+export type ResourceBankPreviewStatus = {
+  state: "ready" | "source_handle" | "missing";
+  message: string;
 };
 
 export type ResourceBankDashboard = {
@@ -618,19 +631,50 @@ export function buildResourceBankDashboard(
       skillFindingCount: skillFindings.length,
       latestSavedAt: primaryAssets[0]?.createdAtMs,
     },
-    assets: primaryAssets.map((asset) => ({
-      ...asset,
-      analyses: analysesByAsset.get(asset._id ?? "") ?? [],
-      creativeElements: elementsByAsset.get(asset._id ?? "") ?? [],
-      derivedAssets: derivedByParent.get(asset._id ?? "") ?? [],
-      previewAsset: selectPreviewAsset(asset, derivedByParent.get(asset._id ?? "") ?? []),
-      skillFindings: findingsByAsset.get(asset._id ?? "") ?? [],
-    })),
+    assets: primaryAssets.map((asset) => {
+      const derivedAssets = derivedByParent.get(asset._id ?? "") ?? [];
+      const previewAsset = selectPreviewAsset(asset, derivedAssets);
+      return {
+        ...asset,
+        analyses: analysesByAsset.get(asset._id ?? "") ?? [],
+        creativeElements: elementsByAsset.get(asset._id ?? "") ?? [],
+        derivedAssets,
+        previewAsset,
+        previewStatus: describePreviewStatus(asset, previewAsset),
+        skillFindings: findingsByAsset.get(asset._id ?? "") ?? [],
+      };
+    }),
     topTags: [...tagCounts.entries()]
       .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
       .slice(0, 16)
       .map(([tag, count]) => ({ tag, count })),
     clusters,
+  };
+}
+
+function describePreviewStatus(
+  asset: ResourceBankAssetRow,
+  previewAsset: ResourceBankAssetRow | undefined,
+): ResourceBankPreviewStatus {
+  if (previewAsset && hasBrowserDisplayablePreview(previewAsset)) {
+    return {
+      state: "ready",
+      message:
+        previewAsset.assetRole === "primary"
+          ? "Primary asset is browser-displayable."
+          : "Stored preview asset is ready.",
+    };
+  }
+  if (previewAsset || asset.sourceUrl || asset.canonicalUrl || asset.storageId || asset.localPath) {
+    return {
+      state: "source_handle",
+      message:
+        "Source reference is saved, but no browser-displayable thumbnail or contact sheet is stored.",
+    };
+  }
+  return {
+    state: "missing",
+    message: "No source handle or preview asset is stored for this reference.",
   };
 }
 
@@ -648,6 +692,14 @@ function selectPreviewAsset(
 
 function isPreviewableKind(kind: string): boolean {
   return kind === "image" || kind === "screenshot" || kind === "frame" || kind === "thumbnail";
+}
+
+function hasBrowserDisplayablePreview(asset: ResourceBankAssetRow): boolean {
+  if (asset.storageUrl || asset.localPath) return true;
+  const candidate = asset.canonicalUrl ?? asset.sourceUrl;
+  if (!candidate) return false;
+  if (candidate.startsWith("data:image/") || candidate.startsWith("blob:")) return true;
+  return /^https?:\/\//i.test(candidate) && /\.(avif|gif|jpe?g|png|webp)(\?.*)?$/i.test(candidate);
 }
 
 function groupBy<T>(values: readonly T[], getKey: (value: T) => string): Map<string, T[]> {

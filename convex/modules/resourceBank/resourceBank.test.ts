@@ -150,10 +150,44 @@ describe("resource bank helpers", () => {
       latestSavedAt: 10,
     });
     expect(dashboard.assets[0]?.previewAsset?.sourceUrl).toBe("https://example.com/thumb.jpg");
+    expect(dashboard.assets[0]?.previewStatus.state).toBe("ready");
     expect(dashboard.assets[0]?.derivedAssets).toHaveLength(1);
     expect(dashboard.assets[0]?.creativeElements[0]?.title).toBe("Cold open");
     expect(dashboard.assets[0]?.skillFindings).toHaveLength(1);
     expect(dashboard.clusters.map((cluster) => cluster.key)).toContain("skill:video-structure");
+  });
+
+  it("marks source-only video assets when no browser preview was stored", () => {
+    const dashboard = buildResourceBankDashboard(
+      [
+        {
+          _id: "asset-1",
+          title: "Instagram source-only reference",
+          assetKind: "video",
+          assetRole: "primary",
+          sourceUrl: "https://www.instagram.com/p/example/",
+          outputTypes: [],
+          audiences: [],
+          ageRanges: [],
+          industries: [],
+          customerRoles: [],
+          tags: ["instagram"],
+          searchableText: "source only",
+          createdAtMs: 10,
+          updatedAtMs: 10,
+        },
+      ],
+      [],
+      [],
+      [],
+    );
+
+    expect(dashboard.assets[0]?.previewAsset).toBeUndefined();
+    expect(dashboard.assets[0]?.previewStatus).toEqual({
+      state: "source_handle",
+      message:
+        "Source reference is saved, but no browser-displayable thumbnail or contact sheet is stored.",
+    });
   });
 
   it("resolves timeframe and customer facets for tasty packs", () => {
