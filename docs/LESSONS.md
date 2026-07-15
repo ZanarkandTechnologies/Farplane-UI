@@ -43,3 +43,36 @@ Lesson:
 
 Promote:
 - Keep here / move to Thread Data or mining bridge contract if repeated.
+
+2026-07-15 | office/layout | Validate rendered bounds and semantic inventory, not placement proxies alone
+
+Context:
+- A command-office composition passed collision checks while render-only furniture crossed into team neighborhoods, and the scene silently carried only two of thirteen supported activity rooms.
+
+Lesson:
+- A spatial acceptance report must use the final visual footprint for intersection and shell checks, then separately assert that every required semantic destination exists exactly once.
+
+Promote:
+- Keep in the office quality validator and browser proof contract.
+
+2026-07-15 | office/visual-integrity | Collision fixes must preserve accepted scene richness
+
+Context:
+- A technically passing collision correction deleted the command-office beams and reduced every activity destination to a generic sphere or box.
+
+Lesson:
+- Treat accepted architectural rhythm and semantic prop identity as preservation constraints. Resize, relocate, or bind them to shared geometry contracts; do not remove them merely to improve collision or performance scores.
+
+Promote:
+- Keep in the office interior-design and visual QA correction loop.
+
+2026-07-15 | office/activity-rooms | Semantic rooms need actions and furnishing contracts
+
+Context:
+- All canonical activity destinations could be present and collision-free while most still had no panel action and read as unfurnished display patches.
+
+Lesson:
+- Treat a first-party room as one contract spanning canonical identity, a registry-valid interaction binding, persisted style metadata, renderer-owned decor, and inventory proof. Geometry alone does not make the room complete.
+
+Promote:
+- Keep in the canonical activity-room catalog and browser lifecycle proof.
