@@ -34,6 +34,8 @@ import {
   parseOfficeLayoutTileKey,
 } from "@/modules/office/lib/office-layout";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
+import { markOfficeKitCustomized } from "@/modules/office/lib/office-kit";
+import { updateOfficeQaState } from "@/modules/office/qa/office-qa-state";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useLayoutEditorHudRegistration } from "./layout-editor-hud-context";
 import {
@@ -297,7 +299,7 @@ export function OfficeLayoutEditor({
       }
 
       const nextSettings = {
-        ...officeSettings,
+        ...markOfficeKitCustomized(officeSettings),
         officeLayout: nextLayout,
         officeFootprint: getOfficeFootprintFromLayout(nextLayout),
       };
@@ -335,6 +337,41 @@ export function OfficeLayoutEditor({
   ]);
 
   const setLayoutEditorHud = useLayoutEditorHudRegistration();
+  const applyBuilderFixture = useCallback(async (): Promise<boolean> => {
+    const parsedTiles = officeSettings.officeLayout.tiles
+      .map(parseOfficeLayoutTileKey)
+      .filter((tile): tile is { x: number; z: number } => tile !== null);
+    const edge = parsedTiles.reduce(
+      (best, tile) => (tile.x > best.x ? tile : best),
+      parsedTiles[0] ?? { x: 0, z: 0 },
+    );
+    const nextLayout = fillEnclosedOfficeLayoutGaps(
+      applyOfficeLayoutPaint(
+        officeSettings.officeLayout,
+        [officeLayoutTileKey(edge.x + 1, edge.z)],
+        "add",
+      ),
+    );
+    const nextSettings = {
+      ...markOfficeKitCustomized(officeSettings),
+      officeLayout: nextLayout,
+      officeFootprint: getOfficeFootprintFromLayout(nextLayout),
+    };
+    const result = await saveOfficeSettingsOptimistically({
+      previousSettings: officeSettings,
+      nextSettings,
+      applyOfficeSettings,
+      saveOfficeSettings: (settings) => adapter.saveOfficeSettings(settings),
+    });
+    return result.ok;
+  }, [adapter, applyOfficeSettings, officeSettings]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || typeof window === "undefined") return;
+    updateOfficeQaState({ applyBuilderFixture });
+    return () => updateOfficeQaState({ applyBuilderFixture: undefined });
+  }, [applyBuilderFixture]);
+
   useEffect(() => {
     if (!paintMode) {
       setLayoutEditorHud({

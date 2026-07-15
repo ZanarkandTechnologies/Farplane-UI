@@ -45,7 +45,8 @@ function resolveFloorTileColor(
     return (x + z) % 2 === 0 ? accent : base;
   }
   if (patternId === "graphite_grid") {
-    return x % 3 === 0 || z % 3 === 0 ? line : accent;
+    void line;
+    return (x + z) % 2 === 0 ? accent : base;
   }
   return z % 2 === 0 ? accent : base;
 }

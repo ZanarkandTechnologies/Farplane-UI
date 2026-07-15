@@ -52,4 +52,26 @@ describe("office idle interactions", () => {
     expect(targets.map((target) => target.objectId)).toEqual(["object-couch"]);
     expect(targets[0]?.phrases.length).toBeGreaterThan(0);
   });
+
+  it("turns an activity landmark into a semantic scene target", () => {
+    const [target] = buildIdleInteractionTargets([
+      createObject({
+        _id: "activity-library",
+        meshType: "activity-landmark",
+        metadata: { landmarkKind: "library", displayName: "Library" },
+      }),
+    ]);
+
+    expect(target).toEqual(
+      expect.objectContaining({
+        objectId: "activity-library",
+        phrases: ["Browsing a reference book", "Reading between tasks"],
+        activityScene: expect.objectContaining({
+          sceneKey: "read-book",
+          baseSpriteAnimation: "review",
+          propKind: "book",
+        }),
+      }),
+    );
+  });
 });

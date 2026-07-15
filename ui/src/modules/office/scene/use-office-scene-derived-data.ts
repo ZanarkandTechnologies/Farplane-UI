@@ -18,6 +18,7 @@
 import { useMemo } from "react";
 import type { AgentLiveStatus } from "@/modules/runtime";
 import { deriveEmployeeActivity } from "@/providers/office-employee-activity";
+import { resolveActivityScenePresentation } from "../activity-scenes";
 import { buildIdleInteractionTargets } from "../idle-interactions";
 import type { DeskLayoutData, EmployeeData, OfficeObject, TeamData } from "../lib/types";
 import { parseOfficeObjectInteractionConfig } from "../office-object-ui";
@@ -129,6 +130,10 @@ export function applyLiveStatusToSceneEmployees(input: {
       activityTargetObjectPosition: skillTargetObject?.position,
       activityTargetSkillId: activeSkillId,
       activityEffectVariant,
+      activityScenePresentation:
+        skillTargetObject?.meshType === "activity-landmark"
+          ? resolveActivityScenePresentation(skillTargetObject.metadata)
+          : undefined,
       statusMessage: liveStatus.statusText ?? employee.statusMessage,
       wantsToWander: hasActiveThread ? false : employee.wantsToWander,
       activityState: activity.state,

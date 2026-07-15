@@ -25,12 +25,19 @@
 import { computeBusinessReadinessIssues, projectToBusinessBuilderDraft } from "@/modules/business";
 import { normalizeOfficeObjectId } from "@/modules/office/components/office-object-id";
 import {
+  hasCanonicalActivityRoomSeed,
+  hydrateCanonicalActivityRooms,
+  restoreCanonicalActivityRooms,
+} from "@/modules/office/lib/canonical-activity-rooms";
+import { createCommandCommonsObject } from "@/modules/office/lib/central-command-commons";
+import {
   buildOfficeAreaLayout,
   getOfficeAreaAnchor,
-  type OfficeAreaLayout,
   type OfficeAreaNode,
   type ProjectActivitySummary,
 } from "@/modules/office/lib/office-area-layout";
+import { DEFAULT_OFFICE_DECOR } from "@/modules/office/lib/office-decor";
+import { DEFAULT_OFFICE_FOOTPRINT } from "@/modules/office/lib/office-footprint";
 import {
   buildDefaultFurnitureObjects,
   getCompactFurnitureAnchor,
@@ -42,23 +49,30 @@ import {
   placeFurnitureObjects,
   toPlacementObject,
 } from "@/modules/office/lib/office-furniture-placement";
-import { DEFAULT_OFFICE_FOOTPRINT } from "@/modules/office/lib/office-footprint";
+import { COMMAND_OFFICE_PROJECT_CAPACITY } from "@/modules/office/lib/office-kit";
 import {
   clampPositionToOfficeLayout,
   createRectangularOfficeLayout,
+  getManagementAnchorFromOfficeLayout,
   getOfficeFootprintFromLayout,
   getOfficeLayoutBounds,
   getOfficeLayoutTileSet,
-  getManagementAnchorFromOfficeLayout,
+  type OfficeLayoutModel,
   officeLayoutTileKey,
   parseOfficeLayoutTileKey,
-  type OfficeLayoutModel,
 } from "@/modules/office/lib/office-layout";
 import {
   evaluateOfficeLayoutQuality,
   evaluateOfficePoiGraph,
 } from "@/modules/office/lib/office-layout-quality";
 import { solveOfficeAutoLayout } from "@/modules/office/lib/office-layout-solver";
+import {
+  addPaddedOfficeLayoutTile as addPaddedTile,
+  buildOfficeConnectivityGraphEdges as buildConnectivityGraphEdges,
+  getOfficeExteriorVoidTiles as getExteriorVoidTiles,
+  isOfficeExteriorBoundaryLayoutTile as isExteriorBoundaryLayoutTile,
+  sortOfficeLayoutTiles as sortLayoutTiles,
+} from "@/modules/office/lib/office-layout-topology";
 import type {
   Company,
   DeskLayoutData,
@@ -74,6 +88,10 @@ import {
   getOfficeSkillAnchorPositionForOccupant,
 } from "@/modules/office/skill-targeting";
 import {
+  getObjectFootprintAabb,
+  getObjectFootprintCells,
+} from "@/modules/office/systems/occupancy-system";
+import {
   canReserveOfficeObject,
   createOfficePlacementReservation,
   getOfficeLayoutCandidatePositions,
@@ -81,10 +99,6 @@ import {
   type OfficePlacementReservation,
   reserveOfficeObjectPlacement,
 } from "@/modules/office/systems/placement-engine";
-import {
-  getObjectFootprintAabb,
-  getObjectFootprintCells,
-} from "@/modules/office/systems/occupancy-system";
 import {
   getAbsoluteDeskPosition,
   getClusterOccupancyFootprint,
@@ -101,9 +115,9 @@ import type {
   FederatedTaskProvider,
   FederationProjectPolicy,
   OfficeSettingsModel,
-  ProjectModel,
   OpenClawConfigSnapshot,
   PendingApprovalModel,
+  ProjectModel,
   ProjectWorkloadSummary,
   ProviderIndexProfile,
   ReconciliationWarning,
@@ -132,7 +146,6 @@ const AUTO_FIT_OFFICE_PADDING_TILES = 1;
 const AUTO_FIT_OFFICE_MIN_WIDTH = 8;
 const AUTO_FIT_OFFICE_MIN_DEPTH = 7;
 const AUTO_FIT_CORRIDOR_RADIUS_TILES = 1;
-const AUTO_FIT_LOOP_EDGE_RATIO = 0.2;
 const AUTO_FIT_EMPTY_AREA_TARGET = 0.3;
 const COMPACT_CLUSTER_GAP_TILES = 1.25;
 const TEAM_NEIGHBORHOOD_ANCHOR_SCALE = 0.55;
@@ -141,6 +154,16 @@ const AREA_PLANNER_TABLE_PADDING_TILES = 2.75;
 const AREA_PLANNER_LABEL_CLEARANCE_TILES = 1.5;
 const AREA_PLANNER_MIN_TEAM_WIDTH = 11;
 const AREA_PLANNER_MIN_TEAM_DEPTH = 9;
+
+function getAgentOverflowOffset(agentId: string): [number, number] {
+  let hash = 0;
+  for (let index = 0; index < agentId.length; index += 1) {
+    hash = (hash * 31 + agentId.charCodeAt(index)) >>> 0;
+  }
+  const angle = ((hash % 360) / 180) * Math.PI;
+  const radius = 0.8 + ((hash >>> 9) % 4) * 0.18;
+  return [Math.cos(angle) * radius, Math.sin(angle) * radius];
+}
 export interface OfficeDataContextValue {
   company: Company | null;
   teams: TeamData[];
@@ -224,12 +247,13 @@ function getTeamClusterPlacementMetadata(
   deskCount: number,
 ): Record<string, unknown> {
   const footprint = getClusterOccupancyFootprint(deskCount);
+  const commandCommonsNeighborhood = metadata?.commandCommonsNeighborhood === true;
   return {
     ...(metadata ?? {}),
     deskCount,
-    footprintWidth: footprint.width,
-    footprintDepth: footprint.depth,
-    footprintClearance: footprint.clearance,
+    footprintWidth: commandCommonsNeighborhood ? 6.25 : footprint.width,
+    footprintDepth: commandCommonsNeighborhood ? 4.75 : footprint.depth,
+    footprintClearance: commandCommonsNeighborhood ? 0.65 : footprint.clearance,
   };
 }
 
@@ -249,16 +273,6 @@ function arePositionsEqual(
 function areOfficeLayoutTilesEqual(left: OfficeLayoutModel, right: OfficeLayoutModel): boolean {
   if (left.tiles.length !== right.tiles.length) return false;
   return left.tiles.every((tile, index) => tile === right.tiles[index]);
-}
-
-function sortLayoutTiles(tiles: Iterable<string>): string[] {
-  return [...tiles].sort((left, right) => {
-    const [leftX, leftZ] = left.split(":").map(Number);
-    const [rightX, rightZ] = right.split(":").map(Number);
-    if (!Number.isFinite(leftX) || !Number.isFinite(leftZ)) return left.localeCompare(right);
-    if (!Number.isFinite(rightX) || !Number.isFinite(rightZ)) return left.localeCompare(right);
-    return leftZ === rightZ ? leftX - rightX : leftZ - rightZ;
-  });
 }
 
 function expandOfficeLayoutWithAnnex(input: {
@@ -335,14 +349,6 @@ function expandTileBoundsToMinimum(input: {
     maxTileZ += Math.ceil(delta / 2);
   }
   return { minTileX, maxTileX, minTileZ, maxTileZ };
-}
-
-function addPaddedTile(tileSet: Set<string>, x: number, z: number, radius: number): void {
-  for (let dx = -radius; dx <= radius; dx += 1) {
-    for (let dz = -radius; dz <= radius; dz += 1) {
-      tileSet.add(officeLayoutTileKey(x + dx, z + dz));
-    }
-  }
 }
 
 function addCorridorTiles(input: {
@@ -444,61 +450,6 @@ function getObjectAccessTile(input: {
     candidates.find((candidate) => !occupied.has(officeLayoutTileKey(candidate.x, candidate.z))) ??
     null
   );
-}
-
-interface ConnectivityEdge {
-  from: number;
-  to: number;
-  distance: number;
-}
-
-function getConnectivityEdges(centers: Array<{ x: number; z: number }>): ConnectivityEdge[] {
-  const edges: ConnectivityEdge[] = [];
-  for (let from = 0; from < centers.length; from += 1) {
-    for (let to = from + 1; to < centers.length; to += 1) {
-      const left = centers[from];
-      const right = centers[to];
-      edges.push({
-        from,
-        to,
-        distance: Math.abs(left.x - right.x) + Math.abs(left.z - right.z),
-      });
-    }
-  }
-  return edges.sort((left, right) => left.distance - right.distance);
-}
-
-function findConnectivityParent(parents: number[], index: number): number {
-  let current = index;
-  while (parents[current] !== current) {
-    parents[current] = parents[parents[current]];
-    current = parents[current];
-  }
-  return current;
-}
-
-function buildConnectivityGraphEdges(centers: Array<{ x: number; z: number }>): ConnectivityEdge[] {
-  if (centers.length <= 1) return [];
-  const allEdges = getConnectivityEdges(centers);
-  const parents = centers.map((_, index) => index);
-  const mstEdges: ConnectivityEdge[] = [];
-  const mstEdgeKeys = new Set<string>();
-
-  for (const edge of allEdges) {
-    const leftRoot = findConnectivityParent(parents, edge.from);
-    const rightRoot = findConnectivityParent(parents, edge.to);
-    if (leftRoot === rightRoot) continue;
-    parents[rightRoot] = leftRoot;
-    mstEdges.push(edge);
-    mstEdgeKeys.add(`${edge.from}:${edge.to}`);
-    if (mstEdges.length === centers.length - 1) break;
-  }
-
-  const loopBudget = Math.ceil(mstEdges.length * AUTO_FIT_LOOP_EDGE_RATIO);
-  const loopEdges = allEdges
-    .filter((edge) => !mstEdgeKeys.has(`${edge.from}:${edge.to}`))
-    .slice(0, loopBudget);
-  return [...mstEdges, ...loopEdges];
 }
 
 function createUniformLayoutFromTileSet(input: {
@@ -619,53 +570,6 @@ function getOccupiedOfficeLayoutTiles(input: {
     }
   }
   return occupiedTiles;
-}
-
-function getExteriorVoidTiles(tileSet: Set<string>): Set<string> {
-  const seedLayout = createTileMaskLayoutFromTileSet(tileSet);
-  if (!seedLayout) return new Set();
-  const bounds = getOfficeLayoutBounds(seedLayout);
-  const minTileX = bounds.minTileX - 1;
-  const maxTileX = bounds.maxTileX + 1;
-  const minTileZ = bounds.minTileZ - 1;
-  const maxTileZ = bounds.maxTileZ + 1;
-  const exteriorVoid = new Set<string>();
-  const pending = [{ x: minTileX, z: minTileZ }];
-
-  while (pending.length > 0) {
-    const current = pending.pop();
-    if (!current) continue;
-    if (
-      current.x < minTileX ||
-      current.x > maxTileX ||
-      current.z < minTileZ ||
-      current.z > maxTileZ
-    ) {
-      continue;
-    }
-    const key = officeLayoutTileKey(current.x, current.z);
-    if (tileSet.has(key) || exteriorVoid.has(key)) continue;
-    exteriorVoid.add(key);
-    pending.push(
-      { x: current.x + 1, z: current.z },
-      { x: current.x - 1, z: current.z },
-      { x: current.x, z: current.z + 1 },
-      { x: current.x, z: current.z - 1 },
-    );
-  }
-
-  return exteriorVoid;
-}
-
-function isExteriorBoundaryLayoutTile(input: { tile: string; exteriorVoid: Set<string> }): boolean {
-  const parsed = parseOfficeLayoutTileKey(input.tile);
-  if (!parsed) return false;
-  return (
-    input.exteriorVoid.has(officeLayoutTileKey(parsed.x + 1, parsed.z)) ||
-    input.exteriorVoid.has(officeLayoutTileKey(parsed.x - 1, parsed.z)) ||
-    input.exteriorVoid.has(officeLayoutTileKey(parsed.x, parsed.z + 1)) ||
-    input.exteriorVoid.has(officeLayoutTileKey(parsed.x, parsed.z - 1))
-  );
 }
 
 function pruneEmptyLayoutTilesForTarget(input: {
@@ -927,6 +831,13 @@ function isTeamClusterPlacementLocked(
   return isOfficeObjectPlacementLocked(object);
 }
 
+function isSolverOwnedActivityDestination(
+  object: { meshType?: string },
+  isManualLayout: boolean,
+): boolean {
+  return !isManualLayout && object.meshType === "activity-landmark";
+}
+
 interface TeamAreaPlanningEntry {
   teamId: string;
   projectId?: string;
@@ -946,14 +857,8 @@ function getReadableTeamAreaSize(
     AREA_PLANNER_TABLE_PADDING_TILES * 2 +
     AREA_PLANNER_LABEL_CLEARANCE_TILES;
   return {
-    width: Math.max(
-      AREA_PLANNER_MIN_TEAM_WIDTH,
-      Math.ceil(footprint.width + edgeClearance),
-    ),
-    depth: Math.max(
-      AREA_PLANNER_MIN_TEAM_DEPTH,
-      Math.ceil(footprint.depth + edgeClearance),
-    ),
+    width: Math.max(AREA_PLANNER_MIN_TEAM_WIDTH, Math.ceil(footprint.width + edgeClearance)),
+    depth: Math.max(AREA_PLANNER_MIN_TEAM_DEPTH, Math.ceil(footprint.depth + edgeClearance)),
   };
 }
 
@@ -1062,18 +967,44 @@ function getCompactTeamAnchor(input: {
   const row = Math.floor(input.index / columns);
   const rows = Math.max(1, Math.ceil(input.total / columns));
   const spacingFootprint = input.footprint ?? input.largestFootprint;
-  const spacingX = Math.max(
-    3,
-    Math.ceil(spacingFootprint.width + COMPACT_CLUSTER_GAP_TILES),
-  );
-  const spacingZ = Math.max(
-    3,
-    Math.ceil(spacingFootprint.depth + COMPACT_CLUSTER_GAP_TILES),
-  );
+  const spacingX = Math.max(3, Math.ceil(spacingFootprint.width + COMPACT_CLUSTER_GAP_TILES));
+  const spacingZ = Math.max(3, Math.ceil(spacingFootprint.depth + COMPACT_CLUSTER_GAP_TILES));
   return [
     Math.round(input.origin[0] + (col - (columns - 1) / 2) * spacingX),
     0,
     Math.round(input.origin[2] + (row - (rows - 1) / 2) * spacingZ),
+  ];
+}
+
+function getCentralCommandTeamAnchor(input: {
+  index: number;
+  total: number;
+  origin: [number, number, number];
+}): [number, number, number] {
+  const ringSlots: Array<[number, number]> = [
+    [-8.5, -11.5],
+    [8.5, -11.5],
+    [11.5, -3.5],
+    [11.5, 3.5],
+    [-8.5, 11.5],
+    [8.5, 11.5],
+    [-11.5, -3.5],
+    [-11.5, 3.5],
+  ];
+  const slot = ringSlots[input.index];
+  if (slot) {
+    return [
+      Math.round(input.origin[0] + slot[0]),
+      0,
+      Math.round(input.origin[2] + slot[1]),
+    ];
+  }
+  const overflowIndex = input.index - ringSlots.length;
+  const angle = (overflowIndex / Math.max(1, input.total - ringSlots.length)) * Math.PI * 2;
+  return [
+    Math.round(input.origin[0] + Math.cos(angle) * 9.5),
+    0,
+    Math.round(input.origin[2] + Math.sin(angle) * 8.5),
   ];
 }
 
@@ -1108,6 +1039,7 @@ function compareProjectPlacementEntries(input: {
 function getTeamClusterRepairSpecs(input: {
   unified: UnifiedOfficeModel;
   officeLayout: OfficeLayoutModel;
+  commandOfficeCapacity?: number;
 }): TeamClusterRepairSpec[] {
   const sidecarObjects = dedupeCanonicalSidecarObjects(input.unified.officeObjects ?? []);
   const persistedTeamClusterByTeamId = buildPersistedTeamClusterByTeamId(sidecarObjects);
@@ -1133,9 +1065,16 @@ function getTeamClusterRepairSpecs(input: {
     });
   }
 
-  input.unified.company.projects
-    .filter((project) => project.status !== "archived")
-    .forEach((project, projectIndex) => {
+  const activeProjects = input.unified.company.projects.filter(
+    (project) => project.status !== "archived",
+  );
+  const selectedProjects = (input.commandOfficeCapacity == null
+    ? activeProjects
+    : activeProjects.slice(0, input.commandOfficeCapacity));
+  if (input.commandOfficeCapacity != null) {
+    selectedProjects.sort((left, right) => left.id.localeCompare(right.id));
+  }
+  selectedProjects.forEach((project, projectIndex) => {
       const teamId = `team-${project.id}`;
       const projectAgents = companyAgents.filter((agent) => agent.projectId === project.id);
       const existing = persistedTeamClusterByTeamId.get(teamId);
@@ -1146,7 +1085,7 @@ function getTeamClusterRepairSpecs(input: {
         teamId,
         name: project.name,
         description: project.goal,
-        deskCount: Math.max(projectAgents.length, 1),
+        deskCount: input.commandOfficeCapacity == null ? Math.max(projectAgents.length, 1) : 1,
         preferredPosition:
           existing?.position ??
           preferredAreaAnchor ??
@@ -1248,6 +1187,10 @@ export function repairTeamClusterPlacements(input: {
   const specs = getTeamClusterRepairSpecs({
     unified: input.unified,
     officeLayout: input.officeSettings.officeLayout,
+    commandOfficeCapacity:
+      input.officeSettings.officeKit?.kitId === "command-office"
+        ? COMMAND_OFFICE_PROJECT_CAPACITY
+        : undefined,
   });
   if (specs.length === 0) {
     return {
@@ -1300,10 +1243,23 @@ export function repairTeamClusterPlacements(input: {
     if (teamId) repairedByTeamId.set(teamId, object);
   }
   const expectedTeamIds = new Set(specs.map((spec) => spec.teamId));
+  const activeProjectTeamIds = new Set(
+    input.unified.company.projects
+      .filter((project) => project.status !== "archived")
+      .map((project) => `team-${project.id}`),
+  );
   const nextObjects = [
     ...originalObjects.filter((object) => {
       if (object.meshType !== "team-cluster") return true;
       const teamId = resolveTeamClusterTeamId(object);
+      if (
+        input.officeSettings.officeKit?.kitId === "command-office" &&
+        teamId &&
+        activeProjectTeamIds.has(teamId) &&
+        !expectedTeamIds.has(teamId)
+      ) {
+        return false;
+      }
       return !teamId || !expectedTeamIds.has(teamId);
     }),
     ...specs.map(
@@ -1566,11 +1522,7 @@ export function fallbackData(): OfficeDataContextValue {
       meshAssetDir: "",
       officeFootprint: DEFAULT_OFFICE_FOOTPRINT,
       officeLayout: createRectangularOfficeLayout(DEFAULT_OFFICE_FOOTPRINT),
-      decor: {
-        floorPatternId: "sandstone_tiles",
-        wallColorId: "gallery_cream",
-        backgroundId: "shell_haze",
-      },
+      decor: { ...DEFAULT_OFFICE_DECOR },
       viewProfile: "free_orbit_3d",
       orbitControlsEnabled: true,
       cameraOrientation: "south_east",
@@ -1660,6 +1612,9 @@ export function toOfficeData(
   const layoutStrategy = officeSettings.layoutStrategy ?? "team_neighborhoods";
   const isManualLayout = layoutStrategy === "manual";
   const usesCanonicalAutoLayoutSolver = !isManualLayout;
+  const usesCentralCommandCommons =
+    (!isManualLayout && layoutStrategy === "team_neighborhoods") ||
+    officeSettings.officeKit?.kitId === "command-office";
   const usesProjectDistricts =
     layoutStrategy === "team_neighborhoods" ||
     layoutStrategy === "activity_treemap" ||
@@ -1688,7 +1643,7 @@ export function toOfficeData(
         project,
         sourceIndex,
         projectAgents,
-        deskCount: Math.max(projectAgents.length, 1),
+        deskCount: usesCentralCommandCommons ? 1 : Math.max(projectAgents.length, 1),
       };
     })
     .sort((left, right) =>
@@ -1702,30 +1657,45 @@ export function toOfficeData(
   const projectAgentsByProjectId = new Map(
     projectPlacementEntries.map((entry) => [entry.project.id, entry.projectAgents]),
   );
+  const seatedCommandProjectIds = new Set(
+    projectPlacementEntries
+      .slice(0, COMMAND_OFFICE_PROJECT_CAPACITY)
+      .map((entry) => entry.project.id),
+  );
   const projectActivity = deriveProjectActivitySummaries({
     companyAgents,
     runtimeAgents,
   });
   const projectDeskCountByProjectId = new Map(
-    projectPlacementEntries.map((entry) => [entry.project.id, entry.deskCount]),
+    projectPlacementEntries.map((entry) => [
+      entry.project.id,
+      usesCentralCommandCommons && !seatedCommandProjectIds.has(entry.project.id)
+        ? 0
+        : entry.deskCount,
+    ]),
   );
   const sidecarFurnitureEntries = sidecarObjects.filter(
     (entry) => entry.meshType !== "team-cluster" && entry.meshType !== "wall-art",
   );
   const lockedSidecarFurnitureEntries = sidecarFurnitureEntries.filter(
     (entry) =>
-      isOfficeObjectPlacementLocked(entry) ||
-      (!usesCanonicalAutoLayoutSolver && !isAutoPackableStarterObject(entry)),
+      !isSolverOwnedActivityDestination(entry, isManualLayout) &&
+      (isOfficeObjectPlacementLocked(entry) ||
+        (!usesCanonicalAutoLayoutSolver && !isAutoPackableStarterObject(entry))),
   );
   const lockedTeamClusterEntries = sidecarObjects.filter(
     (entry) => entry.meshType === "team-cluster" && isTeamClusterPlacementLocked(entry),
   );
   const planningTeams: TeamAreaPlanningEntry[] = [
-    ...projectPlacementEntries.map((entry) => ({
-      teamId: `team-${entry.project.id}`,
-      projectId: entry.project.id,
-      deskCount: entry.deskCount,
-    })),
+    ...projectPlacementEntries
+      .filter(
+        (entry) => !usesCentralCommandCommons || seatedCommandProjectIds.has(entry.project.id),
+      )
+      .map((entry) => ({
+        teamId: `team-${entry.project.id}`,
+        projectId: entry.project.id,
+        deskCount: entry.deskCount,
+      })),
     ...(!hasPinnedCeoThread ? [{ teamId: "team-management", deskCount: 1 }] : []),
   ];
   const officeLayout = isManualLayout
@@ -1818,6 +1788,37 @@ export function toOfficeData(
         rotation: entry.rotation,
       })),
   );
+  const persistedCommandCommonsEntry = usesCentralCommandCommons
+    ? sidecarFurnitureEntries.find((entry) => entry.meshType === "command-commons")
+    : undefined;
+  const persistedCommandCommonsObject: OfficeObject | null = persistedCommandCommonsEntry
+    ? {
+        _id: normalizeOfficeObjectId(persistedCommandCommonsEntry.id),
+        companyId,
+        meshType: "command-commons",
+        position: persistedCommandCommonsEntry.position,
+        rotation: persistedCommandCommonsEntry.rotation ?? [0, 0, 0],
+        scale: persistedCommandCommonsEntry.scale,
+        metadata: { ...(persistedCommandCommonsEntry.metadata ?? {}) },
+      }
+    : null;
+  const commandCommonsSeed = usesCentralCommandCommons && !persistedCommandCommonsObject
+    ? createCommandCommonsObject({ center: compactAnchorOrigin, companyId })
+    : null;
+  const commandCommonsPosition = commandCommonsSeed
+    ? resolveSceneObjectPosition({
+        object: toPlacementObject(commandCommonsSeed),
+        officeLayout,
+        reservation: scenePlacementReservation,
+        allowCollisionFallback: true,
+      })
+    : null;
+  const commandCommonsObject =
+    persistedCommandCommonsObject ??
+    (commandCommonsSeed && commandCommonsPosition
+      ? { ...commandCommonsSeed, position: commandCommonsPosition }
+      : null);
+  const teamAnchorOrigin = commandCommonsObject?.position ?? compactAnchorOrigin;
   const teamClusterPositionsByTeamId = new Map<string, [number, number, number]>();
   let managementClusterPosition: [number, number, number] | undefined;
   let sidecarFurniture: OfficeObject[] = [];
@@ -1831,31 +1832,39 @@ export function toOfficeData(
     const shouldPreservePersistedCluster =
       (isManualLayout && Boolean(persistedClusterPosition)) ||
       isTeamClusterPlacementLocked(persistedCluster);
-    const compactAnchor = getCompactTeamAnchor({
-      index: placementIndex,
-      total: planningTeams.length,
-      origin: compactAnchorOrigin,
-      largestFootprint: largestTeamFootprint,
-      footprint: usesCanonicalAutoLayoutSolver
-        ? {
-            width:
-              getClusterOccupancyFootprint(deskCount).width *
-              TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
-            depth:
-              getClusterOccupancyFootprint(deskCount).depth *
-              TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
-          }
-        : undefined,
-    });
-    const projectArea =
-      usesProjectDistricts ? planningAreaLayout.projectAreaByProjectId[project.id] : undefined;
-    const areaAnchor =
-      projectArea
-        ? getOfficeAreaAnchor(projectArea)
-        : undefined;
-    const generatedAnchor = usesProjectDistricts
-      ? (areaAnchor ?? compactAnchor)
-      : compactAnchor;
+    const compactAnchor = usesCentralCommandCommons
+      ? getCentralCommandTeamAnchor({
+          index: placementIndex,
+          total: planningTeams.length,
+          origin: teamAnchorOrigin,
+        })
+      : getCompactTeamAnchor({
+          index: placementIndex,
+          total: planningTeams.length,
+          origin: teamAnchorOrigin,
+          largestFootprint: largestTeamFootprint,
+          footprint: usesCanonicalAutoLayoutSolver
+            ? {
+                width:
+                  getClusterOccupancyFootprint(deskCount).width * TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
+                depth:
+                  getClusterOccupancyFootprint(deskCount).depth * TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
+              }
+            : undefined,
+        });
+    if (usesCentralCommandCommons && !seatedCommandProjectIds.has(project.id)) {
+      teamClusterPositionsByTeamId.set(teamId, compactAnchor);
+      continue;
+    }
+    const projectArea = usesProjectDistricts
+      ? planningAreaLayout.projectAreaByProjectId[project.id]
+      : undefined;
+    const areaAnchor = projectArea ? getOfficeAreaAnchor(projectArea) : undefined;
+    const generatedAnchor = usesCentralCommandCommons
+      ? compactAnchor
+      : usesProjectDistricts
+        ? (areaAnchor ?? compactAnchor)
+        : compactAnchor;
     const clusterPosition = resolveTeamClusterScenePosition({
       position:
         (shouldPreservePersistedCluster ? persistedClusterPosition : undefined) ?? generatedAnchor,
@@ -1863,7 +1872,7 @@ export function toOfficeData(
       officeLayout,
       reservation: scenePlacementReservation,
       area:
-        usesProjectDistricts && !shouldPreservePersistedCluster
+        usesProjectDistricts && !usesCentralCommandCommons && !shouldPreservePersistedCluster
           ? projectArea?.rect
           : undefined,
       metadata: { ...(persistedCluster?.metadata ?? {}), teamId },
@@ -1874,22 +1883,24 @@ export function toOfficeData(
   }
 
   if (!hasPinnedCeoThread) {
-    const managementCompactAnchor = getCompactTeamAnchor({
-      index: projectPlacementEntries.length,
-      total: planningTeams.length,
-      origin: compactAnchorOrigin,
-      largestFootprint: largestTeamFootprint,
-      footprint: usesCanonicalAutoLayoutSolver
-        ? {
-            width:
-              getClusterOccupancyFootprint(1).width *
-              TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
-            depth:
-              getClusterOccupancyFootprint(1).depth *
-              TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
-          }
-        : undefined,
-    });
+    const managementCompactAnchor = usesCentralCommandCommons
+      ? getCentralCommandTeamAnchor({
+          index: Math.min(projectPlacementEntries.length, COMMAND_OFFICE_PROJECT_CAPACITY),
+          total: planningTeams.length,
+          origin: teamAnchorOrigin,
+        })
+      : getCompactTeamAnchor({
+          index: projectPlacementEntries.length,
+          total: planningTeams.length,
+          origin: teamAnchorOrigin,
+          largestFootprint: largestTeamFootprint,
+          footprint: usesCanonicalAutoLayoutSolver
+            ? {
+                width: getClusterOccupancyFootprint(1).width * TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
+                depth: getClusterOccupancyFootprint(1).depth * TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
+              }
+            : undefined,
+        });
     managementClusterPosition = resolveTeamClusterScenePosition({
       position:
         isManualLayout ||
@@ -1960,7 +1971,10 @@ export function toOfficeData(
         description: `${project.goal} | open=${summary?.openTickets ?? 0} closed=${summary?.closedTickets ?? 0}`,
         deskCount,
         clusterPosition: teamClusterPositionsByTeamId.get(teamId),
-        employees: projectAgents.map((agent) => `employee-${agent.agentId}`),
+        employees: [
+          ...(usesCentralCommandCommons ? [`employee-project-pulse:${project.id}`] : []),
+          ...projectAgents.map((agent) => `employee-${agent.agentId}`),
+        ],
         businessType: project.businessConfig?.type,
         capabilitySkills: project.businessConfig
           ? {
@@ -1979,6 +1993,7 @@ export function toOfficeData(
           ready: readinessIssues.length === 0,
           issues: readinessIssues,
         },
+        characterPolicy: project.characterPolicy,
       });
     }
   }
@@ -1989,7 +2004,9 @@ export function toOfficeData(
         length:
           team.name === "Management"
             ? Math.max(team.deskCount ?? 1, 1)
-            : Math.max(team.deskCount ?? 0, 1),
+            : usesCentralCommandCommons
+              ? Math.max(team.deskCount ?? 0, 0)
+              : Math.max(team.deskCount ?? 0, 1),
       },
       (_, deskIndex) => ({
         id: `desk-${team._id}-${deskIndex}`,
@@ -2020,18 +2037,23 @@ export function toOfficeData(
           ? a.originalIndex - b.originalIndex
           : a.persistedIndex - b.persistedIndex,
       );
+    if (orderedDesks.length === 0) {
+      normalizedDeskLayoutsByTeamId.set(team._id, []);
+      continue;
+    }
     const stationLayout = resolveTeamStationLayout({
       deskCount: orderedDesks.length,
       employeeCount: team.employees.length,
+      forceGrid: usesCentralCommandCommons,
     });
     const total = stationLayout.usesRoundTable
       ? stationLayout.stationCount
-      : Math.max(orderedDesks.length, 1);
+      : stationLayout.visibleGridDeskCount;
     const normalizedDesks = Array.from({ length: total }, (_, layoutIndex) => ({
-        deskId: orderedDesks[layoutIndex]?.desk.id ?? `desk-${team._id}-${layoutIndex}`,
-        layoutIndex,
-        total,
-      }));
+      deskId: orderedDesks[layoutIndex]?.desk.id ?? `desk-${team._id}-${layoutIndex}`,
+      layoutIndex,
+      total,
+    }));
     normalizedDeskLayoutsByTeamId.set(team._id, normalizedDesks);
   }
   const teamDeskCursor = new Map<string, number>();
@@ -2055,7 +2077,9 @@ export function toOfficeData(
     approvalsByAgent.set(approval.agentId, existing);
   }
 
-  let clusterObjects: OfficeObject[] = teams.map((team, index) => {
+  const clusterObjects: OfficeObject[] = teams
+    .filter((team) => !usesCentralCommandCommons || (team.deskCount ?? 0) > 0)
+    .map((team, index) => {
     const persistedCluster = persistedTeamClusterByTeamId.get(team._id);
     const deskCount = Math.max(team.deskCount ?? 1, 1);
     return {
@@ -2068,10 +2092,26 @@ export function toOfficeData(
       metadata: {
         ...getTeamClusterPlacementMetadata(persistedCluster?.metadata, deskCount),
         teamId: team._id,
+        commandCommonsNeighborhood: usesCentralCommandCommons,
+        ...(usesCentralCommandCommons
+          ? {
+              footprintWidth: 6.25,
+              footprintDepth: 4.75,
+              footprintClearance: 0.65,
+              visualFootprintWidth: 7.4,
+              visualFootprintDepth: 5.8,
+            }
+          : {}),
       },
     };
-  });
-  const officeLayoutContentObjects = [...clusterObjects, ...sidecarFurniture];
+    });
+  const officeLayoutContentObjects = [
+    ...(commandCommonsObject ? [commandCommonsObject] : []),
+    ...clusterObjects,
+    ...sidecarFurniture.filter(
+      (object) => !isSolverOwnedActivityDestination(object, isManualLayout),
+    ),
+  ];
   let preliminaryOfficeLayout = usesProjectDistricts
     ? officeLayout
     : isManualLayout
@@ -2088,7 +2128,9 @@ export function toOfficeData(
     activity: projectActivity,
   });
   let unlockedFurnitureIndex = 0;
-  const sidecarFurnitureCandidates: OfficeObject[] = sidecarFurnitureEntries.map((item) => {
+  const mappedSidecarFurnitureCandidates: OfficeObject[] = sidecarFurnitureEntries
+    .filter((item) => item !== persistedCommandCommonsEntry)
+    .map((item) => {
     const rotation = item.rotation ?? [0, 0, 0];
     const metadata = { ...(item.metadata ?? {}) };
     const preservePlacement =
@@ -2112,7 +2154,17 @@ export function toOfficeData(
       scale: item.scale,
       metadata,
     };
-  });
+    });
+  const dedupedSidecarFurnitureCandidates = hydrateCanonicalActivityRooms(
+    mappedSidecarFurnitureCandidates,
+    companyId,
+  );
+  const sidecarFurnitureCandidates =
+    usesCentralCommandCommons &&
+    !isManualLayout &&
+    hasCanonicalActivityRoomSeed(dedupedSidecarFurnitureCandidates)
+      ? restoreCanonicalActivityRooms(dedupedSidecarFurnitureCandidates, companyId)
+      : dedupedSidecarFurnitureCandidates;
   const defaultFurnitureCandidates = buildDefaultFurnitureObjects(
     companyId,
     preliminaryOfficeLayout,
@@ -2123,24 +2175,41 @@ export function toOfficeData(
   if (!usesProjectDistricts && !isManualLayout) {
     preliminaryOfficeLayout = deriveAutoFitOfficeLayout({
       fallbackLayout: preliminaryOfficeLayout,
-      objects: [...clusterObjects, ...furnitureCandidates],
+      objects: [
+        ...clusterObjects,
+        ...furnitureCandidates.filter(
+          (object) => !isSolverOwnedActivityDestination(object, isManualLayout),
+        ),
+      ],
     });
   }
   const preservedSidecarFurniture = sidecarFurnitureCandidates.filter(
-    (object) => isManualLayout || isPreservedOfficeObjectPlacement(object),
+    (object) =>
+      isManualLayout ||
+      (!isSolverOwnedActivityDestination(object, isManualLayout) &&
+        isPreservedOfficeObjectPlacement(object)),
   );
   const movableSidecarFurniture = sidecarFurnitureCandidates.filter(
-    (object) => !isManualLayout && !isPreservedOfficeObjectPlacement(object),
+    (object) =>
+      !isManualLayout &&
+      (isSolverOwnedActivityDestination(object, isManualLayout) ||
+        !isPreservedOfficeObjectPlacement(object)),
+  );
+  const solverCandidateFurniture =
+    sidecarFurnitureCandidates.length > 0 ? movableSidecarFurniture : defaultFurnitureCandidates;
+  const movableDestinationFurniture = solverCandidateFurniture.filter(
+    (object) => object.meshType === "activity-landmark",
+  );
+  const movableDecorFurniture = solverCandidateFurniture.filter(
+    (object) => object.meshType !== "activity-landmark",
   );
   const projectDistrictInfillFurniture =
-    usesProjectDistricts && !isManualLayout
+    usesProjectDistricts && !usesCentralCommandCommons && !isManualLayout
       ? placeFurnitureInEmptySpace({
-          objects:
-            sidecarFurnitureCandidates.length > 0
-              ? movableSidecarFurniture
-              : defaultFurnitureCandidates,
+          objects: movableDecorFurniture,
           officeLayout: preliminaryOfficeLayout,
           reservation: createOfficePlacementReservation([
+            ...(commandCommonsObject ? [toPlacementObject(commandCommonsObject)] : []),
             ...clusterObjects.map(toPlacementObject),
             ...preservedSidecarFurniture.map(toPlacementObject),
           ]),
@@ -2150,15 +2219,13 @@ export function toOfficeData(
   let furnitureObjects: OfficeObject[];
 
   if (usesCanonicalAutoLayoutSolver && !isManualLayout) {
-    const optionalSolverFurniture =
-      usesProjectDistricts
-        ? []
-        : sidecarFurnitureCandidates.length > 0
-          ? movableSidecarFurniture
-          : defaultFurnitureCandidates;
+    const optionalSolverFurniture = usesProjectDistricts
+      ? movableDestinationFurniture
+      : solverCandidateFurniture;
     const solver = solveOfficeAutoLayout({
       sourceLayout: preliminaryOfficeLayout,
       requiredObjects: [
+        ...(commandCommonsObject ? [commandCommonsObject] : []),
         ...clusterObjects,
         ...preservedSidecarFurniture,
         ...projectDistrictInfillFurniture,
@@ -2170,12 +2237,16 @@ export function toOfficeData(
     if (usesProjectDistricts) {
       sidecarFurniture =
         sidecarFurnitureCandidates.length > 0
-          ? [...preservedSidecarFurniture, ...projectDistrictInfillFurniture]
+          ? [
+              ...preservedSidecarFurniture,
+              ...projectDistrictInfillFurniture,
+              ...solver.placedOptionalObjects,
+            ]
           : [];
       furnitureObjects =
         sidecarFurnitureCandidates.length > 0
           ? sidecarFurniture
-          : projectDistrictInfillFurniture;
+          : [...projectDistrictInfillFurniture, ...solver.placedOptionalObjects];
     } else {
       sidecarFurniture =
         sidecarFurnitureCandidates.length > 0
@@ -2199,7 +2270,11 @@ export function toOfficeData(
     ];
     furnitureObjects = sidecarFurniture.length > 0 ? sidecarFurniture : defaultFurnitureCandidates;
   }
-  const officeObjects = [...clusterObjects, ...furnitureObjects];
+  const officeObjects = [
+    ...(commandCommonsObject ? [commandCommonsObject] : []),
+    ...clusterObjects,
+    ...furnitureObjects,
+  ];
   const fittedOfficeLayout = usesCanonicalAutoLayoutSolver
     ? preliminaryOfficeLayout
     : isManualLayout
@@ -2215,15 +2290,29 @@ export function toOfficeData(
     workload,
     activity: projectActivity,
   });
-  const renderedOfficeAreaLayout = usesProjectDistricts
-    ? fittedAreaLayout
-    : finalOfficeAreaLayout;
+  const renderedOfficeAreaLayout = usesProjectDistricts ? fittedAreaLayout : finalOfficeAreaLayout;
   const fittedOfficeSettings = areOfficeLayoutTilesEqual(sourceOfficeLayout, fittedOfficeLayout)
-    ? officeSettings
+    ? usesCentralCommandCommons
+      ? {
+          ...officeSettings,
+          decor: {
+            floorPatternId: "graphite_grid" as const,
+            wallColorId: "command_charcoal" as const,
+            backgroundId: "estuary_glow" as const,
+          },
+        }
+      : officeSettings
     : {
         ...officeSettings,
         officeLayout: fittedOfficeLayout,
         officeFootprint: getOfficeFootprintFromLayout(fittedOfficeLayout),
+        decor: usesCentralCommandCommons
+          ? {
+              floorPatternId: "graphite_grid" as const,
+              wallColorId: "command_charcoal" as const,
+              backgroundId: "estuary_glow" as const,
+            }
+          : officeSettings.decor,
       };
   const skillTargetObjects = buildSkillTargetObjectMap(officeObjects);
   const skillOccupants = new Map<string, string[]>();
@@ -2235,7 +2324,7 @@ export function toOfficeData(
     skillOccupants.set(activeSkillId, occupants);
   }
 
-  const employees: EmployeeData[] = agents.map((agent) => {
+  const runtimeEmployees: EmployeeData[] = agents.map((agent) => {
     const companyAgent = companyAgentsById.get(agent.agentId);
     const runtimeAgent = runtimeById.get(agent.agentId);
     const observedCodex =
@@ -2261,6 +2350,8 @@ export function toOfficeData(
     const presencePersistent = isCodexAgent
       ? isOfficeSupervisor || agent.agentId === "codex-main"
       : undefined;
+    const claimsPersistentDesk =
+      !usesCentralCommandCommons || (isOfficeCeo && teamId === "team-management");
     const activeSkillId = liveStatus?.currentSkillId?.trim();
     const skillOccupantIds = activeSkillId ? (skillOccupants.get(activeSkillId) ?? []) : [];
     const skillOccupantIndex =
@@ -2285,16 +2376,18 @@ export function toOfficeData(
     const teamDeskLayouts = team ? (normalizedDeskLayoutsByTeamId.get(team._id) ?? []) : [];
     const currentDeskCursor = teamDeskCursor.get(teamId) ?? 0;
     const initialDeskLayout =
-      teamDeskLayouts.length > 0
-        ? teamDeskLayouts[Math.min(currentDeskCursor, teamDeskLayouts.length - 1)]
+      claimsPersistentDesk && currentDeskCursor < teamDeskLayouts.length
+        ? teamDeskLayouts[currentDeskCursor]
         : null;
-    if (teamDeskLayouts.length > 0) {
+    if (claimsPersistentDesk) {
       teamDeskCursor.set(teamId, currentDeskCursor + 1);
     }
     const roundTableStation =
-      initialDeskLayout && resolveTeamStationLayout({
+      initialDeskLayout &&
+      resolveTeamStationLayout({
         deskCount: teamDeskLayouts.length,
         employeeCount: team?.employees.length ?? 0,
+        forceGrid: usesCentralCommandCommons,
       }).usesRoundTable
         ? solveRoundTeamTableLayout(initialDeskLayout.total).stations[initialDeskLayout.layoutIndex]
         : null;
@@ -2313,6 +2406,7 @@ export function toOfficeData(
       initialDeskLayout && !roundTableStation
         ? getDeskRotation(initialDeskLayout.layoutIndex, initialDeskLayout.total)
         : null;
+    const overflowOffset = getAgentOverflowOffset(agent.agentId);
     const initialPosition: [number, number, number] =
       isMainAgent && initialDeskLayout == null
         ? ceoAnchor
@@ -2324,7 +2418,13 @@ export function toOfficeData(
             ]
           : deskPosition && deskRotation != null
             ? getEmployeePositionAtDesk(deskPosition, deskRotation)
-            : teamCenter;
+            : usesCentralCommandCommons && !isMainAgent
+              ? [
+                  teamCenter[0] + overflowOffset[0],
+                  teamCenter[1],
+                  teamCenter[2] + overflowOffset[1],
+                ]
+              : teamCenter;
     const agentApprovals = approvalsByAgent.get(agent.agentId);
     const heartbeatStatus =
       liveStatus?.state === "error"
@@ -2400,6 +2500,7 @@ export function toOfficeData(
         })) ?? [],
       presencePersistent,
       presenceExpiresAt: presencePersistent === false ? companyAgent?.presenceExpiresAt : undefined,
+      teamCharacterPolicy: team?.characterPolicy,
       observedRuntime: observedCodex
         ? {
             kind: "codex",
@@ -2416,6 +2517,42 @@ export function toOfficeData(
       appearance,
     };
   });
+  const projectPulseEmployees: EmployeeData[] = usesCentralCommandCommons
+    ? projectPlacementEntries.map(({ project }) => {
+        const teamId = `team-${project.id}`;
+        const team = teams.find((entry) => entry._id === teamId);
+        const teamCenter = team?.clusterPosition ?? [0, 0, 8];
+        const desk = normalizedDeskLayoutsByTeamId.get(teamId)?.[0];
+        const deskPosition = desk
+          ? getAbsoluteDeskPosition(teamCenter, desk.layoutIndex, desk.total)
+          : teamCenter;
+        const deskRotation = desk ? getDeskRotation(desk.layoutIndex, desk.total) : 0;
+        return {
+          _id: `employee-project-pulse:${project.id}`,
+          companyId,
+          teamId,
+          builtInRole: "pm",
+          name: `${project.name} Pulse`,
+          team: project.name,
+          initialPosition: desk
+            ? getEmployeePositionAtDesk(deskPosition, deskRotation)
+            : teamCenter,
+          isBusy: false,
+          deskId: desk?.deskId as EmployeeData["deskId"],
+          isCEO: false,
+          isSupervisor: true,
+          jobTitle: `Project Pulse (${project.id})`,
+          status: "info",
+          statusMessage: "Persistent project presence",
+          activityState: "idle",
+          activityLabel: "Project pulse",
+          activityDetail: project.goal,
+          presencePersistent: true,
+          projectPulse: true,
+        };
+      })
+    : [];
+  const employees: EmployeeData[] = [...runtimeEmployees, ...projectPulseEmployees];
 
   return {
     company: demoCompany,

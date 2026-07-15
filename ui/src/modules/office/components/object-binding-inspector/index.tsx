@@ -32,6 +32,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { UI_Z } from "@/lib/z-index";
 import { type SkillStudioCatalogEntry, useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
+import { persistOfficeKitCustomization } from "@/modules/office/lib/office-kit";
 import { useAppStore } from "@/store";
 
 import type { OfficeObject } from "../../lib/types";
@@ -388,6 +389,7 @@ export function ObjectBindingInspector() {
         },
         { currentObjects: current },
       );
+      if (result.ok) await persistOfficeKitCustomization(adapter);
       setStatusText(
         result.ok ? "Object binding saved." : (result.error ?? "Failed to save binding."),
       );

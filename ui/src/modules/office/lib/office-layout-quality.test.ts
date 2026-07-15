@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { officeLayoutTileKey, type OfficeLayoutModel } from "./office-layout";
+import { type OfficeLayoutModel, officeLayoutTileKey } from "./office-layout";
 import { evaluateOfficeLayoutQuality, evaluateOfficePoiGraph } from "./office-layout-quality";
 
 function layoutFromTiles(tiles: Array<[number, number]>): OfficeLayoutModel {
@@ -63,6 +63,40 @@ describe("evaluateOfficeLayoutQuality", () => {
 });
 
 describe("evaluateOfficePoiGraph", () => {
+  it("treats activity-room floors as walkable POIs", () => {
+    const graph = evaluateOfficePoiGraph({
+      layout: layoutFromTiles([
+        [0, 0],
+        [1, 0],
+        [2, 0],
+      ]),
+      objects: [
+        {
+          _id: "team-a",
+          meshType: "team-cluster",
+          position: [0, 0, 0],
+          rotation: [0, 0, 0],
+          metadata: { footprintWidth: 0.1, footprintDepth: 0.1, footprintClearance: 0 },
+        },
+        {
+          _id: "library",
+          meshType: "activity-landmark",
+          position: [2, 0, 0],
+          rotation: [0, 0, 0],
+          metadata: {
+            footprintWidth: 7,
+            footprintDepth: 7,
+            footprintClearance: 0,
+            skillBinding: { skillId: "research" },
+          },
+        },
+      ],
+    });
+
+    expect(graph.disconnectedIds).toEqual([]);
+    expect(graph.nodes.find((node) => node.objectId === "library")?.tileKey).toBe("2:0");
+  });
+
   it("proves team and furniture POIs are reachable through the walkable tile graph", () => {
     const graph = evaluateOfficePoiGraph({
       layout: layoutFromTiles([

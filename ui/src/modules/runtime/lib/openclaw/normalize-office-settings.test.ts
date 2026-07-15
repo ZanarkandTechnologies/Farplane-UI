@@ -13,7 +13,7 @@ describe("office settings normalization", () => {
       decor: {
         floorPatternId: "sandstone_tiles",
         wallColorId: "gallery_cream",
-        backgroundId: "shell_haze",
+        backgroundId: "estuary_glow",
       },
       viewProfile: "free_orbit_3d",
       orbitControlsEnabled: true,
@@ -51,28 +51,23 @@ describe("office settings normalization", () => {
 
   it("normalizes the office layout strategy", () => {
     expect(toOfficeSettings({}).layoutStrategy).toBe("team_neighborhoods");
-    expect(
-      toOfficeSettings({ layoutStrategy: "team_neighborhoods" }).layoutStrategy,
-    ).toBe("team_neighborhoods");
-    expect(
-      toOfficeSettings({ layoutStrategy: "activity_treemap" }).layoutStrategy,
-    ).toBe("activity_treemap");
-    expect(
-      toOfficeSettings({ layoutStrategy: "hierarchical_treemap" })
-        .layoutStrategy,
-    ).toBe("hierarchical_treemap");
-    expect(
-      toOfficeSettings({ layoutStrategy: "area_sorted_pack" }).layoutStrategy,
-    ).toBe("area_sorted_pack");
-    expect(toOfficeSettings({ layoutStrategy: "manual" }).layoutStrategy).toBe(
-      "manual",
+    expect(toOfficeSettings({ layoutStrategy: "team_neighborhoods" }).layoutStrategy).toBe(
+      "team_neighborhoods",
     );
-    expect(toOfficeSettings({ layoutStrategy: "legacy" }).layoutStrategy).toBe(
-      "legacy",
+    expect(toOfficeSettings({ layoutStrategy: "activity_treemap" }).layoutStrategy).toBe(
+      "activity_treemap",
     );
-    expect(
-      toOfficeSettings({ layoutStrategy: "command_districts" }).layoutStrategy,
-    ).toBe("command_districts");
+    expect(toOfficeSettings({ layoutStrategy: "hierarchical_treemap" }).layoutStrategy).toBe(
+      "hierarchical_treemap",
+    );
+    expect(toOfficeSettings({ layoutStrategy: "area_sorted_pack" }).layoutStrategy).toBe(
+      "area_sorted_pack",
+    );
+    expect(toOfficeSettings({ layoutStrategy: "manual" }).layoutStrategy).toBe("manual");
+    expect(toOfficeSettings({ layoutStrategy: "legacy" }).layoutStrategy).toBe("legacy");
+    expect(toOfficeSettings({ layoutStrategy: "command_districts" }).layoutStrategy).toBe(
+      "command_districts",
+    );
     expect(toOfficeSettings({ layoutStrategy: "unknown" }).layoutStrategy).toBe(
       "team_neighborhoods",
     );
@@ -122,5 +117,17 @@ describe("office settings normalization", () => {
         paintingPresetId: "sunrise_blocks",
       },
     });
+  });
+
+  it("keeps command commons as one semantic sidecar object", () => {
+    expect(
+      toOfficeObjectSidecar({
+        id: "office-kit:command-office:v1:command-commons:commons",
+        identifier: "office-kit:command-office:v1:command-commons:commons",
+        meshType: "command-commons",
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+      }),
+    ).toMatchObject({ meshType: "command-commons", position: [0, 0, 0] });
   });
 });

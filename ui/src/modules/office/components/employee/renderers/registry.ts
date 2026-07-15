@@ -9,15 +9,11 @@
  * Side effects: reads browser URL/localStorage for dev-only sprite pilot overrides.
  */
 
+import { characterGraphicsRendererMap, DEFAULT_CHARACTER_RENDERER_ID } from "./renderer-map";
 import type { CharacterRendererConfig, CharacterRendererId } from "./types";
-import {
-  characterGraphicsRendererMap,
-  DEFAULT_CHARACTER_RENDERER_ID,
-} from "./renderer-map";
 
 export const CHARACTER_SPRITE_PET_ID_STORAGE_KEY = "farplane.office.characterSpritePetId";
-export const CHARACTER_SPRITE_EMPLOYEE_ID_STORAGE_KEY =
-  "farplane.office.characterSpriteEmployeeId";
+export const CHARACTER_SPRITE_EMPLOYEE_ID_STORAGE_KEY = "farplane.office.characterSpriteEmployeeId";
 export const CHARACTER_RENDERER_SETTINGS_EVENT = "farplane:office-character-renderer-settings";
 
 export const characterRendererRegistry = characterGraphicsRendererMap;
@@ -81,18 +77,14 @@ export function saveOfficeCharacterRendererSettings(input: {
   return saved;
 }
 
-export function readDevCharacterRendererOverride(employeeId: string): CharacterRendererConfig | undefined {
+export function readDevCharacterRendererOverride(
+  employeeId: string,
+): CharacterRendererConfig | undefined {
   if (typeof window === "undefined") return undefined;
   const params = new URLSearchParams(window.location.search);
   const saved = readOfficeCharacterRendererSettings();
-  const targetEmployeeId =
-    params.get("characterSpriteEmployeeId") ??
-    saved.employeeId ??
-    "";
-  const petId =
-    params.get("characterSpritePetId") ??
-    saved.petId ??
-    "";
+  const targetEmployeeId = params.get("characterSpriteEmployeeId") ?? saved.employeeId ?? "";
+  const petId = params.get("characterSpritePetId") ?? saved.petId ?? "";
   if (!petId.trim()) return undefined;
   if (targetEmployeeId.trim() && targetEmployeeId.trim() !== employeeId) return undefined;
   return { id: "sprite-sheet-2d", source: { type: "codex-pet", petId: petId.trim() } };
@@ -102,9 +94,12 @@ export function resolveEmployeeCharacterRenderer(input: {
   employeeId: string;
   characterRenderer?: unknown;
   devOverride?: CharacterRendererConfig;
+  preferConfigured?: boolean;
 }): { id: CharacterRendererId; config: CharacterRendererConfig } {
   const configured = normalizeRendererConfig(input.characterRenderer);
-  const chosen = input.devOverride ?? configured;
+  const chosen = input.preferConfigured
+    ? (configured ?? input.devOverride)
+    : (input.devOverride ?? configured);
   const id = isCharacterRendererId(chosen?.id) ? chosen.id : DEFAULT_CHARACTER_RENDERER_ID;
   if (id === "sprite-sheet-2d" && !chosen?.source) {
     return { id: DEFAULT_CHARACTER_RENDERER_ID, config: { id: DEFAULT_CHARACTER_RENDERER_ID } };

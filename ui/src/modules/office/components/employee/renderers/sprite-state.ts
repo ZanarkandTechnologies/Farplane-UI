@@ -27,9 +27,13 @@ export type SpriteStateInput = {
   animationMode: EmployeeAnimationMode;
   movementDirection?: EmployeeMovementDirection;
   activityState?: EmployeeActivityState;
+  activitySceneAnimation?: "review" | "running" | "waiting";
 };
 
 export function selectSpriteAnimationKey(input: SpriteStateInput): SpriteAnimationKey {
+  if (input.animationMode !== "walking" && input.activitySceneAnimation) {
+    return input.activitySceneAnimation;
+  }
   if (input.activityState === "failed") return "failed";
   if (input.activityState === "waiting") return "waiting";
   if (input.activityState === "review") return "review";

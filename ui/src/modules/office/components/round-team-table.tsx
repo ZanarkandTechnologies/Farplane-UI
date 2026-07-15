@@ -18,11 +18,11 @@ interface RoundTeamTableProps {
   isHovered: boolean;
 }
 
-const defaultTableColor = new THREE.Color("#f8fafc");
-const hoveredTableColor = new THREE.Color("#d9f99d");
-const tableEdgeColor = new THREE.Color("#d1d5db");
+const defaultTableColor = new THREE.Color("#4f3a2c");
+const hoveredTableColor = new THREE.Color("#6f543e");
+const tableEdgeColor = new THREE.Color("#8b684c");
 const hardwareColor = new THREE.Color("#0f172a");
-const standColor = new THREE.Color("#64748b");
+const standColor = new THREE.Color("#34383a");
 
 export default function RoundTeamTable({ stationCount, isHovered }: RoundTeamTableProps) {
   const layout = useMemo(() => solveRoundTeamTableLayout(stationCount), [stationCount]);
@@ -47,7 +47,7 @@ export default function RoundTeamTable({ stationCount, isHovered }: RoundTeamTab
 
       <mesh position={[0, 0.05, 0]} receiveShadow>
         <cylinderGeometry args={[0.62, 0.72, 0.1, 32]} />
-        <meshStandardMaterial color="#9ca3af" roughness={0.82} />
+        <meshStandardMaterial color="#2f3030" roughness={0.82} />
       </mesh>
 
       {layout.stations.map((station, index) => (

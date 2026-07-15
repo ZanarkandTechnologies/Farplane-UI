@@ -44,7 +44,21 @@ export function deriveOfficeSpaceStats(input: {
   const occupiedTiles = new Set<string>();
   for (const object of input.officeObjects) {
     if (object.meshType === "wall-art") continue;
-    for (const cell of getObjectFootprintCells(object)) {
+    const visualFootprintWidth = object.metadata?.visualFootprintWidth;
+    const visualFootprintDepth = object.metadata?.visualFootprintDepth;
+    const statsObject =
+      typeof visualFootprintWidth === "number" && typeof visualFootprintDepth === "number"
+        ? {
+            ...object,
+            metadata: {
+              ...object.metadata,
+              footprintWidth: visualFootprintWidth,
+              footprintDepth: visualFootprintDepth,
+              footprintClearance: 0,
+            },
+          }
+        : object;
+    for (const cell of getObjectFootprintCells(statsObject)) {
       if (layoutTiles.has(cell.key)) occupiedTiles.add(cell.key);
     }
   }

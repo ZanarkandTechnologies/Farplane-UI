@@ -26,6 +26,7 @@ import * as THREE from "three";
 import { useCallback } from "react";
 import { OfficeId } from "@/modules/office/lib/types";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
+import { persistOfficeKitCustomization } from "@/modules/office/lib/office-kit";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 
 import { getGameObjectDefinition } from "../components/object-registry";
@@ -75,6 +76,7 @@ export function usePlacementSystem() {
     if (!result.ok) {
       throw new Error(result.error ?? "team_cluster_place_failed");
     }
+    await persistOfficeKitCustomization(adapter);
     await refreshOfficeData();
   }
 
@@ -141,6 +143,7 @@ export function usePlacementSystem() {
     if (!result.ok) {
       throw new Error(result.error ?? "generic_object_place_failed");
     }
+    await persistOfficeKitCustomization(adapter);
     await refreshOfficeData();
   }
 

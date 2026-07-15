@@ -22,6 +22,7 @@ export type TabKey =
   | "kanban"
   | "timeline"
   | "members"
+  | "characters"
   | "distribution"
   | "news"
   | "skills"

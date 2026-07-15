@@ -57,10 +57,10 @@ describe("office object navigation helpers", () => {
         teamById,
         enabled: true,
       }).map((object) => object._id),
-    ).toEqual(["plant-1", "landmark-1", "cluster-2"]);
+    ).toEqual(["plant-1", "cluster-2"]);
   });
 
-  it("changes the nav signature when activity landmark geometry changes", () => {
+  it("keeps walkable activity room geometry out of the nav signature", () => {
     const gym = createObject({
       _id: "landmark-1",
       meshType: "activity-landmark",
@@ -72,17 +72,25 @@ describe("office object navigation helpers", () => {
     });
 
     const gymSignature = buildNavigableOfficeObjectSignature({
-      officeObjects: [gym],
+      officeObjects: getNavigableOfficeObjects({
+        officeObjects: [gym],
+        teamById: new Map(),
+        enabled: true,
+      }),
       teamById: new Map(),
       desksByTeamId: new Map(),
     });
     const librarySignature = buildNavigableOfficeObjectSignature({
-      officeObjects: [library],
+      officeObjects: getNavigableOfficeObjects({
+        officeObjects: [library],
+        teamById: new Map(),
+        enabled: true,
+      }),
       teamById: new Map(),
       desksByTeamId: new Map(),
     });
 
-    expect(librarySignature).not.toBe(gymSignature);
+    expect(librarySignature).toBe(gymSignature);
   });
 
   it("changes the nav signature when team cluster geometry inputs change", () => {

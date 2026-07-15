@@ -1,21 +1,22 @@
 import { describe, expect, it } from "vitest";
 
-import type { EmployeeData, OfficeObject } from "@/modules/office/lib/types";
 import {
   getOfficeLayoutBounds,
-  officeLayoutTileKey,
   type OfficeLayoutModel,
+  officeLayoutTileKey,
 } from "@/modules/office/lib/office-layout";
-import { deriveOfficeSpaceStats } from "@/modules/office/lib/office-space-stats";
 import { evaluateOfficePoiGraph } from "@/modules/office/lib/office-layout-quality";
-import {
-  canReserveOfficeObject,
-  createOfficePlacementReservation,
-} from "@/modules/office/systems/placement-engine";
+import { deriveOfficeSpaceStats } from "@/modules/office/lib/office-space-stats";
+import type { EmployeeData, OfficeObject } from "@/modules/office/lib/types";
+import { getOfficeSkillAnchorPosition } from "@/modules/office/skill-targeting";
 import {
   getObjectFootprintAabb,
   getObjectFootprintCells,
 } from "@/modules/office/systems/occupancy-system";
+import {
+  canReserveOfficeObject,
+  createOfficePlacementReservation,
+} from "@/modules/office/systems/placement-engine";
 import {
   getAbsoluteDeskPosition,
   getDeskRotation,
@@ -28,6 +29,7 @@ import type {
   OfficeSettingsModel,
   UnifiedOfficeModel,
 } from "@/modules/runtime";
+import type { ObservedCodexWorkerRow } from "./local-observed-codex-workers";
 import { repairTeamClusterPlacements, toOfficeData } from "./office-data-mapper";
 import {
   buildAgentLiveStatusSignature,
@@ -36,7 +38,6 @@ import {
   mergeObservedCodexWorkersIntoUnifiedOfficeModel,
   observedCodexWorkersToLiveStatuses,
 } from "./office-data-refresh";
-import type { ObservedCodexWorkerRow } from "./local-observed-codex-workers";
 import {
   buildEmployeeSignature,
   buildOfficeObjectSignature,
@@ -1052,15 +1053,20 @@ describe("office-data-provider team synthesis", () => {
       "team-codex-proj-pinned",
       "team-codex-proj-active",
     ]);
-    expect(result.employees.some((employee) => employee.teamId === "team-codex-proj-idle")).toBe(
-      false,
-    );
+    expect(
+      result.employees.filter((employee) => employee.teamId === "team-codex-proj-idle"),
+    ).toEqual([
+      expect.objectContaining({
+        _id: "employee-project-pulse:codex-proj-idle",
+        projectPulse: true,
+      }),
+    ]);
     expect(
       result.officeObjects.some((object) => object.metadata?.teamId === "team-codex-proj-idle"),
     ).toBe(true);
   });
 
-  it("derives employee desk targets from the final procedural desk positions", () => {
+  it("keeps one durable project station while overflow agents remain deskless", () => {
     const project = {
       id: "proj-desk-sync",
       departmentId: "dept-farplane",
@@ -1110,30 +1116,32 @@ describe("office-data-provider team synthesis", () => {
       }),
       createOfficeSettings(),
     );
+    const churned = toOfficeData(
+      createUnifiedOfficeModel({
+        company,
+        runtimeAgents: [createRuntimeAgent(), ...[...runtimeAgents].reverse()],
+        configuredAgents: [createRuntimeAgent(), ...[...runtimeAgents].reverse()],
+      }),
+      createOfficeSettings(),
+    );
     const team = result.teams.find((entry) => entry._id === "team-proj-desk-sync");
     const workers = result.employees.filter((entry) => entry.teamId === team?._id);
 
     expect(team?.clusterPosition).toBeDefined();
-    expect(team?.deskCount).toBe(3);
-    expect(workers).toHaveLength(3);
-
-    for (const worker of workers) {
-      const deskPrefix = `desk-${team?._id}-`;
-      const deskId = String(worker.deskId ?? "");
-      expect(deskId.startsWith(deskPrefix)).toBe(true);
-      const deskIndex = Number(deskId.slice(deskPrefix.length));
-      const deskPosition = getAbsoluteDeskPosition(
-        team?.clusterPosition ?? [0, 0, 0],
-        deskIndex,
-        team?.deskCount ?? 1,
-      );
-      const deskRotation = getDeskRotation(deskIndex, team?.deskCount ?? 1);
-
-      expectPositionCloseTo(
-        worker.initialPosition,
-        getEmployeePositionAtDesk(deskPosition, deskRotation),
-      );
-    }
+    expect(team?.deskCount).toBe(1);
+    expect(workers).toHaveLength(4);
+    expect(workers.filter((worker) => worker.deskId)).toHaveLength(1);
+    expect(workers.filter((worker) => worker.projectPulse)).toHaveLength(1);
+    expect(workers.find((worker) => worker.projectPulse)?._id).toBe(
+      "employee-project-pulse:proj-desk-sync",
+    );
+    expect(churned.employees.find((worker) => worker.projectPulse)).toEqual(
+      expect.objectContaining({
+        _id: "employee-project-pulse:proj-desk-sync",
+        deskId: "desk-team-proj-desk-sync-0",
+      }),
+    );
+    expect(new Set(workers.map((worker) => worker.initialPosition.join(":"))).size).toBe(4);
   });
 
   it("places seven-person project teams around one round table", () => {
@@ -1193,7 +1201,10 @@ describe("office-data-provider team synthesis", () => {
       ],
     });
 
-    const result = toOfficeData(unified, createOfficeSettings());
+    const result = toOfficeData(unified, {
+      ...createOfficeSettings(),
+      layoutStrategy: "legacy",
+    });
     const team = result.teams.find((entry) => entry._id === "team-proj-round-table");
     const workers = result.employees.filter((entry) => entry.teamId === "team-proj-round-table");
     const teamCenter = team?.clusterPosition ?? [0, 0, 0];
@@ -1515,15 +1526,23 @@ describe("office-data-provider team synthesis", () => {
     expect(
       result.officeObjects.some((object) => object.metadata?.teamId === "team-management"),
     ).toBe(false);
-    expect(result.employees).toEqual([
-      expect.objectContaining({
-        _id: "employee-codex-thread:strategy-thread",
-        teamId: "team-codex-proj-workspace-farplane-ui",
-        isCEO: true,
-        isSupervisor: true,
-        presencePersistent: true,
-      }),
-    ]);
+    expect(result.employees).toHaveLength(2);
+    expect(result.employees).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          _id: "employee-codex-thread:strategy-thread",
+          teamId: "team-codex-proj-workspace-farplane-ui",
+          isCEO: true,
+          isSupervisor: true,
+          presencePersistent: true,
+        }),
+        expect.objectContaining({
+          _id: "employee-project-pulse:codex-proj-workspace-farplane-ui",
+          projectPulse: true,
+          deskId: "desk-team-codex-proj-workspace-farplane-ui-0",
+        }),
+      ]),
+    );
   });
 
   it("does not crown the first Codex thread unless it is the CEO", () => {
@@ -1728,7 +1747,10 @@ describe("office-data-provider team synthesis", () => {
         ).flat(),
       },
     };
-    const result = toOfficeData(createUnifiedOfficeModel({ company }), settings);
+    const result = toOfficeData(createUnifiedOfficeModel({ company }), {
+      ...settings,
+      layoutStrategy: "area_sorted_pack",
+    });
     const uiCluster = result.officeObjects.find(
       (object) => object.metadata?.teamId === "team-proj-farplane-ui",
     );
@@ -1983,7 +2005,7 @@ describe("office-data-provider team synthesis", () => {
           },
         ],
       }),
-      settings,
+      { ...settings, layoutStrategy: "legacy" },
     );
     const bounds = getOfficeLayoutBounds(result.officeSettings.officeLayout);
     const plant = result.officeObjects.find((object) => object._id === "plant-entry");
@@ -2055,7 +2077,10 @@ describe("office-data-provider team synthesis", () => {
       ],
     });
 
-    const result = toOfficeData(createUnifiedOfficeModel({ company }), createOfficeSettings());
+    const result = toOfficeData(createUnifiedOfficeModel({ company }), {
+      ...createOfficeSettings(),
+      layoutStrategy: "legacy",
+    });
     const bounds = getOfficeLayoutBounds(result.officeSettings.officeLayout);
     const defaultFurniture = result.officeObjects.filter((object) =>
       ["plant", "bookshelf", "couch", "pantry"].includes(object.meshType),
@@ -2274,7 +2299,7 @@ describe("office-data-provider team synthesis", () => {
           ),
         ],
       }),
-      createOfficeSettings(),
+      { ...createOfficeSettings(), layoutStrategy: "legacy" },
     );
     const generatedRoomWalls = result.officeObjects.filter(
       (object) =>
@@ -2364,19 +2389,14 @@ describe("office-data-provider team synthesis", () => {
       largeFurniture.reduce(
         (sum, object) =>
           sum +
-          Math.hypot(
-            object.position[0] - bounds.centerX,
-            object.position[2] - bounds.centerZ,
-          ),
+          Math.hypot(object.position[0] - bounds.centerX, object.position[2] - bounds.centerZ),
         0,
       ) / Math.max(1, largeFurniture.length);
 
     expect(largeFurniture.length).toBeGreaterThan(0);
     expect(averageCenterDistance).toBeLessThanOrEqual(layoutRadius * 0.62);
     for (const object of largeFurniture) {
-      expect(
-        projectCoreAreas.some((area) => objectOverlapsArea(object, area)),
-      ).toBe(false);
+      expect(projectCoreAreas.some((area) => objectOverlapsArea(object, area))).toBe(false);
     }
   });
 
@@ -2418,6 +2438,54 @@ describe("office-data-provider team synthesis", () => {
       expect.arrayContaining([leftProject.id, rightProject.id]),
     );
     expect(generatedWalls).toHaveLength(0);
+    expect(result.officeObjects.filter((object) => object.meshType === "command-commons")).toHaveLength(1);
+    expect(result.officeSettings.decor).toEqual({
+      floorPatternId: "graphite_grid",
+      wallColorId: "command_charcoal",
+      backgroundId: "estuary_glow",
+    });
+  });
+
+  it("reloads an equipped manual command office with one persisted commons", () => {
+    const { model } = createTwoProjectRoomOfficeModel();
+    const generated = toOfficeData(model, createOfficeSettings());
+    const persistedKitObjects = generated.officeObjects
+      .filter(
+        (object) => object.meshType === "command-commons" || object.meshType === "team-cluster",
+      )
+      .map((object) => ({
+        id: object._id,
+        identifier: object._id,
+        meshType: object.meshType,
+        position: object.position,
+        rotation: object.rotation,
+        scale: object.scale,
+        metadata: object.metadata,
+      }));
+    const reloaded = toOfficeData(
+      { ...model, officeObjects: persistedKitObjects },
+      {
+        ...generated.officeSettings,
+        layoutStrategy: "manual",
+        officeKit: {
+          kitId: "command-office",
+          kitVersion: 1,
+          seed: "test",
+          status: "equipped",
+          projectCapacity: 7,
+          revision: 1,
+        },
+      },
+    );
+
+    expect(
+      reloaded.officeObjects.filter((object) => object.meshType === "command-commons"),
+    ).toHaveLength(1);
+    expect(
+      reloaded.teams
+        .filter((team) => team.name !== "Management")
+        .every((team) => team.deskCount === 1),
+    ).toBe(true);
   });
 
   it("solves team neighborhoods as a compact connected no-wall layout", () => {
@@ -2494,6 +2562,72 @@ describe("office-data-provider team synthesis", () => {
       expect(generatedWalls).toHaveLength(0);
       expect(countInteriorLayoutHoles(result.officeSettings.officeLayout)).toBe(0);
     }
+  });
+
+  it("lets automatic layouts move locked activity destinations to an inward-facing edge", () => {
+    const { model } = createTwoProjectRoomOfficeModel();
+    const savedPosition: [number, number, number] = [120, 0, -90];
+    const landmark = {
+      id: "library-destination",
+      identifier: "library-destination",
+      meshType: "activity-landmark" as const,
+      position: savedPosition,
+      rotation: [0, 0, 0] as [number, number, number],
+      metadata: {
+        landmarkKind: "library",
+        placementLocked: true,
+        footprintWidth: 2,
+        footprintDepth: 2,
+        footprintClearance: 0,
+      },
+    };
+    const automatic = toOfficeData(
+      { ...model, officeObjects: [landmark] },
+      { ...createOfficeSettings(), layoutStrategy: "area_sorted_pack" },
+    );
+    const automaticNearOrigin = toOfficeData(
+      { ...model, officeObjects: [{ ...landmark, position: [0, 0, 0] }] },
+      { ...createOfficeSettings(), layoutStrategy: "area_sorted_pack" },
+    );
+    const manual = toOfficeData(
+      { ...model, officeObjects: [landmark] },
+      { ...createOfficeSettings(), layoutStrategy: "manual" },
+    );
+    const automaticLandmark = automatic.officeObjects.find((object) => object._id === landmark.id);
+    const manualLandmark = manual.officeObjects.find((object) => object._id === landmark.id);
+    const bounds = getOfficeLayoutBounds(automatic.officeSettings.officeLayout);
+    const nearOriginBounds = getOfficeLayoutBounds(automaticNearOrigin.officeSettings.officeLayout);
+    const automaticFootprintEdgeDistance = automaticLandmark
+      ? Math.min(
+          ...getObjectFootprintCells(automaticLandmark).map((cell) =>
+            Math.min(
+              cell.x - bounds.minTileX,
+              bounds.maxTileX - cell.x,
+              cell.z - bounds.minTileZ,
+              bounds.maxTileZ - cell.z,
+            ),
+          ),
+        )
+      : Number.POSITIVE_INFINITY;
+
+    expect(automaticLandmark).toBeDefined();
+    expect(automaticLandmark?.position).not.toEqual(savedPosition);
+    expect({ width: bounds.width, depth: bounds.depth }).toEqual({
+      width: nearOriginBounds.width,
+      depth: nearOriginBounds.depth,
+    });
+    expect(automaticFootprintEdgeDistance).toBe(0);
+    expect([0, Math.PI / 2, Math.PI, -Math.PI / 2]).toContain(automaticLandmark?.rotation[1]);
+    if (!automaticLandmark) throw new Error("Expected automatic landmark");
+    const anchor = getOfficeSkillAnchorPosition(automaticLandmark);
+    const inwardDotProduct =
+      (anchor[0] - automaticLandmark.position[0]) *
+        (bounds.centerX - automaticLandmark.position[0]) +
+      (anchor[2] - automaticLandmark.position[2]) *
+        (bounds.centerZ - automaticLandmark.position[2]);
+    expect(inwardDotProduct).toBeGreaterThan(0);
+    expect(manualLandmark?.position).toEqual(savedPosition);
+    expect(manualLandmark?.rotation).toEqual([0, 0, 0]);
   });
 
   it("keeps manual builder layout from auto-fitting or repacking saved objects", () => {
@@ -2586,7 +2720,7 @@ describe("office-data-provider team synthesis", () => {
     );
   });
 
-  it("reserves larger project team slots before smaller teams without reordering team data", () => {
+  it("keeps uniform command-office slots in project source order", () => {
     const smallProject = {
       id: "proj-small-team",
       departmentId: "dept-codex-projects",
@@ -2670,7 +2804,39 @@ describe("office-data-provider team synthesis", () => {
     ]);
     expect(smallTeam?.clusterPosition).toBeDefined();
     expect(largeTeam?.clusterPosition).toBeDefined();
-    expect(largeTeam!.clusterPosition![0]).toBeLessThan(smallTeam!.clusterPosition![0]);
+    expect(smallTeam!.clusterPosition![0]).toBeLessThan(largeTeam!.clusterPosition![0]);
+  });
+
+  it("keeps projects beyond command-office capacity visibly unseated without furniture", () => {
+    const projects = Array.from({ length: 9 }, (_, index) => ({
+      id: `capacity-project-${index}`,
+      departmentId: "dept-codex-projects",
+      name: `Capacity Project ${index}`,
+      githubUrl: "",
+      status: "active" as const,
+      goal: `Own capacity slot ${index}`,
+      kpis: [],
+      accountEvents: [],
+      ledger: [],
+      experiments: [],
+      metricEvents: [],
+      resources: [],
+      resourceEvents: [],
+    }));
+    const result = toOfficeData(
+      createUnifiedOfficeModel({ company: createCompanyModel({ projects }) }),
+      createOfficeSettings(),
+    );
+    const projectClusters = result.officeObjects.filter(
+      (object) =>
+        object.meshType === "team-cluster" && object.metadata?.teamId !== "team-management",
+    );
+    const pulses = result.employees.filter((employee) => employee.projectPulse);
+
+    expect(projectClusters).toHaveLength(7);
+    expect(pulses).toHaveLength(9);
+    expect(pulses.filter((pulse) => pulse.deskId)).toHaveLength(7);
+    expect(pulses.slice(7).every((pulse) => pulse.deskId == null)).toBe(true);
   });
 
   it("does not synthesize a Farplane fallback cluster when all projects are archived", () => {

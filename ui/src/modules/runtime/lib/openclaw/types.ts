@@ -372,6 +372,22 @@ export interface DepartmentModel {
   goal: string;
 }
 
+export type TeamCharacterRef = {
+  renderer: "three-human" | "sprite-sheet-2d";
+  petId?: string;
+};
+
+export type TeamSkillCharacterTransformation = {
+  character: TeamCharacterRef;
+  enterAnimation: "poof" | "none";
+};
+
+export type TeamCharacterPolicy = {
+  persistent: TeamCharacterRef;
+  ephemeral: TeamCharacterRef;
+  skillTransformations: Record<string, TeamSkillCharacterTransformation>;
+};
+
 export interface ProjectModel {
   id: string;
   departmentId: string;
@@ -389,6 +405,7 @@ export interface ProjectModel {
   metricEvents: MetricEventModel[];
   resources: ProjectResourceModel[];
   resourceEvents: ResourceEventModel[];
+  characterPolicy?: TeamCharacterPolicy;
 }
 
 export interface CompanyAgentModel {
@@ -429,6 +446,7 @@ export interface CompanyOfficeObjectModel {
     | "activity-landmark"
     | "glass-wall"
     | "office-divider"
+    | "command-commons"
     | "custom-mesh"
     | "wall-art";
   position: [number, number, number];
@@ -457,6 +475,15 @@ export type OfficeLayoutStrategyId =
   | "area_sorted_pack"
   | "command_districts";
 
+export interface OfficeKitStateModel {
+  kitId: string;
+  kitVersion: number;
+  seed: string;
+  status: "equipped" | "customized";
+  projectCapacity: number;
+  revision: number;
+}
+
 export interface OfficeSettingsModel {
   meshAssetDir: string;
   layoutStrategy?: OfficeLayoutStrategyId;
@@ -471,13 +498,28 @@ export interface OfficeSettingsModel {
   };
   decor: {
     floorPatternId: "sandstone_tiles" | "graphite_grid" | "walnut_parquet";
-    wallColorId: "gallery_cream" | "sage_mist" | "harbor_blue" | "clay_rose";
+    wallColorId:
+      | "gallery_cream"
+      | "sage_mist"
+      | "harbor_blue"
+      | "clay_rose"
+      | "command_charcoal";
     backgroundId: "shell_haze" | "midnight_tide" | "kelp_fog" | "estuary_glow";
   };
   viewProfile: "free_orbit_3d" | "fixed_2_5d";
   orbitControlsEnabled: boolean;
   cameraOrientation: "north_east" | "north_west" | "south_east" | "south_west";
+  officeKit?: OfficeKitStateModel;
 }
+
+export type OfficeKitStateSaveResult = {
+  ok: boolean;
+  status: "committed" | "conflict" | "rolled_back" | "recovery_required" | "failed";
+  revision: number;
+  settings?: OfficeSettingsModel;
+  objects?: OfficeObjectSidecarModel[];
+  error?: string;
+};
 
 export interface MeshAssetModel {
   assetId: string;

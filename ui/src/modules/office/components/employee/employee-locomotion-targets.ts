@@ -64,6 +64,7 @@ export function shouldEmployeeRouteToDesk(input: {
   return (
     input.hasActivityTarget ||
     Boolean(input.isCEO) ||
+    !input.wantsToWander ||
     hasActiveEmployeeThread({
       heartbeatState: input.heartbeatState,
       isBusy: input.isBusy,

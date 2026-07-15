@@ -4,6 +4,11 @@
  * The CLI placement tests and the browser occupancy system both consume this
  * dependency-free module so their collision math cannot drift.
  */
+import {
+  ACTIVITY_DESTINATION_ROOM_DEPTH,
+  ACTIVITY_DESTINATION_ROOM_WIDTH,
+  getActivityDestinationRoomDimensions,
+} from "./activity-destination-room.js";
 
 export interface ObjectFootprint {
   width: number;
@@ -19,11 +24,16 @@ export const DEFAULT_OBJECT_FOOTPRINT: ObjectFootprint = {
 
 export const OBJECT_FOOTPRINT_BY_MESH_TYPE: Record<string, ObjectFootprint> = {
   "team-cluster": { width: 9.2, depth: 7.4, clearance: 0.5 },
+  "command-commons": { width: 8, depth: 6, clearance: 0.6 },
   plant: { width: 1, depth: 1, clearance: 0.2 },
   couch: { width: 3.4, depth: 2.2, clearance: 0.8 },
   bookshelf: { width: 3.1, depth: 1.4, clearance: 0.65 },
   pantry: { width: 7.2, depth: 2.4, clearance: 0.65 },
-  "activity-landmark": { width: 4.6, depth: 3.6, clearance: 0.5 },
+  "activity-landmark": {
+    width: ACTIVITY_DESTINATION_ROOM_WIDTH,
+    depth: ACTIVITY_DESTINATION_ROOM_DEPTH,
+    clearance: 0,
+  },
   "glass-wall": { width: 4, depth: 0.35, clearance: 0.05 },
   "office-divider": { width: 4, depth: 0.32, clearance: 0.05 },
   "custom-mesh": DEFAULT_OBJECT_FOOTPRINT,
@@ -43,8 +53,18 @@ export function getObjectFootprint(input: {
   rotation?: [number, number, number];
 }): ObjectFootprint {
   const base = OBJECT_FOOTPRINT_BY_MESH_TYPE[input.meshType] ?? DEFAULT_OBJECT_FOOTPRINT;
-  const width = Math.max(0.1, getMetadataNumber(input.metadata, "footprintWidth") ?? base.width);
-  const depth = Math.max(0.1, getMetadataNumber(input.metadata, "footprintDepth") ?? base.depth);
+  const authoredWidth = getMetadataNumber(input.metadata, "footprintWidth") ?? base.width;
+  const authoredDepth = getMetadataNumber(input.metadata, "footprintDepth") ?? base.depth;
+  const roomDimensions =
+    input.meshType === "activity-landmark"
+      ? getActivityDestinationRoomDimensions(
+          authoredWidth,
+          authoredDepth,
+          input.metadata?.destinationBayZone === true,
+        )
+      : { width: authoredWidth, depth: authoredDepth };
+  const width = Math.max(0.1, roomDimensions.width);
+  const depth = Math.max(0.1, roomDimensions.depth);
   const clearance = Math.max(
     0,
     getMetadataNumber(input.metadata, "footprintClearance") ?? base.clearance,

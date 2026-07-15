@@ -42,7 +42,7 @@ interface DeskCustomProps {
     isHovered: boolean;
 }
 
-const defaultTableColor = new THREE.Color("white");
+const defaultTableColor = new THREE.Color("#d7d0c4");
 const hoveredTableColor = new THREE.Color("#a7f3d0");
 
 // ============================================================================

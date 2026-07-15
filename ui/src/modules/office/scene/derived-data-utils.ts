@@ -91,7 +91,11 @@ export function assignRandomStatuses(
     const messageIndexRandom = seededRandom(employee._id, 5);
 
     const wantsToWander =
-      employee.wantsToWander === false ? false : isTeamLocked ? false : wanderRandom < 0.5;
+      employee.presencePersistent !== false || employee.wantsToWander === false
+        ? false
+        : isTeamLocked
+          ? false
+          : wanderRandom < 0.5;
 
     if (hasActiveHeartbeatState) {
       return {

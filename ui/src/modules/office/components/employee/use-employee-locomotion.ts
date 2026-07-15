@@ -32,7 +32,12 @@ import {
   findAvailableDestination,
   releaseEmployeeReservations,
 } from "@/modules/navigation/pathfinding/destination-registry";
+import type { ActivityScenePresentation } from "@/modules/office/activity-scenes";
 import type { EmployeeIdleInteractionTarget } from "@/modules/office/lib/types";
+import {
+  removeLiveEmployeePosition,
+  setLiveEmployeePosition,
+} from "@/modules/office/scene/employee-position-registry";
 import type { AgentState } from "@/modules/runtime";
 import {
   hasEmployeeDeskTargetChanged,
@@ -64,6 +69,7 @@ type UseEmployeeLocomotionOptions = {
   activityTargetPosition?: [number, number, number];
   activityTargetSkillId?: string;
   activityEffectVariant?: "ghost" | "blink";
+  activityScenePresentation?: ActivityScenePresentation;
   isBusy?: boolean;
   isCEO?: boolean;
   wantsToWander: boolean;
@@ -81,8 +87,51 @@ type UseEmployeeLocomotionResult = {
   isGoingToDesk: boolean;
   animationMode: EmployeeAnimationMode;
   movementDirection: EmployeeMovementDirection;
-  idleInteractionMessage?: { threadId: string; message: string; eventAt: number };
+  idleInteractionMessage?: {
+    threadId: string;
+    message: string;
+    eventAt: number;
+  };
+  engagedActivityScene?: ActivityScenePresentation;
 };
+
+export type ActivityScenePhase = "none" | "travel" | "engaged";
+
+export function resolveActivityScenePhase(input: {
+  hasTarget: boolean;
+  arrived: boolean;
+  projectionActive?: boolean;
+  routeFailed?: boolean;
+  cancelled?: boolean;
+}): ActivityScenePhase {
+  if (input.cancelled || input.routeFailed || !input.hasTarget) return "none";
+  if (input.projectionActive || input.arrived) return "engaged";
+  return "travel";
+}
+
+export function isSameActivityScenePresentation(
+  current: ActivityScenePresentation | undefined,
+  next: ActivityScenePresentation | undefined,
+): boolean {
+  return (
+    current === next ||
+    (current?.sceneKey === next?.sceneKey &&
+      current?.label === next?.label &&
+      current?.propKind === next?.propKind &&
+      current?.baseSpriteAnimation === next?.baseSpriteAnimation &&
+      current?.accentColor === next?.accentColor)
+  );
+}
+
+export function resolveActivityRouteTarget(
+  requestedTarget: THREE.Vector3,
+  route: THREE.Vector3[] | null,
+): THREE.Vector3 {
+  const reachableEndpoint = route?.at(-1);
+  return reachableEndpoint && reachableEndpoint.distanceTo(requestedTarget) > 0.1
+    ? reachableEndpoint.clone()
+    : requestedTarget;
+}
 
 function getDestinationKey(destination: THREE.Vector3, mode: "desk" | "idle"): string {
   return [
@@ -98,6 +147,7 @@ export function useEmployeeLocomotion({
   activityTargetPosition,
   activityTargetSkillId,
   activityEffectVariant,
+  activityScenePresentation,
   isBusy,
   isCEO,
   wantsToWander,
@@ -108,6 +158,7 @@ export function useEmployeeLocomotion({
   debugMode,
 }: UseEmployeeLocomotionOptions): UseEmployeeLocomotionResult {
   const groupRef = useRef<Group>(null);
+  useEffect(() => () => removeLiveEmployeePosition(String(id)), [id]);
   const initialPositionRef = useRef<THREE.Vector3>(
     new THREE.Vector3(...toEmployeeDeskTarget(position)),
   );
@@ -124,10 +175,14 @@ export function useEmployeeLocomotion({
   const [debugDeskDecision, setDebugDeskDecision] = useState("");
   const [animationMode, setAnimationMode] = useState<EmployeeAnimationMode>("idle");
   const [movementDirection, setMovementDirection] = useState<EmployeeMovementDirection>("none");
+  const [engagedActivityScene, setEngagedActivityScene] = useState<
+    ActivityScenePresentation | undefined
+  >(undefined);
 
   const idleTimerRef = useRef(0);
   const debugPathUpdateRef = useRef(0);
   const activityTargetRef = useRef<THREE.Vector3 | null>(null);
+  const activityRouteResolvedRef = useRef(false);
   const failedPathRef = useRef<{ key: string; retryAfter: number } | null>(null);
   const idleInteractionPhraseTimerRef = useRef(0);
   const idleInteractionPhraseIndexRef = useRef(0);
@@ -199,10 +254,14 @@ export function useEmployeeLocomotion({
   }, [id, position[0], position[1], position[2]]);
 
   useEffect(() => {
-    const shouldSnapToTarget =
-      activityEffectVariant === "blink" && Array.isArray(activityTargetPosition);
-    if (!shouldSnapToTarget || !activityTargetPosition) {
+    const shouldRouteToTarget =
+      activityEffectVariant !== "ghost" && Array.isArray(activityTargetPosition);
+    if (!shouldRouteToTarget || !activityTargetPosition) {
       activityTargetRef.current = null;
+      activityRouteResolvedRef.current = false;
+      failedPathRef.current = null;
+      setPath(null);
+      setPathIndex(0);
       setCurrentDestination(null);
       setIsGoingToDesk(false);
       return;
@@ -212,15 +271,22 @@ export function useEmployeeLocomotion({
       TOTAL_HEIGHT / 2,
       activityTargetPosition[2],
     );
+    activityRouteResolvedRef.current = activityEffectVariant === "blink";
+    failedPathRef.current = null;
     setPath(null);
     setPathIndex(0);
     setCurrentDestination(activityTargetRef.current);
     setIdleState("wandering");
     setIsGoingToDesk(true);
-    if (groupRef.current) {
+    if (activityEffectVariant === "blink" && groupRef.current) {
       groupRef.current.position.copy(activityTargetRef.current);
     }
-  }, [activityEffectVariant, activityTargetPosition]);
+  }, [
+    activityEffectVariant,
+    activityTargetPosition?.[0],
+    activityTargetPosition?.[1],
+    activityTargetPosition?.[2],
+  ]);
 
   const chooseIdleDestinationCandidate = useCallback((currentPos: THREE.Vector3) => {
     let newDest: THREE.Vector3;
@@ -259,6 +325,7 @@ export function useEmployeeLocomotion({
     idleInteractionStartedAtRef.current = 0;
     idleInteractionTargetRef.current = null;
     setIdleInteractionMessage(undefined);
+    setEngagedActivityScene(undefined);
   }, []);
 
   useEffect(() => {
@@ -279,7 +346,9 @@ export function useEmployeeLocomotion({
       if (!newPath && goingToDesk) {
         const reachableDeskNeighbor = getNearestValidPlacement(endPos, 16);
         if (reachableDeskNeighbor && reachableDeskNeighbor.distanceTo(finalDestination) > 0.05) {
-          newPath = findPathAStar(startPos, reachableDeskNeighbor, { silent: true });
+          newPath = findPathAStar(startPos, reachableDeskNeighbor, {
+            silent: true,
+          });
         }
       }
 
@@ -309,8 +378,12 @@ export function useEmployeeLocomotion({
 
       for (let attempt = 0; attempt < IDLE_DESTINATION_ATTEMPTS; attempt += 1) {
         const candidate = chooseIdleDestinationCandidate(startPos);
-        const finalDestination = findAvailableDestination(candidate, id, 8, { silent: true });
-        const newPath = findPathAStar(startPos, finalDestination, { silent: true });
+        const finalDestination = findAvailableDestination(candidate, id, 8, {
+          silent: true,
+        });
+        const newPath = findPathAStar(startPos, finalDestination, {
+          silent: true,
+        });
 
         if (newPath) {
           setPath(newPath);
@@ -330,6 +403,7 @@ export function useEmployeeLocomotion({
     if (!groupRef.current) return;
 
     const currentPos = groupRef.current.position;
+    setLiveEmployeePosition(String(id), currentPos);
     const desiredY = TOTAL_HEIGHT / 2;
     currentPos.y = desiredY;
 
@@ -353,9 +427,71 @@ export function useEmployeeLocomotion({
       isCEO,
       wantsToWander,
     });
+    if (activityTargetRef.current && path && pathIndex >= path.length) {
+      activityTargetRef.current = currentPos.clone();
+      activityRouteResolvedRef.current = true;
+      setPath(null);
+      setIsGoingToDesk(false);
+      setCurrentDestination(null);
+    }
     const deskPosition = activityTargetRef.current ?? initialPositionRef.current;
     const isAlreadyAtAssignedDesk =
       shouldBeAtDesk && currentPos.distanceTo(deskPosition) <= arrivalThreshold;
+    const hasFailedActivityRoute =
+      Boolean(activityTargetRef.current) &&
+      !path &&
+      !isAlreadyAtAssignedDesk &&
+      Boolean(failedPathRef.current);
+    const hasSettledActivityRoute =
+      Boolean(activityTargetRef.current) &&
+      !path &&
+      !isGoingToDesk &&
+      currentDestination === null &&
+      activityRouteResolvedRef.current &&
+      !hasFailedActivityRoute;
+    const activeScenePhase = resolveActivityScenePhase({
+      hasTarget: Boolean(activityScenePresentation && activityTargetPosition),
+      arrived:
+        (Boolean(activityTargetRef.current) &&
+          currentPos.distanceTo(activityTargetRef.current ?? currentPos) <= arrivalThreshold) ||
+        hasSettledActivityRoute,
+      projectionActive: activityEffectVariant === "ghost" && Boolean(activityTargetPosition),
+      routeFailed: hasFailedActivityRoute,
+      cancelled: hasManualControl,
+    });
+    if (import.meta.env.DEV && typeof window !== "undefined") {
+      const probeWindow = window as typeof window & {
+        __farplaneOfficeActivityScenePhases?: Record<
+          string,
+          {
+            phase: ActivityScenePhase;
+            hasPresentation: boolean;
+            targetDistance?: number;
+            routeFailed: boolean;
+          }
+        >;
+      };
+      const phaseProbe = (probeWindow.__farplaneOfficeActivityScenePhases ??= {});
+      phaseProbe[String(id)] = {
+        phase: activeScenePhase,
+        hasPresentation: Boolean(activityScenePresentation),
+        targetDistance: activityTargetRef.current
+          ? currentPos.distanceTo(activityTargetRef.current)
+          : undefined,
+        routeFailed: Boolean(failedPathRef.current),
+      };
+    }
+    const desiredEngagedActivityScene =
+      activeScenePhase === "engaged"
+        ? activityScenePresentation
+        : idleInteractionMessage
+          ? idleInteractionTargetRef.current?.activityScene
+          : undefined;
+    setEngagedActivityScene((current) =>
+      isSameActivityScenePresentation(current, desiredEngagedActivityScene)
+        ? current
+        : desiredEngagedActivityScene,
+    );
 
     if (isGridInitialized() && !isWorldPositionWalkable(currentPos) && !isAlreadyAtAssignedDesk) {
       const safePosition = getNearestValidPlacement(currentPos, 24);
@@ -443,6 +579,11 @@ export function useEmployeeLocomotion({
         currentPos.distanceTo(activityTargetRef.current ?? initialPositionRef.current) <=
           arrivalThreshold
       ) {
+        setMovementDirection((previous) => (previous === "none" ? previous : "none"));
+        const settledAnimationMode = desiredEngagedActivityScene ? "working" : "idle";
+        setAnimationMode((previous) =>
+          previous === settledAnimationMode ? previous : settledAnimationMode,
+        );
         return;
       }
 
@@ -471,7 +612,14 @@ export function useEmployeeLocomotion({
                 setIsGoingToDesk(true);
               }
               const nextPath = findAndSetPath(currentPos.clone(), deskPosition.clone(), true);
-              setCurrentDestination(deskPosition);
+              const resolvedDestination = activityTargetRef.current
+                ? resolveActivityRouteTarget(deskPosition, nextPath)
+                : deskPosition;
+              if (activityTargetRef.current) {
+                activityTargetRef.current = resolvedDestination;
+                activityRouteResolvedRef.current = Boolean(nextPath);
+              }
+              setCurrentDestination(resolvedDestination);
               if (!nextPath) {
                 failedPathRef.current = {
                   key: pathKey,
@@ -608,7 +756,7 @@ export function useEmployeeLocomotion({
       ? "walking"
       : hasManualControl
         ? "idle"
-        : shouldBeAtDesk
+        : shouldBeAtDesk || desiredEngagedActivityScene
           ? "working"
           : "idle";
     setAnimationMode((prev) => (prev === nextAnimationMode ? prev : nextAnimationMode));
@@ -625,7 +773,10 @@ export function useEmployeeLocomotion({
           path.length > pathIndex ? [currentPosClone, ...path.slice(pathIndex)] : null;
 
         if (newRemainPath && newRemainPath.length > 1) {
-          setDebugPathData({ originalPath: null, remainingPath: newRemainPath });
+          setDebugPathData({
+            originalPath: null,
+            remainingPath: newRemainPath,
+          });
         } else if (debugPathData.originalPath || debugPathData.remainingPath) {
           setDebugPathData({ originalPath: null, remainingPath: null });
         }
@@ -649,5 +800,6 @@ export function useEmployeeLocomotion({
     animationMode,
     movementDirection,
     idleInteractionMessage,
+    engagedActivityScene,
   };
 }

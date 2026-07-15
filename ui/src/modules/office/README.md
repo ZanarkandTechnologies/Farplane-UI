@@ -17,24 +17,60 @@ Native low-poly `activity-landmark` objects are curated navigation destinations,
 not a mirror of every radial-dial action or panel tab. The live office maps Skill
 Lab, Organization Hall, QA Arcade, Harness Workshop, Resource Archive, Research
 Library, Comms Hub, Telemetry Console, and Thread Data Lab to their matching
-top-level panels. World uses a dedicated glowing orb landmark; Builder,
+top-level panels. World uses a dedicated orb landmark; Builder,
 Settings, decoration, secondary/raw views, and leaf tabs stay launcher-only.
 
 Landmark panel routing and avatar activity targeting are independent metadata
 bindings. `uiBinding` opens one registered top-level panel, while `skillBinding`
 can bind one primary `skillId` plus aliases to the same transient avatar anchor.
-The operator's live sidecar owns placement and mapping, and compact destination
-stations use explicit layout-aware positions rather than rectangular
-auto-placement.
+The operator's live sidecar owns destination identity and mapping. Automatic
+layouts treat landmarks as solver-owned edge rooms: required team areas and
+walk routes place first, ordinary decor packs into the smallest core that can
+preserve it, the core snaps to 5 x 5 modules, and destinations distribute
+uniformly across north, east, and west rails. The camera-facing south edge stays
+open. The preliminary source floor does not set the automatic building size. If
+the core is genuinely full, the solver retries by growing the whole core one
+module at a time. Manual layouts continue to honor saved transforms.
+
+The bay opening keeps that inward navigation rotation, while its permanent
+station contents counter-rotate toward the active fixed isometric camera.
+Every destination uses the same 5 x 5 tile-aligned room zone. The solver keeps
+one smooth rectangular floor spanning the north/east/west rails so the global
+office wall does not zig-zag around individual zones. Rooms still occupy only
+three sides. Each landmark keeps its authored prop scale and receives only a
+restrained colored floor zone—no enlarged bay walls, corner continuations,
+south room rail, or neutral perimeter band. Permanent landmarks share the
+Sandstone Atelier material system: dark metal, walnut, warm paper, stone, and
+inactive teal-grey screens. Five muted role colors identify room purpose while
+brighter accents remain exclusive to engaged employee animations and status.
+
+The room envelope participates in placement collision so rooms cannot overlap
+tables or one another, but activity landmarks do not register as runtime
+navigation obstacles. Employees walk through the open side to interior,
+occupant-spread activity spots instead of stopping outside the room.
+
+Each bay remains one persisted object. Its renderer owns the floor zone and
+permanent equipment; engaged employees receive only a transient scene prop. The
+shared activity catalog gives every kind honest ambient copy and
+a base animation fallback. Library engagement reuses Mini Kenji's maintained
+`review` row with a shared open-book prop, which appears only after arrival and
+is removed on interruption or departure.
 
 **Key files**:
 
-- `components/activity-landmark.tsx`: landmark kind routing and original procedural props
+- `components/activity-landmark.tsx`: persisted metadata, interaction, and camera-facing adapter
+- `components/activity-landmark-visuals.tsx`: authored landmark-kind procedural props
+- `components/activity-destination-room-visual.tsx`: room zone, bay shell, and executive furniture presentation
 - `components/activity-landmark-destinations.tsx`: curated destination-specific procedural props
 - `prefabs/activity-landmark-prefab.tsx`: builder placement registration
 - `panels/internal-panel-catalog.ts`: canonical internal-panel identifiers
 - `panels/use-internal-panel-launcher.ts`: shared landmark/launcher panel routing
 - `skill-targeting.ts`: primary and alias skill lookup
+- `activity-scenes.ts`: landmark-to-scene catalog and renderer fallback
+- `config/office-theme.ts`: scene-wide theme primitive, including permanent landmark materials and room-role colors
+- `components/employee/activity-scene-props.tsx`: engaged-only shared props
+- `lib/activity-destination-ring.ts`: pure three-sided room-rail planner
+- `lib/office-layout-solver.ts`: tables → compact core/decor pack → destination rails
 - `object-ui/metadata.ts`: backward-compatible multi-skill normalization
 
 ### Office World Store And Reconciliation ✅

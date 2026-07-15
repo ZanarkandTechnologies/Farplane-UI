@@ -20,12 +20,13 @@ import { WALL_HEIGHT, WALL_THICKNESS } from "@/constants";
 import { getOfficeFootprintHalfExtents, type OfficeFootprint } from "./office-footprint";
 
 export type OfficeFloorPatternId = "sandstone_tiles" | "graphite_grid" | "walnut_parquet";
-export type OfficeWallColorId = "gallery_cream" | "sage_mist" | "harbor_blue" | "clay_rose";
-export type OfficeBackgroundId =
-  | "shell_haze"
-  | "midnight_tide"
-  | "kelp_fog"
-  | "estuary_glow";
+export type OfficeWallColorId =
+  | "gallery_cream"
+  | "sage_mist"
+  | "harbor_blue"
+  | "clay_rose"
+  | "command_charcoal";
+export type OfficeBackgroundId = "shell_haze" | "midnight_tide" | "kelp_fog" | "estuary_glow";
 export type OfficePaintingPresetId = "sunrise_blocks" | "night_geometry" | "studio_lines";
 export type WallArtSlotId = "back-left" | "back-center" | "back-right" | "left-center";
 
@@ -88,7 +89,7 @@ export interface WallArtSlot {
 export const DEFAULT_OFFICE_DECOR: OfficeDecorSettings = {
   floorPatternId: "sandstone_tiles",
   wallColorId: "gallery_cream",
-  backgroundId: "shell_haze",
+  backgroundId: "estuary_glow",
 };
 
 export const OFFICE_FLOOR_PATTERN_PRESETS: readonly OfficeFloorPatternPreset[] = [
@@ -103,10 +104,10 @@ export const OFFICE_FLOOR_PATTERN_PRESETS: readonly OfficeFloorPatternPreset[] =
   {
     id: "graphite_grid",
     label: "Graphite Grid",
-    description: "Cool stone grid for a more technical office look.",
+    description: "Low-contrast charcoal stone for command-room interiors.",
     swatch:
-      "linear-gradient(135deg, #51606c 0%, #51606c 47%, #a9b6bf 47%, #a9b6bf 53%, #3d4953 53%, #3d4953 100%)",
-    colors: ["#51606c", "#a9b6bf", "#3d4953"],
+      "linear-gradient(135deg, #504e48 0%, #504e48 48%, #57534c 48%, #57534c 52%, #454744 52%, #454744 100%)",
+    colors: ["#504e49", "#52504c", "#494b48"],
   },
   {
     id: "walnut_parquet",
@@ -141,6 +142,12 @@ export const OFFICE_WALL_COLOR_PRESETS: readonly OfficeWallColorPreset[] = [
     label: "Clay Rose",
     description: "Warm blush neutral for a cozier office.",
     color: "#dbc4bb",
+  },
+  {
+    id: "command_charcoal",
+    label: "Command Charcoal",
+    description: "Warm smoked wall panels for a focused control-room shell.",
+    color: "#3a332d",
   },
 ] as const;
 
@@ -204,6 +211,16 @@ export const OFFICE_PAINTING_PRESETS: readonly OfficePaintingPreset[] = [
 ] as const;
 
 export const OFFICE_DECOR_PACKS: readonly OfficeDecorPack[] = [
+  {
+    id: "sandstone-atelier",
+    label: "Sandstone Atelier",
+    description: "Gallery-cream walls, warm stone flooring, and restrained dusk depth.",
+    floorPatternId: "sandstone_tiles",
+    wallColorId: "gallery_cream",
+    backgroundId: "estuary_glow",
+    preview:
+      "linear-gradient(180deg, #ede5d6 0%, #ede5d6 58%, #d7c4a5 58%, #efe2cc 82%, #221511 100%)",
+  },
   {
     id: "shell-parlor",
     label: "Shell Parlor",

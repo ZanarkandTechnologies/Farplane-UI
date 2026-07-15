@@ -43,6 +43,7 @@ in `docs/systems/` and should point back to the feature docs it owns.
 - `FEAT-0112-board-native-task-planning-review.md`
 - `FEAT-0113-qa-panel-access-instrumentation.md`
 - `FEAT-0114-dashboard-projection-architecture.md`
+- `FEAT-0115-office-kits-presence-and-camera.md`
 
 ## Planning Rule
 

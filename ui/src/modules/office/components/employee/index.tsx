@@ -16,18 +16,22 @@
  */
 import { Edges } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { TOTAL_HEIGHT } from "@/constants";
 import type { Id } from "@/lib/entity-types";
 import PathVisualizer from "@/modules/navigation/components/path-visualizer";
 import type { StatusType } from "@/modules/navigation/components/status-indicator";
+import type { ActivityScenePresentation } from "@/modules/office/activity-scenes";
 import type {
   EmployeeActivityState,
   EmployeeIdleInteractionTarget,
 } from "@/modules/office/lib/types";
-import type { AgentState } from "@/modules/runtime";
+import type { AgentState, TeamCharacterPolicy } from "@/modules/runtime";
 import { useAppStore } from "@/store";
+import { resolveTeamCharacter } from "../../team-character-policy";
 import { ContextMenu } from "../context-menu";
+import { ActivitySceneProps } from "./activity-scene-props";
+import { CharacterTransformPoof } from "./character-transform-poof";
 import { EmployeePresenceAura, resolveEmployeePresenceVisual } from "./presence-visuals";
 import { ThreeHumanCharacterRenderer } from "./renderers/three-human";
 import type { CharacterRendererConfig } from "./renderers/types";
@@ -38,6 +42,8 @@ import { useEmployeeAvatarPalette } from "./use-employee-avatar-palette";
 import { useEmployeeCharacterRenderer } from "./use-employee-character-renderer";
 import { useEmployeeLocomotion } from "./use-employee-locomotion";
 import { useEmployeeVisualEffects } from "./use-employee-visual-effects";
+import type { TeamCharacterPreviewDetail } from "./use-team-character-preview";
+import { EMPLOYEE_HIT_CAPSULE_WIDTH, EMPLOYEE_VISUAL_SCALE } from "./employee-scene-scale";
 
 export interface EmployeeProps {
   _id: Id<"employees">;
@@ -47,6 +53,7 @@ export interface EmployeeProps {
   activityTargetObjectPosition?: [number, number, number];
   activityTargetSkillId?: string;
   activityEffectVariant?: "ghost" | "blink";
+  activityScenePresentation?: ActivityScenePresentation;
   isBusy?: boolean;
   isCEO?: boolean;
   isSupervisor?: boolean;
@@ -66,12 +73,18 @@ export interface EmployeeProps {
   activityLabel?: string;
   activityDetail?: string;
   activityUpdatedAt?: number;
-  bubbleMessages?: Array<{ threadId: string; message: string; eventAt: number }>;
+  bubbleMessages?: Array<{
+    threadId: string;
+    message: string;
+    eventAt: number;
+  }>;
   heartbeatState?: AgentState;
   heartbeatBubbles?: Array<{ label: string; weight?: number }>;
   idleInteractionTargets?: EmployeeIdleInteractionTarget[];
   presencePersistent?: boolean;
   presenceExpiresAt?: number;
+  teamCharacterPolicy?: TeamCharacterPolicy;
+  teamCharacterPreview?: TeamCharacterPreviewDetail;
   profileImageUrl?: string;
   useCompactOverlayMode?: boolean;
   appearance?: {
@@ -79,6 +92,38 @@ export interface EmployeeProps {
     hairColor?: string;
     petType?: "none" | "dog" | "cat" | "goldfish" | "rabbit" | "lobster";
     characterRenderer?: CharacterRendererConfig;
+  };
+}
+
+function recordDevActivityScene(
+  employeeId: string,
+  scene: ActivityScenePresentation | undefined,
+  probeName: "__farplaneOfficeActivityScenes" | "__farplaneOfficeActivitySceneTargets",
+): () => void {
+  if (!import.meta.env.DEV || typeof window === "undefined") return () => {};
+  const probeWindow = window as typeof window & {
+    __farplaneOfficeActivityScenes?: Record<
+      string,
+      Pick<ActivityScenePresentation, "sceneKey" | "label" | "propKind" | "baseSpriteAnimation">
+    >;
+    __farplaneOfficeActivitySceneTargets?: Record<
+      string,
+      Pick<ActivityScenePresentation, "sceneKey" | "label" | "propKind" | "baseSpriteAnimation">
+    >;
+  };
+  const probe = (probeWindow[probeName] ??= {});
+  if (scene) {
+    probe[employeeId] = {
+      sceneKey: scene.sceneKey,
+      label: scene.label,
+      propKind: scene.propKind,
+      baseSpriteAnimation: scene.baseSpriteAnimation,
+    };
+  } else {
+    delete probe[employeeId];
+  }
+  return () => {
+    delete probe[employeeId];
   };
 }
 
@@ -90,6 +135,7 @@ const Employee = memo(function Employee({
   activityTargetObjectPosition,
   activityTargetSkillId,
   activityEffectVariant,
+  activityScenePresentation,
   isBusy,
   isCEO,
   isSupervisor,
@@ -111,6 +157,8 @@ const Employee = memo(function Employee({
   idleInteractionTargets,
   presencePersistent,
   presenceExpiresAt,
+  teamCharacterPolicy,
+  teamCharacterPreview,
   useCompactOverlayMode = false,
   appearance,
 }: EmployeeProps) {
@@ -148,12 +196,14 @@ const Employee = memo(function Employee({
     animationMode,
     movementDirection,
     idleInteractionMessage,
+    engagedActivityScene,
   } = useEmployeeLocomotion({
     id,
     position,
     activityTargetPosition,
     activityTargetSkillId,
     activityEffectVariant,
+    activityScenePresentation,
     isBusy,
     isCEO,
     wantsToWander,
@@ -163,9 +213,26 @@ const Employee = memo(function Employee({
     manualControlDestination: isManuallyControlled ? controlledEmployeeDestination : null,
     debugMode,
   });
+  useEffect(
+    () =>
+      recordDevActivityScene(String(id), engagedActivityScene, "__farplaneOfficeActivityScenes"),
+    [engagedActivityScene, id],
+  );
+  useEffect(
+    () =>
+      recordDevActivityScene(
+        String(id),
+        activityScenePresentation,
+        "__farplaneOfficeActivitySceneTargets",
+      ),
+    [activityScenePresentation, id],
+  );
   const finalColors = useEmployeeAvatarPalette({ isCEO, appearance });
   const employeeActions = useEmployeeActions({ id, isCEO, onClick });
-  const presenceVisual = resolveEmployeePresenceVisual({ presencePersistent, heartbeatState });
+  const presenceVisual = useMemo(
+    () => resolveEmployeePresenceVisual({ presencePersistent, heartbeatState }),
+    [heartbeatState, presencePersistent],
+  );
 
   const handleClick = useCallback(
     (event: ThreeEvent<MouseEvent>) => {
@@ -183,6 +250,24 @@ const Employee = memo(function Employee({
     Array.isArray(activityTargetObjectPosition);
   const isBlinkEffectActive =
     activityEffectVariant === "blink" && Array.isArray(activityTargetPosition);
+  const effectiveSkillId = teamCharacterPreview?.skillId ?? activityTargetSkillId;
+  const resolvedTeamCharacter = useMemo(
+    () =>
+      resolveTeamCharacter({
+        policy: teamCharacterPolicy,
+        presencePersistent,
+        activeSkillId: effectiveSkillId,
+        previewCharacter: teamCharacterPreview?.character,
+        fallback: appearance?.characterRenderer,
+      }),
+    [
+      appearance?.characterRenderer,
+      effectiveSkillId,
+      presencePersistent,
+      teamCharacterPolicy,
+      teamCharacterPreview?.character,
+    ],
+  );
   const {
     CharacterRenderer,
     config: characterRendererConfig,
@@ -190,10 +275,12 @@ const Employee = memo(function Employee({
   } = useEmployeeCharacterRenderer({
     employeeId: String(id),
     name,
-    characterRenderer: appearance?.characterRenderer,
+    characterRenderer: resolvedTeamCharacter.config,
+    preferConfiguredRenderer: Boolean(resolvedTeamCharacter.transformationSkillId),
     animationMode,
     movementDirection,
     activityState: visibleActivityState,
+    activityScene: engagedActivityScene,
     isSelected,
     isHovered,
     isHighlighted,
@@ -248,13 +335,21 @@ const Employee = memo(function Employee({
         }}
       >
         <mesh name={`employee-hit-target-${id}`} position={[0, 0.68, 0]}>
-          <cylinderGeometry args={[0.8, 0.9, TOTAL_HEIGHT + 0.55, 20]} />
+          <cylinderGeometry
+            args={[EMPLOYEE_HIT_CAPSULE_WIDTH / 2 - 0.1, EMPLOYEE_HIT_CAPSULE_WIDTH / 2, TOTAL_HEIGHT + 0.55, 20]}
+          />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
 
         <EmployeePresenceAura visual={presenceVisual} />
 
-        <group ref={avatarRef}>
+        <group ref={avatarRef} scale={EMPLOYEE_VISUAL_SCALE}>
+          {resolvedTeamCharacter.transition === "poof" &&
+          resolvedTeamCharacter.transformationSkillId ? (
+            <CharacterTransformPoof
+              key={`${resolvedTeamCharacter.transformationSkillId}:${characterRendererConfig.source && "petId" in characterRendererConfig.source ? characterRendererConfig.source.petId : characterRendererConfig.id}`}
+            />
+          ) : null}
           <CharacterRenderer
             runtime={characterRuntime}
             colors={finalColors}
@@ -268,8 +363,12 @@ const Employee = memo(function Employee({
             clothesStyle={appearance?.clothesStyle}
             presenceVisual={presenceVisual}
             config={characterRendererConfig}
+            suppressLoadingFallback={Boolean(resolvedTeamCharacter.transformationSkillId)}
             fallback={ThreeHumanCharacterRenderer}
           />
+          {!isGhostProjectionActive && engagedActivityScene ? (
+            <ActivitySceneProps scene={engagedActivityScene} />
+          ) : null}
         </group>
 
         {isGhostProjectionActive ? (
@@ -301,7 +400,11 @@ const Employee = memo(function Employee({
         <EmployeeStatusBubbles
           statusMessage={isGhostProjectionActive ? undefined : statusMessage}
           activityState={isGhostProjectionActive ? undefined : visibleActivityState}
-          activityLabel={isGhostProjectionActive ? undefined : visibleActivityLabel}
+          activityLabel={
+            isGhostProjectionActive
+              ? undefined
+              : (engagedActivityScene?.label ?? visibleActivityLabel)
+          }
           activityDetail={isGhostProjectionActive ? undefined : visibleActivityDetail}
           isHovered={isHovered}
           isHighlighted={isHighlighted}
@@ -314,7 +417,11 @@ const Employee = memo(function Employee({
           onboardingPrompt={onboardingPrompt}
           useCompactOverlayMode={useCompactOverlayMode}
           pinReadyActivity={isCodexThreadEmployee}
-          skillInvocationLabel={isGhostProjectionActive ? undefined : skillInvocationLabel}
+          skillInvocationLabel={
+            isGhostProjectionActive
+              ? undefined
+              : (engagedActivityScene?.label ?? skillInvocationLabel)
+          }
           bubbleMessages={isGhostProjectionActive ? undefined : presentedBubbleMessages}
           presenceExpiresAt={presenceExpiresAt}
         />
@@ -357,10 +464,11 @@ const Employee = memo(function Employee({
             config={characterRendererConfig}
             fallback={ThreeHumanCharacterRenderer}
           />
+          {engagedActivityScene ? <ActivitySceneProps scene={engagedActivityScene} /> : null}
           <EmployeeStatusBubbles
             statusMessage={statusMessage}
             activityState={visibleActivityState}
-            activityLabel={visibleActivityLabel}
+            activityLabel={engagedActivityScene?.label ?? visibleActivityLabel}
             activityDetail={visibleActivityDetail}
             isHovered={false}
             isHighlighted={false}
@@ -373,7 +481,7 @@ const Employee = memo(function Employee({
             onboardingPrompt={null}
             useCompactOverlayMode={useCompactOverlayMode}
             pinReadyActivity={false}
-            skillInvocationLabel={skillInvocationLabel}
+            skillInvocationLabel={engagedActivityScene?.label ?? skillInvocationLabel}
             bubbleMessages={presentedBubbleMessages}
             presenceExpiresAt={presenceExpiresAt}
           />

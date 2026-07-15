@@ -58,4 +58,36 @@ describe("deriveOfficeSpaceStats", () => {
     expect(stats.walkablePercent).toBeGreaterThan(0);
     expect(stats.layoutQualityScore).toBeGreaterThanOrEqual(0);
   });
+
+  it("counts explicit walkable visual zones without changing navigation footprints", () => {
+    const baseObject = {
+      _id: "generated-command-commons",
+      meshType: "command-commons",
+      position: [5, 0, 5] as [number, number, number],
+      rotation: [0, 0, 0] as [number, number, number],
+      metadata: { footprintWidth: 4, footprintDepth: 3, footprintClearance: 0 },
+    };
+    const withoutZone = deriveOfficeSpaceStats({
+      officeLayout: createLayout(12, 12),
+      officeObjects: [baseObject],
+      employees: [],
+    });
+    const withZone = deriveOfficeSpaceStats({
+      officeLayout: createLayout(12, 12),
+      officeObjects: [
+        {
+          ...baseObject,
+          metadata: {
+            ...baseObject.metadata,
+            visualFootprintWidth: 8,
+            visualFootprintDepth: 7,
+          },
+        },
+      ],
+      employees: [],
+    });
+
+    expect(withZone.occupiedTiles).toBeGreaterThan(withoutZone.occupiedTiles);
+    expect(withZone.emptyPercent).toBeLessThan(withoutZone.emptyPercent);
+  });
 });

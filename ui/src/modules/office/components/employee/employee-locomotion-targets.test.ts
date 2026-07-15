@@ -20,7 +20,7 @@ describe("employee locomotion targets", () => {
     expect(hasEmployeeDeskTargetChanged([1, 0.5, 2], [2, 0.5, 2])).toBe(true);
   });
 
-  it("routes active employees to desks while leaving idle fixed-station employees free", () => {
+  it("routes active and desk-bound employees to desks while allowing ambient wanderers", () => {
     expect(
       shouldEmployeeRouteToDesk({
         hasActivityTarget: false,
@@ -41,7 +41,7 @@ describe("employee locomotion targets", () => {
         heartbeatState: "idle",
         wantsToWander: false,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("lets manual control override autonomous route sources only with a destination", () => {

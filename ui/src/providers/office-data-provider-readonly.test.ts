@@ -49,6 +49,7 @@ describe("persistPlacementRepairIfAllowed", () => {
 
   it("persists changed placement repairs when writes are allowed", async () => {
     const adapter = {
+      getOfficeObjects: vi.fn().mockResolvedValue(officeObjects),
       saveOfficeObjects: vi.fn().mockResolvedValue({ ok: true, objects: officeObjects }),
       saveOfficeSettings: vi.fn().mockResolvedValue({ ok: true, settings: officeSettings }),
     };

@@ -23,6 +23,13 @@ import {
   type OfficeLayoutQuality,
   type OfficePoiGraphReport,
 } from "@/modules/office/lib/office-layout-quality";
+import {
+  addPaddedOfficeLayoutTile as addPaddedTile,
+  buildOfficeConnectivityGraphEdges as buildConnectivityGraphEdges,
+  getOfficeExteriorVoidTiles as getExteriorVoidTiles,
+  isOfficeExteriorBoundaryLayoutTile as isExteriorBoundaryLayoutTile,
+  sortOfficeLayoutTiles as sortLayoutTiles,
+} from "@/modules/office/lib/office-layout-topology";
 import type { OfficeObject } from "@/modules/office/lib/types";
 import { getObjectFootprintCells } from "@/modules/office/systems/occupancy-system";
 import {
@@ -31,6 +38,15 @@ import {
   getOfficeLayoutCandidatePositions,
   type OfficePlacementObject,
 } from "@/modules/office/systems/placement-engine";
+import {
+  type ActivityDestinationRailPlan,
+  planActivityDestinationRails,
+} from "./activity-destination-ring";
+import { ACTIVITY_DESTINATION_ROOM_WIDTH } from "./activity-destination-room";
+import {
+  type CentralCommandCommonsPlan,
+  planCentralCommandCommons,
+} from "./central-command-commons";
 
 export interface OfficeLayoutSolverInput {
   sourceLayout: OfficeLayoutModel;
@@ -87,20 +103,13 @@ interface TilePoint {
   z: number;
 }
 
-interface ConnectivityEdge {
-  from: number;
-  to: number;
-  distance: number;
-}
-
 const DEFAULT_PADDING_TILES = 1;
 const DEFAULT_CORRIDOR_RADIUS_TILES = 1;
 const DEFAULT_TARGET_EMPTY_PERCENT = 0.3;
 const DEFAULT_OBJECT_GAP_TILES = 1;
 const DEFAULT_OVERFLOW_SEARCH_RADIUS_TILES = 14;
 const DEFAULT_OVERFLOW_CANDIDATE_LIMIT = 900;
-const DEFAULT_DESTINATION_OVERFLOW_CANDIDATE_LIMIT = 96;
-const CONNECTIVITY_LOOP_EDGE_RATIO = 0.2;
+const MAX_DESTINATION_RAIL_GROWTH_STEPS = 4;
 
 function normalizeTileRadius(value: number | undefined, fallback: number): number {
   if (!Number.isFinite(value)) return fallback;
@@ -110,17 +119,6 @@ function normalizeTileRadius(value: number | undefined, fallback: number): numbe
 function normalizeTargetEmptyPercent(value: number | undefined): number {
   if (!Number.isFinite(value)) return DEFAULT_TARGET_EMPTY_PERCENT;
   return Math.max(0, Math.min(1, value ?? DEFAULT_TARGET_EMPTY_PERCENT));
-}
-
-function sortLayoutTiles(tiles: Iterable<string>): string[] {
-  return [...tiles].sort((left, right) => {
-    const leftParsed = parseOfficeLayoutTileKey(left);
-    const rightParsed = parseOfficeLayoutTileKey(right);
-    if (!leftParsed || !rightParsed) return left.localeCompare(right);
-    return leftParsed.z === rightParsed.z
-      ? leftParsed.x - rightParsed.x
-      : leftParsed.z - rightParsed.z;
-  });
 }
 
 function createTileMaskLayout(tileSet: Set<string>): OfficeLayoutModel {
@@ -174,14 +172,6 @@ function findLargestWalkableComponent(walkableTiles: Set<string>): Set<string> {
   return largest;
 }
 
-function addPaddedTile(tileSet: Set<string>, x: number, z: number, radius: number): void {
-  for (let dx = -radius; dx <= radius; dx += 1) {
-    for (let dz = -radius; dz <= radius; dz += 1) {
-      tileSet.add(officeLayoutTileKey(x + dx, z + dz));
-    }
-  }
-}
-
 function getObjectAccessTile(object: OfficeObject): TilePoint | null {
   const cells = getObjectFootprintCells(object);
   if (cells.length === 0) return null;
@@ -218,55 +208,6 @@ function getObjectAccessTile(object: OfficeObject): TilePoint | null {
     candidates.find((candidate) => !occupied.has(officeLayoutTileKey(candidate.x, candidate.z))) ??
     null
   );
-}
-
-function getConnectivityEdges(centers: TilePoint[]): ConnectivityEdge[] {
-  const edges: ConnectivityEdge[] = [];
-  for (let from = 0; from < centers.length; from += 1) {
-    for (let to = from + 1; to < centers.length; to += 1) {
-      const left = centers[from];
-      const right = centers[to];
-      edges.push({
-        from,
-        to,
-        distance: Math.abs(left.x - right.x) + Math.abs(left.z - right.z),
-      });
-    }
-  }
-  return edges.sort((left, right) => left.distance - right.distance);
-}
-
-function findConnectivityParent(parents: number[], index: number): number {
-  let current = index;
-  while (parents[current] !== current) {
-    parents[current] = parents[parents[current]];
-    current = parents[current];
-  }
-  return current;
-}
-
-function buildConnectivityGraphEdges(centers: TilePoint[]): ConnectivityEdge[] {
-  if (centers.length <= 1) return [];
-  const allEdges = getConnectivityEdges(centers);
-  const parents = centers.map((_, index) => index);
-  const mstEdges: ConnectivityEdge[] = [];
-  const mstEdgeKeys = new Set<string>();
-
-  for (const edge of allEdges) {
-    const leftRoot = findConnectivityParent(parents, edge.from);
-    const rightRoot = findConnectivityParent(parents, edge.to);
-    if (leftRoot === rightRoot) continue;
-    parents[rightRoot] = leftRoot;
-    mstEdges.push(edge);
-    mstEdgeKeys.add(`${edge.from}:${edge.to}`);
-    if (mstEdges.length === centers.length - 1) break;
-  }
-
-  const loopBudget = Math.ceil(mstEdges.length * CONNECTIVITY_LOOP_EDGE_RATIO);
-  const loopEdges = allEdges
-    .filter((edge) => !mstEdgeKeys.has(`${edge.from}:${edge.to}`))
-    .slice(0, loopBudget);
-  return [...mstEdges, ...loopEdges];
 }
 
 function addReservedCorridor(input: {
@@ -435,19 +376,8 @@ interface OptionalObjectPlacementResult {
   overflowPlacedObjectCount: number;
   unplacedObjectCount: number;
   expansionTileCount: number;
+  preserveFullLayout: boolean;
 }
-
-interface DestinationFacing {
-  rotationY: number;
-  exteriorOffset: TilePoint;
-}
-
-const DESTINATION_FACINGS: DestinationFacing[] = [
-  { rotationY: 0, exteriorOffset: { x: 0, z: -1 } },
-  { rotationY: Math.PI / 2, exteriorOffset: { x: 1, z: 0 } },
-  { rotationY: Math.PI, exteriorOffset: { x: 0, z: 1 } },
-  { rotationY: -Math.PI / 2, exteriorOffset: { x: -1, z: 0 } },
-];
 
 function findWalkPathToNetwork(input: {
   start: TilePoint;
@@ -467,6 +397,24 @@ function findWalkPathToNetwork(input: {
     const fallbackKey = officeLayoutTileKey(input.fallbackTarget.x, input.fallbackTarget.z);
     if (input.floorTiles.has(fallbackKey) && !input.occupiedTiles.has(fallbackKey)) {
       reachableTargets.add(fallbackKey);
+    } else {
+      const nearestOpenFallback = [...input.floorTiles]
+        .filter((key) => !input.occupiedTiles.has(key))
+        .flatMap((key) => {
+          const point = parseOfficeLayoutTileKey(key);
+          return point
+            ? [
+                {
+                  key,
+                  distance:
+                    Math.abs(point.x - input.fallbackTarget.x) +
+                    Math.abs(point.z - input.fallbackTarget.z),
+                },
+              ]
+            : [];
+        })
+        .sort((left, right) => left.distance - right.distance)[0];
+      if (nearestOpenFallback) reachableTargets.add(nearestOpenFallback.key);
     }
   }
   if (reachableTargets.size === 0) return null;
@@ -528,85 +476,6 @@ function addDestinationRouteReservation(input: {
   return added;
 }
 
-function findBestDestinationPlacement(input: {
-  layout: OfficeLayoutModel;
-  reservation: ReturnType<typeof createOfficePlacementReservation>;
-  object: OfficePlacementObject;
-  reservedWalkTiles: Set<string>;
-  centroid: TilePoint;
-  placedDestinations: OfficeObject[];
-}): { object: OfficePlacementObject; accessTile: TilePoint; path: TilePoint[] } | null {
-  const floorTiles = getOfficeLayoutTileSet(input.layout);
-  const exteriorVoid = getExteriorVoidTiles(floorTiles);
-  let best: {
-    object: OfficePlacementObject;
-    accessTile: TilePoint;
-    path: TilePoint[];
-    score: number;
-  } | null = null;
-
-  for (const position of getOfficeLayoutCandidatePositions({
-    layout: input.layout,
-    y: input.object.position[1],
-  })) {
-    for (const facing of DESTINATION_FACINGS) {
-      const candidate: OfficePlacementObject = {
-        ...input.object,
-        position,
-        rotation: [
-          input.object.rotation?.[0] ?? 0,
-          facing.rotationY,
-          input.object.rotation?.[2] ?? 0,
-        ],
-      };
-      const footprintCells = getObjectFootprintCells(candidate);
-      if (
-        !canReserveOfficeObject({
-          object: candidate,
-          layout: input.layout,
-          reservation: input.reservation,
-        })
-      ) {
-        continue;
-      }
-      const exposedCount = footprintCells.filter((cell) =>
-        exteriorVoid.has(
-          officeLayoutTileKey(cell.x + facing.exteriorOffset.x, cell.z + facing.exteriorOffset.z),
-        ),
-      ).length;
-      if (exposedCount === 0) continue;
-
-      const candidateOfficeObject = toSolverOfficeObject(candidate);
-      const accessTile = getObjectAccessTile(candidateOfficeObject);
-      if (!accessTile) continue;
-      const occupiedTiles = buildOccupiedTileSet([...input.reservation.objects, candidate]);
-      const path = findWalkPathToNetwork({
-        start: accessTile,
-        floorTiles,
-        occupiedTiles,
-        networkTiles: input.reservedWalkTiles,
-        fallbackTarget: input.centroid,
-      });
-      if (!path) continue;
-
-      const preferredDistance =
-        (position[0] - input.object.position[0]) ** 2 +
-        (position[2] - input.object.position[2]) ** 2;
-      const separation = input.placedDestinations.reduce(
-        (total, placed) =>
-          total + (position[0] - placed.position[0]) ** 2 + (position[2] - placed.position[2]) ** 2,
-        0,
-      );
-      const score = preferredDistance * 10 + path.length - exposedCount * 4 - separation;
-      if (!best || score < best.score) {
-        best = { object: candidate, accessTile, path, score };
-      }
-    }
-  }
-
-  return best ? { object: best.object, accessTile: best.accessTile, path: best.path } : null;
-}
-
 function getOrderedOptionalObjects(
   optionalObjects: OfficeObject[],
   objectGapTiles: number,
@@ -628,6 +497,59 @@ function getOrderedOptionalObjects(
     );
 }
 
+function placeDecorObjectsInRingCore(input: {
+  railPlan: ActivityDestinationRailPlan | CentralCommandCommonsPlan;
+  requiredObjects: OfficeObject[];
+  orderedObjects: OrderedOptionalPlacementObject[];
+  reservedWalkTiles: Set<string>;
+  objectGapTiles: number;
+}): { placedObjects: OfficeObject[]; unplacedCount: number } {
+  const { coreBounds } = input.railPlan;
+  const coreFloorTiles = new Set(
+    [...input.railPlan.floorTiles].filter((key) => {
+      const tile = parseOfficeLayoutTileKey(key);
+      return (
+        tile != null &&
+        tile.x >= coreBounds.minX &&
+        tile.x <= coreBounds.maxX &&
+        tile.z >= coreBounds.minZ &&
+        tile.z <= coreBounds.maxZ
+      );
+    }),
+  );
+  const coreLayout = createTileMaskLayout(coreFloorTiles);
+  const coreReservedWalkTiles = new Set(
+    [...input.reservedWalkTiles].filter((key) => coreFloorTiles.has(key)),
+  );
+  const reservation = createOfficePlacementReservation([
+    ...input.requiredObjects.map((object) =>
+      withMinimumPlacementGap(toPlacementObject(object), input.objectGapTiles),
+    ),
+    ...toReservedWalkBlockers(coreReservedWalkTiles),
+  ]);
+  const centroid = getRequiredObjectCentroid(input.requiredObjects, coreLayout);
+  const placedObjects: OfficeObject[] = [];
+  let unplacedCount = 0;
+
+  for (const { object, placementObject } of input.orderedObjects) {
+    const position = findBestOptionalObjectPosition({
+      layout: coreLayout,
+      reservation,
+      object: placementObject,
+      centroid,
+    });
+    if (!position) {
+      unplacedCount += 1;
+      continue;
+    }
+    const reservedObject = { ...placementObject, position };
+    reservation.objects.push(reservedObject);
+    placedObjects.push({ ...object, position, metadata: reservedObject.metadata });
+  }
+
+  return { placedObjects, unplacedCount };
+}
+
 function placeOptionalObjects(input: {
   layout: OfficeLayoutModel;
   requiredObjects: OfficeObject[];
@@ -636,107 +558,151 @@ function placeOptionalObjects(input: {
   objectGapTiles: number;
   paddingTiles: number;
   corridorRadiusTiles: number;
+  strategyId?: string;
+  railGrowthSteps?: number;
 }): OptionalObjectPlacementResult {
-  let workingLayout = input.layout;
-  let workingFloorTiles = getOfficeLayoutTileSet(input.layout);
-  let workingReservedWalkTiles = new Set(input.reservedWalkTiles);
-  const reservation = createOfficePlacementReservation([
-    ...input.requiredObjects.map((object) =>
-      withMinimumPlacementGap(toPlacementObject(object), input.objectGapTiles),
-    ),
-    ...toReservedWalkBlockers(input.reservedWalkTiles),
-  ]);
-  const reservedWalkBlockerKeys = new Set(input.reservedWalkTiles);
-  const centroid = getRequiredObjectCentroid(input.requiredObjects, input.layout);
+  const railGrowthSteps = input.railGrowthSteps ?? 0;
   const destinationObjects = input.optionalObjects.filter(
     (object) => object.meshType === "activity-landmark",
   );
   const decorObjects = input.optionalObjects.filter(
     (object) => object.meshType !== "activity-landmark",
   );
-  const orderedDestinations = getOrderedOptionalObjects(destinationObjects, input.objectGapTiles);
-  const orderedObjects = getOrderedOptionalObjects(decorObjects, input.objectGapTiles);
-  const placedOptionalObjects: OfficeObject[] = [];
-  const overflowCandidates: OrderedOptionalPlacementObject[] = [];
-  let insidePlacedObjectCount = 0;
-  let overflowPlacedObjectCount = 0;
-  let expansionTileCount = 0;
-  let destinationOverflowStarted = false;
-
-  for (const { object, placementObject } of orderedDestinations) {
-    const insideResult = destinationOverflowStarted
-      ? null
-      : findBestDestinationPlacement({
-          layout: workingLayout,
-          reservation,
-          object: placementObject,
-          reservedWalkTiles: workingReservedWalkTiles,
-          centroid,
-          placedDestinations: placedOptionalObjects,
-        });
-    const overflowResult = insideResult
-      ? null
-      : findBestOverflowDestinationPosition({
-          layout: workingLayout,
-          floorTiles: workingFloorTiles,
-          reservedWalkTiles: workingReservedWalkTiles,
-          reservation,
-          object: placementObject,
-          centroid,
-          paddingTiles: input.paddingTiles,
-          corridorRadiusTiles: input.corridorRadiusTiles,
-          placedDestinations: placedOptionalObjects,
-        });
-    const result = insideResult ?? overflowResult;
-    if (!result) continue;
-    if (overflowResult) {
-      destinationOverflowStarted = true;
-      workingFloorTiles = overflowResult.floorTiles;
-      workingReservedWalkTiles = overflowResult.reservedWalkTiles;
-      workingLayout = overflowResult.layout;
-      expansionTileCount += overflowResult.newTileCount;
-      overflowPlacedObjectCount += 1;
+  const requiredAndRouteTileDemand = new Set(input.reservedWalkTiles);
+  for (const object of input.requiredObjects) {
+    for (const cell of getObjectFootprintCells(toPlacementObject(object))) {
+      requiredAndRouteTileDemand.add(cell.key);
     }
-    reservation.objects.push(result.object);
+  }
+  const decorTileDemand = decorObjects.reduce(
+    (total, object) =>
+      total +
+      getObjectFootprintCells(
+        withMinimumPlacementGap(toPlacementObject(object), input.objectGapTiles),
+      ).length,
+    0,
+  );
+  const orderedObjects = getOrderedOptionalObjects(decorObjects, input.objectGapTiles);
+  const usesCentralCommandCommons = input.strategyId === "team_neighborhoods";
+  const compositionInput = {
+    requiredObjects: input.requiredObjects,
+    // The command composition derives its compact shell from the authored
+    // neighborhoods. Source-layout routes are rebuilt after placement and
+    // must not inflate the room before the new anchors exist.
+    reservedWalkTiles: usesCentralCommandCommons ? new Set<string>() : input.reservedWalkTiles,
+    destinations: destinationObjects,
+    paddingTiles: railGrowthSteps * ACTIVITY_DESTINATION_ROOM_WIDTH,
+    minimumCoreTileArea: usesCentralCommandCommons
+      ? 0
+      : Math.ceil((requiredAndRouteTileDemand.size + decorTileDemand) / 0.65),
+  };
+  const railPlan = usesCentralCommandCommons
+    ? planCentralCommandCommons(compositionInput)
+    : planActivityDestinationRails(compositionInput);
+  const coreDecorPlacement = railPlan
+    ? placeDecorObjectsInRingCore({
+        railPlan,
+        requiredObjects: input.requiredObjects,
+        orderedObjects,
+        reservedWalkTiles: input.reservedWalkTiles,
+        objectGapTiles: input.objectGapTiles,
+      })
+    : null;
+  if (railPlan && coreDecorPlacement && coreDecorPlacement.unplacedCount > 0) {
+    if (railGrowthSteps < MAX_DESTINATION_RAIL_GROWTH_STEPS) {
+      return placeOptionalObjects({ ...input, railGrowthSteps: railGrowthSteps + 1 });
+    }
+    throw new Error(
+      `Activity destination rails could not preserve ${coreDecorPlacement.unplacedCount} optional office object(s)`,
+    );
+  }
+  let workingFloorTiles = railPlan
+    ? new Set(railPlan.floorTiles)
+    : getOfficeLayoutTileSet(input.layout);
+  let workingLayout = railPlan ? createTileMaskLayout(workingFloorTiles) : input.layout;
+  let workingReservedWalkTiles = new Set(input.reservedWalkTiles);
+  if (railPlan) {
+    for (const slot of railPlan.roomSlots) {
+      addPaddedTile(
+        workingReservedWalkTiles,
+        slot.accessTile.x,
+        slot.accessTile.z,
+        input.corridorRadiusTiles,
+      );
+    }
+  }
+  const reservation = createOfficePlacementReservation([
+    ...input.requiredObjects.map((object) =>
+      withMinimumPlacementGap(toPlacementObject(object), input.objectGapTiles),
+    ),
+    ...(coreDecorPlacement?.placedObjects ?? []).map(toPlacementObject),
+    ...toReservedWalkBlockers(workingReservedWalkTiles),
+  ]);
+  const reservedWalkBlockerKeys = new Set(workingReservedWalkTiles);
+  const centroid = getRequiredObjectCentroid(input.requiredObjects, workingLayout);
+  const placedOptionalObjects: OfficeObject[] = railPlan
+    ? [...railPlan.placedDestinations, ...(coreDecorPlacement?.placedObjects ?? [])]
+    : [];
+  const overflowCandidates: OrderedOptionalPlacementObject[] = [];
+  let insidePlacedObjectCount = coreDecorPlacement?.placedObjects.length ?? 0;
+  let overflowPlacedObjectCount = railPlan?.placedDestinations.length ?? 0;
+  let expansionTileCount = railPlan
+    ? Math.max(0, railPlan.floorTiles.size - input.layout.tiles.length)
+    : 0;
+  let unroutedDestinationCount = 0;
+
+  if (railPlan) {
+    for (const destination of railPlan.placedDestinations) {
+      reservation.objects.push(toPlacementObject(destination));
+    }
     const occupiedTiles = buildOccupiedTileSet(reservation.objects);
-    const newReservedWalkTiles = insideResult
-      ? addDestinationRouteReservation({
-          path: insideResult.path,
-          floorTiles: workingFloorTiles,
-          reservedWalkTiles: workingReservedWalkTiles,
-          occupiedTiles,
-          radius: input.corridorRadiusTiles,
-        })
-      : [...workingReservedWalkTiles].filter(
-          (tile) => !reservedWalkBlockerKeys.has(tile) && !occupiedTiles.has(tile),
-        );
-    for (const tile of newReservedWalkTiles) reservedWalkBlockerKeys.add(tile);
-    reservation.objects.push(...toReservedWalkBlockers(newReservedWalkTiles));
-    placedOptionalObjects.push({
-      ...object,
-      position: result.object.position,
-      rotation: result.object.rotation ?? object.rotation,
-      metadata: result.object.metadata,
-    });
-    if (insideResult) insidePlacedObjectCount += 1;
+    const routeNetwork = new Set(input.reservedWalkTiles);
+    for (const slot of railPlan.roomSlots) {
+      const path = findWalkPathToNetwork({
+        start: slot.accessTile,
+        floorTiles: workingFloorTiles,
+        occupiedTiles,
+        networkTiles: routeNetwork,
+        fallbackTarget: centroid,
+      });
+      if (!path) {
+        unroutedDestinationCount += 1;
+        continue;
+      }
+      const added = addDestinationRouteReservation({
+        path,
+        floorTiles: workingFloorTiles,
+        reservedWalkTiles: workingReservedWalkTiles,
+        occupiedTiles,
+        radius: input.corridorRadiusTiles,
+      });
+      for (const key of added) routeNetwork.add(key);
+    }
+    const routeBlockers = [...workingReservedWalkTiles].filter(
+      (key) => !reservedWalkBlockerKeys.has(key),
+    );
+    for (const key of routeBlockers) reservedWalkBlockerKeys.add(key);
+    reservation.objects.push(...toReservedWalkBlockers(routeBlockers));
   }
 
-  for (const orderedObject of orderedObjects) {
-    const { object, placementObject } = orderedObject;
-    const position = findBestOptionalObjectPosition({
-      layout: workingLayout,
-      reservation,
-      object: placementObject,
-      centroid,
-    });
-    if (!position) {
-      overflowCandidates.push(orderedObject);
-      continue;
+  if (!railPlan) {
+    for (const orderedObject of orderedObjects) {
+      const { object, placementObject } = orderedObject;
+      const position = findBestOptionalObjectPosition({
+        layout: workingLayout,
+        reservation,
+        object: placementObject,
+        centroid,
+      });
+      if (!position) {
+        overflowCandidates.push(orderedObject);
+        continue;
+      }
+      const reservedObject = { ...placementObject, position };
+      reservation.objects.push(reservedObject);
+      placedOptionalObjects.push({ ...object, position, metadata: reservedObject.metadata });
+      insidePlacedObjectCount += 1;
     }
-    const reservedObject = { ...placementObject, position };
-    reservation.objects.push(reservedObject);
-    placedOptionalObjects.push({ ...object, position, metadata: reservedObject.metadata });
-    insidePlacedObjectCount += 1;
   }
 
   for (const { object, placementObject } of overflowCandidates) {
@@ -770,15 +736,35 @@ function placeOptionalObjects(input: {
     overflowPlacedObjectCount += 1;
   }
 
+  const unplacedObjectCount =
+    input.optionalObjects.length - insidePlacedObjectCount - overflowPlacedObjectCount;
+  if (
+    railPlan &&
+    (unplacedObjectCount > 0 || unroutedDestinationCount > 0) &&
+    railGrowthSteps < MAX_DESTINATION_RAIL_GROWTH_STEPS
+  ) {
+    return placeOptionalObjects({ ...input, railGrowthSteps: railGrowthSteps + 1 });
+  }
+  if (railPlan && unroutedDestinationCount > 0) {
+    throw new Error(
+      `Activity destination rails have ${unroutedDestinationCount} room opening(s) without a route`,
+    );
+  }
+  if (railPlan && unplacedObjectCount > 0) {
+    throw new Error(
+      `Activity destination rails could not preserve ${unplacedObjectCount} optional office object(s)`,
+    );
+  }
+
   return {
     placedOptionalObjects,
     layout: workingLayout,
     reservedWalkTiles: workingReservedWalkTiles,
     insidePlacedObjectCount,
     overflowPlacedObjectCount,
-    unplacedObjectCount:
-      input.optionalObjects.length - insidePlacedObjectCount - overflowPlacedObjectCount,
+    unplacedObjectCount,
     expansionTileCount,
+    preserveFullLayout: railPlan !== null,
   };
 }
 
@@ -1001,195 +987,6 @@ function buildOverflowCandidateLayout(input: {
   };
 }
 
-function getDestinationOverflowCandidates(input: {
-  layout: OfficeLayoutModel;
-  y: number;
-}): Array<{
-  position: [number, number, number];
-  facing: DestinationFacing;
-  boundaryDistance: number;
-}> {
-  const bounds = getOfficeLayoutBounds(input.layout);
-  const candidates: Array<{
-    position: [number, number, number];
-    facing: DestinationFacing;
-    boundaryDistance: number;
-  }> = [];
-  const [north, east, south, west] = DESTINATION_FACINGS;
-  if (!north || !east || !south || !west) return candidates;
-
-  for (let distance = 1; distance <= DEFAULT_OVERFLOW_SEARCH_RADIUS_TILES; distance += 1) {
-    const minX = bounds.minTileX - distance;
-    const maxX = bounds.maxTileX + distance;
-    const minZ = bounds.minTileZ - distance;
-    const maxZ = bounds.maxTileZ + distance;
-    const sideLength = Math.max(maxX - minX, maxZ - minZ) + 1;
-    for (let offset = 0; offset < sideLength; offset += 1) {
-      if (minX + offset <= maxX) {
-        candidates.push({
-          position: [minX + offset, input.y, minZ],
-          facing: north,
-          boundaryDistance: distance,
-        });
-      }
-      if (minZ + offset <= maxZ) {
-        candidates.push({
-          position: [maxX, input.y, minZ + offset],
-          facing: east,
-          boundaryDistance: distance,
-        });
-      }
-      if (maxX - offset >= minX) {
-        candidates.push({
-          position: [maxX - offset, input.y, maxZ],
-          facing: south,
-          boundaryDistance: distance,
-        });
-      }
-      if (maxZ - offset >= minZ) {
-        candidates.push({
-          position: [minX, input.y, maxZ - offset],
-          facing: west,
-          boundaryDistance: distance,
-        });
-      }
-      if (candidates.length >= DEFAULT_DESTINATION_OVERFLOW_CANDIDATE_LIMIT) {
-        return candidates;
-      }
-    }
-  }
-  return candidates;
-}
-
-function hasReservedConnectionToFloor(input: {
-  accessTile: TilePoint;
-  reservedWalkTiles: Set<string>;
-  originalFloorTiles: Set<string>;
-}): boolean {
-  const startKey = officeLayoutTileKey(input.accessTile.x, input.accessTile.z);
-  if (!input.reservedWalkTiles.has(startKey)) return false;
-  const visited = new Set<string>([startKey]);
-  const queue = [input.accessTile];
-  for (let index = 0; index < queue.length; index += 1) {
-    const current = queue[index];
-    const currentKey = officeLayoutTileKey(current.x, current.z);
-    if (input.originalFloorTiles.has(currentKey)) return true;
-    for (const neighbor of neighborsOf(current)) {
-      const key = officeLayoutTileKey(neighbor.x, neighbor.z);
-      if (visited.has(key) || !input.reservedWalkTiles.has(key)) continue;
-      visited.add(key);
-      queue.push(neighbor);
-    }
-  }
-  return false;
-}
-
-function findBestOverflowDestinationPosition(input: {
-  layout: OfficeLayoutModel;
-  floorTiles: Set<string>;
-  reservedWalkTiles: Set<string>;
-  reservation: ReturnType<typeof createOfficePlacementReservation>;
-  object: OfficePlacementObject;
-  centroid: TilePoint;
-  paddingTiles: number;
-  corridorRadiusTiles: number;
-  placedDestinations: OfficeObject[];
-}): {
-  object: OfficePlacementObject;
-  layout: OfficeLayoutModel;
-  floorTiles: Set<string>;
-  reservedWalkTiles: Set<string>;
-  newTileCount: number;
-} | null {
-  const blockedTiles = new Set(
-    input.reservation.objects.flatMap((reservedObject) =>
-      getObjectFootprintCells(reservedObject).map((cell) => cell.key),
-    ),
-  );
-  const rankedCandidates = getDestinationOverflowCandidates({
-    layout: input.layout,
-    y: input.object.position[1],
-  })
-    .flatMap(({ position, facing, boundaryDistance }) => {
-      const object: OfficePlacementObject = {
-        ...input.object,
-        position,
-        rotation: [
-          input.object.rotation?.[0] ?? 0,
-          facing.rotationY,
-          input.object.rotation?.[2] ?? 0,
-        ],
-      };
-      if (getObjectFootprintCells(object).some((cell) => blockedTiles.has(cell.key))) return [];
-      const accessTile = getObjectAccessTile(toSolverOfficeObject(object));
-      if (!accessTile) return [];
-      const attach = findNearestFloorTile(accessTile, input.floorTiles);
-      if (!attach) return [];
-      const preferredDistance =
-        (position[0] - input.object.position[0]) ** 2 +
-        (position[2] - input.object.position[2]) ** 2;
-      const nearestDestinationDistance = input.placedDestinations.reduce(
-        (nearest, placed) =>
-          Math.min(
-            nearest,
-            (position[0] - placed.position[0]) ** 2 +
-              (position[2] - placed.position[2]) ** 2,
-          ),
-        Number.POSITIVE_INFINITY,
-      );
-      return [
-        {
-          object,
-          accessTile,
-          score:
-            boundaryDistance * 1_000_000 +
-            attach.distance * 10_000 +
-            preferredDistance -
-            Math.min(10_000, nearestDestinationDistance),
-        },
-      ];
-    })
-    .sort((left, right) => left.score - right.score);
-
-  for (const { object, accessTile } of rankedCandidates) {
-      const expanded = buildOverflowCandidateLayout({
-        floorTiles: input.floorTiles,
-        reservedWalkTiles: input.reservedWalkTiles,
-        reservation: input.reservation,
-        object,
-        paddingTiles: input.paddingTiles,
-        corridorRadiusTiles: input.corridorRadiusTiles,
-      });
-      if (
-        !expanded ||
-        !canReserveOfficeObject({
-          object,
-          layout: expanded.layout,
-          reservation: input.reservation,
-        })
-      ) {
-        continue;
-      }
-      if (
-        !hasReservedConnectionToFloor({
-          accessTile,
-          reservedWalkTiles: expanded.reservedWalkTiles,
-          originalFloorTiles: input.floorTiles,
-        })
-      ) {
-        continue;
-      }
-      return {
-        object,
-        layout: expanded.layout,
-        floorTiles: expanded.floorTiles,
-        reservedWalkTiles: expanded.reservedWalkTiles,
-        newTileCount: expanded.newTileCount,
-      };
-  }
-  return null;
-}
-
 function findBestOverflowObjectPosition(input: {
   layout: OfficeLayoutModel;
   floorTiles: Set<string>;
@@ -1355,6 +1152,7 @@ function packOptionalObjects(input: {
   objectGapTiles: number;
   paddingTiles: number;
   corridorRadiusTiles: number;
+  strategyId?: string;
 }): {
   placedOptionalObjects: OfficeObject[];
   layout: OfficeLayoutModel;
@@ -1362,6 +1160,7 @@ function packOptionalObjects(input: {
   stage: OfficeLayoutSolverStageDebug;
   overflowPlacedObjectCount: number;
   unplacedObjectCount: number;
+  preserveFullLayout: boolean;
 } {
   const result = placeOptionalObjects(input);
   return {
@@ -1370,6 +1169,7 @@ function packOptionalObjects(input: {
     reservedWalkTiles: result.reservedWalkTiles,
     overflowPlacedObjectCount: result.overflowPlacedObjectCount,
     unplacedObjectCount: result.unplacedObjectCount,
+    preserveFullLayout: result.preserveFullLayout,
     stage: {
       name: "pack_optional_objects",
       inputTileCount: input.layout.tiles.length,
@@ -1411,52 +1211,6 @@ function getProtectedTiles(input: {
     }
   }
   return protectedTiles;
-}
-
-function getExteriorVoidTiles(tileSet: Set<string>): Set<string> {
-  const seedLayout = createTileMaskLayout(tileSet);
-  const bounds = getOfficeLayoutBounds(seedLayout);
-  const minTileX = bounds.minTileX - 1;
-  const maxTileX = bounds.maxTileX + 1;
-  const minTileZ = bounds.minTileZ - 1;
-  const maxTileZ = bounds.maxTileZ + 1;
-  const exteriorVoid = new Set<string>();
-  const pending = [{ x: minTileX, z: minTileZ }];
-
-  while (pending.length > 0) {
-    const current = pending.pop();
-    if (!current) continue;
-    if (
-      current.x < minTileX ||
-      current.x > maxTileX ||
-      current.z < minTileZ ||
-      current.z > maxTileZ
-    ) {
-      continue;
-    }
-    const key = officeLayoutTileKey(current.x, current.z);
-    if (tileSet.has(key) || exteriorVoid.has(key)) continue;
-    exteriorVoid.add(key);
-    pending.push(
-      { x: current.x + 1, z: current.z },
-      { x: current.x - 1, z: current.z },
-      { x: current.x, z: current.z + 1 },
-      { x: current.x, z: current.z - 1 },
-    );
-  }
-
-  return exteriorVoid;
-}
-
-function isExteriorBoundaryLayoutTile(input: { tile: string; exteriorVoid: Set<string> }): boolean {
-  const parsed = parseOfficeLayoutTileKey(input.tile);
-  if (!parsed) return false;
-  return (
-    input.exteriorVoid.has(officeLayoutTileKey(parsed.x + 1, parsed.z)) ||
-    input.exteriorVoid.has(officeLayoutTileKey(parsed.x - 1, parsed.z)) ||
-    input.exteriorVoid.has(officeLayoutTileKey(parsed.x, parsed.z + 1)) ||
-    input.exteriorVoid.has(officeLayoutTileKey(parsed.x, parsed.z - 1))
-  );
 }
 
 function getOfficeLayoutEmptyPercent(input: {
@@ -1613,30 +1367,54 @@ export function solveOfficeAutoLayout(input: OfficeLayoutSolverInput): OfficeLay
     objectGapTiles,
     paddingTiles,
     corridorRadiusTiles,
+    strategyId: input.strategyId,
   });
   stages.push(packed.stage);
   const placedOptionalObjects = packed.placedOptionalObjects;
   const allObjects = [...input.requiredObjects, ...placedOptionalObjects];
-  const finalFloorTiles = new Set<string>();
-
-  addObjectFootprintTiles({
-    floorTiles: finalFloorTiles,
-    objects: allObjects,
-    paddingTiles,
-  });
-  const reservedWalkTiles = buildReservedWalkTiles({
-    floorTiles: finalFloorTiles,
+  const finalFloorTiles = packed.preserveFullLayout
+    ? getOfficeLayoutTileSet(packed.layout)
+    : new Set<string>();
+  if (!packed.preserveFullLayout) {
+    addObjectFootprintTiles({
+      floorTiles: finalFloorTiles,
+      objects: allObjects,
+      paddingTiles,
+    });
+  }
+  const routingFloorTiles = new Set(finalFloorTiles);
+  const generatedReservedWalkTiles = buildReservedWalkTiles({
+    floorTiles: routingFloorTiles,
     objects: allObjects,
     radius: corridorRadiusTiles,
   });
+  if (!packed.preserveFullLayout) {
+    for (const key of routingFloorTiles) finalFloorTiles.add(key);
+  }
+  const occupiedTiles = buildOccupiedTileSet(allObjects.map(toPlacementObject));
+  const reservedWalkTiles = new Set(
+    [...generatedReservedWalkTiles, ...packed.reservedWalkTiles].filter(
+      (key) => finalFloorTiles.has(key) && !occupiedTiles.has(key),
+    ),
+  );
   const expandedLayout =
     finalFloorTiles.size > 0 ? createTileMaskLayout(finalFloorTiles) : packed.layout;
-  const pruned = pruneEmptyEdges({
-    expandedLayout,
-    objects: allObjects,
-    reservedWalkTiles,
-    targetEmptyPercent,
-  });
+  const pruned = packed.preserveFullLayout
+    ? {
+        officeLayout: expandedLayout,
+        stage: {
+          name: "prune_empty_edges" as const,
+          inputTileCount: expandedLayout.tiles.length,
+          outputTileCount: expandedLayout.tiles.length,
+          prunedTileCount: 0,
+        },
+      }
+    : pruneEmptyEdges({
+        expandedLayout,
+        objects: allObjects,
+        reservedWalkTiles,
+        targetEmptyPercent,
+      });
   stages.push(pruned.stage);
   const officeLayout = pruned.officeLayout;
   const quality = evaluateOfficeLayoutQuality({

@@ -35,13 +35,10 @@ const OfficeScene = memo((props: OfficeSceneProps) => {
   const isBuilderMode = useAppStore((state) => state.isBuilderMode);
   const isChatOpen = useChatStore((state) => state.isChatOpen);
   const presentationMode = useChatStore((state) => state.presentationMode);
-  const shouldForceBuilderPerspective =
-    isBuilderMode && props.officeViewSettings.viewProfile === "fixed_2_5d";
-  const forcePerspective =
-    (isChatOpen && presentationMode === "story") || shouldForceBuilderPerspective;
+  const forcePerspective = isChatOpen && presentationMode === "story";
   const layoutCenter = useMemo(() => {
     const bounds = getOfficeLayoutBounds(props.officeLayout);
-    return { x: bounds.centerX, z: bounds.centerZ };
+    return { x: bounds.centerX, z: bounds.centerZ, width: bounds.width, depth: bounds.depth };
   }, [props.officeLayout]);
   const initialCameraConfig = getInitialOfficeCameraConfig(props.officeViewSettings, {
     forcePerspective,

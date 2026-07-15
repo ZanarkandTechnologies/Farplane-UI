@@ -136,17 +136,24 @@ export function shouldUseRoundTeamTable(count: number): boolean {
 export function resolveTeamStationLayout(input: {
   deskCount: number;
   employeeCount: number;
+  forceGrid?: boolean;
 }): TeamStationLayout {
+  const persistentStationCount = Math.max(1, input.deskCount);
   const stationCount = clampCount(
-    Math.max(input.deskCount, input.employeeCount, 1),
+    input.forceGrid
+      ? persistentStationCount
+      : Math.max(input.deskCount, input.employeeCount, 1),
   );
-  const usesRoundTable = shouldUseRoundTeamTable(stationCount);
+  const usesRoundTable = !input.forceGrid && shouldUseRoundTeamTable(stationCount);
   return {
     stationCount,
     usesRoundTable,
     visibleGridDeskCount: usesRoundTable
       ? 0
-      : Math.min(Math.max(1, input.deskCount), MAX_GRID_DESKS_PER_TEAM),
+      : Math.min(
+          Math.max(1, input.forceGrid ? persistentStationCount : input.deskCount),
+          MAX_GRID_DESKS_PER_TEAM,
+        ),
   };
 }
 

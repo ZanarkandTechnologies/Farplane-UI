@@ -54,4 +54,21 @@ describe("sprite animation state mapping", () => {
       }),
     ).toBe("running");
   });
+
+  it("uses a destination scene row only after travel has ended", () => {
+    expect(
+      selectSpriteAnimationKey({
+        animationMode: "walking",
+        movementDirection: "right",
+        activitySceneAnimation: "review",
+      }),
+    ).toBe("running");
+    expect(
+      selectSpriteAnimationKey({
+        animationMode: "working",
+        movementDirection: "none",
+        activitySceneAnimation: "review",
+      }),
+    ).toBe("review");
+  });
 });

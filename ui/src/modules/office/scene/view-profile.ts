@@ -52,13 +52,13 @@ function getFixedViewCameraPosition(
 ): [number, number, number] {
   switch (orientation) {
     case "north_east":
-      return [26, 18, -26];
+      return [26, 22, -26];
     case "north_west":
-      return [-26, 18, -26];
+      return [-26, 22, -26];
     case "south_west":
-      return [-26, 18, 26];
+      return [-26, 22, 26];
     default:
-      return [26, 18, 26];
+      return [26, 22, 26];
   }
 }
 
@@ -73,6 +73,15 @@ export function getOfficePresentationRotationY(
 export interface OfficeLayoutCenter {
   x: number;
   z: number;
+  width?: number;
+  depth?: number;
+}
+
+export function getFixedOfficeCameraZoom(layout?: OfficeLayoutCenter): number {
+  if (!layout?.width || !layout.depth) return 23;
+  const projectedHorizontalSpan = (layout.width + layout.depth) / Math.SQRT2;
+  const fitScale = Math.min(1, 46 / Math.max(1, projectedHorizontalSpan));
+  return Math.max(12, 23 * fitScale);
 }
 
 export function getOfficeSceneViewState(params: {
@@ -84,12 +93,22 @@ export function getOfficeSceneViewState(params: {
 }): OfficeSceneViewState {
   const { isBuilderMode, isDragging, settings, forcePerspective = false, layoutCenter } = params;
   if (isBuilderMode) {
+    const fixedBuilder = isFixedOfficeSceneView(settings);
+    const builderTarget: [number, number, number] = layoutCenter
+      ? [layoutCenter.x, 0, layoutCenter.z]
+      : BUILDER_CAMERA_TARGET;
+    const fixedBasePosition = getFixedViewCameraPosition(settings.cameraOrientation);
+    const builderPosition: [number, number, number] = [
+      builderTarget[0] + (fixedBuilder ? fixedBasePosition[0] : BUILDER_CAMERA_POSITION[0]),
+      fixedBuilder ? fixedBasePosition[1] : BUILDER_CAMERA_POSITION[1],
+      builderTarget[2] + (fixedBuilder ? fixedBasePosition[2] : 8),
+    ];
     return {
-      cameraProjection: "perspective",
-      cameraPosition: BUILDER_CAMERA_POSITION,
-      cameraTarget: BUILDER_CAMERA_TARGET,
+      cameraProjection: fixedBuilder ? "orthographic" : "perspective",
+      cameraPosition: builderPosition,
+      cameraTarget: builderTarget,
       cameraFov: 50,
-      cameraZoom: 1,
+      cameraZoom: fixedBuilder ? getFixedOfficeCameraZoom(layoutCenter) : 1,
       controlsEnabled: !isDragging,
       rotateEnabled: false,
       panEnabled: !isDragging,
@@ -100,7 +119,10 @@ export function getOfficeSceneViewState(params: {
   }
 
   if (isFixedOfficeSceneView(settings) && !forcePerspective) {
-    const controlsEnabled = settings.orbitControlsEnabled && !isDragging;
+    // Fixed 2.5D is still an inspectable workspace: lock rotation, not navigation.
+    // Keeping this independent of the legacy orbit toggle repairs existing sidecars
+    // that were saved while that flag incorrectly disabled all controls.
+    const controlsEnabled = !isDragging;
     const basePos = getFixedViewCameraPosition(settings.cameraOrientation);
     const target: [number, number, number] = layoutCenter
       ? [layoutCenter.x, 0, layoutCenter.z]
@@ -113,9 +135,9 @@ export function getOfficeSceneViewState(params: {
       cameraPosition: position,
       cameraTarget: target,
       cameraFov: 35,
-      cameraZoom: 28,
-      minZoom: 12,
-      maxZoom: 55,
+      cameraZoom: getFixedOfficeCameraZoom(layoutCenter),
+      minZoom: Math.max(6, getFixedOfficeCameraZoom(layoutCenter) * 0.65),
+      maxZoom: getFixedOfficeCameraZoom(layoutCenter) * 2.5,
       controlsEnabled,
       rotateEnabled: false,
       panEnabled: controlsEnabled,

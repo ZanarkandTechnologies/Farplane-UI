@@ -228,8 +228,14 @@ export async function persistPlacementRepairIfAllowed(
     return { skipped: true };
   }
 
+  const currentObjects = await input.adapter.getOfficeObjects();
+  const repairedIds = new Set(input.officeObjects.map((object) => object.id));
+  const nonClusterObjectsMissingFromProjection = currentObjects.filter(
+    (object) => object.meshType !== "team-cluster" && !repairedIds.has(object.id),
+  );
+  const repairedObjects = [...input.officeObjects, ...nonClusterObjectsMissingFromProjection];
   const [objectsResult, settingsResult] = await Promise.all([
-    input.adapter.saveOfficeObjects(input.officeObjects),
+    input.adapter.saveOfficeObjects(repairedObjects),
     !input.expandedLayout
       ? Promise.resolve<Awaited<ReturnType<OfficeRuntimeAdapter["saveOfficeSettings"]>>>({
           ok: true,

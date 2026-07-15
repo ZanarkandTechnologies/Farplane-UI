@@ -15,8 +15,8 @@
  * MEMORY REFERENCES:
  * - MEM-0104
  */
-import path from "node:path";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import path from "node:path";
 
 export type JsonObject = Record<string, unknown>;
 
@@ -26,7 +26,12 @@ export type AgentLifecycleState = "active" | "idle" | "pending_spawn" | "retired
 export type SpawnPolicy = "queue_pressure" | "manual";
 export type OfficeStylePreset = "default" | "pixel" | "brutalist" | "cozy";
 export type OfficeFloorPatternId = "sandstone_tiles" | "graphite_grid" | "walnut_parquet";
-export type OfficeWallColorId = "gallery_cream" | "sage_mist" | "harbor_blue" | "clay_rose";
+export type OfficeWallColorId =
+  | "gallery_cream"
+  | "sage_mist"
+  | "harbor_blue"
+  | "clay_rose"
+  | "command_charcoal";
 export type OfficeBackgroundId = "shell_haze" | "midnight_tide" | "kelp_fog" | "estuary_glow";
 export type OfficeLayoutStrategyId =
   | "manual"
@@ -34,7 +39,17 @@ export type OfficeLayoutStrategyId =
   | "team_neighborhoods"
   | "activity_treemap"
   | "hierarchical_treemap"
+  | "area_sorted_pack"
   | "command_districts";
+
+export interface OfficeKitStateModel {
+  kitId: string;
+  kitVersion: number;
+  seed: string;
+  status: "equipped" | "customized";
+  projectCapacity: number;
+  revision: number;
+}
 export type CapabilityCategory = "measure" | "execute" | "distribute";
 export type LedgerEntryType = "revenue" | "cost";
 export type AccountEventType = "credit" | "debit";
@@ -241,6 +256,7 @@ export interface OfficeSettingsModel {
   viewProfile: "free_orbit_3d" | "fixed_2_5d";
   orbitControlsEnabled: boolean;
   cameraOrientation: "north_east" | "north_west" | "south_east" | "south_west";
+  officeKit?: OfficeKitStateModel;
   codex?: JsonObject;
 }
 
@@ -746,7 +762,14 @@ function normalizeOfficeFloorPatternId(value: unknown): OfficeFloorPatternId {
 
 function normalizeOfficeWallColorId(value: unknown): OfficeWallColorId {
   const text = asString(value, "gallery_cream");
-  if (text === "sage_mist" || text === "harbor_blue" || text === "clay_rose") return text;
+  if (
+    text === "sage_mist" ||
+    text === "harbor_blue" ||
+    text === "clay_rose" ||
+    text === "command_charcoal"
+  ) {
+    return text;
+  }
   return "gallery_cream";
 }
 
@@ -826,6 +849,24 @@ function normalizeOfficeSettings(input: unknown): OfficeSettingsModel {
     depth: normalizeAxis(footprint.depth, 35),
   };
   const officeLayout = normalizeOfficeLayout(row.officeLayout, normalizedFootprint);
+  const rawOfficeKit = asObject(row.officeKit);
+  const kitId = asString(rawOfficeKit.kitId).trim();
+  const officeKit = kitId
+    ? {
+        kitId,
+        kitVersion: Math.max(1, Math.floor(asNumber(rawOfficeKit.kitVersion, 1))),
+        seed: asString(rawOfficeKit.seed, "default").trim() || "default",
+        status:
+          rawOfficeKit.status === "customized"
+            ? ("customized" as const)
+            : ("equipped" as const),
+        projectCapacity: Math.max(
+          1,
+          Math.floor(asNumber(rawOfficeKit.projectCapacity, 1)),
+        ),
+        revision: Math.max(0, Math.floor(asNumber(rawOfficeKit.revision, 0))),
+      }
+    : undefined;
   return {
     ...(asString(row.meshAssetDir).trim()
       ? { meshAssetDir: asString(row.meshAssetDir).trim() }
@@ -836,6 +877,7 @@ function normalizeOfficeSettings(input: unknown): OfficeSettingsModel {
       layoutStrategy === "team_neighborhoods" ||
       layoutStrategy === "activity_treemap" ||
       layoutStrategy === "hierarchical_treemap" ||
+      layoutStrategy === "area_sorted_pack" ||
       layoutStrategy === "command_districts"
         ? layoutStrategy
         : "team_neighborhoods",
@@ -854,6 +896,7 @@ function normalizeOfficeSettings(input: unknown): OfficeSettingsModel {
       cameraOrientation === "south_west"
         ? cameraOrientation
         : "south_east",
+    ...(officeKit ? { officeKit } : {}),
     ...(Object.keys(asObject(row.codex)).length > 0 ? { codex: asObject(row.codex) } : {}),
   };
 }

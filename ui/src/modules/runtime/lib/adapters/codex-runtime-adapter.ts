@@ -40,6 +40,7 @@ import type {
   AgentsListResult,
   ChannelsStatusSnapshot,
   ChatSendRequest,
+  CompanyModel,
   CronJob,
   CronStatus,
   OpenClawConfigSnapshot,
@@ -67,6 +68,24 @@ function buildCodexWorkload(
         ratio > 2 ? ("high" as const) : ratio > 1 ? ("medium" as const) : ("low" as const),
     };
   });
+}
+
+export function mergeSavedTeamCharacterPolicies(
+  projectedCompany: CompanyModel,
+  savedCompany: CompanyModel | null,
+): CompanyModel {
+  const savedCharacterPolicyByProjectId = new Map(
+    (savedCompany?.projects ?? [])
+      .filter((project) => project.characterPolicy)
+      .map((project) => [project.id, project.characterPolicy] as const),
+  );
+  return {
+    ...projectedCompany,
+    projects: projectedCompany.projects.map((project) => ({
+      ...project,
+      characterPolicy: savedCharacterPolicyByProjectId.get(project.id),
+    })),
+  };
 }
 
 const CODEX_CAPABILITIES: RuntimeAdapterCapabilities = {
@@ -385,11 +404,12 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
   }
 
   async getUnifiedOfficeModel(): Promise<UnifiedOfficeModel> {
-    const [threads, projectPaths, officeObjects, uiState] = await Promise.all([
+    const [threads, projectPaths, officeObjects, uiState, savedCompany] = await Promise.all([
       this.listCodexThreads().catch(() => []),
       this.listCodexProjectPaths().catch(() => []),
       this.getOfficeObjects().catch(() => []),
       this.readCodexUiState().catch(() => ({})),
+      super.getCompanyModel().catch(() => null),
     ]);
     const projectRefs = projectPaths.map((projectPath) => ({
       projectId: codexProjectId(projectPath),
@@ -399,7 +419,8 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
       await this.codexClient.readProjectModel(projectRefs).catch(() => ({})),
       uiState,
     );
-    const company = toCodexCompanyModel(threads, Date.now(), projectPaths, readModel);
+    const projectedCompany = toCodexCompanyModel(threads, Date.now(), projectPaths, readModel);
+    const company = mergeSavedTeamCharacterPolicies(projectedCompany, savedCompany);
     const projectPmNameByAgentId = new Map(
       (readModel.projectPms ?? []).map((entry) => [
         toCodexPmAgentId(entry.projectId),

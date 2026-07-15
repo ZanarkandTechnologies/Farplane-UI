@@ -47,6 +47,7 @@ import {
   useFarplaneProjectConfig,
 } from "./tabs/project-config";
 import { ReportsTab } from "./tabs/reports";
+import { TeamCharactersTab } from "./tabs/team-characters-tab";
 import { deriveProjectId, type TabKey } from "./team-panel-types";
 import { TelemetryTab } from "./telemetry-tab";
 import { TimelineTab } from "./timeline-tab";
@@ -90,6 +91,7 @@ const TAB_GROUPS: TabGroup[] = [
     label: "Team",
     children: [
       { label: "Members", value: "members" },
+      { label: "Characters", value: "characters" },
       { label: "Skills", value: "skills" },
       { label: "Automations", value: "cadence" },
     ],
@@ -121,7 +123,7 @@ export function TeamPanel({
   focusAgentId = null,
   globalMode = false,
 }: TeamPanelProps) {
-  const { teams, employees, companyModel, refresh } = useOfficeDataContext();
+  const { teams, employees, officeObjects, companyModel, refresh } = useOfficeDataContext();
   const adapter = useOfficeRuntimeAdapter();
   const { openEmployeeChat } = useChatActions();
   const selectedProjectId = useAppStore((state) => state.selectedProjectId);
@@ -181,6 +183,13 @@ export function TeamPanel({
     () => (globalMode ? usageEmployees : teamEmployees),
     [globalMode, teamEmployees, usageEmployees],
   );
+  const teamDemoEmployeeId = useMemo(() => {
+    const target =
+      visibleRoster.find(
+        (employee) => employee.isSupervisor && employee.presencePersistent !== false,
+      ) ?? visibleRoster.find((employee) => employee.presencePersistent !== false);
+    return target ? String(target._id) : undefined;
+  }, [visibleRoster]);
 
   const activeProjectPath =
     typeof project?.trackingContext === "string" && project.trackingContext.trim()
@@ -398,6 +407,21 @@ export function TeamPanel({
               />
             </ScrollArea>
           </TabsContent>
+
+          {project && companyModel && teamScopeId ? (
+            <TabsContent value="characters" className="mt-4 min-h-0 flex-1 overflow-hidden">
+              <TeamCharactersTab
+                adapter={adapter}
+                company={companyModel}
+                project={project}
+                officeObjects={officeObjects}
+                teamId={teamScopeId}
+                targetEmployeeId={teamDemoEmployeeId}
+                onDemo={() => onOpenChange(false)}
+                onSaved={refresh}
+              />
+            </TabsContent>
+          ) : null}
 
           <TabsContent value="distribution" className="mt-4 min-h-0 flex-1 overflow-hidden">
             <DistributionTab snapshot={metricsSnapshot} socialContent={socialContent} />

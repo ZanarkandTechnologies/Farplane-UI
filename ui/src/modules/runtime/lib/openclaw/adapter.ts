@@ -115,6 +115,7 @@ import type {
   MemoryItemModel,
   MeshAssetModel,
   MetricEventModel,
+  OfficeKitStateSaveResult,
   OfficeObjectSidecarModel,
   OfficeSettingsModel,
   OpenClawConfigPreview,
@@ -151,6 +152,7 @@ import type {
   ToolsCatalogResult,
   UnifiedOfficeModel,
 } from "./types";
+import { officeObjectStateToken } from "../../../../../office-kit-state-token";
 
 export {
   deriveAgentLiveStatus,
@@ -1555,6 +1557,64 @@ export class OpenClawAdapter {
       return { ok: true, settings: toOfficeSettings(payload.settings ?? normalized) };
     } catch {
       return { ok: false, settings: normalized, error: "office_settings_save_unavailable" };
+    }
+  }
+
+  async saveOfficeKitState(input: {
+    expectedRevision: number;
+    expectedObjects: OfficeObjectSidecarModel[];
+    settings: OfficeSettingsModel;
+    objects: OfficeObjectSidecarModel[];
+  }): Promise<OfficeKitStateSaveResult> {
+    const settings = toOfficeSettings(input.settings);
+    const objects = normalizeArray(input.objects, toOfficeObjectSidecar);
+    try {
+      const response = await fetch(`${this.stateUrl}/farplane/office-kit/state`, {
+        method: "POST",
+        headers: buildGatewayHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({
+          expectedRevision: Math.max(0, Math.floor(input.expectedRevision)),
+          expectedObjectStateToken: officeObjectStateToken(
+            normalizeArray(input.expectedObjects, toOfficeObjectSidecar),
+          ),
+          settings,
+          objects,
+        }),
+      });
+      const payload = (await response.json()) as Json;
+      const status =
+        payload.status === "committed" ||
+        payload.status === "conflict" ||
+        payload.status === "rolled_back" ||
+        payload.status === "recovery_required"
+          ? payload.status
+          : "failed";
+      const revision = Math.max(0, Math.floor(Number(payload.revision) || 0));
+      if (!response.ok || payload.ok !== true) {
+        return {
+          ok: false,
+          status,
+          revision,
+          error:
+            typeof payload.error === "string"
+              ? payload.error
+              : `office_kit_state_save_failed:${response.status}`,
+        };
+      }
+      return {
+        ok: true,
+        status: "committed",
+        revision,
+        settings: toOfficeSettings(payload.settings ?? settings),
+        objects: normalizeArray(payload.objects ?? objects, toOfficeObjectSidecar),
+      };
+    } catch {
+      return {
+        ok: false,
+        status: "failed",
+        revision: input.expectedRevision,
+        error: "office_kit_state_save_unavailable",
+      };
     }
   }
 

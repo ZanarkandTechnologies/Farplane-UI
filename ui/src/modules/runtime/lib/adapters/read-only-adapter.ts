@@ -100,6 +100,18 @@ export function createReadOnlyOfficeRuntimeAdapter(
         });
       }
 
+      if (prop === "saveOfficeKitState") {
+        return async (input: {
+          expectedRevision?: number;
+          settings?: unknown;
+          objects?: unknown[];
+        }) => ({
+          ...readonlyResult(),
+          status: "failed" as const,
+          revision: Math.max(0, Math.floor(Number(input.expectedRevision) || 0)),
+        });
+      }
+
       if (prop === "shuffleOfficeObjects") {
         return async (...args: unknown[]) => ({
           ...readonlyResult(),

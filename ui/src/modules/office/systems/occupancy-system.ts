@@ -250,7 +250,7 @@ export function buildOfficeWalkabilityGrid(input: {
   }
 
   for (const object of input.objects) {
-    if (object.meshType === "wall-art") continue;
+    if (object.meshType === "wall-art" || object.meshType === "activity-landmark") continue;
     const aabb = getObjectFootprintAabb(object);
     const xRange = worldRangeToGridRange({
       minWorld: aabb.minX,

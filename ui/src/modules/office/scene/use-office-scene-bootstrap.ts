@@ -73,6 +73,24 @@ export function useOfficeSceneBootstrap(params: {
   const resetEpochRef = useRef<string | null>(null);
   const initializedEpochRef = useRef<string | null>(null);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV || typeof window === "undefined") return;
+    const registered = useObjectRegistrationStore.getState().registeredObjects;
+    const probe = window as Window & {
+      __FARPLANE_OFFICE_NAVIGATION__?: Record<string, unknown>;
+    };
+    probe.__FARPLANE_OFFICE_NAVIGATION__ = {
+      epoch: navigationEpoch,
+      expectedIds: officeObjectIds,
+      registeredIds: [...registered.keys()],
+      missingIds: officeObjectIds.filter((objectId) => !registered.has(objectId)),
+      ready: initializedEpochRef.current === navigationEpoch,
+    };
+    return () => {
+      delete probe.__FARPLANE_OFFICE_NAVIGATION__;
+    };
+  }, [expectedObjectsRegistered, navigationEpoch, officeObjectIds]);
+
   const getObjectRef = useCallback((objectId: string) => {
     const existing = officeObjectRefs.current.get(objectId);
     if (existing) return existing;

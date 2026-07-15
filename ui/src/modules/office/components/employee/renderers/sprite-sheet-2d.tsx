@@ -9,10 +9,13 @@
  * Side effects: fetches read-only pet manifest JSON through the Vite state bridge.
  */
 
-import { useFrame, useLoader } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { TOTAL_HEIGHT } from "@/constants";
+import { EmployeeIndicatorSprite } from "../indicator-sprite";
+import { getEmployeeIndicatorColor } from "../presence-visuals";
+import { recordDevCharacterRendererStatus } from "../use-dev-character-renderer-probe";
 import {
   buildCodexPetAssetUrl,
   buildCodexPetManifestUrl,
@@ -23,9 +26,6 @@ import {
 } from "./codex-pet-package";
 import { selectSpriteAnimationKey } from "./sprite-state";
 import type { CharacterRendererProps } from "./types";
-import { EmployeeIndicatorSprite } from "../indicator-sprite";
-import { getEmployeeIndicatorColor } from "../presence-visuals";
-import { recordDevCharacterRendererStatus } from "../use-dev-character-renderer-probe";
 
 const TRAVEL_BOB_AMPLITUDE = 0.08;
 const TRAVEL_BOB_SPEED = 10;
@@ -36,7 +36,11 @@ export function getSpriteAnimationPhase(seed: string): number {
   }, 0);
 }
 
-export function getSpriteInitialFrame(seed: string, animationKey: string, frameCount: number): number {
+export function getSpriteInitialFrame(
+  seed: string,
+  animationKey: string,
+  frameCount: number,
+): number {
   if (frameCount <= 1) return 0;
   const phase = getSpriteAnimationPhase(`${seed}:${animationKey}`);
   return Math.abs(Math.floor(phase * 1000)) % frameCount;
@@ -47,7 +51,8 @@ export function getSpriteInitialElapsedMs(
   animationKey: string,
   durationsMs: number[],
 ): number {
-  const duration = durationsMs[getSpriteInitialFrame(seed, animationKey, durationsMs.length)] ?? 140;
+  const duration =
+    durationsMs[getSpriteInitialFrame(seed, animationKey, durationsMs.length)] ?? 140;
   const phase = getSpriteAnimationPhase(`${seed}:${animationKey}:elapsed`);
   return Math.abs(phase % 1) * duration;
 }
@@ -68,17 +73,48 @@ type SpriteLoadState =
   | { status: "ready"; manifest: SpriteSheetCharacterManifest }
   | { status: "error"; message: string };
 
+const manifestRequestCache = new Map<string, Promise<SpriteSheetCharacterManifest>>();
+const atlasTextureRequestCache = new Map<string, Promise<THREE.Texture>>();
+
+function loadCodexPetManifest(petId: string): Promise<SpriteSheetCharacterManifest> {
+  const manifestUrl = buildCodexPetManifestUrl(petId);
+  const cached = manifestRequestCache.get(manifestUrl);
+  if (cached) return cached;
+
+  const request = fetch(manifestUrl)
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`pet_manifest_${response.status}`);
+      return response.json() as Promise<unknown>;
+    })
+    .then((payload) => {
+      if (!isCodexPetManifest(payload)) throw new Error("invalid_pet_manifest");
+      return normalizeCodexPetManifest(
+        payload,
+        buildCodexPetAssetUrl(petId, payload.spritesheetPath),
+      );
+    })
+    .catch((error) => {
+      manifestRequestCache.delete(manifestUrl);
+      throw error;
+    });
+  manifestRequestCache.set(manifestUrl, request);
+  return request;
+}
+
 function useSpriteManifest(config: CharacterRendererProps["config"]): SpriteLoadState {
   const [state, setState] = useState<SpriteLoadState>({ status: "idle" });
+  const source = config?.source;
+  const sourceType = source?.type;
+  const petId = source?.type === "codex-pet" ? source.petId : undefined;
+  const atlasUrl = source?.type === "url" ? source.atlasUrl : undefined;
 
   useEffect(() => {
     let cancelled = false;
-    const source = config?.source;
-    if (!source) {
+    if (!sourceType) {
       setState({ status: "error", message: "missing_sprite_source" });
       return;
     }
-    if (source.type === "url") {
+    if (sourceType === "url" && atlasUrl) {
       setState({
         status: "ready",
         manifest: normalizeCodexPetManifest(
@@ -86,44 +122,37 @@ function useSpriteManifest(config: CharacterRendererProps["config"]): SpriteLoad
             id: "url-sprite",
             displayName: "URL Sprite",
             description: "URL-provided sprite sheet.",
-            spritesheetPath: source.atlasUrl,
+            spritesheetPath: atlasUrl,
           },
-          source.atlasUrl,
+          atlasUrl,
         ),
       });
       return;
     }
+    if (!petId) {
+      setState({ status: "error", message: "missing_sprite_source" });
+      return;
+    }
 
     setState({ status: "loading" });
-    fetch(buildCodexPetManifestUrl(source.petId))
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`pet_manifest_${response.status}`);
-        return response.json() as Promise<unknown>;
-      })
-      .then((payload) => {
+    void loadCodexPetManifest(petId)
+      .then((manifest) => {
         if (cancelled) return;
-        if (!isCodexPetManifest(payload)) {
-          setState({ status: "error", message: "invalid_pet_manifest" });
-          return;
-        }
-        setState({
-          status: "ready",
-          manifest: normalizeCodexPetManifest(
-            payload,
-            buildCodexPetAssetUrl(source.petId, payload.spritesheetPath),
-          ),
-        });
+        setState({ status: "ready", manifest });
       })
       .catch((error) => {
         if (!cancelled) {
-          setState({ status: "error", message: error instanceof Error ? error.message : "pet_load_failed" });
+          setState({
+            status: "error",
+            message: error instanceof Error ? error.message : "pet_load_failed",
+          });
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [config?.source]);
+  }, [atlasUrl, petId, sourceType]);
 
   return state;
 }
@@ -148,23 +177,98 @@ export function SpriteSheet2dCharacterRenderer(props: CharacterRendererProps) {
   }, [manifestState, props.runtime.employeeId]);
 
   if (manifestState.status !== "ready") {
+    if (manifestState.status !== "error" && props.suppressLoadingFallback) return null;
     return Fallback ? <Fallback {...fallbackProps} /> : null;
   }
 
   return <SpriteBillboard {...props} manifest={manifestState.manifest} />;
 }
 
+type AtlasTextureState =
+  | { status: "loading" }
+  | { status: "ready"; texture: THREE.Texture }
+  | { status: "error"; message: string };
+
+function useAtlasTexture(atlasUrl: string): AtlasTextureState {
+  const [state, setState] = useState<AtlasTextureState>({ status: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    let request = atlasTextureRequestCache.get(atlasUrl);
+    if (!request) {
+      request = new THREE.TextureLoader().loadAsync(atlasUrl).catch((error) => {
+        atlasTextureRequestCache.delete(atlasUrl);
+        throw error;
+      });
+      atlasTextureRequestCache.set(atlasUrl, request);
+    }
+    void request
+      .then((texture) => {
+        if (!cancelled) setState({ status: "ready", texture });
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setState({
+            status: "error",
+            message: error instanceof Error ? error.message : "pet_atlas_load_failed",
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [atlasUrl]);
+
+  return state;
+}
+
 function SpriteBillboard(
   props: CharacterRendererProps & { manifest: SpriteSheetCharacterManifest },
 ) {
-  const { runtime, projection, fallback: Fallback, manifest, ...fallbackProps } = props;
-  const atlasTexture = useLoader(THREE.TextureLoader, manifest.atlasUrl);
+  const atlasState = useAtlasTexture(props.manifest.atlasUrl);
+  const { fallback: Fallback, ...fallbackProps } = props;
+
+  useEffect(() => {
+    if (atlasState.status !== "error") return;
+    recordDevCharacterRendererStatus({
+      employeeId: props.runtime.employeeId,
+      status: "error",
+      message: atlasState.message,
+    });
+  }, [atlasState, props.runtime.employeeId]);
+
+  if (atlasState.status !== "ready") {
+    if (atlasState.status === "loading" && props.suppressLoadingFallback) return null;
+    return Fallback ? <Fallback {...fallbackProps} /> : null;
+  }
+
+  return <LoadedSpriteBillboard {...props} atlasTexture={atlasState.texture} />;
+}
+
+function LoadedSpriteBillboard(
+  props: CharacterRendererProps & {
+    manifest: SpriteSheetCharacterManifest;
+    atlasTexture: THREE.Texture;
+  },
+) {
+  const {
+    runtime,
+    projection,
+    fallback: Fallback,
+    manifest,
+    atlasTexture,
+    ...fallbackProps
+  } = props;
   const spriteRef = useRef<THREE.Sprite>(null);
   const elapsedRef = useRef(0);
   const frameRef = useRef(0);
   const activeKeyRef = useRef("");
   const texture = useMemo(() => atlasTexture.clone(), [atlasTexture]);
-  const material = useMemo(() => new THREE.SpriteMaterial({ map: texture, transparent: true }), [texture]);
+  const material = useMemo(
+    () => new THREE.SpriteMaterial({ map: texture, transparent: true }),
+    [texture],
+  );
   const image = atlasTexture.image as { width?: number; height?: number } | undefined;
   const hasValidAtlasSize =
     typeof image?.width === "number" &&
@@ -200,19 +304,27 @@ function SpriteBillboard(
       animationMode: runtime.animationMode,
       movementDirection: runtime.movementDirection,
       activityState: runtime.activityState,
+      activitySceneAnimation: runtime.activityScene?.baseSpriteAnimation,
     });
     const animation = manifest.animations[key] ?? manifest.animations.idle;
     if (activeKeyRef.current !== key) {
       activeKeyRef.current = key;
-      frameRef.current = getSpriteInitialFrame(runtime.employeeId, key, animation.frames);
-      elapsedRef.current = getSpriteInitialElapsedMs(runtime.employeeId, key, animation.durationsMs);
+      frameRef.current = runtime.reducedMotion
+        ? 0
+        : getSpriteInitialFrame(runtime.employeeId, key, animation.frames);
+      elapsedRef.current = runtime.reducedMotion
+        ? 0
+        : getSpriteInitialElapsedMs(runtime.employeeId, key, animation.durationsMs);
     }
 
-    elapsedRef.current += delta * 1000;
-    const currentDuration = animation.durationsMs[frameRef.current] ?? animation.durationsMs[0] ?? 140;
-    if (elapsedRef.current >= currentDuration) {
-      elapsedRef.current = 0;
-      frameRef.current = (frameRef.current + 1) % animation.frames;
+    if (!runtime.reducedMotion) {
+      elapsedRef.current += delta * 1000;
+      const currentDuration =
+        animation.durationsMs[frameRef.current] ?? animation.durationsMs[0] ?? 140;
+      if (elapsedRef.current >= currentDuration) {
+        elapsedRef.current = 0;
+        frameRef.current = (frameRef.current + 1) % animation.frames;
+      }
     }
 
     texture.offset.set(
@@ -221,11 +333,13 @@ function SpriteBillboard(
     );
 
     if (spriteRef.current) {
-      spriteRef.current.position.y = getSpriteTravelBobbleY(
-        runtime.animationMode,
-        state.clock.elapsedTime,
-        runtime.employeeId,
-      );
+      spriteRef.current.position.y = runtime.reducedMotion
+        ? 0
+        : getSpriteTravelBobbleY(
+            runtime.animationMode,
+            state.clock.elapsedTime,
+            runtime.employeeId,
+          );
     }
   });
 
@@ -234,7 +348,9 @@ function SpriteBillboard(
   material.color.set(projection ? "#67e8f9" : "#ffffff");
 
   if (!hasValidAtlasSize) {
-    return Fallback ? <Fallback {...fallbackProps} runtime={runtime} projection={projection} /> : null;
+    return Fallback ? (
+      <Fallback {...fallbackProps} runtime={runtime} projection={projection} />
+    ) : null;
   }
 
   const indicatorColor = getEmployeeIndicatorColor({

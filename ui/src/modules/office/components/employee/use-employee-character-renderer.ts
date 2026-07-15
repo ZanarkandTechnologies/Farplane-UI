@@ -9,18 +9,16 @@
  * Side effects: listens to renderer setting changes and records dev QA diagnostics.
  */
 
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { type ComponentType, useEffect, useMemo, useState } from "react";
+import type { ActivityScenePresentation } from "@/modules/office/activity-scenes";
 import type { EmployeeActivityState } from "@/modules/office/lib/types";
-import {
-  type EmployeeAnimationMode,
-  type EmployeeMovementDirection,
-} from "./employee-motion";
-import { getCharacterRendererDefinition } from "./renderers/renderer-map";
+import type { EmployeeAnimationMode, EmployeeMovementDirection } from "./employee-motion";
 import {
   CHARACTER_RENDERER_SETTINGS_EVENT,
   readDevCharacterRendererOverride,
   resolveEmployeeCharacterRenderer,
 } from "./renderers/registry";
+import { getCharacterRendererDefinition } from "./renderers/renderer-map";
 import type {
   CharacterRendererConfig,
   CharacterRendererProps,
@@ -32,9 +30,11 @@ export function useEmployeeCharacterRenderer(input: {
   employeeId: string;
   name: string;
   characterRenderer?: CharacterRendererConfig;
+  preferConfiguredRenderer?: boolean;
   animationMode: EmployeeAnimationMode;
   movementDirection: EmployeeMovementDirection;
   activityState?: EmployeeActivityState;
+  activityScene?: ActivityScenePresentation;
   isSelected: boolean;
   isHovered: boolean;
   isHighlighted: boolean;
@@ -47,9 +47,11 @@ export function useEmployeeCharacterRenderer(input: {
     employeeId,
     name,
     characterRenderer,
+    preferConfiguredRenderer,
     animationMode,
     movementDirection,
     activityState,
+    activityScene,
     isSelected,
     isHovered,
     isHighlighted,
@@ -57,6 +59,16 @@ export function useEmployeeCharacterRenderer(input: {
   const [devCharacterRendererOverride, setDevCharacterRendererOverride] = useState(() =>
     readDevCharacterRendererOverride(employeeId),
   );
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     setDevCharacterRendererOverride(readDevCharacterRendererOverride(employeeId));
@@ -78,8 +90,9 @@ export function useEmployeeCharacterRenderer(input: {
         employeeId,
         characterRenderer,
         devOverride: devCharacterRendererOverride,
+        preferConfigured: preferConfiguredRenderer,
       }),
-    [characterRenderer, devCharacterRendererOverride, employeeId],
+    [characterRenderer, devCharacterRendererOverride, employeeId, preferConfiguredRenderer],
   );
 
   const runtime = useMemo(
@@ -89,12 +102,15 @@ export function useEmployeeCharacterRenderer(input: {
       animationMode,
       movementDirection,
       activityState,
+      activityScene,
+      reducedMotion,
       isSelected,
       isHovered,
       isHighlighted,
     }),
     [
       activityState,
+      activityScene,
       animationMode,
       employeeId,
       isHighlighted,
@@ -102,6 +118,7 @@ export function useEmployeeCharacterRenderer(input: {
       isSelected,
       movementDirection,
       name,
+      reducedMotion,
     ],
   );
 

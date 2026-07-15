@@ -18,6 +18,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { getOfficeQaState, updateOfficeQaState } from "@/modules/office/qa/office-qa-state";
 import { getOfficeTheme } from "@/config/office-theme";
 import { getBackgroundPreset, type OfficeDecorSettings } from "@/modules/office/lib/office-decor";
 import type { OfficeSettingsModel } from "@/modules/runtime";
@@ -98,6 +99,7 @@ export function getInitialOfficeCameraConfig(
 
 export const BUILDER_CAMERA_TRANSITION_MS = 180;
 export const DEFAULT_CAMERA_TRANSITION_MS = 500;
+export const STORY_CAMERA_TRANSITION_MS = 0;
 
 export function getOfficeCameraTransitionDuration(input: {
   previousProjection?: "perspective" | "orthographic";
@@ -141,14 +143,27 @@ export function useOfficeSceneCameraTransition(params: {
   } = params;
   const previousProjectionRef = useRef<"perspective" | "orthographic" | undefined>(undefined);
   const previousBuilderModeRef = useRef<boolean | undefined>(undefined);
+  const storyInvocationRef = useRef<number | null>(null);
+  const storyTargetReadyRef = useRef<number | null>(null);
+  const storyTargetSignatureRef = useRef<string | null>(null);
+  const [projectionRetry, setProjectionRetry] = useState(0);
 
   useEffect(() => {
     const controls = orbitControlsRef.current;
     if (!controls) return;
 
     const camera = controls.object;
-    const startPos = camera.position.clone();
-    const startTarget = controls.target.clone();
+    const storyTargetSignature = consultCameraTarget?.join(",") ?? null;
+    if (storyTargetSignature && storyTargetSignatureRef.current !== storyTargetSignature) {
+      const targetReadyAt = performance.now();
+      storyInvocationRef.current = getOfficeQaState().storyInvocationAt ?? targetReadyAt;
+      storyTargetReadyRef.current = targetReadyAt;
+      storyTargetSignatureRef.current = storyTargetSignature;
+    } else if (!storyTargetSignature) {
+      storyInvocationRef.current = null;
+      storyTargetReadyRef.current = null;
+      storyTargetSignatureRef.current = null;
+    }
     const consultCameraState = consultCameraTarget
       ? buildConsultCameraState(consultCameraTarget)
       : null;
@@ -164,14 +179,50 @@ export function useOfficeSceneCameraTransition(params: {
     const nextProjection = consultCameraState
       ? "perspective"
       : (nextViewState?.cameraProjection ?? "perspective");
-    const duration = getOfficeCameraTransitionDuration({
-      previousProjection: previousProjectionRef.current,
-      nextProjection,
-      previousBuilderMode: previousBuilderModeRef.current,
-      isBuilderMode,
-    });
+    const projectionIsReady =
+      (nextProjection === "perspective" && camera instanceof THREE.PerspectiveCamera) ||
+      (nextProjection === "orthographic" && camera instanceof THREE.OrthographicCamera);
+    if (!projectionIsReady) {
+      const retryTimer = window.setTimeout(() => {
+        setProjectionRetry((attempt) => attempt + 1);
+      }, 0);
+      return () => window.clearTimeout(retryTimer);
+    }
+    const startPos = camera.position.clone();
+    const startTarget = controls.target.clone();
+    const duration = consultCameraState
+      ? STORY_CAMERA_TRANSITION_MS
+      : getOfficeCameraTransitionDuration({
+          previousProjection: previousProjectionRef.current,
+          nextProjection,
+          previousBuilderMode: previousBuilderModeRef.current,
+          isBuilderMode,
+        });
     previousProjectionRef.current = nextProjection;
     previousBuilderModeRef.current = isBuilderMode;
+    const storyTargetReadyAt = consultCameraTarget
+      ? (storyTargetReadyRef.current ?? performance.now())
+      : null;
+    const storyInvokedAt = consultCameraTarget ? (storyInvocationRef.current ?? storyTargetReadyAt) : null;
+    const publishStoryTiming = (settledAt: number): void => {
+      if (
+        storyTargetReadyAt == null ||
+        storyInvokedAt == null ||
+        !import.meta.env.DEV ||
+        typeof window === "undefined"
+      ) {
+        return;
+      }
+      const timing = {
+        invokedAt: storyInvokedAt,
+        targetReadyAt: storyTargetReadyAt,
+        settledAt,
+        targetReadyDurationMs: storyTargetReadyAt - storyInvokedAt,
+        settleDurationMs: settledAt - storyTargetReadyAt,
+        totalDurationMs: settledAt - storyInvokedAt,
+      };
+      updateOfficeQaState({ storyTiming: timing });
+    };
     const endPos = new THREE.Vector3(
       ...(consultCameraState?.position ?? nextViewState?.cameraPosition ?? [0, 25, 30]),
     );
@@ -183,6 +234,7 @@ export function useOfficeSceneCameraTransition(params: {
       startTarget.distanceToSquared(endTarget) < 0.0001
     ) {
       setAnimatingCamera(false);
+      publishStoryTiming(performance.now());
       return;
     }
 
@@ -193,6 +245,7 @@ export function useOfficeSceneCameraTransition(params: {
       camera.updateProjectionMatrix();
       controls.update();
       setAnimatingCamera(false);
+      publishStoryTiming(performance.now());
       return;
     }
 
@@ -220,6 +273,7 @@ export function useOfficeSceneCameraTransition(params: {
         animationFrameId = requestAnimationFrame(animateCamera);
       } else {
         setAnimatingCamera(false);
+        publishStoryTiming(performance.now());
       }
     };
 
@@ -233,6 +287,7 @@ export function useOfficeSceneCameraTransition(params: {
     isBuilderMode,
     layoutCenter,
     orbitControlsRef,
+    projectionRetry,
     setAnimatingCamera,
     settings,
   ]);

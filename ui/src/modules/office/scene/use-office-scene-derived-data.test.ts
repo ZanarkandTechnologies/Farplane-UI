@@ -69,6 +69,24 @@ describe("office scene derived data", () => {
     expect(result[0]?.wantsToWander).toBe(false);
   });
 
+  it("keeps persistent team leads at their desks while temporary workers may wander", () => {
+    const persistent = createEmployeeData({
+      _id: "persistent-lead",
+      presencePersistent: true,
+      wantsToWander: true,
+    });
+    const temporary = createEmployeeData({
+      _id: "temporary-worker",
+      presencePersistent: false,
+      wantsToWander: true,
+    });
+
+    const result = assignRandomStatuses([persistent, temporary], new Map());
+
+    expect(result[0]?.wantsToWander).toBe(false);
+    expect(typeof result[1]?.wantsToWander).toBe("boolean");
+  });
+
   it("pins active employees to their desks during status assignment", () => {
     const employees = [
       createEmployeeData({
@@ -181,6 +199,43 @@ describe("office scene derived data", () => {
     expect(presented?.wantsToWander).toBe(false);
     expect(presented?.heartbeatBubbles).toEqual([{ label: "Working", weight: 80 }]);
     expect(presented?.bubbleMessages).toEqual(liveStatus.bubbleMessages);
+  });
+
+  it("attaches the destination scene selected by an active landmark skill", () => {
+    const employee = createEmployeeData({ _id: "employee-agent-1" });
+    const library: OfficeObject = {
+      _id: "activity-library",
+      meshType: "activity-landmark",
+      position: [6, 0, 7],
+      rotation: [0, 0, 0],
+      metadata: {
+        landmarkKind: "library",
+        skillBinding: { skillId: "research", effectVariant: "blink" },
+      },
+    };
+
+    const [presented] = applyLiveStatusToSceneEmployees({
+      employees: [employee],
+      liveStatusByAgentId: {
+        "agent-1": {
+          agentId: "agent-1",
+          state: "running",
+          statusText: "Calling research",
+          currentSkillId: "research",
+          bubbles: [],
+          updatedAt: 1770000000000,
+        },
+      },
+      officeObjects: [library],
+    });
+
+    expect(presented?.activityScenePresentation).toEqual(
+      expect.objectContaining({
+        sceneKey: "read-book",
+        baseSpriteAnimation: "review",
+        propKind: "book",
+      }),
+    );
   });
 
   it("attaches idle interaction targets only when employees have no active thread", () => {

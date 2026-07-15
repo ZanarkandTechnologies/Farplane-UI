@@ -10,9 +10,10 @@
  */
 
 import type { ComponentType } from "react";
+import type { ActivityScenePresentation } from "@/modules/office/activity-scenes";
 import type { EmployeeActivityState } from "@/modules/office/lib/types";
-import type { EmployeePresenceVisual } from "../presence-visuals";
 import type { EmployeeAnimationMode, EmployeeMovementDirection } from "../employee-motion";
+import type { EmployeePresenceVisual } from "../presence-visuals";
 
 export type CharacterRendererId = "three-human" | "sprite-sheet-2d";
 
@@ -38,6 +39,8 @@ export type CharacterRuntimeState = {
   animationMode: EmployeeAnimationMode;
   movementDirection: EmployeeMovementDirection;
   activityState?: EmployeeActivityState;
+  activityScene?: ActivityScenePresentation;
+  reducedMotion?: boolean;
   isSelected: boolean;
   isHovered: boolean;
   isHighlighted: boolean;
@@ -57,6 +60,7 @@ export type CharacterRendererProps = {
   petType?: "none" | "dog" | "cat" | "goldfish" | "rabbit" | "lobster";
   clothesStyle?: "default" | "dj" | "professional" | "techBro";
   config?: CharacterRendererConfig;
+  suppressLoadingFallback?: boolean;
   fallback?: ComponentType<Omit<CharacterRendererProps, "fallback">>;
 };
 

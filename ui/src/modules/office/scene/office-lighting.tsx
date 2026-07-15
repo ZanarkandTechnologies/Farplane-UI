@@ -28,10 +28,10 @@ export function OfficeLighting(props: {
 
   return (
     <>
-      <ambientLight intensity={isIsometricView ? 1.15 : 0.9} color={officeTheme.lighting.ambient} />
+      <ambientLight intensity={isIsometricView ? 0.84 : 0.82} color={officeTheme.lighting.ambient} />
       <directionalLight
         position={isIsometricView ? [18, 24, 18] : [0, 20, 5]}
-        intensity={isIsometricView ? 1.15 : 1.5}
+        intensity={isIsometricView ? 1.28 : 1.4}
         color={officeTheme.lighting.directional}
         castShadow
         shadow-mapSize-width={2048}
@@ -43,15 +43,43 @@ export function OfficeLighting(props: {
         shadow-camera-bottom={bounds.minWorldZ - 5}
       />
       <pointLight
-        position={[-10, 10, -10]}
-        intensity={isIsometricView ? 0.3 : 0.5}
+        position={[bounds.minWorldX + 4, 4.6, bounds.minWorldZ + 4]}
+        intensity={isIsometricView ? 4.2 : 1.2}
         color={officeTheme.lighting.point}
+        distance={14}
+        decay={1.4}
       />
       <pointLight
-        position={[10, 10, 10]}
-        intensity={isIsometricView ? 0.3 : 0.5}
+        position={[bounds.maxWorldX - 4, 4.6, bounds.minWorldZ + 4]}
+        intensity={isIsometricView ? 4.2 : 1.2}
         color={officeTheme.lighting.point}
+        distance={14}
+        decay={1.4}
       />
+      <pointLight
+        position={[bounds.centerX, 5.2, bounds.centerZ]}
+        intensity={isIsometricView ? 3.1 : 1.4}
+        color="#e4a96d"
+        distance={12}
+        decay={1.8}
+      />
+      {isIsometricView
+          ? [
+            [0, -8],
+            [8, 0],
+            [0, 8],
+            [-8, 0],
+          ].map(([offsetX, offsetZ]) => (
+            <pointLight
+              key={`${offsetX}:${offsetZ}`}
+              position={[bounds.centerX + offsetX, 3.8, bounds.centerZ + offsetZ]}
+              intensity={3.6}
+              color="#efb06f"
+              distance={8}
+              decay={1.45}
+            />
+          ))
+        : null}
     </>
   );
 }

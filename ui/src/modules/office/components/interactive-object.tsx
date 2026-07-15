@@ -11,6 +11,7 @@ import {
 import type { OfficeId } from "@/modules/office/lib/types";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
+import { persistOfficeKitCustomization } from "@/modules/office/lib/office-kit";
 import { useAppStore } from "@/store";
 import { DraggableController } from "../controllers/draggable-controller";
 import { useDeleteOfficeObject } from "../hooks/use-delete-office-object";
@@ -197,6 +198,7 @@ export function InteractiveObject({
       if (!result.ok) {
         throw new Error(result.error ?? "office_object_update_failed");
       }
+      await persistOfficeKitCustomization(adapter);
       lastConfirmedPositionRef.current = input.position;
       lastConfirmedRotationRef.current = payload.rotation;
       lastConfirmedScaleRef.current = payload.scale ?? initialScale;
@@ -516,6 +518,7 @@ export function InteractiveObject({
     // biome-ignore lint/a11y/noStaticElementInteractions: React Three Fiber group handles scene pointer events, not DOM interaction semantics.
     <group
       ref={setGroupRef}
+      name={`office-object:${String(objectId)}`}
       position={localPosition}
       rotation={localRotation}
       scale={localScale}
@@ -566,6 +569,7 @@ export function InteractiveObject({
           center
           distanceFactor={9}
           position={[0, hoverLabelYOffset, 0]}
+          sprite
           transform
           zIndexRange={[60, 0]}
         >

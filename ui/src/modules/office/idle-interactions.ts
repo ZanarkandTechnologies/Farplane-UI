@@ -16,6 +16,7 @@ import type {
   OfficeId,
   OfficeObject,
 } from "@/modules/office/lib/types";
+import { resolveActivityScenePresentation } from "./activity-scenes";
 import { parseOfficeObjectInteractionConfig } from "./office-object-ui";
 import { getOfficeSkillAnchorPosition } from "./skill-targeting";
 
@@ -58,8 +59,15 @@ export function buildIdleInteractionTargets(
     const config = parseOfficeObjectInteractionConfig(object.metadata);
     if (config.idleInteraction?.enabled === false) continue;
 
+    const activityScene =
+      object.meshType === "activity-landmark"
+        ? resolveActivityScenePresentation(object.metadata)
+        : undefined;
+
     const phrases =
-      config.idleInteraction?.phrases ?? DEFAULT_IDLE_PHRASES_BY_MESH_TYPE[object.meshType];
+      config.idleInteraction?.phrases ??
+      activityScene?.ambientPhrases ??
+      DEFAULT_IDLE_PHRASES_BY_MESH_TYPE[object.meshType];
     if (!phrases || phrases.length === 0) continue;
 
     targets.push({
@@ -68,6 +76,7 @@ export function buildIdleInteractionTargets(
       position: getOfficeSkillAnchorPosition(object),
       objectPosition: object.position,
       phrases,
+      activityScene,
     });
   }
 

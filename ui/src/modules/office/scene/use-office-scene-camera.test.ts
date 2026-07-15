@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   BUILDER_CAMERA_TRANSITION_MS,
   DEFAULT_CAMERA_TRANSITION_MS,
+  STORY_CAMERA_TRANSITION_MS,
   getOfficeCameraTransitionDuration,
 } from "./use-office-scene-camera";
 
 describe("office camera transition duration", () => {
+  it("keeps the Story speaking-shot transition comfortably inside its latency budget", () => {
+    expect(STORY_CAMERA_TRANSITION_MS).toBeLessThan(500);
+  });
+
   it("hands off initial and projection-changing cameras immediately", () => {
     expect(
       getOfficeCameraTransitionDuration({

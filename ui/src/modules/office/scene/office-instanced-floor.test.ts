@@ -36,10 +36,10 @@ describe("buildOfficeFloorInstancePlan", () => {
       "#efe2cc",
     ]);
     expect(buildOfficeFloorInstancePlan(tiles, "graphite_grid", false).colors).toEqual([
-      "#3d4953",
-      "#3d4953",
-      "#a9b6bf",
-      "#3d4953",
+      "#52504c",
+      "#504e49",
+      "#52504c",
+      "#52504c",
     ]);
     expect(buildOfficeFloorInstancePlan(tiles, "walnut_parquet", false).colors).toEqual([
       "#c68e5b",

@@ -3,7 +3,7 @@
     "width": 15,
     "depth": 17
   },
-  "layoutStrategy": "legacy",
+  "layoutStrategy": "team_neighborhoods",
   "officeLayout": {
     "version": 1,
     "tileSize": 1,
@@ -249,11 +249,11 @@
     ]
   },
   "decor": {
-    "floorPatternId": "sandstone_tiles",
-    "wallColorId": "clay_rose",
+    "floorPatternId": "graphite_grid",
+    "wallColorId": "command_charcoal",
     "backgroundId": "estuary_glow"
   },
   "viewProfile": "fixed_2_5d",
   "orbitControlsEnabled": true,
-  "cameraOrientation": "south_west"
+  "cameraOrientation": "south_east"
 }

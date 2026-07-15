@@ -33,6 +33,7 @@ import { useAppStore } from "@/store";
 import Desk from "./desk";
 import { InteractiveObject } from "./interactive-object";
 import RoundTeamTable from "./round-team-table";
+import { shouldShowTeamLabel } from "./team-label";
 
 // Constants
 const DEFAULT_OCCUPANCY_WIDTH = 9.2;
@@ -110,6 +111,7 @@ export default function TeamCluster({
   const stationLayout = resolveTeamStationLayout({
     deskCount: currentDeskCount,
     employeeCount: team.employees.length,
+    forceGrid: metadata?.commandCommonsNeighborhood === true,
   });
   const stationCount = stationLayout.stationCount;
   const usesRoundTable = stationLayout.usesRoundTable;
@@ -176,14 +178,22 @@ export default function TeamCluster({
           ? a.originalIndex - b.originalIndex
           : a.persistedIndex - b.persistedIndex,
       );
-    return orderedDesks
-      .slice(0, stationLayout.visibleGridDeskCount)
+    const visibleDesks = Array.from(
+      { length: stationLayout.visibleGridDeskCount },
+      (_, index) =>
+        orderedDesks[index] ?? {
+          desk: { id: `${objectId}-generated-desk-${index}`, deskIndex: index, team: team.name },
+          originalIndex: index,
+          persistedIndex: index,
+        },
+    );
+    return visibleDesks
       .map(({ desk }, layoutIndex, visibleDesks) => ({
         id: desk.id,
         position: getDeskPosition(clusterPos, layoutIndex, visibleDesks.length),
         rotationY: getDeskRotation(layoutIndex, visibleDesks.length),
       }));
-  }, [desks, stationLayout.visibleGridDeskCount]);
+  }, [desks, objectId, stationLayout.visibleGridDeskCount, team.name]);
 
   const tableHitTarget = useMemo(() => {
     const footprint = getClusterOccupancyFootprint(
@@ -218,9 +228,9 @@ export default function TeamCluster({
   }, [desks.length, metadata, stationCount, usesRoundTable]);
 
   // Render conditions
-  const isManagementCluster = team.name === "Management";
   const showCircle = isBuilderMode || placementMode.active;
-  const showFloatingLabel = !isManagementCluster && team.name !== "CEO";
+  const isCommandNeighborhood = metadata?.commandCommonsNeighborhood === true;
+  const showFloatingLabel = shouldShowTeamLabel(team.name);
   const showDeskPlacementDetail =
     placementMode.active && placementMode.type === "desk" && (isHovered || usesRoundTable);
   return (
@@ -260,7 +270,7 @@ export default function TeamCluster({
           )}
         </group>
 
-        <group>
+        <group scale={metadata?.commandCommonsNeighborhood === true ? 1.12 : 1}>
           {usesRoundTable ? (
             <RoundTeamTable
               stationCount={stationCount}
@@ -283,10 +293,6 @@ export default function TeamCluster({
           <Html
             position={[0, FLOATING_LABEL_HEIGHT, 0]}
             center
-            transform
-            sprite
-            distanceFactor={4.8}
-            occlude
             zIndexRange={[112, 0]}
             style={{
               backfaceVisibility: "hidden",
@@ -297,10 +303,16 @@ export default function TeamCluster({
           >
             <div className="farplane-team-label-bobble animate-in fade-in zoom-in-95 duration-200">
               <div
-                className={`flex min-h-[42px] min-w-[176px] max-w-[260px] items-center justify-center rounded-sm border px-4 py-2 text-center text-[13px] font-semibold leading-none shadow-md backdrop-blur-sm ${
+                className={`flex items-center justify-center rounded-sm border text-center font-semibold leading-none shadow-md backdrop-blur-sm ${
+                  isCommandNeighborhood
+                    ? "min-h-[28px] min-w-[96px] max-w-[150px] border-[#a77d58]/55 bg-[#211a16]/92 px-2.5 py-1 text-[10px] text-[#f1dfca] shadow-black/40"
+                    : "min-h-[42px] min-w-[176px] max-w-[260px] px-4 py-2 text-[13px]"
+                } ${
                   usesRoundTable && placementMode.active && placementMode.type === "desk"
                     ? "border-sky-200/50 bg-sky-400/24 text-cyan-50/95 shadow-sky-400/15"
-                    : "border-emerald-100/55 bg-emerald-300/22 text-cyan-50/95 shadow-cyan-200/25"
+                    : isCommandNeighborhood
+                      ? ""
+                      : "border-emerald-100/55 bg-emerald-300/22 text-cyan-50/95 shadow-cyan-200/25"
                 }`}
               >
                 <div className="line-clamp-2 whitespace-normal break-keep leading-snug [hyphens:none] [overflow-wrap:normal] [word-break:keep-all]">

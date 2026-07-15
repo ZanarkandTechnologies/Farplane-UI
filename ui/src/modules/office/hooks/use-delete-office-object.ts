@@ -11,6 +11,7 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import type { OfficeId } from "@/modules/office/lib/types";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
+import { persistOfficeKitCustomization } from "@/modules/office/lib/office-kit";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useAppStore } from "@/store";
 import { resolvePersistedOfficeObjectId } from "../components/office-object-id";
@@ -58,6 +59,7 @@ export function useDeleteOfficeObject(objectId: OfficeId<"officeObjects">): {
         toast.error(result.error ?? "Failed to delete object.");
         return;
       }
+      await persistOfficeKitCustomization(adapter);
       await refreshOfficeDataSafely(refresh);
       setActiveObjectTransformId(null);
       toast.success(`Deleted ${objectLabel}.`);

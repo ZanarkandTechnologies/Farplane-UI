@@ -59,12 +59,17 @@ export function OfficeSceneCameraRig({
 }): React.JSX.Element {
   const set = useThree((state) => state.set);
   const initialCamera = useThree((state) => state.camera);
+  const activeCamera = useThree((state) => state.camera);
   const perspectiveRef = useRef<THREE.PerspectiveCamera>(null);
   const orthographicRef = useRef<THREE.OrthographicCamera>(null);
   const activeProjectionRef = useRef<OfficeSceneCameraConfig["projection"] | null>(null);
   const initialCameraRef = useRef(initialCamera);
 
   useLayoutEffect(() => {
+    if (import.meta.env.DEV && typeof window !== "undefined") {
+      (window as Window & { __FARPLANE_OFFICE_CAMERA_CONFIG__?: OfficeSceneCameraConfig })
+        .__FARPLANE_OFFICE_CAMERA_CONFIG__ = config;
+    }
     const nextCamera = selectOfficeSceneCamera(config.projection, {
       perspective: perspectiveRef.current,
       orthographic: orthographicRef.current,
@@ -72,17 +77,17 @@ export function OfficeSceneCameraRig({
     if (!nextCamera) return;
 
     const projectionChanged = activeProjectionRef.current !== config.projection;
-    if (projectionChanged) {
+    const activeCameraDrifted = activeCamera !== nextCamera;
+    if (projectionChanged || activeCameraDrifted) {
       applyOfficeSceneCameraConfig(nextCamera, config);
       activeProjectionRef.current = config.projection;
       set({ camera: nextCamera });
     } else {
       // Position and target remain transition-owned when the projection is stable.
       if (nextCamera instanceof THREE.PerspectiveCamera) nextCamera.fov = config.fov;
-      if (nextCamera instanceof THREE.OrthographicCamera) nextCamera.zoom = config.zoom;
       nextCamera.updateProjectionMatrix();
     }
-  }, [config, set]);
+  }, [activeCamera, config, set]);
 
   useLayoutEffect(
     () => () => {

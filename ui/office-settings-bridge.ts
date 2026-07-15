@@ -38,16 +38,35 @@ export interface BridgeOfficeSettings {
   };
   decor?: {
     floorPatternId?: "sandstone_tiles" | "graphite_grid" | "walnut_parquet";
-    wallColorId?: "gallery_cream" | "sage_mist" | "harbor_blue" | "clay_rose";
+    wallColorId?:
+      | "gallery_cream"
+      | "sage_mist"
+      | "harbor_blue"
+      | "clay_rose"
+      | "command_charcoal";
     backgroundId?: "shell_haze" | "midnight_tide" | "kelp_fog" | "estuary_glow";
   };
   viewProfile?: "free_orbit_3d" | "fixed_2_5d";
   orbitControlsEnabled?: boolean;
   cameraOrientation?: "north_east" | "north_west" | "south_east" | "south_west";
+  officeKit?: {
+    kitId?: string;
+    kitVersion?: number;
+    seed?: string;
+    status?: "equipped" | "customized";
+    projectCapacity?: number;
+    revision?: number;
+  };
   codex?: JsonObject;
 }
 
 type JsonObject = Record<string, unknown>;
+
+export type NormalizedBridgeOfficeSettings = Omit<
+  Required<BridgeOfficeSettings>,
+  "officeKit"
+> &
+  Pick<BridgeOfficeSettings, "officeKit">;
 
 function normalizeAxis(value: unknown, fallback: number): number {
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
@@ -153,7 +172,7 @@ function deriveOfficeFootprintFromLayout(layout: { tiles: string[] }): {
 export function normalizeBridgeOfficeSettings(
   input: unknown,
   defaultMeshAssetDir: string,
-): Required<BridgeOfficeSettings> {
+): NormalizedBridgeOfficeSettings {
   const row = input && typeof input === "object" ? (input as JsonObject) : {};
   const meshAssetDir =
     typeof row.meshAssetDir === "string" && row.meshAssetDir.trim()
@@ -185,6 +204,27 @@ export function normalizeBridgeOfficeSettings(
     row.officeLayout,
     fallbackFootprint,
   );
+  const rawOfficeKit =
+    row.officeKit && typeof row.officeKit === "object"
+      ? (row.officeKit as JsonObject)
+      : {};
+  const kitId = typeof rawOfficeKit.kitId === "string" ? rawOfficeKit.kitId.trim() : "";
+  const officeKit = kitId
+    ? {
+        kitId,
+        kitVersion: Math.max(1, Math.floor(Number(rawOfficeKit.kitVersion) || 1)),
+        seed:
+          typeof rawOfficeKit.seed === "string" && rawOfficeKit.seed.trim()
+            ? rawOfficeKit.seed.trim()
+            : "default",
+        status: rawOfficeKit.status === "customized" ? ("customized" as const) : ("equipped" as const),
+        projectCapacity: Math.max(
+          1,
+          Math.floor(Number(rawOfficeKit.projectCapacity) || 1),
+        ),
+        revision: Math.max(0, Math.floor(Number(rawOfficeKit.revision) || 0)),
+      }
+    : undefined;
 
   return {
     meshAssetDir,
@@ -200,7 +240,8 @@ export function normalizeBridgeOfficeSettings(
       wallColorId:
         rawDecor.wallColorId === "sage_mist" ||
         rawDecor.wallColorId === "harbor_blue" ||
-        rawDecor.wallColorId === "clay_rose"
+        rawDecor.wallColorId === "clay_rose" ||
+        rawDecor.wallColorId === "command_charcoal"
           ? rawDecor.wallColorId
           : "gallery_cream",
       backgroundId:
@@ -218,6 +259,7 @@ export function normalizeBridgeOfficeSettings(
       row.cameraOrientation === "south_west"
         ? row.cameraOrientation
         : "south_east",
+    officeKit,
     codex:
       row.codex && typeof row.codex === "object"
         ? (row.codex as JsonObject)

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { getOfficePresentationRotationY, getOfficeSceneViewState } from "./view-profile";
+import {
+  getFixedOfficeCameraZoom,
+  getOfficePresentationRotationY,
+  getOfficeSceneViewState,
+} from "./view-profile";
 
 describe("office scene view profile", () => {
   it("keeps free orbit controls fully interactive when enabled", () => {
@@ -33,7 +37,7 @@ describe("office scene view profile", () => {
     });
 
     expect(state.cameraProjection).toBe("orthographic");
-    expect(state.cameraPosition).toEqual([26, 18, -26]);
+    expect(state.cameraPosition).toEqual([26, 22, -26]);
     expect(state.cameraTarget).toEqual([0, 0, 0]);
     expect(state.cameraZoom).toBeGreaterThan(1);
     expect(state.controlsEnabled).toBe(true);
@@ -69,9 +73,9 @@ describe("office scene view profile", () => {
       },
     });
 
-    expect(state.cameraPosition).toEqual([0, 50, 0]);
-    expect(state.cameraProjection).toBe("perspective");
-    expect(state.cameraZoom).toBe(1);
+    expect(state.cameraPosition).toEqual([-26, 22, 26]);
+    expect(state.cameraProjection).toBe("orthographic");
+    expect(state.cameraZoom).toBeGreaterThan(1);
     expect(state.rotateEnabled).toBe(false);
     expect(state.panEnabled).toBe(true);
   });
@@ -79,5 +83,10 @@ describe("office scene view profile", () => {
   it("maps presentation yaw to the active fixed-view corner", () => {
     expect(getOfficePresentationRotationY("south_west")).toBeCloseTo(-Math.PI / 4);
     expect(getOfficePresentationRotationY("north_east")).toBeCloseTo((3 * Math.PI) / 4);
+  });
+
+  it("backs out the fixed camera for a room-expanded office while preserving compact framing", () => {
+    expect(getFixedOfficeCameraZoom({ x: 0, z: 0, width: 24, depth: 18 })).toBe(23);
+    expect(getFixedOfficeCameraZoom({ x: 0, z: 0, width: 52, depth: 40 })).toBeLessThan(18);
   });
 });

@@ -16,6 +16,11 @@ non-tradeoffs, and stable capabilities. Objectives projects ordered objectives,
 hard guards, freshness-aware readings, and source gaps. The UI has no Goals or
 Products navigation/schema and does not fall back to `goals.yaml`.
 
+Overview also derives its autonomy-and-savings presentation from the flat
+`metrics.series` cards. It labels potential human-time savings as estimated,
+preserves attribution/source gaps, and does not recalculate completed
+agent-hours; Harness Usage remains the runtime telemetry owner.
+
 ## Public API / Entrypoints
 
 - `index.ts`

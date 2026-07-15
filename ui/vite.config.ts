@@ -33,6 +33,11 @@ import {
 } from "./vite-bridge/project-dashboard";
 import { normalizeBridgeOfficeSettings, type BridgeOfficeSettings as OfficeSettings } from "./office-settings-bridge";
 import {
+  commitOfficeKitState,
+  recoverOfficeKitState,
+  withOfficeKitStateLock,
+} from "./office-kit-state-bridge";
+import {
   LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS,
   localFarplaneEventsToObservedCodexWorkers,
 } from "./src/providers/local-observed-codex-workers";
@@ -80,6 +85,7 @@ const COMPANY_TEMPLATE_PATH = path.resolve(__dirname, "../templates/sidecar/comp
 const FARPLANE_CONFIG_TOML_PATH = path.join(FARPLANE_HOME, "config.toml");
 const OFFICE_OBJECTS_PATH = path.join(FARPLANE_HOME, "office-objects.json");
 const OFFICE_SETTINGS_PATH = path.join(FARPLANE_HOME, "office.json");
+const OFFICE_KIT_TRANSACTION_PATH = path.join(FARPLANE_HOME, "office-kit-transaction.json");
 const CODEX_OFFICE_CONFIG_PATH = path.join(FARPLANE_HOME, "codex-office.json");
 const PROJECT_MANAGERS_PATH = path.join(FARPLANE_HOME, "project-managers.json");
 const TELEGRAM_GATEWAY_STATE_PATH = path.join(FARPLANE_HOME, "telegram-gateway", "state.json");
@@ -1824,7 +1830,7 @@ function normalizeOfficeSettings(input: unknown): Required<OfficeSettings> {
   return normalizeBridgeOfficeSettings(input, DEFAULT_MESH_ASSET_DIR);
 }
 
-async function readOfficeSettings(): Promise<OfficeSettings> {
+async function readOfficeSettings(options: { lockHeld?: boolean } = {}): Promise<OfficeSettings> {
   let raw = await readJsonFile<OfficeSettings | null>(OFFICE_SETTINGS_PATH, null);
   if (!raw) {
     raw = await readJsonFile<OfficeSettings>(OFFICE_SETTINGS_TEMPLATE_PATH, {
@@ -1841,8 +1847,16 @@ async function readOfficeSettings(): Promise<OfficeSettings> {
       cameraOrientation: "south_east",
     });
     const seeded = normalizeOfficeSettings(raw);
-    await mkdir(path.dirname(OFFICE_SETTINGS_PATH), { recursive: true });
-    await writeFile(OFFICE_SETTINGS_PATH, `${JSON.stringify(seeded, null, 2)}\n`, "utf-8");
+    const persistSeed = async () => {
+      await mkdir(path.dirname(OFFICE_SETTINGS_PATH), { recursive: true });
+      await writeFile(
+        OFFICE_SETTINGS_PATH,
+        `${JSON.stringify(seeded, null, 2)}\n`,
+        "utf-8",
+      );
+    };
+    if (options.lockHeld) await persistSeed();
+    else await withOfficeKitStateLock(persistSeed);
     return seeded;
   }
   return normalizeOfficeSettings(raw);
@@ -4978,8 +4992,15 @@ function farplaneStateBridge() {
 
         const isOpenClawRoute = pathname.startsWith("/openclaw/");
         const isFarplaneOfficeObjectRoute = pathname.startsWith("/farplane/office-objects/");
-        const isCodexPetRoute = pathname.startsWith("/codex/pets/");
-        if (!isOpenClawRoute && !isFarplaneOfficeObjectRoute && !isCodexPetRoute) {
+        const isFarplaneOfficeKitRoute = pathname === "/farplane/office-kit/state";
+        const isCodexPetRoute =
+          pathname === "/codex/pets" || pathname.startsWith("/codex/pets/");
+        if (
+          !isOpenClawRoute &&
+          !isFarplaneOfficeObjectRoute &&
+          !isFarplaneOfficeKitRoute &&
+          !isCodexPetRoute
+        ) {
           next();
           return;
         }
@@ -5450,31 +5471,103 @@ function farplaneStateBridge() {
         }
 
         if (method === "GET" && pathname === "/openclaw/office-objects") {
-          let objects = normalizeOfficeObjects(await readJsonFile<unknown[]>(OFFICE_OBJECTS_PATH, []));
-          if (objects.length === 0) {
-            const seeded = await readJsonFile<unknown[]>(OFFICE_OBJECTS_TEMPLATE_PATH, []);
-            objects = normalizeOfficeObjects(seeded);
-            if (objects.length > 0) {
-              await mkdir(path.dirname(OFFICE_OBJECTS_PATH), { recursive: true });
-              await writeFile(OFFICE_OBJECTS_PATH, `${JSON.stringify(objects, null, 2)}\n`, "utf-8");
+          await withOfficeKitStateLock(async () => {
+            const recovery = await recoverOfficeKitState({
+              settingsPath: OFFICE_SETTINGS_PATH,
+              objectsPath: OFFICE_OBJECTS_PATH,
+              journalPath: OFFICE_KIT_TRANSACTION_PATH,
+            });
+            if (!recovery.ok) {
+              writeJson(res, 503, {
+                ok: false,
+                error: `office_kit_recovery_failed:${recovery.error}`,
+              });
+              return;
             }
-          }
-          writeJson(res, 200, { objects });
+            let objects = normalizeOfficeObjects(
+              await readJsonFile<unknown[]>(OFFICE_OBJECTS_PATH, []),
+            );
+            if (objects.length === 0) {
+              const seeded = await readJsonFile<unknown[]>(OFFICE_OBJECTS_TEMPLATE_PATH, []);
+              objects = normalizeOfficeObjects(seeded);
+              if (objects.length > 0) {
+                await mkdir(path.dirname(OFFICE_OBJECTS_PATH), { recursive: true });
+                await writeFile(
+                  OFFICE_OBJECTS_PATH,
+                  `${JSON.stringify(objects, null, 2)}\n`,
+                  "utf-8",
+                );
+              }
+            }
+            writeJson(res, 200, { objects });
+          });
           return;
         }
 
         if (method === "GET" && pathname === "/openclaw/office-settings") {
-          const settings = await readOfficeSettings();
-          writeJson(res, 200, { settings });
+          await withOfficeKitStateLock(async () => {
+            const recovery = await recoverOfficeKitState({
+              settingsPath: OFFICE_SETTINGS_PATH,
+              objectsPath: OFFICE_OBJECTS_PATH,
+              journalPath: OFFICE_KIT_TRANSACTION_PATH,
+            });
+            if (!recovery.ok) {
+              writeJson(res, 503, {
+                ok: false,
+                error: `office_kit_recovery_failed:${recovery.error}`,
+              });
+              return;
+            }
+            const settings = await readOfficeSettings({ lockHeld: true });
+            writeJson(res, 200, { settings });
+          });
           return;
         }
 
         if (method === "POST" && pathname === "/openclaw/office-settings") {
           const body = (await readBody(req)) as JsonObject;
           const settings = normalizeOfficeSettings(body.settings ?? body);
-          await mkdir(path.dirname(OFFICE_SETTINGS_PATH), { recursive: true });
-          await writeFile(OFFICE_SETTINGS_PATH, `${JSON.stringify(settings, null, 2)}\n`, "utf-8");
+          await withOfficeKitStateLock(async () => {
+            await mkdir(path.dirname(OFFICE_SETTINGS_PATH), { recursive: true });
+            await writeFile(
+              OFFICE_SETTINGS_PATH,
+              `${JSON.stringify(settings, null, 2)}\n`,
+              "utf-8",
+            );
+          });
           writeJson(res, 200, { ok: true, settings });
+          return;
+        }
+
+        if (method === "POST" && pathname === "/farplane/office-kit/state") {
+          if (!hasBridgeWriteAccess(req)) {
+            writeJson(res, 403, { ok: false, status: "failed", error: "forbidden" });
+            return;
+          }
+          const body = (await readBody(req)) as JsonObject;
+          const expectedRevision = Math.max(0, Math.floor(Number(body.expectedRevision) || 0));
+          const expectedObjectStateToken =
+            typeof body.expectedObjectStateToken === "string"
+              ? body.expectedObjectStateToken
+              : "";
+          const settings = normalizeOfficeSettings(body.settings);
+          const objects = normalizeOfficeObjects(Array.isArray(body.objects) ? body.objects : []);
+          const result = await commitOfficeKitState({
+            paths: {
+              settingsPath: OFFICE_SETTINGS_PATH,
+              objectsPath: OFFICE_OBJECTS_PATH,
+              journalPath: OFFICE_KIT_TRANSACTION_PATH,
+            },
+            expectedRevision,
+            expectedObjectStateToken,
+            settings: settings as JsonObject,
+            objects,
+          });
+          writeJson(
+            res,
+            result.ok ? 200 : result.status === "conflict" ? 409 : result.status === "recovery_required" ? 503 : 500,
+            result,
+          );
           return;
         }
 
@@ -5698,6 +5791,42 @@ function farplaneStateBridge() {
           return;
         }
 
+        if (method === "GET" && pathname === "/codex/pets") {
+          const petsRoot = path.join(CODEX_HOME, "pets");
+          try {
+            const entries = await readdir(petsRoot, { withFileTypes: true });
+            const pets = (
+              await Promise.all(
+                entries
+                  .filter((entry) => entry.isDirectory() && isSafeCodexPetSegment(entry.name))
+                  .map(async (entry) => {
+                    try {
+                      const manifest = await readJsonFile<JsonObject>(
+                        path.join(petsRoot, entry.name, "pet.json"),
+                        {},
+                      );
+                      if (!String(manifest.spritesheetPath ?? "").trim()) return null;
+                      return {
+                        id: entry.name,
+                        displayName: String(manifest.displayName ?? entry.name),
+                        description:
+                          typeof manifest.description === "string" ? manifest.description : undefined,
+                      };
+                    } catch {
+                      return null;
+                    }
+                  }),
+              )
+            )
+              .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+              .sort((left, right) => left.displayName.localeCompare(right.displayName));
+            writeJson(res, 200, { pets });
+          } catch {
+            writeJson(res, 200, { pets: [] });
+          }
+          return;
+        }
+
         const codexPetAssetMatch = pathname.match(/^\/codex\/pets\/([^/]+)\/([^/]+)$/);
         if (method === "GET" && codexPetAssetMatch) {
           const petId = decodeURIComponent(codexPetAssetMatch[1]);
@@ -5744,8 +5873,14 @@ function farplaneStateBridge() {
           const body = (await readBody(req)) as JsonObject;
           const input = Array.isArray(body.objects) ? body.objects : [];
           const objects = normalizeOfficeObjects(input);
-          await mkdir(path.dirname(OFFICE_OBJECTS_PATH), { recursive: true });
-          await writeFile(OFFICE_OBJECTS_PATH, `${JSON.stringify(objects, null, 2)}\n`, "utf-8");
+          await withOfficeKitStateLock(async () => {
+            await mkdir(path.dirname(OFFICE_OBJECTS_PATH), { recursive: true });
+            await writeFile(
+              OFFICE_OBJECTS_PATH,
+              `${JSON.stringify(objects, null, 2)}\n`,
+              "utf-8",
+            );
+          });
           writeJson(res, 200, { ok: true, objects });
           return;
         }
@@ -5756,16 +5891,21 @@ function farplaneStateBridge() {
             return;
           }
           const body = (await readBody(req)) as JsonObject;
-          const currentObjects = normalizeOfficeObjects(
-            await readJsonFile<unknown[]>(OFFICE_OBJECTS_PATH, []),
-          ) as unknown as OfficeObjectModel[];
-          const hasExplicitObjects = Array.isArray(body.objects);
-          const inputObjects = hasExplicitObjects ? (body.objects as unknown[]) : currentObjects;
-          const objects = normalizeOfficeObjects(inputObjects) as unknown as OfficeObjectModel[];
-          const seed =
-            typeof body.seed === "string" || typeof body.seed === "number" ? body.seed : Date.now();
-          try {
-            const officeSettings = (await readOfficeSettings()) as OfficeSettingsModel;
+          await withOfficeKitStateLock(async () => {
+            const currentObjects = normalizeOfficeObjects(
+              await readJsonFile<unknown[]>(OFFICE_OBJECTS_PATH, []),
+            ) as unknown as OfficeObjectModel[];
+            const hasExplicitObjects = Array.isArray(body.objects);
+            const inputObjects = hasExplicitObjects ? (body.objects as unknown[]) : currentObjects;
+            const objects = normalizeOfficeObjects(inputObjects) as unknown as OfficeObjectModel[];
+            const seed =
+              typeof body.seed === "string" || typeof body.seed === "number"
+                ? body.seed
+                : Date.now();
+            try {
+            const officeSettings = (await readOfficeSettings({
+              lockHeld: true,
+            })) as OfficeSettingsModel;
             const candidates = getOfficeLayoutCandidatePositions(officeSettings);
             const canPlaceObject = (
               object: OfficeObjectModel,
@@ -5816,12 +5956,13 @@ function farplaneStateBridge() {
               moved: arranged.moved,
               placementViolationCount: placementViolations.length,
             });
-          } catch (error) {
-            writeJson(res, 409, {
-              ok: false,
-              error: error instanceof Error ? error.message : "office_shuffle_failed",
-            });
-          }
+            } catch (error) {
+              writeJson(res, 409, {
+                ok: false,
+                error: error instanceof Error ? error.message : "office_shuffle_failed",
+              });
+            }
+          });
           return;
         }
 
@@ -5956,19 +6097,29 @@ function farplaneStateBridge() {
           const createdAgentIds = autoRoles.map((role) => `${slug}-${roleSuffix(role)}`);
 
           if (withCluster) {
-            const currentObjects = normalizeOfficeObjects(await readJsonFile<unknown[]>(OFFICE_OBJECTS_PATH, []));
-            const clusterId = `team-cluster-${teamId}`;
-            const nextObjects = currentObjects.filter((entry) => String(entry.id ?? "") !== clusterId);
-            nextObjects.push(
-              buildNewTeamClusterObject({
-                existingObjects: currentObjects,
-                teamId,
-                name,
-                description,
-              }) satisfies JsonObject,
-            );
-            await mkdir(path.dirname(OFFICE_OBJECTS_PATH), { recursive: true });
-            await writeFile(OFFICE_OBJECTS_PATH, `${JSON.stringify(nextObjects, null, 2)}\n`, "utf-8");
+            await withOfficeKitStateLock(async () => {
+              const currentObjects = normalizeOfficeObjects(
+                await readJsonFile<unknown[]>(OFFICE_OBJECTS_PATH, []),
+              );
+              const clusterId = `team-cluster-${teamId}`;
+              const nextObjects = currentObjects.filter(
+                (entry) => String(entry.id ?? "") !== clusterId,
+              );
+              nextObjects.push(
+                buildNewTeamClusterObject({
+                  existingObjects: currentObjects,
+                  teamId,
+                  name,
+                  description,
+                }) satisfies JsonObject,
+              );
+              await mkdir(path.dirname(OFFICE_OBJECTS_PATH), { recursive: true });
+              await writeFile(
+                OFFICE_OBJECTS_PATH,
+                `${JSON.stringify(nextObjects, null, 2)}\n`,
+                "utf-8",
+              );
+            });
           }
 
           if (registerOpenclawAgents && autoRoles.length > 0) {

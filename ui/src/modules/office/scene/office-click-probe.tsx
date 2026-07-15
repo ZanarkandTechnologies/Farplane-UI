@@ -5,10 +5,10 @@
  */
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import type { EmployeeData, OfficeObject, TeamData } from "@/modules/office/lib/types";
 import { useAppStore } from "@/store";
-import type { EmployeeData, TeamData } from "@/modules/office/lib/types";
 
-type ProbeTargetKind = "employee" | "team";
+type ProbeTargetKind = "employee" | "office-object" | "team";
 
 type ProbeTarget = {
   id: string;
@@ -49,9 +49,11 @@ function projectToScreen(
 export function OfficeClickProbe({
   teams,
   employees,
+  officeObjects,
 }: {
   teams: TeamData[];
   employees: EmployeeData[];
+  officeObjects: OfficeObject[];
 }) {
   const { camera, size } = useThree();
   const scene = useThree((state) => state.scene);
@@ -75,7 +77,8 @@ export function OfficeClickProbe({
       });
     const liveEmployeePositions = window.__farplaneOfficeLiveEmployeePositions ?? {};
     const employeeTargets: ProbeTarget[] = employees.map((employee) => {
-      const world = liveEmployeePositions[String(employee._id)] ?? employee.initialPosition ?? [0, 0, 0];
+      const world = liveEmployeePositions[String(employee._id)] ??
+        employee.initialPosition ?? [0, 0, 0];
       return {
         id: String(employee._id),
         kind: "employee" as const,
@@ -84,8 +87,19 @@ export function OfficeClickProbe({
         screen: projectToScreen([world[0], world[1] + 0.9, world[2]], camera, size),
       };
     });
+    const officeObjectTargets: ProbeTarget[] = officeObjects.map((officeObject) => {
+      const world = officeObject.position;
+      const displayName = officeObject.metadata?.displayName;
+      return {
+        id: String(officeObject._id),
+        kind: "office-object" as const,
+        label: typeof displayName === "string" ? displayName : officeObject.meshType,
+        world,
+        screen: projectToScreen([world[0], world[1] + 0.8, world[2]], camera, size),
+      };
+    });
     window.__farplaneOfficeClickProbe = {
-      targets: [...teamTargets, ...employeeTargets],
+      targets: [...teamTargets, ...employeeTargets, ...officeObjectTargets],
       state: {
         activeTeamId: activeTeamId ? String(activeTeamId) : null,
         isTeamPanelOpen,
@@ -100,19 +114,20 @@ export function OfficeClickProbe({
       hitTest: (x: number, y: number) => {
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(
-          {
-            x: (x / size.width) * 2 - 1,
-            y: -(y / size.height) * 2 + 1,
-          },
+          new THREE.Vector2((x / size.width) * 2 - 1, -(y / size.height) * 2 + 1),
           camera,
         );
         return raycaster
           .intersectObjects(scene.children, true)
           .slice(0, 12)
-          .map((hit) => ({
-            name: hit.object.name || hit.object.parent?.name || hit.object.type,
-            distance: Number(hit.distance.toFixed(3)),
-          }));
+          .map((hit) => {
+            let owner: THREE.Object3D | null = hit.object;
+            while (owner && !owner.name) owner = owner.parent;
+            return {
+              name: owner?.name || hit.object.type,
+              distance: Number(hit.distance.toFixed(3)),
+            };
+          });
       },
     };
   });

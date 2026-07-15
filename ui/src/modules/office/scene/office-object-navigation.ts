@@ -21,7 +21,7 @@ const NAVIGABLE_RENDERED_MESH_TYPES = new Set([
   "couch",
   "bookshelf",
   "pantry",
-  "activity-landmark",
+  "command-commons",
   "team-cluster",
   "glass-wall",
   "office-divider",
@@ -51,6 +51,9 @@ export function isNavigableRenderableOfficeObject(input: {
   teamById: Map<string, TeamData>;
 }): boolean {
   const { object, teamById } = input;
+  // Destination rooms are walkable presentation spaces. Their permanent props
+  // must never become one large scene-derived navigation obstacle.
+  if (object.meshType === "activity-landmark") return false;
   if (!NAVIGABLE_RENDERED_MESH_TYPES.has(object.meshType)) return false;
   if (object.meshType !== "team-cluster") return true;
   const teamId = metadataString(object.metadata, "teamId");

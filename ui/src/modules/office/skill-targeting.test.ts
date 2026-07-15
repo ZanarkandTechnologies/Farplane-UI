@@ -24,6 +24,31 @@ describe("office skill targeting", () => {
     expect(getOfficeSkillAnchorPosition(object)).toEqual([4, 0, 9.1]);
   });
 
+  it.each([
+    [0, [0, 0, 1.15]],
+    [Math.PI / 2, [-1.15, 0, 0]],
+    [Math.PI, [0, 0, -1.15]],
+    [-Math.PI / 2, [1.15, 0, 0]],
+  ] as const)("uses a walkable interior spot at rotation %s", (rotationY, expected) => {
+    const object: OfficeObject = {
+      _id: "activity-library",
+      meshType: "activity-landmark",
+      position: [0, 0, 0],
+      rotation: [0, rotationY, 0],
+      metadata: {
+        landmarkKind: "library",
+        footprintWidth: 2,
+        footprintDepth: 2,
+        footprintClearance: 0,
+      },
+    };
+    const actual = getOfficeSkillAnchorPosition(object);
+
+    expect(actual[0]).toBeCloseTo(expected[0]);
+    expect(actual[1]).toBeCloseTo(expected[1]);
+    expect(actual[2]).toBeCloseTo(expected[2]);
+  });
+
   it("spreads multiple occupants around the same bound object", () => {
     const object: OfficeObject = {
       _id: "monitor-1",

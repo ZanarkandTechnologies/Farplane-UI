@@ -8,7 +8,7 @@
  * KEY CONCEPTS:
  * - Agent activity only reports semantic `skillId` values.
  * - Office objects stay responsible for placement and local runtime UI config.
- * - Target anchors offset slightly from furniture so avatars snap next to, not inside, the object.
+ * - Ordinary anchors sit beside furniture; activity-room anchors sit inside their walkable floor.
  * - Shared skill hosts fan occupants around the object to avoid avatar overlap.
  *
  * USAGE:
@@ -21,6 +21,7 @@
  */
 
 import type { OfficeObject } from "@/modules/office/lib/types";
+import { ACTIVITY_DESTINATION_INTERIOR_INSET } from "./lib/activity-destination-room";
 import { parseOfficeObjectInteractionConfig } from "./office-object-ui";
 
 const DEFAULT_OBJECT_OFFSET = 2.1;
@@ -33,6 +34,16 @@ export function getOfficeSkillAnchorPosition(object: OfficeObject): [number, num
     Array.isArray(object.rotation) && typeof object.rotation[1] === "number"
       ? object.rotation[1]
       : 0;
+  if (object.meshType === "activity-landmark") {
+    const normalizedRotation = Math.atan2(Math.sin(rotationY), Math.cos(rotationY));
+    const inwardX = -Math.sin(normalizedRotation);
+    const inwardZ = Math.cos(normalizedRotation);
+    return [
+      object.position[0] + inwardX * ACTIVITY_DESTINATION_INTERIOR_INSET,
+      object.position[1],
+      object.position[2] + inwardZ * ACTIVITY_DESTINATION_INTERIOR_INSET,
+    ];
+  }
   const offsetX = Math.sin(rotationY) * DEFAULT_OBJECT_OFFSET;
   const offsetZ = Math.cos(rotationY) * DEFAULT_OBJECT_OFFSET;
   return [object.position[0] + offsetX, object.position[1], object.position[2] + offsetZ];

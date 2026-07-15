@@ -5,6 +5,7 @@ import {
   buildOfficeOccupancyGrid,
   buildOfficeWalkabilityGrid,
   canPlaceOfficeObject,
+  getObjectFootprint,
   getObjectFootprintAabb,
   getObjectFootprintCells,
   isObjectFootprintInsideLayout,
@@ -32,12 +33,9 @@ describe("office occupancy system", () => {
   it("detects off-floor footprint cells against the live layout", () => {
     const layout = createRectangularOfficeLayout({ width: 5, depth: 5 });
 
-    expect(
-      isObjectFootprintInsideLayout(
-        { meshType: "pantry", position: [3, 0, 0] },
-        layout,
-      ),
-    ).toBe(false);
+    expect(isObjectFootprintInsideLayout({ meshType: "pantry", position: [3, 0, 0] }, layout)).toBe(
+      false,
+    );
   });
 
   it("builds an occupancy grid and validates available placement", () => {
@@ -65,6 +63,15 @@ describe("office occupancy system", () => {
     expect(rotated.maxZ - rotated.minZ).toBeGreaterThan(unrotated.maxZ - unrotated.minZ);
   });
 
+  it("enforces the uniform activity-room footprint over undersized authored metadata", () => {
+    expect(
+      getObjectFootprint({
+        meshType: "activity-landmark",
+        metadata: { footprintWidth: 2, footprintDepth: 3, footprintClearance: 0 },
+      }),
+    ).toEqual({ width: 5, depth: 5, clearance: 0 });
+  });
+
   it("derives pathfinding walkability from layout and object occupancy", () => {
     const layout = createRectangularOfficeLayout({ width: 7, depth: 7 });
     const walkability = buildOfficeWalkabilityGrid({
@@ -78,5 +85,18 @@ describe("office occupancy system", () => {
 
     expect(walkability.walkableGrid[0][0]).toBe(true);
     expect(walkability.walkableGrid[centerX][centerZ]).toBe(false);
+  });
+
+  it("keeps activity destination rooms walkable at runtime", () => {
+    const layout = createRectangularOfficeLayout({ width: 9, depth: 9 });
+    const walkability = buildOfficeWalkabilityGrid({
+      layout,
+      objects: [{ meshType: "activity-landmark", position: [0, 0, 0] }],
+      cellSize: 0.5,
+    });
+    const centerX = Math.floor((0 - walkability.worldMinX) / walkability.cellSize);
+    const centerZ = Math.floor((0 - walkability.worldMinZ) / walkability.cellSize);
+
+    expect(walkability.walkableGrid[centerX][centerZ]).toBe(true);
   });
 });

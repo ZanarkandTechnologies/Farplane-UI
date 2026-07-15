@@ -31,5 +31,4 @@ describe("sprite sheet 2D travel bobble", () => {
       getSpriteInitialElapsedMs("employee-b", "running-right", durations),
     );
   });
-
 });

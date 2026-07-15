@@ -9,9 +9,9 @@
 
 import {
   getOfficeLayoutTileSet,
+  type OfficeLayoutModel,
   officeLayoutTileKey,
   parseOfficeLayoutTileKey,
-  type OfficeLayoutModel,
 } from "@/modules/office/lib/office-layout";
 import type { OfficeObject } from "@/modules/office/lib/types";
 import { getObjectFootprintCells } from "@/modules/office/systems/occupancy-system";
@@ -75,7 +75,7 @@ function parseTileSet(tileSet: Set<string>): TilePoint[] {
 function getOccupiedTileSet(objects: OfficeObject[], layoutTiles: Set<string>): Set<string> {
   const occupied = new Set<string>();
   for (const object of objects) {
-    if (object.meshType === "wall-art") continue;
+    if (object.meshType === "wall-art" || object.meshType === "activity-landmark") continue;
     for (const cell of getObjectFootprintCells(object)) {
       if (layoutTiles.has(cell.key)) occupied.add(cell.key);
     }
@@ -237,10 +237,9 @@ function isPoiObject(object: OfficeObject): boolean {
 }
 
 function getPoiObjectLabel(object: OfficeObject): string {
-  const metadataName = object.metadata?.displayName ?? object.metadata?.name ?? object.metadata?.teamId;
-  return typeof metadataName === "string" && metadataName.trim()
-    ? metadataName.trim()
-    : object._id;
+  const metadataName =
+    object.metadata?.displayName ?? object.metadata?.name ?? object.metadata?.teamId;
+  return typeof metadataName === "string" && metadataName.trim() ? metadataName.trim() : object._id;
 }
 
 function getImportantTargetKeys(input: {
@@ -277,9 +276,8 @@ export function evaluateOfficePoiGraph(input: {
       walkableTiles,
       largestComponent,
     );
-    const pathLengthFromRoot = rootKey && tileKey
-      ? shortestPathLength(rootKey, tileKey, walkableTiles)
-      : null;
+    const pathLengthFromRoot =
+      rootKey && tileKey ? shortestPathLength(rootKey, tileKey, walkableTiles) : null;
     return {
       id: `${object.meshType}:${object._id}`,
       label: getPoiObjectLabel(object),
@@ -293,9 +291,7 @@ export function evaluateOfficePoiGraph(input: {
   const pathLengths = nodes
     .map((node) => node.pathLengthFromRoot)
     .filter((distance): distance is number => typeof distance === "number" && distance > 0);
-  const disconnectedIds = nodes
-    .filter((node) => !node.reachable)
-    .map((node) => node.id);
+  const disconnectedIds = nodes.filter((node) => !node.reachable).map((node) => node.id);
 
   return {
     rootId: rootObject ? `${rootObject.meshType}:${rootObject._id}` : null,
@@ -318,8 +314,7 @@ export function evaluateOfficeLayoutQuality(input: {
   const occupiedTiles = getOccupiedTileSet(input.objects, layoutTiles);
   const walkableTiles = new Set([...layoutTiles].filter((tile) => !occupiedTiles.has(tile)));
   const largestComponent = findLargestComponent(walkableTiles);
-  const reachablePercent =
-    walkableTiles.size > 0 ? largestComponent.size / walkableTiles.size : 0;
+  const reachablePercent = walkableTiles.size > 0 ? largestComponent.size / walkableTiles.size : 0;
   const targetKeys = getImportantTargetKeys({
     objects: input.objects,
     layoutTiles,
@@ -345,7 +340,8 @@ export function evaluateOfficeLayoutQuality(input: {
       : null;
   const deadEndPenalty = walkableTiles.size > 0 ? deadEndCount / walkableTiles.size : 0;
   const chokePenalty = walkableTiles.size > 0 ? chokePointCount / walkableTiles.size : 0;
-  const targetPenalty = targetKeys.length > 1 ? disconnectedTargetCount / (targetKeys.length - 1) : 0;
+  const targetPenalty =
+    targetKeys.length > 1 ? disconnectedTargetCount / (targetKeys.length - 1) : 0;
   const pathPenalty =
     averageImportantPathLength == null ? 0 : Math.min(0.3, averageImportantPathLength / 200);
 

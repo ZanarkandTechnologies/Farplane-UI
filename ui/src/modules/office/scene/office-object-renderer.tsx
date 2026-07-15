@@ -15,9 +15,11 @@
  * - MEM-0171
  */
 
-import type * as THREE from "three";
 import type { ThreeEvent } from "@react-three/fiber";
+import type * as THREE from "three";
+import ActivityLandmark from "@/modules/office/components/activity-landmark";
 import Bookshelf from "@/modules/office/components/bookshelf";
+import CommandCommons from "@/modules/office/components/command-commons";
 import Couch from "@/modules/office/components/couch";
 import CustomMeshObject from "@/modules/office/components/custom-mesh-object";
 import GlassWall from "@/modules/office/components/glass-wall";
@@ -26,10 +28,13 @@ import Pantry from "@/modules/office/components/pantry";
 import Plant from "@/modules/office/components/plant";
 import TeamCluster from "@/modules/office/components/team-cluster";
 import WallArt from "@/modules/office/components/wall-art";
-import ActivityLandmark from "@/modules/office/components/activity-landmark";
 import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
 import type { DeskLayoutData, OfficeId, OfficeObject, TeamData } from "@/modules/office/lib/types";
 import { shouldUseRoundTeamTable } from "@/modules/office/utils/layout";
+import {
+  CommandCommonsCompositionGeometry,
+  TeamNeighborhoodShellGeometry,
+} from "./office-object-authored-geometry";
 
 export function OfficeObjectRenderer(props: {
   officeObjects: OfficeObject[];
@@ -123,7 +128,7 @@ export function OfficeObjectRenderer(props: {
 
       case "activity-landmark":
         return (
-          <group key={object._id} ref={setRef} name={`obstacle-activity-landmark-${object._id}`}>
+          <group key={object._id} name={`walkable-activity-room-${object._id}`}>
             <ActivityLandmark
               objectId={object._id}
               position={object.position as [number, number, number]}
@@ -132,6 +137,19 @@ export function OfficeObjectRenderer(props: {
               companyId={companyId}
               metadata={object.metadata}
             />
+          </group>
+        );
+
+      case "command-commons":
+        return (
+          <group key={object._id} name={`command-commons-composition-${object._id}`}>
+            <CommandCommonsCompositionGeometry object={object} />
+            <group ref={setRef} name={`obstacle-command-commons-${object._id}`}>
+              <CommandCommons
+                position={object.position as [number, number, number]}
+                rotation={object.rotation as [number, number, number]}
+              />
+            </group>
           </group>
         );
 
@@ -144,23 +162,29 @@ export function OfficeObjectRenderer(props: {
 
         const teamDesks = desksByTeamId.get(team._id) ?? [];
         const stationCount = Math.max(teamDesks.length, team.employees.length, 1);
-        const obstacleName = shouldUseRoundTeamTable(stationCount)
-          ? `obstacle-round-table-${team.name}`
-          : `obstacle-cluster-${team.name}`;
+        const obstacleName =
+          shouldUseRoundTeamTable(stationCount) &&
+          object.metadata?.commandCommonsNeighborhood !== true
+            ? `obstacle-round-table-${team.name}`
+            : `obstacle-cluster-${team.name}`;
 
+        const showCommandNeighborhood = object.metadata?.commandCommonsNeighborhood === true;
         return (
-          <group key={object._id} ref={setRef} name={obstacleName}>
-            <TeamCluster
-              team={team}
-              desks={teamDesks}
-              handleTeamClick={handleTeamClick}
-              onPrimaryAction={team._id === "team-management" ? handleManagementClick : undefined}
-              companyId={companyId}
-              objectId={object._id}
-              position={object.position as [number, number, number]}
-              rotation={object.rotation as [number, number, number]}
-              metadata={object.metadata}
-            />
+          <group key={object._id} name={`team-neighborhood-${object._id}`}>
+            {showCommandNeighborhood ? <TeamNeighborhoodShellGeometry object={object} /> : null}
+            <group ref={setRef} name={obstacleName}>
+              <TeamCluster
+                team={team}
+                desks={teamDesks}
+                handleTeamClick={handleTeamClick}
+                onPrimaryAction={team._id === "team-management" ? handleManagementClick : undefined}
+                companyId={companyId}
+                objectId={object._id}
+                position={object.position as [number, number, number]}
+                rotation={object.rotation as [number, number, number]}
+                metadata={object.metadata}
+              />
+            </group>
           </group>
         );
       }

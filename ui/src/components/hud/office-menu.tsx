@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { SpeedDial, type SpeedDialItem } from "@/components/ui/speed-dial";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import { useAppStore } from "@/store";
+import { getOfficeQaState } from "@/modules/office/qa/office-qa-state";
 import { FurnitureShop } from "./furniture-shop";
 import { OfficeCommandPalette } from "./office-command-palette";
 import {
@@ -240,6 +241,14 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         }>;
         openPanel: (id: OfficePanelActionId) => boolean;
         runCommand: (id: OfficePanelActionId) => boolean;
+        getOfficeKitState: () => unknown;
+        getCameraState: () => unknown;
+        getStoryCameraTiming: () => unknown;
+        getThreadEffects: () => unknown;
+        seedLineageEvent: (edge: Parameters<NonNullable<ReturnType<typeof getOfficeQaState>["seedLineage"]>>[0]) => boolean;
+        runStoryCameraFixture: (target: [number, number, number] | null) => boolean;
+        applyBuilderCustomizationFixture: () => Promise<boolean>;
+        getOfficeQualityReport: () => unknown;
       };
     };
 
@@ -271,6 +280,27 @@ export function OfficeMenu({ className }: SpeedDialProps) {
           .sort((left, right) => left.label.localeCompare(right.label)),
       openPanel: (id) => runAction(id, ["panel"]),
       runCommand: (id) => runAction(id, ["action", "navigation", "panel"]),
+      getOfficeKitState: () => getOfficeQaState().kit ?? null,
+      getCameraState: () => getOfficeQaState().camera ?? null,
+      getStoryCameraTiming: () => getOfficeQaState().storyTiming ?? null,
+      getThreadEffects: () => getOfficeQaState().effects ?? [],
+      getOfficeQualityReport: () => getOfficeQaState().quality ?? null,
+      seedLineageEvent: (edge) => {
+        const seed = getOfficeQaState().seedLineage;
+        if (!seed) return false;
+        seed(edge);
+        return true;
+      },
+      runStoryCameraFixture: (target) => {
+        const run = getOfficeQaState().runStoryFixture;
+        if (!run) return false;
+        run(target);
+        return true;
+      },
+      applyBuilderCustomizationFixture: async () => {
+        const apply = getOfficeQaState().applyBuilderFixture;
+        return apply ? apply() : false;
+      },
     };
 
     return () => {

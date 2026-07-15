@@ -108,6 +108,41 @@ window.__farplaneOfficeClickProbe?.targets
 window.__farplaneOfficeLiveEmployeePositions
 ```
 
+### Legacy Activity Destination Proof
+
+Use this section only for the pre-office-kit destination-room layout. It must
+not be applied to `TASK-0053` or later equipped-kit composition; use the
+Equipped Office Kit Lifecycle Proof below instead.
+
+When changing landmark placement or employee activity scenes, capture these
+separately at the normal office camera:
+
+- overview: the generated office has one rectangular work core; canonical
+  destinations distribute uniformly across north, east, and west rails; the
+  camera-facing south edge stays open; and central team-table routes remain open
+- room presentation: every room uses the same complete 5 x 5 colored floor
+  zone, keeps its landmark prop at authored scale, has no bay walls or corner
+  fillers, keeps a walk-in opening, and presents station contents toward the
+  fixed isometric camera
+- walk-in room: the employee route ends on the colored interior floor and does
+  not treat the room shell or landmark prop cluster as a navigation obstacle
+- geometry: core width/depth are multiples of five, every room zone covers 25
+  tiles, the global office outline remains one smooth rectangle, no room
+  occupies the south rail, and the automatic solver reports zero edge pruning
+- compactness: compare source and final width, depth, and tile count; the source
+  mask must not impose a minimum on the final core, required persisted object
+  transforms must remain unchanged, and ordinary decor must remain inside the
+  central core rather than creating isolated annexes
+- approach: the employee keeps its normal travel animation and has no scene prop
+- engaged: the destination's base clip and transient prop are both visible
+- cleanup: replacing/ending the target removes the prop and restores normal
+  animation
+
+Use Team Workspace → Characters → Skill transformation to emit a synthetic
+presentation-only skill event without fabricating runtime telemetry. Select the
+Library destination to prove Mini Kenji's `review` row plus open-book fallback.
+Record the browser console and page errors alongside the screenshots.
+
 ## Agent-Browser Path
 
 Use `agent-browser` for quick proof:
@@ -123,6 +158,40 @@ agent-browser errors
 Prefer shortcuts and the QA bridge for panel coverage. Use in-world clicking
 only when the ticket specifically changes scene hit targets, object selection,
 or team/employee interaction behavior.
+
+### Equipped Office Kit Lifecycle Proof
+
+For `TASK-0053` and later office-kit work, prove one ordered lifecycle instead
+of checking persistence and visuals separately:
+
+1. Seed a deterministic kit preview and snapshot the unchanged sidecar.
+2. Equip it; capture the ownership receipt, office layout, semantic
+   `officeObjects`, and default-camera screenshot.
+3. Reload twice and compare stable layout/object signatures.
+4. Enter Builder with `Alt+Shift+B`, edit one tile and one semantic prefab,
+   Apply, reload, and confirm the office is now authoritative/manual.
+5. In Builder Layout -> Office Kits, preview another kit without mutation,
+   cancel once, then exercise the customized-office conflict and reset/replace
+   while confirming user-created objects are preserved.
+6. In fixed isometric, prove wheel/pinch zoom and pan while rotation remains
+   locked; record the camera probe before and after.
+7. Enter Story for a seeded employee and record target-ready plus camera-settled
+   timestamps; repeat for a perimeter employee.
+8. Seed one `created` and one `forked` lineage edge; capture the cyan link or
+   projection and confirm deterministic cleanup/dedupe.
+9. Fill reserved project capacity, then add one persistent project past
+   capacity; confirm the live office does not reflow and a larger-kit preview is
+   offered.
+10. Seed 0, 1, and 20 ephemeral workers and confirm identical persisted layout,
+   object, and collision signatures. Probe leaf furniture/wall intersections,
+   circulation clearance, and employee-to-desk scale.
+11. Capture light and dark screenshots from the same equipped kit with no
+   transform or layout changes.
+
+Required probes should be exposed through `window.__FARPLANE_QA__` rather than
+inferred from pixels: kit/source/customization state, semantic object count,
+layout signature, occupancy intersections, active camera and controls, Story
+timings, presence classification, and active lineage-effect keys.
 
 ## Clickability Probes
 

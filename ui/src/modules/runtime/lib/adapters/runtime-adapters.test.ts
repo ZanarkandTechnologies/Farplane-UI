@@ -15,6 +15,7 @@ import {
   toCodexSessionRows,
   toCodexTimeline,
 } from "../..";
+import { mergeSavedTeamCharacterPolicies } from "./codex-runtime-adapter";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -22,6 +23,27 @@ afterEach(() => {
 });
 
 describe("runtime adapters", () => {
+  it("preserves sidecar-owned team character policy in the Codex projection", () => {
+    const projected = toCodexCompanyModel([], Date.now(), ["/workspace/farplane"]);
+    const project = projected.projects[0];
+    if (!project) throw new Error("expected projected project");
+    const policy = {
+      persistent: { renderer: "three-human" as const },
+      ephemeral: { renderer: "three-human" as const },
+      skillTransformations: {
+        research: {
+          character: { renderer: "sprite-sheet-2d" as const, petId: "mini-chua" },
+          enterAnimation: "poof" as const,
+        },
+      },
+    };
+    const merged = mergeSavedTeamCharacterPolicies(projected, {
+      ...projected,
+      projects: [{ ...project, characterPolicy: policy }],
+    });
+    expect(merged.projects[0]?.characterPolicy).toEqual(policy);
+  });
+
   it("binds browser fetch for Codex app-server requests", async () => {
     vi.stubGlobal(
       "fetch",
@@ -75,6 +97,7 @@ describe("runtime adapters", () => {
     const adapter = createOfficeRuntimeAdapter({ kind: "codex", stateUrl: "http://state" });
     const saveOfficeObjects = vi.spyOn(adapter, "saveOfficeObjects");
     const saveOfficeSettings = vi.spyOn(adapter, "saveOfficeSettings");
+    const saveOfficeKitState = vi.spyOn(adapter, "saveOfficeKitState");
     const sendMessage = vi.spyOn(adapter, "sendMessage");
     const upsertOfficeObject = vi.spyOn(adapter, "upsertOfficeObject");
     const readOnly = createReadOnlyOfficeRuntimeAdapter(adapter, true);
@@ -104,6 +127,19 @@ describe("runtime adapters", () => {
       expect.objectContaining({ ok: false, error: READONLY_MODE_ERROR }),
     );
     await expect(
+      readOnly.saveOfficeKitState({
+        expectedRevision: 3,
+        expectedObjects: [],
+        settings: await adapter.getOfficeSettings(),
+        objects: [],
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: READONLY_MODE_ERROR,
+      status: "failed",
+      revision: 3,
+    });
+    await expect(
       readOnly.sendMessage({ agentId: "main", sessionKey: "session", message: "hello" }),
     ).resolves.toEqual({ ok: false, error: READONLY_MODE_ERROR });
     await expect(
@@ -122,6 +158,7 @@ describe("runtime adapters", () => {
     expect(readOnly.capabilities.teamAgentProvisioning).toBe(false);
     expect(saveOfficeObjects).not.toHaveBeenCalled();
     expect(saveOfficeSettings).not.toHaveBeenCalled();
+    expect(saveOfficeKitState).not.toHaveBeenCalled();
     expect(sendMessage).not.toHaveBeenCalled();
     expect(upsertOfficeObject).not.toHaveBeenCalled();
   });
@@ -997,7 +1034,7 @@ describe("runtime adapters", () => {
                       type: "input_text",
                       text:
                         "You are judging an agent answer for a harness eval.\n\n" +
-                        "Task:\n{\"reference_points\":[\"Uses the right skill\"]}",
+                        'Task:\n{"reference_points":["Uses the right skill"]}',
                     },
                   ],
                 },

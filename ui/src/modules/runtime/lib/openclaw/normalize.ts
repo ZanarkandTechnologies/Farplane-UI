@@ -86,6 +86,8 @@ import type {
   SkillStudioFileEntry,
   TaskSyncState,
   TeamBusinessSkillSyncResult,
+  TeamCharacterPolicy,
+  TeamCharacterRef,
   ToolCatalogEntry,
   ToolCatalogGroup,
   ToolCatalogProfile,
@@ -1196,6 +1198,21 @@ export function toOfficeSettings(entry: unknown): OfficeSettingsModel {
     row.officeFootprint ?? DEFAULT_OFFICE_FOOTPRINT,
   );
   const officeLayout = normalizeOfficeLayout(row.officeLayout, fallbackFootprint);
+  const rawOfficeKit = asRecord(row.officeKit);
+  const kitId = String(rawOfficeKit.kitId ?? "").trim();
+  const officeKit = kitId
+    ? {
+        kitId,
+        kitVersion: Math.max(1, Math.floor(Number(rawOfficeKit.kitVersion) || 1)),
+        seed: String(rawOfficeKit.seed ?? "default").trim() || "default",
+        status: rawOfficeKit.status === "customized" ? ("customized" as const) : ("equipped" as const),
+        projectCapacity: Math.max(
+          1,
+          Math.floor(Number(rawOfficeKit.projectCapacity) || 1),
+        ),
+        revision: Math.max(0, Math.floor(Number(rawOfficeKit.revision) || 0)),
+      }
+    : undefined;
   return {
     meshAssetDir,
     layoutStrategy,
@@ -1205,6 +1222,7 @@ export function toOfficeSettings(entry: unknown): OfficeSettingsModel {
     viewProfile,
     orbitControlsEnabled,
     cameraOrientation,
+    officeKit,
   };
 }
 
@@ -1655,6 +1673,7 @@ export function toProject(entry: unknown): ProjectModel | null {
   const accountEvents = normalizeArray(row.accountEvents, (item) =>
     toProjectAccountEvent(id, item),
   );
+  const characterPolicy = toTeamCharacterPolicy(row.characterPolicy);
   return {
     id,
     departmentId,
@@ -1685,7 +1704,36 @@ export function toProject(entry: unknown): ProjectModel | null {
     metricEvents: normalizeArray(row.metricEvents, (item) => toMetricEvent(id, item)),
     resources: normalizeArray(row.resources, (item) => toProjectResource(id, item)),
     resourceEvents: normalizeArray(row.resourceEvents, (item) => toResourceEvent(id, item)),
+    characterPolicy,
   };
+}
+
+function toTeamCharacterRef(entry: unknown): TeamCharacterRef | null {
+  const row = asRecord(entry);
+  const renderer = row.renderer === "sprite-sheet-2d" ? "sprite-sheet-2d" : "three-human";
+  const petId = typeof row.petId === "string" ? row.petId.trim() : "";
+  if (renderer === "sprite-sheet-2d" && !petId) return null;
+  return { renderer, ...(petId ? { petId } : {}) };
+}
+
+function toTeamCharacterPolicy(entry: unknown): TeamCharacterPolicy | undefined {
+  if (!entry || typeof entry !== "object") return undefined;
+  const row = asRecord(entry);
+  const persistent = toTeamCharacterRef(row.persistent);
+  const ephemeral = toTeamCharacterRef(row.ephemeral);
+  if (!persistent || !ephemeral) return undefined;
+  const skillTransformations: TeamCharacterPolicy["skillTransformations"] = {};
+  for (const [skillId, value] of Object.entries(asRecord(row.skillTransformations))) {
+    const transformation = asRecord(value);
+    const character = toTeamCharacterRef(transformation.character);
+    const normalizedSkillId = skillId.trim();
+    if (!normalizedSkillId || !character) continue;
+    skillTransformations[normalizedSkillId] = {
+      character,
+      enterAnimation: transformation.enterAnimation === "none" ? "none" : "poof",
+    };
+  }
+  return { persistent, ephemeral, skillTransformations };
 }
 
 export function toCompanyAgent(entry: unknown): CompanyAgentModel | null {
@@ -1950,6 +1998,7 @@ export function toOfficeObject(entry: unknown): CompanyOfficeObjectModel | null 
     meshType !== "activity-landmark" &&
     meshType !== "glass-wall" &&
     meshType !== "office-divider" &&
+    meshType !== "command-commons" &&
     meshType !== "custom-mesh" &&
     meshType !== "wall-art"
   ) {
@@ -2003,6 +2052,7 @@ export function toOfficeObjectSidecar(entry: unknown): OfficeObjectSidecarModel 
     meshType !== "activity-landmark" &&
     meshType !== "glass-wall" &&
     meshType !== "office-divider" &&
+    meshType !== "command-commons" &&
     meshType !== "custom-mesh" &&
     meshType !== "wall-art"
   ) {

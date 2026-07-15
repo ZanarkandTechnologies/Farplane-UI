@@ -39,4 +39,24 @@ describe("employee character renderer registry", () => {
       config: { id: "three-human" },
     });
   });
+
+  it("lets an active team transformation override the legacy developer pet setting", () => {
+    expect(
+      resolveEmployeeCharacterRenderer({
+        employeeId: "employee-main",
+        characterRenderer: {
+          id: "sprite-sheet-2d",
+          source: { type: "codex-pet", petId: "mini-chua" },
+        },
+        devOverride: {
+          id: "sprite-sheet-2d",
+          source: { type: "codex-pet", petId: "mini-kenji" },
+        },
+        preferConfigured: true,
+      }),
+    ).toMatchObject({
+      id: "sprite-sheet-2d",
+      config: { source: { petId: "mini-chua" } },
+    });
+  });
 });

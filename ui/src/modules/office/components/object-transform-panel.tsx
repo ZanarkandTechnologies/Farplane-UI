@@ -31,6 +31,7 @@ import {
   useState,
 } from "react";
 import { Button } from "@/components/ui/button";
+import { persistOfficeKitCustomization } from "@/modules/office/lib/office-kit";
 import {
   Card,
   CardContent,
@@ -211,6 +212,7 @@ export function ObjectTransformPanel(): ReactElement | null {
         setErrorMessage(result.error ?? "Failed to save transform.");
         return false;
       }
+      await persistOfficeKitCustomization(adapter);
       await refreshOfficeDataSafely(refresh);
       return true;
     } catch (error) {

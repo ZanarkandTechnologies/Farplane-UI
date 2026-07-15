@@ -1,5 +1,6 @@
 import type { StatusType } from "@/modules/navigation/components/status-indicator";
-import type { AgentState } from "@/modules/runtime";
+import type { AgentState, TeamCharacterPolicy } from "@/modules/runtime";
+import type { ActivityScenePresentation } from "../activity-scenes";
 
 export type OfficeId<T extends string = string> = string & { __type?: T };
 export type EmployeeActivityState = "idle" | "running" | "waiting" | "failed" | "review" | "done";
@@ -19,6 +20,7 @@ export type EmployeeIdleInteractionTarget = {
   position: [number, number, number];
   objectPosition: [number, number, number];
   phrases: string[];
+  activityScene?: ActivityScenePresentation;
 };
 
 export interface Company {
@@ -60,6 +62,7 @@ export interface Team {
     ready: boolean;
     issues: string[];
   };
+  characterPolicy?: TeamCharacterPolicy;
 }
 
 export interface Employee {
@@ -108,6 +111,7 @@ export interface EmployeeData extends Employee {
   activityTargetObjectPosition?: [number, number, number];
   activityTargetSkillId?: string;
   activityEffectVariant?: "ghost" | "blink";
+  activityScenePresentation?: ActivityScenePresentation;
   isBusy: boolean;
   deskId?: OfficeId<"desks">;
   team: string;
@@ -126,7 +130,9 @@ export interface EmployeeData extends Employee {
   heartbeatBubbles?: Array<{ label: string; weight: number }>;
   idleInteractionTargets?: EmployeeIdleInteractionTarget[];
   presencePersistent?: boolean;
+  projectPulse?: boolean;
   presenceExpiresAt?: number;
+  teamCharacterPolicy?: TeamCharacterPolicy;
   observedRuntime?: {
     kind: "codex";
     sourceInstanceId: string;

@@ -81,7 +81,7 @@ describe("office layout solver", () => {
       optionalObjects: [object("center-plant", "plant", [0, 0, 0])],
     });
     const reservedWalkTiles = new Set(solution.reservedWalkTiles);
-    const placed = solution.placedOptionalObjects[0];
+    const placed = requirePlacedObject(solution.placedOptionalObjects[0], "optional-plant");
 
     expect(solution.reservedWalkTiles.length).toBeGreaterThan(0);
     expect(placed).toBeDefined();
@@ -195,9 +195,8 @@ describe("office layout solver", () => {
     const finalTiles = getOfficeLayoutTileSet(solution.officeLayout);
 
     expect(solution.debug.objectGapTiles).toBe(1);
-    expect(placed).toBeDefined();
-    expect(getObjectFootprintCells(placed!).length).toBeGreaterThan(0);
-    expect(getObjectFootprintCells(placed!).every((cell) => finalTiles.has(cell.key))).toBe(true);
+    expect(getObjectFootprintCells(placed).length).toBeGreaterThan(0);
+    expect(getObjectFootprintCells(placed).every((cell) => finalTiles.has(cell.key))).toBe(true);
     expect(solution.poiGraph.disconnectedCount).toBe(0);
   });
 
@@ -209,16 +208,18 @@ describe("office layout solver", () => {
       optionalObjects: [object("overflow-pantry", "pantry", [0, 0, 0])],
       targetEmptyPercent: 0.5,
     });
-    const placed = solution.placedOptionalObjects.find((entry) => entry._id === "overflow-pantry");
+    const placed = requirePlacedObject(
+      solution.placedOptionalObjects.find((entry) => entry._id === "overflow-pantry"),
+      "overflow-pantry",
+    );
     const packStage = solution.debug.stages.find((stage) => stage.name === "pack_optional_objects");
     const finalTiles = getOfficeLayoutTileSet(solution.officeLayout);
 
-    expect(placed).toBeDefined();
     expect(solution.debug.overflowPlacedObjectCount).toBe(1);
     expect(solution.debug.unplacedOptionalObjectCount).toBe(0);
     expect(packStage?.overflowPlacedObjectCount).toBe(1);
     expect(packStage?.expansionTileCount).toBeGreaterThan(0);
-    expect(getObjectFootprintCells(placed!).every((cell) => finalTiles.has(cell.key))).toBe(true);
+    expect(getObjectFootprintCells(placed).every((cell) => finalTiles.has(cell.key))).toBe(true);
     expect(solution.poiGraph.disconnectedCount).toBe(0);
   });
 
@@ -234,49 +235,47 @@ describe("office layout solver", () => {
       ],
       targetEmptyPercent: 0.5,
     });
-    const insidePlant = solution.placedOptionalObjects.find(
-      (entry) => entry._id === "inside-plant",
+    const insidePlant = requirePlacedObject(
+      solution.placedOptionalObjects.find((entry) => entry._id === "inside-plant"),
+      "inside-plant",
     );
-    const overflowPantry = solution.placedOptionalObjects.find(
-      (entry) => entry._id === "overflow-pantry",
+    const overflowPantry = requirePlacedObject(
+      solution.placedOptionalObjects.find((entry) => entry._id === "overflow-pantry"),
+      "overflow-pantry",
     );
     const packStage = solution.debug.stages.find((stage) => stage.name === "pack_optional_objects");
 
-    expect(insidePlant).toBeDefined();
-    expect(overflowPantry).toBeDefined();
-    expect(sourceTiles.has(`${insidePlant!.position[0]}:${insidePlant!.position[2]}`)).toBe(true);
-    expect(
-      getObjectFootprintCells(overflowPantry!).some((cell) => !sourceTiles.has(cell.key)),
-    ).toBe(true);
+    expect(sourceTiles.has(`${insidePlant.position[0]}:${insidePlant.position[2]}`)).toBe(true);
+    expect(getObjectFootprintCells(overflowPantry).some((cell) => !sourceTiles.has(cell.key))).toBe(
+      true,
+    );
     expect(packStage?.insidePlacedObjectCount).toBe(1);
     expect(packStage?.overflowPlacedObjectCount).toBe(1);
     expect(solution.debug.unplacedOptionalObjectCount).toBe(0);
   });
 
-  it.each([
-    ["north", [0, 0, -7], 0],
-    ["east", [7, 0, 0], Math.PI / 2],
-    ["south", [0, 0, 7], Math.PI],
-    ["west", [-7, 0, 0], -Math.PI / 2],
-  ] as const)("faces a destination inward from the %s edge", (_edge, preferredPosition, expectedRotation) => {
+  it("faces modular destination rooms inward on the north, east, and west rails", () => {
     const solution = solveOfficeAutoLayout({
       sourceLayout: createRectangularOfficeLayout({ width: 20, depth: 20 }),
       requiredObjects: [object("team", "plant", [0, 0, 0])],
-      optionalObjects: [
+      optionalObjects: Array.from({ length: 13 }, (_, index) =>
         object(
-          "destination",
+          `destination-${index}`,
           "activity-landmark",
-          [...preferredPosition],
+          [index, 0, 0],
           compactDestinationMetadata,
         ),
-      ],
+      ),
       objectGapTiles: 0,
       corridorRadiusTiles: 0,
     });
-    const destination = solution.placedOptionalObjects.find((entry) => entry._id === "destination");
+    const rotations = new Set(
+      solution.placedOptionalObjects
+        .filter((entry) => entry.meshType === "activity-landmark")
+        .map((entry) => entry.rotation[1]),
+    );
 
-    expect(destination).toBeDefined();
-    expect(destination?.rotation[1]).toBeCloseTo(expectedRotation);
+    expect(rotations).toEqual(new Set([0, Math.PI / 2, -Math.PI / 2]));
   });
 
   it("places destinations toward the perimeter before packing ordinary decor", () => {
@@ -385,7 +384,7 @@ describe("office layout solver", () => {
     expect(solveOfficeAutoLayout(input)).toEqual(solveOfficeAutoLayout(input));
   });
 
-  it("places every large destination in connected perimeter space before decor", () => {
+  it("places every large destination in connected three-sided rails before decor", () => {
     const input = {
       sourceLayout: createRectangularOfficeLayout({ width: 16, depth: 14 }),
       requiredObjects: [
@@ -396,7 +395,7 @@ describe("office layout solver", () => {
           footprintClearance: 0.15,
         }),
       ],
-      optionalObjects: Array.from({ length: 10 }, (_, index) =>
+      optionalObjects: Array.from({ length: 13 }, (_, index) =>
         object(`destination-${index}`, "activity-landmark", [0, 0, 0]),
       ),
       corridorRadiusTiles: 0,
@@ -408,16 +407,88 @@ describe("office layout solver", () => {
     );
     const reservedWalkTiles = new Set(first.reservedWalkTiles);
 
-    expect(destinations).toHaveLength(10);
+    expect(destinations).toHaveLength(13);
     expect(first.debug.unplacedOptionalObjectCount).toBe(0);
     expect(first.debug.overflowPlacedObjectCount).toBeGreaterThan(0);
     expect(first.poiGraph.disconnectedCount).toBe(0);
+    const finalBounds = getOfficeLayoutBounds(first.officeLayout);
+    expect(first.officeLayout.tiles).toHaveLength(finalBounds.width * finalBounds.depth);
+    expect(first.debug.prunedTileCount).toBe(0);
     expect(
       destinations.every((destination) =>
         reservedWalkTiles.has(getDestinationAccessKey(destination)),
       ),
     ).toBe(true);
+    const sourceBounds = getOfficeLayoutBounds(input.sourceLayout);
+    expect(
+      destinations.every((destination) => {
+        const [x, , z] = destination.position;
+        const outsideX = Math.max(sourceBounds.minTileX - x, x - sourceBounds.maxTileX, 0);
+        const outsideZ = Math.max(sourceBounds.minTileZ - z, z - sourceBounds.maxTileZ, 0);
+        // Even this intentionally tiny stress office stays within two stable
+        // room-zone bands of the core instead of recursively growing annexes.
+        return Math.max(outsideX, outsideZ) <= 12;
+      }),
+    ).toBe(true);
     expect(second.placedOptionalObjects).toEqual(first.placedOptionalObjects);
     expect(second.reservedWalkTiles).toEqual(first.reservedWalkTiles);
   }, 30_000);
+
+  it("grows one shared rectangular core until crowded decor is preserved inside the rails", () => {
+    const decor = Array.from({ length: 8 }, (_, index) =>
+      object(`plant-${index}`, "plant", [0, 0, 0]),
+    );
+    const destinations = Array.from({ length: 10 }, (_, index) =>
+      object(`destination-${index}`, "activity-landmark", [0, 0, 0]),
+    );
+    const solution = solveOfficeAutoLayout({
+      sourceLayout: createRectangularOfficeLayout({ width: 10, depth: 10 }),
+      requiredObjects: [
+        object("team", "team-cluster", [0, 0, 0], {
+          deskCount: 4,
+          footprintWidth: 4.3,
+          footprintDepth: 4.65,
+          footprintClearance: 0.15,
+        }),
+      ],
+      optionalObjects: [...destinations, ...decor],
+      corridorRadiusTiles: 0,
+    });
+    const bounds = getOfficeLayoutBounds(solution.officeLayout);
+    const placedDecor = solution.placedOptionalObjects.filter(
+      (object) => object.meshType !== "activity-landmark",
+    );
+
+    expect(solution.debug.unplacedOptionalObjectCount).toBe(0);
+    expect(solution.placedOptionalObjects).toHaveLength(destinations.length + decor.length);
+    expect(solution.officeLayout.tiles).toHaveLength(bounds.width * bounds.depth);
+    expect(solution.debug.prunedTileCount).toBe(0);
+    expect(
+      placedDecor.every(
+        (object) =>
+          object.position[0] >= bounds.minTileX + 6 &&
+          object.position[0] <= bounds.maxTileX - 6 &&
+          object.position[2] >= bounds.minTileZ + 6 &&
+          object.position[2] <= bounds.maxTileZ,
+      ),
+    ).toBe(true);
+  }, 30_000);
+
+  it("shrinks an oversized preliminary floor to the smallest content-driven module core", () => {
+    const solution = solveOfficeAutoLayout({
+      sourceLayout: createRectangularOfficeLayout({ width: 63, depth: 42 }),
+      requiredObjects: [object("team", "plant", [0, 0, 0])],
+      optionalObjects: Array.from({ length: 10 }, (_, index) =>
+        object(`destination-${index}`, "activity-landmark", [0, 0, 0]),
+      ),
+      corridorRadiusTiles: 0,
+    });
+    const bounds = getOfficeLayoutBounds(solution.officeLayout);
+
+    expect(bounds.width).toBe(30);
+    expect(bounds.depth).toBe(20);
+    expect(solution.officeLayout.tiles).toHaveLength(30 * 20);
+    expect(solution.debug.sourceTileCount).toBeGreaterThan(solution.debug.finalTileCount * 3);
+    expect(solution.debug.prunedTileCount).toBe(0);
+  });
 });
