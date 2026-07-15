@@ -35,6 +35,10 @@ these opt-in Codex hooks:
 - `thread-lineage-listener`: `PostToolUse`; records `create_thread` and
   `fork_thread` results as `thread.created` and `thread.forked` lineage
   metadata.
+- `farplane-console-ping`: `UserPromptSubmit`, `Stop`, `SubagentStart`, and
+  `SubagentStop`; records sanitized root/subagent lifecycle, resolves native
+  Codex names and display-only ticket bindings for root threads, records title
+  provenance, runtime classification, and `thread.spawned` lineage.
 - `codex-event-miner`: `Stop`; keeps local miner window state, launches
   detached Codex event-mining agents on cadence, records miner lifecycle events,
   and flushes completed miner-agent report summaries as `learning.*` /
@@ -45,6 +49,21 @@ bounded metadata to `/telemetry/hooks`, queue failed sends in
 `.farplane/hooks/outbox.jsonl`, and require explicit `/hooks` trust in Codex.
 They must not persist raw prompts, transcripts, full tool output, or private
 Codex storage snapshots.
+
+Office presence is a hook-derived projection over the most recent five
+minutes. Convex and local hook rows are merged by worker identity, expiry is
+computed from the observation time, eval-purpose rows are excluded, and only
+root non-ephemeral conversations become roster employees. Native subagents
+remain typed lineage/transient effects instead of durable employees or desks.
+Codex app-server connectivity is optional control infrastructure, not a
+requirement for rendering presence.
+
+Observed titles use explicit provenance: `native > ticket > hook > agent >
+fallback`. A newer lifecycle row supplies current state and freshness but cannot
+downgrade a stronger title; a newer title at the same provenance replaces the
+older one. The publisher never sends the user prompt, transcript, rollout
+contents, or an absolute ticket path. A native rename reaches this projection
+on the next lifecycle hook.
 
 ## Migration
 

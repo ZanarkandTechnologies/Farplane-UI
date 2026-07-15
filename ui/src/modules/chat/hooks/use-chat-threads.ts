@@ -35,7 +35,7 @@ type ThreadLineageGraph = {
   edges: Array<{
     source: string;
     target: string;
-    kind: "created" | "forked";
+    kind: "created" | "forked" | "spawned";
     eventAt: number;
     title?: string;
   }>;

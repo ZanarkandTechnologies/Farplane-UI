@@ -18,13 +18,16 @@ export type HookEventName =
   | "thread.started"
   | "thread.stopped"
   | "thread.forked"
-  | "thread.created";
+  | "thread.created"
+  | "thread.spawned";
 
 export type AgentBubbleMessage = {
   threadId: string;
   message: string;
   eventAt: number;
 };
+
+export type ObservedCodexTitleSource = "native" | "ticket" | "hook" | "agent" | "fallback";
 
 export type ObservedCodexWorker = {
   workerId: string;
@@ -37,6 +40,7 @@ export type ObservedCodexWorker = {
   projectId: string;
   projectPath?: string;
   displayName: string;
+  titleSource: ObservedCodexTitleSource;
   state: "running" | "idle" | "done";
   statusText: string;
   currentSkillId?: string;
@@ -68,7 +72,7 @@ export type ThreadLineageEdge = {
   id: string;
   source: string;
   target: string;
-  kind: "created" | "forked";
+  kind: "created" | "forked" | "spawned";
   eventAt: number;
   sourceTool: string;
   title?: string;
@@ -82,6 +86,7 @@ export type ThreadLineageGraph = {
     edgeCount: number;
     forkCount: number;
     createCount: number;
+    spawnCount: number;
     orphanCount: number;
   };
 };
@@ -117,15 +122,10 @@ function safeIdPart(value: string): string {
   );
 }
 
-function codexProjectIdFromPath(value: string | undefined): string | undefined {
+export function codexProjectIdFromDirectory(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   if (!trimmed) return undefined;
-  const slug =
-    trimmed
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "codex";
-  return `codex-proj-${slug}`;
+  return `codex-proj-${safeIdPart(trimmed)}`;
 }
 
 function compactLabel(value: string): string {
@@ -139,6 +139,8 @@ function compactLabel(value: string): string {
 
 function threadIdFromRow(row: HookTelemetryRow, payload: JsonRecord): string | undefined {
   return (
+    cleanText(payload.agentId, 200) ??
+    cleanText(payload.agent_id, 200) ??
     cleanText(payload.threadId, 200) ??
     cleanText(payload.thread_id, 200) ??
     cleanText(payload.codexThreadId, 200) ??
@@ -199,7 +201,7 @@ function projectIdFromRow(row: HookTelemetryRow, payload: JsonRecord): string | 
     row.projectId ??
     cleanText(payload.projectId, 160) ??
     cleanText(payload.project_id, 160) ??
-    codexProjectIdFromPath(projectPathFromPayload(payload))
+    codexProjectIdFromDirectory(projectPathFromPayload(payload))
   );
 }
 
@@ -257,22 +259,65 @@ function observedCurrentSkillId(payload: JsonRecord): string | undefined {
   return cleanText(payload.skillId, 160) ?? cleanText(payload.skill_id, 160);
 }
 
-function observedDisplayName(input: {
+type ObservedCodexTitle = {
+  displayName: string;
+  titleSource: ObservedCodexTitleSource;
+};
+
+export function observedCodexTitlePriority(source: ObservedCodexTitleSource): number {
+  if (source === "native") return 5;
+  if (source === "ticket") return 4;
+  if (source === "hook") return 3;
+  if (source === "agent") return 2;
+  return 1;
+}
+
+function observedTitleCandidate(input: {
   payload: JsonRecord;
   machineName?: string;
   threadId?: string;
   projectId: string;
-  currentDisplayName?: string;
-}): string {
-  return (
-    cleanText(input.payload.agentName, 80) ??
-    cleanText(input.payload.threadTitle, 80) ??
-    cleanText(input.payload.title, 80) ??
-    input.currentDisplayName ??
-    (input.machineName ? `Codex on ${input.machineName}` : undefined) ??
-    (input.threadId ? `Codex ${input.threadId.slice(0, 8)}` : undefined) ??
-    `Codex ${input.projectId.slice(0, 8)}`
-  );
+}): ObservedCodexTitle {
+  const nativeTitle =
+    cleanText(input.payload.nativeThreadTitle, 120) ??
+    cleanText(input.payload.native_thread_title, 120);
+  if (nativeTitle) return { displayName: nativeTitle, titleSource: "native" };
+
+  const ticketTitle =
+    cleanText(input.payload.ticketDisplayTitle, 120) ??
+    cleanText(input.payload.ticket_display_title, 120);
+  if (ticketTitle) return { displayName: ticketTitle, titleSource: "ticket" };
+
+  const hookTitle =
+    cleanText(input.payload.threadTitle, 120) ??
+    cleanText(input.payload.thread_title, 120) ??
+    cleanText(input.payload.title, 120);
+  if (hookTitle) return { displayName: hookTitle, titleSource: "hook" };
+
+  const agentName =
+    cleanText(input.payload.agentName, 80) ?? cleanText(input.payload.agent_name, 80);
+  if (agentName && agentName.toLowerCase() !== "codex") {
+    return { displayName: agentName, titleSource: "agent" };
+  }
+
+  return {
+    displayName:
+      (input.machineName ? `Codex on ${input.machineName}` : undefined) ??
+      (input.threadId ? `Codex ${input.threadId.slice(0, 8)}` : undefined) ??
+      `Codex ${input.projectId.slice(0, 8)}`,
+    titleSource: "fallback",
+  };
+}
+
+function chooseObservedTitle(
+  candidate: ObservedCodexTitle,
+  current?: Pick<ObservedCodexWorker, "displayName" | "titleSource">,
+): ObservedCodexTitle {
+  if (!current) return candidate;
+  return observedCodexTitlePriority(candidate.titleSource) >=
+    observedCodexTitlePriority(current.titleSource)
+    ? candidate
+    : current;
 }
 
 function messageFromPayload(payload: JsonRecord): string | undefined {
@@ -287,9 +332,14 @@ function messageFromPayload(payload: JsonRecord): string | undefined {
 function lineageEventName(
   row: HookTelemetryRow,
   payload: JsonRecord,
-): "thread.created" | "thread.forked" | undefined {
+): "thread.created" | "thread.forked" | "thread.spawned" | undefined {
   const eventName = hookEventName(row, payload);
-  if (eventName === "thread.created" || eventName === "thread.forked") return eventName;
+  if (
+    eventName === "thread.created" ||
+    eventName === "thread.forked" ||
+    eventName === "thread.spawned"
+  )
+    return eventName;
   return undefined;
 }
 
@@ -300,7 +350,9 @@ function childThreadIdFromPayload(payload: JsonRecord): string | undefined {
     cleanText(payload.createdThreadId, 200) ??
     cleanText(payload.created_thread_id, 200) ??
     cleanText(payload.forkedThreadId, 200) ??
-    cleanText(payload.forked_thread_id, 200)
+    cleanText(payload.forked_thread_id, 200) ??
+    cleanText(payload.agentId, 200) ??
+    cleanText(payload.agent_id, 200)
   );
 }
 
@@ -352,7 +404,8 @@ function hookEventName(row: HookTelemetryRow, payload: JsonRecord): HookEventNam
     explicit === "thread.started" ||
     explicit === "thread.stopped" ||
     explicit === "thread.forked" ||
-    explicit === "thread.created"
+    explicit === "thread.created" ||
+    explicit === "thread.spawned"
   ) {
     return explicit;
   }
@@ -361,6 +414,7 @@ function hookEventName(row: HookTelemetryRow, payload: JsonRecord): HookEventNam
   }
   if (row.hookType === "Stop" || row.hookType === "TurnEnd") return "thread.stopped";
   if (row.hookType === "TurnStart" || row.hookType === "UserPromptSubmit") return "thread.started";
+  if (row.hookType === "SubagentStart") return "thread.spawned";
   return undefined;
 }
 
@@ -440,8 +494,15 @@ export function hookTelemetryRowsToObservedCodexWorkers(
 ): ObservedCodexWorker[] {
   const byWorkerId = new Map<string, ObservedCodexWorker>();
   const lifecycleByWorkerId = new Map<string, { latestStartAt?: number; latestStopAt?: number }>();
-  for (const row of rows) {
+  // Convex indexes return newest-first. Fold lifecycle rows chronologically so
+  // sparse Stop payloads inherit identity/title metadata from their Start.
+  for (const row of [...rows].sort((left, right) => left.eventAt - right.eventAt)) {
     const payload = asRecord(row.payload);
+    const runtimePurpose = (
+      cleanText(payload.runtimePurpose, 80) ?? cleanText(payload.runtime_purpose, 80)
+    )?.toLowerCase();
+    if (runtimePurpose === "eval" || runtimePurpose === "judge" || runtimePurpose === "baseline")
+      continue;
     const projectId = projectIdFromRow(row, payload);
     if (!projectId) continue;
     const threadId = threadIdFromRow(row, payload);
@@ -472,7 +533,11 @@ export function hookTelemetryRowsToObservedCodexWorkers(
     const currentSkillId =
       observedCurrentSkillId(payload) ??
       (state === "running" ? current?.currentSkillId : undefined);
-    const isEphemeral = row.hookType === "SubagentStart" || row.hookType === "SubagentStop";
+    const isEphemeral =
+      row.hookType === "SubagentStart" ||
+      row.hookType === "SubagentStop" ||
+      payload.isEphemeral === true ||
+      payload.is_ephemeral === true;
     if (current && current.lastSeenAt >= row.eventAt) {
       if (!current.parentThreadId && parentThreadId) {
         byWorkerId.set(workerId, { ...current, parentThreadId });
@@ -480,6 +545,10 @@ export function hookTelemetryRowsToObservedCodexWorkers(
       continue;
     }
 
+    const observedTitle = chooseObservedTitle(
+      observedTitleCandidate({ payload, machineName, threadId, projectId }),
+      current,
+    );
     byWorkerId.set(workerId, {
       workerId,
       sourceInstanceId,
@@ -490,13 +559,8 @@ export function hookTelemetryRowsToObservedCodexWorkers(
       parentThreadId: parentThreadId ?? current?.parentThreadId,
       projectId,
       projectPath: projectPathFromPayload(payload),
-      displayName: observedDisplayName({
-        payload,
-        machineName,
-        threadId,
-        projectId,
-        currentDisplayName: current?.displayName,
-      }),
+      displayName: observedTitle.displayName,
+      titleSource: observedTitle.titleSource,
       state,
       statusText: observedStatusText(row, payload),
       currentSkillId,
@@ -609,7 +673,12 @@ export function hookTelemetryRowsToThreadLineageGraph(
       childThreadId ?? (pendingWorktreeId ? `pending:${pendingWorktreeId}` : undefined);
     if (!childId) continue;
     const title = lineageTitle(payload);
-    const kind = eventName === "thread.forked" ? "forked" : "created";
+    const kind =
+      eventName === "thread.forked"
+        ? "forked"
+        : eventName === "thread.spawned"
+          ? "spawned"
+          : "created";
     const projectPath = projectPathFromPayload(payload);
     if (parentId === "unknown-parent") orphanCount += 1;
 
@@ -653,6 +722,7 @@ export function hookTelemetryRowsToThreadLineageGraph(
       edgeCount: edges.length,
       forkCount: edges.filter((edge) => edge.kind === "forked").length,
       createCount: edges.filter((edge) => edge.kind === "created").length,
+      spawnCount: edges.filter((edge) => edge.kind === "spawned").length,
       orphanCount,
     },
   };

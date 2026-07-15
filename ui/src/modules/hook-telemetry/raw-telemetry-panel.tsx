@@ -92,6 +92,7 @@ const EVENT_FILTERS = [
   "thread.stopped",
   "thread.created",
   "thread.forked",
+  "thread.spawned",
   "farplane.ticket.changed",
   "farplane.ticket.completed",
   "farplane.ticket.progress.changed",

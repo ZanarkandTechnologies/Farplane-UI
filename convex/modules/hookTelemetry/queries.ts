@@ -143,6 +143,77 @@ function filterHookTelemetryRows(
     .filter((row) => !args.eventName?.trim() || row.eventName === args.eventName.trim());
 }
 
+async function fetchThreadLineageSourceRows(
+  ctx: QueryCtx,
+  args: HookTelemetryWindowArgs,
+  source: { hookName: string; hookType?: string },
+): Promise<HookTelemetryRow[]> {
+  const cutoff = Date.now() - normalizeDays(args.rangeDays) * MS_PER_DAY;
+  const limit = normalizeLimit(args.limit);
+  const projectId = args.projectId?.trim();
+  const sessionId = args.sessionId?.trim();
+  if (projectId) {
+    return source.hookType
+      ? await ctx.db
+          .query("hookTelemetryEvents")
+          .withIndex("by_project_hook_type_eventAt", (q) =>
+            q
+              .eq("projectId", projectId)
+              .eq("hookName", source.hookName)
+              .eq("hookType", source.hookType as string)
+              .gte("eventAt", cutoff),
+          )
+          .order("desc")
+          .take(limit)
+      : await ctx.db
+          .query("hookTelemetryEvents")
+          .withIndex("by_project_hook_eventAt", (q) =>
+            q.eq("projectId", projectId).eq("hookName", source.hookName).gte("eventAt", cutoff),
+          )
+          .order("desc")
+          .take(limit);
+  }
+  if (sessionId) {
+    return source.hookType
+      ? await ctx.db
+          .query("hookTelemetryEvents")
+          .withIndex("by_session_hook_type_eventAt", (q) =>
+            q
+              .eq("sessionId", sessionId)
+              .eq("hookName", source.hookName)
+              .eq("hookType", source.hookType as string)
+              .gte("eventAt", cutoff),
+          )
+          .order("desc")
+          .take(limit)
+      : await ctx.db
+          .query("hookTelemetryEvents")
+          .withIndex("by_session_hook_eventAt", (q) =>
+            q.eq("sessionId", sessionId).eq("hookName", source.hookName).gte("eventAt", cutoff),
+          )
+          .order("desc")
+          .take(limit);
+  }
+  return source.hookType
+    ? await ctx.db
+        .query("hookTelemetryEvents")
+        .withIndex("by_hook_type_eventAt", (q) =>
+          q
+            .eq("hookName", source.hookName)
+            .eq("hookType", source.hookType as string)
+            .gte("eventAt", cutoff),
+        )
+        .order("desc")
+        .take(limit)
+    : await ctx.db
+        .query("hookTelemetryEvents")
+        .withIndex("by_hook_eventAt", (q) =>
+          q.eq("hookName", source.hookName).gte("eventAt", cutoff),
+        )
+        .order("desc")
+        .take(limit);
+}
+
 export const listHookTelemetryEvents = query({
   args: hookTelemetryWindowArgsValidator,
   handler: async (ctx, args) => {
@@ -258,28 +329,16 @@ export const getObservedCodexWorkers = query({
 export const getThreadLineageGraph = query({
   args: threadLineageGraphArgsValidator,
   handler: async (ctx, args) => {
-    const rows =
-      args.projectId?.trim() || args.sessionId?.trim()
-        ? await fetchHookTelemetryRows(ctx, {
-            projectId: args.projectId,
-            sessionId: args.sessionId,
-            rangeDays: args.rangeDays,
-            limit: args.limit,
-          })
-        : (
-            await Promise.all([
-              fetchHookTelemetryRows(ctx, {
-                hookName: "thread-lineage-listener",
-                rangeDays: args.rangeDays,
-                limit: args.limit,
-              }),
-              fetchHookTelemetryRows(ctx, {
-                hookName: "thread-lineage-backfill",
-                rangeDays: args.rangeDays,
-                limit: args.limit,
-              }),
-            ])
-          ).flat();
+    const rows = (
+      await Promise.all([
+        fetchThreadLineageSourceRows(ctx, args, { hookName: "thread-lineage-listener" }),
+        fetchThreadLineageSourceRows(ctx, args, { hookName: "thread-lineage-backfill" }),
+        fetchThreadLineageSourceRows(ctx, args, {
+          hookName: "farplane-console-ping",
+          hookType: "SubagentStart",
+        }),
+      ])
+    ).flat();
     return hookTelemetryRowsToThreadLineageGraph(rows.map(toHookTelemetryRow));
   },
 });

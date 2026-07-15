@@ -20,7 +20,7 @@ export type ChatThreadRow = {
 export type ChatThreadLineageEdge = {
   source: string;
   target: string;
-  kind: "created" | "forked";
+  kind: "created" | "forked" | "spawned";
   eventAt?: number;
   title?: string;
 };
@@ -70,7 +70,8 @@ function upsertSubthread(
 
 function childTitleFromEdge(edge: ChatThreadLineageEdge): string {
   if (edge.title?.trim()) return edge.title.trim();
-  return edge.kind === "forked" ? "Forked thread" : "Created thread";
+  if (edge.kind === "forked") return "Forked thread";
+  return edge.kind === "spawned" ? "Spawned subagent" : "Created thread";
 }
 
 export function organizeChatThreadsByLineage(input: {

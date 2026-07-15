@@ -42,7 +42,7 @@ type ThreadLineageGraph = {
     id: string;
     source: string;
     target: string;
-    kind: "created" | "forked";
+    kind: "created" | "forked" | "spawned";
     eventAt: number;
     sourceTool: string;
     title?: string;
@@ -52,6 +52,7 @@ type ThreadLineageGraph = {
     edgeCount: number;
     forkCount: number;
     createCount: number;
+    spawnCount: number;
     orphanCount: number;
   };
 };
@@ -104,7 +105,7 @@ export function ThreadLineageTab({
   if (graph.nodes.length === 0) {
     return (
       <StateCard
-        detail="No fork or create relationships have been captured for this project yet."
+        detail="No create, fork, or spawned relationships have been captured for this project yet."
         title="No thread lineage yet"
       />
     );
@@ -139,17 +140,19 @@ function ThreadLineageGraphView({
         target: edge.target,
         type: edge.kind,
         label: edge.title ?? edge.kind,
+        color: edge.kind === "spawned" ? "#c084fc" : "#38bdf8",
       })),
     [graph.edges],
   );
 
   return (
     <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-3">
-      <div className="grid gap-2 md:grid-cols-5">
+      <div className="grid gap-2 md:grid-cols-6">
         <LineageMetric label="nodes" value={graph.stats.nodeCount} />
         <LineageMetric label="edges" value={graph.stats.edgeCount} />
         <LineageMetric label="created" value={graph.stats.createCount} />
         <LineageMetric label="forked" value={graph.stats.forkCount} />
+        <LineageMetric label="spawned" value={graph.stats.spawnCount} />
         <LineageMetric label="orphans" value={graph.stats.orphanCount} />
       </div>
       <GraphWorkbench

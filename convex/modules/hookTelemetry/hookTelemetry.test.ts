@@ -411,6 +411,113 @@ describe("hook telemetry projections", () => {
     ]);
   });
 
+  it("prefers native titles over ticket and hook titles across sparse lifecycle rows", () => {
+    const workers = hookTelemetryRowsToObservedCodexWorkers([
+      {
+        hookName: "farplane-console-ping",
+        hookType: "UserPromptSubmit",
+        projectId: "codex-proj-farplane",
+        sessionId: "thread-titled",
+        eventAt: 1_000,
+        payload: {
+          machineId: "machine-a",
+          threadId: "thread-titled",
+          nativeThreadTitle: "Native title",
+          ticketDisplayTitle: "[TASK-0055] Ticket title",
+          threadTitle: "Hook title",
+        },
+      },
+      {
+        hookName: "farplane-console-ping",
+        hookType: "PostToolUse",
+        projectId: "codex-proj-farplane",
+        sessionId: "thread-titled",
+        eventAt: 2_000,
+        payload: {
+          machineId: "machine-a",
+          threadId: "thread-titled",
+          ticketDisplayTitle: "[TASK-0055] Newer ticket title",
+        },
+      },
+      {
+        hookName: "farplane-console-ping",
+        hookType: "Stop",
+        projectId: "codex-proj-farplane",
+        sessionId: "thread-titled",
+        eventAt: 3_000,
+        payload: {
+          machineId: "machine-a",
+          threadId: "thread-titled",
+        },
+      },
+    ]);
+
+    expect(workers).toEqual([
+      expect.objectContaining({
+        displayName: "Native title",
+        titleSource: "native",
+        state: "done",
+        lastSeenAt: 3_000,
+      }),
+    ]);
+  });
+
+  it("updates equal-priority native titles and uses ticket titles when native is absent", () => {
+    const workers = hookTelemetryRowsToObservedCodexWorkers([
+      {
+        hookName: "farplane-console-ping",
+        hookType: "UserPromptSubmit",
+        projectId: "codex-proj-farplane",
+        sessionId: "thread-native",
+        eventAt: 1_000,
+        payload: {
+          machineId: "machine-a",
+          threadId: "thread-native",
+          nativeThreadTitle: "Older native title",
+        },
+      },
+      {
+        hookName: "farplane-console-ping",
+        hookType: "PostToolUse",
+        projectId: "codex-proj-farplane",
+        sessionId: "thread-native",
+        eventAt: 2_000,
+        payload: {
+          machineId: "machine-a",
+          threadId: "thread-native",
+          nativeThreadTitle: "Renamed native title",
+        },
+      },
+      {
+        hookName: "farplane-console-ping",
+        hookType: "UserPromptSubmit",
+        projectId: "codex-proj-farplane",
+        sessionId: "thread-ticket",
+        eventAt: 3_000,
+        payload: {
+          machineId: "machine-a",
+          threadId: "thread-ticket",
+          ticketDisplayTitle: "[TASK-0055] Ticket fallback",
+        },
+      },
+    ]);
+
+    expect(workers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          threadId: "thread-native",
+          displayName: "Renamed native title",
+          titleSource: "native",
+        }),
+        expect.objectContaining({
+          threadId: "thread-ticket",
+          displayName: "[TASK-0055] Ticket fallback",
+          titleSource: "ticket",
+        }),
+      ]),
+    );
+  });
+
   it("keeps sessions with a latest start hook and no later stop hook running", () => {
     const workers = hookTelemetryRowsToObservedCodexWorkers([
       {
@@ -482,27 +589,30 @@ describe("hook telemetry projections", () => {
     const workers = hookTelemetryRowsToObservedCodexWorkers([
       {
         hookName: "codex-runtime",
-        hookType: "SubagentStart",
+        hookType: "SubagentStop",
         projectId: "codex-proj-farplane",
-        sessionId: "subagent-thread",
-        eventAt: 1_000,
+        sessionId: "parent-thread",
+        eventAt: 2_000,
         payload: {
           machineId: "machine-a",
-          threadId: "subagent-thread",
+          agentId: "subagent-thread",
+          parentThreadId: "parent-thread",
           cwd: "/work/farplane",
-          title: "Review lane",
         },
       },
       {
         hookName: "codex-runtime",
-        hookType: "SubagentStop",
+        hookType: "SubagentStart",
         projectId: "codex-proj-farplane",
-        sessionId: "subagent-thread",
-        eventAt: 2_000,
+        sessionId: "parent-thread",
+        eventAt: 1_000,
         payload: {
           machineId: "machine-a",
-          threadId: "subagent-thread",
+          agentId: "subagent-thread",
+          parentThreadId: "parent-thread",
           cwd: "/work/farplane",
+          threadTitle: "Review lane",
+          agentName: "codex",
         },
       },
     ]);
@@ -511,11 +621,31 @@ describe("hook telemetry projections", () => {
       expect.objectContaining({
         workerId: "codex-observed:machine-a:codex-proj-farplane:subagent-thread",
         displayName: "Review lane",
+        parentThreadId: "parent-thread",
         state: "done",
         isEphemeral: true,
         controllable: false,
       }),
     ]);
+  });
+
+  it("excludes eval-purpose lifecycle rows from observed workers", () => {
+    expect(
+      hookTelemetryRowsToObservedCodexWorkers([
+        {
+          hookName: "farplane-console-ping",
+          hookType: "UserPromptSubmit",
+          projectId: "codex-proj-farplane",
+          sessionId: "eval-thread",
+          eventAt: 1_000,
+          payload: {
+            machineId: "machine-a",
+            threadId: "eval-thread",
+            runtimePurpose: "eval",
+          },
+        },
+      ]),
+    ).toEqual([]);
   });
 
   it("projects file change summaries into observed Codex workers from cwd", () => {
@@ -631,6 +761,7 @@ describe("hook telemetry projections", () => {
       edgeCount: 2,
       forkCount: 1,
       createCount: 1,
+      spawnCount: 0,
       orphanCount: 0,
     });
     expect(graph.nodes).toEqual(
@@ -687,6 +818,7 @@ describe("hook telemetry projections", () => {
       edgeCount: 1,
       forkCount: 1,
       createCount: 0,
+      spawnCount: 0,
       orphanCount: 0,
     });
     expect(graph.edges).toEqual([
@@ -697,6 +829,55 @@ describe("hook telemetry projections", () => {
         kind: "forked",
         sourceTool: "backfill",
         title: "Manual fork",
+      }),
+    ]);
+  });
+
+  it("projects native SubagentStart rows as spawned lineage", () => {
+    const graph = hookTelemetryRowsToThreadLineageGraph([
+      {
+        hookName: "farplane-console-ping",
+        hookType: "SubagentStart",
+        projectId: "codex-proj-repo",
+        sessionId: "parent-thread",
+        eventAt: 8_000,
+        eventKey: "codex-lifecycle:parent-thread:child-thread:turn-1:SubagentStart",
+        payload: {
+          agentId: "child-thread",
+          parentThreadId: "parent-thread",
+          threadTitle: "Review lane",
+          cwd: "/repo",
+        },
+      },
+      {
+        hookName: "farplane-console-ping",
+        hookType: "SubagentStop",
+        projectId: "codex-proj-repo",
+        sessionId: "parent-thread",
+        eventAt: 9_000,
+        eventKey: "codex-lifecycle:parent-thread:child-thread:turn-1:SubagentStop",
+        payload: {
+          agentId: "child-thread",
+          parentThreadId: "parent-thread",
+          cwd: "/repo",
+        },
+      },
+    ]);
+
+    expect(graph.stats).toEqual({
+      nodeCount: 2,
+      edgeCount: 1,
+      forkCount: 0,
+      createCount: 0,
+      spawnCount: 1,
+      orphanCount: 0,
+    });
+    expect(graph.edges).toEqual([
+      expect.objectContaining({
+        source: "parent-thread",
+        target: "child-thread",
+        kind: "spawned",
+        title: "Review lane",
       }),
     ]);
   });

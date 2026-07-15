@@ -13,7 +13,12 @@ export const hookTelemetryTables = {
   })
     .index("by_eventAt", ["eventAt"])
     .index("by_hook_eventAt", ["hookName", "eventAt"])
+    .index("by_hook_type_eventAt", ["hookName", "hookType", "eventAt"])
     .index("by_project_eventAt", ["projectId", "eventAt"])
+    .index("by_project_hook_eventAt", ["projectId", "hookName", "eventAt"])
+    .index("by_project_hook_type_eventAt", ["projectId", "hookName", "hookType", "eventAt"])
     .index("by_session_eventAt", ["sessionId", "eventAt"])
+    .index("by_session_hook_eventAt", ["sessionId", "hookName", "eventAt"])
+    .index("by_session_hook_type_eventAt", ["sessionId", "hookName", "hookType", "eventAt"])
     .index("by_eventKey", ["eventKey"]),
 };
