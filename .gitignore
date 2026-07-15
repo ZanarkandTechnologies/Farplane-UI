@@ -48,6 +48,12 @@ tickets/**
 !tickets/TASK-0052/ticket.md
 !tickets/TASK-0053/
 !tickets/TASK-0053/ticket.md
+!tickets/TASK-0054/
+!tickets/TASK-0054/ticket.md
+!tickets/TASK-0055/
+!tickets/TASK-0055/ticket.md
+!tickets/TASK-0056/
+!tickets/TASK-0056/ticket.md
 .agents/*
 !.agents/skills/
 !.agents/skills/**

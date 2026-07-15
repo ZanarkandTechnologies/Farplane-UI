@@ -95,11 +95,20 @@ materializeOfficeKit(kit, rosterSnapshot)
   command commons, but create no furniture until a larger kit is equipped.
 - Runtime subagents, forked threads, eval workers, and short-lived delegated
   work do not create desks or change the office footprint.
+- Codex roster presence is derived from merged local/Convex hook telemetry and
+  expires five minutes after the latest observation. App-server connectivity
+  may enable control actions but is not a rendering dependency.
+- Root conversation labels come from sanitized hook metadata with deterministic
+  precedence: native Codex name, ticket display binding, hook title, agent name,
+  then generic fallback. Newer generic rows may update state but cannot erase a
+  stronger title; native renames become visible on the next lifecycle hook.
 - An active ephemeral worker may appear as a temporary projection near its
   parent, command commons, or active landmark, then disappear when its presence
   expires.
-- A thread `created` or `forked` edge triggers a thin cyan head-to-head lineage
-  link. Resolve the parent endpoint to its employee, then owning
+- A thread `created`, `forked`, or native `spawned` edge triggers a thin
+  light-blue head-to-head lineage link. Edge kind remains visible in the
+  inspector graph rather than relying on scene color alone. Resolve the parent
+  endpoint to its employee, then owning
   `project_pulse`, then CEO. Resolve the child to its employee or spawn a
   non-colliding transient projection 1.25 world units from the resolved parent,
   biased toward the command commons. Link and projection live for 2.2 seconds
@@ -107,6 +116,10 @@ materializeOfficeKit(kit, rosterSnapshot)
   deduped by event identity, and never persisted as an office object.
 - Existing thread-lineage telemetry is the source; Office3D must not create a
   second lineage store.
+- Only root, non-eval, non-ephemeral hook conversations enter the employee
+  roster. A spawned subagent may receive the transient projection above while
+  active, but never a durable employee, desk, or presence extension after its
+  lifecycle event expires.
 
 ### Camera behavior is explicit
 

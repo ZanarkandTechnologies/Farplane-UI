@@ -1,5 +1,7 @@
 # MEMORY
 
+2026-07-15 | decision | MEM-0251 | codex,hooks,office,lineage,invariant | Codex office rendering is hook-canonical: merge local and Convex hook observations, compute root conversation expiry from `lastSeenAt + 5 minutes`, exclude eval/ephemeral/parented rows from the durable employee roster, preserve created/forked/spawned as distinct lineage kinds, and keep Codex app-server integration optional for control rather than required for presence.
+
 2026-06-17 | decision | MEM-0228 | convex,hooks,telemetry,invariant | Hook-originated signals use one raw Convex hook telemetry log (`hookTelemetryEvents`) keyed by `hookName`, `hookType`, optional `projectId`, optional `sessionId`, sanitized `payload`, `eventAt`, and optional `eventKey`; skill invocation, runtime turns, file-change summaries, and office bubbles are derived projections rather than separate raw tables.
 
 2026-06-09 | decision | MEM-0227 | ui,farplane,runtime-adapters,invariant | Farplane UI uses Codex as the default office runtime adapter, with OpenClaw available only as an optional adapter selected by `VITE_FARPLANE_RUNTIME_ADAPTER=openclaw`; UI-owned sidecars remain canonical under `~/.farplane`.
