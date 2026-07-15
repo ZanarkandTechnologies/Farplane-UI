@@ -2,7 +2,7 @@
 # Runtime logs, run IDs, last-run status, and automation memory stay outside tracked config.
 schema = "farplane_project_automations"
 framework_template_version = "1.0.0"
-updated_at = "2026-07-12"
+updated_at = "2026-07-14"
 owner = "automation-advisor"
 
 [[automations]]
@@ -40,6 +40,12 @@ Gates:
 - no push, deploy, publish, spend, account changes, external mutation, or destructive cleanup.
 - no shady growth, fake engagement, privacy-invasive analytics, or content that misrepresents what agents or Farplane did.
 - no drift review, broad strategy replanning, separate scheduler, content heartbeat, or unbounded worker spawning.
+
+Final response:
+- State the action taken or no-op reason.
+- List tickets dispatched, chased, admitted, completed/reconciled, or blocked.
+- Summarize refill outcome, worker/review limits, source gaps, and next owner.
+- Link any report, ticket, worker, or receipt artifacts created by the beat.
 
 Config source:
 farplane/automations.toml automation id="farplane-ui-work-pulse"
@@ -83,6 +89,15 @@ Gates:
 - source gaps instead of guessed refs.
 - no scheduler state writes.
 - no push, deploy, publish, spend, external mutation, commit, unbounded worker spawning, or destructive cleanup.
+
+Final response:
+- Link the report path and summarize the report in 2-4 bullets.
+- List tickets created or updated, or `none`.
+- List each maintenance candidate/admission decision with the reason: `created`,
+  `updated`, `already_owned`, `planner_candidate`, `source_gap`,
+  `same_run_ledger`, `blocked_by_gate`, or `not_ticketable`.
+- Name operator-needed items, source gaps, and next owner.
+- Include the no-execution receipt.
 
 Config source:
 farplane/automations.toml automation id="farplane-ui-daily-bau-review"
@@ -129,6 +144,15 @@ Gates:
 - no shady growth, fake engagement, privacy-invasive analytics, or content that misrepresents what agents or Farplane did.
 - no push, deploy, publish, spend, external mutation, commit, unbounded worker spawning, or destructive cleanup.
 
+Final response:
+- Link the report path and summarize the weekly pattern in 2-4 bullets.
+- List tickets created or updated, or `none`.
+- List each maintenance candidate/admission decision with the reason: `created`,
+  `updated`, `already_owned`, `planner_candidate`, `source_gap`,
+  `same_run_ledger`, `blocked_by_gate`, or `not_ticketable`.
+- Name operator-needed items, source gaps, and next owner.
+- Include the no-execution receipt.
+
 Config source:
 farplane/automations.toml automation id="farplane-ui-weekly-bau-review"
 '''
@@ -174,6 +198,15 @@ Gates:
 - no content heartbeat or separate controller.
 - no push, deploy, publish, spend, account mutation, customer contact, external mutation, or destructive cleanup.
 
+Final response:
+- Link the portfolio report path and summarize the weekly findings in 2-4 bullets.
+- List experiment or improvement tickets created or updated, or `none`.
+- List each candidate/admission decision with the reason: `created`,
+  `updated`, `already_owned`, `deferred_capacity`, `source_gap`,
+  `blocked_by_gate`, or `not_ticketable`.
+- Name operator-needed items, source gaps, and next owner.
+- Include the no-execution receipt.
+
 Config source:
 farplane/automations.toml automation id="farplane-ui-weekly-dogfood"
 '''
@@ -186,3 +219,55 @@ type = "weekly"
 timezone = "Asia/Kuala_Lumpur"
 days = ["Mon"]
 time = "06:00"
+
+[[automations]]
+id = "farplane-ui-weekly-palette-curator"
+name = "Farplane UI Weekly Palette Curator"
+kind = "cron"
+status = "paused"
+prompt = '''
+Use $visual-design.
+
+Review the current Farplane office palette and propose one restrained palette
+improvement. Do not modify office settings or source files.
+
+Params:
+project_root = "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI"
+surface = "office3d"
+visual_register = "restrained founder control room"
+
+Reads:
+- current office decor settings and activity-landmark theme tokens
+- docs/TASTE.md
+- latest accepted office visual-QA screenshot
+- previous dated palette-curator report when present
+
+Writes:
+- .farplane/reports/office-palette/YYYY-MM-DD.md
+
+Gates:
+- compare current and proposed palettes with exact color values.
+- recommend at most one palette.
+- preserve contrast and active employee animation semantics.
+- no source edits, settings mutation, ticket creation, commit, push, deploy,
+  spend, external mutation, or destructive cleanup.
+- require operator approval before implementation.
+
+Final response:
+- Link the palette report path and summarize the recommendation in 2-4 bullets.
+- List exact current/proposed color values and the accepted tradeoff.
+- List source gaps, approval needs, and next owner.
+- Include the no-mutation receipt.
+
+Config source:
+farplane/automations.toml automation id="farplane-ui-weekly-palette-curator"
+'''
+
+[automations.target]
+workspace = "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI"
+
+[automations.schedule]
+type = "weekly"
+timezone = "Asia/Kuala_Lumpur"
+days = ["Mon"]
+time = "06:15"
