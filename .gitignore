@@ -35,3 +35,19 @@ skills/external/
 # One-off browser QA screenshots/logs belong in local evidence bundles or
 # ticket-local artifacts, not the shared repo history.
 /qa/artifacts/
+
+# Farplane local runtime and work state
+.farplane/
+tickets/**
+!tickets/README.md
+!tickets/templates/
+!tickets/templates/**
+!tickets/TASK-0051/
+!tickets/TASK-0051/ticket.md
+!tickets/TASK-0052/
+!tickets/TASK-0052/ticket.md
+!tickets/TASK-0053/
+!tickets/TASK-0053/ticket.md
+.agents/*
+!.agents/skills/
+!.agents/skills/**
