@@ -10,14 +10,18 @@
  */
 
 import {
-  hookTelemetryRowsToObservedCodexWorkers,
+  codexProjectIdFromDirectory,
   type HookTelemetryRow,
+  hookTelemetryRowsToObservedCodexWorkers,
+  type ObservedCodexTitleSource,
   type ObservedCodexWorker as ObservedCodexWorkerRow,
+  observedCodexTitlePriority,
 } from "../../../convex/modules/hookTelemetry/projections";
 
-export type { ObservedCodexWorkerRow };
+export type { ObservedCodexTitleSource, ObservedCodexWorkerRow };
+export { observedCodexTitlePriority };
 
-export const LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS = 3 * 24 * 60 * 60 * 1000;
+export const LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS = 5 * 60 * 1000;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -51,6 +55,8 @@ function safeIdPart(value: string): string {
 function projectIdFromLocalRow(row: JsonRecord): string | undefined {
   const explicit = text(row.project_id) ?? text(row.projectId);
   if (explicit) return explicit;
+  const projectRoot = text(row.project_root) ?? text(row.projectRoot);
+  if (projectRoot) return codexProjectIdFromDirectory(projectRoot);
   const projectName = text(row.project_name) ?? text(row.projectName);
   if (projectName) return `codex-proj-${safeIdPart(projectName)}`;
   return undefined;

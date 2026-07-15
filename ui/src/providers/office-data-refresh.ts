@@ -11,12 +11,16 @@
 import type {
   AgentLiveStatus,
   CompanyModel,
+  OfficeRuntimeAdapter,
   OfficeSettingsModel,
   PendingApprovalModel,
   UnifiedOfficeModel,
 } from "@/modules/runtime";
-import type { OfficeRuntimeAdapter } from "@/modules/runtime";
-import type { ObservedCodexWorkerRow } from "@/providers/local-observed-codex-workers";
+import {
+  LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS,
+  type ObservedCodexWorkerRow,
+  observedCodexTitlePriority,
+} from "@/providers/local-observed-codex-workers";
 
 type OfficeStructuralSignatureInput = {
   unified: UnifiedOfficeModel;
@@ -45,7 +49,7 @@ type PlacementRepairPersistenceResult =
       settingsResult: Awaited<ReturnType<OfficeRuntimeAdapter["saveOfficeSettings"]>>;
     };
 
-export const OBSERVED_CODEX_PRESENCE_RANGE_MS = 15 * 60 * 1000;
+export const OBSERVED_CODEX_PRESENCE_RANGE_MS = LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS;
 
 function isCodexAgentId(agentId: string): boolean {
   return agentId === "codex-main" || agentId.startsWith("codex-thread:");
@@ -191,9 +195,23 @@ export function mergeObservedCodexWorkerRows(
   const byWorkerId = new Map<string, ObservedCodexWorkerRow>();
   for (const row of rows) {
     const current = byWorkerId.get(row.workerId);
-    if (!current || current.lastSeenAt < row.lastSeenAt) {
+    if (!current) {
       byWorkerId.set(row.workerId, row);
+      continue;
     }
+    const newest = current.lastSeenAt <= row.lastSeenAt ? row : current;
+    const currentTitlePriority = observedCodexTitlePriority(current.titleSource);
+    const rowTitlePriority = observedCodexTitlePriority(row.titleSource);
+    const preferredTitle =
+      rowTitlePriority > currentTitlePriority ||
+      (rowTitlePriority === currentTitlePriority && current.lastSeenAt <= row.lastSeenAt)
+        ? row
+        : current;
+    byWorkerId.set(row.workerId, {
+      ...newest,
+      displayName: preferredTitle.displayName,
+      titleSource: preferredTitle.titleSource,
+    });
   }
   return [...byWorkerId.values()].sort(
     (left, right) =>
@@ -366,29 +384,61 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
   workers: ObservedCodexWorkerRow[],
   now = Date.now(),
 ): UnifiedOfficeModel {
+  const persistentThreadAgentIds = new Set(
+    unified.company.agents
+      .filter(
+        (agent) =>
+          agent.agentId.startsWith("codex-thread:") &&
+          (agent.isCeo === true || agent.role === "ceo" || agent.role === "pm"),
+      )
+      .map((agent) => agent.agentId),
+  );
+  const keepRosterAgent = (
+    agent: Parameters<typeof codexProjectPmThreadIds>[0] & { agentId: string },
+  ): boolean =>
+    !agent.agentId.startsWith("codex-thread:") ||
+    persistentThreadAgentIds.has(agent.agentId) ||
+    codexProjectPmThreadIds(agent).length > 0;
+  const companyAgents = unified.company.agents.filter(keepRosterAgent);
+  const runtimeAgents = unified.runtimeAgents.filter(keepRosterAgent);
+  const configuredAgents = unified.configuredAgents.filter(keepRosterAgent);
+  const hookCanonicalUnified: UnifiedOfficeModel = {
+    ...unified,
+    company: { ...unified.company, agents: companyAgents },
+    runtimeAgents,
+    configuredAgents,
+    diagnostics: {
+      ...unified.diagnostics,
+      configAgentCount: configuredAgents.length,
+      runtimeAgentCount: runtimeAgents.length,
+      sidecarAgentCount: companyAgents.length,
+    },
+  };
   const activeWorkers = workers.filter(
     (worker) =>
       worker.workerId.trim() &&
       worker.projectId.trim() &&
-      (!worker.parentThreadId?.trim() || worker.isEphemeral === true),
+      !worker.parentThreadId?.trim() &&
+      worker.isEphemeral !== true &&
+      worker.lastSeenAt + OBSERVED_CODEX_PRESENCE_RANGE_MS > now,
   );
-  if (activeWorkers.length === 0) return unified;
+  if (activeWorkers.length === 0) return hookCanonicalUnified;
 
   const existingAgentIds = new Set([
-    ...unified.company.agents.map((agent) => agent.agentId),
-    ...unified.runtimeAgents.map((agent) => agent.agentId),
-    ...unified.configuredAgents.map((agent) => agent.agentId),
+    ...hookCanonicalUnified.company.agents.map((agent) => agent.agentId),
+    ...hookCanonicalUnified.runtimeAgents.map((agent) => agent.agentId),
+    ...hookCanonicalUnified.configuredAgents.map((agent) => agent.agentId),
   ]);
   const existingThreadIds = new Set(
     [
-      ...unified.company.agents.flatMap((agent) => [
+      ...hookCanonicalUnified.company.agents.flatMap((agent) => [
         ...(agent.agentId.startsWith("codex-thread:")
           ? [agent.agentId.slice("codex-thread:".length)]
           : []),
         ...codexProjectPmThreadIds(agent),
       ]),
-      ...unified.runtimeAgents.flatMap(codexProjectPmThreadIds),
-      ...unified.configuredAgents.flatMap(codexProjectPmThreadIds),
+      ...hookCanonicalUnified.runtimeAgents.flatMap(codexProjectPmThreadIds),
+      ...hookCanonicalUnified.configuredAgents.flatMap(codexProjectPmThreadIds),
     ].filter(Boolean),
   );
   const uniqueObservedWorkers = activeWorkers.filter(
@@ -396,9 +446,9 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
       !existingAgentIds.has(worker.workerId) &&
       !(worker.threadId && existingThreadIds.has(worker.threadId)),
   );
-  if (uniqueObservedWorkers.length === 0) return unified;
+  if (uniqueObservedWorkers.length === 0) return hookCanonicalUnified;
 
-  const projectIds = new Set(unified.company.projects.map((project) => project.id));
+  const projectIds = new Set(hookCanonicalUnified.company.projects.map((project) => project.id));
   const observedProjects = uniqueObservedWorkers
     .filter((worker) => {
       if (projectIds.has(worker.projectId)) return false;
@@ -407,16 +457,16 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
     })
     .map(createObservedCodexProject);
   const heartbeatProfileId = "hb-observed-codex";
-  const heartbeatProfiles = unified.company.heartbeatProfiles.some(
+  const heartbeatProfiles = hookCanonicalUnified.company.heartbeatProfiles.some(
     (profile) => profile.id === heartbeatProfileId,
   )
-    ? unified.company.heartbeatProfiles
+    ? hookCanonicalUnified.company.heartbeatProfiles
     : [
-        ...unified.company.heartbeatProfiles,
+        ...hookCanonicalUnified.company.heartbeatProfiles,
         {
           id: heartbeatProfileId,
           role: "builder" as const,
-          cadenceMinutes: 15,
+          cadenceMinutes: 5,
           teamDescription: "Telemetry-observed Codex workers",
           productDetails: "Read-only office presence derived from hook telemetry",
           goal: "Show recent Codex work without requiring an app-server control bridge",
@@ -428,7 +478,7 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
     projectId: worker.projectId,
     heartbeatProfileId,
     lifecycleState: "active" as const,
-    presenceExpiresAt: now + OBSERVED_CODEX_PRESENCE_RANGE_MS,
+    presenceExpiresAt: worker.lastSeenAt + OBSERVED_CODEX_PRESENCE_RANGE_MS,
     runtimeMetadata: observedCodexMetadata(worker),
   }));
   const observedRuntimeAgents = uniqueObservedWorkers.map((worker) => ({
@@ -447,24 +497,27 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
   }));
 
   const company = {
-    ...unified.company,
-    projects: [...unified.company.projects, ...observedProjects],
-    agents: [...unified.company.agents, ...observedAgents],
+    ...hookCanonicalUnified.company,
+    projects: [...hookCanonicalUnified.company.projects, ...observedProjects],
+    agents: [...hookCanonicalUnified.company.agents, ...observedAgents],
     heartbeatProfiles,
   };
-  const runtimeAgents = [...unified.runtimeAgents, ...observedRuntimeAgents];
-  const configuredAgents = [...unified.configuredAgents, ...observedRuntimeAgents];
+  const mergedRuntimeAgents = [...hookCanonicalUnified.runtimeAgents, ...observedRuntimeAgents];
+  const mergedConfiguredAgents = [
+    ...hookCanonicalUnified.configuredAgents,
+    ...observedRuntimeAgents,
+  ];
 
   return {
-    ...unified,
+    ...hookCanonicalUnified,
     company,
-    runtimeAgents,
-    configuredAgents,
-    workload: buildObservedWorkload(unified.workload, observedProjects),
+    runtimeAgents: mergedRuntimeAgents,
+    configuredAgents: mergedConfiguredAgents,
+    workload: buildObservedWorkload(hookCanonicalUnified.workload, observedProjects),
     diagnostics: {
-      ...unified.diagnostics,
-      configAgentCount: configuredAgents.length,
-      runtimeAgentCount: runtimeAgents.length,
+      ...hookCanonicalUnified.diagnostics,
+      configAgentCount: mergedConfiguredAgents.length,
+      runtimeAgentCount: mergedRuntimeAgents.length,
       sidecarAgentCount: company.agents.length,
     },
   };

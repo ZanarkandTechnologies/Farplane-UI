@@ -249,9 +249,10 @@ export function OfficeDataProvider({
   );
   const observedCodexWorkers = useMemo(
     () =>
-      convexObservedCodexWorkers.length > 0
-        ? convexObservedCodexWorkers
-        : mergeObservedCodexWorkerRows(localObservedCodexWorkers),
+      mergeObservedCodexWorkerRows([
+        ...convexObservedCodexWorkers,
+        ...localObservedCodexWorkers,
+      ]),
     [convexObservedCodexWorkers, localObservedCodexWorkers],
   );
   const observedCodexStatuses = useMemo(

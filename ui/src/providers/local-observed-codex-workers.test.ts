@@ -44,12 +44,12 @@ describe("localFarplaneEventsToObservedCodexWorkers", () => {
 
     expect(workers).toEqual([
       expect.objectContaining({
-        workerId: "codex-observed:studio.local:codex-proj-farplane-ui:session-1",
+        workerId: "codex-observed:studio.local:codex-proj-work-farplane:session-1",
         sourceInstanceId: "studio.local",
         machineName: "studio.local",
         sessionKey: "session-1",
         threadId: "session-1",
-        projectId: "codex-proj-farplane-ui",
+        projectId: "codex-proj-work-farplane",
         projectPath: "/work/farplane",
         state: "done",
         statusText: "Codex turn completed",

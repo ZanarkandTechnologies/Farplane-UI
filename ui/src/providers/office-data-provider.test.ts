@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { hookTelemetryRowsToObservedCodexWorkers } from "../../../convex/modules/hookTelemetry/projections";
+
 import {
   getOfficeLayoutBounds,
   type OfficeLayoutModel,
@@ -29,13 +31,18 @@ import type {
   OfficeSettingsModel,
   UnifiedOfficeModel,
 } from "@/modules/runtime";
-import type { ObservedCodexWorkerRow } from "./local-observed-codex-workers";
+import {
+  localFarplaneEventsToObservedCodexWorkers,
+  type ObservedCodexWorkerRow,
+} from "./local-observed-codex-workers";
 import { repairTeamClusterPlacements, toOfficeData } from "./office-data-mapper";
 import {
   buildAgentLiveStatusSignature,
   buildOfficeStructuralRefreshSignature,
   mergeAgentLiveStatuses,
+  mergeObservedCodexWorkerRows,
   mergeObservedCodexWorkersIntoUnifiedOfficeModel,
+  OBSERVED_CODEX_PRESENCE_RANGE_MS,
   observedCodexWorkersToLiveStatuses,
 } from "./office-data-refresh";
 import {
@@ -455,6 +462,7 @@ describe("office-data-provider stabilization", () => {
         projectId: "codex-proj-farplane",
         projectPath: "/work/farplane",
         displayName: "Build presence",
+        titleSource: "hook",
         state: "running",
         statusText: "Calling goal advisor",
         lastSeenAt: 1770000000000,
@@ -470,6 +478,7 @@ describe("office-data-provider stabilization", () => {
         projectId: "codex-proj-farplane",
         projectPath: "/work/farplane",
         displayName: "Delegated review",
+        titleSource: "hook",
         state: "done",
         statusText: "Review complete",
         lastSeenAt: 1770000000100,
@@ -485,6 +494,7 @@ describe("office-data-provider stabilization", () => {
         projectId: "codex-proj-farplane",
         projectPath: "/work/farplane",
         displayName: "Ephemeral review lane",
+        titleSource: "hook",
         state: "running",
         statusText: "Delegated Codex worker running",
         currentSkillId: "code-review",
@@ -537,7 +547,7 @@ describe("office-data-provider stabilization", () => {
         teamId: "team-codex-proj-farplane",
         statusMessage: "Calling goal advisor",
         presencePersistent: false,
-        presenceExpiresAt: 1770000900000,
+        presenceExpiresAt: 1770000300000,
         observedRuntime: expect.objectContaining({
           kind: "codex",
           sourceInstanceId: "machine-a",
@@ -550,23 +560,102 @@ describe("office-data-provider stabilization", () => {
       }),
     );
     expect(delegatedEmployee).toBeUndefined();
-    expect(ephemeralEmployee).toEqual(
+    expect(ephemeralEmployee).toBeUndefined();
+  });
+
+  it("merges newest observed state with the strongest available title", () => {
+    const workerId = "codex-observed:machine-a:codex-proj-farplane:thread-1";
+    const merged = mergeObservedCodexWorkerRows([
+      {
+        workerId,
+        sourceInstanceId: "machine-a",
+        sessionKey: "thread-1",
+        threadId: "thread-1",
+        projectId: "codex-proj-farplane",
+        displayName: "Native conversation name",
+        titleSource: "native",
+        state: "running",
+        statusText: "Working",
+        lastSeenAt: 1_000,
+        controllable: false,
+      },
+      {
+        workerId,
+        sourceInstanceId: "machine-a",
+        sessionKey: "thread-1",
+        threadId: "thread-1",
+        projectId: "codex-proj-farplane",
+        displayName: "Codex thread-1",
+        titleSource: "fallback",
+        state: "done",
+        statusText: "Complete",
+        lastSeenAt: 2_000,
+        controllable: false,
+      },
+    ]);
+
+    expect(merged).toEqual([
       expect.objectContaining({
-        name: "Ephemeral review lane",
-        presencePersistent: false,
-        activityState: "review",
-        activityTargetSkillId: "code-review",
-        wantsToWander: false,
-        observedRuntime: expect.objectContaining({
-          parentThreadId: "thread-1",
-          threadId: "subagent-thread",
-          controllable: false,
-        }),
+        displayName: "Native conversation name",
+        titleSource: "native",
+        state: "done",
+        statusText: "Complete",
+        lastSeenAt: 2_000,
+      }),
+    ]);
+  });
+
+  it("merges production-shaped Core and local rows into one canonically identified worker", () => {
+    const projectPath = "/Users/kenji/Zanarkand Technologies/projects/Farplane-UI";
+    const convexWorkers = hookTelemetryRowsToObservedCodexWorkers([
+      {
+        hookName: "farplane-console-ping",
+        hookType: "UserPromptSubmit",
+        projectId: "codex-proj-users-kenji-zanarkand-technologies-projects-farplane-ui",
+        sessionId: "thread-1",
+        eventAt: 1_000,
+        payload: {
+          machineId: "studio.local",
+          machineName: "Studio Mac",
+          projectDirectory: projectPath,
+          threadId: "thread-1",
+          nativeThreadTitle: "Native conversation name",
+        },
+      },
+    ]);
+    const localWorkers = localFarplaneEventsToObservedCodexWorkers(
+      [
+        {
+          event_id: "evt-stop",
+          hook_name: "Stop",
+          metadata: { cwd: projectPath, hostname: "studio.local" },
+          project_name: "Farplane-UI",
+          project_root: projectPath,
+          session_id: "thread-1",
+          timestamp: "2026-07-15T15:30:00.000Z",
+          turn_id: "turn-1",
+        },
+      ],
+      { now: Date.parse("2026-07-15T15:30:01.000Z"), rangeMs: 5 * 60 * 1000 },
+    );
+
+    const merged = mergeObservedCodexWorkerRows([...convexWorkers, ...localWorkers]);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toEqual(
+      expect.objectContaining({
+        workerId:
+          "codex-observed:studio.local:codex-proj-users-kenji-zanarkand-technologies-projects-farplane-ui:thread-1",
+        sourceInstanceId: "studio.local",
+        machineName: "studio.local",
+        displayName: "Native conversation name",
+        titleSource: "native",
+        state: "done",
       }),
     );
   });
 
-  it("does not duplicate observed telemetry when an app-server thread agent already owns the same thread", () => {
+  it("replaces an app-server thread roster row with hook-canonical observed presence", () => {
     const observedWorkers: ObservedCodexWorkerRow[] = [
       {
         workerId: "codex-observed:machine-a:codex-proj-farplane:thread-1",
@@ -576,6 +665,7 @@ describe("office-data-provider stabilization", () => {
         threadId: "thread-1",
         projectId: "codex-proj-farplane",
         displayName: "Observed duplicate",
+        titleSource: "hook",
         state: "running",
         statusText: "Observed duplicate",
         lastSeenAt: 1770000000000,
@@ -598,9 +688,98 @@ describe("office-data-provider stabilization", () => {
       configuredAgents: [createRuntimeAgent({ agentId: "codex-thread:thread-1" })],
     });
 
-    const merged = mergeObservedCodexWorkersIntoUnifiedOfficeModel(unified, observedWorkers);
+    const merged = mergeObservedCodexWorkersIntoUnifiedOfficeModel(
+      unified,
+      observedWorkers,
+      1770000000000,
+    );
 
-    expect(merged.runtimeAgents.map((agent) => agent.agentId)).toEqual(["codex-thread:thread-1"]);
+    expect(merged.runtimeAgents.map((agent) => agent.agentId)).toEqual([
+      "codex-observed:machine-a:codex-proj-farplane:thread-1",
+    ]);
+  });
+
+  it("preserves pinned Codex CEO and manager rows without hook observations", () => {
+    const company = createCompanyModel({
+      agents: [
+        {
+          agentId: "codex-thread:strategy",
+          role: "ceo",
+          heartbeatProfileId: "hb-ceo",
+          isCeo: true,
+          lifecycleState: "active",
+        },
+        {
+          agentId: "codex-thread:manager",
+          role: "pm",
+          projectId: "codex-proj-farplane",
+          heartbeatProfileId: "hb-ceo",
+          lifecycleState: "active",
+        },
+        {
+          agentId: "codex-thread:ordinary",
+          role: "builder",
+          projectId: "codex-proj-farplane",
+          heartbeatProfileId: "hb-ceo",
+          lifecycleState: "active",
+        },
+      ],
+    });
+    const threadAgents = ["strategy", "manager", "ordinary"].map((threadId) =>
+      createRuntimeAgent({ agentId: `codex-thread:${threadId}` }),
+    );
+    const merged = mergeObservedCodexWorkersIntoUnifiedOfficeModel(
+      createUnifiedOfficeModel({
+        company,
+        runtimeAgents: threadAgents,
+        configuredAgents: threadAgents,
+      }),
+      [],
+    );
+
+    expect(merged.company.agents.map((agent) => agent.agentId)).toEqual([
+      "codex-thread:strategy",
+      "codex-thread:manager",
+    ]);
+    expect(merged.runtimeAgents.map((agent) => agent.agentId)).toEqual([
+      "codex-thread:strategy",
+      "codex-thread:manager",
+    ]);
+    expect(merged.configuredAgents.map((agent) => agent.agentId)).toEqual([
+      "codex-thread:strategy",
+      "codex-thread:manager",
+    ]);
+  });
+
+  it("expires observed root presence exactly five minutes after lastSeenAt", () => {
+    const lastSeenAt = 1_770_000_000_000;
+    const worker: ObservedCodexWorkerRow = {
+      workerId: "codex-observed:machine-a:codex-proj-farplane:thread-1",
+      sourceInstanceId: "machine-a",
+      sessionKey: "thread-1",
+      threadId: "thread-1",
+      projectId: "codex-proj-farplane",
+      displayName: "Five minute root",
+      titleSource: "hook",
+      state: "running",
+      statusText: "Working",
+      lastSeenAt,
+      controllable: false,
+    };
+
+    const visible = mergeObservedCodexWorkersIntoUnifiedOfficeModel(
+      createUnifiedOfficeModel(),
+      [worker],
+      lastSeenAt + OBSERVED_CODEX_PRESENCE_RANGE_MS - 1,
+    );
+    const expired = mergeObservedCodexWorkersIntoUnifiedOfficeModel(
+      createUnifiedOfficeModel(),
+      [worker],
+      lastSeenAt + OBSERVED_CODEX_PRESENCE_RANGE_MS,
+    );
+
+    expect(visible.runtimeAgents.map((agent) => agent.agentId)).toContain(worker.workerId);
+    expect(expired.runtimeAgents.map((agent) => agent.agentId)).not.toContain(worker.workerId);
   });
 
   it("does not duplicate observed telemetry when a Codex PM aggregate owns the thread", () => {
@@ -613,6 +792,7 @@ describe("office-data-provider stabilization", () => {
         threadId: "pm-thread",
         projectId: "codex-proj-farplane",
         displayName: "PM telemetry duplicate",
+        titleSource: "hook",
         state: "running",
         statusText: "PM heartbeat running",
         lastSeenAt: 1770000000000,
@@ -670,6 +850,7 @@ describe("office-data-provider stabilization", () => {
       projectId: "codex-proj-farplane",
       projectPath: "/work/farplane",
       displayName: "Build presence",
+      titleSource: "hook",
       state: "running",
       statusText: "Calling goal advisor",
       lastSeenAt: 1770000000000,
