@@ -21,7 +21,7 @@ export type TelegramGatewayHistoryEntry = {
   direction: "inbound" | "outbound";
   text: string;
   occurredAt: number;
-  route?: "source_thread" | "coordinator" | "unknown_reply";
+  route?: "source_thread" | "new_thread" | "coordinator" | "unknown_reply";
   threadId?: string;
   status?: "delivered" | "queued" | "failed";
 };
@@ -30,7 +30,7 @@ export type TelegramGatewayPendingMessage = {
   telegramMessageId: number;
   chatId: string;
   text: string;
-  route: "source_thread" | "coordinator";
+  route: "source_thread" | "new_thread" | "coordinator";
   threadId: string;
   createdAt: number;
   attempts: number;
@@ -60,14 +60,24 @@ export type UserCommunicationActivityRow = {
   id: string;
   occurredAt: number;
   sourceThread: string;
-  route: "reply -> source" | "standalone -> main" | "notification sent" | "unknown reply";
+  route:
+    | "reply -> source"
+    | "standalone -> new thread"
+    | "standalone -> main"
+    | "notification sent"
+    | "unknown reply";
   status: "delivered" | "waiting reply" | "failed";
   text: string;
   threadId?: string;
 };
 
 function normalizeHistoryRoute(value: unknown): TelegramGatewayHistoryEntry["route"] {
-  if (value === "source_thread" || value === "coordinator" || value === "unknown_reply") {
+  if (
+    value === "source_thread" ||
+    value === "new_thread" ||
+    value === "coordinator" ||
+    value === "unknown_reply"
+  ) {
     return value;
   }
   return undefined;
@@ -191,7 +201,11 @@ export function normalizeTelegramGatewayState(input: unknown): TelegramGatewaySt
           chatId: String(entry.chatId ?? ""),
           text: String(entry.text ?? ""),
           route:
-            entry.route === "coordinator" ? ("coordinator" as const) : ("source_thread" as const),
+            entry.route === "coordinator"
+              ? ("coordinator" as const)
+              : entry.route === "new_thread"
+                ? ("new_thread" as const)
+                : ("source_thread" as const),
           threadId: String(entry.threadId ?? ""),
           createdAt: Number(entry.createdAt),
           attempts: Number(entry.attempts ?? 0),
@@ -228,13 +242,15 @@ export function buildUserCommunicationActivityRows(
     route:
       entry.route === "source_thread"
         ? ("reply -> source" as const)
-        : entry.route === "coordinator"
-          ? ("standalone -> main" as const)
-          : entry.route === "unknown_reply"
-            ? ("unknown reply" as const)
-            : entry.direction === "outbound"
-              ? ("notification sent" as const)
-              : ("standalone -> main" as const),
+        : entry.route === "new_thread"
+          ? ("standalone -> new thread" as const)
+          : entry.route === "coordinator"
+            ? ("standalone -> main" as const)
+            : entry.route === "unknown_reply"
+              ? ("unknown reply" as const)
+              : entry.direction === "outbound"
+                ? ("notification sent" as const)
+                : ("standalone -> main" as const),
     status:
       entry.status === "queued"
         ? ("waiting reply" as const)
@@ -251,7 +267,9 @@ export function buildUserCommunicationActivityRows(
     route:
       entry.route === "source_thread"
         ? ("reply -> source" as const)
-        : ("standalone -> main" as const),
+        : entry.route === "new_thread"
+          ? ("standalone -> new thread" as const)
+          : ("standalone -> main" as const),
     status: "waiting reply" as const,
     text: entry.text,
     threadId: entry.threadId,
@@ -283,7 +301,8 @@ export function filterUserCommunicationActivityRows(
     const matchesFilter =
       routeFilter === "all" ||
       (routeFilter === "reply" && row.route === "reply -> source") ||
-      (routeFilter === "standalone" && row.route === "standalone -> main") ||
+      (routeFilter === "standalone" &&
+        (row.route === "standalone -> main" || row.route === "standalone -> new thread")) ||
       (routeFilter === "waiting" && row.status === "waiting reply") ||
       (routeFilter === "failed" && row.status === "failed");
     if (!matchesFilter) return false;

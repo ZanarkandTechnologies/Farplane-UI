@@ -81,8 +81,8 @@ describe("user communications config helpers", () => {
           direction: "inbound",
           text: "What needs me?",
           occurredAt: 2500,
-          route: "coordinator",
-          threadId: "thread-main",
+          route: "new_thread",
+          threadId: "thread-new",
         },
         {
           telegramMessageId: 22,
@@ -99,12 +99,13 @@ describe("user communications config helpers", () => {
 
     expect(rows.map((row) => [row.route, row.status])).toEqual([
       ["reply -> source", "delivered"],
-      ["standalone -> main", "delivered"],
+      ["standalone -> new thread", "delivered"],
       ["unknown reply", "failed"],
       ["notification sent", "waiting reply"],
       ["notification sent", "waiting reply"],
     ]);
     expect(filterUserCommunicationActivityRows(rows, "failed", "")).toHaveLength(1);
     expect(filterUserCommunicationActivityRows(rows, "reply", "gateway")).toHaveLength(1);
+    expect(filterUserCommunicationActivityRows(rows, "standalone", "")).toHaveLength(1);
   });
 });
