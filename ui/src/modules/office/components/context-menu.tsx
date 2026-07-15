@@ -1,9 +1,8 @@
 import { Html } from "@react-three/drei";
-import { useEffect, useState } from "react";
-import { X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import { UI_Z } from "@/lib/z-index";
 import { endObjectInteractionTrace } from "../utils/object-interaction-perf";
 
@@ -85,7 +85,7 @@ export function ContextMenu({
 
   // Animation classes
   const buttonBaseClass =
-    "w-10 h-10 rounded-full shadow-lg transition-all duration-200 hover:scale-110 border-2 flex items-center justify-center";
+    "w-10 h-10 rounded-full shadow-lg transition-[background-color,border-color,box-shadow,color] duration-200 border-2 flex items-center justify-center";
   const labelClass =
     "absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-medium text-foreground bg-background/90 px-2 py-0.5 rounded backdrop-blur-sm whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity border border-border";
 
@@ -93,8 +93,8 @@ export function ContextMenu({
   const getPositionStyle = (action: MenuAction, index: number, total: number) => {
     const radius = 56; // Slightly increased radius for more items
 
-    // If explicit position is provided and total <= 4, use it (legacy behavior)
-    if (action.position && total <= 4) {
+    // Cardinal positions only form a balanced dial when all four slots exist.
+    if (action.position && total === 4) {
       switch (action.position) {
         case "top":
           return { left: "0px", top: `-${radius}px`, transform: "translate(-50%, -50%)" };
@@ -181,10 +181,11 @@ export function ContextMenu({
           <Button
             variant="ghost"
             size="icon"
+            aria-label={`Close ${title}`}
             className="absolute left-0 top-0 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-muted hover:bg-muted/80 text-muted-foreground backdrop-blur-sm z-10 shadow-md border border-border"
             onClick={handleClose}
           >
-            <X className="w-4 h-4" />
+            <X aria-hidden="true" className="w-4 h-4" />
           </Button>
 
           {/* Actions */}
@@ -198,17 +199,18 @@ export function ContextMenu({
                 <Button
                   variant="secondary"
                   size="icon"
+                  aria-label={action.label}
                   className={cn(
                     buttonBaseClass,
                     getColorClasses(action.color),
                     action.isHighlighted
-                      ? "ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse"
+                      ? "ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse motion-reduce:animate-none"
                       : null,
                   )}
                   onClick={(e) => handleActionClick(e, action)}
                   onMouseDown={(e) => handleActionMouseDown(e, action)}
                 >
-                  <action.icon className="w-5 h-5" />
+                  <action.icon aria-hidden="true" className="w-5 h-5" />
                 </Button>
                 <span className={labelClass}>{action.label}</span>
               </div>

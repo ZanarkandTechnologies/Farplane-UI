@@ -513,6 +513,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
             idleInteractionTargets={employee.idleInteractionTargets}
             presencePersistent={employee.presencePersistent}
             presenceExpiresAt={employee.presenceExpiresAt}
+            observedRuntime={employee.observedRuntime}
             teamCharacterPolicy={employee.teamCharacterPolicy}
             teamCharacterPreview={getTeamCharacterPreviewForEmployee(syntheticSkillDemo, {
               employeeId: String(employee._id),

@@ -12,6 +12,13 @@ type PlacementMode = {
 };
 
 export type ControlledEmployeeDestination = [number, number, number];
+export type ThreadLineageReveal = {
+  id: string;
+  source: string;
+  target: string;
+  kind: "created" | "forked" | "spawned";
+  requestedAt: number;
+};
 export type BuilderTool = "paint-floor" | "remove-floor" | null;
 export type OfficeOverlayKey = "grid" | "occupancy" | "paths" | "destinations" | "areas" | "layout";
 export type OfficeOverlaySettings = Record<OfficeOverlayKey, boolean>;
@@ -132,6 +139,8 @@ interface AppState {
   setActiveObjectPanel: (panel: ActiveObjectPanelState | null) => void;
   manageAgentEmployeeId: OfficeId<"employees"> | null;
   setManageAgentEmployeeId: (id: OfficeId<"employees"> | null) => void;
+  threadLineageReveal: ThreadLineageReveal | null;
+  setThreadLineageReveal: (reveal: ThreadLineageReveal | null) => void;
   viewComputerEmployeeId: OfficeId<"employees"> | null;
   viewComputerInitialProjectId: string | null;
   setViewComputerEmployeeId: (id: OfficeId<"employees"> | null, projectId?: string | null) => void;
@@ -281,6 +290,8 @@ export const useAppStore = create<AppState>()(
       ),
     manageAgentEmployeeId: null,
     setManageAgentEmployeeId: (id) => set({ manageAgentEmployeeId: id }),
+    threadLineageReveal: null,
+    setThreadLineageReveal: (reveal) => set({ threadLineageReveal: reveal }),
     viewComputerEmployeeId: null,
     viewComputerInitialProjectId: null,
     setViewComputerEmployeeId: (id, projectId) =>

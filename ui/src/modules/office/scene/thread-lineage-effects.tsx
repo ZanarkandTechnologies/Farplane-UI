@@ -2,7 +2,7 @@
  * THREAD LINEAGE EFFECTS
  * ======================
  * Ownership: converts genuinely new thread lineage telemetry into short scene-local pulses.
- * Inputs/outputs: Convex lineage edges + rendered employees -> transient blue links.
+ * Inputs/outputs: Convex lineage edges + rendered employees -> light-blue transient links.
  * Side effects: subscribes read-only and keeps a mount-local seen set; no telemetry writes.
  * Invariant: initial/backfilled edges never animate, and events older than the freshness window are ignored.
  */
@@ -14,10 +14,11 @@ import { useQuery } from "convex/react";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import type { EmployeeData } from "@/modules/office/lib/types";
 import { getOfficeQaState, updateOfficeQaState } from "@/modules/office/qa/office-qa-state";
+import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { isConvexEnabled } from "@/providers/convex-provider";
+import { useAppStore } from "@/store";
 import { api } from "../../../../../convex/_generated/api";
 import { getLiveEmployeePosition } from "./employee-position-registry";
 
@@ -25,7 +26,7 @@ export type OfficeLineageEdge = {
   id: string;
   source: string;
   target: string;
-  kind: "created" | "forked";
+  kind: "created" | "forked" | "spawned";
   eventAt: number;
 };
 
@@ -34,6 +35,14 @@ export const OFFICE_LINEAGE_EFFECT_DURATION_MS = 2_200;
 export const OFFICE_LINEAGE_FADE_MS = 500;
 const LINEAGE_PROJECTION_DISTANCE = 1.25;
 const LINEAGE_CLEARANCE = 0.9;
+
+export function officeLineageEffectColors(kind: OfficeLineageEdge["kind"]): {
+  lineColor: string;
+  pulseColor: string;
+} {
+  void kind;
+  return { lineColor: "#7dd3fc", pulseColor: "#e0f2fe" };
+}
 
 export function selectFreshUnseenLineageEdges(input: {
   edges: OfficeLineageEdge[];
@@ -119,15 +128,20 @@ function ThreadLineagePulse({
   source,
   target,
   startedAt,
+  kind,
+  reduceMotion,
 }: {
   source: EmployeeData;
   target: EmployeeData;
   startedAt: number;
+  kind: OfficeLineageEdge["kind"];
+  reduceMotion: boolean;
 }): React.JSX.Element {
   const geometryRef = useRef<THREE.BufferGeometry>(null);
   const materialRef = useRef<THREE.LineBasicMaterial>(null);
   const pulseRef = useRef<THREE.Mesh>(null);
   const pulseMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const { lineColor, pulseColor } = officeLineageEffectColors(kind);
   useFrame(() => {
     const from = getLiveEmployeePosition(String(source._id)) ?? source.initialPosition;
     const to = getLiveEmployeePosition(String(target._id)) ?? target.initialPosition;
@@ -135,7 +149,9 @@ function ThreadLineagePulse({
     const targetPoint = new THREE.Vector3(to[0], to[1] + 1.05, to[2]);
     geometryRef.current?.setFromPoints([sourcePoint, targetPoint]);
     const ageMs = Date.now() - startedAt;
-    const progress = Math.min(1, Math.max(0, ageMs / OFFICE_LINEAGE_EFFECT_DURATION_MS));
+    const progress = reduceMotion
+      ? 0.5
+      : Math.min(1, Math.max(0, ageMs / OFFICE_LINEAGE_EFFECT_DURATION_MS));
     const opacity = getOfficeLineageEffectOpacity(ageMs);
     if (materialRef.current) materialRef.current.opacity = opacity * 0.75;
     if (pulseMaterialRef.current) pulseMaterialRef.current.opacity = opacity * 0.9;
@@ -147,7 +163,7 @@ function ThreadLineagePulse({
         <bufferGeometry ref={geometryRef} />
         <lineBasicMaterial
           ref={materialRef}
-          color="#7dd3fc"
+          color={lineColor}
           transparent
           opacity={0}
           depthWrite={false}
@@ -157,7 +173,7 @@ function ThreadLineagePulse({
         <sphereGeometry args={[0.09, 10, 10]} />
         <meshBasicMaterial
           ref={pulseMaterialRef}
-          color="#bae6fd"
+          color={pulseColor}
           transparent
           opacity={0}
           depthWrite={false}
@@ -167,14 +183,28 @@ function ThreadLineagePulse({
   );
 }
 
-export function ThreadLineageEffects({ employees }: { employees: EmployeeData[] }): React.JSX.Element | null {
+export function ThreadLineageEffects({
+  employees,
+}: {
+  employees: EmployeeData[];
+}): React.JSX.Element | null {
   const adapter = useOfficeRuntimeAdapter();
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const requestedReveal = useAppStore((state) => state.threadLineageReveal);
   const graph = useQuery(
     api.modules.hookTelemetry.queries.getThreadLineageGraph,
     isConvexEnabled() && adapter.runtimeKind === "codex" ? { rangeDays: 1, limit: 200 } : "skip",
   ) as { edges?: OfficeLineageEdge[] } | undefined;
   const seenRef = useRef<Set<string> | null>(null);
   const [active, setActive] = useState<Array<OfficeLineageEdge & { startedAt: number }>>([]);
+
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduceMotion(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     if (!graph?.edges) return;
@@ -184,19 +214,47 @@ export function ThreadLineageEffects({ employees }: { employees: EmployeeData[] 
     }
     const now = Date.now();
     const fresh = selectFreshUnseenLineageEdges({ edges: graph.edges, seen: seenRef.current, now });
-    graph.edges.forEach((edge) => seenRef.current?.add(edge.id));
+    graph.edges.forEach((edge) => {
+      seenRef.current?.add(edge.id);
+    });
     if (fresh.length === 0) return;
     setActive((current) => [...current, ...fresh.map((edge) => ({ ...edge, startedAt: now }))]);
   }, [graph?.edges]);
 
   useEffect(() => {
+    if (!requestedReveal) return;
+    setActive((current) => [
+      ...current.filter((edge) => edge.id !== requestedReveal.id),
+      {
+        id: requestedReveal.id,
+        source: requestedReveal.source,
+        target: requestedReveal.target,
+        kind: requestedReveal.kind,
+        eventAt: requestedReveal.requestedAt,
+        startedAt: requestedReveal.requestedAt,
+      },
+    ]);
+  }, [requestedReveal]);
+
+  useEffect(() => {
     if (!import.meta.env.DEV || typeof window === "undefined") return;
     const seedLineage = (edge: OfficeLineageEdge) => {
       const now = Date.now();
+      const endpoints = resolveOfficeLineageEndpoints({ edge, employees });
       updateOfficeQaState({
         effects: [
           ...(getOfficeQaState().effects ?? []),
-          { id: edge.id, kind: edge.kind, startedAt: now },
+          {
+            id: edge.id,
+            kind: edge.kind,
+            startedAt: now,
+            ...officeLineageEffectColors(edge.kind),
+            sourceEmployeeId: endpoints ? String(endpoints.source._id) : null,
+            targetEmployeeId: endpoints ? String(endpoints.target._id) : null,
+            sourcePosition: endpoints?.source.initialPosition ?? null,
+            targetPosition: endpoints?.target.initialPosition ?? null,
+            targetProjected: endpoints?.targetProjected ?? null,
+          },
         ],
       });
       setActive((current) => [
@@ -206,10 +264,23 @@ export function ThreadLineageEffects({ employees }: { employees: EmployeeData[] 
     };
     updateOfficeQaState({
       seedLineage,
-      effects: active.map(({ id, kind, startedAt }) => ({ id, kind, startedAt })),
+      effects: active.map((edge) => {
+        const endpoints = resolveOfficeLineageEndpoints({ edge, employees });
+        return {
+          id: edge.id,
+          kind: edge.kind,
+          startedAt: edge.startedAt,
+          ...officeLineageEffectColors(edge.kind),
+          sourceEmployeeId: endpoints ? String(endpoints.source._id) : null,
+          targetEmployeeId: endpoints ? String(endpoints.target._id) : null,
+          sourcePosition: endpoints?.source.initialPosition ?? null,
+          targetPosition: endpoints?.target.initialPosition ?? null,
+          targetProjected: endpoints?.targetProjected ?? null,
+        };
+      }),
     });
     return () => updateOfficeQaState({ seedLineage: undefined, effects: [] });
-  }, [active]);
+  }, [active, employees]);
 
   useEffect(() => {
     if (active.length === 0) return;
@@ -234,7 +305,14 @@ export function ThreadLineageEffects({ employees }: { employees: EmployeeData[] 
   return (
     <group>
       {resolved.map(({ edge, source, target }) => (
-        <ThreadLineagePulse key={edge.id} source={source} target={target} startedAt={edge.startedAt} />
+        <ThreadLineagePulse
+          key={edge.id}
+          source={source}
+          target={target}
+          startedAt={edge.startedAt}
+          kind={edge.kind}
+          reduceMotion={reduceMotion}
+        />
       ))}
     </group>
   );

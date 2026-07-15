@@ -249,6 +249,30 @@ Dashboard-style agent management UI for configuring employee agents.
 - Links to `toolConfigs` and `skillConfigs` for configuration
 - Auto-creates default config if missing when chatting
 
+### Codex Employee Activity And Handoffs ✅
+
+**Status**: Active (Jul 2026)
+
+Codex mode uses capability-driven employee controls instead of inheriting
+OpenClaw configuration affordances. App-server-backed tasks keep Chat,
+Inspect, and local Move controls. Hook-observed tasks expose Activity and Move;
+Activity opens a read-only inspector backed by Convex hook telemetry rather
+than an empty writable chat.
+
+The inspector makes the selected task's connected handoff network the primary
+surface: operators can search and filter tasks, inspect root/current/ephemeral
+nodes, and replay a selected handoff in the office. Parented and ephemeral
+workers remain outside the durable office roster. The scene lineage renderer
+draws one short light-blue link for every handoff type and projects a temporary
+endpoint when the child has no avatar.
+
+**Key files**:
+
+- `components/employee/use-employee-actions.tsx`: runtime-capability radial actions
+- `components/manage-agent-modal/codex-thread-inspector.tsx`: hook-only connected handoff graph
+- `scene/thread-lineage-effects.tsx`: fresh-event and explicit-replay scene links
+- `providers/office-data-refresh.ts`: durable-root versus ephemeral-worker roster boundary
+
 ---
 
 ## File Structure

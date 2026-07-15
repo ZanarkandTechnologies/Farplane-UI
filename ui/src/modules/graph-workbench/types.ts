@@ -11,6 +11,8 @@ export type GraphWorkbenchNode = {
 };
 
 export type GraphWorkbenchEdge = {
+  color?: string;
+  directed?: boolean;
   label?: string;
   renderKey?: string;
   source: string;
@@ -33,6 +35,7 @@ export type GraphWorkbenchLayout = {
 
 export type GraphWorkbenchKind = {
   color: string;
+  foreground?: string;
   id: string;
   label: string;
 };

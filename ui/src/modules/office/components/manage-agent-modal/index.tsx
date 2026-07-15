@@ -51,6 +51,7 @@ import { useAppStore } from "@/store";
 import type { AgentConfigDraft, AgentUsageOverview, TabId } from "./_types";
 import { ChannelsPanel } from "./ChannelsTab";
 import { CronPanel } from "./CronTab";
+import { CodexThreadInspector } from "./codex-thread-inspector";
 import {
   buildNextAgentConfig,
   cloneAgentConfigDraft,
@@ -82,6 +83,27 @@ const EMPTY_FILES_STATE: FilesState = {
 };
 
 export function ManageAgentModal(): ReactElement {
+  const manageAgentEmployeeId = useAppStore((state) => state.manageAgentEmployeeId);
+  const setManageAgentEmployeeId = useAppStore((state) => state.setManageAgentEmployeeId);
+  const { employees } = useOfficeDataContext();
+  const adapter = useOfficeRuntimeAdapter();
+  const employee = employees.find((row) => row._id === manageAgentEmployeeId) ?? null;
+
+  if (adapter.runtimeKind === "codex") {
+    return (
+      <CodexThreadInspector
+        employee={employee}
+        open={Boolean(manageAgentEmployeeId)}
+        onOpenChange={(open) => {
+          if (!open) setManageAgentEmployeeId(null);
+        }}
+      />
+    );
+  }
+  return <OpenClawManageAgentModal />;
+}
+
+function OpenClawManageAgentModal(): ReactElement {
   const manageAgentEmployeeId = useAppStore((state) => state.manageAgentEmployeeId);
   const setManageAgentEmployeeId = useAppStore((state) => state.setManageAgentEmployeeId);
   const setIsSkillsPanelOpen = useAppStore((state) => state.setIsSkillsPanelOpen);

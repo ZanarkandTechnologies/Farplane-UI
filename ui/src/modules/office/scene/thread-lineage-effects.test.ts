@@ -2,11 +2,23 @@ import { describe, expect, it } from "vitest";
 import {
   getOfficeLineageEffectOpacity,
   OFFICE_LINEAGE_FRESHNESS_MS,
+  officeLineageEffectColors,
   resolveOfficeLineageEndpoints,
   selectFreshUnseenLineageEdges,
 } from "./thread-lineage-effects";
 
 describe("office thread lineage effects", () => {
+  it("uses one light-blue office lineage language for every handoff kind", () => {
+    expect(officeLineageEffectColors("spawned")).toEqual({
+      lineColor: "#7dd3fc",
+      pulseColor: "#e0f2fe",
+    });
+    expect(officeLineageEffectColors("created")).toEqual({
+      lineColor: "#7dd3fc",
+      pulseColor: "#e0f2fe",
+    });
+  });
+
   it("selects only unseen events inside the live freshness window", () => {
     const now = 50_000;
     const result = selectFreshUnseenLineageEdges({
@@ -57,9 +69,9 @@ describe("office thread lineage effects", () => {
     expect(resolved?.source._id).toBe(pulse._id);
     expect(resolved?.targetProjected).toBe(true);
     const projected = resolved?.target.initialPosition;
-    expect(projected).toBeDefined();
-    expect(Math.hypot(projected![0] - 3, projected![2] - 4)).toBeCloseTo(1.25);
-    expect(Math.hypot(projected![0], projected![2])).toBeLessThan(5);
+    if (!projected) throw new Error("Expected a projected lineage target");
+    expect(Math.hypot(projected[0] - 3, projected[2] - 4)).toBeCloseTo(1.25);
+    expect(Math.hypot(projected[0], projected[2])).toBeLessThan(5);
   });
 
   it("chooses another projection when the commons-facing child position is occupied", () => {
@@ -83,9 +95,12 @@ describe("office thread lineage effects", () => {
       employees: [pulse, blocker],
     });
     expect(resolved?.target.initialPosition).not.toEqual(blocker.initialPosition);
-    expect(Math.hypot(
-      resolved!.target.initialPosition[0] - blocker.initialPosition[0],
-      resolved!.target.initialPosition[2] - blocker.initialPosition[2],
-    )).toBeGreaterThanOrEqual(0.9);
+    if (!resolved) throw new Error("Expected projected lineage endpoints");
+    expect(
+      Math.hypot(
+        resolved.target.initialPosition[0] - blocker.initialPosition[0],
+        resolved.target.initialPosition[2] - blocker.initialPosition[2],
+      ),
+    ).toBeGreaterThanOrEqual(0.9);
   });
 });

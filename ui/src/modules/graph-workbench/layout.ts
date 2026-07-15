@@ -43,7 +43,8 @@ const KIND_TARGETS: Record<string, { x: number; y: number }> = {
 };
 
 function nodeRadius(node: GraphWorkbenchNode, degree: number): number {
-  const base = node.kind === "workflow" ? 28 : node.kind === "feature" ? 24 : node.kind === "skill" ? 20 : 16;
+  const base =
+    node.kind === "workflow" ? 28 : node.kind === "feature" ? 24 : node.kind === "skill" ? 20 : 16;
   return base + Math.min(11, degree * 0.55) + Math.min(8, node.weight ?? 0);
 }
 
@@ -140,7 +141,9 @@ export function buildGraphWorkbenchLayout(
   return {
     edges: links.map((link) => ({
       ...link.edge,
-      renderKey: link.edge.renderKey,
+      renderKey:
+        link.edge.renderKey ??
+        `${linkId(link.source)}-${linkId(link.target)}-${link.edge.type ?? "edge"}`,
       source: linkId(link.source),
       target: linkId(link.target),
     })),

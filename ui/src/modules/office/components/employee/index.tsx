@@ -23,6 +23,7 @@ import PathVisualizer from "@/modules/navigation/components/path-visualizer";
 import type { StatusType } from "@/modules/navigation/components/status-indicator";
 import type { ActivityScenePresentation } from "@/modules/office/activity-scenes";
 import type {
+  EmployeeData,
   EmployeeActivityState,
   EmployeeIdleInteractionTarget,
 } from "@/modules/office/lib/types";
@@ -83,6 +84,7 @@ export interface EmployeeProps {
   idleInteractionTargets?: EmployeeIdleInteractionTarget[];
   presencePersistent?: boolean;
   presenceExpiresAt?: number;
+  observedRuntime?: EmployeeData["observedRuntime"];
   teamCharacterPolicy?: TeamCharacterPolicy;
   teamCharacterPreview?: TeamCharacterPreviewDetail;
   profileImageUrl?: string;
@@ -157,6 +159,7 @@ const Employee = memo(function Employee({
   idleInteractionTargets,
   presencePersistent,
   presenceExpiresAt,
+  observedRuntime,
   teamCharacterPolicy,
   teamCharacterPreview,
   useCompactOverlayMode = false,
@@ -228,7 +231,7 @@ const Employee = memo(function Employee({
     [activityScenePresentation, id],
   );
   const finalColors = useEmployeeAvatarPalette({ isCEO, appearance });
-  const employeeActions = useEmployeeActions({ id, isCEO, onClick });
+  const employeeActions = useEmployeeActions({ id, isCEO, observedRuntime, onClick });
   const presenceVisual = useMemo(
     () => resolveEmployeePresenceVisual({ presencePersistent, heartbeatState }),
     [heartbeatState, presencePersistent],
