@@ -1,6 +1,12 @@
 import type { ShellModuleDefinition } from "./types";
 
 export const moduleRegistry = {
+  soundtrack: {
+    id: "soundtrack",
+    label: "Farplane Radio",
+    description: "Shared background soundtrack and playback controls.",
+    surfaces: ["hud"],
+  },
   runtime: {
     id: "runtime",
     label: "Runtime",

@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "1.0.0",
+  "collection": "Farplane Radio: Office Lo-Fi Vol. 1",
+  "provider": "ElevenLabs",
+  "model": "music_v2",
+  "usageTermsUrl": "https://elevenlabs.io/music-api-terms",
+  "licenseNote": "Usage remains subject to the generating ElevenLabs account plan and Music API Terms.",
+  "forceInstrumental": true,
+  "musicLengthMs": 60000,
+  "normalization": {
+    "integratedLufs": -16,
+    "truePeakDb": -1.5,
+    "loudnessRange": 11
+  },
+  "generatedAt": "2026-07-13T18:44:01.730Z",
+  "manifestUpdatedAt": "2026-07-13T18:48:16.233Z",
+  "tracks": [
+    {
+      "id": "late-shift",
+      "title": "Late Shift",
+      "direction": "Dusty electric piano, muted drums, warm round bass, subtle tape hiss, dim founder control-room atmosphere.",
+      "fileName": "late-shift.mp3",
+      "prompt": "Instrumental chill lo-fi office music for sustained focused work, 72 to 78 BPM, warm restrained mix, steady low-energy groove, no vocals, no spoken words, no dramatic drops, no abrupt transitions, no recognizable melody, no artist imitation. Dusty electric piano, muted drums, warm round bass, subtle tape hiss, dim founder control-room atmosphere.",
+      "generatedAt": "2026-07-13T18:44:01.730Z",
+      "sha256": "75cc81c8032c971a63bcb7ecb22698bdb4224bd985595fd768903b3dd6cdc755"
+    },
+    {
+      "id": "quiet-deploy",
+      "title": "Quiet Deploy",
+      "direction": "Soft jazz guitar harmonics, brushed drums, mellow electric keys, sparse analog synth glow, calm forward motion.",
+      "fileName": "quiet-deploy.mp3",
+      "prompt": "Instrumental chill lo-fi office music for sustained focused work, 72 to 78 BPM, warm restrained mix, steady low-energy groove, no vocals, no spoken words, no dramatic drops, no abrupt transitions, no recognizable melody, no artist imitation. Soft jazz guitar harmonics, brushed drums, mellow electric keys, sparse analog synth glow, calm forward motion.",
+      "generatedAt": "2026-07-13T18:44:01.730Z",
+      "sha256": "25fb8c1065d90c0c5072579247422a0988c366231ba831df1cf7acf5b38afef5"
+    },
+    {
+      "id": "server-room-rain",
+      "title": "Server Room Rain",
+      "direction": "Gentle rain-like texture, filtered Rhodes chords, soft rim clicks, deep unobtrusive bass, cool nocturnal ambience.",
+      "fileName": "server-room-rain.mp3",
+      "prompt": "Instrumental chill lo-fi office music for sustained focused work, 72 to 78 BPM, warm restrained mix, steady low-energy groove, no vocals, no spoken words, no dramatic drops, no abrupt transitions, no recognizable melody, no artist imitation. Gentle rain-like texture, filtered Rhodes chords, soft rim clicks, deep unobtrusive bass, cool nocturnal ambience.",
+      "generatedAt": "2026-07-13T18:44:01.730Z",
+      "sha256": "824cccaf96b3b0ad8a59d7b13a5281c67dc38f24e331d0be6022921505dd12e3"
+    },
+    {
+      "id": "lantern-desk",
+      "title": "Lantern Desk",
+      "direction": "Warm felt piano, vinyl dust, understated boom-bap percussion, rounded bass, intimate pool-of-light mood.",
+      "fileName": "lantern-desk.mp3",
+      "prompt": "Instrumental chill lo-fi office music for sustained focused work, 72 to 78 BPM, warm restrained mix, steady low-energy groove, no vocals, no spoken words, no dramatic drops, no abrupt transitions, no recognizable melody, no artist imitation. Warm felt piano, vinyl dust, understated boom-bap percussion, rounded bass, intimate pool-of-light mood.",
+      "generatedAt": "2026-07-13T18:44:01.730Z",
+      "sha256": "7139ec36263c975e222536f09bcc9464e565767d4d7c89d18f8fa8d066efabd2"
+    },
+    {
+      "id": "deep-work-district",
+      "title": "Deep Work District",
+      "direction": "Minimal electric piano motif, dry soft drums, low analog pulse, spacious background pads, disciplined concentration.",
+      "fileName": "deep-work-district.mp3",
+      "prompt": "Instrumental chill lo-fi office music for sustained focused work, 72 to 78 BPM, warm restrained mix, steady low-energy groove, no vocals, no spoken words, no dramatic drops, no abrupt transitions, no recognizable melody, no artist imitation. Minimal electric piano motif, dry soft drums, low analog pulse, spacious background pads, disciplined concentration.",
+      "generatedAt": "2026-07-13T18:44:01.730Z",
+      "sha256": "bfc5b4cf0ccc55a73e9275715c1796fa5b8e3015b74ca507fdf9b6cf162fb453"
+    },
+    {
+      "id": "midnight-standup",
+      "title": "Midnight Standup",
+      "direction": "Muted vibraphone, gentle kick and snare, soft sub bass, faint office-night ambience, quietly optimistic tone.",
+      "fileName": "midnight-standup.mp3",
+      "prompt": "Instrumental chill lo-fi office music for sustained focused work, 72 to 78 BPM, warm restrained mix, steady low-energy groove, no vocals, no spoken words, no dramatic drops, no abrupt transitions, no recognizable melody, no artist imitation. Muted vibraphone, gentle kick and snare, soft sub bass, faint office-night ambience, quietly optimistic tone.",
+      "generatedAt": "2026-07-13T18:44:01.730Z",
+      "sha256": "1e734ffd390262f19cd123d2c2e7b44f52de28c503596efd358f3f12dc2cf7c3"
+    },
+    {
+      "id": "soft-compile",
+      "title": "Soft Compile",
+      "direction": "Rounded synth plucks, tape-worn keys, restrained percussion, smooth bass loop, patient repetitive flow state.",
+      "fileName": "soft-compile.mp3",
+      "prompt": "Instrumental chill lo-fi office music for sustained focused work, 72 to 78 BPM, warm restrained mix, steady low-energy groove, no vocals, no spoken words, no dramatic drops, no abrupt transitions, no recognizable melody, no artist imitation. Rounded synth plucks, tape-worn keys, restrained percussion, smooth bass loop, patient repetitive flow state.",
+      "generatedAt": "2026-07-13T18:44:01.730Z",
+      "sha256": "9688c8b9d128edc426be86162bc2e198464cb265bcedd885802665afa3ad953a"
+    },
+    {
+      "id": "empty-office-lights",
+      "title": "Empty Office Lights",
+      "direction": "Airy electric piano, soft guitar fragments, brushed beat, warm room tone, reflective late-night calm.",
+      "fileName": "empty-office-lights.mp3",
+      "prompt": "Instrumental chill lo-fi office music for sustained focused work, 72 to 78 BPM, warm restrained mix, steady low-energy groove, no vocals, no spoken words, no dramatic drops, no abrupt transitions, no recognizable melody, no artist imitation. Airy electric piano, soft guitar fragments, brushed beat, warm room tone, reflective late-night calm.",
+      "generatedAt": "2026-07-13T18:44:01.730Z",
+      "sha256": "738616cc5c2310e52527d04b5193933f58aac05ded1f842471af29b8c7f814e9"
+    },
+    {
+      "id": "dawn-merge",
+      "title": "Dawn Merge",
+      "direction": "Gentle major-seventh keys, subtle shaker and rim percussion, mellow bass, faint sunrise warmth without a climax.",
+      "fileName": "dawn-merge.mp3",
+      "prompt": "Instrumental chill lo-fi office music for sustained focused work, 72 to 78 BPM, warm restrained mix, steady low-energy groove, no vocals, no spoken words, no dramatic drops, no abrupt transitions, no recognizable melody, no artist imitation. Gentle major-seventh keys, subtle shaker and rim percussion, mellow bass, faint sunrise warmth without a climax.",
+      "generatedAt": "2026-07-13T18:44:01.730Z",
+      "sha256": "d66eaa9cf6460fca65f762e137cf2a944079a38b9a6e94ba13bff5bea8c93f63"
+    },
+    {
+      "id": "farplane-drift",
+      "title": "Farplane Drift",
+      "direction": "Dreamy analog pads, dusty Rhodes, low-key hip-hop drums, soft bass, spacious futuristic office atmosphere.",
+      "fileName": "farplane-drift.mp3",
+      "prompt": "Instrumental chill lo-fi office music for sustained focused work, 72 to 78 BPM, warm restrained mix, steady low-energy groove, no vocals, no spoken words, no dramatic drops, no abrupt transitions, no recognizable melody, no artist imitation. Dreamy analog pads, dusty Rhodes, low-key hip-hop drums, soft bass, spacious futuristic office atmosphere.",
+      "generatedAt": "2026-07-13T18:44:01.730Z",
+      "sha256": "ad4a55a46b7c6f36a91e11bef8deca6289491456bc39d87682509c693a91b054"
+    }
+  ]
+}

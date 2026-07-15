@@ -17,6 +17,11 @@ describe("Farplane shell config", () => {
     expect(moduleRegistry.world.surfaces).toContain("office-object");
   });
 
+  it("registers Farplane Radio as shared HUD chrome", () => {
+    expect(moduleRegistry.soundtrack.surfaces).toEqual(["hud"]);
+    expect(DEFAULT_FARPLANE_UI_CONFIG.modules).toContain("soundtrack");
+  });
+
   it("keeps valid renderer, persistence, and registered module ids", () => {
     expect(
       normalizeFarplaneUiConfig({
