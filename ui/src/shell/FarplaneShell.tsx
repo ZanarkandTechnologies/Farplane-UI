@@ -1,6 +1,6 @@
 import type React from "react";
 
-import { SoundtrackPlayer } from "@/modules/soundtrack";
+import { SoundtrackHudControl, SoundtrackProvider } from "@/modules/soundtrack";
 
 import { moduleRegistry } from "./module-registry";
 import { Office3dRenderer } from "./renderers/office3d";
@@ -31,10 +31,16 @@ export function FarplaneShell({
       <Office3dRenderer {...rendererProps} />
     );
 
+  if (!normalizedConfig.modules.includes("soundtrack")) return renderer;
+
   return (
-    <>
+    <SoundtrackProvider>
       {renderer}
-      {normalizedConfig.modules.includes("soundtrack") ? <SoundtrackPlayer /> : null}
-    </>
+      {normalizedConfig.renderer === "standard" ? (
+        <div className="fixed top-4 right-4 z-[80]">
+          <SoundtrackHudControl standalone />
+        </div>
+      ) : null}
+    </SoundtrackProvider>
   );
 }

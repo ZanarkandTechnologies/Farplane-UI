@@ -47,6 +47,25 @@ Keep canonical project config in `farplane/`. Use `.farplane/` only for local
 runtime state, generated projections, metric observations, reports, logs, and
 continuation ledgers.
 
+## Finance Metrics
+
+Financial values remain ordinary metrics and use the existing observation and
+freshness pipeline. A metric opts into portfolio finance roll-ups with:
+
+```yaml
+finance:
+  flow: expense # expense | income
+  basis: actual # actual | estimated
+```
+
+The metric `unit` is its currency (`usd`, for example). Portfolio totals group
+by currency and observation window, and actual values never silently mix with
+estimated values. A root `finance.expense_limit` in `metrics.yaml` may define
+the global guard for one supported window such as `calendar_month`. Finance
+observations are non-negative amounts; `flow` supplies their direction. Calendar
+months use the observation's `YYYY-MM-DD` date and the operator's current local
+month.
+
 ## Official Automation Presets
 
 - `Work Pulse`: the only heartbeat; reconciles, dispatches, handles due

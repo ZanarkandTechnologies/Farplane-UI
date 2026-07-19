@@ -1,2 +1,2 @@
 export { FARPLANE_RADIO_TRACKS, type SoundtrackTrack } from "./playlist";
-export { SoundtrackPlayer } from "./soundtrack-player";
+export { SoundtrackHudControl, SoundtrackProvider } from "./soundtrack-player";

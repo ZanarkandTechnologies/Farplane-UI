@@ -68,6 +68,7 @@ function OfficeSimulationContent() {
     officeObjects,
     officeAreas,
     officeSettings,
+    companyModel,
     isLoading,
   } = useOfficeWorldStore(useShallow(selectOfficeWorldContextData));
 
@@ -281,6 +282,7 @@ function OfficeSimulationContent() {
                 employees={employees}
                 officeObjects={officeObjects}
                 officeLayout={officeSettings.officeLayout}
+                projects={companyModel?.projects ?? []}
               />
             </div>
             {isReadOnly ? (

@@ -1,10 +1,29 @@
 kind: project-metrics
 status: active
 created_at: 2026-07-12
-updated_at: 2026-07-12
+updated_at: 2026-07-19
 framework_template_version: "0.3.0"
 owner: metric-advisor
+finance:
+  currency: USD
+  expense_limit:
+    amount: 400
+    window: calendar_month
 metrics:
+  ai_spend:
+    label: AI spend
+    description: >-
+      Actual AI-related spend recorded as one USD amount per calendar day.
+      Refreshes replace the reading for that date instead of adding a duplicate.
+    pinned: false
+    kind: daily_count
+    unit: usd
+    display: bar_plus_cumulative
+    direction: minimize
+    max_age_days: 7
+    finance:
+      flow: expense
+      basis: actual
   accepted_ui_product_cycles:
     label: Accepted UI product cycles
     description: >-
