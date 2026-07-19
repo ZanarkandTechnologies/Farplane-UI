@@ -782,6 +782,15 @@ const RUNTIME_ENV_CATALOG: RuntimeEnvConfig[] = [
     secret: true,
   },
   {
+    name: "VITE_MAPBOX_ACCESS_TOKEN",
+    label: "Mapbox Public Token",
+    group: "UI-safe map provider",
+    description:
+      "Public browser token for the World vector map. Use a read-only, URL-restricted Mapbox application token.",
+    placeholder: "pk.eyJ1Ijo…",
+    secret: true,
+  },
+  {
     name: "FARPLANE_MESHY_API_KEY",
     label: "Farplane Meshy API Key",
     group: "Optional integrations",
@@ -924,6 +933,25 @@ function readRuntimeConfigForUi(): JsonObject {
       status: runtimeEnvStatus(config),
       value: runtimeEnvValue(config),
     })),
+  };
+}
+
+function readMapConfigForUi(): JsonObject {
+  const accessToken =
+    localSecretEnvString("VITE_MAPBOX_ACCESS_TOKEN") ||
+    localSecretEnvString("MAPBOX_ACCESS_TOKEN") ||
+    firstLocalSecretString([
+      ["maps", "mapbox_public_token"],
+      ["maps", "mapboxPublicToken"],
+    ]) ||
+    process.env.VITE_MAPBOX_ACCESS_TOKEN?.trim() ||
+    process.env.MAPBOX_ACCESS_TOKEN?.trim() ||
+    "";
+  return {
+    accessToken: accessToken || undefined,
+    configured: Boolean(accessToken),
+    provider: "mapbox",
+    style: "mapbox://styles/mapbox/standard",
   };
 }
 
@@ -4366,6 +4394,11 @@ function farplaneStateBridge() {
 
         if (method === "GET" && pathname === "/farplane/runtime-config") {
           writeJson(res, 200, { ok: true, payload: readRuntimeConfigForUi() });
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/map-config") {
+          writeJson(res, 200, { ok: true, payload: readMapConfigForUi() });
           return;
         }
 

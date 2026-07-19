@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-07-19 | feature | TASK-0058 | ui,world-map,mapbox,webgl | Added a lazy Mapbox GL vector renderer that promotes only after idle paint, uses dedicated loading and recoverable error states instead of a second map engine, stores the public provider token through canonical Farplane config, and replaces the full empty-state scrim with a compact map-first notice.
+
 2026-07-16 | feature | TASK-0056 | codex,office,lineage,graph,controls | Replaced OpenClaw-only Codex employee actions with capability-driven controls, made the hook-backed connected handoff graph the primary inspector surface, kept ephemeral workers outside the roster, and added temporary light-blue parent-child replay links.
 
 2026-07-15 | bugfix | TASK-0054 | codex,hooks,office,lineage,evals | Made Codex office rendering hook-canonical: native eval runs are ephemeral and hookless, root presence is merged and bounded to five minutes from observation time, available hook titles beat generic agent labels, app-server thread rows no longer own the ordinary roster, and native subagents render as typed spawned lineage instead of employees.
