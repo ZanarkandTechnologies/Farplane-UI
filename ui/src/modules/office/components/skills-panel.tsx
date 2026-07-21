@@ -19,12 +19,14 @@
  */
 
 import type { ReactElement } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import { UI_Z } from "@/lib/z-index";
 import { EvalOsPanel } from "@/modules/evals";
 import { HarnessOsPanel } from "@/modules/harness-os";
-import { useSkillsPanelController } from "@/modules/office/components/use-skills-panel-controller";
 import { SkillOsMiniApp } from "@/modules/skills-studio/components/skill-os";
+import { useAppStore } from "@/store";
 
 function panelTitle(
   surface: "skill-os" | "template-tracking" | "evals" | "harness" | "rollout" | "skill-rollout",
@@ -53,17 +55,24 @@ function panelDescription(
     return "Harness OS Templates for registry-backed structural parameters and install policy.";
   }
   if (surface === "skill-rollout") {
-    return "Skill OS Rollout for template-version adoption, weighted skill health, and feature coverage.";
+    return "Skills that need eval coverage, quality checks, or template maintenance.";
   }
   if (surface === "rollout") return "Harness OS Projects for active project framework adoption.";
   if (surface === "harness") {
     return "Semantic graph, lifecycle, and feature registry for the Farplane Harness OS.";
   }
-  return "Graph-first Skill OS: skill backlinks, Markdown-ref edges, common chains, and overlay skill docs.";
+  return "Find a skill in the graph, then inspect its runbook, experiments, and files.";
 }
 
 export function SkillsPanel(): ReactElement {
-  const { errorText, focusAgentId, isOpen, setIsOpen, surface } = useSkillsPanelController();
+  const { focusAgentId, isOpen, setIsOpen, surface } = useAppStore(
+    useShallow((state) => ({
+      focusAgentId: state.skillStudioFocusAgentId,
+      isOpen: state.isSkillsPanelOpen,
+      setIsOpen: state.setIsSkillsPanelOpen,
+      surface: state.skillStudioSurface,
+    })),
+  );
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -77,13 +86,17 @@ export function SkillsPanel(): ReactElement {
           {focusAgentId ? (
             <p className="text-xs text-muted-foreground">Focused agent: {focusAgentId}</p>
           ) : null}
-          {errorText ? <p className="text-xs text-destructive">{errorText}</p> : null}
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-hidden p-4">
+        <div
+          className={cn(
+            "min-h-0 flex-1 overflow-hidden",
+            surface === "skill-os" || surface === "skill-rollout" ? "p-0" : "p-4",
+          )}
+        >
           {surface === "skill-os" ? <SkillOsMiniApp /> : null}
           {surface === "evals" ? <EvalOsPanel /> : null}
           {surface === "harness" ? <HarnessOsPanel /> : null}
-          {surface === "skill-rollout" ? <SkillOsMiniApp initialTab="rollout" /> : null}
+          {surface === "skill-rollout" ? <SkillOsMiniApp initialFilter="needs-care" /> : null}
           {surface === "rollout" ? <HarnessOsPanel initialView="rollout" /> : null}
           {surface === "template-tracking" ? <HarnessOsPanel initialView="templates" /> : null}
         </div>

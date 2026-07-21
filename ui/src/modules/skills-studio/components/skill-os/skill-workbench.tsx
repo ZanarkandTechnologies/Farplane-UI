@@ -1,22 +1,29 @@
 "use client";
 
-import { ArrowLeft, ExternalLink, FileCode2, GitBranch, ListChecks } from "lucide-react";
-import { type ReactElement, useMemo, useState } from "react";
-import { Response } from "@/components/ai-elements/response";
+/** Operations Dossier: maps one skill's graph, docs, evals, and improvement memory into a read-only, single-scroll workspace. */
+
+import {
+  Activity,
+  ArrowLeft,
+  BookOpenCheck,
+  ExternalLink,
+  FileCode2,
+  FlaskConical,
+  GitBranch,
+  LayoutDashboard,
+} from "lucide-react";
+import { type ComponentType, type ReactElement, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatPercent, formatRunDate } from "@/modules/evals/lib/eval-artifacts";
-import type { SkillEvalSuite } from "@/modules/runtime";
+import type { SkillEvalSuite, SkillStudioFileEntry } from "@/modules/runtime";
 import { SkillEvalSuiteView } from "../skill-eval-suite-view";
 import {
   buildSkillDetailScorecard,
-  type SkillDetailScorecard,
   type SkillMaintenanceGap,
-  type SkillScoreSignal,
 } from "./skill-detail-scorecard-model";
+import { SkillFilesPanel } from "./skill-files-panel";
 import { TIER_LABELS, tierColor } from "./skill-os-constants";
 import type {
   SkillDoc,
@@ -24,36 +31,27 @@ import type {
   SkillGraphNode,
   SkillTemplateIntelligencePayload,
 } from "./skill-os-types";
-import {
-  buildSkillWorkbenchModel,
-  type SkillArtifactKind,
-  type SkillWorkbenchModel,
-} from "./skill-workbench-model";
+import { SkillRunbookPanel } from "./skill-runbook-panel";
+import { hasSelfImproveDirectory } from "./skill-self-improve-model";
+import { SkillSelfImprovePanel } from "./skill-self-improve-panel";
+import { buildSkillWorkbenchModel } from "./skill-workbench-model";
 import { type SkillEvalHistoryRow, useSkillEvalHistory } from "./use-skill-eval-history";
+import { useSkillSelfImprove } from "./use-skill-self-improve";
 
-function EmptyRenderer({ label }: { label: string }): ReactElement {
-  return (
-    <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-      No {label} found in the embedded skill document yet.
-    </div>
-  );
-}
+export type SkillWorkspaceView = "overview" | "runbook" | "experiments" | "files";
 
-function MarkdownBlock({ children, label }: { children: string; label: string }): ReactElement {
-  if (!children.trim()) return <EmptyRenderer label={label} />;
-  return (
-    <div className="overflow-hidden rounded-md border bg-muted/10 p-4">
-      <Response className="prose prose-invert max-w-none text-sm">{children}</Response>
-    </div>
-  );
-}
+type WorkspaceNavItem = {
+  icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  label: string;
+  value: SkillWorkspaceView;
+};
 
-function scoreTone(score: number): string {
-  if (score >= 85) return "text-emerald-500";
-  if (score >= 70) return "text-sky-500";
-  if (score >= 50) return "text-amber-500";
-  return "text-destructive";
-}
+const WORKSPACE_NAV: WorkspaceNavItem[] = [
+  { icon: LayoutDashboard, label: "Overview", value: "overview" },
+  { icon: BookOpenCheck, label: "Runbook", value: "runbook" },
+  { icon: FlaskConical, label: "Experiments", value: "experiments" },
+  { icon: FileCode2, label: "Files", value: "files" },
+];
 
 function gapVariant(
   status: SkillMaintenanceGap["status"],
@@ -64,61 +62,60 @@ function gapVariant(
   return "outline";
 }
 
-function SignalRow({ signal }: { signal: SkillScoreSignal }): ReactElement {
+function EmptyState({ children }: { children: string }): ReactElement {
   return (
-    <div className="grid gap-2">
-      <div className="grid grid-cols-[minmax(8rem,1fr)_3rem] items-center gap-3 text-sm">
-        <div className="min-w-0">
-          <p className="truncate font-medium">{signal.label}</p>
-          <p className="truncate text-xs text-muted-foreground">{signal.detail}</p>
-        </div>
-        <span className="text-right font-mono text-sm tabular-nums">{signal.score}</span>
+    <div className="border border-dashed px-4 py-5 text-sm text-muted-foreground">{children}</div>
+  );
+}
+
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+}): ReactElement {
+  return (
+    <header className="mb-5">
+      <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+        {eyebrow}
+      </p>
+      <h3 className="mt-1 [font-family:Inter,sans-serif] text-xl font-semibold tracking-tight">
+        {title}
+      </h3>
+      {description ? (
+        <p className="mt-1 max-w-3xl [font-family:Inter,sans-serif] text-sm leading-6 text-muted-foreground">
+          {description}
+        </p>
+      ) : null}
+    </header>
+  );
+}
+
+function MaintenanceStatus({ gaps }: { gaps: SkillMaintenanceGap[] }): ReactElement {
+  return (
+    <section className="border-t pt-6">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <h4 className="[font-family:Inter,sans-serif] text-sm font-semibold">Readiness</h4>
+        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          source checks
+        </span>
       </div>
-      <Progress value={signal.score} className="h-1.5 bg-muted" />
-    </div>
-  );
-}
-
-function ScorecardPanel({ scorecard }: { scorecard: SkillDetailScorecard }): ReactElement {
-  return (
-    <div className="grid gap-3 xl:grid-cols-[17rem_minmax(0,1fr)]">
-      <section className="rounded-md border bg-card p-4">
-        <p className="text-xs font-semibold uppercase text-muted-foreground">Skill Score</p>
-        <div className="mt-4 flex items-end gap-2">
-          <span
-            className={`text-6xl font-semibold leading-none tabular-nums ${scoreTone(scorecard.score)}`}
-          >
-            {scorecard.score}
-          </span>
-          <span className="pb-1 text-sm text-muted-foreground">/100</span>
-        </div>
-        <p className="mt-4 text-sm leading-6 text-muted-foreground">{scorecard.action}</p>
-      </section>
-
-      <section className="rounded-md border bg-card p-4">
-        <p className="text-xs font-semibold uppercase text-muted-foreground">Signal Breakdown</p>
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          {scorecard.signals.map((signal) => (
-            <SignalRow key={signal.id} signal={signal} />
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function MaintenanceGapsPanel({ gaps }: { gaps: SkillMaintenanceGap[] }): ReactElement {
-  return (
-    <section className="rounded-md border bg-card p-4">
-      <p className="text-xs font-semibold uppercase text-muted-foreground">Maintenance Gaps</p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 2xl:grid-cols-5">
+      <div className="divide-y border-y">
         {gaps.map((gap) => (
-          <div key={gap.label} className="min-w-0 rounded-md border px-3 py-2">
-            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">{gap.label}</p>
-              <Badge variant={gapVariant(gap.status)}>{gap.status}</Badge>
-            </div>
-            <p className="mt-2 truncate font-mono text-sm">{gap.value}</p>
+          <div
+            key={gap.label}
+            className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-1 py-2.5"
+          >
+            <p className="min-w-0 truncate [font-family:Inter,sans-serif] text-sm">{gap.label}</p>
+            <p className="max-w-48 truncate font-mono text-[11px] text-muted-foreground">
+              {gap.value}
+            </p>
+            <Badge className="min-w-16 justify-center" variant={gapVariant(gap.status)}>
+              {gap.status}
+            </Badge>
           </div>
         ))}
       </div>
@@ -126,10 +123,58 @@ function MaintenanceGapsPanel({ gaps }: { gaps: SkillMaintenanceGap[] }): ReactE
   );
 }
 
-function openEvalOsForSkill(skillId: string, runId?: string): void {
+function RelationshipList({
+  edges,
+  empty,
+  onSelectSkill,
+  title,
+  target,
+}: {
+  edges: SkillGraphEdge[];
+  empty: string;
+  onSelectSkill: (skillId: string) => void;
+  title: string;
+  target: "source" | "target";
+}): ReactElement {
+  return (
+    <section className="min-w-0 border-t pt-6">
+      <div className="mb-3 flex items-center gap-2 [font-family:Inter,sans-serif] text-sm font-semibold">
+        <GitBranch className="size-4 text-muted-foreground" aria-hidden="true" />
+        {title}
+      </div>
+      <div className="divide-y border-y">
+        {edges.slice(0, 12).map((edge) => {
+          const skillId = edge[target];
+          return (
+            <button
+              key={`${edge.source}-${edge.target}-${edge.type}-${edge.label}`}
+              type="button"
+              className="grid min-h-11 w-full touch-manipulation grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-1 py-2.5 text-left hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              onClick={() => onSelectSkill(skillId)}
+            >
+              <span className="truncate [font-family:Inter,sans-serif] text-sm">
+                {target === "target" ? (edge.target_ref ?? skillId) : skillId}
+              </span>
+              <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                {edge.type === "common-chain" ? "chain" : "ref"}
+              </span>
+            </button>
+          );
+        })}
+        {edges.length === 0 ? (
+          <p className="px-1 py-3 [font-family:Inter,sans-serif] text-sm text-muted-foreground">
+            {empty}
+          </p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function evalOsHref(skillId: string, runId?: string): string {
   const params = new URLSearchParams({ skill: skillId });
   if (runId) params.set("run", runId);
-  window.location.assign(`/evals?${params.toString()}`);
+  return `/evals?${params.toString()}`;
 }
 
 function EvalHistoryPanel({
@@ -143,79 +188,44 @@ function EvalHistoryPanel({
 }): ReactElement {
   const latest = rows[0] ?? null;
   return (
-    <section className="rounded-md border bg-card p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="border-t pt-7">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase text-muted-foreground">Eval History</p>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h4 className="[font-family:Inter,sans-serif] text-sm font-semibold">Eval history</h4>
+          <p className="mt-1 [font-family:Inter,sans-serif] text-xs text-muted-foreground">
             {latest
-              ? `${rows.length} matched run${rows.length === 1 ? "" : "s"} / latest ${formatRunDate(latest.runDate)} / ${formatPercent(latest.passRate ?? undefined)}`
+              ? `${rows.length} run${rows.length === 1 ? "" : "s"} · latest ${formatRunDate(latest.runDate)} · ${formatPercent(latest.passRate ?? undefined)}`
               : status === "loading"
-                ? "Loading eval runs..."
+                ? "Loading eval runs…"
                 : "No eval runs matched this skill yet."}
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => openEvalOsForSkill(skillId)}
-        >
-          <ExternalLink className="size-4" />
-          View all
+        <Button asChild size="sm" variant="ghost">
+          <a href={evalOsHref(skillId)}>
+            View all
+            <ExternalLink className="size-3.5" aria-hidden="true" />
+          </a>
         </Button>
       </div>
-
-      <div className="mt-3 max-h-[24rem] overflow-auto rounded-md border">
-        <div className="grid grid-cols-[minmax(12rem,1fr)_8rem_6rem_6rem_minmax(8rem,0.7fr)] gap-3 border-b px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
-          <span>Run</span>
-          <span>Date</span>
-          <span>Result</span>
-          <span>Tasks</span>
-          <span>Open</span>
-        </div>
-        {rows.map((row) => {
-          const result = row.failedTasks > 0 ? "fail" : row.passedTasks > 0 ? "pass" : "unknown";
-          return (
-            <div
-              key={row.jobId}
-              className="grid grid-cols-[minmax(12rem,1fr)_8rem_6rem_6rem_minmax(8rem,0.7fr)] gap-3 border-b px-3 py-2 text-sm last:border-b-0"
-            >
-              <span className="min-w-0 truncate font-medium">{row.label}</span>
-              <span className="truncate text-xs text-muted-foreground">
-                {formatRunDate(row.runDate)}
-              </span>
-              <span>
-                <Badge
-                  variant={
-                    result === "fail" ? "destructive" : result === "pass" ? "secondary" : "outline"
-                  }
-                >
-                  {result}
-                </Badge>
-              </span>
-              <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                {row.passedTasks}/{row.totalTasks}
-              </span>
-              <span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2"
-                  onClick={() => openEvalOsForSkill(skillId, row.jobId)}
-                >
-                  Detail
-                </Button>
-              </span>
-            </div>
-          );
-        })}
+      <div className="mt-3 divide-y border-y">
+        {rows.map((row) => (
+          <a
+            key={row.jobId}
+            className="grid w-full grid-cols-[minmax(0,1fr)_7rem_5rem] items-center gap-3 px-1 py-2.5 text-left hover:bg-muted/20"
+            href={evalOsHref(skillId, row.jobId)}
+          >
+            <span className="min-w-0 truncate [font-family:Inter,sans-serif] text-sm font-medium">
+              {row.label}
+            </span>
+            <span className="text-xs text-muted-foreground">{formatRunDate(row.runDate)}</span>
+            <span className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+              {row.passedTasks}/{row.totalTasks}
+            </span>
+          </a>
+        ))}
         {rows.length === 0 ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">
-            {status === "error"
-              ? "Eval artifacts are unavailable."
-              : "No past runs reference this skill by id, title, reason, or tags."}
+          <div className="px-1 py-4 [font-family:Inter,sans-serif] text-sm text-muted-foreground">
+            {status === "error" ? "Eval artifacts are unavailable." : "No recorded history yet."}
           </div>
         ) : null}
       </div>
@@ -223,142 +233,32 @@ function EvalHistoryPanel({
   );
 }
 
-function FrontmatterTable({ model }: { model: SkillWorkbenchModel }): ReactElement {
-  if (model.frontmatterEntries.length === 0) return <EmptyRenderer label="frontmatter" />;
-  return (
-    <div className="overflow-hidden rounded-md border">
-      {model.frontmatterEntries.map(([key, value]) => (
-        <div
-          key={key}
-          className="grid min-w-0 grid-cols-[minmax(7rem,11rem)_minmax(0,1fr)] border-b px-3 py-2 text-sm last:border-b-0"
-        >
-          <span className="min-w-0 break-words text-muted-foreground">{key}</span>
-          <span className="min-w-0 whitespace-pre-wrap break-all font-mono text-xs">
-            {typeof value === "object" ? JSON.stringify(value) : String(value)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function FileGraph({
-  activeArtifact,
-  model,
-  onSelectArtifact,
-  evalPath,
-  evalSuite,
-}: {
-  activeArtifact: SkillArtifactKind;
-  model: SkillWorkbenchModel;
-  onSelectArtifact: (artifact: SkillArtifactKind) => void;
-  evalPath?: string;
-  evalSuite?: SkillEvalSuite;
-}): ReactElement {
-  return (
-    <div className="grid min-h-[360px] gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-      <div className="overflow-hidden rounded-md border bg-muted/10 p-4">
-        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground">
-          <GitBranch className="size-3.5" />
-          Skill file graph
-        </div>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-          <button
-            type="button"
-            className={`min-w-0 rounded-md border px-3 py-3 text-left text-foreground shadow-sm ${
-              activeArtifact === "skill" ? "border-primary bg-primary/10" : "bg-background"
-            }`}
-            onClick={() => onSelectArtifact("skill")}
-          >
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <FileCode2 className="size-4" />
-              SKILL.md
-            </div>
-            <div className="mt-1 text-xs text-muted-foreground">source document</div>
-          </button>
-          {model.artifacts
-            .filter((artifact) => artifact.id !== "skill")
-            .map((artifact) => (
-              <button
-                key={artifact.id}
-                type="button"
-                className={`min-w-0 rounded-md border px-3 py-3 text-left text-xs text-foreground shadow-sm ${
-                  activeArtifact === artifact.id
-                    ? "border-primary bg-primary/10"
-                    : "bg-background/95"
-                } ${artifact.available ? "" : "opacity-45"}`}
-                onClick={() => onSelectArtifact(artifact.id)}
-              >
-                <div className="truncate font-semibold">{artifact.label}</div>
-                <div className="mt-1 truncate text-muted-foreground">{artifact.detail}</div>
-              </button>
-            ))}
-        </div>
-      </div>
-
-      <ArtifactViewer
-        activeArtifact={activeArtifact}
-        model={model}
-        evalPath={evalPath}
-        evalSuite={evalSuite}
-      />
-    </div>
-  );
-}
-
-function ArtifactViewer({
-  activeArtifact,
-  model,
-  evalPath,
-  evalSuite,
-}: {
-  activeArtifact: SkillArtifactKind;
-  model: SkillWorkbenchModel;
-  evalPath?: string;
-  evalSuite?: SkillEvalSuite;
-}): ReactElement {
-  if (activeArtifact === "frontmatter") return <FrontmatterTable model={model} />;
-  if (activeArtifact === "todo")
-    return <MarkdownBlock label="todo section">{model.todo}</MarkdownBlock>;
-  if (activeArtifact === "qa")
-    return <MarkdownBlock label="QA tasks">{model.qaTasks}</MarkdownBlock>;
-  if (activeArtifact === "checklist") {
-    return <MarkdownBlock label="checklist">{model.checklist}</MarkdownBlock>;
-  }
-  if (activeArtifact === "references") {
-    return <MarkdownBlock label="references">{model.references}</MarkdownBlock>;
-  }
-  if (activeArtifact === "evals") {
-    return evalSuite && evalPath ? (
-      <SkillEvalSuiteView suite={evalSuite} path={evalPath} />
-    ) : (
-      <EmptyRenderer label="canonical eval suite" />
-    );
-  }
-  if (activeArtifact === "ui") return <MarkdownBlock label="UI hints">{model.ui}</MarkdownBlock>;
-  return <MarkdownBlock label="skill document">{model.raw}</MarkdownBlock>;
-}
-
 export function SkillWorkbench({
+  activeView,
   doc,
   edges,
   invocationCount,
   node,
   onBack,
   onSelectSkill,
+  onViewChange,
   templateIntelligence,
   evalPath,
   evalSuite,
+  fileEntries = [],
 }: {
+  activeView: SkillWorkspaceView;
   doc: SkillDoc | null;
   edges: SkillGraphEdge[];
   invocationCount: number;
   node: SkillGraphNode;
   onBack: () => void;
   onSelectSkill: (skillId: string) => void;
+  onViewChange: (view: SkillWorkspaceView) => void;
   templateIntelligence: SkillTemplateIntelligencePayload | null;
   evalPath?: string;
   evalSuite?: SkillEvalSuite;
+  fileEntries?: SkillStudioFileEntry[];
 }): ReactElement {
   const model = useMemo(
     () =>
@@ -373,153 +273,227 @@ export function SkillWorkbench({
     [doc, edges, invocationCount, node, evalPath, evalSuite],
   );
   const evalHistory = useSkillEvalHistory(node.id);
-  const evalTaskCount = evalSuite?.evals.length ?? 0;
   const scorecard = useMemo(
     () =>
       buildSkillDetailScorecard({
         doc,
         edges,
-        evalTaskCount,
+        evalTaskCount: evalSuite?.evals.length ?? 0,
         invocationCount,
         model,
         node,
         templateIntelligence,
       }),
-    [doc, edges, evalTaskCount, invocationCount, model, node, templateIntelligence],
+    [doc, edges, evalSuite, invocationCount, model, node, templateIntelligence],
   );
-  const [activeArtifact, setActiveArtifact] = useState<SkillArtifactKind>("skill");
+  const hasSelfImprove = hasSelfImproveDirectory(fileEntries);
+  const programPath = fileEntries.find((entry) => entry.path === "self-improve/program.md")?.path;
+  const progressPath = fileEntries.find((entry) => entry.path === "self-improve/progress.md")?.path;
+  const selfImprove = useSkillSelfImprove(node.id, programPath, progressPath);
+  const hasExperiments = hasSelfImprove || Boolean(evalPath || evalSuite);
+  const visibleView = activeView === "experiments" && !hasExperiments ? "overview" : activeView;
+  const latestEntry = selfImprove.projection?.entries.at(-1) ?? null;
+  const latestScoredEntry =
+    selfImprove.projection?.entries
+      .slice()
+      .reverse()
+      .find((entry) => entry.score) ?? null;
 
   return (
-    <div className="absolute inset-4 z-40 grid overflow-hidden rounded-md border bg-background shadow-2xl">
-      <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)]">
-        <div className="flex min-w-0 items-start justify-between gap-4 border-b bg-muted/25 px-4 py-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="min-w-0 break-words text-lg font-semibold">{node.id}</h3>
-              <Badge style={{ backgroundColor: tierColor(node.tier), color: "white" }}>
-                {TIER_LABELS[node.tier ?? 3] ?? "SKILL"}
-              </Badge>
-              <Badge variant="outline">{node.source ?? "local"}</Badge>
-              <Badge variant="secondary">{model.invocationCount} invokes</Badge>
-            </div>
-            <p className="mt-1 break-all text-xs text-muted-foreground">{node.path}</p>
+    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-background">
+      <header className="flex min-w-0 items-center gap-3 border-b px-4 py-2.5 md:px-5">
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          className="size-11 touch-manipulation md:size-8"
+          aria-label="Back to skill graph"
+          onClick={onBack}
+        >
+          <ArrowLeft className="size-4" aria-hidden="true" />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <h2 className="min-w-0 truncate [font-family:Inter,sans-serif] text-base font-semibold tracking-tight">
+              {node.id}
+            </h2>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              {node.source ?? "local"}
+            </span>
+            <span className="text-muted-foreground">·</span>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              {TIER_LABELS[node.tier ?? 3] ?? "SKILL"}
+            </span>
+            <span className="text-muted-foreground">·</span>
+            <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+              {model.invocationCount} invokes
+            </span>
           </div>
-          <Button size="sm" variant="outline" onClick={onBack}>
-            <ArrowLeft className="mr-2 size-4" />
-            Back to graph
-          </Button>
+          <p
+            className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground"
+            title={node.path}
+          >
+            {node.path}
+          </p>
         </div>
+        <span
+          className="hidden size-2.5 shrink-0 md:block"
+          style={{ backgroundColor: tierColor(node.tier) }}
+          aria-hidden="true"
+        />
+      </header>
 
-        <Tabs defaultValue="overview" className="flex min-h-0 flex-col p-4">
-          <TabsList className="w-fit max-w-full flex-wrap justify-start">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="todo">Todo</TabsTrigger>
-            <TabsTrigger value="qa">QA Tasks</TabsTrigger>
-            <TabsTrigger value="checklist">Checklist</TabsTrigger>
-            <TabsTrigger value="references">References</TabsTrigger>
-            <TabsTrigger value="file-graph">File Graph</TabsTrigger>
-            <TabsTrigger value="evals">Evals</TabsTrigger>
-            <TabsTrigger value="ui">UI</TabsTrigger>
-            <TabsTrigger value="raw">Raw Files</TabsTrigger>
+      <Tabs
+        value={visibleView}
+        onValueChange={(value) => onViewChange(value as SkillWorkspaceView)}
+        orientation="vertical"
+        className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-0 md:grid-cols-[13.5rem_minmax(0,1fr)] md:grid-rows-1"
+      >
+        <aside className="min-w-0 border-b bg-muted/[0.08] md:border-b-0 md:border-r">
+          <TabsList
+            className={
+              hasExperiments
+                ? "grid h-auto w-full grid-cols-4 rounded-none bg-transparent p-0 md:grid-cols-1 md:px-3 md:py-4"
+                : "grid h-auto w-full grid-cols-3 rounded-none bg-transparent p-0 md:grid-cols-1 md:px-3 md:py-4"
+            }
+          >
+            {WORKSPACE_NAV.filter((item) => item.value !== "experiments" || hasExperiments).map(
+              (item) => {
+                const Icon = item.icon;
+                return (
+                  <TabsTrigger
+                    key={item.value}
+                    value={item.value}
+                    className="h-11 min-w-0 flex-1 touch-manipulation justify-center gap-1 rounded-none border-b-2 border-l-0 border-b-transparent px-1 [font-family:Inter,sans-serif] text-[11px] text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-primary/[0.06] data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-primary/[0.08] md:h-10 md:w-full md:justify-start md:border-b-0 md:border-l-2 md:px-3 md:text-xs"
+                  >
+                    <Icon className="hidden size-3.5 md:block" aria-hidden={true} />
+                    {item.label}
+                  </TabsTrigger>
+                );
+              },
+            )}
           </TabsList>
 
-          <ScrollArea className="mt-4 min-h-0 flex-1">
-            <TabsContent value="overview" className="m-0 space-y-4">
-              <ScorecardPanel scorecard={scorecard} />
-              <MaintenanceGapsPanel gaps={scorecard.gaps} />
-              <EvalHistoryPanel
-                rows={evalHistory.rows}
-                skillId={node.id}
-                status={evalHistory.status}
+          <div className="hidden px-4 pb-5 md:block">
+            <div className="border-t pt-4">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+                    Health
+                  </p>
+                  <p className="mt-1 font-mono text-2xl font-semibold tabular-nums">
+                    {scorecard.score}
+                  </p>
+                </div>
+                <Activity className="mb-1 size-4 text-primary" aria-hidden="true" />
+              </div>
+              <p className="mt-2 [font-family:Inter,sans-serif] text-xs leading-5 text-muted-foreground">
+                {scorecard.action}
+              </p>
+            </div>
+
+            {hasSelfImprove ? (
+              <div className="mt-5 border-t pt-4">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+                    Latest learning
+                  </p>
+                  {latestScoredEntry?.score ? (
+                    <span className="font-mono text-xs font-semibold tabular-nums text-primary">
+                      {latestScoredEntry.score.display}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-2 line-clamp-4 [font-family:Inter,sans-serif] text-xs leading-5 text-foreground/80">
+                  {selfImprove.status === "loading"
+                    ? "Loading experiment history…"
+                    : latestEntry?.insight || "No experiment insight recorded yet."}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </aside>
+
+        <main
+          data-skill-workspace-scroll
+          className="min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain bg-background"
+        >
+          <TabsContent value="overview" className="m-0 px-5 py-6 md:px-8 md:py-7">
+            <SectionHeading eyebrow="Skill dossier" title="Overview" description={model.summary} />
+            <MaintenanceStatus gaps={scorecard.gaps} />
+            <div className="mt-7 grid gap-7 lg:grid-cols-2">
+              <RelationshipList
+                title="Used by"
+                edges={model.incoming}
+                target="source"
+                empty="No incoming skill links."
+                onSelectSkill={onSelectSkill}
               />
-              <section className="rounded-md border bg-muted/10 p-4">
-                <h4 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
-                  Summary
-                </h4>
-                <p className="text-sm leading-6">{model.summary}</p>
-              </section>
-              <div className="grid gap-3 lg:grid-cols-2">
-                <div className="rounded-md border p-3">
-                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                    <GitBranch className="size-4" />
-                    Outgoing skill links
-                  </div>
-                  <div className="space-y-2">
-                    {model.outgoing.slice(0, 12).map((edge) => (
-                      <button
-                        key={`${edge.source}-${edge.target}-${edge.type}-${edge.label}`}
-                        type="button"
-                        className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-md border px-3 py-2 text-left text-sm hover:bg-muted/30"
-                        onClick={() => onSelectSkill(edge.target)}
-                      >
-                        <span className="truncate">{edge.target_ref ?? edge.target}</span>
-                        <Badge variant={edge.type === "common-chain" ? "secondary" : "outline"}>
-                          {edge.type === "common-chain" ? "chain" : "ref"}
-                        </Badge>
-                      </button>
-                    ))}
-                    {model.outgoing.length === 0 ? <EmptyRenderer label="outgoing links" /> : null}
-                  </div>
-                </div>
-                <div className="rounded-md border p-3">
-                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                    <ListChecks className="size-4" />
-                    Extracted task signals
-                  </div>
-                  <div className="grid gap-2 text-sm">
-                    {model.artifacts.slice(2, 8).map((artifact) => (
-                      <div
-                        key={artifact.id}
-                        className="grid grid-cols-[minmax(0,1fr)_auto] rounded-md border px-3 py-2"
-                      >
-                        <span className="truncate">{artifact.label}</span>
-                        <Badge variant={artifact.available ? "secondary" : "outline"}>
-                          {artifact.available ? "found" : "empty"}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              <RelationshipList
+                title="Uses"
+                edges={model.outgoing}
+                target="target"
+                empty="No outgoing skill links."
+                onSelectSkill={onSelectSkill}
+              />
+            </div>
+          </TabsContent>
+          <TabsContent value="runbook" className="m-0 px-5 py-6 md:px-8 md:py-7">
+            <SectionHeading
+              eyebrow="Operating procedure"
+              title="Runbook"
+              description="Execute the skill in order, then apply its declared quality gates before claiming completion."
+            />
+            <SkillRunbookPanel
+              doc={doc}
+              fileEntries={fileEntries}
+              model={model}
+              skillId={node.id}
+            />
+          </TabsContent>
+          {hasExperiments ? (
+            <TabsContent value="experiments" className="m-0 px-5 py-6 md:px-8 md:py-7">
+              <SectionHeading
+                eyebrow="Learning loop"
+                title="Experiments"
+                description="Follow the score trajectory, inspect each decision, and open the evidence behind meaningful changes."
+              />
+              <div className="grid gap-7">
+                {hasSelfImprove ? (
+                  <SkillSelfImprovePanel
+                    key={node.id}
+                    programPath={programPath}
+                    progressPath={progressPath}
+                    skillId={node.id}
+                    state={selfImprove}
+                  />
+                ) : null}
+                {evalSuite && evalPath ? (
+                  <SkillEvalSuiteView suite={evalSuite} path={evalPath} />
+                ) : (
+                  <EmptyState>No canonical eval suite is available.</EmptyState>
+                )}
+                <EvalHistoryPanel
+                  rows={evalHistory.rows}
+                  skillId={node.id}
+                  status={evalHistory.status}
+                />
               </div>
             </TabsContent>
-
-            <TabsContent value="todo" className="m-0">
-              <MarkdownBlock label="todo section">{model.todo}</MarkdownBlock>
-            </TabsContent>
-            <TabsContent value="qa" className="m-0">
-              <MarkdownBlock label="QA tasks">{model.qaTasks}</MarkdownBlock>
-            </TabsContent>
-            <TabsContent value="checklist" className="m-0">
-              <MarkdownBlock label="checklist">{model.checklist}</MarkdownBlock>
-            </TabsContent>
-            <TabsContent value="references" className="m-0">
-              <MarkdownBlock label="references">{model.references}</MarkdownBlock>
-            </TabsContent>
-            <TabsContent value="file-graph" className="m-0">
-              <FileGraph
-                activeArtifact={activeArtifact}
-                model={model}
-                onSelectArtifact={setActiveArtifact}
-                evalPath={evalPath}
-                evalSuite={evalSuite}
-              />
-            </TabsContent>
-            <TabsContent value="evals" className="m-0">
-              {evalSuite && evalPath ? (
-                <SkillEvalSuiteView suite={evalSuite} path={evalPath} />
-              ) : (
-                <EmptyRenderer label="canonical eval suite" />
-              )}
-            </TabsContent>
-            <TabsContent value="ui" className="m-0">
-              <MarkdownBlock label="UI hints">{model.ui}</MarkdownBlock>
-            </TabsContent>
-            <TabsContent value="raw" className="m-0">
-              <ArtifactViewer activeArtifact="raw" model={model} />
-            </TabsContent>
-          </ScrollArea>
-        </Tabs>
-      </div>
+          ) : null}
+          <TabsContent value="files" className="m-0 px-5 py-6 md:px-8 md:py-7">
+            <SectionHeading
+              eyebrow="Source inventory"
+              title="Files"
+              description="Inspect the declared skill package without leaving the dossier."
+            />
+            <SkillFilesPanel
+              fallbackSkillMarkdown={model.raw}
+              fileEntries={fileEntries}
+              skillId={node.id}
+            />
+          </TabsContent>
+        </main>
+      </Tabs>
     </div>
   );
 }

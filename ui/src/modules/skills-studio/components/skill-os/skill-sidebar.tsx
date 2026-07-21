@@ -6,13 +6,18 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { tierColor } from "./skill-os-constants";
 import type { SkillGraphNode } from "./skill-os-types";
 
+export type SkillGraphFilter = "all" | "needs-care" | "evaluated";
+
 export function SkillSidebar({
+  activeFilter,
   activeTiers,
   edgeCount,
   graphNodeCount,
+  totalNodeCount,
   getInvocationCount,
   nodes,
   onQueryChange,
+  onFilterChange,
   onSelectSkill,
   onShowChainsChange,
   onShowExternalChange,
@@ -24,12 +29,15 @@ export function SkillSidebar({
   showExternal,
   showRefs,
 }: {
+  activeFilter: SkillGraphFilter;
   activeTiers: Set<number>;
   edgeCount: number;
   getInvocationCount: (skillId: string) => number;
   graphNodeCount: number;
+  totalNodeCount: number;
   nodes: SkillGraphNode[];
   onQueryChange: (query: string) => void;
+  onFilterChange: (filter: SkillGraphFilter) => void;
   onSelectSkill: (skillId: string) => void;
   onShowChainsChange: (enabled: boolean) => void;
   onShowExternalChange: (enabled: boolean) => void;
@@ -45,15 +53,37 @@ export function SkillSidebar({
     <aside className="flex min-h-0 flex-col border-r bg-muted/15">
       <div className="space-y-3 border-b p-4">
         <div className="flex items-center gap-2">
-          <Search className="h-4 w-4 text-muted-foreground" />
+          <Search className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           <input
-            className="h-9 min-w-0 flex-1 rounded-md border bg-background px-3 font-mono text-sm outline-none focus:border-primary"
+            className="h-9 min-w-0 flex-1 rounded-md border bg-background px-3 font-mono text-sm outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="Locate skill"
+            placeholder="Search skills…"
+            aria-label="Search skills"
+            name="skill-search"
+            autoComplete="off"
+            spellCheck={false}
           />
         </div>
         <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ["all", "All"],
+              ["needs-care", "Needs care"],
+              ["evaluated", "Evaluated"],
+            ] as const
+          ).map(([filter, label]) => (
+            <button
+              key={filter}
+              type="button"
+              className={`rounded-md border px-2 py-1 text-xs ${activeFilter === filter ? "border-primary bg-primary/10 text-foreground" : "text-muted-foreground"}`}
+              onClick={() => onFilterChange(filter)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2 border-t pt-3">
           {[1, 2, 3].map((tier) => (
             <button
               key={tier}
@@ -134,7 +164,10 @@ export function SkillSidebar({
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-md border p-2">
             <p className="uppercase text-muted-foreground">nodes</p>
-            <p className="text-lg font-semibold">{graphNodeCount}</p>
+            <p className="text-lg font-semibold">
+              {graphNodeCount}
+              <span className="text-xs font-normal text-muted-foreground"> / {totalNodeCount}</span>
+            </p>
           </div>
           <div className="rounded-md border p-2">
             <p className="uppercase text-muted-foreground">edges</p>

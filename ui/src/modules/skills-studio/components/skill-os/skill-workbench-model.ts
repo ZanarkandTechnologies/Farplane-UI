@@ -106,9 +106,9 @@ export function buildSkillWorkbenchModel({
 }): SkillWorkbenchModel {
   const body = doc?.body ?? "";
   const checklistSection = extractHeadingSection(body, /checklist|done\s*\/\s*proof/i);
-  const checklist = checklistSection || extractChecklistLines(body);
-  const todo = extractHeadingSection(body, /todo|task|program/i) || extractChecklistLines(body);
-  const qaTasks = extractHeadingSection(body, /qa|test|proof|evidence/i);
+  const checklist = checklistSection;
+  const todo = extractHeadingSection(body, /todo\s*list|runbook|program/i);
+  const qaTasks = extractHeadingSection(body, /qa\s*tasks?|test\s*plan|proof\s*tasks?/i);
   const references = [
     extractHeadingSection(body, /reference|source|link/i),
     extractMarkdownLinks(body),

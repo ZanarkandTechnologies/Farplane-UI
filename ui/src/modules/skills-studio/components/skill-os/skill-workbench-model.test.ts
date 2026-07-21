@@ -36,7 +36,7 @@ describe("buildSkillWorkbenchModel", () => {
 
     expect(model.invocationCount).toBe(7);
     expect(model.todo).toContain("Write implementation");
-    expect(model.checklist).toContain("Keep proof");
+    expect(model.checklist).toBe("");
     expect(model.references).toContain("https://example.com");
     expect(model.outgoing).toHaveLength(1);
     expect(model.artifacts.find((artifact) => artifact.id === "todo")?.available).toBe(true);
@@ -48,5 +48,32 @@ describe("buildSkillWorkbenchModel", () => {
       available: true,
       detail: "evals/evals.json",
     });
+  });
+
+  it("keeps steps, explicit QA tasks, and checklists distinct", () => {
+    const model = buildSkillWorkbenchModel({
+      doc: {
+        body: [
+          "# Example",
+          "",
+          "## Todo List",
+          "- [ ] Build it",
+          "",
+          "## QA Tasks",
+          "- [ ] Prove it",
+          "",
+          "## Checklist",
+          "- [ ] Ship it",
+        ].join("\n"),
+      },
+      edges: [],
+      invocationCount: 0,
+      node: { id: "example" },
+    });
+
+    expect(model.todo).toContain("Build it");
+    expect(model.todo).not.toContain("Ship it");
+    expect(model.qaTasks).toContain("Prove it");
+    expect(model.checklist).toContain("Ship it");
   });
 });

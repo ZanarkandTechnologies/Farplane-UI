@@ -3,7 +3,8 @@
 - Keep skill metadata parsing, normalization, and serialization here.
 - Runtime skill inventory models come from `modules/runtime`.
 - Office UI panels may import from this module, but skill file semantics should stay here.
-- Skill OS top-level tabs are Workbench, Rollout, Templates, and Signals. Rollout owns feature
-  coverage; Templates owns version history; Signals owns heat, invocations, tier, template status,
-  and core workflow relevance. Do not move skill rollout into Harness OS; Harness OS can link to
-  this module instead.
+- Skill OS has one graph home and one mutually exclusive selected-skill workspace. The graph owns
+  discovery and maintenance filters. A selected skill exposes Overview, Runbook, conditional
+  Experiments, and Files. Keep declared QA checklists distinct from SKILL.md Todo and QA Tasks.
+- Template rollout and signal data may inform graph filters and skill status, but do not recreate
+  separate top-level dashboards unless they gain a concrete operator action.

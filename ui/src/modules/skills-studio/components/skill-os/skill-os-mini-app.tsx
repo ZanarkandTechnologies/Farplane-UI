@@ -3,57 +3,74 @@
 /**
  * SKILL OS MINI APP
  * =================
- * Graph-first Skill OS surface adapted from the Skill Maintenance graph viewer.
- *
- * Inputs: skill graph/doc JSON endpoints from the Codex skill-maintenance graph package.
- * Outputs: a standalone Farplane panel with sidebar/node selection sync and graph overlay detail.
- * Side effects: fetches static graph assets; no writes.
- * Invariants: Skill OS renders skill-to-skill graph data only, not eval/harness-wide nodes.
+ * Graph-first Skill OS with a focused, mutually exclusive selected-skill workspace.
+ * The graph owns discovery; skill details own maintenance, experiments, and files.
  */
 
 import { type ReactElement, useMemo, useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SkillDetailOverlay } from "./skill-detail-overlay";
+import { useSearchParams } from "react-router-dom";
 import { SkillGraphCanvas } from "./skill-graph-canvas";
 import { buildForceGraphLayout } from "./skill-graph-layout";
-import { SkillOsSignalsTab } from "./skill-os-signals-tab";
-import { SkillOsRolloutTab, SkillOsTemplatesTab } from "./skill-os-standards-tab";
+import type { SkillGraphFilter } from "./skill-sidebar";
 import { SkillSidebar } from "./skill-sidebar";
-import { SkillWorkbench } from "./skill-workbench";
+import { SkillWorkbench, type SkillWorkspaceView } from "./skill-workbench";
 import { useSkillGraphData } from "./use-skill-graph-data";
 import { useSkillInvocationCounts } from "./use-skill-invocation-counts";
 import { useSkillStudioDetail } from "./use-skill-studio-detail";
 
-type SkillOsTab = "workbench" | "rollout" | "templates" | "signals";
-
 export function SkillOsMiniApp({
-  initialTab = "workbench",
+  initialFilter = "all",
 }: {
-  initialTab?: SkillOsTab;
+  initialFilter?: SkillGraphFilter;
 }): ReactElement {
-  const {
-    docs,
-    error,
-    frameworkCoreGraph,
-    graph,
-    templateIntelligence,
-    templateIntelligenceError,
-  } = useSkillGraphData();
-  const [activeOsTab, setActiveOsTab] = useState<SkillOsTab>(initialTab);
+  const { docs, error, graph, templateIntelligence } = useSkillGraphData();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState("");
-  const [selectedSkillId, setSelectedSkillId] = useState("");
   const [showChains, setShowChains] = useState(true);
   const [showRefs, setShowRefs] = useState(true);
   const [showExternal, setShowExternal] = useState(true);
   const [activeTiers, setActiveTiers] = useState<Set<number>>(() => new Set([1, 2, 3]));
-  const [fullPage, setFullPage] = useState(false);
-  const invocationState = useSkillInvocationCounts(
-    activeOsTab === "workbench" || activeOsTab === "signals",
-  );
+  const invocationState = useSkillInvocationCounts(true);
+  const selectedSkillId = searchParams.get("skill") ?? "";
+  const filterParam = searchParams.get("filter");
+  const maintenanceFilter: SkillGraphFilter =
+    filterParam === "needs-care" || filterParam === "evaluated" || filterParam === "all"
+      ? filterParam
+      : initialFilter;
+  const viewParam = searchParams.get("view");
+  const workspaceView: SkillWorkspaceView =
+    viewParam === "runbook" || viewParam === "experiments" || viewParam === "files"
+      ? viewParam
+      : "overview";
+
+  function updateSearchParams(update: (next: URLSearchParams) => void, replace = true): void {
+    const next = new URLSearchParams(searchParams);
+    update(next);
+    setSearchParams(next, { replace });
+  }
+
+  function selectSkill(skillId: string): void {
+    updateSearchParams((next) => {
+      next.set("skill", skillId);
+      next.set("view", "overview");
+    }, false);
+  }
+
+  function closeSkill(): void {
+    updateSearchParams((next) => {
+      next.delete("skill");
+      next.delete("view");
+    });
+  }
 
   function getInvocationCount(skillId: string): number {
     return invocationState.countBySkill.get(skillId) ?? 0;
   }
+
+  const rolloutBySkill = useMemo(
+    () => new Map((templateIntelligence?.rollout ?? []).map((row) => [row.skill_id, row])),
+    [templateIntelligence],
+  );
 
   const graphNodes = useMemo(() => {
     if (!graph) return [];
@@ -61,9 +78,17 @@ export function SkillOsMiniApp({
       const tier = node.tier ?? 3;
       if (!activeTiers.has(tier)) return false;
       if (!showExternal && node.source === "external") return false;
+      if (maintenanceFilter === "evaluated") return Boolean(node.eval);
+      if (maintenanceFilter === "needs-care") {
+        if (node.source === "external") return false;
+        const status = rolloutBySkill.get(node.id)?.status;
+        const qaChecklist = docs?.skills[node.id]?.frontmatter?.qa_checklist;
+        const hasQa = typeof qaChecklist === "string" && qaChecklist.trim().length > 0;
+        return !node.eval || !hasQa || status === "missing" || status === "stale";
+      }
       return true;
     });
-  }, [activeTiers, graph, showExternal]);
+  }, [activeTiers, docs, graph, maintenanceFilter, rolloutBySkill, showExternal]);
 
   const queryMatches = useMemo(() => {
     const lowerQuery = query.trim().toLowerCase();
@@ -85,36 +110,28 @@ export function SkillOsMiniApp({
       graphNodes
         .filter((node) => queryMatches.has(node.id))
         .slice()
-        .sort((left, right) => left.id.localeCompare(right.id)),
+        .sort((a, b) => a.id.localeCompare(b.id)),
     [graphNodes, queryMatches],
   );
-
-  const baseLayout = useMemo(() => {
-    if (!graph) return null;
-    return buildForceGraphLayout(graph, graphNodes);
-  }, [graphNodes, graph]);
-
-  const layout = useMemo(() => {
-    if (!baseLayout) return null;
-    return {
-      ...baseLayout,
-      edges: baseLayout.edges.filter((edge) =>
-        edge.type === "common-chain" ? showChains : showRefs,
-      ),
-    };
-  }, [baseLayout, showChains, showRefs]);
-
-  const selectedNode =
-    layout?.nodes.find((node) => node.id === selectedSkillId) ??
-    graph?.nodes.find((node) => node.id === selectedSkillId) ??
-    null;
+  const baseLayout = useMemo(
+    () => (graph ? buildForceGraphLayout(graph, graphNodes) : null),
+    [graph, graphNodes],
+  );
+  const layout = useMemo(
+    () =>
+      baseLayout
+        ? {
+            ...baseLayout,
+            edges: baseLayout.edges.filter((edge) =>
+              edge.type === "common-chain" ? showChains : showRefs,
+            ),
+          }
+        : null,
+    [baseLayout, showChains, showRefs],
+  );
+  const selectedNode = graph?.nodes.find((node) => node.id === selectedSkillId) ?? null;
   const selectedDoc = selectedNode ? (docs?.skills[selectedNode.id] ?? null) : null;
   const selectedDetail = useSkillStudioDetail(selectedNode?.id ?? "");
-
-  function selectSkill(skillId: string): void {
-    setSelectedSkillId(skillId);
-    setFullPage(false);
-  }
 
   function toggleTier(tier: number): void {
     setActiveTiers((current) => {
@@ -125,128 +142,84 @@ export function SkillOsMiniApp({
     });
   }
 
-  if (error) {
+  if (error)
     return (
       <div className="flex h-full items-center justify-center rounded-md border border-dashed text-sm text-destructive">
         {error}
       </div>
     );
-  }
-
-  if (!graph || !layout) {
+  if (!graph)
     return (
       <div className="flex h-full items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
-        Loading Skill OS graph...
+        Loading Skill OS graph…
       </div>
+    );
+
+  if (selectedNode) {
+    return (
+      <SkillWorkbench
+        doc={selectedDoc}
+        edges={graph.edges}
+        invocationCount={getInvocationCount(selectedNode.id)}
+        node={selectedNode}
+        activeView={workspaceView}
+        onBack={closeSkill}
+        onSelectSkill={selectSkill}
+        onViewChange={(view) => updateSearchParams((next) => next.set("view", view))}
+        templateIntelligence={templateIntelligence}
+        evalPath={selectedDetail?.evalPath ?? selectedNode.eval}
+        evalSuite={selectedDetail?.evalSuite}
+        fileEntries={selectedDetail?.fileEntries}
+      />
     );
   }
 
+  if (!layout)
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        Preparing graph…
+      </div>
+    );
+
   return (
-    <Tabs
-      value={activeOsTab}
-      onValueChange={(value) => setActiveOsTab(value as SkillOsTab)}
-      className="flex h-full min-h-0 flex-col overflow-hidden"
-    >
-      <TabsList className="mb-3 w-fit max-w-full flex-wrap justify-start">
-        <TabsTrigger value="workbench">Workbench</TabsTrigger>
-        <TabsTrigger value="rollout">Rollout</TabsTrigger>
-        <TabsTrigger value="templates">Templates</TabsTrigger>
-        <TabsTrigger value="signals">Signals</TabsTrigger>
-      </TabsList>
-
-      <TabsContent value="workbench" className="m-0 min-h-0 flex-1">
-        <div className="grid h-full min-h-0 grid-cols-[20rem_minmax(0,1fr)] overflow-hidden rounded-md border bg-background">
-          <SkillSidebar
-            activeTiers={activeTiers}
-            edgeCount={layout.edges.length}
-            getInvocationCount={getInvocationCount}
-            graphNodeCount={graphNodes.length}
-            nodes={sidebarNodes}
-            onQueryChange={setQuery}
-            onSelectSkill={selectSkill}
-            onShowChainsChange={setShowChains}
-            onShowExternalChange={setShowExternal}
-            onShowRefsChange={setShowRefs}
-            onToggleTier={toggleTier}
-            query={query}
-            selectedSkillId={selectedSkillId}
-            showChains={showChains}
-            showExternal={showExternal}
-            showRefs={showRefs}
-          />
-
-          <main className="relative min-h-0 overflow-hidden bg-[radial-gradient(circle_at_center,hsl(var(--muted))_1px,transparent_1px)] [background-size:18px_18px]">
-            <SkillGraphCanvas
-              edgeCount={graph.counts?.edges ?? graph.edges.length}
-              graphNodeCount={graph.counts?.nodes ?? graph.nodes.length}
-              layout={layout}
-              onSelectSkill={selectSkill}
-              query={query}
-              queryMatches={queryMatches}
-              selectedSkillId={selectedSkillId}
-            />
-
-            {selectedNode && fullPage ? (
-              <SkillWorkbench
-                doc={selectedDoc}
-                edges={graph.edges}
-                invocationCount={getInvocationCount(selectedNode.id)}
-                node={selectedNode}
-                onBack={() => setFullPage(false)}
-                onSelectSkill={selectSkill}
-                templateIntelligence={templateIntelligence}
-                evalPath={selectedDetail?.evalPath ?? selectedNode.eval}
-                evalSuite={selectedDetail?.evalSuite}
-              />
-            ) : null}
-
-            {selectedNode && !fullPage ? (
-              <SkillDetailOverlay
-                doc={selectedDoc}
-                edges={graph.edges}
-                fullPage={fullPage}
-                invocationCount={getInvocationCount(selectedNode.id)}
-                node={selectedNode}
-                onClose={() => {
-                  setSelectedSkillId("");
-                  setFullPage(false);
-                }}
-                onOpenFullPage={() => setFullPage(true)}
-                onSelectSkill={selectSkill}
-                evalCount={selectedDetail?.evalSuite?.evals.length ?? 0}
-                evalPath={selectedDetail?.evalPath ?? selectedNode.eval}
-              />
-            ) : null}
-          </main>
-        </div>
-      </TabsContent>
-
-      <TabsContent value="rollout" className="m-0 min-h-0 flex-1">
-        <SkillOsRolloutTab
-          docs={docs}
-          nodes={graph.nodes}
-          templateError={templateIntelligenceError}
-          templateIntelligence={templateIntelligence}
+    <div className="grid h-full min-h-0 grid-cols-[19rem_minmax(0,1fr)] overflow-hidden rounded-md border bg-background">
+      <SkillSidebar
+        activeFilter={maintenanceFilter}
+        activeTiers={activeTiers}
+        edgeCount={layout.edges.length}
+        getInvocationCount={getInvocationCount}
+        graphNodeCount={graphNodes.length}
+        totalNodeCount={graph.nodes.length}
+        nodes={sidebarNodes}
+        onFilterChange={(filter) =>
+          updateSearchParams((next) => {
+            if (filter === initialFilter) next.delete("filter");
+            else next.set("filter", filter);
+          })
+        }
+        onQueryChange={setQuery}
+        onSelectSkill={selectSkill}
+        onShowChainsChange={setShowChains}
+        onShowExternalChange={setShowExternal}
+        onShowRefsChange={setShowRefs}
+        onToggleTier={toggleTier}
+        query={query}
+        selectedSkillId=""
+        showChains={showChains}
+        showExternal={showExternal}
+        showRefs={showRefs}
+      />
+      <main className="relative min-h-0 overflow-hidden bg-[radial-gradient(circle_at_center,hsl(var(--muted))_1px,transparent_1px)] [background-size:18px_18px]">
+        <SkillGraphCanvas
+          edgeCount={graph.counts?.edges ?? graph.edges.length}
+          graphNodeCount={graph.counts?.nodes ?? graph.nodes.length}
+          layout={layout}
+          onSelectSkill={selectSkill}
+          query={query}
+          queryMatches={queryMatches}
+          selectedSkillId=""
         />
-      </TabsContent>
-
-      <TabsContent value="templates" className="m-0 min-h-0 flex-1">
-        <SkillOsTemplatesTab
-          docs={docs}
-          nodes={graph.nodes}
-          templateError={templateIntelligenceError}
-          templateIntelligence={templateIntelligence}
-        />
-      </TabsContent>
-
-      <TabsContent value="signals" className="m-0 min-h-0 flex-1">
-        <SkillOsSignalsTab
-          frameworkCoreGraph={frameworkCoreGraph}
-          invocationState={invocationState}
-          nodes={graph.nodes}
-          templateIntelligence={templateIntelligence}
-        />
-      </TabsContent>
-    </Tabs>
+      </main>
+    </div>
   );
 }
