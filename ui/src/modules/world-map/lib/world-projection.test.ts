@@ -1,10 +1,15 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { filterWorldNodes, parseWorldProjection, worldGeoJson } from "./world-projection";
+import {
+  filterWorldEdges,
+  filterWorldNodes,
+  parseWorldProjection,
+  worldGeoJson,
+} from "./world-projection";
 
 const fixture = JSON.parse(
-  readFileSync(path.resolve(__dirname, "../fixtures/project/.farplane/crm/world.json"), "utf8"),
+  readFileSync(path.resolve(__dirname, "../fixtures/project/.farplane/entities/world.json"), "utf8"),
 ) as unknown;
 
 describe("world projection", () => {
@@ -18,11 +23,39 @@ describe("world projection", () => {
     expect(projection.nodes).toHaveLength(3);
     expect(projection.nodes[0].metadata.industry).toBe("industrial-components");
     expect(projection.edges[0].context).toContain("supplies aluminum housings");
-    expect(projection.edges[0].context).toContain("[Acme Motors](crm:acme-motors)");
+    expect(projection.edges[0].context).toContain("[Acme Motors](entity:acme-motors)");
     expect(projection.edges[0].displayContext).toContain(
       "supplies aluminum housings to Acme Motors",
     );
-    expect(projection.edges[0].displayContext).not.toContain("crm:");
+    expect(projection.edges[0].displayContext).not.toContain("entity:");
+    expect(projection.views).toEqual([
+      {
+        id: "malaysia-suppliers",
+        name: "Malaysia Suppliers",
+        entityIds: ["penang-castings", "precision-alloys"],
+      },
+    ]);
+  });
+
+  it("combines named-view membership with ordinary filters and removes orphaned edges", () => {
+    const projection = parseWorldProjection(fixture);
+    const nodes = filterWorldNodes(
+      projection.nodes,
+      { query: "", kind: "all", location: "Malaysia", viewId: "malaysia-suppliers" },
+      projection.views,
+    );
+    expect(nodes.map((node) => node.entityId)).toEqual([
+      "penang-castings",
+      "precision-alloys",
+    ]);
+    expect(filterWorldEdges(projection.edges, nodes)).toEqual([]);
+    expect(
+      filterWorldNodes(
+        projection.nodes,
+        { query: "", kind: "all", location: "", viewId: "all" },
+        projection.views,
+      ),
+    ).toHaveLength(3);
   });
 
   it("filters names, aliases, kinds, and locations while retaining unlocated matches", () => {
@@ -66,14 +99,14 @@ describe("world projection", () => {
       project: { project_id: "fixture" },
       nodes: [],
       edges: [],
-      issues: [{ path: ".farplane/crm/entities/acme.md", reason: "unresolved_crm_link:missing" }],
+      issues: [{ path: ".farplane/entities/acme.md", reason: "unresolved_entity_link:missing" }],
     });
 
     expect(projection.issues).toEqual([
       {
-        code: "unresolved_crm_link:missing",
-        message: "unresolved_crm_link:missing",
-        path: ".farplane/crm/entities/acme.md",
+        code: "unresolved_entity_link:missing",
+        message: "unresolved_entity_link:missing",
+        path: ".farplane/entities/acme.md",
       },
     ]);
   });

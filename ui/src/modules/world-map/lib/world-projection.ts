@@ -13,6 +13,7 @@ import type {
   WorldNode,
   WorldPointFeature,
   WorldProjection,
+  WorldView,
 } from "../types";
 
 type UnknownRecord = Record<string, unknown>;
@@ -93,7 +94,7 @@ function parseEdge(value: unknown, fallbackProjectId: string): WorldEdge | null 
   const context = text(row.context, row.sentence, row.description);
   const displayContext =
     text(row.display_context, row.displayContext) ||
-    context.replace(/\[([^\]]+)\]\(crm:[^)]+\)/g, "$1");
+    context.replace(/\[([^\]]+)\]\(entity:[^)]+\)/g, "$1");
   const key = text(row.key, row.edge_key, row.qualified_id, `${sourceKey}->${targetKey}`);
   if (!key || !sourceKey || !targetKey || !context) return null;
   return {
@@ -123,6 +124,15 @@ function parseIssue(value: unknown): WorldIssue | null {
   };
 }
 
+function parseView(value: unknown): WorldView | null {
+  const row = record(value);
+  const id = text(row.id, row.view_id, row.viewId);
+  const name = text(row.name, row.label);
+  const entityIds = stringArray(row.entity_ids ?? row.entityIds);
+  if (!id || !name || !entityIds.length) return null;
+  return { id, name, entityIds };
+}
+
 export function parseWorldProjection(input: unknown): WorldProjection {
   const root = record(input);
   const projectRow = record(root.project);
@@ -148,6 +158,9 @@ export function parseWorldProjection(input: unknown): WorldProjection {
   const issues = (Array.isArray(root.issues) ? root.issues : [])
     .map(parseIssue)
     .filter((row): row is WorldIssue => row !== null);
+  const views = (Array.isArray(root.views) ? root.views : [])
+    .map(parseView)
+    .filter((row): row is WorldView => row !== null);
   return {
     schemaVersion: text(root.schema_version, root.schemaVersion, root.version, "1"),
     generatedAt: text(root.generated_at, root.generatedAt) || undefined,
@@ -158,6 +171,7 @@ export function parseWorldProjection(input: unknown): WorldProjection {
     },
     nodes,
     edges,
+    views,
     issues,
     stale: root.stale === true,
   };
@@ -176,10 +190,20 @@ export function hasCoordinates(
   );
 }
 
-export function filterWorldNodes(nodes: WorldNode[], filters: WorldFilters): WorldNode[] {
+export function filterWorldNodes(
+  nodes: WorldNode[],
+  filters: WorldFilters,
+  views: WorldView[] = [],
+): WorldNode[] {
   const query = filters.query.trim().toLocaleLowerCase();
   const location = filters.location.trim().toLocaleLowerCase();
+  const selectedView =
+    filters.viewId && filters.viewId !== "all"
+      ? views.find((view) => view.id === filters.viewId)
+      : undefined;
+  const viewEntityIds = selectedView ? new Set(selectedView.entityIds) : null;
   return nodes.filter((node) => {
+    if (viewEntityIds && !viewEntityIds.has(node.entityId)) return false;
     if (filters.kind && filters.kind !== "all" && node.kind !== filters.kind) return false;
     if (location && !(node.location ?? "").toLocaleLowerCase().includes(location)) return false;
     if (!query) return true;
@@ -188,6 +212,13 @@ export function filterWorldNodes(nodes: WorldNode[], filters: WorldFilters): Wor
       .toLocaleLowerCase()
       .includes(query);
   });
+}
+
+export function filterWorldEdges(edges: WorldEdge[], nodes: WorldNode[]): WorldEdge[] {
+  const visibleKeys = new Set(nodes.map((node) => node.key));
+  return edges.filter(
+    (edge) => visibleKeys.has(edge.sourceKey) && visibleKeys.has(edge.targetKey),
+  );
 }
 
 export function worldGeoJson(

@@ -14,7 +14,7 @@ import {
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
 import { useWorldProjection } from "../hooks/use-world-projection";
-import { filterWorldNodes, hasCoordinates } from "../lib/world-projection";
+import { filterWorldEdges, filterWorldNodes, hasCoordinates } from "../lib/world-projection";
 import type { WorldEdge, WorldNode, WorldSelection } from "../types";
 import { WorldMapCanvas } from "./world-map-canvas";
 
@@ -128,6 +128,7 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState("all");
   const [location, setLocation] = useState("");
+  const [viewId, setViewId] = useState("all");
   const [selection, setSelection] = useState<WorldSelection>(null);
   const projects = useMemo(
     () =>
@@ -144,20 +145,32 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
     if (open && !selectedProjectId && projects[0]) setSelectedProjectId(projects[0].id);
   }, [open, projects, selectedProjectId, setSelectedProjectId]);
 
+  useEffect(() => {
+    setSelection(null);
+    setViewId("all");
+  }, [project?.id]);
+
+  useEffect(() => {
+    if (
+      projection &&
+      viewId !== "all" &&
+      !projection.views.some((view) => view.id === viewId)
+    ) {
+      setSelection(null);
+      setViewId("all");
+    }
+  }, [projection, viewId]);
+
   const filteredNodes = useMemo(
-    () => (projection ? filterWorldNodes(projection.nodes, { query, kind, location }) : []),
-    [kind, location, projection, query],
-  );
-  const visibleKeys = useMemo(
-    () => new Set(filteredNodes.map((node) => node.key)),
-    [filteredNodes],
+    () =>
+      projection
+        ? filterWorldNodes(projection.nodes, { query, kind, location, viewId }, projection.views)
+        : [],
+    [kind, location, projection, query, viewId],
   );
   const filteredEdges = useMemo(
-    () =>
-      projection?.edges.filter(
-        (edge) => visibleKeys.has(edge.sourceKey) && visibleKeys.has(edge.targetKey),
-      ) ?? [],
-    [projection?.edges, visibleKeys],
+    () => (projection ? filterWorldEdges(projection.edges, filteredNodes) : []),
+    [filteredNodes, projection],
   );
   const kinds = useMemo(
     () => [...new Set((projection?.nodes ?? []).map((node) => node.kind))].sort(),
@@ -195,6 +208,27 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
                 ))}
               </SelectContent>
             </Select>
+            {projection?.views.length ? (
+              <Select
+                value={viewId}
+                onValueChange={(value) => {
+                  setSelection(null);
+                  setViewId(value);
+                }}
+              >
+                <SelectTrigger aria-label="Select entity view" size="sm" className="min-w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All entities</SelectItem>
+                  {projection.views.map((view) => (
+                    <SelectItem key={view.id} value={view.id}>
+                      {view.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
             {projection ? (
               <div
                 aria-live="polite"
@@ -265,7 +299,7 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
               <LocateOff aria-hidden="true" className="mx-auto size-8 text-muted-foreground" />
               <div className="mt-3 text-sm font-medium">No world data yet</div>
               <div className="mt-1 max-w-md text-xs leading-5 text-muted-foreground">
-                Capture useful research with ingest-world-data, then compile the project CRM.
+                Capture useful research with ingest-world-data, then compile project entities.
               </div>
             </div>
           </div>

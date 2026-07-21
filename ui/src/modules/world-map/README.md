@@ -1,18 +1,20 @@
 # World Map
 
-Project-scoped Command Center module for inspecting generated CRM entities and
-sentence-backed associations geographically.
+Project-scoped Command Center module for inspecting canonical entities and
+sentence-backed associations geographically through generated views.
 
 ```text
-<project>/.farplane/crm/world.json
+<project>/.farplane/entities/world.json
   -> GET /farplane/world?projectPath=<absolute path>
   -> useWorldProjection
   -> filters + GeoJSON points/lines + source detail
 ```
 
-Markdown remains canonical. This module is a read-only consumer of the
-disposable Core projection and does not write CRM data, geocode locations, or
-persist graph state in SQLite or Convex.
+Entity Markdown plus `.farplane/views.yaml` remain canonical. This module is a
+read-only consumer of the disposable Core projection and does not write entity
+data, view membership, geocode locations, or persist graph state in SQLite or
+Convex. The configured view selector intersects membership with search, kind,
+and location filters; **All entities** restores the complete projection.
 
 Mapbox GL is the sole renderer. It uses Mapbox Standard in monochrome night mode
 with a flat Mercator camera. The bundle is lazy and a dedicated loading surface
@@ -26,7 +28,7 @@ Project Config → UI-safe map provider**. Settings persists it as
 `VITE_MAPBOX_ACCESS_TOKEN` in `~/.farplane/config.toml`; the browser receives it
 only through the bounded map-config bridge when World opens.
 
-A node is plotted only when its CRM entity has paired `latitude` and
+A node is plotted only when its canonical entity has paired `latitude` and
 `longitude`; the plain `location` field is searchable metadata and is not
 silently geocoded.
 

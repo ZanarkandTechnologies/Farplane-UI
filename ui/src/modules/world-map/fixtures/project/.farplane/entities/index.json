@@ -1,0 +1,13 @@
+{
+  "schema_version": 3,
+  "source_fingerprint": "fixture-source-v1",
+  "entities": [],
+  "views": [
+    {
+      "id": "malaysia-suppliers",
+      "name": "Malaysia Suppliers",
+      "entity_ids": ["penang-castings", "precision-alloys"]
+    }
+  ],
+  "issues": []
+}

@@ -37,12 +37,19 @@ export type WorldIssue = {
   path?: string;
 };
 
+export type WorldView = {
+  id: string;
+  name: string;
+  entityIds: string[];
+};
+
 export type WorldProjection = {
   schemaVersion: string;
   generatedAt?: string;
   project: WorldProject;
   nodes: WorldNode[];
   edges: WorldEdge[];
+  views: WorldView[];
   issues: WorldIssue[];
   stale: boolean;
 };
@@ -62,6 +69,7 @@ export type WorldFilters = {
   query: string;
   kind: string;
   location: string;
+  viewId?: string;
 };
 
 export type WorldSelection = { type: "node"; key: string } | { type: "edge"; key: string } | null;

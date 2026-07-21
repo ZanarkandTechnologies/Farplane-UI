@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 3,
   "source_fingerprint": "fixture-source-v1",
   "generated_at": "2026-07-13T08:00:00Z",
   "project": {
@@ -14,7 +14,7 @@
       "entity_id": "penang-castings",
       "kind": "company",
       "name": "Penang Castings",
-      "path": ".farplane/crm/entities/companies/penang-castings.md",
+      "path": ".farplane/entities/penang-castings.md",
       "location": "Penang, Malaysia",
       "aliases": ["PC Manufacturing"],
       "frontmatter": { "industry": "industrial-components" },
@@ -27,7 +27,7 @@
       "entity_id": "acme-motors",
       "kind": "company",
       "name": "Acme Motors",
-      "path": ".farplane/crm/entities/companies/acme-motors.md",
+      "path": ".farplane/entities/acme-motors.md",
       "location": "Detroit, United States",
       "aliases": [],
       "frontmatter": { "industry": "automotive" },
@@ -40,7 +40,7 @@
       "entity_id": "precision-alloys",
       "kind": "supplier",
       "name": "Precision Alloys",
-      "path": ".farplane/crm/entities/companies/precision-alloys.md",
+      "path": ".farplane/entities/precision-alloys.md",
       "location": "Johor, Malaysia",
       "aliases": [],
       "frontmatter": {}
@@ -57,10 +57,17 @@
       "target_key": "fixture-supply-chain:acme-motors",
       "target_entity_id": "acme-motors",
       "label": "Acme Motors",
-      "context": "Penang Castings supplies aluminum housings to [Acme Motors](crm:acme-motors) from its Penang facility.",
+      "context": "Penang Castings supplies aluminum housings to [Acme Motors](entity:acme-motors) from its Penang facility.",
       "display_context": "Penang Castings supplies aluminum housings to Acme Motors from its Penang facility.",
-      "path": ".farplane/crm/entities/companies/penang-castings.md",
+      "path": ".farplane/entities/penang-castings.md",
       "section": "Relationships"
+    }
+  ],
+  "views": [
+    {
+      "id": "malaysia-suppliers",
+      "name": "Malaysia Suppliers",
+      "entity_ids": ["penang-castings", "precision-alloys"]
     }
   ],
   "issues": [],

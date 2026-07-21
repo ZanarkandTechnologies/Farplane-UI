@@ -2617,8 +2617,8 @@ function isSafeProjectPath(value: unknown): value is string {
 
 async function readProjectWorldProjection(projectPath: string): Promise<JsonObject> {
   const rootPath = path.resolve(projectPath);
-  const projectionPath = path.join(rootPath, ".farplane", "crm", "world.json");
-  const registryPath = path.join(rootPath, ".farplane", "crm", "entities.json");
+  const projectionPath = path.join(rootPath, ".farplane", "entities", "world.json");
+  const registryPath = path.join(rootPath, ".farplane", "entities", "index.json");
   try {
     const [raw, fileStat] = await Promise.all([
       readFile(projectionPath, "utf8"),
