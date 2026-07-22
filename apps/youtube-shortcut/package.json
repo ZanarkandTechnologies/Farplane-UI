@@ -1,0 +1,41 @@
+{
+  "name": "@farplane/youtube-shortcut",
+  "displayName": "Farplane YouTube Shortcut",
+  "version": "0.1.0",
+  "description": "Cache-first YouTube summaries through local Codex tasks",
+  "author": "kenjipcx",
+  "private": true,
+  "scripts": {
+    "dev": "plasmo dev",
+    "dev:agent": "tsx scripts/local-agent.ts",
+    "build": "plasmo build",
+    "package": "plasmo package",
+    "test": "node --import tsx --test background.test.ts scripts/local-agent.test.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "lucide-react": "^0.473.0",
+    "plasmo": "0.90.5",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/chrome": "0.0.306",
+    "@types/node": "24.10.4",
+    "@types/react": "19.2.6",
+    "@types/react-dom": "19.2.3",
+    "tsx": "latest",
+    "typescript": "5.9.3"
+  },
+  "manifest": {
+    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAowuNzWegOOV7SKC4hmr14A0xcNBLE4y1Adg6y2sC/wS7ZpjF/5tBPg2BW5Q7Ga8+nre29ooNBxtN6jGhUHKUXTFzkY2Zx3QFKHAv7sp5BVrBddAwUm+76MPEhau5hPmIGcH1JzqtVfbUT2pPds6EBVrMFDwB/u87pPD2gVjaeAOfqeRPdOJKDegvJnSCjI8Kg8fEhnwFe1mzctu1YeJbUwS/hlS7FiXWUJGa3fkSrkCPra/Sl04ZcvM3RBGFHUBaaNYhagAHXrnzoEEw/hM1sZ9XQkwqXTIgvvu+9X/jTzo7CohIgBn5ufst8Vdy+KBC+8OjKKjkGVVp9ujurlM3uwIDAQAB",
+    "permissions": [
+      "storage"
+    ],
+    "host_permissions": [
+      "https://*.youtube.com/*",
+      "http://127.0.0.1/*"
+    ]
+  }
+}

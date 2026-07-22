@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": [
+    "apps/youtube-shortcut",
     "ui",
     "cli",
     "extensions/notion"
@@ -36,6 +37,11 @@
     "cli:reinstall": "tsx cli/cli-reinstall.ts",
     "prepare": "npm run cli:bundle",
     "ui": "npm run --workspace @farplane/ui dev --",
+    "youtube:agent": "pnpm --filter @farplane/youtube-shortcut dev:agent",
+    "youtube:build": "pnpm --filter @farplane/youtube-shortcut build",
+    "youtube:dev": "pnpm --filter @farplane/youtube-shortcut dev",
+    "youtube:serve": "concurrently -k -n codex,bridge \"sh -c 'if lsof -nP -iTCP:47892 -sTCP:LISTEN >/dev/null; then echo Reusing existing Codex app-server; while lsof -nP -iTCP:47892 -sTCP:LISTEN >/dev/null; do sleep 10; done; else exec codex app-server --listen ws://127.0.0.1:47892; fi'\" \"pnpm youtube:agent\"",
+    "youtube:test": "pnpm --filter @farplane/youtube-shortcut test",
     "ui:build": "npm run --workspace @farplane/ui build --",
     "mesh:previews": "tsx scripts/mesh-preview-scan.ts",
     "skills:sync:openclaw": "tsx scripts/sync-openclaw-skills.ts",

@@ -76,3 +76,37 @@ Lesson:
 
 Promote:
 - Keep in the canonical activity-room catalog and browser lifecycle proof.
+
+2026-07-22 | youtube/extension | Thumbnail overlays need local stacking ownership
+
+Context:
+- The Analyze control was appended to the thumbnail but kept a maximum-integer
+  z-index, allowing it to paint above YouTube's sticky navigation.
+- A later recommendation renderer used a new camel-case thumbnail class; the
+  selector fallback silently treated the whole row as the thumbnail and moved
+  the control over metadata.
+
+Lesson:
+- Treat overlay ownership as geometry plus stacking: establish an isolated
+  thumbnail stacking context and use the smallest local z-index that clears
+  thumbnail media overlays.
+- Validate every renderer by comparing the control and actual thumbnail
+  rectangles. A mounted control count cannot prove correct ownership.
+
+Promote:
+- Keep in the YouTube shortcut mount and browser scroll proof contract.
+
+2026-07-22 | youtube/extension | Verify theme and project ownership across popup, Shadow DOM, and task metadata
+
+Context:
+- The popup matched Farplane, but the isolated thumbnail Shadow DOM retained an
+  amber rounded skin and new Codex tasks inherited the bridge repo cwd.
+
+Lesson:
+- Theme corrections must inspect every isolated rendering root, not just the
+  extension popup. For persistent Codex work, verify the saved task `cwd`
+  against the registered desktop project root because app-server thread start
+  is workspace-based rather than desktop-project-id based.
+
+Promote:
+- Keep in the YouTube shortcut visual and runtime proof contract.

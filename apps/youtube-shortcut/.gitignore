@@ -1,0 +1,4 @@
+.plasmo/
+build/
+*.tsbuildinfo
+/node_modules/
