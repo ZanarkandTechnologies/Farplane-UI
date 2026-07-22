@@ -77,6 +77,11 @@ ticket for the first slice.
 - **Creative ingredient**: a reusable part extracted from a source, such as a
   hook, format, pacing pattern, visual style, sound cue, caption structure, shot
   recipe, or remix constraint.
+- **Brand Kit**: approved durable creative identity for a project. It stores
+  stable snapshots of selected Resource Bank elements plus manual instructions;
+  it is not rebuilt from live Resource Bank ids.
+- **Promotion**: assigning a Resource Bank creative element into a Brand Kit as
+  an approved Brand-Kit-owned snapshot with provenance.
 - **Tasty Pack**: a time-windowed bundle of recent saved references and
   extracted ingredients for a specific creation goal.
 - **Idea Sink**: a user-facing prompt surface where the operator describes a
@@ -158,7 +163,52 @@ Creative elements carry operator taste priority directly with `pinned`. The
 operator's ingestion note is the taste source; pinned elements are the
 note-grounded ingredients that downstream planning should build around. Do not
 introduce a separate production-pattern object or ask the operator to manage a
-numeric taste weight.
+numeric taste weight inside Resource Bank. Repeatable approved production
+instructions belong to the selected Brand Kit's one master prompt, not to a
+separate collection of production-pattern objects.
+
+### Brand Kits
+
+Brand Kits sit between inspiration and production:
+
+```text
+source -> ingest-content -> Resource Bank -> promotion -> Brand Kit -> production snapshot
+```
+
+Every Farplane project may select one default Brand Kit by stable id in
+`farplane/brand.yaml`. The tracked project config stores only the id; Brand Kit
+content lives in Convex. Provider credentials stay in Doppler/env, while Brand
+Kit elements may store non-secret provider handles such as Fish or ElevenLabs
+voice ids.
+
+`ingest_content(source)` writes Resource Bank only. `ingest_content(source,
+brand_kit_id=...)` should remain one user-visible operation: capture the source,
+select note-emphasized elements, and promote stable snapshots into the requested
+Brand Kit without requiring a manual UI step. The Resource Bank UI may still
+offer "Add to Brand Kit" for correction and later reuse.
+
+The UI-owned Convex handoff for that operation is
+`brandKits:promoteIngestionJobToBrandKit`: the ingest skill records the stable
+requested id on the ingestion job, writes Resource Bank rows, then calls the
+promotion mutation to snapshot the selected job elements.
+
+Resource Bank `pinned` is not Brand Kit approval. Pinned means retrieve more
+often for Tasty Packs; Brand Kit membership means the element is accepted as
+durable identity for content/video generation.
+
+#### Brand Kit Prompt
+
+Each Brand Kit owns exactly one bounded freeform master prompt. It is not a
+named variant, recipe list, executable workflow, or node graph. The prompt may
+include non-secret hints such as an Anam avatar id, Seedance model/seed,
+ElevenLabs or Fish voice id, subtitle style, aspect ratio, output format, or
+other quick production configuration.
+
+Approved creative elements retain their own required instructions and belong
+directly to the kit; there is no per-prompt element membership. One production
+query resolves the prompt plus the complete approved element set as an atomic
+packet with exact kit and prompt revisions. The consuming skill persists that
+immutable packet with generated output. Credentials remain in Doppler/env.
 
 ### Search And Retrieval
 

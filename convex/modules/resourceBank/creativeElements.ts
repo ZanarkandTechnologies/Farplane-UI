@@ -8,15 +8,9 @@
  */
 
 import { v } from "convex/values";
+import type { Id } from "../../_generated/dataModel";
+import type { QueryCtx } from "../../_generated/server";
 import { mutation, query } from "../../_generated/server";
-import {
-  buildCreativeElementEmbeddingText,
-  clampLimit,
-  cleanText,
-  includesAllTags,
-  mergeTags,
-  normalizeTags,
-} from "./resourceBank";
 import {
   getAnalysisOrThrow,
   getAssetOrThrow,
@@ -24,8 +18,19 @@ import {
   nowMs,
   rowProjectId,
   rowTaskId,
+  toAssetRow,
   toCreativeElementRow,
 } from "./records";
+import {
+  buildCreativeElementEmbeddingText,
+  clampLimit,
+  cleanText,
+  includesAllTags,
+  mergeTags,
+  normalizeTags,
+  requireCleanText,
+  selectPreviewAsset,
+} from "./resourceBank";
 import {
   addCreativeElementArgsValidator,
   listCreativeElementsArgsValidator,
@@ -41,6 +46,10 @@ export const addCreativeElement = mutation({
     const job = await getJobOrThrow(ctx, args.jobId);
     const asset = await getAssetOrThrow(ctx, args.assetId);
     if (asset.ingestionJobId !== args.jobId) throw new Error("resource_bank_asset_job_mismatch");
+    const goldenExampleAsset = await getAssetOrThrow(ctx, args.goldenExample.assetId);
+    if (goldenExampleAsset.ingestionJobId !== args.jobId) {
+      throw new Error("resource_bank_golden_example_asset_job_mismatch");
+    }
     if (args.analysisId) {
       const analysis = await getAnalysisOrThrow(ctx, args.analysisId);
       if (analysis.assetId !== args.assetId || analysis.ingestionJobId !== args.jobId) {
@@ -48,13 +57,26 @@ export const addCreativeElement = mutation({
       }
     }
     const title = cleanText(args.title, 240) ?? "Untitled creative element";
-    const description = cleanText(args.description, 2_000) ?? title;
+    const description = requireCleanText(args.description, "resource_bank_description", 2_000);
+    const whyItWorks = requireCleanText(args.whyItWorks, "resource_bank_why_it_works", 2_000);
+    const goldenRecipe = requireCleanText(
+      args.goldenRecipe,
+      "resource_bank_golden_recipe",
+      6_000,
+    );
+    const goldenExample = {
+      assetId: args.goldenExample.assetId,
+      description: cleanText(args.goldenExample.description, 1_000),
+    };
     const tags = mergeTags(job.tags, asset.tags, args.tags);
     const embeddingText =
       cleanText(args.embeddingText, 6_000) ??
       buildCreativeElementEmbeddingText({
         title,
         description,
+        whyItWorks,
+        goldenExampleDescription: goldenExample.description,
+        goldenRecipe,
         anchor: args.anchor,
         tags,
       });
@@ -66,6 +88,9 @@ export const addCreativeElement = mutation({
       kind: args.kind,
       title,
       description,
+      whyItWorks,
+      goldenExample,
+      goldenRecipe,
       anchor: cleanText(args.anchor, 500),
       pinned: args.pinned ?? false,
       embeddingTarget: "creative_element_search",
@@ -136,16 +161,47 @@ export const listCreativeElements = query({
       .filter((row) => includesAllTags(row.tags, tags))
       .slice(0, limit);
     const assets = await Promise.all(filteredRows.map((row) => ctx.db.get(row.assetId)));
-    return filteredRows.map((row, index) => {
-      const asset = assets[index];
-      return {
-        ...toCreativeElementRow(row),
-        assetTitle: asset?.title,
-        assetKind: asset?.assetKind,
-        assetSourceUrl: asset?.sourceUrl,
-        assetCanonicalUrl: asset?.canonicalUrl,
-      };
-    });
+    const jobIds = [...new Set(assets.flatMap((asset) => (asset ? [asset.ingestionJobId] : [])))];
+    const jobAssets = (
+      await Promise.all(
+        jobIds.map((jobId) =>
+          ctx.db
+            .query("resourceBankAssets")
+            .withIndex("by_job", (q) => q.eq("ingestionJobId", jobId))
+            .collect(),
+        ),
+      )
+    )
+      .flat()
+      .map(toAssetRow);
+    return await Promise.all(
+      filteredRows.map(async (row, index) => {
+        const asset = assets[index];
+        const assetRow = asset ? toAssetRow(asset) : undefined;
+        const previewAsset = assetRow
+          ? selectPreviewAsset(
+              assetRow,
+              jobAssets.filter((candidate) => candidate.parentAssetId === assetRow._id),
+            )
+          : undefined;
+        return {
+          ...toCreativeElementRow(row),
+          assetTitle: asset?.title,
+          assetKind: asset?.assetKind,
+          assetSourceUrl: asset?.sourceUrl,
+          assetCanonicalUrl: asset?.canonicalUrl,
+          goldenExampleAsset: await hydrateElementGoldenExampleAsset(ctx, row),
+          previewAsset: previewAsset
+            ? {
+                ...previewAsset,
+                storageUrl: previewAsset.storageId
+                  ? await ctx.storage.getUrl(previewAsset.storageId)
+                  : null,
+              }
+            : undefined,
+        };
+      }),
+    );
   },
 });
 
@@ -156,6 +212,12 @@ export const updateCreativeElement = mutation({
     kind: v.string(),
     title: v.string(),
     description: v.string(),
+    whyItWorks: v.string(),
+    goldenExample: v.object({
+      assetId: v.id("resourceBankAssets"),
+      description: v.optional(v.string()),
+    }),
+    goldenRecipe: v.string(),
     anchor: v.optional(v.string()),
     pinned: v.boolean(),
   }),
@@ -163,12 +225,40 @@ export const updateCreativeElement = mutation({
     const row = await ctx.db.get(args.elementId);
     if (!row) throw new Error("resource_bank_creative_element_not_found");
     const title = cleanText(args.title, 240) ?? row.title;
-    const description = cleanText(args.description, 2_000) ?? row.description;
+    const description = requireCleanText(
+      args.description === undefined ? row.description : args.description,
+      "resource_bank_description",
+      2_000,
+    );
+    const whyItWorks = requireCleanText(
+      args.whyItWorks === undefined ? row.whyItWorks : args.whyItWorks,
+      "resource_bank_why_it_works",
+      2_000,
+    );
+    const goldenRecipe = requireCleanText(
+      args.goldenRecipe === undefined ? row.goldenRecipe : args.goldenRecipe,
+      "resource_bank_golden_recipe",
+      6_000,
+    );
+    const goldenExample =
+      args.goldenExample === undefined
+        ? row.goldenExample
+        : {
+            assetId: args.goldenExample.assetId,
+            description: cleanText(args.goldenExample.description, 1_000),
+          };
+    const goldenExampleAsset = await getAssetOrThrow(ctx, goldenExample.assetId);
+    if (goldenExampleAsset.ingestionJobId !== row.ingestionJobId) {
+      throw new Error("resource_bank_golden_example_asset_job_mismatch");
+    }
     const anchor = args.anchor === undefined ? row.anchor : cleanText(args.anchor, 500);
     const tags = args.tags === undefined ? row.tags : mergeTags(args.tags);
     const embeddingText = buildCreativeElementEmbeddingText({
       title,
       description,
+      whyItWorks,
+      goldenExampleDescription: goldenExample.description,
+      goldenRecipe,
       anchor,
       tags,
     });
@@ -176,6 +266,9 @@ export const updateCreativeElement = mutation({
       kind: args.kind ?? row.kind,
       title,
       description,
+      whyItWorks,
+      goldenExample,
+      goldenRecipe,
       anchor,
       pinned: args.pinned ?? row.pinned ?? false,
       tags,
@@ -188,11 +281,27 @@ export const updateCreativeElement = mutation({
       kind: updated.kind,
       title: updated.title,
       description: updated.description,
+      whyItWorks: updated.whyItWorks,
+      goldenExample: updated.goldenExample,
+      goldenRecipe: updated.goldenRecipe,
       anchor: updated.anchor,
       pinned: updated.pinned ?? false,
     };
   },
 });
+
+async function hydrateElementGoldenExampleAsset(
+  ctx: QueryCtx,
+  row: { goldenExample: { assetId: Id<"resourceBankAssets">; description?: string } },
+) {
+  const assetId = row.goldenExample.assetId;
+  const asset = await ctx.db.get(assetId);
+  if (!asset) return undefined;
+  return {
+    ...toAssetRow(asset),
+    storageUrl: asset.storageId ? await ctx.storage.getUrl(asset.storageId) : null,
+  };
+}
 
 export const listCreativeElementsByJob = query({
   args: listCreativeElementsByJobArgsValidator,

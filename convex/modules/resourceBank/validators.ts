@@ -64,6 +64,7 @@ export const createIngestionJobArgsValidator = {
   originalInstruction: v.optional(v.string()),
   note: v.optional(v.string()),
   requestedFocus: v.optional(v.string()),
+  brandKitId: v.optional(v.string()),
   sourceScope: v.optional(sourceScopeValidator),
   tags: v.optional(v.array(v.string())),
   projectId: v.optional(v.string()),
@@ -154,6 +155,68 @@ export const creativeElementKindValidator = v.union(
   v.literal("constraint"),
 );
 
+export const brandKitElementKindValidator = creativeElementKindValidator;
+
+export const brandKitStatusValidator = v.union(v.literal("active"), v.literal("archived"));
+
+export const brandKitProviderHandleValidator = v.object({
+  provider: v.union(v.literal("elevenlabs"), v.literal("fish"), v.literal("other")),
+  handleKind: v.union(
+    v.literal("voice_id"),
+    v.literal("model_id"),
+    v.literal("style_id"),
+    v.literal("other"),
+  ),
+  handle: v.string(),
+});
+
+export const brandKitGoldenExampleValidator = v.object({
+  title: v.optional(v.string()),
+  sourceUrl: v.optional(v.string()),
+  canonicalUrl: v.optional(v.string()),
+  storageId: v.optional(v.id("_storage")),
+  localPath: v.optional(v.string()),
+  assetId: v.optional(v.id("resourceBankAssets")),
+  description: v.optional(v.string()),
+});
+
+export const creativeElementGoldenExampleValidator = v.object({
+  assetId: v.id("resourceBankAssets"),
+  description: v.optional(v.string()),
+});
+
+export const brandKitElementSnapshotValidator = v.object({
+  elementId: v.string(),
+  kind: brandKitElementKindValidator,
+  title: v.string(),
+  description: v.string(),
+  whyItWorks: v.string(),
+  goldenExample: brandKitGoldenExampleValidator,
+  goldenRecipe: v.string(),
+  anchor: v.optional(v.string()),
+  tags: v.array(v.string()),
+  providerHandles: v.optional(v.array(brandKitProviderHandleValidator)),
+  provenance: v.object({
+    resourceElementId: v.optional(v.id("resourceBankCreativeElements")),
+    ingestionJobId: v.optional(v.id("resourceBankIngestionJobs")),
+    assetId: v.optional(v.id("resourceBankAssets")),
+    analysisId: v.optional(v.id("resourceBankAnalyses")),
+    promotedFrom: v.union(v.literal("resource_bank"), v.literal("manual")),
+    promotedBy: v.optional(v.string()),
+    promotedAtMs: v.number(),
+    idempotencyKeyHash: v.optional(v.string()),
+  }),
+  sourceSnapshotHash: v.string(),
+  approvedAtMs: v.number(),
+  approvedBy: v.optional(v.string()),
+});
+
+export const brandKitPromptValidator = v.object({
+  text: v.string(),
+  revision: v.number(),
+  updatedAtMs: v.number(),
+});
+
 export const addSkillFindingArgsValidator = {
   jobId: v.id("resourceBankIngestionJobs"),
   assetId: v.id("resourceBankAssets"),
@@ -180,6 +243,9 @@ export const addCreativeElementArgsValidator = {
   kind: creativeElementKindValidator,
   title: v.string(),
   description: v.string(),
+  whyItWorks: v.string(),
+  goldenExample: creativeElementGoldenExampleValidator,
+  goldenRecipe: v.string(),
   anchor: v.optional(v.string()),
   pinned: v.optional(v.boolean()),
   embeddingText: v.optional(v.string()),
@@ -192,9 +258,90 @@ export const updateCreativeElementArgsValidator = {
   kind: v.optional(creativeElementKindValidator),
   title: v.optional(v.string()),
   description: v.optional(v.string()),
+  whyItWorks: v.optional(v.string()),
+  goldenExample: v.optional(creativeElementGoldenExampleValidator),
+  goldenRecipe: v.optional(v.string()),
   anchor: v.optional(v.string()),
   pinned: v.optional(v.boolean()),
   tags: v.optional(v.array(v.string())),
+};
+
+export const createBrandKitArgsValidator = {
+  kitId: v.optional(v.string()),
+  projectId: v.optional(v.string()),
+  name: v.string(),
+  description: v.optional(v.string()),
+};
+
+export const listBrandKitsArgsValidator = {
+  projectId: v.optional(v.string()),
+  query: v.optional(v.string()),
+  includeArchived: v.optional(v.boolean()),
+  limit: v.optional(v.number()),
+};
+
+export const getBrandKitArgsValidator = {
+  brandKitId: v.optional(v.id("brandKits")),
+  kitId: v.optional(v.string()),
+};
+
+export const updateBrandKitArgsValidator = {
+  brandKitId: v.id("brandKits"),
+  expectedRevision: v.optional(v.number()),
+  name: v.optional(v.string()),
+  description: v.optional(v.string()),
+  projectId: v.optional(v.string()),
+};
+
+export const archiveBrandKitArgsValidator = {
+  brandKitId: v.id("brandKits"),
+  expectedRevision: v.optional(v.number()),
+};
+
+export const updateBrandKitPromptArgsValidator = {
+  brandKitId: v.id("brandKits"),
+  expectedKitRevision: v.number(),
+  expectedPromptRevision: v.number(),
+  text: v.string(),
+};
+
+export const addManualBrandKitElementArgsValidator = {
+  brandKitId: v.id("brandKits"),
+  expectedRevision: v.optional(v.number()),
+  kind: brandKitElementKindValidator,
+  title: v.string(),
+  description: v.string(),
+  whyItWorks: v.string(),
+  goldenExample: brandKitGoldenExampleValidator,
+  goldenRecipe: v.string(),
+  anchor: v.optional(v.string()),
+  tags: v.optional(v.array(v.string())),
+  providerHandles: v.optional(v.array(brandKitProviderHandleValidator)),
+  requestedBy: v.optional(v.string()),
+  idempotencyKey: v.optional(v.string()),
+};
+
+export const promoteResourceElementsToBrandKitArgsValidator = {
+  brandKitId: v.optional(v.id("brandKits")),
+  kitId: v.optional(v.string()),
+  elementIds: v.array(v.id("resourceBankCreativeElements")),
+  operatorNote: v.optional(v.string()),
+  requestedBy: v.optional(v.string()),
+  idempotencyKey: v.optional(v.string()),
+};
+
+export const promoteIngestionJobToBrandKitArgsValidator = {
+  ingestionJobId: v.id("resourceBankIngestionJobs"),
+  brandKitId: v.optional(v.id("brandKits")),
+  kitId: v.optional(v.string()),
+  elementIds: v.optional(v.array(v.id("resourceBankCreativeElements"))),
+  operatorNote: v.optional(v.string()),
+  requestedBy: v.optional(v.string()),
+  idempotencyKey: v.optional(v.string()),
+};
+
+export const getBrandKitForProductionArgsValidator = {
+  brandKitId: v.string(),
 };
 
 export const backfillCreativeElementPinsArgsValidator = {
@@ -329,6 +476,7 @@ export const resetResourceBankAfterSnapshotArgsValidator = {
     analyses: v.number(),
     skillFindings: v.number(),
     creativeElements: v.number(),
+    brandKits: v.optional(v.number()),
   }),
 };
 

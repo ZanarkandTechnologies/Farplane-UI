@@ -22,6 +22,7 @@ farplane/
   manifest.json    # versioned Farplane project spec for this project
   harness.yaml     # typed charter, products, capability refs, metric selection
   metrics.yaml     # metric definitions, direction, freshness, guard rules
+  brand.yaml       # default Brand Kit ID for approved creative identity
   automations.toml # one Work Pulse heartbeat plus separate scheduled sources
   bindings.yaml    # non-secret project IDs, provider coordinates, refresh bindings
   hooks.json       # declarative Farplane-native hook config

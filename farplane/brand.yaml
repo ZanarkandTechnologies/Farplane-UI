@@ -1,0 +1,6 @@
+kind: farplane-brand-config
+status: active
+version: 1
+
+# Stores only the selected default Brand Kit ID. Brand Kit content lives in Convex.
+default_brand_kit_id: "brand-kit:low-poly-explainer-shorts"

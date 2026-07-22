@@ -85,9 +85,9 @@ export const seedDemoResourceBank = mutation({
       label: "Short video lighting and edit-structure breakdown",
       capability: "Break down a reference video's lighting, hook timing, and edit rhythm.",
       evidenceAnchor: "0:00-1:00",
-      howToReuse: "Use before video generation to produce a pacing and lighting recipe.",
+      howToReuse: "Use before video generation to produce pacing and lighting guidance.",
       suggestedSkillChange:
-        "Create or extend a video-generation prep skill that outputs lighting, hook, and edit rhythm recipes.",
+        "Create or extend a video-generation prep skill that outputs lighting, hook, and edit rhythm guidance.",
       tags: ["skill:video-generation", "skill:video-understanding", "style:warm-lighting"],
       confidence: "medium",
       embeddingTarget: "skill_finding_search",
@@ -105,6 +105,14 @@ export const seedDemoResourceBank = mutation({
       title: "Warm side-key cold open",
       description:
         "Open with a face-forward warm side key and quick contrast cut before the first beat settles.",
+      whyItWorks:
+        "The warm face-first frame establishes a human focal point, then the immediate contrast cut earns a second look before the premise settles.",
+      goldenExample: {
+        assetId,
+        description: "The primary demo video, specifically its face-first opening and first contrast cut.",
+      },
+      goldenRecipe:
+        "Create a 0-3 second cold open for the supplied topic: begin on one warmly side-lit face filling the frame, state the concrete consequence in one clause, then hard-cut to a visually opposite proof image before the clause ends.",
       anchor: "0-3s",
       pinned: true,
       embeddingTarget: "creative_element_search",

@@ -126,6 +126,7 @@ const FARPLANE_PROJECT_CONFIG_FILES = [
   { path: "farplane/README.md", title: "Config Index", kind: "config-index", format: "markdown" },
   { path: "farplane/harness.yaml", title: "Harness", kind: "harness", format: "yaml" },
   { path: "farplane/metrics.yaml", title: "Metrics", kind: "metrics", format: "yaml" },
+  { path: "farplane/brand.yaml", title: "Brand", kind: "brand", format: "yaml" },
   { path: "farplane/automations.toml", title: "Automations", kind: "automations", format: "toml" },
   { path: "farplane/bindings.yaml", title: "Bindings", kind: "bindings", format: "yaml" },
   { path: "farplane/hooks.json", title: "Hooks", kind: "hooks", format: "json" },
@@ -206,6 +207,15 @@ const TEMPLATE_TRACKING_FAMILIES: TemplateTrackingFamilyConfig[] = [
     description: "Non-secret project IDs, URLs, labels, and aliases.",
     paths: ["farplane/bindings.yaml"],
     owner: "project-pm-automation",
+  },
+  {
+    familyId: "project-brand",
+    label: "Brand",
+    scope: "project-config",
+    source: "derived",
+    description: "Project default Brand Kit binding; stores only a stable Brand Kit ID.",
+    paths: ["farplane/brand.yaml"],
+    owner: "resource-bank",
   },
   {
     familyId: "ticket-template",
@@ -3413,6 +3423,33 @@ async function readFarplaneProjectConfig(projectPath: string): Promise<JsonObjec
   };
 }
 
+async function saveFarplaneBrandConfig(projectPath: string, input: unknown): Promise<JsonObject> {
+  const body = input && typeof input === "object" ? (input as JsonObject) : {};
+  const rootPath = path.resolve(projectPath);
+  const brandKitId = String(body.defaultBrandKitId ?? body.default_brand_kit_id ?? "").trim();
+  if (brandKitId.length > 240 || /[\0\r\n]/.test(brandKitId)) {
+    return { ok: false, error: "invalid_default_brand_kit_id" };
+  }
+  const brandPath = path.join(rootPath, "farplane", "brand.yaml");
+  await mkdir(path.dirname(brandPath), { recursive: true });
+  const content = [
+    "kind: farplane-brand-config",
+    "status: active",
+    "version: 1",
+    "",
+    "# Stores only the selected default Brand Kit ID. Brand Kit content lives in Convex.",
+    `default_brand_kit_id: ${JSON.stringify(brandKitId)}`,
+    "",
+  ].join("\n");
+  await writeFile(brandPath, content, "utf-8");
+  return {
+    ok: true,
+    projectPath: rootPath,
+    path: "farplane/brand.yaml",
+    defaultBrandKitId: brandKitId,
+  };
+}
+
 function normalizeProjectManagers(
   raw: unknown,
 ): Array<{ projectId?: string; projectPath?: string; threadId: string; label?: string }> {
@@ -4489,6 +4526,22 @@ function farplaneStateBridge() {
             return;
           }
           writeJson(res, 200, await readFarplaneProjectConfig(projectPath));
+          return;
+        }
+
+        if (method === "POST" && pathname === "/farplane/brand-config") {
+          if (!hasBridgeWriteAccess(req)) {
+            writeJson(res, 403, { ok: false, error: "forbidden" });
+            return;
+          }
+          const projectPath = url.searchParams.get("projectPath")?.trim() || REPO_ROOT;
+          if (!isSafeProjectPath(projectPath)) {
+            writeJson(res, 400, { ok: false, error: "project_path_required" });
+            return;
+          }
+          const body = await readBody(req);
+          const result = await saveFarplaneBrandConfig(projectPath, body);
+          writeJson(res, result.ok === false ? 422 : 200, result);
           return;
         }
 

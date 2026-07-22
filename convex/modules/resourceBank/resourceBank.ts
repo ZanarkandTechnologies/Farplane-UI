@@ -90,6 +90,12 @@ export type ResourceBankCreativeElementRow = {
     | "constraint";
   title: string;
   description: string;
+  whyItWorks: string;
+  goldenExample: {
+    assetId: string;
+    description?: string;
+  };
+  goldenRecipe: string;
   anchor?: string;
   pinned: boolean;
   embeddingText: string;
@@ -97,6 +103,73 @@ export type ResourceBankCreativeElementRow = {
   projectId?: string;
   taskId?: string;
   createdAtMs: number;
+};
+
+export type BrandKitElementKind = ResourceBankCreativeElementRow["kind"];
+
+export type BrandKitGoldenExample = {
+  title?: string;
+  sourceUrl?: string;
+  canonicalUrl?: string;
+  storageId?: string;
+  storageUrl?: string | null;
+  localPath?: string;
+  assetId?: string;
+  description?: string;
+};
+
+export type BrandKitProviderHandle = {
+  provider: "elevenlabs" | "fish" | "other";
+  handleKind: "voice_id" | "model_id" | "style_id" | "other";
+  handle: string;
+};
+
+export type BrandKitPrompt = {
+  text: string;
+  revision: number;
+  updatedAtMs: number;
+};
+
+export type BrandKitElementSnapshot = {
+  elementId: string;
+  kind: BrandKitElementKind;
+  title: string;
+  description: string;
+  whyItWorks: string;
+  goldenExample: BrandKitGoldenExample;
+  goldenRecipe: string;
+  anchor?: string;
+  tags: string[];
+  providerHandles?: BrandKitProviderHandle[];
+  provenance: {
+    resourceElementId?: string;
+    ingestionJobId?: string;
+    assetId?: string;
+    analysisId?: string;
+    promotedFrom: "resource_bank" | "manual";
+    promotedBy?: string;
+    promotedAtMs: number;
+    idempotencyKeyHash?: string;
+  };
+  sourceSnapshotHash: string;
+  approvedAtMs: number;
+  approvedBy?: string;
+};
+
+export type BrandKitRow = {
+  _id?: string;
+  kitId: string;
+  projectId?: string;
+  slug: string;
+  name: string;
+  description?: string;
+  status: "active" | "archived";
+  revision: number;
+  elements: BrandKitElementSnapshot[];
+  prompt: BrandKitPrompt;
+  createdAtMs: number;
+  updatedAtMs: number;
+  archivedAtMs?: number;
 };
 
 export type ResourceBankAssetDetail = ResourceBankAssetRow & {
@@ -193,6 +266,9 @@ export type TastyPackElement = {
   kind: ResourceBankCreativeElementRow["kind"];
   title: string;
   description: string;
+  whyItWorks: string;
+  goldenExample: ResourceBankCreativeElementRow["goldenExample"];
+  goldenRecipe: string;
   anchor?: string;
   pinned: boolean;
   tags: string[];
@@ -244,6 +320,138 @@ export function normalizeTag(value: string): string | null {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
   return normalized || null;
+}
+
+export function normalizeBrandKitSlug(value: string | undefined): string | undefined {
+  const normalized = normalizeTag(value ?? "");
+  return normalized?.slice(0, 80);
+}
+
+export function normalizeBrandKitId(value: string | undefined): string | undefined {
+  const trimmed = value?.trim() ?? "";
+  const unprefixed = trimmed.toLowerCase().startsWith("brand-kit:")
+    ? trimmed.slice("brand-kit:".length)
+    : trimmed;
+  const slug = normalizeBrandKitSlug(unprefixed);
+  return slug ? `brand-kit:${slug}` : undefined;
+}
+
+export function mapResourceKindToBrandKitKind(
+  kind: ResourceBankCreativeElementRow["kind"],
+): BrandKitElementKind {
+  return kind;
+}
+
+export function looksLikeSecret(value: string | undefined): boolean {
+  const normalized = value?.trim() ?? "";
+  if (!normalized) return false;
+  if (/\s/.test(normalized)) {
+    if (/bearer\s+\S+/i.test(normalized)) return true;
+    return normalized.split(/\s+/).some((token) => looksLikeSecret(token));
+  }
+  if (/^(sk|pk|rk|api|key|token|secret)[_-]/i.test(normalized)) return true;
+  if (/bearer\s+/i.test(normalized)) return true;
+  if (normalized.length >= 32 && /[A-Za-z]/.test(normalized) && /\d/.test(normalized)) {
+    return true;
+  }
+  return false;
+}
+
+export function assertSafeProviderHandles(handles: readonly BrandKitProviderHandle[] = []): void {
+  for (const handle of handles) {
+    if (looksLikeSecret(handle.handle)) throw new Error("brand_kit_provider_handle_looks_secret");
+  }
+}
+
+export function normalizeBrandKitPromptInput(
+  input: { text?: string },
+  existing: BrandKitPrompt | undefined,
+  updatedAtMs: number,
+): BrandKitPrompt {
+  const text =
+    input.text === undefined
+      ? (existing?.text ?? "")
+      : (cleanText(input.text, RESOURCE_BANK_TEXT_LIMIT) ?? "");
+  if (looksLikeSecret(text)) throw new Error("brand_kit_prompt_text_looks_secret");
+  return {
+    text,
+    revision: existing ? existing.revision + 1 : 1,
+    updatedAtMs,
+  };
+}
+
+export function buildBrandKitProductionSnapshot(input: {
+  kit: BrandKitRow;
+  snapshotCreatedAtMs: number;
+}) {
+  const prompt = input.kit.prompt ?? {
+    text: "",
+    revision: 1,
+    updatedAtMs: input.kit.updatedAtMs,
+  };
+  return {
+    kitId: input.kit.kitId,
+    kitRevision: input.kit.revision,
+    snapshotCreatedAtMs: input.snapshotCreatedAtMs,
+    prompt: {
+      text: prompt.text,
+      revision: prompt.revision,
+      updatedAtMs: prompt.updatedAtMs,
+    },
+    kit: {
+      name: input.kit.name,
+      description: input.kit.description,
+      elements: input.kit.elements,
+    },
+    elements: input.kit.elements,
+  };
+}
+
+export function stableHash(value: unknown): string {
+  const text = stableStringify(value);
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `bk_${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+export function buildBrandKitSourceSnapshotHash(input: {
+  kind: BrandKitElementKind;
+  title: string;
+  description: string;
+  whyItWorks: string;
+  goldenExample: BrandKitGoldenExample;
+  goldenRecipe: string;
+  anchor?: string;
+  tags: string[];
+}): string {
+  return stableHash(input);
+}
+
+export function requireCleanText(value: string | undefined, field: string, limit = 2_000): string {
+  const text = cleanText(value, limit);
+  if (!text) throw new Error(`${field}_required`);
+  return text;
+}
+
+export function buildBrandKitIdempotencyHash(
+  idempotencyKey: string | undefined,
+  sourceSnapshotHash: string,
+): string | undefined {
+  const key = cleanText(idempotencyKey, 240);
+  return key ? stableHash({ key, sourceSnapshotHash }) : undefined;
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
+    .join(",")}}`;
 }
 
 export function normalizeTags(values: readonly string[] | undefined): string[] {
@@ -484,6 +692,9 @@ function toElement(element: ResourceBankCreativeElementRow): TastyPackElement {
     kind: element.kind,
     title: element.title,
     description: element.description,
+    whyItWorks: element.whyItWorks,
+    goldenExample: element.goldenExample,
+    goldenRecipe: element.goldenRecipe,
     anchor: element.anchor,
     pinned: element.pinned,
     tags: element.tags,
@@ -575,10 +786,21 @@ export function buildSkillFindingEmbeddingText(input: {
 export function buildCreativeElementEmbeddingText(input: {
   title: string;
   description: string;
+  whyItWorks?: string;
+  goldenExampleDescription?: string;
+  goldenRecipe?: string;
   anchor?: string;
   tags?: readonly string[];
 }): string {
-  return [input.title, input.description, input.anchor, ...(input.tags ?? [])]
+  return [
+    input.title,
+    input.description,
+    input.whyItWorks,
+    input.goldenExampleDescription,
+    input.goldenRecipe,
+    input.anchor,
+    ...(input.tags ?? []),
+  ]
     .filter(Boolean)
     .join("\n")
     .slice(0, RESOURCE_BANK_TEXT_LIMIT);
@@ -678,7 +900,7 @@ function describePreviewStatus(
   };
 }
 
-function selectPreviewAsset(
+export function selectPreviewAsset(
   asset: ResourceBankAssetRow,
   derivedAssets: readonly ResourceBankAssetRow[],
 ): ResourceBankAssetRow | undefined {

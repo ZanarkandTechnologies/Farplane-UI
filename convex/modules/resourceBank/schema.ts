@@ -20,6 +20,7 @@ export const resourceBankTables = {
     originalInstruction: v.optional(v.string()),
     note: v.optional(v.string()),
     requestedFocus: v.optional(v.string()),
+    brandKitId: v.optional(v.string()),
     sourceScope: v.optional(
       v.object({
         startMs: v.optional(v.number()),
@@ -202,6 +203,86 @@ export const resourceBankTables = {
       filterFields: ["findingKind", "skillId", "projectId", "taskId"],
     }),
 
+  brandKits: defineTable({
+    kitId: v.string(),
+    projectId: v.optional(v.string()),
+    slug: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    status: v.union(v.literal("active"), v.literal("archived")),
+    revision: v.number(),
+    elements: v.array(
+      v.object({
+        elementId: v.string(),
+        kind: v.union(
+          v.literal("visual"),
+          v.literal("audio"),
+          v.literal("hook"),
+          v.literal("storyboard"),
+          v.literal("editing"),
+          v.literal("copy"),
+          v.literal("character"),
+          v.literal("format"),
+          v.literal("constraint"),
+        ),
+        title: v.string(),
+        description: v.string(),
+        whyItWorks: v.string(),
+        goldenExample: v.object({
+          title: v.optional(v.string()),
+          sourceUrl: v.optional(v.string()),
+          canonicalUrl: v.optional(v.string()),
+          storageId: v.optional(v.id("_storage")),
+          localPath: v.optional(v.string()),
+          assetId: v.optional(v.id("resourceBankAssets")),
+          description: v.optional(v.string()),
+        }),
+        goldenRecipe: v.string(),
+        anchor: v.optional(v.string()),
+        tags: v.array(v.string()),
+        providerHandles: v.optional(
+          v.array(
+            v.object({
+              provider: v.union(v.literal("elevenlabs"), v.literal("fish"), v.literal("other")),
+              handleKind: v.union(
+                v.literal("voice_id"),
+                v.literal("model_id"),
+                v.literal("style_id"),
+                v.literal("other"),
+              ),
+              handle: v.string(),
+            }),
+          ),
+        ),
+        provenance: v.object({
+          resourceElementId: v.optional(v.id("resourceBankCreativeElements")),
+          ingestionJobId: v.optional(v.id("resourceBankIngestionJobs")),
+          assetId: v.optional(v.id("resourceBankAssets")),
+          analysisId: v.optional(v.id("resourceBankAnalyses")),
+          promotedFrom: v.union(v.literal("resource_bank"), v.literal("manual")),
+          promotedBy: v.optional(v.string()),
+          promotedAtMs: v.number(),
+          idempotencyKeyHash: v.optional(v.string()),
+        }),
+        sourceSnapshotHash: v.string(),
+        approvedAtMs: v.number(),
+        approvedBy: v.optional(v.string()),
+      }),
+    ),
+    prompt: v.object({
+      text: v.string(),
+      revision: v.number(),
+      updatedAtMs: v.number(),
+    }),
+    createdAtMs: v.number(),
+    updatedAtMs: v.number(),
+    archivedAtMs: v.optional(v.number()),
+  })
+    .index("by_kitId", ["kitId"])
+    .index("by_slug", ["slug"])
+    .index("by_project_updatedAtMs", ["projectId", "updatedAtMs"])
+    .index("by_status_updatedAtMs", ["status", "updatedAtMs"]),
+
   resourceBankCreativeElements: defineTable({
     ingestionJobId: v.id("resourceBankIngestionJobs"),
     assetId: v.id("resourceBankAssets"),
@@ -219,6 +300,12 @@ export const resourceBankTables = {
     ),
     title: v.string(),
     description: v.string(),
+    whyItWorks: v.string(),
+    goldenExample: v.object({
+      assetId: v.id("resourceBankAssets"),
+      description: v.optional(v.string()),
+    }),
+    goldenRecipe: v.string(),
     anchor: v.optional(v.string()),
     pinned: v.optional(v.boolean()),
     embeddingTarget: v.literal("creative_element_search"),

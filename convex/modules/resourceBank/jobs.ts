@@ -9,8 +9,8 @@
 
 import { v } from "convex/values";
 import { mutation } from "../../_generated/server";
-import { cleanText, normalizeTags } from "./resourceBank";
 import { getJobOrThrow, nowMs } from "./records";
+import { cleanText, normalizeTags } from "./resourceBank";
 import {
   completeIngestionJobArgsValidator,
   createIngestionJobArgsValidator,
@@ -30,6 +30,7 @@ export const createIngestionJob = mutation({
       originalInstruction: cleanText(args.originalInstruction, 2_000),
       note: cleanText(args.note, 2_000),
       requestedFocus: cleanText(args.requestedFocus, 500),
+      brandKitId: cleanText(args.brandKitId, 160),
       sourceScope: args.sourceScope,
       tags: normalizeTags(args.tags),
       projectId: cleanText(args.projectId, 120),

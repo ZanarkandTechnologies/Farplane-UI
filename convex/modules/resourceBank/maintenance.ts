@@ -8,7 +8,9 @@
  */
 
 import { v } from "convex/values";
+import type { Doc } from "../../_generated/dataModel";
 import { mutation, query } from "../../_generated/server";
+import { cleanText } from "./resourceBank";
 import {
   backfillCreativeElementPinsArgsValidator,
   resetResourceBankAfterSnapshotArgsValidator,
@@ -24,6 +26,7 @@ const countsMatch = (
     analyses: number;
     skillFindings: number;
     creativeElements: number;
+    brandKits?: number;
   },
   expected: {
     jobs: number;
@@ -31,23 +34,26 @@ const countsMatch = (
     analyses: number;
     skillFindings: number;
     creativeElements: number;
+    brandKits?: number;
   },
 ) =>
   actual.jobs === expected.jobs &&
   actual.assets === expected.assets &&
   actual.analyses === expected.analyses &&
   actual.skillFindings === expected.skillFindings &&
-  actual.creativeElements === expected.creativeElements;
+  actual.creativeElements === expected.creativeElements &&
+  (expected.brandKits === undefined || actual.brandKits === expected.brandKits);
 
 export const snapshotResourceBank = query({
   args: {},
   handler: async (ctx) => {
-    const [jobs, assets, analyses, skillFindings, creativeElements] = await Promise.all([
+    const [jobs, assets, analyses, skillFindings, creativeElements, brandKits] = await Promise.all([
       ctx.db.query("resourceBankIngestionJobs").collect(),
       ctx.db.query("resourceBankAssets").collect(),
       ctx.db.query("resourceBankAnalyses").collect(),
       ctx.db.query("resourceBankSkillFindings").collect(),
       ctx.db.query("resourceBankCreativeElements").collect(),
+      ctx.db.query("brandKits").collect(),
     ]);
     return {
       snapshotCreatedAtMs: Date.now(),
@@ -59,6 +65,7 @@ export const snapshotResourceBank = query({
         analyses: analyses.length,
         skillFindings: skillFindings.length,
         creativeElements: creativeElements.length,
+        brandKits: brandKits.length,
       },
       rows: {
         jobs,
@@ -66,20 +73,24 @@ export const snapshotResourceBank = query({
         analyses,
         skillFindings,
         creativeElements,
+        brandKits,
       },
     };
   },
 });
 
+export const snapshotCreativeSystem = snapshotResourceBank;
+
 export const countResourceBankRows = query({
   args: {},
   handler: async (ctx) => {
-    const [jobs, assets, analyses, skillFindings, creativeElements] = await Promise.all([
+    const [jobs, assets, analyses, skillFindings, creativeElements, brandKits] = await Promise.all([
       ctx.db.query("resourceBankIngestionJobs").collect(),
       ctx.db.query("resourceBankAssets").collect(),
       ctx.db.query("resourceBankAnalyses").collect(),
       ctx.db.query("resourceBankSkillFindings").collect(),
       ctx.db.query("resourceBankCreativeElements").collect(),
+      ctx.db.query("brandKits").collect(),
     ]);
     return {
       jobs: jobs.length,
@@ -87,6 +98,30 @@ export const countResourceBankRows = query({
       analyses: analyses.length,
       skillFindings: skillFindings.length,
       creativeElements: creativeElements.length,
+      brandKits: brandKits.length,
+    };
+  },
+});
+
+export const countLegacyCreativeElements = query({
+  args: {},
+  handler: async (ctx) => {
+    const [creativeElements, brandKits] = await Promise.all([
+      ctx.db.query("resourceBankCreativeElements").collect(),
+      ctx.db.query("brandKits").collect(),
+    ]);
+    const legacyCreativeElements = creativeElements.filter((row) => !isCompleteResourceElement(row));
+    const legacyBrandKitElements = brandKits.flatMap((kit) =>
+      kit.elements
+        .filter((element) => !isCompleteBrandKitElement(element))
+        .map((element) => ({ brandKitId: kit.kitId, elementId: element.elementId })),
+    );
+    return {
+      creativeElements: legacyCreativeElements.length,
+      brandKitElements: legacyBrandKitElements.length,
+      total: legacyCreativeElements.length + legacyBrandKitElements.length,
+      legacyCreativeElementIds: legacyCreativeElements.map((row) => row._id),
+      legacyBrandKitElements,
     };
   },
 });
@@ -147,12 +182,13 @@ export const resetResourceBankAfterSnapshot = mutation({
     if (!Number.isFinite(args.snapshotCreatedAtMs) || args.snapshotCreatedAtMs <= 0) {
       throw new Error("resource_bank_reset_missing_snapshot_timestamp");
     }
-    const [jobs, assets, analyses, skillFindings, creativeElements] = await Promise.all([
+    const [jobs, assets, analyses, skillFindings, creativeElements, brandKits] = await Promise.all([
       ctx.db.query("resourceBankIngestionJobs").collect(),
       ctx.db.query("resourceBankAssets").collect(),
       ctx.db.query("resourceBankAnalyses").collect(),
       ctx.db.query("resourceBankSkillFindings").collect(),
       ctx.db.query("resourceBankCreativeElements").collect(),
+      ctx.db.query("brandKits").collect(),
     ]);
     const actualCounts = {
       jobs: jobs.length,
@@ -160,6 +196,7 @@ export const resetResourceBankAfterSnapshot = mutation({
       analyses: analyses.length,
       skillFindings: skillFindings.length,
       creativeElements: creativeElements.length,
+      brandKits: brandKits.length,
     };
     if (!countsMatch(actualCounts, args.expectedCounts)) {
       throw new Error(
@@ -173,6 +210,47 @@ export const resetResourceBankAfterSnapshot = mutation({
     for (const row of assets) await ctx.db.delete(row._id);
     for (const row of jobs) await ctx.db.delete(row._id);
 
-    return { ok: true, deleted: actualCounts };
+    return {
+      ok: true,
+      deleted: {
+        jobs: actualCounts.jobs,
+        assets: actualCounts.assets,
+        analyses: actualCounts.analyses,
+        skillFindings: actualCounts.skillFindings,
+        creativeElements: actualCounts.creativeElements,
+      },
+    };
   },
 });
+
+function isCompleteResourceElement(element: Doc<"resourceBankCreativeElements">): boolean {
+  return Boolean(
+    cleanText(element.whyItWorks, 2_000) &&
+      element.goldenExample.assetId &&
+      cleanText(element.goldenRecipe, 6_000),
+  );
+}
+
+function isCompleteBrandKitElement(element: Doc<"brandKits">["elements"][number]): boolean {
+  return Boolean(
+    isCanonicalKind(element.kind) &&
+      cleanText(element.description, 2_000) &&
+      cleanText(element.whyItWorks, 2_000) &&
+      element.goldenExample &&
+      cleanText(element.goldenRecipe, 6_000),
+  );
+}
+
+function isCanonicalKind(kind: string): boolean {
+  return [
+    "visual",
+    "audio",
+    "hook",
+    "storyboard",
+    "editing",
+    "copy",
+    "character",
+    "format",
+    "constraint",
+  ].includes(kind);
+}

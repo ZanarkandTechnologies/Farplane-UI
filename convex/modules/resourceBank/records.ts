@@ -9,6 +9,7 @@ export type ResourceBankAsset = Doc<"resourceBankAssets">;
 export type ResourceBankAnalysis = Doc<"resourceBankAnalyses">;
 export type ResourceBankSkillFinding = Doc<"resourceBankSkillFindings">;
 export type ResourceBankCreativeElement = Doc<"resourceBankCreativeElements">;
+export type BrandKit = Doc<"brandKits">;
 
 export async function getJobOrThrow(
   ctx: ResourceBankDbCtx,
@@ -35,6 +36,15 @@ export async function getAnalysisOrThrow(
   const analysis = await ctx.db.get(analysisId);
   if (!analysis) throw new Error("resource_bank_analysis_not_found");
   return analysis;
+}
+
+export async function getBrandKitOrThrow(
+  ctx: ResourceBankDbCtx,
+  brandKitId: Id<"brandKits">,
+): Promise<BrandKit> {
+  const brandKit = await ctx.db.get(brandKitId);
+  if (!brandKit) throw new Error("brand_kit_not_found");
+  return brandKit;
 }
 
 export function nowMs(): number {
@@ -131,6 +141,9 @@ export function toCreativeElementRow(row: ResourceBankCreativeElement) {
     kind: row.kind,
     title: row.title,
     description: row.description,
+    whyItWorks: row.whyItWorks,
+    goldenExample: row.goldenExample,
+    goldenRecipe: row.goldenRecipe,
     anchor: row.anchor,
     pinned: row.pinned ?? false,
     embeddingText: row.embeddingText,
@@ -138,6 +151,24 @@ export function toCreativeElementRow(row: ResourceBankCreativeElement) {
     projectId: row.projectId,
     taskId: row.taskId,
     createdAtMs: row.createdAtMs,
+  };
+}
+
+export function toBrandKitRow(row: BrandKit) {
+  return {
+    _id: row._id,
+    kitId: row.kitId,
+    projectId: row.projectId,
+    slug: row.slug,
+    name: row.name,
+    description: row.description,
+    status: row.status,
+    revision: row.revision,
+    elements: row.elements,
+    prompt: row.prompt,
+    createdAtMs: row.createdAtMs,
+    updatedAtMs: row.updatedAtMs,
+    archivedAtMs: row.archivedAtMs,
   };
 }
 
