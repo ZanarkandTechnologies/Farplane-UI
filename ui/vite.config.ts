@@ -1757,7 +1757,74 @@ function readCodexAppServerUrl(): string {
   ).trim();
 }
 
-async function requestCodexAppServerRpc(method: string, params: unknown): Promise<unknown> {
+type CodexRpcSessionOptions = {
+  includeThreadGoals?: boolean;
+};
+
+let codexThreadGoalsCache: { key: string; loadedAt: number; result: JsonObject } | null = null;
+let codexThreadGoalsInFlight: { key: string; promise: Promise<JsonObject> } | null = null;
+
+async function enrichCodexThreadListWithGoals(
+  result: unknown,
+  sendRequest: (method: string, params: unknown) => Promise<unknown>,
+): Promise<unknown> {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return result;
+  const data = (result as JsonObject).data;
+  if (!Array.isArray(data)) return result;
+  const enriched = await Promise.all(
+    data.map(async (entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return entry;
+      const thread = entry as JsonObject;
+      const threadId = typeof thread.id === "string" ? thread.id.trim() : "";
+      if (!threadId) return entry;
+      try {
+        const response = await sendRequest("thread/goal/get", { threadId });
+        const goal =
+          response && typeof response === "object" && !Array.isArray(response)
+            ? (response as JsonObject).goal
+            : null;
+        return { ...thread, goal: goal ?? null };
+      } catch {
+        // Filesystem-reconciled or stale thread ids may not exist in this app-server instance.
+        return entry;
+      }
+    }),
+  );
+  return { ...(result as JsonObject), data: enriched };
+}
+
+async function requestCodexThreadListWithGoals(params: JsonObject): Promise<JsonObject> {
+  const key = JSON.stringify(params);
+  const now = Date.now();
+  if (codexThreadGoalsCache?.key === key && now - codexThreadGoalsCache.loadedAt < 5000) {
+    return codexThreadGoalsCache.result;
+  }
+  if (codexThreadGoalsInFlight?.key === key) return codexThreadGoalsInFlight.promise;
+
+  const promise = (async () => {
+    const result = await requestCodexAppServerRpc("thread/list", params, {
+      includeThreadGoals: true,
+    });
+    const mergedResult = await mergeCodexThreadListWithFilesystem(
+      result,
+      codexThreadListLimit(params),
+    );
+    codexThreadGoalsCache = { key, loadedAt: Date.now(), result: mergedResult };
+    return mergedResult;
+  })();
+  codexThreadGoalsInFlight = { key, promise };
+  try {
+    return await promise;
+  } finally {
+    if (codexThreadGoalsInFlight?.promise === promise) codexThreadGoalsInFlight = null;
+  }
+}
+
+async function requestCodexAppServerRpc(
+  method: string,
+  params: unknown,
+  options: CodexRpcSessionOptions = {},
+): Promise<unknown> {
   const appServerUrl = readCodexAppServerUrl();
   if (!appServerUrl) {
     throw new Error("codex_app_server_url_missing");
@@ -1857,7 +1924,10 @@ async function requestCodexAppServerRpc(method: string, params: unknown): Promis
       },
     });
     socket.send(JSON.stringify({ method: "initialized" }));
-    return await sendRequest(method, params);
+    const result = await sendRequest(method, params);
+    return method === "thread/list" && options.includeThreadGoals
+      ? await enrichCodexThreadListWithGoals(result, sendRequest)
+      : result;
   } finally {
     socket.removeEventListener?.("message", onMessage);
     socket.close();
@@ -4471,6 +4541,20 @@ function farplaneStateBridge() {
             writeJson(res, 502, {
               ok: false,
               error: error instanceof Error ? error.message : "codex_rpc_failed",
+            });
+          }
+          return;
+        }
+
+        if (method === "POST" && pathname === "/codex/app-server/thread-list-with-goals") {
+          const params = (await readBody(req)) as JsonObject;
+          try {
+            const mergedResult = await requestCodexThreadListWithGoals(params);
+            writeJson(res, 200, { ok: true, result: mergedResult });
+          } catch (error) {
+            writeJson(res, 502, {
+              ok: false,
+              error: error instanceof Error ? error.message : "codex_thread_goals_failed",
             });
           }
           return;

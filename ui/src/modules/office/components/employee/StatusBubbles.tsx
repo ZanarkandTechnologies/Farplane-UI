@@ -1,9 +1,9 @@
 "use client";
 
-import { memo, type ReactNode, useEffect, useState } from "react";
 import { Html } from "@react-three/drei";
+import { memo, type ReactNode, useEffect, useState } from "react";
 
-import type { EmployeeActivityState } from "@/modules/office/lib/types";
+import type { EmployeeActivityState, EmployeePersistenceTag } from "@/modules/office/lib/types";
 
 /**
  * EMPLOYEE STATUS BUBBLES
@@ -57,7 +57,26 @@ type EmployeeStatusBubblesProps = {
   skillInvocationLabel?: string;
   bubbleMessages?: Array<{ threadId: string; message: string; eventAt: number }>;
   presenceExpiresAt?: number;
+  persistenceTag?: EmployeePersistenceTag;
 };
+
+const PERSISTENCE_TAG_STYLES: Record<EmployeePersistenceTag, string> = {
+  goal: "text-amber-200",
+  heartbeat: "text-cyan-200",
+  pinned: "text-slate-200",
+};
+
+function EmployeePersistenceLabel({ tag }: { tag: EmployeePersistenceTag }) {
+  return (
+    <span
+      data-testid={`employee-persistence-tag-${tag}`}
+      className={`inline-flex items-center gap-1.5 text-[8px] font-semibold uppercase leading-none tracking-[0.12em] ${PERSISTENCE_TAG_STYLES[tag]}`}
+    >
+      <span className="size-1 rounded-full bg-current opacity-80" />
+      {tag}
+    </span>
+  );
+}
 
 export function formatSkillInvocationLabel(skillId: string | undefined): string | undefined {
   const normalized = skillId
@@ -114,6 +133,7 @@ function EmployeeActivityBadge({
   totalHeight,
   compact,
   fixedBannerSize,
+  persistenceTag,
 }: {
   state: EmployeeActivityState;
   label?: string;
@@ -123,6 +143,7 @@ function EmployeeActivityBadge({
   totalHeight: number;
   compact: boolean;
   fixedBannerSize: boolean;
+  persistenceTag?: EmployeePersistenceTag;
 }) {
   const style = getActivityBadgeStyle(state);
   const displayLabel = label?.trim() || style.label;
@@ -148,12 +169,8 @@ function EmployeeActivityBadge({
       }}
     >
       <div className={containerClassName}>
-        {displayTitle ? (
-          <div className={TITLE_TEXT_CLASS}>{displayTitle}</div>
-        ) : null}
-        <div
-          className={displayTitle ? `mt-1 ${ACTIVITY_ROW_CLASS}` : ACTIVITY_ROW_CLASS}
-        >
+        {displayTitle ? <div className={TITLE_TEXT_CLASS}>{displayTitle}</div> : null}
+        <div className={displayTitle ? `mt-1 ${ACTIVITY_ROW_CLASS}` : ACTIVITY_ROW_CLASS}>
           <span className="shrink-0 truncate uppercase tracking-[0.08em] text-[9px] opacity-80">
             {displayLabel}
           </span>
@@ -163,6 +180,11 @@ function EmployeeActivityBadge({
             </span>
           ) : null}
         </div>
+        {persistenceTag ? (
+          <div className="mt-1.5 border-t border-current/15 pt-1.5 leading-none">
+            <EmployeePersistenceLabel tag={persistenceTag} />
+          </div>
+        ) : null}
       </div>
     </Html>
   );
@@ -231,6 +253,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
   skillInvocationLabel,
   bubbleMessages,
   presenceExpiresAt,
+  persistenceTag,
 }: EmployeeStatusBubblesProps) {
   const presenceTimeLeft = usePresenceTimeLeft(presenceExpiresAt);
   const showRichEmployeeLabels = !useCompactOverlayMode;
@@ -243,12 +266,20 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
   const showPinnedReadyBadge = pinReadyActivity && activityState === "done";
   const showBubbleMessageStack = visibleBubbleMessages.length > 1;
   const invocationLabel =
-    visibleBubbleMessages.length === 1 ? visibleBubbleMessages[0]?.message.trim() : skillInvocationLabel?.trim();
+    visibleBubbleMessages.length === 1
+      ? visibleBubbleMessages[0]?.message.trim()
+      : skillInvocationLabel?.trim();
   const showActivityBadge =
     !invocationLabel &&
     !showBubbleMessageStack &&
     hasActivityBadge &&
     (isHovered || isHighlighted || showPinnedReadyBadge);
+  const showRichHoverLabel =
+    showRichEmployeeLabels &&
+    !invocationLabel &&
+    !showBubbleMessageStack &&
+    !showActivityBadge &&
+    (isHovered || isHighlighted);
   const richLabelOffset = showActivityBadge ? 0.86 : 0.5;
   const onboardingOffset = showActivityBadge ? 1.28 : 1.05;
   const bubbleOffset = 0.08;
@@ -296,7 +327,10 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
           <div className="animate-in fade-in zoom-in-95 duration-150">
             <ActivitySignalCard stacked>
               {visibleBubbleMessages.map((message) => (
-                <div key={`${message.threadId}:${message.eventAt}`} className={BUBBLE_MESSAGE_ROW_CLASS}>
+                <div
+                  key={`${message.threadId}:${message.eventAt}`}
+                  className={BUBBLE_MESSAGE_ROW_CLASS}
+                >
                   {message.message}
                 </div>
               ))}
@@ -315,14 +349,11 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
           totalHeight={totalHeight}
           compact={useCompactOverlayMode}
           fixedBannerSize={showPinnedReadyBadge}
+          persistenceTag={persistenceTag}
         />
       ) : null}
 
-      {showRichEmployeeLabels &&
-      !invocationLabel &&
-      !showBubbleMessageStack &&
-      !showActivityBadge &&
-      (isHovered || isHighlighted) ? (
+      {showRichHoverLabel ? (
         <Html
           position={[0, totalHeight + richLabelOffset, 0]}
           center
@@ -345,7 +376,33 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
                   {presenceTimeLeft}
                 </div>
               ) : null}
+              {persistenceTag ? (
+                <div className="mt-1 border-t border-current/20 pt-1">
+                  <EmployeePersistenceLabel tag={persistenceTag} />
+                </div>
+              ) : null}
             </div>
+          </div>
+        </Html>
+      ) : null}
+
+      {persistenceTag && !showActivityBadge && !showRichHoverLabel ? (
+        <Html
+          position={[0, totalHeight + 0.34, 0]}
+          center
+          transform
+          sprite
+          distanceFactor={4.8}
+          zIndexRange={[108, 0]}
+          style={{
+            backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden",
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
+        >
+          <div className="rounded-sm border border-slate-300/45 bg-slate-950/90 px-2 py-1 shadow-md backdrop-blur-sm">
+            <EmployeePersistenceLabel tag={persistenceTag} />
           </div>
         </Html>
       ) : null}

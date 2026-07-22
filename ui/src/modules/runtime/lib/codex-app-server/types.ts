@@ -1,3 +1,5 @@
+import type { CodexThreadGoalMetadata } from "../openclaw";
+
 export type CodexJson =
   | null
   | boolean
@@ -66,6 +68,7 @@ export type CodexThread = {
   agentNickname?: string | null;
   agentRole?: string | null;
   name?: string | null;
+  goal?: CodexThreadGoalMetadata | null;
   turns?: CodexTurn[];
 };
 

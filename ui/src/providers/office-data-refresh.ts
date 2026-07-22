@@ -389,7 +389,10 @@ export function mergeObservedCodexWorkersIntoUnifiedOfficeModel(
       .filter(
         (agent) =>
           agent.agentId.startsWith("codex-thread:") &&
-          (agent.isCeo === true || agent.role === "ceo" || agent.role === "pm"),
+          (agent.isCeo === true ||
+            agent.role === "ceo" ||
+            agent.role === "pm" ||
+            Boolean(agent.runtimeMetadata?.codexThreadGoal)),
       )
       .map((agent) => agent.agentId),
   );

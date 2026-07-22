@@ -2329,6 +2329,8 @@ export function toOfficeData(
     const runtimeAgent = runtimeById.get(agent.agentId);
     const observedCodex =
       agent.runtimeMetadata?.observedCodex ?? companyAgent?.runtimeMetadata?.observedCodex;
+    const codexThreadGoal =
+      agent.runtimeMetadata?.codexThreadGoal ?? companyAgent?.runtimeMetadata?.codexThreadGoal;
     const isRuntimeRunning = Boolean(runtimeAgent);
     const isMainAgent = agent.agentId === "main";
     const isCodexAgent = agent.agentId === "codex-main" || agent.agentId.startsWith("codex-");
@@ -2348,7 +2350,7 @@ export function toOfficeData(
     const isOfficeSupervisor =
       isOfficeCeo || companyAgent?.role === "pm" || companyAgent?.role === "biz_pm";
     const presencePersistent = isCodexAgent
-      ? isOfficeSupervisor || agent.agentId === "codex-main"
+      ? isOfficeSupervisor || agent.agentId === "codex-main" || Boolean(codexThreadGoal)
       : undefined;
     const claimsPersistentDesk =
       !usesCentralCommandCommons || (isOfficeCeo && teamId === "team-management");
@@ -2484,7 +2486,8 @@ export function toOfficeData(
             : (runtimeAgent?.sessionCount ?? 0) > 0
               ? "success"
               : "info"),
-      statusMessage: liveStatus?.statusText ?? heartbeat?.goal ?? "Idle",
+      statusMessage:
+        codexThreadGoal?.objective ?? liveStatus?.statusText ?? heartbeat?.goal ?? "Idle",
       notificationCount: agentApprovals?.count,
       notificationPriority: agentApprovals?.maxRisk,
       activityState: activity.state,
@@ -2499,7 +2502,15 @@ export function toOfficeData(
           weight: bubble.weight,
         })) ?? [],
       presencePersistent,
+      persistenceTag: presencePersistent
+        ? codexThreadGoal
+          ? "goal"
+          : heartbeat
+            ? "heartbeat"
+            : "pinned"
+        : undefined,
       presenceExpiresAt: presencePersistent === false ? companyAgent?.presenceExpiresAt : undefined,
+      codexThreadGoal,
       teamCharacterPolicy: team?.characterPolicy,
       observedRuntime: observedCodex
         ? {

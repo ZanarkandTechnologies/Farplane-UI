@@ -60,11 +60,42 @@ export class CodexAppServerClient {
     });
   }
 
+  async listThreadsWithGoals(limit = 50): Promise<CodexThreadListResponse> {
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.stateUrl}/codex/app-server/thread-list-with-goals`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          limit,
+          sortKey: "updated_at",
+          sortDirection: "desc",
+          archived: false,
+        }),
+      });
+    } catch {
+      throw new Error("codex_app_server_bridge_unreachable");
+    }
+    const payload = (await response.json()) as CodexRpcBridgeResponse<CodexThreadListResponse>;
+    if (!response.ok || payload.ok === false) {
+      throw new Error(
+        payload.ok === false
+          ? (payload.error ?? "codex_thread_goals_failed")
+          : `codex_thread_goals_failed:${response.status}`,
+      );
+    }
+    return payload.result;
+  }
+
   async readHealth(): Promise<CodexAppServerHealthResponse> {
     try {
       const response = await this.fetchImpl(`${this.stateUrl}/codex/app-server/health`);
       if (!response.ok) {
-        return { ok: false, configured: false, error: `codex_app_server_health_failed:${response.status}` };
+        return {
+          ok: false,
+          configured: false,
+          error: `codex_app_server_health_failed:${response.status}`,
+        };
       }
       return (await response.json()) as CodexAppServerHealthResponse;
     } catch {

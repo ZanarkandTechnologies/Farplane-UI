@@ -782,6 +782,57 @@ describe("office-data-provider stabilization", () => {
     expect(expired.runtimeAgents.map((agent) => agent.agentId)).not.toContain(worker.workerId);
   });
 
+  it("keeps a goal-backed Codex thread instead of replacing it with observed telemetry", () => {
+    const goal = {
+      threadId: "goal-thread",
+      objective: "Keep the approved rollout moving.",
+      status: "active" as const,
+      tokenBudget: 200_000,
+      tokensUsed: 12_500,
+      timeUsedSeconds: 3_900,
+      createdAt: 1_770_000_000,
+      updatedAt: 1_770_000_100,
+    };
+    const runtimeMetadata = { codexThreadGoal: goal };
+    const threadAgentId = "codex-thread:goal-thread";
+    const unified = createUnifiedOfficeModel({
+      company: createCompanyModel({
+        agents: [
+          {
+            agentId: threadAgentId,
+            role: "builder",
+            projectId: "codex-proj-farplane",
+            heartbeatProfileId: "hb-codex-goal-thread",
+            lifecycleState: "active",
+            runtimeMetadata,
+          },
+        ],
+      }),
+      runtimeAgents: [createRuntimeAgent({ agentId: threadAgentId, runtimeMetadata })],
+      configuredAgents: [createRuntimeAgent({ agentId: threadAgentId, runtimeMetadata })],
+    });
+    const observedWorker: ObservedCodexWorkerRow = {
+      workerId: "codex-observed:machine-a:codex-proj-farplane:goal-thread",
+      sourceInstanceId: "machine-a",
+      sessionKey: "goal-thread",
+      threadId: "goal-thread",
+      projectId: "codex-proj-farplane",
+      displayName: "Observed duplicate",
+      titleSource: "hook",
+      state: "running",
+      statusText: "Working",
+      lastSeenAt: Date.now(),
+      controllable: false,
+    };
+
+    const merged = mergeObservedCodexWorkersIntoUnifiedOfficeModel(unified, [observedWorker]);
+
+    expect(merged.company.agents).toHaveLength(1);
+    expect(merged.company.agents[0]?.agentId).toBe(threadAgentId);
+    expect(merged.company.agents[0]?.runtimeMetadata?.codexThreadGoal).toEqual(goal);
+    expect(merged.runtimeAgents.map((agent) => agent.agentId)).toEqual([threadAgentId]);
+  });
+
   it("does not duplicate observed telemetry when a Codex PM aggregate owns the thread", () => {
     const observedWorkers: ObservedCodexWorkerRow[] = [
       {
@@ -1095,6 +1146,17 @@ describe("office-data-provider stabilization", () => {
 
     const stabilized = stabilizeOfficeData(currentValue, nextValue);
     expect(stabilized.employees).toBe(nextValue.employees);
+  });
+
+  it("treats persistence reason tags as employee changes", () => {
+    const heartbeat = [createEmployee({ presencePersistent: true, persistenceTag: "heartbeat" })];
+    const goal = [createEmployee({ presencePersistent: true, persistenceTag: "goal" })];
+
+    expect(buildEmployeeSignature(heartbeat)).not.toBe(buildEmployeeSignature(goal));
+
+    const currentValue = createValue({ employees: heartbeat });
+    const nextValue = createValue({ employees: goal });
+    expect(stabilizeOfficeData(currentValue, nextValue).employees).toBe(nextValue.employees);
   });
 
   it("treats skill binding changes as office object changes", () => {
@@ -1716,6 +1778,7 @@ describe("office-data-provider team synthesis", () => {
           isCEO: true,
           isSupervisor: true,
           presencePersistent: true,
+          persistenceTag: "heartbeat",
         }),
         expect.objectContaining({
           _id: "employee-project-pulse:codex-proj-workspace-farplane-ui",
@@ -1802,6 +1865,75 @@ describe("office-data-provider team synthesis", () => {
           _id: "employee-codex-thread:weekly-strategy",
           isCEO: true,
           presencePersistent: true,
+        }),
+      ]),
+    );
+  });
+
+  it("maps a Codex thread goal into persistent employee details", () => {
+    const goal = {
+      threadId: "goal-thread",
+      objective: "Ship and prove the persistent goal worker.",
+      status: "active" as const,
+      tokenBudget: 50_000,
+      tokensUsed: 8_000,
+      timeUsedSeconds: 1_800,
+      createdAt: 1770000000,
+      updatedAt: 1770001800,
+    };
+    const runtimeMetadata = { codexThreadGoal: goal };
+    const company = createCompanyModel({
+      projects: [
+        {
+          id: "codex-proj-workspace-farplane-ui",
+          departmentId: "dept-codex-projects",
+          name: "Farplane UI",
+          githubUrl: "",
+          status: "active",
+          goal: "Build Farplane UI",
+          kpis: [],
+          accountEvents: [],
+          ledger: [],
+          experiments: [],
+          metricEvents: [],
+          resources: [],
+          resourceEvents: [],
+        },
+      ],
+      agents: [
+        {
+          agentId: "codex-thread:goal-thread",
+          role: "builder",
+          projectId: "codex-proj-workspace-farplane-ui",
+          heartbeatProfileId: "hb-codex-goal-thread",
+          lifecycleState: "active",
+          runtimeMetadata,
+        },
+      ],
+    });
+    const runtimeAgent = createRuntimeAgent({
+      agentId: "codex-thread:goal-thread",
+      displayName: "Goal Thread",
+      runtimeMetadata,
+    });
+
+    const result = toOfficeData(
+      createUnifiedOfficeModel({
+        company,
+        runtimeAgents: [runtimeAgent],
+        configuredAgents: [runtimeAgent],
+      }),
+      createOfficeSettings(),
+    );
+
+    expect(result.employees).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          _id: "employee-codex-thread:goal-thread",
+          presencePersistent: true,
+          persistenceTag: "goal",
+          statusMessage: goal.objective,
+          codexThreadGoal: goal,
         }),
       ]),
     );

@@ -512,6 +512,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
             heartbeatBubbles={employee.heartbeatBubbles}
             idleInteractionTargets={employee.idleInteractionTargets}
             presencePersistent={employee.presencePersistent}
+            persistenceTag={employee.persistenceTag}
             presenceExpiresAt={employee.presenceExpiresAt}
             observedRuntime={employee.observedRuntime}
             teamCharacterPolicy={employee.teamCharacterPolicy}

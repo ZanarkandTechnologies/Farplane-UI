@@ -1,5 +1,8 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { EmployeeData } from "@/modules/office/lib/types";
+import { CodexThreadGoalCard } from "./codex-thread-inspector";
 import {
   getDirectThreadLineage,
   getThreadLineageNetwork,
@@ -69,5 +72,27 @@ describe("CodexThreadInspector lineage", () => {
     const network = getThreadLineageNetwork({ graph, threadId: "child" });
     expect(network.nodes.map((node) => node.id).sort()).toEqual(["child", "leaf", "root"]);
     expect(network.edges.map((edge) => edge.id)).toEqual(["one", "two"]);
+  });
+
+  it("renders persisted goal objective, status, tokens, and elapsed time", () => {
+    const html = renderToStaticMarkup(
+      createElement(CodexThreadGoalCard, {
+        goal: {
+          threadId: "goal-thread",
+          objective: "Ship and prove the persistent goal worker.",
+          status: "usageLimited",
+          tokenBudget: 200_000,
+          tokensUsed: 12_500,
+          timeUsedSeconds: 3_900,
+          createdAt: 1770000000,
+          updatedAt: Math.floor(Date.now() / 1_000),
+        },
+      }),
+    );
+
+    expect(html).toContain("Ship and prove the persistent goal worker.");
+    expect(html).toContain("Usage limited");
+    expect(html).toContain("12.5K / 200K tokens");
+    expect(html).toContain("1h 5m elapsed");
   });
 });

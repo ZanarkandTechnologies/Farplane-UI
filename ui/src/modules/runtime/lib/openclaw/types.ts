@@ -16,6 +16,44 @@ export type AgentState =
   | "blocked"
   | "done";
 
+export type CodexThreadGoalStatus =
+  | "active"
+  | "paused"
+  | "blocked"
+  | "usageLimited"
+  | "budgetLimited"
+  | "complete";
+
+export interface CodexThreadGoalMetadata {
+  threadId: string;
+  objective: string;
+  status: CodexThreadGoalStatus;
+  tokenBudget: number | null;
+  tokensUsed: number;
+  timeUsedSeconds: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CodexRuntimeMetadata {
+  [key: string]: unknown;
+  codexThreadGoal?: CodexThreadGoalMetadata;
+  observedCodex?: {
+    sourceInstanceId: string;
+    machineId?: string;
+    machineName?: string;
+    projectId: string;
+    sessionKey: string;
+    threadId?: string;
+    parentThreadId?: string;
+    controllable: false;
+  };
+  codexProjectPm?: {
+    projectId: string;
+    threadIds: string[];
+  };
+}
+
 export interface AgentCardModel {
   agentId: string;
   displayName: string;
@@ -28,22 +66,7 @@ export interface AgentCardModel {
   };
   sessionCount: number;
   lastUpdatedAt?: number;
-  runtimeMetadata?: {
-    observedCodex?: {
-      sourceInstanceId: string;
-      machineId?: string;
-      machineName?: string;
-      projectId: string;
-      sessionKey: string;
-      threadId?: string;
-      parentThreadId?: string;
-      controllable: false;
-    };
-    codexProjectPm?: {
-      projectId: string;
-      threadIds: string[];
-    };
-  };
+  runtimeMetadata?: CodexRuntimeMetadata;
 }
 
 export interface SessionRowModel {
@@ -416,22 +439,7 @@ export interface CompanyAgentModel {
   isCeo?: boolean;
   lifecycleState: AgentLifecycleState;
   presenceExpiresAt?: number;
-  runtimeMetadata?: {
-    observedCodex?: {
-      sourceInstanceId: string;
-      machineId?: string;
-      machineName?: string;
-      projectId: string;
-      sessionKey: string;
-      threadId?: string;
-      parentThreadId?: string;
-      controllable: false;
-    };
-    codexProjectPm?: {
-      projectId: string;
-      threadIds: string[];
-    };
-  };
+  runtimeMetadata?: CodexRuntimeMetadata;
 }
 
 export interface CompanyOfficeObjectModel {

@@ -332,6 +332,7 @@ export function toCodexAgentCards(threads: CodexThread[]): AgentCardModel[] {
     toolPolicy: { allow: [], deny: [] },
     sessionCount: 1,
     lastUpdatedAt: secondsToMs(thread.updatedAt),
+    runtimeMetadata: thread.goal ? { codexThreadGoal: thread.goal } : undefined,
   }));
 }
 
@@ -407,12 +408,20 @@ export function toCodexCompanyModel(
       (visibility.showAutomationThreadsAsHeartbeat &&
         isPersistentAutomationHeartbeatThread(thread));
     const hasHeartbeat = hasExplicitHeartbeat || isThreadStatusActive(thread);
-    if (isInternalAuxiliaryThread(thread) && !isCeoThread && !isPinned && !hasExplicitHeartbeat) {
+    const hasGoal = Boolean(thread.goal);
+    if (
+      isInternalAuxiliaryThread(thread) &&
+      !isCeoThread &&
+      !isPinned &&
+      !hasExplicitHeartbeat &&
+      !hasGoal
+    ) {
       continue;
     }
     const isVisible =
       isCeoThread ||
       isPinned ||
+      hasGoal ||
       isThreadRecentlyActive(thread, nowMs, activeThreadWindowMs) ||
       (visibility.alwaysShowHeartbeatThreads && hasHeartbeat);
     if (!isVisible) {
@@ -483,17 +492,20 @@ export function toCodexCompanyModel(
         (visibility.showAutomationThreadsAsHeartbeat &&
           isPersistentAutomationHeartbeatThread(thread));
       const hasHeartbeat = hasExplicitHeartbeat || isThreadStatusActive(thread);
+      const hasGoal = Boolean(thread.goal);
       if (
         isInternalAuxiliaryThread(thread) &&
         !isCeoThread &&
         !isManager &&
-        !hasExplicitHeartbeat
+        !hasExplicitHeartbeat &&
+        !hasGoal
       ) {
         continue;
       }
       if (
         !isCeoThread &&
         !isManager &&
+        !hasGoal &&
         !isThreadRecentlyActive(thread, nowMs, activeThreadWindowMs) &&
         !(visibility.alwaysShowHeartbeatThreads && hasHeartbeat)
       ) {
@@ -501,7 +513,7 @@ export function toCodexCompanyModel(
       }
       const activityUpdatedAt = threadActivityUpdatedAtMs(thread);
       const presenceExpiresAt =
-        !isCeoThread && !isManager && !hasHeartbeat && activityUpdatedAt
+        !isCeoThread && !isManager && !hasHeartbeat && !hasGoal && activityUpdatedAt
           ? activityUpdatedAt + activeThreadWindowMs
           : undefined;
       visibleThreadAgents.set(thread.id, { projectPath, thread, isManager, presenceExpiresAt });
@@ -612,10 +624,13 @@ export function toCodexCompanyModel(
               ? "hb-codex-thread-ceo"
               : isManager
                 ? "hb-codex-manager"
-                : "hb-codex-thread",
+                : thread.goal
+                  ? "hb-codex-goal-thread"
+                  : "hb-codex-thread",
           isCeo: hasVisibleCeoThread && thread.id === ceoThreadId,
           lifecycleState: "active" as const,
           presenceExpiresAt,
+          runtimeMetadata: thread.goal ? { codexThreadGoal: thread.goal } : undefined,
         }),
       ),
     ],
@@ -662,6 +677,14 @@ export function toCodexCompanyModel(
         productDetails:
           "Project-local farplane/pm.json groups isolated Codex chat and automation sessions under one PM.",
         goal: "Keep project PM sessions grouped while non-PM Codex threads can appear as workers.",
+      },
+      {
+        id: "hb-codex-goal-thread",
+        role: "builder",
+        cadenceMinutes: 0,
+        teamDescription: "Goal-backed Codex thread",
+        productDetails: "Persistent office presence while a Codex thread retains a goal.",
+        goal: "Keep long-running goal work visible until its goal is cleared.",
       },
       {
         id: "hb-codex-thread",

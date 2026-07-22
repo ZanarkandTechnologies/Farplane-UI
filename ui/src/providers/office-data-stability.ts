@@ -81,6 +81,7 @@ export function buildEmployeeSignature(employees: EmployeeData[]): string {
         employee.activityDetail ?? "",
         employee.activityUpdatedAt ?? "",
         employee.heartbeatState ?? "",
+        employee.persistenceTag ?? "",
         employee.profileImageUrl ?? "",
         buildHeartbeatBubbleSignature(employee.heartbeatBubbles),
         employee.activityTargetSkillId ?? "",

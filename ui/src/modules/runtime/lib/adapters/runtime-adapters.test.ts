@@ -865,6 +865,45 @@ describe("runtime adapters", () => {
     expect(company.agents.some((agent) => agent.agentId === "codex-thread:old-hidden")).toBe(false);
   });
 
+  it("keeps goal-backed Codex threads persistent after the recent-thread window expires", () => {
+    const nowMs = 1770000000 * 1000;
+    const goal = {
+      threadId: "old-goal-thread",
+      objective: "Keep improving the office until the goal view is proven.",
+      status: "active" as const,
+      tokenBudget: 200_000,
+      tokensUsed: 12_500,
+      timeUsedSeconds: 3_600,
+      createdAt: 1769900000,
+      updatedAt: 1769990000,
+    };
+    const thread = {
+      id: "old-goal-thread",
+      name: "Goal worker",
+      cwd: "/workspace/farplane-ui",
+      updatedAt: 1769900000,
+      goal,
+    };
+
+    const company = toCodexCompanyModel([thread], nowMs, ["/workspace/farplane-ui"], {
+      officeVisibility: { recentThreadWindowMinutes: 5 },
+    });
+
+    expect(company.agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          agentId: "codex-thread:old-goal-thread",
+          heartbeatProfileId: "hb-codex-goal-thread",
+          presenceExpiresAt: undefined,
+          runtimeMetadata: { codexThreadGoal: goal },
+        }),
+      ]),
+    );
+    expect(toCodexAgentCards([thread])[0]).toEqual(
+      expect.objectContaining({ runtimeMetadata: { codexThreadGoal: goal } }),
+    );
+  });
+
   it("does not promote delegated child Codex threads into office workers unless pinned", () => {
     const nowMs = 1770000000 * 1000;
     const company = toCodexCompanyModel(

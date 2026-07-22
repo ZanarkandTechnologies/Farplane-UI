@@ -10,7 +10,7 @@
  */
 
 import { useQuery } from "convex/react";
-import { Activity, Radio, Sparkles } from "lucide-react";
+import { Activity, Clock3, Gauge, Radio, Sparkles, Target } from "lucide-react";
 import { type ReactElement, useMemo } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -136,6 +136,7 @@ export function CodexThreadInspector({
     employee?.observedRuntime?.machineId ??
     "Local source";
   const hasParent = network.edges.some((edge) => normalizeThreadId(edge.target) === currentId);
+  const goal = employee?.codexThreadGoal;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -176,6 +177,7 @@ export function CodexThreadInspector({
               </>
             ) : null}
           </DialogDescription>
+          {goal ? <CodexThreadGoalCard goal={goal} /> : null}
         </DialogHeader>
 
         <div className="min-h-0 p-3 sm:p-4">
@@ -217,6 +219,80 @@ export function CodexThreadInspector({
       </DialogContent>
     </Dialog>
   );
+}
+
+export function CodexThreadGoalCard({
+  goal,
+}: {
+  goal: NonNullable<EmployeeData["codexThreadGoal"]>;
+}): ReactElement {
+  return (
+    <section
+      aria-label="Thread goal"
+      data-testid="codex-thread-goal-card"
+      className="mt-3 rounded-lg border border-primary/20 bg-primary/[0.04] p-3 text-left"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+          <Target aria-hidden="true" className="size-3.5" /> Goal
+        </span>
+        <Badge variant={goalStatusBadgeVariant(goal.status)}>{formatGoalStatus(goal.status)}</Badge>
+      </div>
+      <p className="mt-2 text-sm font-medium leading-relaxed text-foreground">{goal.objective}</p>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <Gauge aria-hidden="true" className="size-3.5" />
+          {formatGoalTokens(goal.tokensUsed, goal.tokenBudget)}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <Clock3 aria-hidden="true" className="size-3.5" />
+          {formatGoalDuration(goal.timeUsedSeconds)}
+        </span>
+        <span>Updated {formatObservedTime(goal.updatedAt * 1_000)}</span>
+      </div>
+    </section>
+  );
+}
+
+function formatGoalStatus(status: NonNullable<EmployeeData["codexThreadGoal"]>["status"]): string {
+  const labels = {
+    active: "Active",
+    paused: "Paused",
+    blocked: "Blocked",
+    usageLimited: "Usage limited",
+    budgetLimited: "Budget limited",
+    complete: "Complete",
+  } as const;
+  return labels[status];
+}
+
+function goalStatusBadgeVariant(
+  status: NonNullable<EmployeeData["codexThreadGoal"]>["status"],
+): "default" | "secondary" | "destructive" | "outline" {
+  if (status === "active") return "default";
+  if (status === "blocked" || status === "usageLimited" || status === "budgetLimited") {
+    return "destructive";
+  }
+  if (status === "complete") return "secondary";
+  return "outline";
+}
+
+function formatGoalTokens(tokensUsed: number, tokenBudget: number | null): string {
+  const formatter = new Intl.NumberFormat(undefined, {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  });
+  const used = formatter.format(Math.max(0, tokensUsed));
+  if (tokenBudget == null) return `${used} tokens used`;
+  return `${used} / ${formatter.format(Math.max(0, tokenBudget))} tokens`;
+}
+
+function formatGoalDuration(seconds: number): string {
+  const totalMinutes = Math.max(0, Math.round(seconds / 60));
+  if (totalMinutes < 60) return `${totalMinutes}m elapsed`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes > 0 ? `${hours}h ${minutes}m elapsed` : `${hours}h elapsed`;
 }
 
 function InspectorState({ title, detail }: { title: string; detail: string }): ReactElement {

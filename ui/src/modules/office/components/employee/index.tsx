@@ -83,6 +83,7 @@ export interface EmployeeProps {
   heartbeatBubbles?: Array<{ label: string; weight?: number }>;
   idleInteractionTargets?: EmployeeIdleInteractionTarget[];
   presencePersistent?: boolean;
+  persistenceTag?: EmployeeData["persistenceTag"];
   presenceExpiresAt?: number;
   observedRuntime?: EmployeeData["observedRuntime"];
   teamCharacterPolicy?: TeamCharacterPolicy;
@@ -158,6 +159,7 @@ const Employee = memo(function Employee({
   heartbeatState,
   idleInteractionTargets,
   presencePersistent,
+  persistenceTag,
   presenceExpiresAt,
   observedRuntime,
   teamCharacterPolicy,
@@ -420,6 +422,7 @@ const Employee = memo(function Employee({
           onboardingPrompt={onboardingPrompt}
           useCompactOverlayMode={useCompactOverlayMode}
           pinReadyActivity={isCodexThreadEmployee}
+          persistenceTag={persistenceTag}
           skillInvocationLabel={
             isGhostProjectionActive
               ? undefined
@@ -484,6 +487,7 @@ const Employee = memo(function Employee({
             onboardingPrompt={null}
             useCompactOverlayMode={useCompactOverlayMode}
             pinReadyActivity={false}
+            persistenceTag={persistenceTag}
             skillInvocationLabel={engagedActivityScene?.label ?? skillInvocationLabel}
             bubbleMessages={presentedBubbleMessages}
             presenceExpiresAt={presenceExpiresAt}

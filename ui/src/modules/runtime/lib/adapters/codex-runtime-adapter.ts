@@ -111,6 +111,8 @@ const CODEX_CAPABILITIES: RuntimeAdapterCapabilities = {
 const CODEX_BOOTSTRAP_RPC_TIMEOUT_MS = 1500;
 // Thread listing can include Vite-side filesystem summary merging before employees are built.
 const CODEX_THREAD_LIST_BOOTSTRAP_TIMEOUT_MS = 6000;
+// Goal enrichment queries each listed app-server thread over one websocket session.
+const CODEX_THREAD_GOAL_LIST_BOOTSTRAP_TIMEOUT_MS = 15000;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, code: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -217,12 +219,17 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
   readonly runtimeLabel = "Codex";
   readonly capabilities = CODEX_CAPABILITIES;
   private readonly codexClient: CodexAppServerClient;
-  private threadsCache: { loadedAt: number; threads: CodexThread[] } | null = null;
+  private threadsCache: {
+    loadedAt: number;
+    threads: CodexThread[];
+    includesGoals: boolean;
+  } | null = null;
   private projectPathsCache: { loadedAt: number; projectPaths: string[] } | null = null;
   private uiStateCache: { loadedAt: number; uiState: CodexUiStateResponse } | null = null;
   private healthCache: { loadedAt: number; available: boolean } | null = null;
   private healthInFlight: Promise<boolean> | null = null;
   private threadsInFlight: Promise<CodexThread[]> | null = null;
+  private threadsWithGoalsInFlight: Promise<CodexThread[]> | null = null;
   private projectPathsInFlight: Promise<string[]> | null = null;
   private uiStateInFlight: Promise<CodexUiStateResponse> | null = null;
 
@@ -251,32 +258,60 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
     }
   }
 
-  private async listCodexThreads(options: { force?: boolean } = {}): Promise<CodexThread[]> {
+  private async listCodexThreads(
+    options: { force?: boolean; includeGoals?: boolean } = {},
+  ): Promise<CodexThread[]> {
     const now = Date.now();
-    if (!options.force && this.threadsCache && now - this.threadsCache.loadedAt < 5000) {
+    if (
+      !options.force &&
+      this.threadsCache &&
+      now - this.threadsCache.loadedAt < 5000 &&
+      (!options.includeGoals || this.threadsCache.includesGoals)
+    ) {
       return this.threadsCache.threads;
     }
-    if (!options.force && this.threadsInFlight) return this.threadsInFlight;
+    if (!options.force) {
+      if (options.includeGoals && this.threadsWithGoalsInFlight) {
+        return this.threadsWithGoalsInFlight;
+      }
+      if (!options.includeGoals && (this.threadsWithGoalsInFlight || this.threadsInFlight)) {
+        const inFlight = this.threadsWithGoalsInFlight ?? this.threadsInFlight;
+        if (inFlight) return inFlight;
+      }
+    }
     const run = (async (): Promise<CodexThread[]> => {
       if (!(await this.isCodexAppServerAvailable(options))) {
-        this.threadsCache = { loadedAt: Date.now(), threads: [] };
+        this.threadsCache = { loadedAt: Date.now(), threads: [], includesGoals: false };
         return [];
       }
       const response = await withTimeout(
-        this.codexClient.listThreads(80),
-        CODEX_THREAD_LIST_BOOTSTRAP_TIMEOUT_MS,
+        options.includeGoals
+          ? this.codexClient.listThreadsWithGoals(80).catch(() => this.codexClient.listThreads(80))
+          : this.codexClient.listThreads(80),
+        options.includeGoals
+          ? CODEX_THREAD_GOAL_LIST_BOOTSTRAP_TIMEOUT_MS
+          : CODEX_THREAD_LIST_BOOTSTRAP_TIMEOUT_MS,
         "codex_thread_list_bootstrap_timeout",
       );
       const threads = Array.isArray(response.data)
         ? response.data.filter((thread) => thread.id)
         : [];
-      this.threadsCache = { loadedAt: Date.now(), threads };
+      const nextCache = {
+        loadedAt: Date.now(),
+        threads,
+        includesGoals: options.includeGoals === true && threads.some((thread) => "goal" in thread),
+      };
+      if (nextCache.includesGoals || !this.threadsCache?.includesGoals) {
+        this.threadsCache = nextCache;
+      }
       return threads;
     })();
-    this.threadsInFlight = run;
+    if (options.includeGoals) this.threadsWithGoalsInFlight = run;
+    else this.threadsInFlight = run;
     try {
       return await run;
     } finally {
+      if (this.threadsWithGoalsInFlight === run) this.threadsWithGoalsInFlight = null;
       if (this.threadsInFlight === run) this.threadsInFlight = null;
     }
   }
@@ -405,7 +440,7 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
 
   async getUnifiedOfficeModel(): Promise<UnifiedOfficeModel> {
     const [threads, projectPaths, officeObjects, uiState, savedCompany] = await Promise.all([
-      this.listCodexThreads().catch(() => []),
+      this.listCodexThreads({ includeGoals: true }).catch(() => []),
       this.listCodexProjectPaths().catch(() => []),
       this.getOfficeObjects().catch(() => []),
       this.readCodexUiState().catch(() => ({})),

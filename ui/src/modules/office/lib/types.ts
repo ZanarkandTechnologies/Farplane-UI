@@ -1,9 +1,10 @@
 import type { StatusType } from "@/modules/navigation/components/status-indicator";
-import type { AgentState, TeamCharacterPolicy } from "@/modules/runtime";
+import type { AgentState, CodexThreadGoalMetadata, TeamCharacterPolicy } from "@/modules/runtime";
 import type { ActivityScenePresentation } from "../activity-scenes";
 
 export type OfficeId<T extends string = string> = string & { __type?: T };
 export type EmployeeActivityState = "idle" | "running" | "waiting" | "failed" | "review" | "done";
+export type EmployeePersistenceTag = "goal" | "heartbeat" | "pinned";
 export type EmployeeCharacterRendererId = "three-human" | "sprite-sheet-2d";
 export type EmployeeCharacterRendererSource =
   | { type: "codex-pet"; petId: string }
@@ -130,8 +131,10 @@ export interface EmployeeData extends Employee {
   heartbeatBubbles?: Array<{ label: string; weight: number }>;
   idleInteractionTargets?: EmployeeIdleInteractionTarget[];
   presencePersistent?: boolean;
+  persistenceTag?: EmployeePersistenceTag;
   projectPulse?: boolean;
   presenceExpiresAt?: number;
+  codexThreadGoal?: CodexThreadGoalMetadata;
   teamCharacterPolicy?: TeamCharacterPolicy;
   observedRuntime?: {
     kind: "codex";

@@ -77,6 +77,7 @@ export type {
   ChannelsStatusSnapshot,
   ChannelUiMetaEntry,
   ChatSendRequest,
+  CodexThreadGoalMetadata,
   CompanyAgentModel,
   CompanyModel,
   CompanyOfficeObjectModel,
