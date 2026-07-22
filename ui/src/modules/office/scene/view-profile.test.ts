@@ -43,6 +43,7 @@ describe("office scene view profile", () => {
     expect(state.controlsEnabled).toBe(true);
     expect(state.rotateEnabled).toBe(false);
     expect(state.panEnabled).toBe(true);
+    expect(state.maxZoom).toBe(state.cameraZoom * 3);
   });
 
   it("forces perspective framing when consult mode overrides fixed 2.5D", () => {

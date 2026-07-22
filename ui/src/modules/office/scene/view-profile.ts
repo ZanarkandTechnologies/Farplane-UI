@@ -46,6 +46,7 @@ const FREE_ORBIT_CAMERA_POSITION: [number, number, number] = [0, 25, 30];
 const FREE_ORBIT_CAMERA_TARGET: [number, number, number] = [0, 0, 0];
 const BUILDER_CAMERA_POSITION: [number, number, number] = [0, 50, 0];
 const BUILDER_CAMERA_TARGET: [number, number, number] = [0, 0, 0];
+const FIXED_VIEW_MAX_ZOOM_MULTIPLIER = 3;
 
 function getFixedViewCameraPosition(
   orientation: OfficeSceneViewSettings["cameraOrientation"],
@@ -137,7 +138,7 @@ export function getOfficeSceneViewState(params: {
       cameraFov: 35,
       cameraZoom: getFixedOfficeCameraZoom(layoutCenter),
       minZoom: Math.max(6, getFixedOfficeCameraZoom(layoutCenter) * 0.65),
-      maxZoom: getFixedOfficeCameraZoom(layoutCenter) * 2.5,
+      maxZoom: getFixedOfficeCameraZoom(layoutCenter) * FIXED_VIEW_MAX_ZOOM_MULTIPLIER,
       controlsEnabled,
       rotateEnabled: false,
       panEnabled: controlsEnabled,
