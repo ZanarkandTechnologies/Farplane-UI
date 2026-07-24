@@ -51,6 +51,7 @@ type CardMount = {
   styleHost: HTMLElement;
   previousPosition: string | null;
   previousIsolation: string;
+  previousZIndex: string;
 };
 
 const mounts = new Map<Element, CardMount>();
@@ -149,6 +150,7 @@ function removeMount(card: Element, mount: CardMount) {
     mount.styleHost.style.position = mount.previousPosition;
   }
   mount.styleHost.style.isolation = mount.previousIsolation;
+  mount.styleHost.style.zIndex = mount.previousZIndex;
   mounts.delete(card);
 }
 
@@ -209,6 +211,7 @@ function mountCard(card: Element) {
     styleHost.style.position = "relative";
   }
   const previousIsolation = styleHost.style.isolation;
+  const previousZIndex = styleHost.style.zIndex;
   styleHost.style.isolation = "isolate";
   positionControl(host, thumbnail, styleHost);
   styleHost.append(host);
@@ -220,8 +223,15 @@ function mountCard(card: Element) {
     styleHost,
     previousPosition,
     previousIsolation,
+    previousZIndex,
   });
-  root.render(<Overlay card={card} />);
+  root.render(
+    <Overlay
+      card={card}
+      styleHost={styleHost}
+      previousZIndex={previousZIndex}
+    />,
+  );
 }
 
 function scan() {
@@ -325,7 +335,15 @@ const cornerButtonStyle = (
   letterSpacing: ".06em",
 });
 
-function Overlay({ card }: { card: Element }) {
+function Overlay({
+  card,
+  styleHost,
+  previousZIndex,
+}: {
+  card: Element;
+  styleHost: HTMLElement;
+  previousZIndex: string;
+}) {
   const [boundVideoId, setBoundVideoId] = useState(
     () => videoData(card)?.id ?? "",
   );
@@ -370,6 +388,13 @@ function Overlay({ card }: { card: Element }) {
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [panelOpen]);
+
+  useEffect(() => {
+    styleHost.style.zIndex = panelOpen ? "4" : previousZIndex;
+    return () => {
+      styleHost.style.zIndex = previousZIndex;
+    };
+  }, [panelOpen, previousZIndex, styleHost]);
 
   async function run(event: React.MouseEvent) {
     event.preventDefault();
