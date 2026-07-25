@@ -19,9 +19,9 @@ approval_required: true
 requires_qa: true
 requires_demo: true
 created_at: 2026-07-22T00:00:00+08:00
-updated_at: 2026-07-22T22:35:00+08:00
-next_action: Operator evaluates the real-data before/after packet and dry-run storyboard before factual scripting or provider spend.
-last_verification: Strict live migration, focused tests, installed skill parity, responsive browser QA, five-column element-gallery QA, and independent implementation review pass; current handoff is TAS-A.
+updated_at: 2026-07-22T23:55:00+08:00
+next_action: Operator evaluates the live six-kind Resource Bank, element inspector, and explicit Brand Kit picker before any provider-funded production run.
+last_verification: Strict Convex deploy passed; live audit reports 6 Resource and 6 Brand Kit elements with zero legacy rows; 20 backend and 6 UI tests passed; browser QA and independent TAS-A review passed.
 decision_refs:
   - docs/features/FEAT-0003-taste-bank-and-tasty-packs.md
   - tickets/TASK-0057/ticket.md
@@ -54,10 +54,13 @@ installed skills are refreshed.
 - `In:`
   - enrich the existing Resource Bank creative-element row with the minimal
     `whyItWorks`, `goldenExample`, and `goldenRecipe` fields
-  - retain the existing nine Resource Bank kinds unchanged: `visual`, `audio`,
-    `hook`, `storyboard`, `editing`, `copy`, `character`, `format`, `constraint`
-  - remove the lossy Brand Kit kind fork so approved snapshots preserve those same
-    kinds instead of collapsing hook/copy/storyboard to `story`
+  - enforce six independently reusable production kinds: `format`, `storyboard`,
+    `visual`, `character`, `audio`, and `editing`
+  - apply the governing test: an element is independently selectable,
+    independently conditionable from an example, and owned by a recognizable
+    production step
+  - fold hooks and semantic copy into storyboard, subtitle rendering/timing into
+    editing, and restrictions into production policy or the Brand Kit prompt
   - make Tasty Pack retrieval return complete creative elements without reducing
     them to title/description
   - make Brand Kit promotion snapshot complete creative elements and stable golden
@@ -91,8 +94,8 @@ installed skills are refreshed.
   - deleting `video-production/config.toml`, explainer-style reference files, or
     standalone video-production profile behavior
   - provider credentials, automatic publishing, or unapproved production spend
-  - broad Resource Bank redesign outside the element cards/detail needed to inspect
-    the richer contract
+  - broad Resource Bank redesign outside the compact element grid, inspector, and
+    deliberate Brand Kit assignment flow
 
 ## Delta
 
@@ -123,8 +126,8 @@ installed skills are refreshed.
     to, transported with, or generated from individual creative elements
   - constraint: keep the object small enough to ingest repeatedly and understand in
     one UI card
-  - first viable slice: four semantic fields per element, existing kinds, one example,
-    one prompt, no new tables
+  - first viable slice: four semantic fields per element, six governed kinds, one
+    example, one prompt, no new tables
   - proof/falsification: reingest one known source and generate a plan/render where
     each selected element can be traced to what/why/example/prompt and visible output
   - tradeoff: one example and one prompt cannot represent every future variant, but
@@ -177,7 +180,7 @@ after:
   - whyItWorks and goldenRecipe are required non-empty strings for new writes
   - goldenExample is one required Resource Bank asset reference plus an optional note
   - provenance, timestamps, embedding data, and project/task links remain storage metadata
-  - Brand Kit snapshots preserve the same nine kinds and semantic payload; their
+  - Brand Kit snapshots preserve the same six kinds and semantic payload; their
     example locator is copied so identity survives Resource Bank reset
 read:
   - path: convex/modules/resourceBank/schema.ts
@@ -209,7 +212,7 @@ operation:
 signature_or_type_impact:
   - CreativeElement gains whyItWorks: string, goldenExample: { assetId, description? },
     and goldenRecipe: string
-  - BrandKitElementSnapshot uses the canonical nine kinds and semantic payload while
+  - BrandKitElementSnapshot uses the canonical six kinds and semantic payload while
     retaining approval/provenance/hash fields and stable copied asset locator fields
 routes:
   docs: update_docs
@@ -223,7 +226,8 @@ qa:
 failure_modes:
   - golden example points at a contact sheet from an unrelated source
   - Brand Kit remains tied only to a resettable Resource Bank asset id
-  - hook/copy/storyboard still collapse to story
+  - opening beats or semantic copy are emitted as duplicate pseudo-elements instead
+    of one coherent storyboard element
 ```
 
 ### Change 2: Preserve complete elements through Tasty Pack and Brand Kit
@@ -506,7 +510,7 @@ write:
   - path: /Users/kenjipcx/Zanarkand Technologies/projects/Farplane/skills/ingest-content/references/phase-router.md
     change: route video understanding when element-specific example/why/prompt cannot be grounded
   - path: /Users/kenjipcx/Zanarkand Technologies/projects/Farplane/skills/ingest-content/references/reuse-taxonomy.md
-    change: keep nine kinds and place layout/pacing semantics under existing owners
+    change: enforce the six-kind governing test and folding rules
   - path: /Users/kenjipcx/Zanarkand Technologies/projects/Farplane/skills/ingest-content/qa_checklist.md
     change: gate every written element on complete capsule fields and resolvable example asset
   - path: /Users/kenjipcx/Zanarkand Technologies/projects/Farplane/skills/ingest-content/evals/evals.json
@@ -574,8 +578,8 @@ operation:
   - compose_elements(brandKit, tastyPack, idea) produces an explicit chosen/rejected map
   - realize_element(element, idea_context) routes goldenRecipe + goldenExample +
     description/why to the existing owner advisor; no new universal advisor is created
-  - a complete element may produce narrative text, an asset, an audio track, an edit
-    rule, or a constraint rather than pretending every kind generates a file
+  - a complete element may produce narrative text, an asset, an audio track, or an
+    edit rule rather than pretending every kind generates a file
 signature_or_type_impact:
   - content_impl_plan(idea, content_kind?, video_method?, brand_kit?, tasty_pack?,
     icp?, platform?, proof?, constraints?, artifact_owner?)
@@ -585,7 +589,7 @@ routes:
   qa: agent-qa-test
   review: reviewer
 qa:
-  - Brand Kit-only plan preserves every selected identity/constraint element
+  - Brand Kit-only plan preserves every selected identity element and kit policy
   - composed plan names provenance and rejects a Tasty element that conflicts with kit constraints
   - plan cannot pass creative_lock when selected example/recipe is ignored by its advisor packet
   - low-poly regression packet contains actual visual storyboard images and notes before spend
@@ -606,7 +610,7 @@ before:
   - content-impl-plan currently places audio after generation/capture
 after:
   - each existing owner accepts the standard element realization packet relevant to its domain
-  - hook/copy/storyboard/format/constraint inform storyboard; visual/character inform
+  - format/storyboard inform story and delivery shape; visual/character inform
     assets/image/video/avatar; audio informs audio-advisor; editing informs Remotion
   - the plan selects voiceover, music, source_video, or none as timing master
   - for voice-led explainers/avatar/lipsync: lock script -> generate voice/timestamps ->
@@ -721,6 +725,8 @@ failure_modes:
 ```text
 done_when:
   - canonical Resource Bank, Tasty Pack, Brand Kit, and production packet types preserve the lean creative-element payload without field or kind loss
+  - every stored CreativeElement passes the three-part governing test and uses only
+    format, storyboard, visual, character, audio, or editing
   - every new ingest element contains non-empty description, whyItWorks, goldenRecipe,
     and one same-source goldenExample asset plus optional description
   - Brand Kit remains one embedded approved snapshot array plus exactly one kit-wide prompt
@@ -736,6 +742,10 @@ done_when:
     Remotion uses actual audio/caption cues
   - the low-poly Instagram source is reingested and replaces the old shallow kit
     snapshots while preserving the stable kit id and master prompt
+  - Resource Bank cards open a scrollable element inspector and Add to Brand Kit
+    requires an explicit destination-kit confirmation
+  - promoting an unchanged source element is a no-op while promoting a changed
+    version replaces its existing kit snapshot rather than appending a duplicate
   - an approved low-poly proof render visibly/audibly maps every claimed reused element
     to final output; generic resemblance or renderability alone is insufficient
   - all automated, browser, agent-behavior, visual, audio, migration, documentation,
@@ -777,8 +787,8 @@ qa_strategy:
   manual:
     - verify Resource Bank cards remain visual/scannable and expose why/example/recipe
     - verify Brand Kit is still grid -> focused detail with one prompt and no recipe/profile tabs
-    - verify low-poly final output expresses the selected hook, storyboard, visual,
-      character, audio, editing, copy, format, and constraint elements actually claimed
+    - verify low-poly final output expresses the selected format, storyboard, visual,
+      character, audio, and editing elements actually claimed
   delegated_lanes:
     - qa-tester for live Convex migration/reingest/retrieval lifecycle
     - agent-qa-test for ingest and content-planning skill behavior
@@ -832,7 +842,7 @@ proof reason.
   states. Use the guarded migration sequence in Change 3; do not seed demo rows into
   the live migration deployment.
 - `Stable navigation:` dialog name `Resource Bank`; counted tabs `Assets`, `Elements`,
-  and `Brand Kits`; element kind controls use the nine canonical kind labels; kit cards
+  and `Brand Kits`; element kind controls use the six canonical kind labels; kit cards
   open the focused detail page; detail exposes `Back`, one production prompt textarea,
   and the approved element grid.
 - `Required test hooks:` add narrowly scoped `data-testid` values only where roles and
@@ -840,8 +850,9 @@ proof reason.
   golden-recipe disclosure, or approved element card. Do not add broad selector markup.
 - `Key states:` Resource Bank loading/error/empty; populated visual Elements grid;
   element without renderable preview fallback; Brand Kit gallery; selected kit detail;
-  prompt save; complete approved element cards; Add to kit dedupe; desktop and narrow
-  viewport.
+  prompt save; complete approved element cards; compact element grid; selected-element
+  inspector; explicit kit picker; unchanged promotion no-op; changed snapshot replace;
+  desktop and narrow viewport.
 - `Stabilization:` wait for the Resource Bank dialog, Convex loading states to clear,
   media previews to settle, and zero page/console errors before capture. Record the
   selected kit id/revision and capture ids in the evidence note.
@@ -889,19 +900,24 @@ docs_strategy:
 - `review:` `tickets/TASK-0068/artifacts/review/2026-07-22-plan-review-2.md` (`TAS-A`, pass)
 - `browser qa:` `tickets/TASK-0068/artifacts/qa/browser-qa.md` (`pass`, after server restart)
 - `browser qa receipt:` `tickets/TASK-0068/artifacts/qa/result.json`
-- `browser qa best evidence:` `tickets/TASK-0068/artifacts/qa/screens/mobile-390x844-brand-kit-detail-after-restart.png`
-- `element gallery density proof:` `tickets/TASK-0068/artifacts/qa/screens/desktop-elements-tall-grid.png`
+- `browser qa best evidence:` `tickets/TASK-0068/artifacts/qa/screens/desktop-element-inspector.png`
+- `element gallery density proof:` `tickets/TASK-0068/artifacts/qa/screens/desktop-six-kind-grid.png`
+- `mobile inspector proof:` `tickets/TASK-0068/artifacts/qa/screens/mobile-element-inspector.png`
+- `explicit kit picker proof:` `tickets/TASK-0068/artifacts/qa/screens/desktop-brand-kit-picker.png`
+- `six-kind migration receipt:` `tickets/TASK-0068/artifacts/migration/six-kind-consolidation-receipt.md`
+- `six-kind live readback:` `tickets/TASK-0068/artifacts/migration/six-kind-after.json`
 - `before/after evaluation:` `tickets/TASK-0068/artifacts/evaluation/before-after.md`
 - `dry-run content plan:` `tickets/TASK-0068/artifacts/content-proof/dry-run-content-plan.md`
 - `dry-run storyboard:` `tickets/TASK-0068/artifacts/content-proof/dry-run-storyboard.png`
 - `implementation review:` `tickets/TASK-0068/artifacts/review/2026-07-22-implementation-review.md` (`TAS-A`, pass)
+- `six-kind correction review:` `tickets/TASK-0068/artifacts/review/2026-07-22-six-kind-correction-review.md` (`TAS-A`, pass)
 - `refs:` `TASK-0057`, `TASK-0061`, `FEAT-0003`, Farplane `FEAT-0056`
 
 ## Notes
 
 - `Minimal implementation claim:` this is the smallest complete implementation
-  because it adds three semantic fields to the existing element row, reuses the nine
-  kinds, existing asset rows, existing Tasty Pack query, embedded Brand Kit snapshots,
+  because it adds three semantic fields to the existing element row, narrows to six
+  governed kinds, and reuses existing asset rows, Tasty Pack query, embedded snapshots,
   existing advisor skills, and existing Remotion terminal path. It adds no runtime
   table, generic advisor, recipe collection, or timing schema.
 - `Accepted vocabulary:` description says what the element is; whyItWorks says why it
@@ -913,8 +929,8 @@ docs_strategy:
   callers rather than preserving a third compatibility lane there; direct standalone
   `video-production` profile behavior remains supported and separately owned.
 - `Blast radius:` Convex schema and live data, Resource Bank UI, Tasty Pack API, Brand
-  Kit production packets, two feature registries, one new system, one new feature, and
-  nine Farplane source skill packages or their contract references.
+  Kit production packets, feature/system docs, and the affected Farplane source skill
+  packages and contract references.
 - `Risks / rollback:` the widened-schema migration window had an explicit replacement
   rollback. After the strict cutover passed, its temporary functions were removed and
   the historical receipt was superseded by `artifacts/migration/finalization-receipt.md`.
