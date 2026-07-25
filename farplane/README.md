@@ -2,7 +2,7 @@
 kind: farplane-config-index
 status: active
 created_at: 2026-06-17
-updated_at: 2026-07-12
+updated_at: 2026-07-20
 framework_template_version: "0.3.0"
 ---
 
@@ -67,6 +67,13 @@ observations are non-negative amounts; `flow` supplies their direction. Calendar
 months use the observation's `YYYY-MM-DD` date and the operator's current local
 month.
 
+Firm bank-flow actuals use a separate instance-level owner:
+`~/.farplane/finance`. The finance CLI records normalized daily income/expense,
+performs read-only Slash backfills, and freezes weekly/monthly closes. The
+Finance panel and HUD read its browser-safe projection; project metric finance
+remains useful for attributed product/team reporting and does not become the
+firm ledger.
+
 ## Official Automation Presets
 
 - `Work Pulse`: the only heartbeat; reconciles, dispatches, handles due
@@ -77,3 +84,5 @@ month.
   Work Pulse executes the selected tickets.
 - `Feed Scout`: optional separate source report and bounded opportunity-ticket
   job when project-specific sources are configured.
+- `Daily Finance Backfill`: read-only prior-day Slash aggregate refresh.
+- `Weekly Finance Close`: immutable Monday close of the prior completed week.

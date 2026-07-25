@@ -1,6 +1,6 @@
 ---
 name: farplane_team_cli
-description: Manage Farplane teams with the local shell CLI. Use when an agent already knows the intended team mutation and needs concrete commands for team create/update, board task operations, proposal state changes, heartbeat, business config, or validation.
+description: Manage Farplane teams with the local shell CLI. Use when an agent already knows the intended team mutation and needs concrete commands for team create/update, filesystem ticket operations, proposal state changes, heartbeat, business config, or validation.
 ---
 
 # Farplane Team CLI Skill
@@ -74,20 +74,19 @@ npm run shell -- team business set-all \
   --distribute-skill-id tiktok-poster
 ```
 
-- Kanban task lifecycle (internal board):
+- Filesystem ticket lifecycle:
 
 ```bash
-npm run shell -- team board task add --team-id team-proj-buffalos-ai --title "Draft offer page"
-npm run shell -- team board task update --team-id team-proj-buffalos-ai --task-id task-123 --title "Draft offer page v2" --detail "include KPI note"
-npm run shell -- team board task move --team-id team-proj-buffalos-ai --task-id task-123 --status in_progress
-npm run shell -- team board task done --team-id team-proj-buffalos-ai --task-id task-123
-npm run shell -- team board task delete --team-id team-proj-buffalos-ai --task-id task-123
+npm run shell -- team ticket create --team-id team-proj-buffalos-ai --title "Draft offer page"
+npm run shell -- team ticket update --team-id team-proj-buffalos-ai --ticket-id TASK-0123 --title "Draft offer page v2" --detail "include KPI note"
+npm run shell -- team ticket status --team-id team-proj-buffalos-ai --ticket-id TASK-0123 --status in_progress
+npm run shell -- team ticket status --team-id team-proj-buffalos-ai --ticket-id TASK-0123 --status done
 ```
 
-- CEO board task metadata for proposal/review work:
+- CEO ticket metadata for proposal/review work:
 
 ```bash
-npm run shell -- team board task add \
+npm run shell -- team ticket create \
   --team-id team-proj-buffalos-ai \
   --title "Launch affiliate content team" \
   --task-type team_proposal \
@@ -95,9 +94,9 @@ npm run shell -- team board task add \
   --linked-session-key agent:main:main \
   --detail "Research summary, proposed roles, and next step"
 
-npm run shell -- team board task update \
+npm run shell -- team ticket update \
   --team-id team-proj-buffalos-ai \
-  --task-id task-123 \
+  --ticket-id TASK-0123 \
   --approval-state approved \
   --created-team-id team-proj-affiliate-content-team \
   --created-project-id proj-affiliate-content-team
@@ -113,7 +112,7 @@ npm run shell -- status \
   --state planning \
   "Working queue triage: prioritized top 3 tasks"
 
-npm run shell -- team bot timeline --team-id team-proj-buffalos-ai --json
+npm run shell -- team monitor --team-id team-proj-buffalos-ai --json
 ```
 
 - Set role-slot demand:
@@ -141,21 +140,20 @@ npm run shell -- team heartbeat set \
 npm run shell -- team archive --team-id team-proj-buffalos-ai
 ```
 
-- Board-backed proposal lifecycle for CEO-led team generation:
+- Ticket-backed proposal lifecycle for CEO-led team generation:
 
 ```bash
-npm run shell -- team board task add \
+npm run shell -- team ticket create \
   --team-id team-proj-buffalos-ai \
-  --task-id task-affiliate-content-proposal \
   --title "Launch affiliate content team" \
   --task-type team_proposal \
   --approval-state pending_review \
   --linked-session-key agent:main:affiliate-content-engine \
   --detail "Research summary, proposed roles, and next step"
 
-npm run shell -- team board task update \
+npm run shell -- team ticket update \
   --team-id team-proj-buffalos-ai \
-  --task-id task-affiliate-content-proposal \
+  --ticket-id TASK-0123 \
   --approval-state approved \
   --created-team-id team-proj-affiliate-content-team \
   --created-project-id proj-affiliate-content-team
@@ -201,7 +199,7 @@ pnpm run test:skills
   - `team.kpi.write`
   - `team.business.write`
   - `team.resources.write`
-  - `team.board.write`
+  - `team.ticket.write`
   - `team.activity.write`
   - `team.heartbeat.write`
   - `team.archive`

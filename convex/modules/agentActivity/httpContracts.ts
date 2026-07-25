@@ -36,8 +36,26 @@ export type ParsedStatusReportPayload = {
   occurredAt?: number;
 };
 
+export type ParsedTeamActivityQueryPayload = {
+  teamId: string;
+  projectId?: string;
+  limit?: number;
+  agentId?: string;
+};
+
 function asTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+export function hasTelemetryToken(headers: Headers, expectedToken: string | undefined): boolean {
+  const expected = expectedToken?.trim();
+  if (!expected) return true;
+  const headerToken = headers.get("x-farplane-telemetry-token")?.trim();
+  const auth = headers.get("authorization")?.trim();
+  const bearer = auth?.toLowerCase().startsWith("bearer ")
+    ? auth.slice("bearer ".length).trim()
+    : "";
+  return Boolean((headerToken && headerToken === expected) || (bearer && bearer === expected));
 }
 
 export function parseIngestPayload(body: unknown): ParsedIngestPayload | null {
@@ -86,5 +104,24 @@ export function parseStatusReportPayload(body: unknown): ParsedStatusReportPaylo
     beatId: typeof row.beatId === "string" ? row.beatId : undefined,
     source: typeof row.source === "string" ? row.source : undefined,
     occurredAt: typeof row.occurredAt === "number" ? row.occurredAt : undefined,
+  };
+}
+
+export function parseTeamActivityQueryPayload(
+  body: unknown,
+): ParsedTeamActivityQueryPayload | null {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const row = body as Record<string, unknown>;
+  const teamId = asTrimmedString(row.teamId);
+  if (!teamId) return null;
+  const projectId = asTrimmedString(row.projectId);
+  const agentId = asTrimmedString(row.agentId);
+  const limit =
+    typeof row.limit === "number" && Number.isFinite(row.limit) ? Math.trunc(row.limit) : undefined;
+  return {
+    teamId,
+    projectId: projectId || undefined,
+    agentId: agentId || undefined,
+    limit,
   };
 }

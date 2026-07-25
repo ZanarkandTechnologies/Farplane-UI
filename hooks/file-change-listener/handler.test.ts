@@ -9,79 +9,90 @@ import {
 
 const testSummaryRunner = async () => "Summarized tracked file update";
 
+async function withTempRepo<T>(run: (repo: string) => Promise<T> | T): Promise<T> {
+  const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
+  try {
+    return await run(repo);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+function writeRepoFile(repo: string, filePath: string, contents: string): void {
+  const absolutePath = path.join(repo, filePath);
+  mkdirSync(path.dirname(absolutePath), { recursive: true });
+  writeFileSync(absolutePath, contents);
+}
+
+function applyPatchPayload(repo: string, filePath: string, addedLine: string) {
+  return {
+    event: "PostToolUse",
+    toolName: "apply_patch",
+    cwd: repo,
+    sessionId: "thread-1",
+    toolInput: `*** Begin Patch\n*** Update File: ${filePath}\n@@\n+${addedLine}\n*** End Patch\n`,
+  };
+}
+
+const applyPatchSourceCases = [
+  {
+    name: "detects tracked progress file paths from the post-tool payload",
+    filePath: "tickets/TASK-0001/progress.md",
+    contents: "# Progress\n\n- Chose acquisition research next.\n",
+    addedLine: "Chose acquisition research next.",
+    now: 2_000,
+    expectedRows: () => [
+      expect.objectContaining({
+        threadId: "thread-1",
+        filePath: "tickets/TASK-0001/progress.md",
+        message: "Summarized tracked file update",
+        eventAt: 2_000,
+      }),
+    ],
+  },
+  {
+    name: "ignores untracked paths even when a write-capable tool runs",
+    filePath: "package.json",
+    contents: "{}\n",
+    addedLine: "{}",
+    expectedRows: () => [],
+  },
+] as const;
+
 describe("file-change-listener", () => {
-  it("detects tracked progress file paths from the post-tool payload", async () => {
-    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
-    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(2_000);
-    try {
-      mkdirSync(path.join(repo, "tickets", "TASK-0001"), { recursive: true });
-      writeFileSync(
-        path.join(repo, "tickets", "TASK-0001", "progress.md"),
-        "# Progress\n\n- Chose acquisition research next.\n",
-      );
+  for (const {
+    name,
+    filePath,
+    contents,
+    addedLine,
+    expectedRows,
+    ...testCase
+  } of applyPatchSourceCases) {
+    it(name, async () => {
+      await withTempRepo(async (repo) => {
+        writeRepoFile(repo, filePath, contents);
+        const nowSpy =
+          "now" in testCase ? vi.spyOn(Date, "now").mockReturnValue(testCase.now) : undefined;
+        try {
+          const rows = await parseFileChangeBubbleCandidatesFromPayload(
+            applyPatchPayload(repo, filePath, addedLine),
+            1_000,
+            { summaryDebounceMs: 0, codexSummary: { runner: testSummaryRunner } },
+          );
 
-      const rows = await parseFileChangeBubbleCandidatesFromPayload(
-        {
-          event: "PostToolUse",
-          toolName: "apply_patch",
-          cwd: repo,
-          sessionId: "thread-1",
-          toolInput:
-            "*** Begin Patch\n*** Update File: tickets/TASK-0001/progress.md\n@@\n+Chose acquisition research next.\n*** End Patch\n",
-        },
-        1_000,
-        { summaryDebounceMs: 0, codexSummary: { runner: testSummaryRunner } },
-      );
-
-      expect(rows).toEqual([
-        expect.objectContaining({
-          threadId: "thread-1",
-          filePath: "tickets/TASK-0001/progress.md",
-          message: "Summarized tracked file update",
-          eventAt: 2_000,
-        }),
-      ]);
-    } finally {
-      nowSpy.mockRestore();
-      rmSync(repo, { recursive: true, force: true });
-    }
-  });
-
-  it("ignores untracked paths even when a write-capable tool runs", async () => {
-    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
-    try {
-      writeFileSync(path.join(repo, "package.json"), "{}\n");
-      const rows = await parseFileChangeBubbleCandidatesFromPayload(
-        {
-          event: "PostToolUse",
-          toolName: "apply_patch",
-          cwd: repo,
-          sessionId: "thread-1",
-          toolInput: "*** Begin Patch\n*** Update File: package.json\n@@\n+{}\n*** End Patch\n",
-        },
-        1_000,
-        { summaryDebounceMs: 0, codexSummary: { runner: testSummaryRunner } },
-      );
-
-      expect(rows).toEqual([]);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
-  });
+          expect(rows).toEqual(expectedRows());
+        } finally {
+          nowSpy?.mockRestore();
+        }
+      });
+    });
+  }
 
   it("supports custom tracked path patterns", async () => {
-    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
-    try {
-      writeFileSync(path.join(repo, "package.json"), '{"ok":true}\n');
+    await withTempRepo(async (repo) => {
+      writeRepoFile(repo, "package.json", '{"ok":true}\n');
       const rows = await parseFileChangeBubbleCandidatesFromPayload(
-        {
-          event: "PostToolUse",
-          toolName: "apply_patch",
-          cwd: repo,
-          sessionId: "thread-1",
-          toolInput:
-            '*** Begin Patch\n*** Update File: package.json\n@@\n+{"ok":true}\n*** End Patch\n',
-        },
+        applyPatchPayload(repo, "package.json", '{"ok":true}'),
         1_000,
         {
           trackedPathPatterns: ["package.json"],
@@ -96,29 +107,15 @@ describe("file-change-listener", () => {
           message: "Summarized tracked file update",
         }),
       ]);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
+    });
   });
 
   it("debounces repeated summary spawns so only the latest tracked file event runs", async () => {
-    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
-    const debounceStateDir = path.join(repo, ".farplane", "summary-debounce-test");
-    let summaryRuns = 0;
-    try {
-      mkdirSync(path.join(repo, "tickets", "TASK-0001"), { recursive: true });
-      writeFileSync(
-        path.join(repo, "tickets", "TASK-0001", "progress.md"),
-        "# Progress\n\n- First update.\n",
-      );
-      const payload = {
-        event: "PostToolUse",
-        toolName: "apply_patch",
-        cwd: repo,
-        sessionId: "thread-1",
-        toolInput:
-          "*** Begin Patch\n*** Update File: tickets/TASK-0001/progress.md\n@@\n+First update.\n*** End Patch\n",
-      };
+    await withTempRepo(async (repo) => {
+      const debounceStateDir = path.join(repo, ".farplane", "summary-debounce-test");
+      let summaryRuns = 0;
+      writeRepoFile(repo, "tickets/TASK-0001/progress.md", "# Progress\n\n- First update.\n");
+      const payload = applyPatchPayload(repo, "tickets/TASK-0001/progress.md", "First update.");
 
       const firstPromise = parseFileChangeBubbleCandidatesFromPayload(payload, 10_000, {
         summaryDebounceMs: 20,
@@ -145,29 +142,15 @@ describe("file-change-listener", () => {
       expect(first).toEqual([]);
       expect(second).toEqual([expect.objectContaining({ message: "Latest progress" })]);
       expect(summaryRuns).toBe(1);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
+    });
   });
 
   it("allows another summary after the debounce window settles", async () => {
-    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
-    const debounceStateDir = path.join(repo, ".farplane", "summary-debounce-test");
-    let summaryRuns = 0;
-    try {
-      mkdirSync(path.join(repo, "tickets", "TASK-0001"), { recursive: true });
-      writeFileSync(
-        path.join(repo, "tickets", "TASK-0001", "progress.md"),
-        "# Progress\n\n- Later update.\n",
-      );
-      const payload = {
-        event: "PostToolUse",
-        toolName: "apply_patch",
-        cwd: repo,
-        sessionId: "thread-1",
-        toolInput:
-          "*** Begin Patch\n*** Update File: tickets/TASK-0001/progress.md\n@@\n+Later update.\n*** End Patch\n",
-      };
+    await withTempRepo(async (repo) => {
+      const debounceStateDir = path.join(repo, ".farplane", "summary-debounce-test");
+      let summaryRuns = 0;
+      writeRepoFile(repo, "tickets/TASK-0001/progress.md", "# Progress\n\n- Later update.\n");
+      const payload = applyPatchPayload(repo, "tickets/TASK-0001/progress.md", "Later update.");
 
       await parseFileChangeBubbleCandidatesFromPayload(payload, 10_000, {
         summaryDebounceMs: 1,
@@ -192,16 +175,12 @@ describe("file-change-listener", () => {
 
       expect(second).toEqual([expect.objectContaining({ message: "Progress refreshed" })]);
       expect(summaryRuns).toBe(2);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
+    });
   });
 
   it("detects top-level changedFiles payloads", async () => {
-    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
-    try {
-      mkdirSync(path.join(repo, "farplane"), { recursive: true });
-      writeFileSync(path.join(repo, "farplane", "harness.yaml"), "kind: project-harness\n");
+    await withTempRepo(async (repo) => {
+      writeRepoFile(repo, "farplane/harness.yaml", "kind: project-harness\n");
       const rows = await parseFileChangeBubbleCandidatesFromPayload(
         {
           event: "PostToolUse",
@@ -220,18 +199,13 @@ describe("file-change-listener", () => {
           message: "Summarized tracked file update",
         }),
       ]);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
+    });
   });
 
   it("detects tracked docs paths from bash command payloads", async () => {
-    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
-    try {
-      const docsDir = path.join(repo, "docs");
-      mkdirSync(docsDir, { recursive: true });
-      writeFileSync(path.join(docsDir, "MEMORY.md"), "# Memory\n\n- Define PM founder loop.\n");
-      writeFileSync(path.join(docsDir, "LESSONS.md"), "# Lessons\n\n- Track hook bubbles.\n");
+    await withTempRepo(async (repo) => {
+      writeRepoFile(repo, "docs/MEMORY.md", "# Memory\n\n- Define PM founder loop.\n");
+      writeRepoFile(repo, "docs/LESSONS.md", "# Lessons\n\n- Track hook bubbles.\n");
       const rows = await parseFileChangeBubbleCandidatesFromPayload(
         {
           event: "PostToolUse",
@@ -255,16 +229,12 @@ describe("file-change-listener", () => {
           message: "Summarized tracked file update",
         }),
       ]);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
+    });
   });
 
   it("ignores read-only bash commands that mention tracked docs paths", async () => {
-    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
-    try {
-      mkdirSync(path.join(repo, "docs"), { recursive: true });
-      writeFileSync(path.join(repo, "docs", "MEMORY.md"), "# Memory\n\n- Existing plan.\n");
+    await withTempRepo(async (repo) => {
+      writeRepoFile(repo, "docs/MEMORY.md", "# Memory\n\n- Existing plan.\n");
       const rows = await parseFileChangeBubbleCandidatesFromPayload(
         {
           event: "PostToolUse",
@@ -278,35 +248,20 @@ describe("file-change-listener", () => {
       );
 
       expect(rows).toEqual([]);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
+    });
   });
 
   it("skips tracked file telemetry when summarization fails and fallback is disabled", async () => {
-    const repo = mkdtempSync(path.join(tmpdir(), "farplane-file-hook-"));
-    try {
-      writeFileSync(
-        path.join(repo, "progress.md"),
-        "# Progress\n\n- Local summarizer unavailable.\n",
-      );
+    await withTempRepo(async (repo) => {
+      writeRepoFile(repo, "progress.md", "# Progress\n\n- Local summarizer unavailable.\n");
       const rows = await parseFileChangeBubbleCandidatesFromPayload(
-        {
-          event: "PostToolUse",
-          toolName: "apply_patch",
-          cwd: repo,
-          sessionId: "thread-1",
-          toolInput:
-            "*** Begin Patch\n*** Update File: progress.md\n@@\n+Local summarizer unavailable.\n*** End Patch\n",
-        },
+        applyPatchPayload(repo, "progress.md", "Local summarizer unavailable."),
         1_000,
         { summaryDebounceMs: 0, codexSummary: { runner: async () => "" } },
       );
 
       expect(rows).toEqual([]);
-    } finally {
-      rmSync(repo, { recursive: true, force: true });
-    }
+    });
   });
 
   it("publishes file change summary telemetry without throwing on success", async () => {

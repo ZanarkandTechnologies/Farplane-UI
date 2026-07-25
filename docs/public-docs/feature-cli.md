@@ -55,8 +55,8 @@ farplane team resources events --team-id team-proj-affiliate --limit 20 --json
 farplane team resources reserve --team-id team-proj-affiliate --resource-id proj-affiliate:cash --amount 300
 farplane team resources release --team-id team-proj-affiliate --resource-id proj-affiliate:cash --amount 100
 farplane team resources remove --team-id team-proj-affiliate --resource-id proj-affiliate:custom
-farplane team status report --team-id team-proj-affiliate --agent-id affiliate-pm --state planning --status-text "Reviewing board and KPIs" --step-key hb-affiliate-pm-001
-farplane team bot log --team-id team-proj-affiliate --agent-id affiliate-pm --activity-type status --label heartbeat_decision --detail "Prioritize high-ROI creative test"
+farplane status --state planning --step-key hb-affiliate-pm-001 "Reviewing tickets and KPIs"
+farplane status --state planning --step-key heartbeat_decision "Prioritize high-ROI creative test"
 ```
 
 ## Runtime Monitoring

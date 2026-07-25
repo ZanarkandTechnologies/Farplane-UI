@@ -4,7 +4,7 @@
  * AGENT MEMORY PANEL
  * ==================
  * Memory-first operator panel for inspecting an agent's durable notes before
- * jumping into broader workspace or team-board surfaces.
+ * jumping into broader workspace or project-ticket surfaces.
  *
  * KEY CONCEPTS:
  * - Defaults to parsed memory entries grouped by file (`MEMORY.md`, `memory/*.md`).
@@ -490,12 +490,8 @@ export function AgentMemoryPanel(): ReactElement | null {
             <KanbanTab
               projectTasks={projectTasks}
               focusAgentId={agentId}
-              teamEmployees={teamEmployees}
               ownerLabelById={ownerLabelById}
-              convexEnabled={false}
               showReadOnlyNotice={false}
-              boardActionState={{ pending: false }}
-              onBoardCommand={async () => {}}
             />
           </TabsContent>
         </Tabs>

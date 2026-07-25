@@ -291,4 +291,92 @@ describe("overview summary surface", () => {
       description: "Pinned overview rollup of same-window platform view readings.",
     });
   });
+
+  it("maps only active-team highlights and keeps newest cards first", () => {
+    const surface = buildOverviewSummarySurface({
+      aiBurn24hUsd: 0,
+      teamScope: "codex-proj-users-kenjipcx-zanarkand-technologies-projects-farplane",
+      projectConfig: projectConfigWithSnapshot({
+        generated_at: "2026-07-24T00:00:00Z",
+        schema_version: 2,
+        project: { id: "proj-farplane" },
+        source_gaps: [],
+        metrics: { contents: [], primitives: {}, readings: {}, series: [] },
+        tabs: {
+          overview: {
+            charter: {},
+            pinned_metrics: [],
+            pinned_metric_cards: [],
+            source_gap_ids: [],
+          },
+          objectives: {
+            selection: { objectives: [], guards: [] },
+            metric_cards: [],
+            source_gap_ids: [],
+          },
+          highlights: {
+            wins: [
+              {
+                id: "win:farplane:older",
+                kind: "win",
+                team: "farplane",
+                report: "reports/interval/daily_interval/older",
+                summary: "Older record.",
+                links: [],
+                created_at: "2026-07-20T00:00:00Z",
+              },
+              {
+                id: "win:other:newer",
+                kind: "win",
+                team: "other",
+                report: "reports/interval/daily_interval/other",
+                summary: "Other team's record.",
+                links: [],
+                created_at: "2026-07-24T00:00:00Z",
+              },
+              {
+                id: "win:farplane:newer",
+                kind: "win",
+                team: "farplane",
+                report: "reports/interval/weekly_interval/newer",
+                summary: "Newer record.",
+                links: [{ label: "Evidence", href: "tickets/TASK-0405/ticket.md#proof" }],
+                created_at: "2026-07-23T00:00:00Z",
+                source_href: ".farplane/reports/interval/weekly.md",
+              },
+            ],
+            failures: [
+              {
+                id: "failure:farplane",
+                kind: "failure",
+                team: "farplane",
+                report: "reports/interval/weekly_interval/failure",
+                summary: "Coordination exceeded the task.",
+                lesson: "Keep simple work in one lane.",
+                links: [],
+                created_at: "2026-07-22T00:00:00Z",
+              },
+            ],
+            source_gap_ids: [],
+          },
+        },
+      }),
+    });
+
+    expect(surface.wins.map((card) => card.id)).toEqual([
+      "win:farplane:newer",
+      "win:farplane:older",
+    ]);
+    expect(surface.failures[0]).toMatchObject({
+      team: "farplane",
+      lesson: "Keep simple work in one lane.",
+    });
+    expect(surface.wins[0]?.links[0]).toEqual({
+      label: "Evidence",
+      href: "/farplane/project-file?projectPath=%2Ftmp%2Ffarplane&ref=tickets%2FTASK-0405%2Fticket.md#proof",
+    });
+    expect(surface.wins[0]?.sourceHref).toBe(
+      "/farplane/project-file?projectPath=%2Ftmp%2Ffarplane&ref=.farplane%2Freports%2Finterval%2Fweekly.md",
+    );
+  });
 });

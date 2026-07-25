@@ -74,6 +74,26 @@ export type OverviewAutonomySavings = {
   sourceGaps: string[];
 };
 
+export type OverviewHighlightLink = {
+  label: string;
+  href: string;
+};
+
+export type OverviewHighlightCard = {
+  id: string;
+  kind: "win" | "failure";
+  team: string;
+  report: string;
+  summary: string;
+  lesson?: string;
+  links: OverviewHighlightLink[];
+  cadence?: string;
+  period?: string;
+  createdAt?: string;
+  sourceHref?: string;
+  sourceGapIds: string[];
+};
+
 export type OverviewSurface = {
   generatedAt: string;
   projectId: string;
@@ -81,6 +101,8 @@ export type OverviewSurface = {
   attention: OverviewAttentionItem[];
   reports: OverviewReportLink[];
   sources: OverviewSourceRef[];
+  wins: OverviewHighlightCard[];
+  failures: OverviewHighlightCard[];
   autonomySavings?: OverviewAutonomySavings;
 };
 
@@ -258,6 +280,68 @@ function parseSources(value: unknown): OverviewSourceRef[] {
     .filter((source): source is OverviewSourceRef => Boolean(source));
 }
 
+function parseHighlightLink(value: unknown): OverviewHighlightLink | null {
+  if (typeof value === "string") {
+    const href = value.trim();
+    return href ? { label: href, href } : null;
+  }
+  const row = record(value);
+  if (!row) return null;
+  const href = stringValue(row.href ?? row.url).trim();
+  if (!href) return null;
+  return {
+    label: stringValue(row.label ?? row.title).trim() || href,
+    href,
+  };
+}
+
+function parseHighlights(
+  value: unknown,
+  expectedKind: OverviewHighlightCard["kind"],
+): OverviewHighlightCard[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry): OverviewHighlightCard | null => {
+      const row = record(entry);
+      if (!row) return null;
+      const id = stringValue(row.id).trim();
+      const team = stringValue(row.team).trim();
+      const report = stringValue(row.report).trim();
+      const summary = stringValue(row.summary).trim();
+      const kind = stringValue(row.kind).trim() || expectedKind;
+      const lesson = optionalString(row.lesson);
+      if (
+        !id ||
+        !team ||
+        !report ||
+        !summary ||
+        kind !== expectedKind ||
+        (expectedKind === "failure" && !lesson)
+      ) {
+        return null;
+      }
+      return {
+        id,
+        kind: expectedKind,
+        team,
+        report,
+        summary,
+        lesson,
+        links: Array.isArray(row.links)
+          ? row.links
+              .map(parseHighlightLink)
+              .filter((link): link is OverviewHighlightLink => Boolean(link))
+          : [],
+        cadence: optionalString(row.cadence),
+        period: optionalString(row.period),
+        createdAt: optionalString(row.created_at ?? row.createdAt),
+        sourceHref: optionalString(row.source_href ?? row.sourceHref),
+        sourceGapIds: stringList(row.source_gap_ids ?? row.sourceGapIds) ?? [],
+      };
+    })
+    .filter((card): card is OverviewHighlightCard => Boolean(card));
+}
+
 export function parseOverviewSurface(value: unknown): OverviewSurface | null {
   const source = record(value);
   if (!source) return null;
@@ -279,5 +363,7 @@ export function parseOverviewSurface(value: unknown): OverviewSurface | null {
     attention: parseAttention(source.attention),
     reports: parseReports(source.reports),
     sources: parseSources(source.sources),
+    wins: parseHighlights(source.wins, "win"),
+    failures: parseHighlights(source.failures, "failure"),
   };
 }

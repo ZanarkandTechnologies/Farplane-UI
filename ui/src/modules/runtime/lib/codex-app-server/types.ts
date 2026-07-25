@@ -1,4 +1,4 @@
-import type { CodexThreadGoalMetadata } from "../openclaw";
+import type { CodexThreadGoalMetadata } from "../openclaw/types.js";
 
 export type CodexJson =
   | null
@@ -120,6 +120,13 @@ export type CodexProjectReadModelTask = {
   artefactPath?: string;
   syncState?: "healthy" | "pending" | "conflict" | "error";
   syncError?: string;
+  frontMatter?: Record<string, string>;
+  markdown?: string;
+  notes?: string;
+  approvalState?: "draft" | "pending_review" | "approved" | "rejected" | "changes_requested" | "executed";
+  linkedSessionKey?: string;
+  createdAt?: number;
+  dueAt?: number;
   updatedAt?: number;
 };
 

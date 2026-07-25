@@ -727,7 +727,7 @@ function buildNextSteps(inputValues: {
       : `Run ${CLI_INSTALL_COMMAND} from the repo root for the global \`farplane\` alias, or use ${UI_START_COMMAND} directly.`,
     "Use the in-app onboarding flow to finish connector setup and learn the office controls.",
     "Expose `/plugins/notion-shell/webhook` on your Gateway host, verify that exact URL in Notion, then post a page comment with `@shell ...` to test the bridge.",
-    "Ask the CEO agent to create planning tickets on the board, move one into review, and approve it as your first office workflow.",
+    "Ask the CEO agent to create filesystem planning tickets, move one into review, and approve it as your first office workflow.",
   ];
   if (!inputValues.runtime.convex.configured) {
     steps.splice(

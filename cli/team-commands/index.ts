@@ -14,7 +14,7 @@
  * - MEM-0212
  * - MEM-0215
  */
-import { Command } from "commander";
+import type { Command } from "commander";
 import { createSidecarStore } from "../sidecar-store.js";
 import {
   ensureCommandPermission,
@@ -25,12 +25,12 @@ import {
   formatOutput,
   fail,
 } from "./_shared.js";
-import { postBoardCommand } from "./_convex.js";
+import { postActivityEvent } from "./_convex.js";
 import { registerTeamCore } from "./team-core.js";
 import { registerTeamBusiness } from "./team-business.js";
 import { registerTeamResources } from "./team-resources.js";
 import { registerTeamFunds } from "./team-funds.js";
-import { registerTeamBoard } from "./team-board.js";
+import { registerTeamTicket } from "./team-ticket.js";
 import { registerTeamHeartbeat } from "./team-heartbeat.js";
 import { registerTeamPreset } from "./team-preset.js";
 import { registerTeamConfig } from "./team-config.js";
@@ -39,7 +39,7 @@ import { registerTeamRun } from "./team-run.js";
 export function registerTeamCommands(program: Command): void {
   const store = createSidecarStore();
 
-  // Top-level `farplane status` command (shorthand for activity_log on the active team).
+  // Top-level status writes directly to the retained agent activity domain.
   program
     .command("status")
     .description("Report agent status with auto-resolved team/agent context")
@@ -52,7 +52,7 @@ export function registerTeamCommands(program: Command): void {
     .option("--agent-id <agentId>", "Optional agent id override")
     .option("--team-id <teamId>", "Optional team id override (team-*)")
     .option("--label <label>", "Optional activity label override")
-    .option("--task-id <taskId>", "Optional task id context")
+    .option("--ticket-id <ticketId>", "Optional canonical TASK-* context")
     .option("--skill-id <skillId>", "Optional skill id context")
     .option("--step-key <stepKey>", "Optional idempotency key")
     .option("--beat-id <beatId>", "Optional heartbeat beat id")
@@ -65,7 +65,7 @@ export function registerTeamCommands(program: Command): void {
           agentId?: string;
           teamId?: string;
           label?: string;
-          taskId?: string;
+          ticketId?: string;
           skillId?: string;
           stepKey?: string;
           beatId?: string;
@@ -93,16 +93,22 @@ export function registerTeamCommands(program: Command): void {
             : "status");
         const stepKey = opts.stepKey?.trim() || `status-${actor.agentId}-${Date.now()}`;
 
-        const result = await postBoardCommand({
+        const result = await postActivityEvent({
           teamId: actor.teamId,
           projectId: actor.projectId,
-          command: "activity_log",
+          eventType: "activity_log",
           actorType: "agent",
-          actorAgentId: actor.agentId,
+          agentId: actor.agentId,
           activityType,
           label,
           detail,
-          taskId: opts.taskId?.trim() || undefined,
+          state:
+            activityType === "planning" ||
+            activityType === "executing" ||
+            activityType === "blocked"
+              ? activityType
+              : undefined,
+          taskId: opts.ticketId?.trim() || undefined,
           skillId: opts.skillId?.trim() || undefined,
           stepKey,
           beatId: optionalBeatId(opts.beatId),
@@ -133,7 +139,7 @@ export function registerTeamCommands(program: Command): void {
   registerTeamBusiness(team, store);
   registerTeamResources(team, store);
   registerTeamFunds(team, store);
-  registerTeamBoard(team, store);
+  registerTeamTicket(team, store);
   registerTeamHeartbeat(team, store);
   registerTeamPreset(team, store);
   registerTeamConfig(team, store);

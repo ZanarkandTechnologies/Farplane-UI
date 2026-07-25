@@ -16,7 +16,7 @@ The top-level split is:
   Harness Map, Skill OS, Eval OS, Rollout, Template Tracking, User Comms, and
   Settings.
 - **Project/company surfaces**: treat each selected project as an autonomous
-  company with goals, teams, agents, files, board state, memory, evidence,
+  company with goals, teams, agents, files, tickets, memory, evidence,
   metrics, and review loops.
 
 The repo owns the UI, CLI, local state bridge, sidecar templates,
@@ -43,8 +43,8 @@ harness and office useful. The product model is defined in
   integration.
 - `cli/`: Farplane CLI for onboarding, office/team commands, runtime checks,
   and operator workflows.
-- `convex/`: realtime backend contracts for status, board, timeline, and shared
-  memory surfaces.
+- `convex/`: realtime backend contracts for status, agent activity timeline,
+  telemetry, and shared metadata surfaces.
 - `extensions/`: first-party runtime extensions, currently including the Notion
   comment bridge.
 - `skills/`: repo-local skill packages and sync/install flows.
@@ -53,7 +53,7 @@ harness and office useful. The product model is defined in
   lesson state.
 - `qa/`: reusable browser QA entrypoints, cookbook pages, shortcuts, probes,
   and evidence expectations.
-- `tickets/`: active filesystem board and archived execution history.
+- `tickets/`: active filesystem task queue and archived execution history.
 - `scripts/`: repo-local validation, diagnostics, and operational helpers.
 
 ## Runtime Model
@@ -69,6 +69,12 @@ Farplane UI has two runtime adapter lanes:
 Farplane-owned local product state lives under `~/.farplane`. OpenClaw-owned
 runtime state remains under `~/.openclaw` and enters Farplane through the
 OpenClaw adapter.
+
+Firm finance actuals live under `~/.farplane/finance` as normalized daily flow
+observations, immutable weekly/monthly close snapshots, sync receipts, and one
+browser-safe projection. The CLI and scheduled collectors own writes;
+`GET /farplane/finance`, the Finance panel, and the office HUD are read-only
+consumers. Provider credentials remain in private `~/.farplane/config.toml`.
 
 ## Read Order
 

@@ -22,7 +22,7 @@ Define the end-to-end autonomous affiliate marketing business operated by a PM +
 - Inference.sh API costs must be logged as spend via `team funds spend` after each call.
 - Agents must not post duplicate content unless the task explicitly requests reposting.
 - The PM agent plans; the Executor agent executes. Neither role crosses into the other.
-- On cold start (empty board), PM must create research tasks before any content creation.
+- On cold start (empty ticket queue), PM must create research tasks before any content creation.
 - All file artifacts (videos, images, scripts) are saved to the agent's workspace filesystem.
 
 ## Data Contracts
@@ -79,9 +79,9 @@ Define the end-to-end autonomous affiliate marketing business operated by a PM +
 ### PM Agent Heartbeat Loop
 
 ```
-Wake -> Read board state -> Decide action:
+Wake -> Read ticket state -> Decide action:
 
-  IF board is empty (cold start):
+  IF ticket queue is empty (cold start):
     -> Create "research trending niches" task
     -> Create "find affiliate products" task
     -> Report status: planning
@@ -106,12 +106,12 @@ Wake -> Read board state -> Decide action:
 ### Executor Agent Heartbeat Loop
 
 ```
-Wake -> Get next task from board -> Route by task type:
+Wake -> Get next task from the ticket queue -> Route by task type:
 
   research:
     -> Browse web for trending products/niches
     -> Find products on Amazon, generate affiliate links
-    -> Create content briefs as new board tasks
+    -> Create content briefs as new tickets
     -> Log cost: $0 (browsing only)
 
   create_content:
@@ -136,7 +136,7 @@ Wake -> Get next task from board -> Route by task type:
 
   ALWAYS:
     -> Report status transitions via `farplane status`
-    -> Move task through board states (in_progress -> done)
+    -> Move task through ticket states (in_progress -> done)
 ```
 
 ## Skill Contracts
@@ -150,13 +150,13 @@ Wake -> Get next task from board -> Route by task type:
 2. Identify high-commission, high-demand products
 3. Generate affiliate link: `https://amazon.co.uk/dp/{ASIN}?tag={affiliateTag}`
 4. Create content brief with product details, angle, and target platform
-5. Write brief as new board task via `team board task add`
+5. Write brief as a new filesystem ticket via `team ticket create`
 
 **CLI integration:**
 ```bash
 # Agent uses OpenClaw browser/computer-use to browse Amazon
 # Then creates tasks via Farplane CLI
-farplane team board task add \
+farplane team ticket create \
   --team-id {teamId} \
   --title "Create video: {productName}" \
   --priority high \
@@ -255,7 +255,7 @@ farplane team funds deposit \
 
 When a business team is created with zero tasks and no prior history:
 
-1. **PM first heartbeat:** Detects empty board. Creates research task: "Research trending AI tools for affiliate content."
+1. **PM first heartbeat:** Detects an empty ticket queue. Creates research task: "Research trending AI tools for affiliate content."
 2. **Executor picks up research task:** Browses Amazon trending categories, identifies 3-5 products with good commission rates, generates affiliate links, creates content brief tasks.
 3. **PM second heartbeat:** Sees content briefs. Reviews, approves, assigns priorities.
 4. **Executor picks up content task:** Generates first video using inference.sh, saves to workspace.
@@ -293,7 +293,7 @@ Budget guardrails from heartbeat:
 
 ## Acceptance Criteria
 
-- PM agent on empty board creates research tasks within first heartbeat.
+- PM agent on an empty ticket queue creates research tasks within first heartbeat.
 - Executor agent can generate a video via `infsh app run` and save it to workspace.
 - Executor agent can post content to TikTok (API or browser fallback).
 - Executor agent can read Amazon Associates dashboard and write metric events.

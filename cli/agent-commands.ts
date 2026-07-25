@@ -343,7 +343,7 @@ export function registerAgentCommands(program: Command): void {
     .requiredOption("--message <text>", "Message text")
     .option("--from <agentId>", "Sender agent id override")
     .option("--team-id <teamId>", "Team id for timeline logging")
-    .option("--task-id <taskId>", "Optional task context for the coordination event")
+    .option("--ticket-id <ticketId>", "Optional canonical TASK-* context for the coordination event")
     .option("--session-id <sessionId>", "Optional OpenClaw session id override")
     .option("--deliver", "Ask OpenClaw to deliver the reply to a channel", false)
     .option("--channel <channel>", "Delivery channel")
@@ -361,7 +361,7 @@ export function registerAgentCommands(program: Command): void {
         message: string;
         from?: string;
         teamId?: string;
-        taskId?: string;
+        ticketId?: string;
         sessionId?: string;
         deliver?: boolean;
         channel?: string;
@@ -420,9 +420,10 @@ export function registerAgentCommands(program: Command): void {
           actorAgentId: sender.agentId,
           activityType: "handoff",
           label: `Coordination to ${recipient.agentId}`,
-          detail: opts.taskId?.trim()
-            ? `${opts.message.trim()} (task ${opts.taskId.trim()})`
+          detail: opts.ticketId?.trim()
+            ? `${opts.message.trim()} (ticket ${opts.ticketId.trim()})`
             : opts.message.trim(),
+          ticketId: opts.ticketId?.trim() || undefined,
           source: "agent_coordination",
         });
 
@@ -436,7 +437,7 @@ export function registerAgentCommands(program: Command): void {
             toAgentId: recipient.agentId,
             teamId: resolvedTeamId,
             projectId: project.id,
-            taskId: opts.taskId?.trim() || undefined,
+            ticketId: opts.ticketId?.trim() || undefined,
             openclaw: {
               args: openclawArgs,
               stdout: result.stdout,

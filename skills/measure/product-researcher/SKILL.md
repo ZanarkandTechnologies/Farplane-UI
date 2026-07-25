@@ -7,7 +7,7 @@ description: Research trending products for affiliate marketing and create struc
 
 ## Goal
 
-Find products worth promoting, generate affiliate links, and hand off clear content briefs to the executor through the team board.
+Find products worth promoting, generate affiliate links, and hand off clear content briefs to the executor through filesystem tickets.
 
 ## Preconditions
 
@@ -25,7 +25,7 @@ Find products worth promoting, generate affiliate links, and hand off clear cont
 
 - Ranked shortlist of products.
 - Affiliate links with tag applied.
-- New board tasks containing content brief context.
+- New tickets containing content brief context.
 
 ## Workflow
 
@@ -38,7 +38,7 @@ Find products worth promoting, generate affiliate links, and hand off clear cont
 ## Concrete Command Pattern
 
 ```bash
-npm run shell -- team board task add \
+npm run shell -- team ticket create \
   --team-id "$TEAM_ID" \
   --title "Create affiliate video: $PRODUCT_NAME" \
   --priority high \
@@ -46,12 +46,10 @@ npm run shell -- team board task add \
 ```
 
 ```bash
-npm run shell -- team bot log \
-  --team-id "$TEAM_ID" \
-  --agent-id "$AGENT_ID" \
-  --type research \
-  --label "product_research_complete" \
-  --detail "selected=$PRODUCT_COUNT top_product=$TOP_PRODUCT"
+npm run shell -- status \
+  --state researching \
+  --step-key "product_research_complete" \
+  "selected=$PRODUCT_COUNT top_product=$TOP_PRODUCT"
 ```
 
 ## Guardrails

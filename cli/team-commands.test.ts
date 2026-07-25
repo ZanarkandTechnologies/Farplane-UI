@@ -133,23 +133,6 @@ type CompanySnapshot = {
   }>;
 };
 
-type MockBoardTask = {
-  taskId: string;
-  projectId: string;
-  title: string;
-  status: string;
-  ownerAgentId?: string;
-  priority: string;
-  notes?: string;
-  taskType?: string;
-  approvalState?: string;
-  linkedSessionKey?: string;
-  createdTeamId?: string;
-  createdProjectId?: string;
-  createdAt: number;
-  updatedAt: number;
-};
-
 async function setupStateDir(): Promise<string> {
   const dir = await mkdtemp(path.join(os.tmpdir(), "farplane-cli-test-"));
   await writeFile(
@@ -215,89 +198,6 @@ async function readOfficeObjects(stateDir: string): Promise<
   }>;
 }
 
-function installBoardMock(): Map<string, MockBoardTask[]> {
-  const boardTasks = new Map<string, MockBoardTask[]>();
-  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
-    const payload = init?.body ? JSON.parse(String(init.body)) : {};
-    if (url.endsWith("/board/command")) {
-      const now = Date.now();
-      if (payload.command === "task_add") {
-        const rows = boardTasks.get(payload.projectId) ?? [];
-        rows.push({
-          taskId: payload.taskId,
-          projectId: payload.projectId,
-          title: payload.title,
-          status: payload.status ?? "todo",
-          ownerAgentId: payload.ownerAgentId,
-          priority: payload.priority ?? "medium",
-          notes: payload.notes ?? payload.detail,
-          taskType: payload.taskType,
-          approvalState: payload.approvalState,
-          linkedSessionKey: payload.linkedSessionKey,
-          createdTeamId: payload.createdTeamId,
-          createdProjectId: payload.createdProjectId,
-          createdAt: now,
-          updatedAt: now,
-        });
-        boardTasks.set(payload.projectId, rows);
-        return new Response(JSON.stringify({ ok: true, taskId: payload.taskId }), { status: 200 });
-      }
-      if (payload.command === "task_update") {
-        const rows = boardTasks.get(payload.projectId) ?? [];
-        const current = rows.find((row) => row.taskId === payload.taskId);
-        if (!current) {
-          return new Response(JSON.stringify({ ok: false, error: "task_not_found" }), {
-            status: 404,
-          });
-        }
-        if (typeof payload.title === "string") current.title = payload.title;
-        if (typeof payload.status === "string") current.status = payload.status;
-        if (typeof payload.notes === "string") current.notes = payload.notes;
-        if (typeof payload.detail === "string") current.notes = payload.detail;
-        if (typeof payload.approvalState === "string") current.approvalState = payload.approvalState;
-        if (typeof payload.createdTeamId === "string") current.createdTeamId = payload.createdTeamId;
-        if (typeof payload.createdProjectId === "string") current.createdProjectId = payload.createdProjectId;
-        current.updatedAt = now;
-        return new Response(JSON.stringify({ ok: true, taskId: payload.taskId }), { status: 200 });
-      }
-      if (payload.command === "task_move") {
-        const rows = boardTasks.get(payload.projectId) ?? [];
-        const current = rows.find((row) => row.taskId === payload.taskId);
-        if (!current) {
-          return new Response(JSON.stringify({ ok: false, error: "task_not_found" }), {
-            status: 404,
-          });
-        }
-        if (typeof payload.status === "string") current.status = payload.status;
-        current.updatedAt = now;
-        return new Response(JSON.stringify({ ok: true, taskId: payload.taskId }), { status: 200 });
-      }
-      if (payload.command === "task_assign") {
-        const rows = boardTasks.get(payload.projectId) ?? [];
-        const current = rows.find((row) => row.taskId === payload.taskId);
-        if (!current) {
-          return new Response(JSON.stringify({ ok: false, error: "task_not_found" }), {
-            status: 404,
-          });
-        }
-        if (typeof payload.ownerAgentId === "string") current.ownerAgentId = payload.ownerAgentId;
-        current.updatedAt = now;
-        return new Response(JSON.stringify({ ok: true, taskId: payload.taskId }), { status: 200 });
-      }
-    }
-    if (url.endsWith("/board/query")) {
-      const rows = boardTasks.get(payload.projectId) ?? [];
-      return new Response(JSON.stringify({ ok: true, data: { tasks: rows } }), { status: 200 });
-    }
-    return new Response(JSON.stringify({ ok: false, error: "unknown_endpoint" }), {
-      status: 404,
-    });
-  });
-  vi.stubGlobal("fetch", fetchMock);
-  return boardTasks;
-}
-
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -306,7 +206,6 @@ afterEach(() => {
   delete process.env.CONVEX_SITE_URL;
   delete process.env.FARPLANE_ACTOR_ROLE;
   delete process.env.FARPLANE_ALLOWED_PERMISSIONS;
-  delete process.env.FARPLANE_BOARD_OPERATOR_TOKEN;
   delete process.env.FARPLANE_AGENT_ID;
   delete process.env.FARPLANE_TEAM_ID;
   process.exitCode = undefined;
@@ -421,22 +320,22 @@ describe("team CLI", () => {
     const project = company.projects.find((entry) => entry.id === "proj-farplane-dev-team");
     expect(project?.name).toBe("Farplane Dev Team");
     expect(project?.goal).toContain("Continuously improve Farplane");
-    expect(project?.kpis).toEqual([
-      "feature-throughput",
-      "review-throughput",
-      "demo-readiness",
-    ]);
+    expect(project?.kpis).toEqual(["feature-throughput", "review-throughput", "demo-readiness"]);
 
-    const roleSlots = company.roleSlots.filter((entry) => entry.projectId === "proj-farplane-dev-team");
+    const roleSlots = company.roleSlots.filter(
+      (entry) => entry.projectId === "proj-farplane-dev-team",
+    );
     expect(roleSlots.find((entry) => entry.role === "pm")?.desiredCount).toBe(1);
     expect(roleSlots.find((entry) => entry.role === "builder")?.desiredCount).toBe(1);
     expect(roleSlots.find((entry) => entry.role === "growth_marketer")?.desiredCount).toBe(0);
 
-    const teamAgents = company.agents.filter((entry) => entry.projectId === "proj-farplane-dev-team");
-    expect(teamAgents.map((entry) => entry.role)).toEqual(["pm", "builder"]);
-    expect(teamAgents.every((entry) => entry.heartbeatProfileId === "hb-team-proj-farplane-dev-team")).toBe(
-      true,
+    const teamAgents = company.agents.filter(
+      (entry) => entry.projectId === "proj-farplane-dev-team",
     );
+    expect(teamAgents.map((entry) => entry.role)).toEqual(["pm", "builder"]);
+    expect(
+      teamAgents.every((entry) => entry.heartbeatProfileId === "hb-team-proj-farplane-dev-team"),
+    ).toBe(true);
     const heartbeatProfile = company.heartbeatProfiles.find(
       (entry) => entry.id === "hb-team-proj-farplane-dev-team",
     );
@@ -490,7 +389,8 @@ describe("team CLI", () => {
     expect(
       officeObjects.some(
         (entry) =>
-          entry.meshType === "team-cluster" && entry.metadata?.teamId === "team-proj-farplane-dev-team",
+          entry.meshType === "team-cluster" &&
+          entry.metadata?.teamId === "team-proj-farplane-dev-team",
       ),
     ).toBe(true);
   });
@@ -508,7 +408,11 @@ describe("team CLI", () => {
       heartbeatProfileId: "hb-pm",
       role: "builder",
     });
-    await writeFile(path.join(stateDir, "company.json"), `${JSON.stringify(company, null, 2)}\n`, "utf-8");
+    await writeFile(
+      path.join(stateDir, "company.json"),
+      `${JSON.stringify(company, null, 2)}\n`,
+      "utf-8",
+    );
 
     await runCommand([
       "team",
@@ -522,9 +426,9 @@ describe("team CLI", () => {
 
     const refreshedRaw = await readFile(path.join(stateDir, "company.json"), "utf-8");
     const refreshed = JSON.parse(refreshedRaw) as CompanySnapshot;
-    expect(
-      refreshed.agents.some((entry) => entry.agentId === "farplane-dev-team-extra"),
-    ).toBe(true);
+    expect(refreshed.agents.some((entry) => entry.agentId === "farplane-dev-team-extra")).toBe(
+      true,
+    );
   });
 
   it("shows team config and manages file-backed resources markdown", async () => {
@@ -534,10 +438,9 @@ describe("team CLI", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (_input: unknown, init?: RequestInit) => {
-        const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-        if (String(_input).endsWith("/board/query") && body.query === "timeline") {
-          return new Response(JSON.stringify({ ok: true, data: [] }), { status: 200 });
+      vi.fn(async (_input: unknown) => {
+        if (String(_input).endsWith("/status/activity")) {
+          return new Response(JSON.stringify({ ok: true, data: { events: [] } }), { status: 200 });
         }
         throw new Error(`unexpected_fetch:${String(_input)}`);
       }),
@@ -575,14 +478,7 @@ describe("team CLI", () => {
       "# Resources\n\ncash_budget_usd: 250\nnotes: operator editable\n",
       "--json",
     ]);
-    await runCommand([
-      "team",
-      "config",
-      "show",
-      "--team-id",
-      "team-proj-config-team",
-      "--json",
-    ]);
+    await runCommand(["team", "config", "show", "--team-id", "team-proj-config-team", "--json"]);
 
     const payload = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? "{}")) as {
       team?: { name?: string };
@@ -701,7 +597,9 @@ describe("team CLI", () => {
 
     const companyRaw = await readFile(path.join(stateDir, "company.json"), "utf-8");
     const company = JSON.parse(companyRaw) as CompanySnapshot;
-    const heartbeat = company.heartbeatProfiles.find((entry) => entry.id === "hb-team-proj-run-team");
+    const heartbeat = company.heartbeatProfiles.find(
+      (entry) => entry.id === "hb-team-proj-run-team",
+    );
     expect(heartbeat?.cadenceMinutes).toBe(1);
     expect(heartbeat?.goal).toBe("Fast demo loop");
     expect(
@@ -718,10 +616,9 @@ describe("team CLI", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (_input: unknown, init?: RequestInit) => {
-        const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-        if (String(_input).endsWith("/board/query") && body.query === "timeline") {
-          return new Response(JSON.stringify({ ok: true, data: [] }), { status: 200 });
+      vi.fn(async (_input: unknown) => {
+        if (String(_input).endsWith("/status/activity")) {
+          return new Response(JSON.stringify({ ok: true, data: { events: [] } }), { status: 200 });
         }
         throw new Error(`unexpected_fetch:${String(_input)}`);
       }),
@@ -756,7 +653,11 @@ describe("team CLI", () => {
       updatedOpenclawAgents?: number;
       runtime?: {
         openclawConfigPath?: string;
-        agentWorkspaces?: Array<{ agentId?: string; openclawHeartbeatEvery?: string; heartbeatFilePath?: string }>;
+        agentWorkspaces?: Array<{
+          agentId?: string;
+          openclawHeartbeatEvery?: string;
+          heartbeatFilePath?: string;
+        }>;
       };
     };
     expect(payload.heartbeatProfileId).toBe("hb-team-proj-live-team");
@@ -769,7 +670,9 @@ describe("team CLI", () => {
 
     const companyRaw = await readFile(path.join(stateDir, "company.json"), "utf-8");
     const company = JSON.parse(companyRaw) as CompanySnapshot;
-    const heartbeat = company.heartbeatProfiles.find((entry) => entry.id === "hb-team-proj-live-team");
+    const heartbeat = company.heartbeatProfiles.find(
+      (entry) => entry.id === "hb-team-proj-live-team",
+    );
     expect(heartbeat?.cadenceMinutes).toBe(1);
     expect(heartbeat?.goal).toBe("Live demo loop");
 
@@ -777,8 +680,8 @@ describe("team CLI", () => {
     const openclawConfig = JSON.parse(openclawRaw) as {
       agents?: { list?: Array<{ id?: string; heartbeat?: { every?: string } }> };
     };
-    const liveEntries = (openclawConfig.agents?.list ?? []).filter((entry) =>
-      entry.id === "live-team-pm" || entry.id === "live-team-builder",
+    const liveEntries = (openclawConfig.agents?.list ?? []).filter(
+      (entry) => entry.id === "live-team-pm" || entry.id === "live-team-builder",
     );
     expect(liveEntries).toHaveLength(2);
     expect(liveEntries.every((entry) => entry.heartbeat?.every === "1m")).toBe(true);
@@ -792,10 +695,9 @@ describe("team CLI", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (_input: unknown, init?: RequestInit) => {
-        const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-        if (String(_input).endsWith("/board/query") && body.query === "timeline") {
-          return new Response(JSON.stringify({ ok: true, data: [] }), { status: 200 });
+      vi.fn(async (_input: unknown) => {
+        if (String(_input).endsWith("/status/activity")) {
+          return new Response(JSON.stringify({ ok: true, data: { events: [] } }), { status: 200 });
         }
         throw new Error(`unexpected_fetch:${String(_input)}`);
       }),
@@ -812,13 +714,7 @@ describe("team CLI", () => {
       "--auto-roles",
       "pm,builder",
     ]);
-    await runCommand([
-      "team",
-      "monitor",
-      "--team-id",
-      "team-proj-monitor-team",
-      "--json",
-    ]);
+    await runCommand(["team", "monitor", "--team-id", "team-proj-monitor-team", "--json"]);
 
     const payload = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? "{}")) as {
       runtime?: {
@@ -836,118 +732,15 @@ describe("team CLI", () => {
     };
     expect(payload.runtime?.stateRoot).toBe(stateDir);
     expect(payload.runtime?.openclawConfigPath).toBe(path.join(stateDir, "openclaw.json"));
-    expect(payload.runtime?.logsDir).toBe(path.join(stateDir, "projects", "proj-monitor-team", "logs"));
+    expect(payload.runtime?.logsDir).toBe(
+      path.join(stateDir, "projects", "proj-monitor-team", "logs"),
+    );
     expect(payload.runtime?.outputsDir).toBe(
       path.join(stateDir, "projects", "proj-monitor-team", "outputs"),
     );
     expect(payload.runtime?.agentWorkspaces).toHaveLength(2);
     expect(payload.runtime?.agentWorkspaces?.every((entry) => entry.openclawAgentFound)).toBe(true);
     await access(payload.runtime?.agentWorkspaces?.[0]?.heartbeatFilePath ?? "");
-    logSpy.mockRestore();
-  });
-
-  it("surfaces task and status activity through the Convex timeline exposed by monitor", async () => {
-    const stateDir = await setupStateDir();
-    process.env.OPENCLAW_STATE_DIR = stateDir;
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    process.env.FARPLANE_CONVEX_SITE_URL = "https://farplane.example";
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (_input: unknown, init?: RequestInit) => {
-        const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-        if (String(_input).endsWith("/board/command")) {
-          if (body.command === "task_add") {
-            return new Response(JSON.stringify({ ok: true, taskId: "task-1" }), { status: 200 });
-          }
-          return new Response(JSON.stringify({ ok: true }), { status: 200 });
-        }
-        if (String(_input).endsWith("/board/query")) {
-          return new Response(
-            JSON.stringify({
-              ok: true,
-              data: [
-                {
-                  sourceType: "board_event",
-                  eventType: "task_created",
-                  label: "Draft log UI",
-                  detail: undefined,
-                  taskId: "task-1",
-                  actorAgentId: "main",
-                  occurredAt: Date.now() - 1000,
-                  projectId: "proj-event-team",
-                  teamId: "team-proj-event-team",
-                },
-                {
-                  sourceType: "agent_event",
-                  eventType: "status_report",
-                  label: "planning",
-                  detail: "Reviewing task stream",
-                  agentId: "event-team-builder",
-                  occurredAt: Date.now(),
-                  projectId: "proj-event-team",
-                  teamId: "team-proj-event-team",
-                },
-              ],
-            }),
-            { status: 200 },
-          );
-        }
-        if (String(_input).endsWith("/status/report")) {
-          return new Response(JSON.stringify({ ok: true }), { status: 200 });
-        }
-        throw new Error(`unexpected_fetch:${String(_input)}`);
-      }),
-    );
-    await runCommand([
-      "team",
-      "create",
-      "--name",
-      "Event Team",
-      "--description",
-      "Event logging demo",
-      "--goal",
-      "Track tasks and status",
-      "--auto-roles",
-      "builder",
-    ]);
-    await runCommand([
-      "team",
-      "board",
-      "task",
-      "add",
-      "--team-id",
-      "team-proj-event-team",
-      "--title",
-      "Draft log UI",
-      "--actor-agent-id",
-      "main",
-    ]);
-    await runCommand([
-      "team",
-      "status",
-      "report",
-      "--team-id",
-      "team-proj-event-team",
-      "--agent-id",
-      "event-team-builder",
-      "--state",
-      "planning",
-      "--status-text",
-      "Reviewing task stream",
-    ]);
-    await runCommand([
-      "team",
-      "monitor",
-      "--team-id",
-      "team-proj-event-team",
-      "--json",
-    ]);
-
-    const payload = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? "{}")) as {
-      runtime?: { recentEvents?: Array<{ kind?: string; label?: string; detail?: string }> };
-    };
-    expect(payload.runtime?.recentEvents?.some((entry) => entry.kind === "task_added")).toBe(true);
-    expect(payload.runtime?.recentEvents?.some((entry) => entry.kind === "status_reported")).toBe(true);
     logSpy.mockRestore();
   });
 
@@ -972,24 +765,25 @@ describe("team CLI", () => {
 
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (_input: unknown, init?: RequestInit) => {
-        const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-        if (String(_input).endsWith("/board/query") && body.query === "timeline") {
+      vi.fn(async (_input: unknown) => {
+        if (String(_input).endsWith("/status/activity")) {
           return new Response(
             JSON.stringify({
               ok: true,
-              data: [
-                {
-                  sourceType: "agent_event",
-                  eventType: "status_report",
-                  label: "planning",
-                  detail: "convex-recent-event",
-                  agentId: "timeline-team-builder",
-                  occurredAt: Date.now(),
-                  projectId: "proj-timeline-team",
-                  teamId: "team-proj-timeline-team",
-                },
-              ],
+              data: {
+                events: [
+                  {
+                    sourceType: "agent_event",
+                    eventType: "status_report",
+                    label: "planning",
+                    detail: "convex-recent-event",
+                    agentId: "timeline-team-builder",
+                    occurredAt: Date.now(),
+                    projectId: "proj-timeline-team",
+                    teamId: "team-proj-timeline-team",
+                  },
+                ],
+              },
             }),
             { status: 200 },
           );
@@ -998,13 +792,7 @@ describe("team CLI", () => {
       }),
     );
 
-    await runCommand([
-      "team",
-      "monitor",
-      "--team-id",
-      "team-proj-timeline-team",
-      "--json",
-    ]);
+    await runCommand(["team", "monitor", "--team-id", "team-proj-timeline-team", "--json"]);
 
     const payload = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? "{}")) as {
       runtime?: { recentEvents?: Array<{ kind?: string; detail?: string; label?: string }> };
@@ -1163,166 +951,6 @@ describe("team CLI", () => {
     expect(teamClusters).toHaveLength(2);
     expect(teamClusters[0]?.position).toEqual([0, 0, 0]);
     expect(teamClusters[1]?.position).toEqual([-9, 0, -9]);
-  });
-
-  it("stores task memory directly on board tasks and supports the review lane", async () => {
-    const stateDir = await setupStateDir();
-    process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.FARPLANE_CONVEX_SITE_URL = "http://127.0.0.1:3211";
-    const boardTasks = installBoardMock();
-
-    await runCommand([
-      "team",
-      "create",
-      "--name",
-      "Alpha",
-      "--description",
-      "Core team",
-      "--goal",
-      "Ship fast",
-    ]);
-
-    await runCommand([
-      "team",
-      "board",
-      "task",
-      "add",
-      "--team-id",
-      "team-proj-alpha",
-      "--task-id",
-      "task-plan",
-      "--title",
-      "Plan the first sprint",
-    ]);
-
-    await runCommand([
-      "team",
-      "board",
-      "task",
-      "memory",
-      "set",
-      "--team-id",
-      "team-proj-alpha",
-      "--task-id",
-      "task-plan",
-      "--text",
-      "# Goal\nShip the first sprint plan",
-    ]);
-
-    await runCommand([
-      "team",
-      "board",
-      "task",
-      "memory",
-      "append",
-      "--team-id",
-      "team-proj-alpha",
-      "--task-id",
-      "task-plan",
-      "--text",
-      "## Next Step\nMove this ticket into review for founder sign-off.",
-    ]);
-
-    await runCommand([
-      "team",
-      "board",
-      "task",
-      "move",
-      "--team-id",
-      "team-proj-alpha",
-      "--task-id",
-      "task-plan",
-      "--status",
-      "review",
-    ]);
-
-    const task = boardTasks.get("proj-alpha")?.find((entry) => entry.taskId === "task-plan");
-    expect(task?.status).toBe("review");
-    expect(task?.notes).toContain("# Goal");
-    expect(task?.notes).toContain("## Next Step");
-  });
-
-  it("claims tasks for an agent and supports agent-scoped board views", async () => {
-    const stateDir = await setupStateDir();
-    process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.FARPLANE_CONVEX_SITE_URL = "http://127.0.0.1:3211";
-    const boardTasks = installBoardMock();
-
-    await runCommand([
-      "team",
-      "create",
-      "--name",
-      "Alpha",
-      "--description",
-      "Core team",
-      "--goal",
-      "Ship fast",
-      "--auto-roles",
-      "builder,pm",
-    ]);
-
-    await runCommand([
-      "team",
-      "board",
-      "task",
-      "add",
-      "--team-id",
-      "team-proj-alpha",
-      "--task-id",
-      "task-1",
-      "--title",
-      "Take the first ticket",
-    ]);
-    await runCommand([
-      "team",
-      "board",
-      "task",
-      "add",
-      "--team-id",
-      "team-proj-alpha",
-      "--task-id",
-      "task-2",
-      "--title",
-      "Other builder work",
-      "--owner-agent-id",
-      "other-builder",
-    ]);
-    await runCommand([
-      "team",
-      "board",
-      "task",
-      "claim",
-      "--team-id",
-      "team-proj-alpha",
-      "--task-id",
-      "task-1",
-      "--agent-id",
-      "alpha-builder",
-      "--note",
-      "Starting implementation after reading ticket memory.",
-    ]);
-
-    const task = boardTasks.get("proj-alpha")?.find((entry) => entry.taskId === "task-1");
-    expect(task?.ownerAgentId).toBe("alpha-builder");
-    expect(task?.status).toBe("in_progress");
-    expect(task?.notes).toContain("Claimed by alpha-builder");
-
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    await runCommand([
-      "team",
-      "board",
-      "task",
-      "mine",
-      "--team-id",
-      "team-proj-alpha",
-      "--agent-id",
-      "alpha-builder",
-      "--json",
-    ]);
-    const payload = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? "{}")) as {
-      tasks?: Array<{ taskId?: string }>;
-    };
-    expect(payload.tasks?.map((entry) => entry.taskId)).toEqual(["task-1"]);
   });
 
   it("removes the proposal command family from the CLI", async () => {
@@ -2057,262 +1685,7 @@ describe("team CLI", () => {
     await access(path.join(stateDir, "workspace"));
   });
 
-  it("executes board and bot commands through Convex HTTP endpoints", async () => {
-    const stateDir = await setupStateDir();
-    process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.FARPLANE_CONVEX_SITE_URL = "https://example.convex.site";
-
-    await runCommand([
-      "team",
-      "create",
-      "--name",
-      "Delta",
-      "--description",
-      "Delta team",
-      "--goal",
-      "Ship pipeline",
-      "--business-type",
-      "affiliate_marketing",
-    ]);
-
-    const commandPayloads: Array<Record<string, unknown>> = [];
-    const queryPayloads: Array<Record<string, unknown>> = [];
-    const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
-      const url = String(input);
-      const payload = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
-      if (url.endsWith("/board/command")) {
-        commandPayloads.push(payload);
-        if (payload.command === "task_add") {
-          return new Response(JSON.stringify({ ok: true, duplicate: false, taskId: "task-1" }), {
-            status: 200,
-          });
-        }
-        return new Response(
-          JSON.stringify({ ok: true, duplicate: false, taskId: payload.taskId ?? "task-1" }),
-          { status: 200 },
-        );
-      }
-      if (url.endsWith("/board/query")) {
-        queryPayloads.push(payload);
-        if (payload.query === "tasks") {
-          return new Response(
-            JSON.stringify({
-              ok: true,
-              data: {
-                tasks: [
-                  {
-                    taskId: "task-1",
-                    title: "Draft content",
-                    status: "todo",
-                    priority: "high",
-                    ownerAgentId: "delta-executor",
-                  },
-                ],
-              },
-            }),
-            { status: 200 },
-          );
-        }
-        if (payload.query === "activity") {
-          return new Response(
-            JSON.stringify({
-              ok: true,
-              data: [
-                {
-                  agentId: "delta-executor",
-                  activityType: "executing",
-                  label: "Working task-1",
-                  occurredAt: Date.now(),
-                },
-              ],
-            }),
-            { status: 200 },
-          );
-        }
-        return new Response(
-          JSON.stringify({
-            ok: true,
-            data: [
-              {
-                taskId: "task-1",
-                title: "Draft content",
-                status: "todo",
-                priority: "high",
-                ownerAgentId: "delta-executor",
-              },
-            ],
-          }),
-          { status: 200 },
-        );
-      }
-      return new Response(JSON.stringify({ ok: false, error: "unknown_endpoint" }), {
-        status: 404,
-      });
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    await runCommand([
-      "team",
-      "board",
-      "task",
-      "add",
-      "--team-id",
-      "team-proj-delta",
-      "--title",
-      "Draft content",
-      "--priority",
-      "high",
-      "--owner-agent-id",
-      "delta-executor",
-      "--linked-session-key",
-      "agent:main:main",
-      "--beat-id",
-      "beat-delta-1",
-    ]);
-    await runCommand([
-      "team",
-      "board",
-      "task",
-      "update",
-      "--team-id",
-      "team-proj-delta",
-      "--task-id",
-      "task-1",
-      "--title",
-      "Draft launch copy",
-      "--detail",
-      "Updated via cli",
-      "--created-team-id",
-      "team-proj-delta-launch",
-      "--created-project-id",
-      "proj-delta-launch",
-    ]);
-    await runCommand(["team", "board", "task", "list", "--team-id", "team-proj-delta", "--json"]);
-    await runCommand([
-      "team",
-      "bot",
-      "log",
-      "--team-id",
-      "team-proj-delta",
-      "--agent-id",
-      "delta-executor",
-      "--activity-type",
-      "executing",
-      "--label",
-      "Working task-1",
-      "--task-id",
-      "task-1",
-      "--beat-id",
-      "beat-delta-1",
-    ]);
-    await runCommand([
-      "team",
-      "funds",
-      "deposit",
-      "--team-id",
-      "team-proj-delta",
-      "--amount",
-      "500",
-      "--source",
-      "test-seed",
-      "--beat-id",
-      "beat-delta-1",
-    ]);
-    await runCommand([
-      "team",
-      "funds",
-      "spend",
-      "--team-id",
-      "team-proj-delta",
-      "--amount",
-      "120",
-      "--source",
-      "test-api",
-      "--beat-id",
-      "beat-delta-1",
-    ]);
-    await runCommand(["team", "bot", "timeline", "--team-id", "team-proj-delta", "--json"]);
-    await runCommand(["team", "bot", "next", "--team-id", "team-proj-delta", "--json"]);
-    await runCommand([
-      "team",
-      "board",
-      "task",
-      "delete",
-      "--team-id",
-      "team-proj-delta",
-      "--task-id",
-      "task-1",
-    ]);
-
-    expect(fetchMock).toHaveBeenCalled();
-    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/board/command"))).toBe(true);
-    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/board/query"))).toBe(true);
-    expect(commandPayloads.some((payload) => payload.teamId === "team-proj-delta")).toBe(true);
-    expect(commandPayloads.some((payload) => payload.beatId === "beat-delta-1")).toBe(true);
-    expect(commandPayloads.some((payload) => payload.linkedSessionKey === "agent:main:main")).toBe(
-      true,
-    );
-    expect(
-      commandPayloads.some((payload) => payload.createdTeamId === "team-proj-delta-launch"),
-    ).toBe(true);
-    expect(
-      commandPayloads.some(
-        (payload) => payload.command === "activity_log" && payload.beatId === "beat-delta-1",
-      ),
-    ).toBe(true);
-    expect(queryPayloads.some((payload) => payload.teamId === "team-proj-delta")).toBe(true);
-  });
-
-  it("resolves Convex site URL from persisted farplane sidecar config", async () => {
-    const stateDir = await setupStateDir();
-    process.env.OPENCLAW_STATE_DIR = stateDir;
-    delete process.env.FARPLANE_CONVEX_SITE_URL;
-    delete process.env.CONVEX_SITE_URL;
-
-    await runCommand([
-      "team",
-      "create",
-      "--name",
-      "PersistedUrl",
-      "--description",
-      "Persisted URL team",
-      "--goal",
-      "Use saved convex url",
-      "--auto-roles",
-      "builder",
-    ]);
-
-    await writeFile(
-      path.join(stateDir, "farplane.json"),
-      `${JSON.stringify(
-        {
-          convex: { siteUrl: "https://persisted.convex.site" },
-        },
-        null,
-        2,
-      )}\n`,
-      "utf-8",
-    );
-
-    const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
-      const url = String(input);
-      const payload = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
-      if (url === "https://persisted.convex.site/board/query" && payload.query === "tasks") {
-        return new Response(JSON.stringify({ ok: true, data: { tasks: [] } }), { status: 200 });
-      }
-      return new Response(JSON.stringify({ ok: false, error: "unknown_endpoint" }), { status: 404 });
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    await runCommand(["team", "board", "task", "list", "--team-id", "team-proj-persistedurl", "--json"]);
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://persisted.convex.site/board/query",
-      expect.objectContaining({ method: "POST" }),
-    );
-  });
-
-  it("validates Convex site URL before board calls", async () => {
+  it("validates Convex site URL before activity calls", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
     process.env.FARPLANE_CONVEX_SITE_URL = "127.0.0.1:3211";
@@ -2331,11 +1704,11 @@ describe("team CLI", () => {
     ]);
 
     await expect(
-      runCommand(["team", "board", "task", "list", "--team-id", "team-proj-invalidurl"]),
+      runCommand(["team", "activity", "timeline", "--team-id", "team-proj-invalidurl"]),
     ).rejects.toThrow("invalid_convex_site_url:127.0.0.1:3211");
   });
 
-  it("reports actionable board query network errors", async () => {
+  it("reports actionable activity query network errors", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
     process.env.FARPLANE_CONVEX_SITE_URL = "http://127.0.0.1:3211";
@@ -2359,9 +1732,9 @@ describe("team CLI", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      runCommand(["team", "board", "task", "list", "--team-id", "team-proj-networkerror"]),
+      runCommand(["team", "activity", "timeline", "--team-id", "team-proj-networkerror"]),
     ).rejects.toThrow(
-      "board_query_request_failed:connection_refused:url=http://127.0.0.1:3211/board/query",
+      "convex_http_request_failed:connection_refused:url=http://127.0.0.1:3211/status/activity",
     );
   });
 
@@ -2431,7 +1804,7 @@ describe("team CLI", () => {
     });
   });
 
-  it("supports top-level status shortcut and routes via board activity_log", async () => {
+  it("supports top-level status shortcut through direct activity ingest", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
     process.env.FARPLANE_CONVEX_SITE_URL = "https://example.convex.site";
@@ -2455,12 +1828,9 @@ describe("team CLI", () => {
     const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
       const url = String(input);
       const payload = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
-      if (url.endsWith("/board/command")) {
+      if (url.endsWith("/ingest")) {
         commandPayloads.push(payload);
-        return new Response(
-          JSON.stringify({ ok: true, duplicate: false, taskId: payload.taskId ?? "task-1" }),
-          { status: 200 },
-        );
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
       }
       return new Response(JSON.stringify({ ok: false, error: "unknown_endpoint" }), {
         status: 404,
@@ -2474,8 +1844,8 @@ describe("team CLI", () => {
     expect(commandPayloads).toHaveLength(1);
     expect(commandPayloads[0]).toMatchObject({
       teamId: "team-proj-shortcut",
-      command: "activity_log",
-      actorAgentId: "shortcut-executor",
+      eventType: "activity_log",
+      agentId: "shortcut-executor",
       activityType: "planning",
       label: "planning",
       detail: "Planning shortcut turn",
@@ -2504,7 +1874,10 @@ describe("team CLI", () => {
     const listPayload = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0] ?? "{}")) as {
       agents?: Array<{ agentId?: string; teamId?: string; openclawFound?: boolean }>;
     };
-    expect(listPayload.agents?.map((entry) => entry.agentId)).toEqual(["alpha-builder", "alpha-pm"]);
+    expect(listPayload.agents?.map((entry) => entry.agentId)).toEqual([
+      "alpha-builder",
+      "alpha-pm",
+    ]);
     expect(listPayload.agents?.every((entry) => entry.teamId === "team-proj-alpha")).toBe(true);
     expect(listPayload.agents?.every((entry) => entry.openclawFound)).toBe(true);
 
@@ -2588,11 +1961,13 @@ describe("team CLI", () => {
     const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
       const url = String(input);
       const payload = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
-      if (url.endsWith("/board/command")) {
+      if (url.endsWith("/ingest")) {
         commandPayloads.push(payload);
-        return new Response(JSON.stringify({ ok: true, duplicate: false }), { status: 200 });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
       }
-      return new Response(JSON.stringify({ ok: false, error: "unknown_endpoint" }), { status: 404 });
+      return new Response(JSON.stringify({ ok: false, error: "unknown_endpoint" }), {
+        status: 404,
+      });
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -2602,7 +1977,8 @@ describe("team CLI", () => {
     expect(commandPayloads[0]).toMatchObject({
       teamId: "team-proj-alpha",
       projectId: "proj-alpha",
-      actorAgentId: "alpha-pm",
+      eventType: "activity_log",
+      agentId: "alpha-pm",
       activityType: "planning",
       detail: "Triaging backlog",
     });
@@ -2670,11 +2046,13 @@ describe("team CLI", () => {
     const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
       const url = String(input);
       const payload = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
-      if (url.endsWith("/board/command")) {
+      if (url.endsWith("/ingest")) {
         commandPayloads.push(payload);
-        return new Response(JSON.stringify({ ok: true, duplicate: false }), { status: 200 });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
       }
-      return new Response(JSON.stringify({ ok: false, error: "unknown_endpoint" }), { status: 404 });
+      return new Response(JSON.stringify({ ok: false, error: "unknown_endpoint" }), {
+        status: 404,
+      });
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -2685,8 +2063,8 @@ describe("team CLI", () => {
       "alpha-pm",
       "--to",
       "alpha-builder",
-      "--task-id",
-      "task-42",
+      "--ticket-id",
+      "TASK-0042",
       "--message",
       "Need blocker update",
       "--json",
@@ -2696,17 +2074,25 @@ describe("team CLI", () => {
       .split("\n")
       .map((entry) => entry.trim())
       .filter(Boolean);
-    expect(execArgs).toEqual(["agent", "--agent", "alpha-builder", "--message", "Need blocker update", "--json"]);
+    expect(execArgs).toEqual([
+      "agent",
+      "--agent",
+      "alpha-builder",
+      "--message",
+      "Need blocker update",
+      "--json",
+    ]);
     expect(
       commandPayloads.some(
         (payload) =>
-          payload.command === "activity_log" &&
+          payload.eventType === "activity_log" &&
           payload.teamId === "team-proj-alpha" &&
-          payload.actorAgentId === "alpha-pm" &&
+          payload.agentId === "alpha-pm" &&
           payload.activityType === "handoff" &&
           payload.label === "Coordination to alpha-builder" &&
           payload.skillId === "agent_coordination" &&
-          payload.detail === "Need blocker update (task task-42)",
+          payload.detail === "Need blocker update (ticket TASK-0042)" &&
+          payload.taskId === "TASK-0042",
       ),
     ).toBe(true);
 
@@ -2742,56 +2128,6 @@ describe("team CLI", () => {
         "N/A",
       ]),
     ).rejects.toThrow("permission_denied:team.meta.write:role=operator");
-  });
-
-  it("requires board-write permission before task memory updates", async () => {
-    const stateDir = await setupStateDir();
-    process.env.OPENCLAW_STATE_DIR = stateDir;
-    process.env.FARPLANE_CONVEX_SITE_URL = "http://127.0.0.1:3211";
-    installBoardMock();
-
-    await runCommand([
-      "team",
-      "create",
-      "--name",
-      "Alpha",
-      "--description",
-      "Core team",
-      "--goal",
-      "Ship fast",
-    ]);
-
-    await runCommand([
-      "team",
-      "board",
-      "task",
-      "add",
-      "--team-id",
-      "team-proj-alpha",
-      "--task-id",
-      "task-1",
-      "--title",
-      "Plan work",
-    ]);
-
-    process.env.FARPLANE_ACTOR_ROLE = "operator";
-    process.env.FARPLANE_ALLOWED_PERMISSIONS = "team.read";
-
-    await expect(
-      runCommand([
-        "team",
-        "board",
-        "task",
-        "memory",
-        "append",
-        "--team-id",
-        "team-proj-alpha",
-        "--task-id",
-        "task-1",
-        "--text",
-        "Need approval before execution.",
-      ]),
-    ).rejects.toThrow("permission_denied:team.board.write:role=operator");
   });
 
   it("supports team funds deposit, spend, ledger, and balance", async () => {

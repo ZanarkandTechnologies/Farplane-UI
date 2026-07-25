@@ -332,8 +332,8 @@ describe("runtime adapters", () => {
         return new Response(
           JSON.stringify({
             savedWorkspaceRoots: ["/workspace/farplane"],
-            pinnedProjectIds: ["/workspace/farplane"],
-            projectOrder: ["/workspace/farplane"],
+            pinnedProjectIds: ["local-farplane-id"],
+            projectOrder: ["local-farplane-id"],
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         );
@@ -1647,8 +1647,8 @@ describe("runtime adapters", () => {
           return new Response(
             JSON.stringify({
               savedWorkspaceRoots: ["/workspace/farplane", "/workspace/life"],
-              pinnedProjectIds: ["/workspace/farplane"],
-              projectOrder: ["/workspace/farplane"],
+              pinnedProjectIds: ["local-farplane-id"],
+              projectOrder: ["local-life-id", "local-farplane-id"],
               pinnedThreadIds: ["pinned-life-manager"],
               projectlessThreadIds: ["recent-stale"],
             }),
@@ -1685,6 +1685,9 @@ describe("runtime adapters", () => {
     ]);
     expect(office.company.projects.some((project) => project.name === "codexter")).toBe(false);
     expect(office.company.projects.some((project) => project.name === "shellcorp")).toBe(false);
+    expect(office.company.projects.some((project) => project.name.startsWith("local-"))).toBe(
+      false,
+    );
     expect(office.company.agents).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1706,12 +1709,16 @@ describe("runtime adapters", () => {
     const company = toCodexCompanyModel([], 1770000000 * 1000, ["/workspace/farplane-ui"], {
       ticketTasks: [
         {
-          id: "ticket:codex-proj-workspace-farplane-ui:TASK-1",
+          id: "TASK-1",
           projectId: "codex-proj-workspace-farplane-ui",
           title: "Sync tickets into Kanban",
           status: "review",
           priority: "high",
           artefactPath: "tickets/TASK-1/ticket.md",
+          markdown: "# TASK-1\n\n## Notes\n\nReview the filesystem projection.",
+          frontMatter: { ticket_id: "TASK-1", status: "review" },
+          notes: "Review the filesystem projection.",
+          approvalState: "pending_review",
           updatedAt: 1770000000,
         },
       ],
@@ -1719,13 +1726,15 @@ describe("runtime adapters", () => {
 
     expect(company.tasks).toEqual([
       expect.objectContaining({
-        id: "ticket:codex-proj-workspace-farplane-ui:TASK-1",
+        id: "TASK-1",
         projectId: "codex-proj-workspace-farplane-ui",
         title: "Sync tickets into Kanban",
         status: "review",
         priority: "high",
         provider: "internal",
         artefactPath: "tickets/TASK-1/ticket.md",
+        notes: "Review the filesystem projection.",
+        approvalState: "pending_review",
       }),
     ]);
   });

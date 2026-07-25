@@ -53,13 +53,11 @@ npm run shell -- team funds deposit \
 ```
 
 ```bash
-# Track operational note in team activity timeline
-npm run shell -- team bot log \
-  --team-id "$TEAM_ID" \
-  --agent-id "$AGENT_ID" \
-  --type measuring \
-  --label "amazon_metrics" \
-  --detail "clicks=$CLICKS ordered=$ORDERED shipped=$SHIPPED conv=$CONV revenue_cents=$REV_CENTS"
+# Track operational note in the agent activity timeline
+npm run shell -- status \
+  --state measuring \
+  --step-key "amazon_metrics" \
+  "clicks=$CLICKS ordered=$ORDERED shipped=$SHIPPED conv=$CONV revenue_cents=$REV_CENTS"
 ```
 
 If your current CLI build supports explicit metric add commands, write metric snapshots there as well.

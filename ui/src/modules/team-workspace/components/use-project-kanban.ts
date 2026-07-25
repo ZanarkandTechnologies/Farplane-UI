@@ -150,10 +150,12 @@ export function useProjectKanban({
 
   useEffect(() => {
     if (!canRead) {
+      setSnapshot(null);
       setState("idle");
       setError(null);
       return;
     }
+    setSnapshot(null);
     void refresh();
   }, [canRead, refresh]);
 

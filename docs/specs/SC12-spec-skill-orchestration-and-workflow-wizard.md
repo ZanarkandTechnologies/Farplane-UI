@@ -1,15 +1,15 @@
 # SC12: CEO Team Generation Workflow
 
-> Deprecated. The active replacement spec is [SC12-spec-board-native-task-planning-review.md](/home/kenjipcx/Zanarkand/Farplane/docs/features/FEAT-0112-board-native-task-planning-review.md).
+> Deprecated. The active replacement spec is [FEAT-0112 filesystem ticket planning and review](/home/kenjipcx/Zanarkand/Farplane/docs/features/FEAT-0112-board-native-task-planning-review.md).
 
 ## Status
 
-Deprecated planning trail for the earlier wizard/proposal framing. Keep this file for history only; implement against the board-native replacement spec instead.
+Deprecated planning trail for the earlier wizard/proposal framing. Keep this file for history only; implement against the filesystem-ticket replacement spec instead.
 
 Current direction note:
 
 - `team proposal` is deprecated and removed from the CLI.
-- The active contract is board-native task planning, `review`-lane approval, and markdown task memory.
+- The active contract is filesystem-ticket task planning, `review` status approval, and markdown task memory.
 - Any remaining proposal-specific sections below are migration-era context only.
 
 ## Purpose
@@ -18,16 +18,16 @@ Define the canonical founder workflow for starting a new team through the CEO Op
 
 - CEO chat as the entry point,
 - a CLI-backed team-generation skill,
-- board-native task planning,
+- filesystem-ticket task planning,
 - founder review through the `review` lane,
-- task-backed working memory on the board,
+- task-backed working memory in `ticket.md`,
 - approval-triggered execution,
 - and heartbeat handoff after bootstrap.
 
 The current product simplification for this spec is:
 
-- the board task is the workflow container,
-- `review` is a normal board lane rather than a separate approval object,
+- the filesystem ticket is the workflow container,
+- `review` is a normal ticket status rather than a separate approval object,
 - task notes act as compact working memory,
 - linked session/chat holds the richer working thread.
 
@@ -40,11 +40,11 @@ OpenClaw already owns agent runtime and behavior. Farplane already has a local C
 1. founder tells the CEO agent to start a team for an idea,
 2. CEO agent asks follow-up questions until the idea passes a minimum gate,
 3. CEO agent researches the likely team shape, tools, and data sources,
-4. CEO agent creates or updates board tasks through Farplane CLI,
+4. CEO agent creates or updates tickets through Farplane CLI,
 5. founder reviews work by operating the `review` lane in User Tasks,
 6. CEO agent executes approved work through Farplane CLI,
 7. the created team appears in the existing office/team surfaces,
-8. created board tasks become the short-term task/session memory surface,
+8. created tickets become the short-term task/session memory surface,
 9. heartbeat takes over.
 
 ## Existing Foundation To Reuse
@@ -65,8 +65,8 @@ SC12 must build around current Farplane and OpenClaw primitives instead of intro
 - `farplane team create`
 - `farplane team business set-all`
 - `farplane team business equip-skills`
-- `farplane team board task add`
-- `farplane team board task update`
+- `farplane team ticket create`
+- `farplane team ticket update`
 - existing team readiness/business surfaces
 - existing OpenClaw heartbeat bootstrap and role templates
 - existing `task == session` direction from SC07
@@ -75,9 +75,9 @@ SC12 must build around current Farplane and OpenClaw primitives instead of intro
 
 - OpenClaw remains the runtime source of truth.
 - CEO behavior changes should come from skill instructions and heartbeat guidance, not new agent-runtime code in Farplane.
-- User Tasks is a filtered founder review surface over board tasks currently in `review`.
+- User Tasks is a filtered founder review surface over tickets currently in `review`.
 - Team Panel and Business tab remain post-create inspection/editing surfaces, not the primary intake flow.
-- CEO planning work should prefer shared board/chat/session primitives over proposal-specific workflow stores.
+- CEO planning work should prefer shared ticket/chat/session primitives over proposal-specific workflow stores.
 
 ## Primary Workflow
 
@@ -87,12 +87,12 @@ SC12 must build around current Farplane and OpenClaw primitives instead of intro
    - create planning tickets when no actionable work exists,
    - write plan/context into task memory,
    - move tasks into `review` when human sign-off is needed.
-3. CEO agent persists the work as board tasks through Farplane CLI.
-4. User Tasks shows the founder the board tasks currently in `review`.
+3. CEO agent persists the work as tickets through Farplane CLI.
+4. User Tasks shows the founder the tickets currently in `review`.
 5. Founder approves by working the `review` lane.
-6. CEO agent monitors the board state and executes approved work through Farplane CLI.
+6. CEO agent monitors ticket state and executes approved work through Farplane CLI.
 7. Farplane creates the team with existing create/business/equip/bootstrap flows.
-8. Farplane seeds the new team board with the initial tasks and working-memory template.
+8. Farplane seeds the new team's filesystem ticket queue with the initial tasks and working-memory template.
 9. Existing office/team surfaces display the created team.
 10. Heartbeat governs the team after bootstrap by reading and updating task-backed memory.
 
@@ -104,7 +104,7 @@ SC12 is CLI-first and skill-driven.
 
 The CEO skill must instruct the agent to:
 
-1. read the board before planning,
+1. read the ticket queue before planning,
 2. create planning tickets when no actionable work exists,
 3. write concise plans and gathered context into task memory,
 4. move tasks into `review` when human approval is required,
@@ -113,14 +113,14 @@ The CEO skill must instruct the agent to:
 
 ### Required CLI task lifecycle
 
-SC12 requires the board CLI to support:
+SC12 requires the ticket CLI to support:
 
 - task create/update/list/move
 - task claim/assign
 - task memory set/append/show
 - task filtering for agent-scoped views
 
-Workflow persistence lives directly on shared board tasks with markdown task memory, not in a separate workflow backend.
+Workflow persistence lives directly on shared tickets with markdown task memory, not in a separate workflow backend.
 
 ## Idea Gate Contract
 
@@ -147,7 +147,7 @@ The CEO must not persist a proposal as executable until the brief is complete en
 
 ## Proposal Packet Contract
 
-Each proposal must survive chat, review, and execution without depending on transient chat context. The canonical stored form is one shared board task with a readable markdown body and task-local approval/result metadata.
+Each proposal must survive chat, review, and execution without depending on transient chat context. The canonical stored form is one shared filesystem ticket with a readable markdown body and task-local approval/result metadata.
 
 ### Required proposal fields
 
@@ -163,7 +163,7 @@ Each proposal must survive chat, review, and execution without depending on tran
 - `proposedDescription`
 - `proposedRoles[]`
 - `proposedBusinessConfig`
-- `proposedInitialBoardItems[]`
+- `proposedInitialTicketItems[]`
 - `approvalStatus`
 - `executionStatus`
 - `reviewTaskTitle`
@@ -191,22 +191,22 @@ Each proposed role includes:
 
 SC12 may propose roles beyond the currently auto-provisionable runtime set, but unsupported roles must be visible before approval and must block direct execution.
 
-## Approval and Board Integration
+## Approval and Ticket Integration
 
 Approval happens in User Tasks, not in the action approval queue.
 
 ### Founder review behavior
 
-- User Tasks shows CEO board tasks marked for founder review.
+- User Tasks shows CEO filesystem tickets marked for founder review.
 - Founder can approve, reject, or request changes on that same task.
-- The UI is a thin review surface over shared board state; it does not own proposal generation logic.
+- The UI is a thin review surface over shared ticket state; it does not own proposal generation logic.
 
 ### CEO workbench behavior
 
 SC12 also introduces a CEO workbench surface.
 
 - Clicking the CEO desk opens a dedicated CEO workbench panel.
-- The workbench shows CEO board task pipeline state for the CEO:
+- The workbench shows CEO ticket pipeline state for the CEO:
   - drafting,
   - waiting for founder review,
   - approved,
@@ -214,23 +214,23 @@ SC12 also introduces a CEO workbench surface.
   - failed.
 - The workbench can reuse Team Panel/kanban visual patterns, but it is not the Team Panel itself.
 
-### Board integration
+### Ticket integration
 
-- CEO board tasks link to the created team/project when execution succeeds.
-- Team bootstrap still includes initial board items for the created team.
+- CEO tickets link to the created team/project when execution succeeds.
+- Team bootstrap still includes initial ticket items for the created team.
 - After successful execution, those items are created for the new team/project.
 - Those items are not only tasks; they are also the working memory container for the execution loop.
 - SC12 does not require a generalized personal kanban system before shipping this slice.
 
 ## Task / Session Memory Contract
 
-SC12 should reuse the board instead of inventing a separate short-term memory layer for execution.
+SC12 should reuse filesystem tickets instead of inventing a separate short-term memory layer for execution.
 
 ### Product rule
 
 - Each active task acts like a lightweight Notion-style working-memory page for the current execution session.
 - Agents should be able to resume work from the task title, notes, and linked skill/tool context without requiring a human handoff.
-- The board becomes the canonical short-term execution memory surface; long-term durable decisions still belong in normal memory/history systems.
+- The filesystem ticket becomes the canonical short-term execution memory surface; long-term durable decisions still belong in normal memory/history systems.
 
 ### Required task memory fields
 
@@ -264,7 +264,7 @@ Expected execution path:
 2. create team/project,
 3. apply business config where relevant,
 4. sync business skills into created agents where relevant,
-5. create initial board items with task-memory-ready notes/content,
+5. create initial ticket items with task-memory-ready notes/content,
 6. persist execution result back into proposal state,
 7. refresh normal team/office surfaces.
 
@@ -291,7 +291,7 @@ SC12 is flexible in proposal generation and strict in execution.
 4. Clicking the CEO desk opens a CEO workbench that reflects proposal workflow state.
 5. Approved proposals create teams through existing create/business/equip/bootstrap logic.
 6. Created teams appear in existing office, topology, Team Panel, and readiness surfaces.
-7. Created task cards hold enough session memory for an agent to resume work from the board plus skill context.
+7. Created task cards hold enough session memory for an agent to resume work from the ticket plus skill context.
 8. Unsupported role structures are blocked before execution and reported clearly.
 
 ## Out of Scope

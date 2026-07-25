@@ -61,14 +61,10 @@ type MonitorRecentEvent = {
   occurredAt?: string;
   taskId?: string;
   agentId?: string;
-  sourceType?: "agent_event" | "board_event";
+  sourceType?: "agent_event";
 };
 
 function normalizeTimelineEventKind(row: TeamTimelineEventRow): string {
-  if (row.sourceType === "board_event") {
-    if (row.eventType === "task_created") return "task_added";
-    return String(row.eventType ?? "board_event");
-  }
   if (row.eventType === "status_report") return "status_reported";
   if (row.eventType === "activity_log") return "activity_logged";
   return String(row.eventType ?? row.activityType ?? "agent_event");
@@ -92,9 +88,17 @@ function mapTimelineRow(row: TeamTimelineEventRow): MonitorRecentEvent {
   };
 }
 
-async function readRecentTeamActivity(projectId: string, teamId: string): Promise<MonitorRecentEvent[]> {
-  const rows = await getRecentTeamTimeline({ projectId, teamId, limit: 20 });
-  return rows.map(mapTimelineRow);
+async function readRecentTeamActivity(
+  projectId: string,
+  teamId: string,
+): Promise<MonitorRecentEvent[]> {
+  try {
+    const rows = await getRecentTeamTimeline({ projectId, teamId, limit: 20 });
+    return rows.map(mapTimelineRow);
+  } catch {
+    // Monitoring remains inspectable when the optional realtime activity service is offline.
+    return [];
+  }
 }
 
 function resourcesMarkdownPath(store: SidecarStore, projectId: string): string {
@@ -154,7 +158,8 @@ export async function buildTeamSnapshot(
   const roleSlots = company.roleSlots.filter((entry) => entry.projectId === projectId);
   const resourcesMarkdown = await readResourcesMarkdown(store, projectId);
   const cronJobs = (await readCronJobs()).filter(
-    (job) => typeof job.agentId === "string" && agents.some((entry) => entry.agentId === job.agentId),
+    (job) =>
+      typeof job.agentId === "string" && agents.some((entry) => entry.agentId === job.agentId),
   );
   const recentEvents = await readRecentTeamActivity(projectId, teamId);
   const openclawConfig = await store.readOpenclawConfig();
@@ -175,7 +180,9 @@ export async function buildTeamSnapshot(
       workspacePath,
       heartbeatFilePath: path.join(workspacePath, "HEARTBEAT.md"),
       openclawHeartbeatEvery:
-        typeof heartbeat.every === "string" && heartbeat.every.trim() ? heartbeat.every.trim() : null,
+        typeof heartbeat.every === "string" && heartbeat.every.trim()
+          ? heartbeat.every.trim()
+          : null,
       openclawAgentFound: Boolean(openclawAgent),
     };
   });
@@ -272,8 +279,9 @@ export function registerTeamConfig(team: Command, store: SidecarStore): void {
       const company = await store.readCompanyModel();
       const { projectId } = resolveProjectOrFail(company, opts.teamId.trim());
       const filePath = resourcesMarkdownPath(store, projectId);
-      const nextText =
-        opts.file?.trim() ? await readFile(path.resolve(opts.file.trim()), "utf-8") : opts.text ?? "";
+      const nextText = opts.file?.trim()
+        ? await readFile(path.resolve(opts.file.trim()), "utf-8")
+        : (opts.text ?? "");
       await mkdir(path.dirname(filePath), { recursive: true });
       await writeFile(filePath, nextText.endsWith("\n") ? nextText : `${nextText}\n`, "utf-8");
       formatOutput(

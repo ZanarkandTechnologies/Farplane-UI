@@ -73,7 +73,7 @@ Define heartbeat-driven autonomous execution loops and the operator governance c
 
 1. Scheduler triggers based on policy interval.
 2. Loop gate checks status (`running` required).
-3. Work item is selected from federated board state.
+3. Work item is selected from the federated ticket/work queue state.
 4. Session context is opened/continued using ticket-session binding.
 5. Work dispatch runs through OpenClaw chat/tool bridge.
 6. Beat outcome is persisted with audit metadata.

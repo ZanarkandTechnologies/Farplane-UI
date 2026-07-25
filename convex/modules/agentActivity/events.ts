@@ -23,6 +23,11 @@ function initialSnapshot(): {
   };
 }
 
+export function normalizeEventStepKey(value: string | undefined): string | undefined {
+  const stepKey = value?.trim();
+  return stepKey ? stepKey : undefined;
+}
+
 async function applyEvent(params: {
   ctx: MutationCtx;
   teamId?: string;
@@ -45,13 +50,12 @@ async function applyEvent(params: {
   // MEM-0132 decision: agent status/event logs carry teamId as first-class context.
   const now = Date.now();
   const eventTs = params.occurredAt ?? now;
+  const stepKey = normalizeEventStepKey(params.stepKey);
 
-  if (params.stepKey && params.stepKey.trim().length > 0) {
+  if (stepKey) {
     const existingStep = await params.ctx.db
       .query("agentEvents")
-      .withIndex("by_agent_step_key", (q) =>
-        q.eq("agentId", params.agentId).eq("stepKey", params.stepKey),
-      )
+      .withIndex("by_agent_step_key", (q) => q.eq("agentId", params.agentId).eq("stepKey", stepKey))
       .first();
     if (existingStep) {
       return { duplicate: true };
@@ -64,12 +68,10 @@ async function applyEvent(params: {
   const actorType = params.actorType?.trim();
   const taskId = params.taskId?.trim();
 
-  if (projectId && params.stepKey && params.stepKey.trim().length > 0) {
+  if (projectId && stepKey) {
     const existingProjectStep = await params.ctx.db
       .query("agentEvents")
-      .withIndex("by_project_step_key", (q) =>
-        q.eq("projectId", projectId).eq("stepKey", params.stepKey),
-      )
+      .withIndex("by_project_step_key", (q) => q.eq("projectId", projectId).eq("stepKey", stepKey))
       .first();
     if (existingProjectStep) {
       return { duplicate: true };
@@ -88,7 +90,7 @@ async function applyEvent(params: {
     state: params.state,
     skillId: params.skillId,
     source: params.source,
-    stepKey: params.stepKey,
+    stepKey,
     sessionKey: params.sessionKey,
     beatId: params.beatId,
     taskId,
@@ -212,7 +214,7 @@ export const reportStatus = internalMutation({
     if (!state) {
       throw new Error(`invalid_state:${args.state}`);
     }
-    const stepKey = args.stepKey.trim();
+    const stepKey = normalizeEventStepKey(args.stepKey);
     if (!stepKey) {
       throw new Error("missing_step_key");
     }

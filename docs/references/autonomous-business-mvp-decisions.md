@@ -84,22 +84,22 @@ Initial resource types in this slice:
 
 This layer is advisory-only (no hard executor blocking in MVP). Heartbeats consume resource snapshots for planning and prioritization.
 
-### 8) Team Command Board Is Convex-Canonical
+### 8) Team Task State Is Filesystem-Ticket-Canonical
 
-Business kanban/task execution state now uses Convex as canonical storage for team-isolated command boards:
+Business kanban/task execution state now uses filesystem `ticket.md` files as canonical storage for project-isolated work:
 
-- `teamBoardTasks` for current task state
-- `teamBoardEvents` for append-only lifecycle events
-- `agentEvents` (with `activityType` metadata) for both activity timeline and live status reduction
+- ticket frontmatter for current task state, ownership, priority, and review status
+- ticket Markdown bodies for task-local working memory
+- `agentEvents` (with `activityType` metadata) for activity timeline and live status reduction
 
-CLI and UI surfaces read/write these Convex tables directly for realtime visibility. Sidecar `company.json.tasks` is no longer canonical for business team board execution flow.
+CLI and UI surfaces read/write filesystem tickets for task state. Sidecar `company.json.tasks` is not canonical for business ticket execution flow.
 
 Status visibility uses a companion explicit self-report path:
 
 - `farplane status` writes canonical live state and timeline breadcrumbs through one unified event path.
-- `farplane team status report` and `farplane team bot log` remain compatibility commands.
+- `farplane team status report` remains a compatibility command.
 
-Both should be emitted in heartbeat turns: one for current state, one for event history.
+Heartbeat turns should emit `farplane status` for current state and event history.
 
 ### 9) Business Flow Composer + Dedicated Ledger Tab
 
@@ -194,19 +194,15 @@ farplane team funds spend \
 farplane team funds ledger --team-id team-proj-affiliate-team --limit 10
 
 # status + timeline reporting during heartbeat turns
-farplane team status report \
-  --team-id team-proj-affiliate-team \
-  --agent-id affiliate-pm \
+farplane status \
   --state planning \
-  --status-text "Reviewing board and resource constraints" \
-  --step-key hb-affiliate-pm-001
+  --step-key hb-affiliate-pm-001 \
+  "Reviewing tickets and resource constraints"
 
-farplane team bot log \
-  --team-id team-proj-affiliate-team \
-  --agent-id affiliate-pm \
-  --activity-type status \
-  --label heartbeat_decision \
-  --detail "Prioritize low-cost distribution tasks"
+farplane status \
+  --state planning \
+  --step-key heartbeat_decision \
+  "Prioritize low-cost distribution tasks"
 ```
 
 ## UI Surfaces Added

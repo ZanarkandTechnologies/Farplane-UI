@@ -3,16 +3,9 @@
 /**
  * KANBAN TAB
  * ==========
- * Orchestrates the Team Kanban board: status lanes, review lane, and task detail modal.
- *
- * KEY CONCEPTS:
- * - Board state is read from Convex (canonical) or sidecar (fallback).
- * - All mutations go through boardCommand via the onBoardCommand callback.
- * - Task detail modal is driven by selectedTask local state.
- * - Quick-add at the bottom of each status lane uses task_add command.
- *
- * USAGE:
- * - Rendered inside TeamPanel as the "kanban" TabsContent.
+ * Renders the canonical filesystem ticket projection as an explicitly read-only board.
+ * Loading, source-gap, read-error, and empty states remain visible instead of falling
+ * back to sidecar or Convex task rows.
  */
 
 import { RefreshCw } from "lucide-react";
@@ -21,36 +14,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KanbanColumn } from "./kanban-column";
 import { TaskDetailModal } from "./task-detail-modal";
-import {
-  buildKanbanColumns,
-  type KanbanLaneKey,
-  type PanelTask,
-  type TaskStatus,
-} from "./team-panel-types";
+import { buildKanbanColumns, type KanbanLaneKey, type PanelTask } from "./team-panel-types";
 import type { ProjectKanbanLoadState, ProjectKanbanSnapshot } from "./use-project-kanban";
-
-type EmployeeModel = {
-  _id: string;
-  name: string;
-};
 
 interface KanbanTabProps {
   projectTasks: PanelTask[];
   focusAgentId?: string | null;
-  teamEmployees: EmployeeModel[];
   ownerLabelById: Map<string, string>;
-  convexEnabled: boolean;
   kanbanSnapshot?: ProjectKanbanSnapshot | null;
   kanbanState?: ProjectKanbanLoadState;
   kanbanError?: string | null;
   onRefreshKanban?: () => Promise<void>;
   showReadOnlyNotice?: boolean;
-  boardActionState: { pending: boolean; error?: string; ok?: string };
-  onBoardCommand: (
-    command: string,
-    payload: Record<string, unknown>,
-    successMessage: string,
-  ) => Promise<void>;
 }
 
 const COLUMN_ORDER: KanbanLaneKey[] = ["todo", "in_progress", "review", "blocked", "done"];
@@ -58,48 +33,29 @@ const COLUMN_ORDER: KanbanLaneKey[] = ["todo", "in_progress", "review", "blocked
 export function KanbanTab({
   projectTasks,
   focusAgentId,
-  teamEmployees,
   ownerLabelById,
-  convexEnabled,
   kanbanSnapshot = null,
   kanbanState = "idle",
   kanbanError = null,
   onRefreshKanban,
   showReadOnlyNotice = true,
-  boardActionState,
-  onBoardCommand,
 }: KanbanTabProps): JSX.Element {
   const [selectedTask, setSelectedTask] = useState<PanelTask | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
-  const visibleTasks = useMemo(
-    () =>
-      focusAgentId ? projectTasks.filter((t) => t.ownerAgentId === focusAgentId) : projectTasks,
-    [focusAgentId, projectTasks],
-  );
-
+  const visibleTasks = useMemo(() => {
+    if (kanbanState !== "ready") return [];
+    return focusAgentId
+      ? projectTasks.filter((task) => task.ownerAgentId === focusAgentId)
+      : projectTasks;
+  }, [focusAgentId, kanbanState, projectTasks]);
   const columns = buildKanbanColumns(visibleTasks);
-  const boardWritable = convexEnabled && kanbanSnapshot?.readOnly !== true;
-  const sourceLabel = kanbanSnapshot
-    ? kanbanSnapshot.providerConfig.provider.replace(/_/g, " ")
-    : convexEnabled
-      ? "convex board"
-      : "office snapshot";
+  const sourceLabel =
+    kanbanSnapshot?.providerConfig.provider.replace(/_/g, " ") ?? "filesystem tickets";
   const refreshedLabel = kanbanSnapshot?.readAtMs
     ? `${Math.max(0, Math.floor((Date.now() - kanbanSnapshot.readAtMs) / 1000))}s ago`
     : "not refreshed";
-
-  const employeeOptions = useMemo(
-    () =>
-      teamEmployees
-        .map((employee) => {
-          const rawId = String(employee._id ?? "").trim();
-          const agentId = rawId.startsWith("employee-") ? rawId.slice("employee-".length) : rawId;
-          return { id: agentId, name: employee.name };
-        })
-        .filter((employee) => employee.id.length > 0),
-    [teamEmployees],
-  );
+  const showColumns = kanbanState === "ready";
 
   function openTask(task: PanelTask): void {
     setSelectedTask(task);
@@ -109,11 +65,6 @@ export function KanbanTab({
   function closeDetail(): void {
     setIsDetailOpen(false);
     setSelectedTask(null);
-  }
-
-  async function handleAddTask(title: string, status: TaskStatus): Promise<void> {
-    if (!boardWritable) return;
-    await onBoardCommand("task_add", { title, status, priority: "medium" }, "Task added.");
   }
 
   return (
@@ -126,10 +77,7 @@ export function KanbanTab({
           </Badge>
           <span>{visibleTasks.length} tasks</span>
           <span>refreshed {refreshedLabel}</span>
-          {kanbanSnapshot?.readOnly ? <Badge variant="secondary">read-only</Badge> : null}
-          {kanbanState === "error" ? (
-            <Badge variant="destructive">{kanbanError ?? "kanban read failed"}</Badge>
-          ) : null}
+          <Badge variant="secondary">read-only</Badge>
         </div>
         {onRefreshKanban ? (
           <Button
@@ -152,51 +100,56 @@ export function KanbanTab({
         </div>
       ) : null}
 
-      {!boardWritable && showReadOnlyNotice ? (
+      {showReadOnlyNotice ? (
         <div className="rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-          {kanbanSnapshot?.readOnly
-            ? "Filesystem tickets are read-only in this first pass."
-            : "Read-only view — connect a writable Kanban provider to enable task creation and edits."}
+          Task changes are made in the canonical ticket files. This board refreshes from those
+          files.
         </div>
       ) : null}
 
-      {boardActionState.error ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          {boardActionState.error}
+      {kanbanState === "loading" ? (
+        <div className="flex min-h-40 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
+          Loading filesystem tickets…
         </div>
       ) : null}
-      {boardActionState.ok ? (
-        <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600">
-          {boardActionState.ok}
+      {kanbanState === "idle" ? (
+        <div className="flex min-h-40 items-center justify-center rounded-md border border-dashed px-6 text-center text-sm text-muted-foreground">
+          No tracked project path is available for this team, so its filesystem tickets cannot be
+          read.
+        </div>
+      ) : null}
+      {kanbanState === "error" ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          Could not read filesystem tickets: {kanbanError ?? "unknown read error"}
+        </div>
+      ) : null}
+      {kanbanState === "ready" && visibleTasks.length === 0 ? (
+        <div className="rounded-md border border-dashed px-4 py-3 text-sm text-muted-foreground">
+          No active filesystem tickets were found for this project.
         </div>
       ) : null}
 
-      <div className="min-h-0 flex-1 overflow-x-auto pb-2">
-        <div className="grid h-full min-w-[90rem] grid-cols-5 gap-4">
-          {COLUMN_ORDER.map((laneKey) => (
-            <KanbanColumn
-              key={laneKey}
-              laneKey={laneKey}
-              tasks={columns[laneKey]}
-              ownerLabelById={ownerLabelById}
-              convexEnabled={boardWritable}
-              isPending={boardActionState.pending}
-              onOpenTask={openTask}
-              onAddTask={handleAddTask}
-            />
-          ))}
+      {showColumns ? (
+        <div className="min-h-0 flex-1 overflow-x-auto pb-2">
+          <div className="grid h-full min-w-[90rem] grid-cols-5 gap-4">
+            {COLUMN_ORDER.map((laneKey) => (
+              <KanbanColumn
+                key={laneKey}
+                laneKey={laneKey}
+                tasks={columns[laneKey]}
+                ownerLabelById={ownerLabelById}
+                onOpenTask={openTask}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <TaskDetailModal
         task={selectedTask}
         isOpen={isDetailOpen}
         onClose={closeDetail}
-        employees={employeeOptions}
         ownerLabelById={ownerLabelById}
-        convexEnabled={boardWritable}
-        isPending={boardActionState.pending}
-        onCommand={onBoardCommand}
       />
     </div>
   );

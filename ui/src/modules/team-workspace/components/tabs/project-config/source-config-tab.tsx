@@ -25,7 +25,7 @@ export function ProjectConfigTab({
   config,
   project,
   teamScopeId,
-  convexEnabled,
+  convexEnabled: _convexEnabled,
   hasBusinessConfig,
 }: {
   config: FarplaneProjectConfig | null;
@@ -65,7 +65,7 @@ export function ProjectConfigTab({
           <MetricTile
             label="Team Scope"
             value={teamScopeId ?? "global"}
-            detail={convexEnabled ? "Convex board connected" : "local board fallback"}
+            detail="filesystem ticket scope"
           />
           <MetricTile
             label="Business"

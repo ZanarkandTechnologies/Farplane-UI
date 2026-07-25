@@ -89,7 +89,7 @@ primary job is to make the company's operating loop visible:
 
 - mission, goals, KPIs, and current phase
 - active teams and agents
-- board state, tickets, and current execution
+- ticket state and current execution
 - local memory, docs, artifacts, and evidence
 - project-specific skill needs and eval readiness
 - automation, review, metrics, and rollout state

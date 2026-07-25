@@ -26,7 +26,7 @@ Publish a prepared short-form asset to Instagram Reels and record enough metadat
 
 - Publish result (`success` or `failure`).
 - Post URL/ID when successful.
-- Activity and board updates in Farplane.
+- Activity and ticket updates in Farplane.
 
 ## Workflow
 
@@ -38,27 +38,28 @@ Publish a prepared short-form asset to Instagram Reels and record enough metadat
 ## Concrete Command Pattern
 
 ```bash
-npm run shell -- team bot log \
-  --team-id "$TEAM_ID" \
-  --agent-id "$AGENT_ID" \
-  --type distributing \
-  --label "instagram_posted" \
-  --detail "post_url=$POST_URL campaign=$CAMPAIGN_ID task=$TASK_ID"
+npm run shell -- status \
+  --state distributing \
+  --task-id "$TASK_ID" \
+  --step-key "instagram_posted" \
+  "post_url=$POST_URL campaign=$CAMPAIGN_ID"
 ```
 
 ```bash
-npm run shell -- team board task done \
+npm run shell -- team ticket status \
   --team-id "$TEAM_ID" \
-  --task-id "$TASK_ID" \
+  --ticket-id "$TASK_ID" \
+  --status done \
   --actor-agent-id "$AGENT_ID"
 ```
 
 On failure:
 
 ```bash
-npm run shell -- team board task block \
+npm run shell -- team ticket status \
   --team-id "$TEAM_ID" \
-  --task-id "$TASK_ID" \
+  --ticket-id "$TASK_ID" \
+  --status blocked \
   --reason "instagram_publish_failed:$ERROR_CODE" \
   --actor-agent-id "$AGENT_ID"
 ```

@@ -2,7 +2,7 @@
  * TEAM TIMELINE HELPERS
  * =====================
  * Shared normalization for team timeline UI rows.
- * Inputs: project memory documents, Convex activity rows, and communication fallback rows.
+ * Inputs: project memory documents, agent activity rows, and communication fallback rows.
  * Outputs: one sorted project event spine for the Team Panel Timeline tab.
  */
 
@@ -20,7 +20,7 @@ export type CommunicationRow = {
 
 export type TeamTimelineRow = {
   _id: string;
-  sourceType: "board_event" | "agent_event" | "memory_event" | "hook_event" | "report_event";
+  sourceType: "agent_event" | "memory_event" | "hook_event" | "report_event";
   occurredAt: number;
   projectId: string;
   projectPath?: string;

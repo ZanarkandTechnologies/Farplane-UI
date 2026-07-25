@@ -565,6 +565,13 @@ export interface FederatedTaskModel extends TaskModel {
   providerUrl?: string;
   syncState: TaskSyncState;
   syncError?: string;
+  frontMatter?: Record<string, string>;
+  markdown?: string;
+  notes?: string;
+  approvalState?: "draft" | "pending_review" | "approved" | "rejected" | "changes_requested" | "executed";
+  linkedSessionKey?: string;
+  createdAt?: number;
+  dueAt?: number;
   updatedAt: number;
 }
 

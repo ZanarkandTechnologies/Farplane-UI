@@ -22,6 +22,7 @@ import {
   BarChart3,
   BookOpen,
   Building2,
+  CircleDollarSign,
   Database,
   FileCode2,
   GitPullRequestArrow,
@@ -61,6 +62,7 @@ export type OfficePanelActionId =
   | "organization"
   | "team-workspace"
   | "telemetry"
+  | "finance"
   | "raw-telemetry"
   | "thread-data"
   | "resource-bank"
@@ -114,7 +116,10 @@ export type OfficePanelRegistryDependencies = {
   openResourceBank: () => void;
   openWorld: () => void;
   openDocumentLibrary: () => void;
+  openCeoWorkbench: () => void;
+  openHumanReview: () => void;
   openTelemetry: () => void;
+  openFinance: () => void;
   openRawTelemetry: () => void;
   openThreadData: () => void;
   toggleBuilderMode: () => void;
@@ -128,6 +133,7 @@ export const OFFICE_COMMAND_PALETTE_SHORTCUT: OfficeShortcut = {
 
 const OFFICE_LAUNCHER_ACTION_ORDER: OfficePanelActionId[] = [
   "organization",
+  "ceo-workbench",
   "user-communications",
   "harness",
   "skill-os",
@@ -136,6 +142,7 @@ const OFFICE_LAUNCHER_ACTION_ORDER: OfficePanelActionId[] = [
   "world",
   "document-library",
   "telemetry",
+  "finance",
   "raw-telemetry",
   "thread-data",
   "builder-mode",
@@ -208,6 +215,7 @@ export function createOfficePanelActions(
   const readOnly = deps.accessPolicy === "read-only";
   const teamWorkspacePanel = getOfficeInternalPanelEntry("team-workspace");
   const telemetryPanel = getOfficeInternalPanelEntry("telemetry");
+  const financePanel = getOfficeInternalPanelEntry("finance");
   const rawTelemetryPanel = getOfficeInternalPanelEntry("raw-telemetry");
   const threadDataPanel = getOfficeInternalPanelEntry("thread-data");
   const resourceBankPanel = getOfficeInternalPanelEntry("resource-bank");
@@ -218,6 +226,8 @@ export function createOfficePanelActions(
   const templateTrackingPanel = getOfficeInternalPanelEntry("template-tracking");
   const evalsPanel = getOfficeInternalPanelEntry("evals");
   const harnessPanel = getOfficeInternalPanelEntry("harness");
+  const ceoWorkbenchPanel = getOfficeInternalPanelEntry("ceo-workbench");
+  const humanReviewPanel = getOfficeInternalPanelEntry("human-review");
   const userCommsPanel = getOfficeInternalPanelEntry("user-communications");
   const officeShopPanel = getOfficeInternalPanelEntry("office-shop");
   const settingsPanel = getOfficeInternalPanelEntry("settings");
@@ -259,6 +269,17 @@ export function createOfficePanelActions(
       shortcut: { key: "m", label: "Alt+Shift+M", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openTelemetry,
+    },
+    {
+      id: "finance",
+      label: financePanel.label,
+      description: financePanel.description,
+      group: "panel",
+      icon: CircleDollarSign,
+      keywords: [...financePanel.keywords, "firm"],
+      shortcut: { key: "f", label: "Alt+Shift+F", altKey: true, shiftKey: true },
+      color: SECONDARY_BUTTON_COLOR,
+      perform: deps.openFinance,
     },
     {
       id: "raw-telemetry",
@@ -389,6 +410,33 @@ export function createOfficePanelActions(
       perform: readOnly ? noop : deps.openUserCommunications,
       disabled: readOnly,
       showInMenu: !readOnly,
+      showInPalette: !readOnly,
+    },
+    {
+      id: "ceo-workbench",
+      label: ceoWorkbenchPanel.label,
+      description: ceoWorkbenchPanel.description,
+      group: "panel",
+      icon: Building2,
+      keywords: [...ceoWorkbenchPanel.keywords, "panel"],
+      shortcut: { key: "c", label: "Alt+Shift+C", altKey: true, shiftKey: true },
+      color: SECONDARY_BUTTON_COLOR,
+      perform: readOnly ? noop : deps.openCeoWorkbench,
+      disabled: readOnly,
+      showInMenu: !readOnly,
+      showInPalette: !readOnly,
+    },
+    {
+      id: "human-review",
+      label: humanReviewPanel.label,
+      description: humanReviewPanel.description,
+      group: "panel",
+      icon: GitPullRequestArrow,
+      keywords: [...humanReviewPanel.keywords, "panel"],
+      color: SECONDARY_BUTTON_COLOR,
+      perform: readOnly ? noop : deps.openHumanReview,
+      disabled: readOnly,
+      showInMenu: false,
       showInPalette: !readOnly,
     },
     {

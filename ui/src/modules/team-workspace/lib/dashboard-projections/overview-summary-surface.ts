@@ -11,11 +11,13 @@ import type {
 import type {
   OverviewAutonomyMetric,
   OverviewAutonomySavings,
+  OverviewHighlightCard,
   OverviewReportLink,
   OverviewSurface,
 } from "./overview-surface";
 import {
   findProjectUiSnapshot,
+  type ProjectUiHighlightCard,
   type ProjectUiMetricCard,
   type ProjectUiMetricTarget,
   sourceGapText,
@@ -28,6 +30,41 @@ function numberText(value: number): string {
 
 function pathToFileHref(path: string): string {
   return `file://${path.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+function projectRefToHref(
+  projectPath: string | undefined,
+  ref: string | undefined,
+): string | undefined {
+  if (!ref) return undefined;
+  if (/^https?:\/\//i.test(ref)) return ref;
+  if (!projectPath) return undefined;
+
+  let localRef = ref;
+  if (/^file:\/\//i.test(ref)) {
+    try {
+      const fileUrl = new URL(ref);
+      const absolutePath = decodeURIComponent(fileUrl.pathname);
+      const normalizedRoot = projectPath.replace(/\/+$/, "");
+      if (absolutePath !== normalizedRoot && !absolutePath.startsWith(`${normalizedRoot}/`)) {
+        return undefined;
+      }
+      localRef = `${absolutePath.slice(normalizedRoot.length).replace(/^\/+/, "")}${fileUrl.hash}`;
+    } catch {
+      return undefined;
+    }
+  } else if (/^[a-z][a-z0-9+.-]*:\/\//i.test(ref)) {
+    return undefined;
+  }
+
+  const hashIndex = localRef.indexOf("#");
+  const relativePath = hashIndex >= 0 ? localRef.slice(0, hashIndex) : localRef;
+  const fragment = hashIndex >= 0 ? localRef.slice(hashIndex) : "";
+  if (!relativePath || relativePath.startsWith("/") || relativePath.includes("\0"))
+    return undefined;
+
+  const params = new URLSearchParams({ projectPath, ref: relativePath });
+  return `/farplane/project-file?${params.toString()}${fragment}`;
 }
 
 function targetText(target: ProjectUiMetricTarget | number | string | null): string {
@@ -196,14 +233,57 @@ function componentList(components: string[]): string {
   return `${labels.slice(0, -1).join(", ")}, and ${labels.at(-1)}`;
 }
 
+export function normalizeHighlightTeamScope(value: string | null | undefined): string {
+  return (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^team-/, "")
+    .replace(/^proj-/, "");
+}
+
+function scopedHighlights(
+  cards: ProjectUiHighlightCard[],
+  teamScope: string | null | undefined,
+  projectId: unknown,
+  projectPath: string | undefined,
+): OverviewHighlightCard[] {
+  const normalizedProjectScope = normalizeHighlightTeamScope(
+    typeof projectId === "string" ? projectId : "",
+  );
+  const normalizedScope = normalizedProjectScope || normalizeHighlightTeamScope(teamScope);
+  if (!normalizedScope) return [];
+  return cards
+    .filter((card) => normalizeHighlightTeamScope(card.team) === normalizedScope)
+    .map((card) => ({
+      id: card.id,
+      kind: card.kind,
+      team: card.team,
+      report: card.report,
+      summary: card.summary,
+      lesson: card.lesson,
+      links: card.links.flatMap((link) => {
+        const href = projectRefToHref(projectPath, link.href);
+        return href ? [{ label: link.label, href }] : [];
+      }),
+      cadence: card.cadence,
+      period: card.period,
+      createdAt: card.createdAt,
+      sourceHref: projectRefToHref(projectPath, card.sourceHref),
+      sourceGapIds: card.sourceGapIds,
+    }))
+    .sort((left, right) => (right.createdAt ?? "").localeCompare(left.createdAt ?? ""));
+}
+
 export function buildOverviewSummarySurface({
   projectConfig,
   aiBurn24hUsd,
   aiUsageUnavailableText,
+  teamScope,
 }: {
   projectConfig: FarplaneProjectConfig | null;
   aiBurn24hUsd: number;
   aiUsageUnavailableText?: string | null;
+  teamScope?: string | null;
 }): OverviewSurface {
   const projectUiSnapshot = findProjectUiSnapshot(projectConfig);
   const pinnedMetricIds = new Set(projectUiSnapshot?.tabs.overview.pinnedMetrics ?? []);
@@ -254,6 +334,19 @@ export function buildOverviewSummarySurface({
       )
       .slice(0, 2),
   ];
+  const projectId = projectUiSnapshot?.project.id;
+  const wins = scopedHighlights(
+    projectUiSnapshot?.tabs.highlights?.wins ?? [],
+    teamScope,
+    projectId,
+    projectConfig?.projectPath,
+  );
+  const failures = scopedHighlights(
+    projectUiSnapshot?.tabs.highlights?.failures ?? [],
+    teamScope,
+    projectId,
+    projectConfig?.projectPath,
+  );
 
   return {
     generatedAt:
@@ -350,6 +443,8 @@ export function buildOverviewSummarySurface({
       })),
     ],
     reports: latestOverviewPinnedReports(reportLinks),
+    wins,
+    failures,
     sources:
       projectConfig?.runtimeSources.map((source) => ({
         id: source.id,

@@ -12,7 +12,7 @@
 
 ## Job To Be Done
 
-When a founder runs a small autonomous company on one VPS, they need a minimal office that lets them ask the CEO agent to shape work on the board, review tickets in a clear lane, approve execution, and inspect active work without rebuilding the underlying agent runtime.
+When a founder runs a small autonomous company on one VPS, they need a minimal office that lets them ask the CEO agent to shape work as filesystem tickets, review those tickets in a clear state, approve execution, and inspect active work without rebuilding the underlying agent runtime.
 
 ## Audience
 
@@ -33,7 +33,7 @@ Farplane UI is the cockpit for that harness. It has two levels of utility:
   Harness Map, Skill OS, Eval OS, Rollout, Template Tracking, User Comms, and
   Settings.
 - **Project-specific autonomous company views** where each project has goals,
-  teams, agents, files, board state, memory, evidence, metrics, and review
+  teams, agents, files, ticket state, memory, evidence, metrics, and review
   loops.
 
 Canonical doctrine:
@@ -53,23 +53,23 @@ Build Farplane UI as a UI-first control center on top of OpenClaw:
 1. **State mapping layer**: map OpenClaw state directories and gateway APIs into UI view models.
 2. **Minimal office UX**: keep the office metaphor, but optimize it for a small number of meaningful surfaces instead of a crowded default company.
 3. **Plugin-first integrations**: package Notion logic as an OpenClaw plugin instead of internal gateway code.
-4. **Board-native planning workflow**: make CEO chat, kanban ticket creation, markdown task memory, review-lane human sign-off, and CLI-backed execution the primary product path.
+4. **Filesystem-ticket planning workflow**: make CEO chat, `ticket.md` creation, markdown task memory, review-state human sign-off, and CLI-backed execution the primary product path.
 5. **Operational surfaces**: improve memory and skill visibility for the active CEO/team workflow.
 6. **Federated work orchestration**: unify external board work (Notion/Vibe/internal) into one operator surface.
 7. **Personalized presence and decor**: let operators style the office after the core founder-control loop is working.
 8. **Roster-first team oversight**: each team surface should show who each agent is, what they are doing now, and keep team coordination anchored to ticket activity and task memory instead of chat-style team conversation.
-9. **Session-scoped CLI actor identity**: agent-attributed Farplane CLI actions should resolve from an explicit shell-session actor claim so status, board activity, and targeted coordination are attributable without inventing a second auth/runtime layer.
+9. **Session-scoped CLI actor identity**: agent-attributed Farplane CLI actions should resolve from an explicit shell-session actor claim so status activity and targeted coordination are attributable without inventing a second auth/runtime layer.
 
 ## State Shape Rule
 
 Farplane should only keep strong structure where routing and synchronization require it.
 
-- Kanban/task identity, ordering, ownership, approval state, and session linkage stay structured.
+- Ticket identity, ordering, ownership, approval state, and session linkage stay structured in filesystem ticket frontmatter.
 - Rich task and project working state should default to markdown text that humans and agents can rewrite directly.
 - Execution history should prefer append-only logs over mutable workflow objects.
 - Shared team/project memory should prefer append-only realtime logs with markdown bodies, while task-local working memory can stay on the task itself.
 
-This product should not invent a large proposal/config schema when a board task plus markdown body can carry the workflow.
+This product should not invent a large proposal/config schema when a filesystem ticket plus markdown body can carry the workflow.
 
 ## Core Platform Behaviors
 
@@ -87,8 +87,8 @@ Single VPS, one shared OpenClaw instance, a small number of active teams:
 
 - Show the CEO and active team roster from OpenClaw state
 - Support basic chat send/steer actions to OpenClaw
-- Ship the board-native planning and review loop as the main office workflow
-- Show per-team board/activity context for newly created teams
+- Ship the filesystem-ticket planning and review loop as the main office workflow
+- Show per-team ticket/activity context for newly created teams
 - Make team oversight legible at a glance with compact member presence cards that show face/avatar, live state, latest task context, and quick actions
 - Make team oversight legible through a roster-first Overview plus a shared append-only Memory log tied to ticket execution and team decisions
 - Allow thin CLI coordination between agents when session-local context matters, but keep the durable artifact in shared timeline/task memory instead of restoring team chat as a second collaboration store
@@ -107,10 +107,10 @@ After MVP baseline stabilizes, Farplane UI extends from "minimal founder-control
 
 ## Goals
 
-- Make board-native planning, review, and team formation the primary product value
+- Make filesystem-ticket planning, review, and team formation the primary product value
 - Keep the office small, readable, and useful by default
 - Provide reliable session and agent observability from real OpenClaw state
-- Keep CLI and sidecar state thin: structured for board mechanics, markdown-first for working content
+- Keep CLI and sidecar state thin: structured for ticket mechanics, markdown-first for working content
 - Make agent-attributed CLI activity trustworthy through one explicit login/export flow per shell session
 - Make it easy to identify each agent on a team by face/avatar, role, and current work without opening separate panels first
 - Package Notion integration as an OpenClaw extension with schema-driven config
@@ -128,7 +128,7 @@ After MVP baseline stabilizes, Farplane UI extends from "minimal founder-control
 - Building a generic public multi-tenant SaaS in this MVP
 - Large connector marketplace beyond Notion in first slice
 - Replacing OpenClaw core session/routing internals
-- Building proposal-specific command flows or data models when shared board metadata plus markdown task memory is sufficient
+- Building proposal-specific command flows or data models when shared ticket metadata plus markdown task memory is sufficient
 - Rebuilding full Notion/Vibe UX inside Farplane UI
 - Shipping a large default office full of prebuilt teams just to make the UI feel busy
 - Attempting fully automatic multi-master conflict resolution in first federation slice
@@ -149,7 +149,7 @@ After MVP baseline stabilizes, Farplane UI extends from "minimal founder-control
 
 ## Success Metrics
 
-- Founders can review work by lane on the kanban board, approve through the `review` lane, and execute team/bootstrap work through Farplane CLI
+- Founders can review work by ticket status, approve through the `review` status, and execute team/bootstrap work through Farplane CLI
 - Operators can view the CEO and active teams from OpenClaw-backed data
 - Session timeline and chat bridge work for at least one real founder-to-team flow
 - Team overview surfaces show current agent presence with face/avatar, live state, and latest owned task context
@@ -157,7 +157,7 @@ After MVP baseline stabilizes, Farplane UI extends from "minimal founder-control
 - Notion plugin loads and runs under OpenClaw plugin system
 - Memory and Skills panels show actionable state for the CEO and active demo teams
 - Docs/README/specs fully reflect this OpenClaw-first architecture
-- Operators can track combined board activity from multiple providers in one Farplane view
+- Operators can track combined ticket and work activity from multiple providers in one Farplane view
 - Operators can close tickets through a clear ticket=session lifecycle rule with explicit close semantics
 - Provider indexing can generate reusable context tools with deterministic command naming
 - Heartbeat/autonomy state is visible with pause/resume/manual-run controls and traceability

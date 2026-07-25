@@ -127,6 +127,33 @@ export type ProjectUiAutomation = {
   sourceRef?: ProjectUiSourceRef;
 };
 
+export type ProjectUiHighlightLink = {
+  label: string;
+  href: string;
+};
+
+export type ProjectUiHighlightCard = {
+  id: string;
+  kind: "win" | "failure";
+  team: string;
+  projectId?: string;
+  report: string;
+  summary: string;
+  lesson?: string;
+  links: ProjectUiHighlightLink[];
+  cadence?: string;
+  period?: string;
+  createdAt?: string;
+  sourceHref?: string;
+  sourceGapIds: string[];
+};
+
+export type ProjectUiHighlights = {
+  wins: ProjectUiHighlightCard[];
+  failures: ProjectUiHighlightCard[];
+  sourceGapIds: string[];
+};
+
 export type ProjectUiSnapshot = {
   generatedAt: string;
   schemaVersion: number;
@@ -160,5 +187,6 @@ export type ProjectUiSnapshot = {
       contentMetricIds: string[];
       sourceGapIds: string[];
     };
+    highlights?: ProjectUiHighlights;
   };
 };

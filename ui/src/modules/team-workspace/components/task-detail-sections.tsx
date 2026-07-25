@@ -1,64 +1,6 @@
 import type { ReactElement } from "react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import type { PanelTask } from "./team-panel-types";
-
-type TaskReviewPanelProps = {
-  isPending: boolean;
-  reviewNote: string;
-  reviewStatusText: string;
-  setReviewNote: (note: string) => void;
-  onReviewDecision: (nextState: "approved" | "changes_requested" | "rejected") => Promise<void>;
-};
-
-export function TaskReviewPanel({
-  isPending,
-  onReviewDecision,
-  reviewNote,
-  reviewStatusText,
-  setReviewNote,
-}: TaskReviewPanelProps): ReactElement {
-  return (
-    <div className="space-y-3 border border-border bg-card p-4">
-      <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Review</p>
-      <Textarea
-        value={reviewNote}
-        onChange={(event) => setReviewNote(event.target.value)}
-        placeholder="Write review guidance directly on the shared task."
-        className="min-h-24 rounded-none border-border bg-background text-sm"
-        disabled={isPending}
-      />
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={isPending} onClick={() => void onReviewDecision("approved")}>
-          Approve
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="rounded-none border-border bg-background shadow-none"
-          disabled={isPending}
-          onClick={() => void onReviewDecision("changes_requested")}
-        >
-          Request Changes
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="rounded-none border-border bg-background shadow-none"
-          disabled={isPending}
-          onClick={() => void onReviewDecision("rejected")}
-        >
-          Reject
-        </Button>
-      </div>
-      {reviewStatusText ? (
-        <div className="border border-border bg-background p-3 text-sm text-muted-foreground">
-          {reviewStatusText}
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 type TaskLinkedContextPanelProps = {
   linkedAgentId: string | null;

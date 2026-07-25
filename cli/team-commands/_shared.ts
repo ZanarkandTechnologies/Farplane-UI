@@ -53,9 +53,9 @@ export type CapabilityCategory = "measure" | "execute" | "distribute";
 export type BusinessEquipMode = "replace_minimum" | "append_only";
 export type ResourceKind = ResourceType;
 export type ResourceEventKind = "refresh" | "consumption" | "adjustment";
-export type BoardTaskStatus = "todo" | "in_progress" | "review" | "blocked" | "done";
-export type BoardTaskPriority = "low" | "medium" | "high";
-export type BoardActivityType =
+export type TicketStatus = "todo" | "in_progress" | "review" | "blocked" | "done";
+export type TicketPriority = "low" | "medium" | "high";
+export type TicketActivityType =
   | "planning"
   | "research"
   | "executing"
@@ -103,7 +103,7 @@ export type TeamPermission =
   | "team.kpi.write"
   | "team.business.write"
   | "team.resources.write"
-  | "team.board.write"
+  | "team.ticket.write"
   | "team.activity.write"
   | "team.heartbeat.write"
   | "team.archive";
@@ -135,7 +135,7 @@ export const PERMISSION_BY_ROLE: Record<string, TeamPermission[]> = {
     "team.kpi.write",
     "team.business.write",
     "team.resources.write",
-    "team.board.write",
+    "team.ticket.write",
     "team.activity.write",
     "team.heartbeat.write",
     "team.archive",
@@ -145,7 +145,7 @@ export const PERMISSION_BY_ROLE: Record<string, TeamPermission[]> = {
     "team.meta.write",
     "team.kpi.write",
     "team.business.write",
-    "team.board.write",
+    "team.ticket.write",
     "team.activity.write",
   ],
   pm: [
@@ -153,12 +153,12 @@ export const PERMISSION_BY_ROLE: Record<string, TeamPermission[]> = {
     "team.meta.write",
     "team.kpi.write",
     "team.business.write",
-    "team.board.write",
+    "team.ticket.write",
     "team.activity.write",
   ],
-  biz_executor: ["team.read", "team.board.write", "team.activity.write"],
-  builder: ["team.read", "team.board.write", "team.activity.write"],
-  growth_marketer: ["team.read", "team.board.write", "team.activity.write"],
+  biz_executor: ["team.read", "team.ticket.write", "team.activity.write"],
+  builder: ["team.read", "team.ticket.write", "team.activity.write"],
+  growth_marketer: ["team.read", "team.ticket.write", "team.activity.write"],
 };
 
 export const execFileAsync = promisify(execFile);
@@ -166,10 +166,7 @@ export const execFileAsync = promisify(execFile);
 // ─── Permission helpers ───────────────────────────────────────────────────────
 
 export function readActorRole(): string {
-  return (process.env.FARPLANE_ACTOR_ROLE?.trim().toLowerCase() || "operator").replace(
-    /\s+/g,
-    "_",
-  );
+  return (process.env.FARPLANE_ACTOR_ROLE?.trim().toLowerCase() || "operator").replace(/\s+/g, "_");
 }
 
 export function readActorAgentId(): string | undefined {
@@ -304,12 +301,12 @@ export function layeredHeartbeatTemplate(roleName: string, projectName: string):
     "- Fetch external context tools when available (Notion or other connected sources).",
     "",
     "3) Short-term context:",
-    "- Fetch the common board state (todo, in_progress, blocked, done).",
+    "- Fetch canonical filesystem tickets (todo, in_progress, review, blocked).",
     "- Fetch your assigned tasks and immediate dependencies.",
     "",
     "4) Decide next action:",
     "- Choose one action only:",
-    "  - add/adjust a todo on the common board, or",
+    "  - add/adjust a filesystem ticket, or",
     "  - execute the highest-value ticket.",
     "- In testing mode, it is okay to mock execution if tools are unavailable.",
     "",
@@ -333,7 +330,7 @@ export function layeredHeartbeatTemplate(roleName: string, projectName: string):
     "- LONG_CONTEXT: <one line>",
     "- SHORT_CONTEXT: <one line>",
     "- DECISION: <one line>",
-    "- BOARD_ACTION: <what you would add/update on common board>",
+    "- TICKET_ACTION: <what you would add/update in filesystem tickets>",
     "- STATUS: <status tool result or MOCK_STATUS>",
     "- HEARTBEAT_OK",
     "",
@@ -388,25 +385,25 @@ export function parseRoleSlotRole(raw: string): Exclude<AgentRole, "ceo"> {
   throw new Error(`invalid_role: ${raw}`);
 }
 
-export function parseBoardTaskStatus(raw: string): BoardTaskStatus {
+export function parseTicketStatus(raw: string, allowDone = false): TicketStatus {
   if (
     raw === "todo" ||
     raw === "in_progress" ||
     raw === "review" ||
     raw === "blocked" ||
-    raw === "done"
+    (allowDone && raw === "done")
   ) {
     return raw;
   }
-  throw new Error(`invalid_board_status:${raw}`);
+  throw new Error(`invalid_ticket_status:${raw}`);
 }
 
-export function parseBoardTaskPriority(raw: string): BoardTaskPriority {
+export function parseTicketPriority(raw: string): TicketPriority {
   if (raw === "low" || raw === "medium" || raw === "high") return raw;
-  throw new Error(`invalid_board_priority:${raw}`);
+  throw new Error(`invalid_ticket_priority:${raw}`);
 }
 
-export function parseBoardActivityType(raw: string): BoardActivityType {
+export function parseTicketActivityType(raw: string): TicketActivityType {
   if (
     raw === "planning" ||
     raw === "research" ||
@@ -583,7 +580,7 @@ export function resolveCliActorContext(opts: {
   };
 }
 
-export function resolveStatusActivityType(rawState: string): BoardActivityType {
+export function resolveStatusActivityType(rawState: string): TicketActivityType {
   if (
     rawState === "planning" ||
     rawState === "research" ||

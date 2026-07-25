@@ -35,7 +35,7 @@ flowchart TD
   Scout --> Decisions["copy / drop decisions"]
   Scout --> Memory["MEMORY.md (last processed SHA)"]
   Decisions --> Bot["Farplane CLI -> main agent bot"]
-  Bot --> Followup["optional follow-up board tasks"]
+  Bot --> Followup["optional follow-up tickets"]
 ```
 
 ## Guardrails

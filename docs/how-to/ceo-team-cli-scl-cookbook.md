@@ -129,19 +129,19 @@ Intent:
 Command:
 
 ```bash
-npm run shell -- team board task add \
+corepack pnpm run shell team ticket create \
   --team-id team-proj-alpha \
   --title "Plan affiliate content engine launch" \
   --status todo
 
-npm run shell -- team board task memory append \
+corepack pnpm run shell team ticket memory append \
   --team-id team-proj-alpha \
-  --task-id <task-id> \
+  --ticket-id <ticket-id> \
   --text $'# Goal\nLaunch an affiliate content engine.\n\n# Plan\n- Gather channel benchmarks\n- Define first KPI set\n- Draft first 3 tasks'
 
-npm run shell -- team board task move \
+corepack pnpm run shell team ticket status \
   --team-id team-proj-alpha \
-  --task-id <task-id> \
+  --ticket-id <ticket-id> \
   --status review
 ```
 
@@ -154,11 +154,11 @@ Intent:
 Command:
 
 ```bash
-npm run shell -- team board task mine --team-id team-proj-alpha --agent-id main --json
-npm run shell -- team board task claim --team-id team-proj-alpha --task-id <task-id> --agent-id main
-npm run shell -- team board task memory append \
+corepack pnpm run shell team ticket list --team-id team-proj-alpha --owner-agent-id main --json
+corepack pnpm run shell team ticket claim --team-id team-proj-alpha --ticket-id <ticket-id> --agent-id main
+corepack pnpm run shell team ticket memory append \
   --team-id team-proj-alpha \
-  --task-id <task-id> \
+  --ticket-id <ticket-id> \
   --text $'# Context\n- Founder approved TikTok-first launch\n\n# Next Step\nCreate first execution tickets'
 ```
 

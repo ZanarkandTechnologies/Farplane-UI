@@ -8,14 +8,12 @@
  * KEY CONCEPTS:
  * - Header shows lane dot, label, count badge, and compact description.
  * - Cards scroll independently per lane.
- * - Inline "+ Add task" input at the bottom: press Enter or blur to submit.
  * - Empty state uses a dashed border placeholder.
  *
  * USAGE:
  * - Render inside KanbanTab, one per board lane.
  */
 
-import { useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { KanbanTaskCard } from "./kanban-task-card";
 import {
@@ -23,17 +21,13 @@ import {
   type PanelTask,
   STATUS_COLORS,
   STATUS_LABELS,
-  type TaskStatus,
 } from "./team-panel-types";
 
 interface KanbanColumnProps {
   laneKey: KanbanLaneKey;
   tasks: PanelTask[];
   ownerLabelById: Map<string, string>;
-  convexEnabled: boolean;
-  isPending: boolean;
   onOpenTask: (task: PanelTask) => void;
-  onAddTask: (title: string, status: TaskStatus) => void;
 }
 
 const LANE_BORDER: Record<KanbanLaneKey, string> = {
@@ -72,41 +66,9 @@ export function KanbanColumn({
   laneKey,
   tasks,
   ownerLabelById,
-  convexEnabled,
-  isPending,
   onOpenTask,
-  onAddTask,
 }: KanbanColumnProps): JSX.Element {
-  const [addingTask, setAddingTask] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-  const canAddTask = laneKey !== "review";
-  const addStatus: TaskStatus = laneKey;
   const dotClass = STATUS_COLORS[laneKey];
-
-  function startAdding(): void {
-    if (!canAddTask) return;
-    setAddingTask(true);
-    setNewTitle("");
-    setTimeout(() => inputRef.current?.focus(), 50);
-  }
-
-  function commitAdd(): void {
-    const trimmed = newTitle.trim();
-    if (trimmed) {
-      onAddTask(trimmed, addStatus);
-    }
-    setAddingTask(false);
-    setNewTitle("");
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>): void {
-    if (e.key === "Enter") commitAdd();
-    if (e.key === "Escape") {
-      setAddingTask(false);
-      setNewTitle("");
-    }
-  }
 
   return (
     <section className={`flex min-h-0 flex-col border bg-card ${LANE_BORDER[laneKey]}`}>
@@ -127,7 +89,7 @@ export function KanbanColumn({
 
       <ScrollArea className="min-h-0 flex-1 px-3 py-3">
         <div className="space-y-3 pb-3">
-          {tasks.length === 0 && !addingTask ? (
+          {tasks.length === 0 ? (
             <div className="border border-dashed border-border bg-background p-4 text-center">
               <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
                 {laneKey === "todo"
@@ -155,37 +117,8 @@ export function KanbanColumn({
               onOpen={onOpenTask}
             />
           ))}
-
-          {addingTask ? (
-            <div className="border border-border bg-background p-3">
-              <input
-                ref={inputRef}
-                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                placeholder="Task title..."
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onBlur={commitAdd}
-                disabled={isPending}
-              />
-            </div>
-          ) : null}
         </div>
       </ScrollArea>
-
-      {convexEnabled && canAddTask ? (
-        <div className="border-t border-border px-3 py-3">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 border border-transparent bg-background px-3 py-2 text-xs uppercase tracking-[0.14em] text-muted-foreground transition hover:border-border hover:bg-accent hover:text-foreground"
-            onClick={startAdding}
-            disabled={isPending}
-          >
-            <span className="text-sm leading-none">+</span>
-            <span>Add task</span>
-          </button>
-        </div>
-      ) : null}
     </section>
   );
 }

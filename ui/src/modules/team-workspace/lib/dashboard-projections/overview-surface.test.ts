@@ -60,6 +60,38 @@ describe("overview surface model", () => {
           exists: true,
         },
       ],
+      wins: [
+        {
+          id: "win:farplane:daily",
+          kind: "win",
+          team: "farplane",
+          report: "reports/interval/daily_interval/2026-07-01",
+          summary: "A verified metric set a new daily record.",
+          links: [{ label: "Evidence", href: "https://example.com/evidence" }],
+          cadence: "daily",
+          period: "2026-07-01",
+        },
+      ],
+      failures: [
+        {
+          id: "failure:farplane:weekly",
+          kind: "failure",
+          team: "farplane",
+          report: "reports/interval/weekly_interval/2026-W27",
+          summary: "A simple task accumulated coordination overhead.",
+          lesson: "Keep simple work in one lane.",
+          links: [],
+          cadence: "weekly",
+          period: "2026-W27",
+        },
+        {
+          id: "failure:missing-lesson",
+          kind: "failure",
+          team: "farplane",
+          report: "reports/interval/daily_interval/invalid",
+          summary: "Invalid because the lesson is absent.",
+        },
+      ],
     });
 
     expect(surface?.pins.map((pin) => pin.id)).toEqual(["first", "second", "third", "fourth"]);
@@ -85,5 +117,11 @@ describe("overview surface model", () => {
     expect(surface?.reports[0].content).toContain("Full report.");
     expect(surface?.reports[0].frontMatter?.created_at).toBe("2026-07-02T05:36:11+08:00");
     expect(surface?.sources[0].exists).toBe(true);
+    expect(surface?.wins[0]?.links[0]).toEqual({
+      label: "Evidence",
+      href: "https://example.com/evidence",
+    });
+    expect(surface?.failures).toHaveLength(1);
+    expect(surface?.failures[0]?.lesson).toBe("Keep simple work in one lane.");
   });
 });

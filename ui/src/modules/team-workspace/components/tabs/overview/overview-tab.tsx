@@ -13,6 +13,7 @@ import { buildOverviewSummarySurface } from "@/modules/team-workspace/lib/dashbo
 import type { OverviewSurface } from "@/modules/team-workspace/lib/dashboard-projections/overview-surface";
 import { findProjectUiSnapshot } from "@/modules/team-workspace/lib/dashboard-projections/project-ui-snapshot";
 import type { FarplaneProjectConfig, ProjectConfigLoadState } from "../project-config";
+import { OverviewHighlights } from "./overview-highlights";
 import { OverviewReportsCard, ReportReader } from "./overview-reports";
 import {
   OverviewAttentionCard,
@@ -59,6 +60,8 @@ const EMPTY_OVERVIEW_SURFACE: OverviewSurface = {
   attention: [],
   reports: [],
   sources: [],
+  wins: [],
+  failures: [],
 };
 
 export function OverviewTab({
@@ -80,9 +83,21 @@ export function OverviewTab({
   const summarySurface = useMemo(
     () =>
       projectConfigState === "ready"
-        ? buildOverviewSummarySurface({ projectConfig, aiBurn24hUsd, aiUsageUnavailableText })
+        ? buildOverviewSummarySurface({
+            projectConfig,
+            aiBurn24hUsd,
+            aiUsageUnavailableText,
+            teamScope: team?._id ?? project?.id,
+          })
         : null,
-    [aiBurn24hUsd, aiUsageUnavailableText, projectConfig, projectConfigState],
+    [
+      aiBurn24hUsd,
+      aiUsageUnavailableText,
+      project?.id,
+      projectConfig,
+      projectConfigState,
+      team?._id,
+    ],
   );
   const projectionLoading = projectConfigState === "loading";
   const effectiveSurface = summarySurface ?? EMPTY_OVERVIEW_SURFACE;
@@ -141,6 +156,12 @@ export function OverviewTab({
           {effectiveSurface.autonomySavings ? (
             <OverviewAutonomySavings presentation={effectiveSurface.autonomySavings} />
           ) : null}
+
+          <OverviewHighlights
+            failures={effectiveSurface.failures}
+            projectionReady={Boolean(projectUiSnapshot?.tabs.highlights)}
+            wins={effectiveSurface.wins}
+          />
 
           <OverviewAttentionCard
             items={effectiveSurface.attention.map((item) => ({

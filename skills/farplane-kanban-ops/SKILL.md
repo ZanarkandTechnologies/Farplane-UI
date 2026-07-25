@@ -5,7 +5,7 @@ description: Internal Kanban operations skill for agent task execution and statu
 
 # Farplane Kanban Ops Skill
 
-Use this skill when an agent should only operate the team board and report progress, not perform full team administration.
+Use this skill when an agent should only operate filesystem tickets and report progress, not perform full team administration.
 
 ## Entry Command
 
@@ -20,14 +20,14 @@ npm run shell -- <command>
 1. Pull queue state:
 
 ```bash
-npm run shell -- team board task list --team-id team-proj-<slug> --json
+npm run shell -- team ticket list --team-id team-proj-<slug> --json
 ```
 
 1. Claim/update task:
 
 ```bash
-npm run shell -- team board task assign --team-id team-proj-<slug> --task-id <taskId> --owner-agent-id <agentId>
-npm run shell -- team board task move --team-id team-proj-<slug> --task-id <taskId> --status in_progress
+npm run shell -- team ticket claim --team-id team-proj-<slug> --ticket-id <ticketId> --agent-id <agentId>
+npm run shell -- team ticket status --team-id team-proj-<slug> --ticket-id <ticketId> --status in_progress
 ```
 
 1. Log progress/status:
@@ -38,7 +38,7 @@ export FARPLANE_TEAM_ID=team-proj-<slug>
 
 npm run shell -- status \
   --state executing \
-  --task-id <taskId> \
+  --task-id <ticketId> \
   --step-key <idempotencyKey> \
   "Execution update: what changed"
 ```
@@ -46,29 +46,28 @@ npm run shell -- status \
 1. Finish or block:
 
 ```bash
-npm run shell -- team board task done --team-id team-proj-<slug> --task-id <taskId> --note "completed output"
-npm run shell -- team board task block --team-id team-proj-<slug> --task-id <taskId> --reason "blocked reason"
+npm run shell -- team ticket status --team-id team-proj-<slug> --ticket-id <ticketId> --status done --note "completed output"
+npm run shell -- team ticket status --team-id team-proj-<slug> --ticket-id <ticketId> --status blocked --reason "blocked reason"
 ```
 
-## Full Internal Board Command Set
+## Full Internal Ticket Command Set
 
-- Create: `team board task add`
-- Update fields: `team board task update`
-- Move status: `team board task move`
-- Assign owner: `team board task assign`
-- Reprioritize: `team board task reprioritize`
-- Block/unblock: `team board task block`, `team board task reopen`
-- Complete: `team board task done`
-- Delete: `team board task delete`
-- List: `team board task list`
-- Timeline/next: `team bot timeline`, `team bot next`
+- Create: `team ticket create`
+- Update fields: `team ticket update`
+- Move status: `team ticket status`
+- Assign owner: `team ticket claim`
+- Reprioritize: `team ticket priority`
+- Block/unblock: `team ticket status --status blocked`, `team ticket status --status in_progress`
+- Complete: `team ticket status --status done`
+- List: `team ticket list`
+- Timeline: `farplane status` plus `team monitor`
 
 ## Permission-Aware Execution
 
 Use least-privilege role/permissions:
 
 - `FARPLANE_ACTOR_ROLE` (example: `biz_executor`)
-- `FARPLANE_ALLOWED_PERMISSIONS` (example: `team.read,team.board.write,team.activity.write`)
+- `FARPLANE_ALLOWED_PERMISSIONS` (example: `team.read,team.ticket.write,team.activity.write`)
 
 If denied, CLI returns:
 
@@ -80,4 +79,4 @@ If denied, CLI returns:
 - Use `--json` when output is consumed by another tool.
 - Use `status` with `FARPLANE_AGENT_ID` + `FARPLANE_TEAM_ID` exported in-shell.
 - Use `--step-key` for idempotent status logs.
-- Prefer `task update` over delete/recreate so history stays auditable.
+- Prefer `ticket update` over delete/recreate so history stays auditable.

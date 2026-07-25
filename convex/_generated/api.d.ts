@@ -9,9 +9,6 @@
  */
 
 import type * as _utils from "../_utils.js";
-import type * as board from "../board.js";
-import type * as board_contract from "../board_contract.js";
-import type * as board_http_contract from "../board_http_contract.js";
 import type * as crons from "../crons.js";
 import type * as events from "../events.js";
 import type * as http from "../http.js";
@@ -46,9 +43,6 @@ import type * as modules_runtimeTelemetry_validators from "../modules/runtimeTel
 import type * as modules_skillInvocations_contracts from "../modules/skillInvocations/contracts.js";
 import type * as modules_skillInvocations_queries from "../modules/skillInvocations/queries.js";
 import type * as modules_skillInvocations_validators from "../modules/skillInvocations/validators.js";
-import type * as modules_teamBoard_board from "../modules/teamBoard/board.js";
-import type * as modules_teamBoard_contracts from "../modules/teamBoard/contracts.js";
-import type * as modules_teamBoard_httpContracts from "../modules/teamBoard/httpContracts.js";
 import type * as status from "../status.js";
 import type * as status_contract from "../status_contract.js";
 import type * as status_http_contract from "../status_http_contract.js";
@@ -62,9 +56,6 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   _utils: typeof _utils;
-  board: typeof board;
-  board_contract: typeof board_contract;
-  board_http_contract: typeof board_http_contract;
   crons: typeof crons;
   events: typeof events;
   http: typeof http;
@@ -99,9 +90,6 @@ declare const fullApi: ApiFromModules<{
   "modules/skillInvocations/contracts": typeof modules_skillInvocations_contracts;
   "modules/skillInvocations/queries": typeof modules_skillInvocations_queries;
   "modules/skillInvocations/validators": typeof modules_skillInvocations_validators;
-  "modules/teamBoard/board": typeof modules_teamBoard_board;
-  "modules/teamBoard/contracts": typeof modules_teamBoard_contracts;
-  "modules/teamBoard/httpContracts": typeof modules_teamBoard_httpContracts;
   status: typeof status;
   status_contract: typeof status_contract;
   status_http_contract: typeof status_http_contract;

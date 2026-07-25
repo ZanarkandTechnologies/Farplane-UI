@@ -110,7 +110,7 @@ function devPresetSkillPlan(marketerMode: MarketerMode): PresetSkillRow[] {
       note:
         marketerMode === "none"
           ? "Marketer is disabled for this preset."
-          : "No dedicated in-repo marketing skill exists yet, so marketer uses shared board/CLI/status skills for now.",
+          : "No dedicated in-repo marketing skill exists yet, so marketer uses shared ticket/CLI/status skills for now.",
     },
   ];
 }

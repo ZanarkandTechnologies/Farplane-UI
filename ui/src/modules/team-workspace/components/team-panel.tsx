@@ -7,7 +7,7 @@
  * Opens from team-cluster click with selected team context.
  *
  * KEY CONCEPTS:
- * - Owns shared state: team, project lookups, board actions, builder draft.
+ * - Owns shared state: team, project lookups, and filesystem task projection.
  * - Each tab is a modular component receiving derived props.
  * - Kanban is redesigned as a Notion-style board with a task detail modal.
  *
@@ -198,19 +198,13 @@ export function TeamPanel({
   const projectKanban = useProjectKanban({
     projectPath: activeProjectPath,
     projectId: project?.id,
-    enabled: isOpen && activeTab === "kanban",
+    enabled: isOpen,
   });
 
-  const { convexEnabled, projectTasks, communicationRows, boardActionState, handleBoardCommand } =
-    useTeamPanelBoardState({
-      companyModel,
-      globalMode,
-      project,
-      activeProjectId,
-      teamScopeId,
-      providerTasks: projectKanban.tasks,
-      providerReady: projectKanban.state === "ready",
-    });
+  const { convexEnabled, projectTasks, communicationRows } = useTeamPanelBoardState({
+    teamScopeId,
+    providerTasks: projectKanban.tasks,
+  });
 
   const projectConfigState = useFarplaneProjectConfig({
     projectPath: activeProjectPath,
@@ -291,7 +285,7 @@ export function TeamPanel({
           onValueChange={(v) => setActiveTab(v as TabKey)}
           className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6"
         >
-          <div className="mt-4 max-w-full overflow-x-auto pb-1">
+          <div className="mt-4 max-w-full overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex w-max items-center gap-2">
               <div className="flex items-center gap-1 rounded-md border bg-muted/20 p-1">
                 {TAB_GROUPS.map((group) => {
@@ -360,15 +354,11 @@ export function TeamPanel({
             <KanbanTab
               projectTasks={projectTasks}
               focusAgentId={focusAgentId}
-              teamEmployees={teamEmployees}
               ownerLabelById={ownerLabelById}
-              convexEnabled={convexEnabled}
               kanbanSnapshot={projectKanban.snapshot}
               kanbanState={projectKanban.state}
               kanbanError={projectKanban.error}
               onRefreshKanban={projectKanban.refresh}
-              boardActionState={boardActionState}
-              onBoardCommand={handleBoardCommand}
             />
           </TabsContent>
 

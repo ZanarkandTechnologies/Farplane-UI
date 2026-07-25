@@ -79,6 +79,42 @@ function contractSnapshot() {
         content_metric_ids: [],
         source_gap_ids: [],
       },
+      highlights: {
+        wins: [
+          {
+            id: "win:farplane:daily-2026-07-12",
+            kind: "win",
+            team: "farplane",
+            project_id: "farplane",
+            report: "reports/interval/daily_interval/2026-07-12T000000Z",
+            summary: "Evidence reach beat the previous record by 42%.",
+            links: [
+              { label: "Metric evidence", href: "file:///tmp/farplane/evidence.json" },
+              "https://example.com/proof",
+            ],
+            cadence: "daily",
+            period: "2026-07-12",
+            created_at: "2026-07-12T00:00:00Z",
+            source_href: "file:///tmp/farplane/daily.md",
+          },
+        ],
+        failures: [
+          {
+            id: "failure:farplane:weekly-2026-W28",
+            kind: "failure",
+            team: "farplane",
+            report: "reports/interval/weekly_interval/2026-07-12T000000Z",
+            summary: "A simple check was split across too many agents.",
+            lesson: "Do not delegate when the job is simpler than the handoff.",
+            links: [],
+            cadence: "weekly",
+            period: "2026-W28",
+            created_at: "2026-07-12T00:00:00Z",
+            source_gap_ids: ["highlight_report_missing"],
+          },
+        ],
+        source_gap_ids: ["highlight_report_missing"],
+      },
     },
   };
 }
@@ -121,5 +157,65 @@ describe("project UI snapshot model", () => {
     expect(snapshot?.metrics.series[0]?.series[0]?.payload).toMatchObject({
       attribution_coverage: 0.75,
     });
+  });
+
+  it("parses optional highlight cards and generic links", () => {
+    const highlights = parseProjectUiSnapshot(contractSnapshot())?.tabs.highlights;
+
+    expect(highlights?.wins[0]).toMatchObject({
+      kind: "win",
+      team: "farplane",
+      projectId: "farplane",
+      summary: "Evidence reach beat the previous record by 42%.",
+      cadence: "daily",
+      period: "2026-07-12",
+      sourceHref: "file:///tmp/farplane/daily.md",
+    });
+    expect(highlights?.wins[0]?.links).toEqual([
+      { label: "Metric evidence", href: "file:///tmp/farplane/evidence.json" },
+      { label: "https://example.com/proof", href: "https://example.com/proof" },
+    ]);
+    expect(highlights?.failures[0]?.lesson).toBe(
+      "Do not delegate when the job is simpler than the handoff.",
+    );
+    expect(highlights?.sourceGapIds).toEqual(["highlight_report_missing"]);
+  });
+
+  it("keeps schema-v2 compatibility when highlights are absent and drops invalid rows", () => {
+    const absent = contractSnapshot();
+    delete (absent.tabs as Partial<typeof absent.tabs>).highlights;
+    expect(parseProjectUiSnapshot(absent)?.tabs.highlights).toBeUndefined();
+
+    const malformed = contractSnapshot();
+    malformed.tabs.highlights.failures.push({
+      id: "failure:missing-lesson",
+      kind: "failure",
+      team: "farplane",
+      report: "reports/interval/daily_interval/missing-lesson",
+      summary: "This row has no reusable lesson.",
+      lesson: "",
+      links: [],
+      cadence: "daily",
+      period: "2026-07-12",
+      created_at: "2026-07-12T00:00:00Z",
+      source_gap_ids: [],
+    });
+    malformed.tabs.highlights.wins.push({
+      id: "",
+      kind: "win",
+      team: "farplane",
+      project_id: "farplane",
+      report: "reports/interval/daily_interval/no-id",
+      summary: "No stable card identity.",
+      links: [],
+      cadence: "daily",
+      period: "2026-07-12",
+      created_at: "2026-07-12T00:00:00Z",
+      source_href: "",
+    });
+
+    const highlights = parseProjectUiSnapshot(malformed)?.tabs.highlights;
+    expect(highlights?.wins).toHaveLength(1);
+    expect(highlights?.failures).toHaveLength(1);
   });
 });

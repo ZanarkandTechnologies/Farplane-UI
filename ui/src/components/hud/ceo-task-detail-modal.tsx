@@ -3,38 +3,12 @@
 /**
  * CEO TASK DETAIL MODAL
  * =====================
- * Centered detail view for board-native CEO tasks and human review actions.
- *
- * KEY CONCEPTS:
- * - Opens above the workbench so task memory feels like a focused Notion-style page.
- * - Keeps human review actions attached to the same underlying board task.
- *
- * USAGE:
- * - Mounted from `ceo-workbench-panel.tsx`.
- *
- * MEMORY REFERENCES:
- * - MEM-0155
- * - MEM-0160
- * - MEM-0192
+ * Read-only detail view for a canonical filesystem ticket projected into the
+ * company model. Review and lifecycle writes stay in the ticket workflow.
  */
 
-import { useEffect, useMemo, useState } from "react";
-import { useMutation } from "convex/react";
-import {
-  CheckCircle2,
-  Clock3,
-  ExternalLink,
-  Loader2,
-  MessageSquareText,
-  XCircle,
-} from "lucide-react";
-
-import { api } from "../../../../convex/_generated/api";
-import { TaskMemoryView } from "@/modules/team-workspace";
-import type { ReviewBoardTask } from "@/modules/review-board";
-import { UI_Z } from "@/lib/z-index";
+import { CheckCircle2, Clock3, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -42,9 +16,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Textarea } from "@/components/ui/textarea";
+import { UI_Z } from "@/lib/z-index";
+import type { ReviewBoardTask } from "@/modules/review-board";
+import { TaskMemoryView } from "@/modules/team-workspace";
+import { stripYamlFrontMatter } from "@/modules/team-workspace/components/task-detail-modal.helpers";
 
 type CeoTaskDetailModalProps = {
   task: ReviewBoardTask | null;
@@ -73,77 +49,20 @@ function approvalTone(state: string | undefined): string {
 function statusTone(status: string): string {
   if (status === "done") return "border-secondary/40 bg-secondary/10 text-foreground";
   if (status === "blocked") return "border-destructive/40 bg-destructive/10 text-foreground";
-  if (status === "in_progress") return "border-primary/40 bg-primary/10 text-foreground";
+  if (status === "in_progress" || status === "review")
+    return "border-primary/40 bg-primary/10 text-foreground";
   return "border-border bg-muted/40 text-muted-foreground";
-}
-
-function appendHumanDecision(
-  notes: string | undefined,
-  state: string,
-  decisionNote: string,
-): string {
-  const base = (notes ?? "").trim();
-  const detail = decisionNote.trim();
-  const line = `Human review: ${state}${detail ? ` | ${detail}` : ""}`;
-  return base ? `${base}\n\n${line}` : line;
 }
 
 export function CeoTaskDetailModal({
   task,
   open,
   onOpenChange,
-}: CeoTaskDetailModalProps): JSX.Element {
-  const boardCommand = useMutation(api.board.boardCommand);
-  const [decisionNote, setDecisionNote] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [statusText, setStatusText] = useState("");
+}: CeoTaskDetailModalProps): JSX.Element | null {
+  if (!task) return null;
 
-  const projectLabel = useMemo(() => (task ? formatProjectLabel(task.projectId) : ""), [task]);
-
-  useEffect(() => {
-    setDecisionNote("");
-    setStatusText("");
-  }, [task?.id]);
-
-  async function handleDecision(
-    nextState: "approved" | "changes_requested" | "rejected",
-  ): Promise<void> {
-    if (!task || task.isMock) return;
-    setIsSubmitting(true);
-    setStatusText("");
-    try {
-      await boardCommand({
-        projectId: task.projectId,
-        command: "task_update",
-        taskId: task.id,
-        status:
-          nextState === "approved"
-            ? "todo"
-            : nextState === "changes_requested"
-              ? "in_progress"
-              : "done",
-        approvalState: nextState,
-        notes: appendHumanDecision(task.notes, nextState, decisionNote),
-        actorType: "operator",
-        actorAgentId: "human-review",
-        label: `Human review set ${nextState}`,
-      });
-      setDecisionNote("");
-      setStatusText(
-        nextState === "approved"
-          ? "Approval saved. The task has moved out of review."
-          : nextState === "rejected"
-            ? "Task marked rejected."
-            : "Task sent back with requested changes.",
-      );
-    } catch (error) {
-      setStatusText(error instanceof Error ? error.message : "task_update_failed");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  if (!task) return <></>;
+  const projectLabel = formatProjectLabel(task.projectId);
+  const taskMemory = task.markdown?.trim() ? stripYamlFrontMatter(task.markdown) : task.notes;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -157,6 +76,9 @@ export function CeoTaskDetailModal({
       >
         <DialogHeader className="border-b border-border bg-card px-8 py-7">
           <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary" className="rounded-none">
+              read-only
+            </Badge>
             <Badge
               variant="outline"
               className={`rounded-none border px-2 py-1 text-[10px] uppercase tracking-[0.16em] ${approvalTone(task.approvalState)} shadow-none`}
@@ -175,19 +97,12 @@ export function CeoTaskDetailModal({
             >
               {projectLabel}
             </Badge>
-            {task.isMock ? (
-              <Badge
-                variant="outline"
-                className="rounded-none border-border bg-background px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-muted-foreground"
-              >
-                mock
-              </Badge>
-            ) : null}
           </div>
           <DialogTitle className="max-w-5xl text-4xl font-semibold leading-tight tracking-tight text-foreground xl:text-5xl">
             {task.title}
           </DialogTitle>
           <DialogDescription className="flex flex-wrap items-center gap-5 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+            <span>{task.id}</span>
             <span className="inline-flex items-center gap-2">
               <Clock3 className="h-4 w-4" />
               Linked session: {task.linkedSessionKey ?? "none"}
@@ -204,62 +119,19 @@ export function CeoTaskDetailModal({
         <div className="grid min-h-0 flex-1 gap-0 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,440px)]">
           <ScrollArea className="min-h-0 border-b border-border xl:border-r xl:border-b-0">
             <div className="space-y-6 px-6 py-6 sm:px-8 sm:py-8 xl:px-12 xl:py-10">
-              <TaskMemoryView notes={task.notes} variant="full" />
+              <TaskMemoryView notes={taskMemory} variant="full" />
             </div>
           </ScrollArea>
 
           <div className="min-h-0 space-y-6 overflow-y-auto bg-card px-6 py-6 sm:px-8 sm:py-8">
             <div className="space-y-3">
               <div className="text-[11px] font-medium uppercase tracking-[0.28em] text-muted-foreground">
-                Review
+                Ticket lifecycle
               </div>
-              <div className="border border-border bg-background p-4">
-                <Label className="text-foreground">Human note</Label>
-                <Textarea
-                  value={decisionNote}
-                  onChange={(event) => setDecisionNote(event.target.value)}
-                  placeholder="Write review guidance directly on the shared task."
-                  className="mt-3 min-h-[132px] rounded-none border-border bg-background text-sm text-foreground shadow-none"
-                  disabled={isSubmitting || task.isMock}
-                />
-                <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                  <Button
-                    className="h-10 rounded-none px-4 text-sm"
-                    disabled={isSubmitting || task.isMock || task.approvalState === "executed"}
-                    onClick={() => void handleDecision("approved")}
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
-                    )}
-                    Approve
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-10 rounded-none border-border bg-background px-4 text-sm shadow-none"
-                    disabled={isSubmitting || task.isMock}
-                    onClick={() => void handleDecision("changes_requested")}
-                  >
-                    <MessageSquareText className="mr-2 h-4 w-4" />
-                    Request Changes
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-10 rounded-none border-border bg-background px-4 text-sm shadow-none"
-                    disabled={isSubmitting || task.isMock}
-                    onClick={() => void handleDecision("rejected")}
-                  >
-                    <XCircle className="mr-2 h-4 w-4" />
-                    Reject
-                  </Button>
-                </div>
+              <div className="border border-border bg-background p-4 text-sm text-muted-foreground">
+                Review decisions and lifecycle changes are recorded through the canonical ticket
+                workflow.
               </div>
-              {statusText ? (
-                <div className="border border-border bg-background p-4 text-sm text-muted-foreground">
-                  {statusText}
-                </div>
-              ) : null}
             </div>
 
             <div className="space-y-3">
@@ -277,6 +149,11 @@ export function CeoTaskDetailModal({
                 <p>
                   <span className="font-medium text-foreground">Project:</span> {projectLabel}
                 </p>
+                {task.artefactPath ? (
+                  <p className="break-words">
+                    <span className="font-medium text-foreground">Ticket:</span> {task.artefactPath}
+                  </p>
+                ) : null}
                 {task.providerUrl ? (
                   <a
                     href={task.providerUrl}

@@ -8,7 +8,7 @@ This file defines project-specific technical rules, stack details, and execution
 - Language: TypeScript (strict)
 - Backend: Convex + OpenClaw gateway/state bridge integration
 - State: Zustand
-- Package manager: npm workspaces
+- Package manager: pnpm workspaces (`pnpm@10.33.0`, pinned in `package.json`)
 - Test runner: Vitest
 - Lint/format: Biome
 
@@ -63,7 +63,7 @@ This file defines project-specific technical rules, stack details, and execution
 - Types: no `any`; explicit return types on exported APIs
 - Testing: colocated Vitest tests for behavior changes; Playwright is the target for stable browser regression paths
 - Documentation: update `docs/HISTORY.md` for material changes; promote durable rules to `docs/MEMORY.md`
-- Workflow: `tickets/TASK-*/ticket.md` is the active Farplane board; legacy `tickets/{todo,building,review,done}/TKT-*` lanes and `docs/progress.md` are reference/local-only
+- Workflow: `tickets/TASK-*/ticket.md` is the active Farplane task queue; legacy `tickets/{todo,building,review,done}/TKT-*` lanes and `docs/progress.md` are reference/local-only
 - QA: use `qa/README.md` and `qa/cookbook/*` as the canonical QA entrypoint; older `docs/how-to/*` QA guides remain reference runbooks
 - Security: treat inbound channel payloads as untrusted; keep secrets in env/secret resolvers and out of browser bundles/logs
 - Shared utilities: prefer module-local helpers, domain-scoped `ui/src/lib`,
@@ -116,7 +116,7 @@ This file defines project-specific technical rules, stack details, and execution
 - Canonical material review uses the Farplane reviewer lane plus the TAS
   `review` skill for ticket completion, evidence bundles, prompts, skills,
   evals, or risky architecture changes.
-- Local pre-push review uses `npm run review:prepush` through
+- Local pre-push review uses `corepack pnpm run review:prepush` through
   `scripts/pre_push_check.sh` as an advisory second pair of eyes by default.
 - Use `FARPLANE_SKIP_AGENT_REVIEW=1` to skip local diff review and
   `STRICT_AGENT_REVIEW=1` to make it blocking.
@@ -124,10 +124,10 @@ This file defines project-specific technical rules, stack details, and execution
 
 ## Runtime / QA Commands
 
-- Authoritative app-only run path: `npm run ui`
-- Authoritative QA/evidence run path: `npm run ui`, then follow the relevant `qa/cookbook/*` page
-- Required local services: Codex app server for Codex project/thread data; OpenClaw gateway only when the OpenClaw adapter is selected; Convex when testing realtime status/board surfaces
-- Launch shape: local npm workspace processes plus optional external runtime services
+- Authoritative app-only run path: `corepack pnpm run ui`
+- Authoritative QA/evidence run path: `corepack pnpm run ui`, then follow the relevant `qa/cookbook/*` page
+- Basic Office launch has no required external service. Codex app server is needed for live Codex project/thread control; OpenClaw gateway only when the OpenClaw adapter is selected; Convex when testing realtime status/activity surfaces.
+- Launch shape: local pnpm workspace processes plus optional external runtime services
 - Expected UI target: Vite prints the active URL; common local target is `http://127.0.0.1:5173`
 - Port/env contract: keep Vite host/port configurable; `CODEX_APP_SERVER_URL` enables Codex app-server bridge data; gateway/state bridge URLs are user-configurable in Settings
 
@@ -136,18 +136,18 @@ This file defines project-specific technical rules, stack details, and execution
 - Local hooks are opt-in; do not auto-enable `.githooks`.
 - Recommended hook stage: `pre-push`.
 - Current required local gates:
-  - root build/typecheck: `npm run build`
-  - UI production build: `npm run ui:build`
+  - root build/typecheck: `corepack pnpm run build`
+  - UI production build: `corepack pnpm run ui:build`
 - Current advisory checks until known debt is cleaned up:
-  - lint: `npm run lint`
-  - tests: `npm run test:once`
-  - full typecheck: `npm run typecheck`
+  - lint: `corepack pnpm run lint`
+  - tests: `corepack pnpm run test:once`
+  - full typecheck: `corepack pnpm run typecheck`
 - Target strict gate after cleanup:
-  - `npm run lint`
-  - `npm run typecheck`
-  - `npm run test:once`
-  - `npm run build`
-  - `npm run ui:build`
+  - `corepack pnpm run lint`
+  - `corepack pnpm run typecheck`
+  - `corepack pnpm run test:once`
+  - `corepack pnpm run build`
+  - `corepack pnpm run ui:build`
 - Large source files warn at `500` raw lines and are reported at `1000` raw lines. Set `PRE_PUSH_STRICT_LARGE_FILES=1` only after the current oversized-file backlog is drained.
 - Set `PRE_PUSH_STRICT_ADVISORY=1` after lint/test/typecheck are ready to block.
 
@@ -155,29 +155,29 @@ This file defines project-specific technical rules, stack details, and execution
 
 ```bash
 # Install dependencies
-npm install
+corepack pnpm install --frozen-lockfile
 
 # Run the UI
-npm run ui
+corepack pnpm run ui
 
 # Run the current local pre-push gate
 bash scripts/pre_push_check.sh
 
 # Run the CLI
-npm run shell -- status
+corepack pnpm run shell status
 
 # Run tests
-npm run test:once
+corepack pnpm run test:once
 
 # Typecheck
-npm run typecheck
+corepack pnpm run typecheck
 
 # Lint
-npm run lint
+corepack pnpm run lint
 
 # Format check
-npm run format:check
+corepack pnpm run format:check
 
 # Build
-npm run build
+corepack pnpm run build
 ```

@@ -28,7 +28,6 @@ afterEach(() => {
   delete process.env.CONVEX_SITE_URL;
   delete process.env.FARPLANE_ACTOR_ROLE;
   delete process.env.FARPLANE_ALLOWED_PERMISSIONS;
-  delete process.env.FARPLANE_BOARD_OPERATOR_TOKEN;
   delete process.env.FARPLANE_AGENT_ID;
   delete process.env.FARPLANE_TEAM_ID;
   process.exitCode = undefined;

@@ -5,12 +5,11 @@
  * - Expose thin HTTP ingress for Farplane CLI and external hooks over the canonical Convex runtime.
  *
  * KEY CONCEPTS:
- * - Board/status writes stay mutation-backed and CLI-safe.
+ * - Status writes stay mutation-backed and CLI-safe.
  * - Timeline-style reads exposed to the CLI must share the same feed contract as the UI.
  *
  * USAGE:
- * - `/board/command`
- * - `/board/query`
+ * - `/status/activity`
  * - `/status/report`
  *
  * MEMORY REFERENCES:
@@ -20,50 +19,24 @@
 import { httpRouter } from "convex/server";
 import { api, internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
-import { parseBoardCommandPayload, parseBoardQueryPayload } from "./board_http_contract";
 import {
   parseHookTelemetryBatchPayload,
   parseHookTelemetryPayload,
 } from "./modules/hookTelemetry/httpContracts";
-import { parseIngestPayload, parseStatusReportPayload } from "./status_http_contract";
+import {
+  hasTelemetryToken,
+  parseIngestPayload,
+  parseStatusReportPayload,
+  parseTeamActivityQueryPayload,
+} from "./status_http_contract";
 
 const http = httpRouter();
-
-function readAuthHeaders(request: Request): { actorRole: string; allowedPermissions?: string } {
-  const actorRole =
-    request.headers.get("x-farplane-actor-role")?.trim().toLowerCase() || "operator";
-  const allowedPermissions =
-    request.headers.get("x-farplane-allowed-permissions")?.trim() || undefined;
-  return { actorRole, allowedPermissions };
-}
-
-function hasBoardToken(request: Request): boolean {
-  const expected = process.env.FARPLANE_BOARD_OPERATOR_TOKEN?.trim();
-  if (!expected) return true;
-  const actual = request.headers.get("x-farplane-board-token")?.trim();
-  return Boolean(actual && actual === expected);
-}
-
-function hasTelemetryToken(request: Request): boolean {
-  const expected = process.env.FARPLANE_TELEMETRY_TOKEN?.trim();
-  if (!expected) return true;
-  const headerToken = request.headers.get("x-farplane-telemetry-token")?.trim();
-  const auth = request.headers.get("authorization")?.trim();
-  const bearer = auth?.toLowerCase().startsWith("bearer ")
-    ? auth.slice("bearer ".length).trim()
-    : "";
-  return Boolean((headerToken && headerToken === expected) || (bearer && bearer === expected));
-}
-
-function cleanString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
 
 http.route({
   path: "/telemetry/hooks",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (!hasTelemetryToken(request)) {
+    if (!hasTelemetryToken(request.headers, process.env.FARPLANE_TELEMETRY_TOKEN)) {
       return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 });
     }
 
@@ -94,7 +67,7 @@ http.route({
   path: "/telemetry/hooks/batch",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (!hasTelemetryToken(request)) {
+    if (!hasTelemetryToken(request.headers, process.env.FARPLANE_TELEMETRY_TOKEN)) {
       return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 });
     }
 
@@ -125,6 +98,9 @@ http.route({
   path: "/ingest",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
+    if (!hasTelemetryToken(request.headers, process.env.FARPLANE_TELEMETRY_TOKEN)) {
+      return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 });
+    }
     let body: unknown;
     try {
       body = await request.json();
@@ -152,6 +128,9 @@ http.route({
   path: "/status/report",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
+    if (!hasTelemetryToken(request.headers, process.env.FARPLANE_TELEMETRY_TOKEN)) {
+      return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 });
+    }
     let body: unknown;
     try {
       body = await request.json();
@@ -178,10 +157,10 @@ http.route({
 });
 
 http.route({
-  path: "/board/command",
+  path: "/status/activity",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (!hasBoardToken(request)) {
+    if (!hasTelemetryToken(request.headers, process.env.FARPLANE_TELEMETRY_TOKEN)) {
       return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 });
     }
     let body: unknown;
@@ -190,110 +169,12 @@ http.route({
     } catch {
       return new Response(JSON.stringify({ ok: false, error: "invalid_json" }), { status: 400 });
     }
-    const parsed = parseBoardCommandPayload(body);
+    const parsed = parseTeamActivityQueryPayload(body);
     if (!parsed)
       return new Response(JSON.stringify({ ok: false, error: "invalid_payload" }), { status: 400 });
     try {
-      const auth = readAuthHeaders(request);
-      const result = await ctx.runMutation(api.board.boardCommand, {
-        ...parsed,
-        actorType: parsed.command === "activity_log" ? "agent" : "operator",
-        actorAgentId:
-          parsed.actorAgentId ??
-          (parsed.command === "activity_log" ? "agent-unknown" : "operator-http"),
-        actorRole: auth.actorRole,
-        allowedPermissions: auth.allowedPermissions,
-      });
-      return new Response(JSON.stringify(result), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return new Response(JSON.stringify({ ok: false, error: message }), {
-        status: 400,
-        headers: { "content-type": "application/json" },
-      });
-    }
-  }),
-});
-
-http.route({
-  path: "/board/query",
-  method: "POST",
-  handler: httpAction(async (ctx, request) => {
-    if (!hasBoardToken(request)) {
-      return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 });
-    }
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return new Response(JSON.stringify({ ok: false, error: "invalid_json" }), { status: 400 });
-    }
-    const parsed = parseBoardQueryPayload(body);
-    if (!parsed)
-      return new Response(JSON.stringify({ ok: false, error: "invalid_payload" }), { status: 400 });
-    try {
-      if (parsed.query === "tasks") {
-        const data = await ctx.runQuery(api.board.getProjectBoard, {
-          projectId: parsed.projectId,
-        });
-        return new Response(JSON.stringify({ ok: true, data }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
-      }
-      if (parsed.query === "board_events") {
-        const data = await ctx.runQuery(api.board.getProjectBoardEvents, {
-          projectId: parsed.projectId,
-          teamId: parsed.teamId,
-          limit: parsed.limit,
-          taskId: parsed.taskId,
-        });
-        return new Response(JSON.stringify({ ok: true, data }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
-      }
-      if (parsed.query === "activity") {
-        const data = await ctx.runQuery(api.board.getProjectActivity, {
-          projectId: parsed.projectId,
-          teamId: parsed.teamId,
-          limit: parsed.limit,
-          agentId: parsed.agentId,
-        });
-        return new Response(JSON.stringify({ ok: true, data }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
-      }
-      if (parsed.query === "timeline") {
-        const teamId = parsed.teamId?.trim();
-        if (!teamId) {
-          return new Response(JSON.stringify({ ok: false, error: "missing_team_id" }), {
-            status: 400,
-            headers: { "content-type": "application/json" },
-          });
-        }
-        const feed = await ctx.runQuery(api.status.getTeamActivityFeed, {
-          teamId,
-          limit: parsed.limit,
-          agentId: parsed.agentId,
-        });
-        const data = Array.isArray(feed?.events)
-          ? feed.events.filter((row) =>
-              typeof parsed.projectId === "string" && parsed.projectId.trim().length > 0
-                ? row.projectId === parsed.projectId
-                : true,
-            )
-          : [];
-        return new Response(JSON.stringify({ ok: true, data }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
-      }
-      const data = await ctx.runQuery(api.board.getNextTaskCandidates, {
+      const data = await ctx.runQuery(api.status.getTeamActivityFeed, {
+        teamId: parsed.teamId,
         projectId: parsed.projectId,
         limit: parsed.limit,
         agentId: parsed.agentId,

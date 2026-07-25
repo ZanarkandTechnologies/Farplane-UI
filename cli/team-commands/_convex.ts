@@ -2,15 +2,14 @@
  * TEAM COMMANDS — CONVEX HTTP + HEARTBEAT RENDER
  * ================================================
  * Purpose
- * - Convex HTTP client helpers (board commands, status reports, board queries).
+ * - Convex HTTP client helpers for retained agent status and activity.
  * - Heartbeat file rendering and syncing from workspace templates.
  *
  * KEY CONCEPTS:
  * - Convex endpoint resolution prefers shell env, then persisted Farplane runtime config in `farplane.json`.
- * - Heartbeat render helpers call readBoardSnapshot to fill template variables.
+ * - Heartbeat render helpers read canonical filesystem ticket counts.
  *
  * USAGE:
- * - postBoardCommand({ projectId, command: "task_add", title: "Draft" })
  * - postStatusReport({ agentId: "main", state: "planning", statusText: "Reviewing", stepKey: "..." })
  *
  * MEMORY REFERENCES:
@@ -20,10 +19,9 @@
 import path from "node:path";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { firstFarplaneConfigValue, readFarplaneConfigValue } from "../runtime-config.js";
+import { listProjectTickets } from "../project-ticket-store.js";
 import {
   asRecord,
-  readActorRole,
-  teamIdFromProjectId,
   resolveProjectOrFail,
   resolveAgentWorkspacePath,
   resolveOpenclawStateRoot,
@@ -31,7 +29,7 @@ import {
   roleLabel,
   resourceAdvisories,
   resourcesSnapshot,
-  type BoardActivityType,
+  type TicketActivityType,
   type CompanyModel,
   type CompanyAgentModel,
   type SidecarStore,
@@ -41,7 +39,9 @@ import {
 
 function normalizeConvexSiteUrl(raw: string): string {
   if (!raw) {
-    throw new Error("missing_convex_site_url:set FARPLANE_CONVEX_SITE_URL or rerun farplane onboarding");
+    throw new Error(
+      "missing_convex_site_url:set FARPLANE_CONVEX_SITE_URL or rerun farplane onboarding",
+    );
   }
   let parsed: URL;
   try {
@@ -75,7 +75,9 @@ async function resolveConvexSiteUrl(): Promise<string> {
   const persistedRaw = await readPersistedConvexSiteUrl();
   if (persistedRaw) return normalizeConvexSiteUrl(persistedRaw);
 
-  throw new Error("missing_convex_site_url:set FARPLANE_CONVEX_SITE_URL or rerun farplane onboarding");
+  throw new Error(
+    "missing_convex_site_url:set FARPLANE_CONVEX_SITE_URL or rerun farplane onboarding",
+  );
 }
 
 function classifyFetchFailure(error: unknown): string {
@@ -108,12 +110,12 @@ export async function postConvexJson(
   const endpoint = `${baseUrl}${pathname}`;
   const headers: Record<string, string> = {
     "content-type": "application/json",
-    "x-farplane-actor-role": readActorRole(),
   };
-  const token = readFarplaneConfigValue("FARPLANE_BOARD_OPERATOR_TOKEN", { secret: true });
-  if (token) headers["x-farplane-board-token"] = token;
-  const allowed = readFarplaneConfigValue("FARPLANE_ALLOWED_PERMISSIONS");
-  if (allowed) headers["x-farplane-allowed-permissions"] = allowed;
+  const telemetryToken = readFarplaneConfigValue("FARPLANE_TELEMETRY_TOKEN", { secret: true });
+  if (telemetryToken) {
+    headers["x-farplane-telemetry-token"] = telemetryToken;
+    headers.authorization = `Bearer ${telemetryToken}`;
+  }
 
   let response: Response;
   try {
@@ -144,50 +146,8 @@ export async function postConvexJson(
   return body as Record<string, unknown>;
 }
 
-export async function postBoardCommand(
-  payload: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
-  const normalizedPayload = { ...payload };
-  if (
-    typeof normalizedPayload.teamId !== "string" &&
-    typeof normalizedPayload.projectId === "string"
-  ) {
-    normalizedPayload.teamId = teamIdFromProjectId(normalizedPayload.projectId);
-  }
-  let body: Record<string, unknown>;
-  try {
-    body = await postConvexJson("/board/command", normalizedPayload);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(message.replace("convex_http_", "board_command_"));
-  }
-  if (!body || typeof body !== "object" || Array.isArray(body))
-    throw new Error("board_command_invalid_response");
-  return body;
-}
-
-export async function postBoardQuery(payload: Record<string, unknown>): Promise<unknown> {
-  const normalizedPayload = { ...payload };
-  if (
-    typeof normalizedPayload.teamId !== "string" &&
-    typeof normalizedPayload.projectId === "string"
-  ) {
-    normalizedPayload.teamId = teamIdFromProjectId(normalizedPayload.projectId);
-  }
-  let body: Record<string, unknown>;
-  try {
-    body = await postConvexJson("/board/query", normalizedPayload);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(message.replace("convex_http_", "board_query_"));
-  }
-  if (!body || typeof body !== "object" || Array.isArray(body))
-    throw new Error("board_query_invalid_response");
-  return body.data;
-}
-
 export type TeamTimelineEventRow = {
-  sourceType?: "agent_event" | "board_event";
+  sourceType?: "agent_event";
   occurredAt?: number;
   agentId?: string;
   actorAgentId?: string;
@@ -206,14 +166,14 @@ export async function getRecentTeamTimeline(payload: {
   limit?: number;
   agentId?: string;
 }): Promise<TeamTimelineEventRow[]> {
-  const data = await postBoardQuery({
+  const body = await postConvexJson("/status/activity", {
     projectId: payload.projectId,
     teamId: payload.teamId,
-    query: "timeline",
     limit: payload.limit,
     agentId: payload.agentId,
   });
-  return Array.isArray(data) ? (data as TeamTimelineEventRow[]) : [];
+  const data = asRecord(body.data);
+  return Array.isArray(data.events) ? (data.events as TeamTimelineEventRow[]) : [];
 }
 
 export async function postStatusReport(
@@ -227,34 +187,52 @@ export async function postStatusReport(
   }
 }
 
+export async function postActivityEvent(
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  try {
+    return await postConvexJson("/ingest", payload);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(message.replace("convex_http_", "activity_ingest_"));
+  }
+}
+
 export async function tryLogCliActivity(payload: {
   projectId: string;
   teamId: string;
   actorAgentId?: string;
-  activityType: BoardActivityType;
+  activityType: TicketActivityType;
   label: string;
   detail?: string;
   source?: string;
   beatId?: string;
+  ticketId?: string;
 }): Promise<void> {
   const actorAgentId =
     payload.actorAgentId?.trim() || process.env.FARPLANE_ACTOR_AGENT_ID?.trim() || "agent-unknown";
   try {
-    await postBoardCommand({
+    await postActivityEvent({
       projectId: payload.projectId,
       teamId: payload.teamId,
-      command: "activity_log",
-      actorType: "agent",
-      actorAgentId,
+      agentId: actorAgentId,
+      eventType: "activity_log",
       activityType: payload.activityType,
+      actorType: "agent",
       label: payload.label,
       detail: payload.detail,
+      taskId: payload.ticketId?.trim() || undefined,
       beatId:
         payload.beatId?.trim() && payload.beatId.trim().length > 0
           ? payload.beatId.trim()
           : undefined,
       stepKey: `cli-log-${actorAgentId}-${Date.now()}`,
-      status: "planning",
+      state:
+        payload.activityType === "planning" ||
+        payload.activityType === "executing" ||
+        payload.activityType === "blocked"
+          ? payload.activityType
+          : undefined,
       skillId: payload.source?.trim() || "farplane_cli",
     });
   } catch {
@@ -262,36 +240,28 @@ export async function tryLogCliActivity(payload: {
   }
 }
 
-export async function readBoardSnapshot(projectId: string): Promise<{
+export async function readTicketSnapshot(projectPath: string | undefined): Promise<{
   openTasks: number;
   inProgressTasks: number;
   blockedTasks: number;
   tasksList: string;
 }> {
+  const resolvedProjectPath = projectPath?.trim();
+  if (!resolvedProjectPath) {
+    return { openTasks: 0, inProgressTasks: 0, blockedTasks: 0, tasksList: "[]" };
+  }
   try {
-    const data = await postBoardQuery({ projectId, query: "tasks" });
-    const rows = Array.isArray((data as { tasks?: unknown[] })?.tasks)
-      ? ((data as { tasks: unknown[] }).tasks as unknown[])
-      : [];
-    const safeRows = rows.filter(
-      (row) => row && typeof row === "object" && !Array.isArray(row),
-    ) as Array<{
-      taskId?: string;
-      title?: string;
-      status?: string;
-      priority?: string;
-      ownerAgentId?: string;
-    }>;
-    const openTasks = safeRows.filter((row) => row.status === "todo").length;
-    const inProgressTasks = safeRows.filter((row) => row.status === "in_progress").length;
-    const blockedTasks = safeRows.filter((row) => row.status === "blocked").length;
+    const rows = await listProjectTickets(resolvedProjectPath);
+    const openTasks = rows.filter((row) => row.status === "todo").length;
+    const inProgressTasks = rows.filter((row) => row.status === "in_progress").length;
+    const blockedTasks = rows.filter((row) => row.status === "blocked").length;
     const tasksList = JSON.stringify(
-      safeRows.slice(0, 12).map((row) => ({
-        taskId: row.taskId ?? "",
-        title: row.title ?? "",
-        status: row.status ?? "todo",
-        priority: row.priority ?? "medium",
-        ownerAgentId: row.ownerAgentId ?? "",
+      rows.slice(0, 12).map((row) => ({
+        ticketId: row.ticketId,
+        title: row.title,
+        status: row.status,
+        priority: row.priority,
+        owner: row.claimedBy || row.owner,
       })),
     );
     return { openTasks, inProgressTasks, blockedTasks, tasksList };
@@ -332,7 +302,7 @@ export async function renderBusinessHeartbeatTemplate(opts: {
     project.metricEvents && project.metricEvents.length > 0
       ? JSON.stringify(project.metricEvents[project.metricEvents.length - 1]?.metrics ?? {})
       : "none";
-  const boardSnapshot = await readBoardSnapshot(project.id);
+  const ticketSnapshot = await readTicketSnapshot(project.trackingContext);
   const replaceMap: Record<string, string> = {
     "{projectName}": project.name,
     "{businessType}": project.businessConfig?.type ?? "custom",
@@ -342,9 +312,9 @@ export async function renderBusinessHeartbeatTemplate(opts: {
     "{profit}": String(profit),
     "{experimentsSummary}": experimentsSummary,
     "{recentMetrics}": recentMetrics,
-    "{openTasks}": String(boardSnapshot.openTasks),
-    "{inProgressTasks}": String(boardSnapshot.inProgressTasks),
-    "{blockedTasks}": String(boardSnapshot.blockedTasks),
+    "{openTasks}": String(ticketSnapshot.openTasks),
+    "{inProgressTasks}": String(ticketSnapshot.inProgressTasks),
+    "{blockedTasks}": String(ticketSnapshot.blockedTasks),
     "{resourcesSnapshot}": resourcesSnapshot(project.resources ?? []),
     "{resourceAdvisories}": resourceAdvisories(project.resources ?? []),
     "{measureSkillId}": project.businessConfig?.slots.measure.skillId ?? "not-set",
@@ -353,7 +323,7 @@ export async function renderBusinessHeartbeatTemplate(opts: {
     "{measureConfig}": JSON.stringify(project.businessConfig?.slots.measure.config ?? {}),
     "{executeConfig}": JSON.stringify(project.businessConfig?.slots.execute.config ?? {}),
     "{distributeConfig}": JSON.stringify(project.businessConfig?.slots.distribute.config ?? {}),
-    "{tasksList}": boardSnapshot.tasksList,
+    "{tasksList}": ticketSnapshot.tasksList,
   };
   let rendered = template;
   for (const [needle, value] of Object.entries(replaceMap)) {

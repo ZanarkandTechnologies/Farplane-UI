@@ -14,6 +14,8 @@ import {
 import { shuffleOfficeObjects } from "../cli/office-arrange";
 import type { OfficeObjectModel, OfficeSettingsModel } from "../cli/sidecar-store";
 import { buildNewTeamClusterObject } from "../cli/team-cluster-placement";
+import { createFinanceStore } from "../cli/finance-store";
+import { listProjectTickets } from "../cli/project-ticket-store";
 import {
   getSkillStudioDetail,
   listSkillStudioCatalog,
@@ -31,6 +33,7 @@ import {
   readFeedScoutBridge,
   readDashboardRuntimeSourceCandidates,
 } from "./vite-bridge/project-dashboard";
+import { projectFileContentType, readProjectFile } from "./vite-bridge/project-file";
 import { normalizeBridgeOfficeSettings, type BridgeOfficeSettings as OfficeSettings } from "./office-settings-bridge";
 import {
   commitOfficeKitState,
@@ -50,7 +53,6 @@ type TaskSyncState = "healthy" | "pending" | "conflict" | "error";
 type TeamRole = "builder" | "growth_marketer" | "pm" | "biz_pm" | "biz_executor";
 type BusinessType = "affiliate_marketing" | "content_creator" | "saas" | "custom";
 type BusinessEquipMode = "replace_minimum" | "append_only";
-type TicketStatus = "todo" | "in_progress" | "review" | "blocked" | "done";
 
 const FARPLANE_HOME =
   process.env.FARPLANE_STATE_DIR ||
@@ -90,6 +92,7 @@ const CODEX_OFFICE_CONFIG_PATH = path.join(FARPLANE_HOME, "codex-office.json");
 const PROJECT_MANAGERS_PATH = path.join(FARPLANE_HOME, "project-managers.json");
 const TELEGRAM_GATEWAY_STATE_PATH = path.join(FARPLANE_HOME, "telegram-gateway", "state.json");
 const GLOBAL_EVALS_ROOT = path.join(FARPLANE_HOME, "evals");
+const GLOBAL_FINANCE_STORE = createFinanceStore(FARPLANE_HOME);
 const PROJECT_EVALS_ROOT = path.join(REPO_ROOT, ".farplane", "evals");
 const FRAMEWORK_EVALS_ROOT = path.join(FARPLANE_FRAMEWORK_ROOT, ".farplane", "evals");
 const FARPLANE_MINE_ROOT =
@@ -2667,20 +2670,6 @@ function normalizeFederatedTasks(tasks: unknown[]): JsonObject[] {
     .filter((entry): entry is JsonObject => entry !== null);
 }
 
-function normalizeTicketStatus(value: unknown): TicketStatus {
-  const status = String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[-\s]+/g, "_");
-  if (status === "in_progress" || status === "doing" || status === "active") return "in_progress";
-  if (status === "review" || status === "qa" || status === "demo") return "review";
-  if (status === "blocked" || status === "stuck") return "blocked";
-  if (status === "done" || status === "closed" || status === "complete" || status === "completed") {
-    return "done";
-  }
-  return "todo";
-}
-
 function normalizeTicketPriority(value: unknown): "low" | "medium" | "high" {
   const priority = String(value ?? "").trim().toLowerCase();
   if (priority === "low") return "low";
@@ -2798,91 +2787,38 @@ function parseSimpleFrontMatter(markdown: string): Record<string, string> {
   return parsed;
 }
 
-function inferTicketTitle(filePath: string, markdown: string, frontMatter: Record<string, string>): string {
-  const explicit = frontMatter.title || frontMatter.name || frontMatter.summary;
-  if (explicit?.trim()) return explicit.trim();
-  const heading = markdown.match(/^#\s+(.+)$/m)?.[1]?.trim();
-  if (heading) return heading;
-  const parent = path.basename(path.dirname(filePath));
-  if (path.basename(filePath).toLowerCase() === "ticket.md" && parent) return parent;
-  return path.basename(filePath, path.extname(filePath));
-}
-
-function inferTicketId(projectId: string, projectPath: string, filePath: string, frontMatter: Record<string, string>): string {
-  const explicit = frontMatter.id || frontMatter.ticket || frontMatter.taskId || frontMatter.task_id;
-  if (explicit?.trim()) return `ticket:${projectId}:${explicit.trim()}`;
-  const relative = path.relative(projectPath, filePath).replace(/\\/g, "/");
-  return `ticket:${projectId}:${relative}`;
-}
-
-async function listTicketMarkdownFiles(
-  dir: string,
-  depth = 0,
-  files: string[] = [],
-): Promise<string[]> {
-  if (depth > 4 || files.length >= 200) return files;
-  let entries: Awaited<ReturnType<typeof readdir>>;
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch {
-    return files;
-  }
-  for (const entry of entries) {
-    if (files.length >= 200) break;
-    if (entry.name.startsWith(".")) continue;
-    const entryName = entry.name.toLowerCase();
-    if (entryName === "archive" || entryName === "artifacts") continue;
-    const entryPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      await listTicketMarkdownFiles(entryPath, depth + 1, files);
-      continue;
-    }
-    if (!entry.isFile()) continue;
-    if (path.extname(entry.name).toLowerCase() !== ".md") continue;
-    if (entry.name.toLowerCase() === "readme.md") continue;
-    files.push(entryPath);
-  }
-  return files;
-}
-
 async function readProjectTicketTasks(project: {
   projectId: string;
   projectPath: string;
   ticketsDir?: string;
 }): Promise<JsonObject[]> {
   const configuredTicketsDir = normalizeRelativeConfigPath(project.ticketsDir, "tickets");
-  const ticketsDir = path.join(project.projectPath, configuredTicketsDir);
-  if (!(await isDirectory(ticketsDir))) return [];
-  const files = await listTicketMarkdownFiles(ticketsDir);
-  const tasks: JsonObject[] = [];
-  for (const filePath of files) {
-    let markdown = "";
-    try {
-      markdown = await readFile(filePath, "utf-8");
-    } catch {
-      continue;
-    }
-    const frontMatter = parseSimpleFrontMatter(markdown);
-    const fileStat = await stat(filePath).catch(() => null);
-    const relativePath = path.relative(project.projectPath, filePath).replace(/\\/g, "/");
-    tasks.push({
-      id: inferTicketId(project.projectId, project.projectPath, filePath, frontMatter),
+  if (configuredTicketsDir !== "tickets") {
+    throw new Error(`unsupported_tickets_dir:${configuredTicketsDir}`);
+  }
+  return (await listProjectTickets(project.projectPath)).map((ticket) => {
+    return {
+      id: ticket.ticketId,
       projectId: project.projectId,
-      title: inferTicketTitle(filePath, markdown, frontMatter),
-      status: normalizeTicketStatus(frontMatter.status || frontMatter.state || frontMatter.phase),
-      ownerAgentId: frontMatter.ownerAgentId || frontMatter.owner || undefined,
-      priority: normalizeTicketPriority(frontMatter.priority),
+      title: ticket.title,
+      status: ticket.status,
+      ownerAgentId: ticket.ownerAgentId || undefined,
+      priority: normalizeTicketPriority(ticket.priority),
       provider: "internal",
       canonicalProvider: "internal",
-      providerUrl: `file://${filePath}`,
-      artefactPath: relativePath,
+      providerUrl: `file://${ticket.filePath}`,
+      artefactPath: ticket.artefactPath,
       syncState: "healthy",
-      frontMatter,
-      markdown,
-      updatedAt: fileStat?.mtimeMs ?? Date.now(),
-    });
-  }
-  return tasks;
+      frontMatter: ticket.frontMatter,
+      markdown: ticket.markdown,
+      notes: ticket.notes || undefined,
+      approvalState: ticket.approvalState,
+      linkedSessionKey: ticket.linkedSessionKey,
+      createdAt: ticket.createdAt,
+      dueAt: ticket.dueAt,
+      updatedAt: ticket.updatedAt,
+    } satisfies JsonObject;
+  });
 }
 
 function normalizeKanbanProvider(value: unknown): "filesystem_tickets" | "notion" | "linear" {
@@ -4146,6 +4082,7 @@ function renderHeartbeatTemplate(rawTemplate: string, project: JsonObject): stri
 }
 
 type EvalRunIndexEntry = {
+  schema_version?: number;
   job_id: string;
   label?: string;
   created_at?: string;
@@ -4165,6 +4102,7 @@ type EvalTaskSummary = {
 };
 
 type EvalSummary = {
+  schema_version?: number;
   job_id: string;
   label?: string;
   created_at?: string;
@@ -4175,6 +4113,8 @@ type EvalSummary = {
   task_count?: number;
   pass_rate?: number;
   verdict_counts?: Record<string, number>;
+  benchmark_path?: string;
+  benchmark?: JsonObject;
   tasks: EvalTaskSummary[];
 };
 
@@ -4188,6 +4128,7 @@ function normalizeEvalRunIndexEntry(value: unknown): EvalRunIndexEntry | null {
   const jobId = String(entry.job_id ?? entry.jobId ?? "").trim();
   if (!jobId) return null;
   return {
+    schema_version: typeof entry.schema_version === "number" ? entry.schema_version : undefined,
     job_id: jobId,
     label: typeof entry.label === "string" ? entry.label : undefined,
     created_at: typeof entry.created_at === "string" ? entry.created_at : undefined,
@@ -4221,6 +4162,7 @@ function normalizeEvalSummary(value: unknown): EvalSummary | null {
     })
     .filter((task): task is EvalTaskSummary => Boolean(task));
   return {
+    schema_version: typeof row.schema_version === "number" ? row.schema_version : undefined,
     job_id: jobId,
     label: typeof row.label === "string" ? row.label : undefined,
     created_at: typeof row.created_at === "string" ? row.created_at : undefined,
@@ -4234,6 +4176,7 @@ function normalizeEvalSummary(value: unknown): EvalSummary | null {
       row.verdict_counts && typeof row.verdict_counts === "object"
         ? (row.verdict_counts as Record<string, number>)
         : undefined,
+    benchmark_path: typeof row.benchmark_path === "string" ? row.benchmark_path : undefined,
     tasks,
   };
 }
@@ -4285,6 +4228,29 @@ async function readEvalTaskDetail(jobId: string, taskId: string): Promise<JsonOb
     const agent = detail.agent && typeof detail.agent === "object" ? (detail.agent as JsonObject) : {};
     detail.agent = { ...agent, answer_text: await readFile(answerPath, "utf-8") };
   }
+  for (const variantName of ["candidate", "baseline"] as const) {
+    const variantAnswerPath = path.join(
+      FARPLANE_EVALS_ROOT,
+      "runs",
+      jobId,
+      "tasks",
+      taskId,
+      variantName,
+      "outputs",
+      "agent_answer.txt",
+    );
+    const variant = detail[variantName];
+    if (variant && typeof variant === "object" && await pathExists(variantAnswerPath)) {
+      const variantRow = variant as JsonObject;
+      const agent = variantRow.agent && typeof variantRow.agent === "object"
+        ? (variantRow.agent as JsonObject)
+        : {};
+      detail[variantName] = {
+        ...variantRow,
+        agent: { ...agent, answer_text: await readFile(variantAnswerPath, "utf-8") },
+      };
+    }
+  }
   return detail;
 }
 
@@ -4294,6 +4260,11 @@ async function readEvalRun(
   const summary = await readEvalSummary(jobId);
   const detailsByTaskId: Record<string, JsonObject> = {};
   if (!summary) return { summary, detailsByTaskId };
+  const benchmarkPath = path.join(FARPLANE_EVALS_ROOT, "runs", jobId, "benchmark.json");
+  const benchmark = await readJsonFile<unknown>(benchmarkPath, null);
+  if (benchmark && typeof benchmark === "object" && !Array.isArray(benchmark)) {
+    summary.benchmark = benchmark as JsonObject;
+  }
   for (const task of summary.tasks) {
     const detail = await readEvalTaskDetail(jobId, task.task_id);
     if (detail) detailsByTaskId[task.task_id] = detail;
@@ -4504,6 +4475,18 @@ function farplaneStateBridge() {
           return;
         }
 
+        if (method === "GET" && pathname === "/farplane/finance") {
+          try {
+            writeJson(res, 200, { ok: true, projection: await GLOBAL_FINANCE_STORE.readProjection() });
+          } catch (error) {
+            writeJson(res, 422, {
+              ok: false,
+              error: error instanceof Error ? error.message : "finance_projection_unavailable",
+            });
+          }
+          return;
+        }
+
         if (method === "GET" && pathname === "/farplane/map-config") {
           writeJson(res, 200, { ok: true, payload: readMapConfigForUi() });
           return;
@@ -4652,6 +4635,27 @@ function farplaneStateBridge() {
             return;
           }
           writeJson(res, 200, await readProjectTimelinePage(projectPath, url));
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/project-file") {
+          const result = await readProjectFile(
+            url.searchParams.get("projectPath")?.trim() ?? "",
+            url.searchParams.get("ref")?.trim() ?? "",
+          );
+          if (!result.ok) {
+            writeJson(res, result.error === "file_not_found" ? 404 : 400, {
+              ok: false,
+              error: result.error,
+            });
+            return;
+          }
+          res.setHeader("content-type", projectFileContentType(result.filePath));
+          res.setHeader("cache-control", "no-store");
+          res.setHeader("x-content-type-options", "nosniff");
+          res.setHeader("content-disposition", "inline");
+          res.statusCode = 200;
+          res.end(result.bytes);
           return;
         }
 
@@ -5920,6 +5924,7 @@ function farplaneStateBridge() {
           }
         }
 
+
         const meshAssetMatch = pathname.match(/^\/openclaw\/assets\/meshes\/([^/]+)$/);
         if (method === "GET" && meshAssetMatch) {
           const fileName = decodeURIComponent(meshAssetMatch[1]);
@@ -6554,12 +6559,6 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
-      react: path.resolve(REPO_ROOT, "node_modules/react"),
-      "react/jsx-dev-runtime": path.resolve(REPO_ROOT, "node_modules/react/jsx-dev-runtime.js"),
-      "react/jsx-runtime": path.resolve(REPO_ROOT, "node_modules/react/jsx-runtime.js"),
-      "react-dom": path.resolve(REPO_ROOT, "node_modules/react-dom"),
-      "react-dom/client": path.resolve(REPO_ROOT, "node_modules/react-dom/client.js"),
-      three: path.resolve(REPO_ROOT, "node_modules/three"),
     },
     dedupe: ["react", "react-dom", "three", "@react-three/fiber", "@react-three/drei"],
   },

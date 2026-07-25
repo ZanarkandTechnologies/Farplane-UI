@@ -9,13 +9,12 @@
 import path from "node:path";
 import { cp, mkdir, readdir, writeFile } from "node:fs/promises";
 import { Command } from "commander";
+import { createProjectTicket } from "../project-ticket-store.js";
 import {
   type SidecarStore,
   type BusinessConfigModel,
   type BusinessEquipMode,
   type BusinessTeamRole,
-  type BoardTaskStatus,
-  type BoardTaskPriority,
   type CompanyModel,
   type ConfigEntry,
   ensureCommandPermission,
@@ -41,7 +40,7 @@ import {
   formatOutput,
   fail,
 } from "./_shared.js";
-import { postBoardCommand, tryLogCliActivity } from "./_convex.js";
+import { tryLogCliActivity } from "./_convex.js";
 
 export function registerTeamBusiness(team: Command, store: SidecarStore): void {
   const business = team.command("business").description("Manage business configuration for a team");
@@ -552,57 +551,49 @@ export function registerTeamBusiness(team: Command, store: SidecarStore): void {
         ...company,
         projects: company.projects.map((entry) => (entry.id === projectId ? nextProject : entry)),
       });
-      const seededBoardTasks = [
+      const seededTickets = [
         {
-          taskId: `seed-${projectId}-research`,
           title: "Research trending AI affiliate products",
-          status: "done" as BoardTaskStatus,
-          priority: "high" as BoardTaskPriority,
-          ownerAgentId: executorAgentId,
-          detail: "Seeded demo task for SC11 pipeline: research complete with product shortlist.",
+          status: "review" as const,
+          priority: "high" as const,
+          owner: executorAgentId,
+          notes: "Seeded demo ticket for SC11 pipeline: research complete with product shortlist.",
         },
         {
-          taskId: `seed-${projectId}-create-content`,
           title: "Create affiliate short video (veo demo)",
-          status: "in_progress" as BoardTaskStatus,
-          priority: "high" as BoardTaskPriority,
-          ownerAgentId: executorAgentId,
-          detail: `Artifact path: ${artefactVideoPath}`,
+          status: "in_progress" as const,
+          priority: "high" as const,
+          owner: executorAgentId,
+          notes: `Artifact path: ${artefactVideoPath}`,
         },
         {
-          taskId: `seed-${projectId}-distribute`,
           title: "Distribute TikTok + Instagram post",
-          status: "todo" as BoardTaskStatus,
-          priority: "medium" as BoardTaskPriority,
-          ownerAgentId: executorAgentId,
-          detail: `Caption artifact: ${artefactCaptionPath}`,
+          status: "todo" as const,
+          priority: "medium" as const,
+          owner: executorAgentId,
+          notes: `Caption artifact: ${artefactCaptionPath}`,
         },
         {
-          taskId: `seed-${projectId}-measure`,
           title: "Measure Amazon Associates results",
-          status: "todo" as BoardTaskStatus,
-          priority: "medium" as BoardTaskPriority,
-          ownerAgentId: pmAgentId,
-          detail:
+          status: "todo" as const,
+          priority: "medium" as const,
+          owner: pmAgentId,
+          notes:
             "Record clicks, ordered_items, shipped_items, conversion_rate, revenue_cents, commission_cents.",
         },
       ];
-      let boardSeeded = false;
-      for (const task of seededBoardTasks) {
+      const seededTicketIds: string[] = [];
+      for (const ticket of seededTickets) {
         try {
-          await postBoardCommand({
-            projectId,
-            command: "task_add",
-            taskId: task.taskId,
-            title: task.title,
-            ownerAgentId: task.ownerAgentId,
-            priority: task.priority,
-            status: task.status,
-            actorType: "operator",
-            actorAgentId: "seed-demo",
-            detail: task.detail,
+          const created = await createProjectTicket({
+            projectPath: project.trackingContext ?? "",
+            title: ticket.title,
+            owner: ticket.owner,
+            priority: ticket.priority,
+            status: ticket.status,
+            notes: ticket.notes,
           });
-          boardSeeded = true;
+          seededTicketIds.push(created.ticketId);
         } catch {
           // Optional in seed path
         }
@@ -622,7 +613,7 @@ export function registerTeamBusiness(team: Command, store: SidecarStore): void {
         actorAgentId: executorAgentId,
         activityType: "research",
         label: "seed_demo_research",
-        detail: "Research task seeded with affiliate shortlist.",
+        detail: "Research ticket seeded with affiliate shortlist.",
         source: "team.business.seed-demo",
       });
       await tryLogCliActivity({
@@ -640,7 +631,7 @@ export function registerTeamBusiness(team: Command, store: SidecarStore): void {
         actorAgentId: executorAgentId,
         activityType: "distributing",
         label: "seed_demo_distribution_ready",
-        detail: `Distribution task prepared with caption artifact ${artefactCaptionPath}.`,
+        detail: `Distribution ticket prepared with caption artifact ${artefactCaptionPath}.`,
         source: "team.business.seed-demo",
       });
       formatOutput(
@@ -649,14 +640,14 @@ export function registerTeamBusiness(team: Command, store: SidecarStore): void {
           ok: true,
           teamId: opts.teamId,
           projectId,
-          boardSeeded,
-          seededTasks: seededBoardTasks.map((task) => ({
-            taskId: task.taskId,
-            status: task.status,
+          ticketsSeeded: seededTicketIds.length,
+          seededTickets: seededTickets.map((ticket, index) => ({
+            ticketId: seededTicketIds[index],
+            status: ticket.status,
           })),
           seededArtifacts: [artefactVideoPath, artefactCaptionPath],
         },
-        `Seeded demo business data for ${opts.teamId} (board=${boardSeeded ? "yes" : "no"})`,
+        `Seeded demo business data for ${opts.teamId} (tickets=${seededTicketIds.length})`,
       );
     });
 
@@ -770,22 +761,17 @@ export function registerTeamBusiness(team: Command, store: SidecarStore): void {
           );
           const relativeVideoPath = `workspace-${executorAgent.agentId}/projects/${projectId}/affiliate/videos/${path.basename(videoPath)}`;
           const relativeCaptionPath = `workspace-${executorAgent.agentId}/projects/${projectId}/affiliate/videos/${path.basename(captionPath)}`;
-          const taskId = `lamp-${projectId}-${variant}`;
           try {
-            await postBoardCommand({
-              projectId,
-              command: "task_add",
-              taskId,
+            await createProjectTicket({
+              projectPath: project.trackingContext ?? "",
               title: `Create lamp promo video variant ${variant}`,
-              ownerAgentId: executorAgent.agentId,
+              owner: executorAgent.agentId,
               priority: "high",
-              status: "done",
-              actorType: "operator",
-              actorAgentId: "video-generator",
-              detail: `Artifact path: ${relativeVideoPath}\nCaption path: ${relativeCaptionPath}`,
+              status: "review",
+              notes: `Artifact path: ${relativeVideoPath}\nCaption path: ${relativeCaptionPath}`,
             });
           } catch {
-            // Optional board write for local demo mode.
+            // Optional filesystem ticket write for local demo mode.
           }
           await tryLogCliActivity({
             projectId,

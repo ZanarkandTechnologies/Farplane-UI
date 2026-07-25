@@ -54,24 +54,24 @@ Summarize:
 - `proposedDescription`
 - `proposedRoles[]`
 - `proposedBusinessConfig`
-- `proposedInitialBoardItems[]`
+- `proposedInitialTicketItems[]`
 
 Keep the rich reasoning in chat/session. Keep the task notes compact and resumable.
 
-### 4. Persist the proposal through the board
+### 4. Persist the proposal through filesystem tickets
 
-Use `farplane-team-cli` board task commands to create and advance the proposal/review lifecycle.
+Use `farplane-team-cli` ticket commands to create and advance the proposal/review lifecycle.
 
 Canonical flow:
 
 - create or select the target planning team
-- `team board task add --task-type team_proposal --approval-state pending_review`
+- `team ticket create --task-type team_proposal --approval-state pending_review`
 - founder review / approval
-- `team board task update --approval-state approved` or `--approval-state changes_requested`
-- execute approved setup through normal `team create`, `team business`, `team board`, and skill sync commands
+- `team ticket update --approval-state approved` or `--approval-state changes_requested`
+- execute approved setup through normal `team create`, `team business`, `team ticket`, and skill sync commands
 - update the proposal task with `--created-team-id` and `--created-project-id`
 
-The board task is the resumable approval record. Do not use the removed `team proposal` command family.
+The filesystem ticket is the resumable approval record. Do not use the removed `team proposal` command family.
 
 ### 5. Wait for approval
 
@@ -86,7 +86,7 @@ After approval, use `farplane-team-cli` to:
 - create the team,
 - set business config,
 - equip/sync needed skills,
-- seed the team board with initial tasks,
+- seed the team's filesystem ticket queue with initial tasks,
 - update any linked CEO task with compact result notes if one exists.
 
 ## Tool Skill Dependency
@@ -101,7 +101,7 @@ Use that skill for concrete command syntax and mutation rules.
 
 - Proposal summary and task notes are short-term working memory.
 - The linked session is the richer reasoning thread.
-- On every meaningful step, update the persisted proposal board task so the workflow can resume later without transcript hunting.
+- On every meaningful step, update the persisted proposal ticket so the workflow can resume later without transcript hunting.
 
 ## Contract Tests
 

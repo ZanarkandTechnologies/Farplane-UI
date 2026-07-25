@@ -3,7 +3,9 @@
 ## Boundaries
 
 - `components/team-panel.tsx` is the panel shell only; heavy domain orchestration should live in focused hooks/helpers.
-- Team/task operational state is realtime-first and should prefer existing Convex board/status paths over duplicate local stores.
+- Filesystem `tickets/TASK-*/ticket.md` files are the canonical task, review, and
+  task-memory state. Convex is retained only for distinct agent activity and
+  runtime status; do not add a task-state fallback.
 - OpenClaw agent-private memory remains an external/runtime-owned surface; do not fold it into shared team state implicitly.
 
 ## Invariants

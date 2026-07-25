@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseIngestPayload, parseStatusReportPayload } from "./status_http_contract";
+import {
+  hasTelemetryToken,
+  parseIngestPayload,
+  parseStatusReportPayload,
+  parseTeamActivityQueryPayload,
+} from "./status_http_contract";
 
 describe("status-http-contract", () => {
   it("parses valid ingest payload", () => {
@@ -94,5 +99,40 @@ describe("status-http-contract", () => {
     });
     expect(ingest?.teamId).toBe("team-proj-alpha");
     expect(report?.teamId).toBe("team-proj-alpha");
+  });
+
+  it("parses the status-owned team activity read contract", () => {
+    expect(
+      parseTeamActivityQueryPayload({
+        teamId: " team-proj-alpha ",
+        projectId: " proj-alpha ",
+        limit: 25.8,
+        agentId: " researcher ",
+      }),
+    ).toEqual({
+      teamId: "team-proj-alpha",
+      projectId: "proj-alpha",
+      limit: 25,
+      agentId: "researcher",
+    });
+  });
+
+  it("requires a team id for activity reads", () => {
+    expect(parseTeamActivityQueryPayload({ projectId: "proj-alpha" })).toBeNull();
+    expect(parseTeamActivityQueryPayload([])).toBeNull();
+  });
+
+  it("keeps status and activity endpoints open when no telemetry token is configured", () => {
+    expect(hasTelemetryToken(new Headers(), undefined)).toBe(true);
+    expect(hasTelemetryToken(new Headers(), "   ")).toBe(true);
+  });
+
+  it("accepts the configured telemetry token from the header or bearer auth", () => {
+    expect(
+      hasTelemetryToken(new Headers({ "x-farplane-telemetry-token": "secret" }), "secret"),
+    ).toBe(true);
+    expect(hasTelemetryToken(new Headers({ authorization: "Bearer secret" }), "secret")).toBe(true);
+    expect(hasTelemetryToken(new Headers({ authorization: "Bearer wrong" }), "secret")).toBe(false);
+    expect(hasTelemetryToken(new Headers(), "secret")).toBe(false);
   });
 });

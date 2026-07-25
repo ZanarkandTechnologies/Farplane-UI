@@ -6,7 +6,51 @@ import {
   eventMatchesShortcut,
   isEditableEventTarget,
   OFFICE_COMMAND_PALETTE_SHORTCUT,
+  type OfficePanelAction,
+  type OfficePanelRegistryDependencies,
 } from "./office-panel-registry";
+
+type PanelHarness = {
+  actions: OfficePanelAction[];
+  handlers: OfficePanelRegistryDependencies;
+};
+
+function createPanelHarness(
+  overrides: Partial<OfficePanelRegistryDependencies> = {},
+): PanelHarness {
+  const handlers: OfficePanelRegistryDependencies = {
+    highlightedMenuActionId: null,
+    isAnimatingCamera: false,
+    isBuilderMode: false,
+    openDecoration: vi.fn(),
+    openCeoWorkbench: vi.fn(),
+    openDocumentLibrary: vi.fn(),
+    openEvals: vi.fn(),
+    openFinance: vi.fn(),
+    openGlobalTeamWorkspace: vi.fn(),
+    openHumanReview: vi.fn(),
+    openHarness: vi.fn(),
+    openOrganization: vi.fn(),
+    openRawTelemetry: vi.fn(),
+    openResourceBank: vi.fn(),
+    openRollout: vi.fn(),
+    openSettings: vi.fn(),
+    openSkillInvocations: vi.fn(),
+    openSkillOs: vi.fn(),
+    openTelemetry: vi.fn(),
+    openTemplateTracking: vi.fn(),
+    openThreadData: vi.fn(),
+    openUserCommunications: vi.fn(),
+    openWorld: vi.fn(),
+    toggleBuilderMode: vi.fn(),
+    ...overrides,
+  };
+
+  return {
+    actions: createOfficePanelActions(handlers),
+    handlers,
+  };
+}
 
 describe("office panel registry", () => {
   it("matches the palette shortcut with ctrl/cmd+k", () => {
@@ -50,45 +94,7 @@ describe("office panel registry", () => {
   });
 
   it("routes launcher actions through the provided handlers", () => {
-    const openEvals = vi.fn();
-    const openHarness = vi.fn();
-    const openRollout = vi.fn();
-    const openGlobalTeamWorkspace = vi.fn();
-    const openOrganization = vi.fn();
-    const openDocumentLibrary = vi.fn();
-    const openResourceBank = vi.fn();
-    const openWorld = vi.fn();
-    const openSkillInvocations = vi.fn();
-    const openSkillOs = vi.fn();
-    const openRawTelemetry = vi.fn();
-    const openThreadData = vi.fn();
-    const openTemplateTracking = vi.fn();
-    const openUserCommunications = vi.fn();
-    const toggleBuilderMode = vi.fn();
-
-    const actions = createOfficePanelActions({
-      highlightedMenuActionId: null,
-      isAnimatingCamera: false,
-      isBuilderMode: false,
-      openDecoration: vi.fn(),
-      openEvals,
-      openHarness,
-      openRollout,
-      openGlobalTeamWorkspace,
-      openOrganization,
-      openDocumentLibrary,
-      openResourceBank,
-      openWorld,
-      openSettings: vi.fn(),
-      openSkillInvocations,
-      openSkillOs,
-      openTemplateTracking,
-      openRawTelemetry,
-      openThreadData,
-      openTelemetry: vi.fn(),
-      openUserCommunications,
-      toggleBuilderMode,
-    });
+    const { actions, handlers } = createPanelHarness();
 
     actions.find((action) => action.id === "team-workspace")?.perform();
     actions.find((action) => action.id === "organization")?.perform();
@@ -101,52 +107,36 @@ describe("office panel registry", () => {
     actions.find((action) => action.id === "harness")?.perform();
     actions.find((action) => action.id === "rollout")?.perform();
     actions.find((action) => action.id === "user-communications")?.perform();
+    actions.find((action) => action.id === "ceo-workbench")?.perform();
+    actions.find((action) => action.id === "human-review")?.perform();
     actions.find((action) => action.id === "raw-telemetry")?.perform();
+    actions.find((action) => action.id === "finance")?.perform();
     actions.find((action) => action.id === "thread-data")?.perform();
     actions.find((action) => action.id === "builder-mode")?.perform();
 
-    expect(openGlobalTeamWorkspace).toHaveBeenCalledTimes(1);
-    expect(openOrganization).toHaveBeenCalledTimes(1);
-    expect(openDocumentLibrary).toHaveBeenCalledTimes(1);
-    expect(openResourceBank).toHaveBeenCalledTimes(1);
-    expect(openWorld).toHaveBeenCalledTimes(1);
+    expect(handlers.openGlobalTeamWorkspace).toHaveBeenCalledTimes(1);
+    expect(handlers.openOrganization).toHaveBeenCalledTimes(1);
+    expect(handlers.openDocumentLibrary).toHaveBeenCalledTimes(1);
+    expect(handlers.openResourceBank).toHaveBeenCalledTimes(1);
+    expect(handlers.openWorld).toHaveBeenCalledTimes(1);
     expect(actions.some((action) => String(action.id) === "skill-invocations")).toBe(false);
-    expect(openSkillInvocations).not.toHaveBeenCalled();
-    expect(openSkillOs).toHaveBeenCalledTimes(1);
-    expect(openTemplateTracking).toHaveBeenCalledTimes(1);
-    expect(openEvals).toHaveBeenCalledTimes(1);
-    expect(openHarness).toHaveBeenCalledTimes(1);
-    expect(openRollout).toHaveBeenCalledTimes(1);
-    expect(openUserCommunications).toHaveBeenCalledTimes(1);
-    expect(openRawTelemetry).toHaveBeenCalledTimes(1);
-    expect(openThreadData).toHaveBeenCalledTimes(1);
-    expect(toggleBuilderMode).toHaveBeenCalledTimes(1);
+    expect(handlers.openSkillInvocations).not.toHaveBeenCalled();
+    expect(handlers.openSkillOs).toHaveBeenCalledTimes(1);
+    expect(handlers.openTemplateTracking).toHaveBeenCalledTimes(1);
+    expect(handlers.openEvals).toHaveBeenCalledTimes(1);
+    expect(handlers.openHarness).toHaveBeenCalledTimes(1);
+    expect(handlers.openRollout).toHaveBeenCalledTimes(1);
+    expect(handlers.openUserCommunications).toHaveBeenCalledTimes(1);
+    expect(handlers.openCeoWorkbench).toHaveBeenCalledTimes(1);
+    expect(handlers.openHumanReview).toHaveBeenCalledTimes(1);
+    expect(handlers.openRawTelemetry).toHaveBeenCalledTimes(1);
+    expect(handlers.openFinance).toHaveBeenCalledTimes(1);
+    expect(handlers.openThreadData).toHaveBeenCalledTimes(1);
+    expect(handlers.toggleBuilderMode).toHaveBeenCalledTimes(1);
   });
 
   it("flattens office launcher actions into one ordered speed-dial list", () => {
-    const actions = createOfficePanelActions({
-      highlightedMenuActionId: null,
-      isAnimatingCamera: false,
-      isBuilderMode: false,
-      openDecoration: vi.fn(),
-      openEvals: vi.fn(),
-      openHarness: vi.fn(),
-      openRollout: vi.fn(),
-      openGlobalTeamWorkspace: vi.fn(),
-      openOrganization: vi.fn(),
-      openDocumentLibrary: vi.fn(),
-      openResourceBank: vi.fn(),
-      openWorld: vi.fn(),
-      openSettings: vi.fn(),
-      openSkillInvocations: vi.fn(),
-      openSkillOs: vi.fn(),
-      openTemplateTracking: vi.fn(),
-      openRawTelemetry: vi.fn(),
-      openThreadData: vi.fn(),
-      openTelemetry: vi.fn(),
-      openUserCommunications: vi.fn(),
-      toggleBuilderMode: vi.fn(),
-    });
+    const { actions } = createPanelHarness();
 
     const launcherActions = createOfficeLauncherActions(actions);
     const paletteIds = actions
@@ -155,6 +145,7 @@ describe("office panel registry", () => {
 
     expect(launcherActions.map((action) => action.id)).toEqual([
       "organization",
+      "ceo-workbench",
       "user-communications",
       "harness",
       "skill-os",
@@ -163,6 +154,7 @@ describe("office panel registry", () => {
       "world",
       "document-library",
       "telemetry",
+      "finance",
       "raw-telemetry",
       "thread-data",
       "builder-mode",
@@ -171,6 +163,7 @@ describe("office panel registry", () => {
     ]);
     expect(paletteIds).toContain("settings");
     expect(paletteIds).toContain("raw-telemetry");
+    expect(paletteIds).toContain("finance");
     expect(paletteIds).toContain("thread-data");
     expect(paletteIds).toContain("evals");
     expect(paletteIds).toContain("harness");
@@ -182,34 +175,12 @@ describe("office panel registry", () => {
     expect(paletteIds).toContain("builder-mode");
     expect(paletteIds).toContain("office-shop");
     expect(paletteIds).not.toContain("team-workspace");
-    expect(paletteIds).not.toContain("ceo-workbench");
-    expect(paletteIds).not.toContain("human-review");
+    expect(paletteIds).toContain("ceo-workbench");
+    expect(paletteIds).toContain("human-review");
   });
 
   it("carries guided onboarding emphasis onto the launcher action", () => {
-    const actions = createOfficePanelActions({
-      highlightedMenuActionId: "office-shop",
-      isAnimatingCamera: false,
-      isBuilderMode: false,
-      openDecoration: vi.fn(),
-      openEvals: vi.fn(),
-      openHarness: vi.fn(),
-      openRollout: vi.fn(),
-      openGlobalTeamWorkspace: vi.fn(),
-      openOrganization: vi.fn(),
-      openDocumentLibrary: vi.fn(),
-      openResourceBank: vi.fn(),
-      openWorld: vi.fn(),
-      openSettings: vi.fn(),
-      openSkillInvocations: vi.fn(),
-      openSkillOs: vi.fn(),
-      openTemplateTracking: vi.fn(),
-      openRawTelemetry: vi.fn(),
-      openThreadData: vi.fn(),
-      openTelemetry: vi.fn(),
-      openUserCommunications: vi.fn(),
-      toggleBuilderMode: vi.fn(),
-    });
+    const { actions } = createPanelHarness({ highlightedMenuActionId: "office-shop" });
 
     const launcherActions = createOfficeLauncherActions(actions);
     const officeShopAction = launcherActions.find((action) => action.id === "office-shop");
@@ -218,39 +189,12 @@ describe("office panel registry", () => {
   });
 
   it("suppresses mutating office actions in read-only mode", () => {
-    const openGlobalTeamWorkspace = vi.fn();
-    const openSettings = vi.fn();
-    const openDecoration = vi.fn();
-    const toggleBuilderMode = vi.fn();
-    const openThreadData = vi.fn();
-
-    const actions = createOfficePanelActions({
-      accessPolicy: "read-only",
-      highlightedMenuActionId: null,
-      isAnimatingCamera: false,
-      isBuilderMode: false,
-      openDecoration,
-      openEvals: vi.fn(),
-      openHarness: vi.fn(),
-      openRollout: vi.fn(),
-      openGlobalTeamWorkspace,
-      openOrganization: vi.fn(),
-      openDocumentLibrary: vi.fn(),
-      openResourceBank: vi.fn(),
-      openWorld: vi.fn(),
-      openSettings,
-      openSkillInvocations: vi.fn(),
-      openSkillOs: vi.fn(),
-      openTemplateTracking: vi.fn(),
-      openRawTelemetry: vi.fn(),
-      openThreadData,
-      openTelemetry: vi.fn(),
-      openUserCommunications: vi.fn(),
-      toggleBuilderMode,
-    });
+    const { actions, handlers } = createPanelHarness({ accessPolicy: "read-only" });
 
     for (const id of [
       "team-workspace",
+      "ceo-workbench",
+      "human-review",
       "user-communications",
       "thread-data",
       "builder-mode",
@@ -264,10 +208,12 @@ describe("office panel registry", () => {
       action?.perform();
     }
 
-    expect(openGlobalTeamWorkspace).not.toHaveBeenCalled();
-    expect(openSettings).not.toHaveBeenCalled();
-    expect(openThreadData).not.toHaveBeenCalled();
-    expect(openDecoration).not.toHaveBeenCalled();
-    expect(toggleBuilderMode).not.toHaveBeenCalled();
+    expect(handlers.openGlobalTeamWorkspace).not.toHaveBeenCalled();
+    expect(handlers.openCeoWorkbench).not.toHaveBeenCalled();
+    expect(handlers.openHumanReview).not.toHaveBeenCalled();
+    expect(handlers.openSettings).not.toHaveBeenCalled();
+    expect(handlers.openThreadData).not.toHaveBeenCalled();
+    expect(handlers.openDecoration).not.toHaveBeenCalled();
+    expect(handlers.toggleBuilderMode).not.toHaveBeenCalled();
   });
 });

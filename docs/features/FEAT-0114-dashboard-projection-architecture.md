@@ -3,7 +3,7 @@ kind: feature-spec
 status: proposed
 project: Farplane UI
 created_at: 2026-07-01
-updated_at: 2026-07-01
+updated_at: 2026-07-24
 owner: team-workspace
 related_systems:
   - ../systems/README.md
@@ -52,6 +52,10 @@ frontend manages freshness rather than recomputing raw data per card.
   and gaps that need follow-up.
 - `.farplane/reports/index.json` owns the UI-facing report registry generated
   from report frontmatter under `.farplane/reports/**`.
+- `.farplane/highlights/wins.jsonl` and
+  `.farplane/highlights/failures.jsonl` own minimal append-only Interval
+  selections. Core resolves their report refs and emits render-ready cards
+  under the optional `tabs.highlights` project-snapshot slice.
 
 The UI may show source paths and freshness, but it should not treat report
 Markdown or raw social exports as the primary dashboard API.
@@ -89,6 +93,8 @@ type OverviewSurface = {
   project_id: string;
   pins: OverviewPinCard[];
   attention: AttentionItem[];
+  wins: OverviewHighlightCard[];
+  failures: OverviewHighlightCard[];
   reports: ReportLink[];
   sources: SourceRef[];
 };
@@ -109,6 +115,39 @@ type KpiOverviewHint = {
 
 The projection compiler owns tie-breaking, fallback cards, missing provider
 state, and provenance. Card components only render projection rows.
+
+## Interval Highlight Surface
+
+Interval owns highlight admission after a Daily or Weekly report is finalized.
+A win must describe exceptional verified metric movement, while a failure must
+include a reusable lesson. The browser does not infer either from report prose.
+
+Core projects the local ledgers into an additive schema-v2 slice:
+
+```ts
+type ProjectHighlights = {
+  wins: ProjectHighlightCard[];
+  failures: ProjectHighlightCard[];
+  source_gap_ids: string[];
+};
+```
+
+Cards include stable derived identity, the project-local `team` slug, source
+report ref, summary, optional lesson, generic labelled links, cadence/period,
+and source-gap references. Core keeps file targets project-relative; Team
+Workspace resolves them against the active project path for navigation. It uses
+one adapter to compare the project-local slug with active UI keys such as
+`team-proj-farplane`; it does not query or extend a Convex task store.
+
+Overview renders wins and failures as separate galleries. Failure lessons stay
+fully visible, and absent or partial highlight slices produce honest empty
+states. JSONL remains canonical local state, Core remains the derivation owner,
+and the UI remains a tolerant renderer. Convex persistence and synchronization
+are outside this feature. Each gallery initially shows the three newest cards
+with explicit disclosure for older rows. Project-relative evidence links open
+through the read-only `/farplane/project-file` bridge, which confines reads to
+the selected project root instead of relying on browser-blocked `file://`
+navigation.
 
 ## Report Surface
 
@@ -205,6 +244,8 @@ large enough to justify the additional runtime model.
   remain a separate config capability.
 - Do not add a broad dashboard schema store when the compiled projection file
   satisfies the current local-first UI contract.
+- Do not parse interval report prose in the browser or use a Convex task store
+  as a highlight source.
 - Do not migrate Convex realtime state to TanStack Query.
 - Do not introduce Effect into React dashboard components for this slice.
 

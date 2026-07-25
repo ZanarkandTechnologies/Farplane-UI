@@ -23,6 +23,7 @@ export const agentActivityTables = {
   })
     .index("by_agent", ["agentId"])
     .index("by_team_occurred_at", ["teamId", "occurredAt"])
+    .index("by_team_project_occurred_at", ["teamId", "projectId", "occurredAt"])
     .index("by_team_agent_occurred_at", ["teamId", "agentId", "occurredAt"])
     .index("by_project_occurred_at", ["projectId", "occurredAt"])
     .index("by_project_agent_occurred_at", ["projectId", "agentId", "occurredAt"])

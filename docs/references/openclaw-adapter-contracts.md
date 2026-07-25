@@ -174,7 +174,7 @@ npm --prefix /home/kenjipcx/Zanarkand/Farplane run cli:bundle
 Note: For piping JSON output to `jq`, prefer `npm --silent` to avoid `npm run` banner lines:
 
 ```bash
-npm --silent --prefix /home/kenjipcx/Zanarkand/Farplane run shell -- team board task list --team-id team-proj-farplane-v2 --json | jq .
+corepack pnpm --dir /home/kenjipcx/Zanarkand/Farplane run shell team ticket list --team-id team-proj-farplane-v2 --json | jq .
 ```
 
 ## Testing

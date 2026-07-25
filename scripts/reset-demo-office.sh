@@ -14,8 +14,6 @@ Options:
   --profile <profile>         Demo profile: minimal|ladder (default: ladder)
                               minimal = affiliate solo + autonomous agency
                               ladder  = affiliate solo + micro-SaaS duo + autonomous agency
-  --convex-url <url>          Convex site URL for board seeding
-  --skip-board                Skip board task seeding even if Convex URL is available
   --repo-path <path>          Farplane repo path (default: script parent directory)
   --dry-run                   Print commands without executing them
   --help                      Show this help
@@ -23,14 +21,11 @@ Options:
 Examples:
   scripts/reset-demo-office.sh
   scripts/reset-demo-office.sh --profile minimal
-  scripts/reset-demo-office.sh --convex-url http://127.0.0.1:3211
 EOF
 }
 
 PROFILE="ladder"
 REPO_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONVEX_URL="${FARPLANE_CONVEX_SITE_URL:-${CONVEX_SITE_URL:-}}"
-SKIP_BOARD=0
 DRY_RUN=0
 
 while [[ $# -gt 0 ]]; do
@@ -38,14 +33,6 @@ while [[ $# -gt 0 ]]; do
     --profile)
       PROFILE="${2:-}"
       shift 2
-      ;;
-    --convex-url)
-      CONVEX_URL="${2:-}"
-      shift 2
-      ;;
-    --skip-board)
-      SKIP_BOARD=1
-      shift
       ;;
     --repo-path)
       REPO_PATH="${2:-}"
@@ -81,26 +68,15 @@ if ! command -v node >/dev/null 2>&1; then
   exit 2
 fi
 
-if ! command -v npm >/dev/null 2>&1; then
-  echo "ERROR: missing command 'npm'" >&2
+if ! command -v corepack >/dev/null 2>&1; then
+  echo "ERROR: missing command 'corepack'" >&2
   exit 2
 fi
 
 cd "$REPO_PATH"
 
 if [[ ! -f "dist/bundle/farplane-cli.cjs" ]]; then
-  npm run cli:bundle >/dev/null
-fi
-
-if [[ -z "$CONVEX_URL" && -f ".env.local" ]]; then
-  CONVEX_URL="$(grep '^CONVEX_SITE_URL=' .env.local | cut -d= -f2- || true)"
-fi
-
-if [[ -n "$CONVEX_URL" ]]; then
-  export FARPLANE_CONVEX_SITE_URL="$CONVEX_URL"
-elif [[ "$SKIP_BOARD" -eq 0 ]]; then
-  echo "reset-demo-office:warn missing Convex site URL; board seeding will be skipped" >&2
-  SKIP_BOARD=1
+  corepack pnpm run cli:bundle >/dev/null
 fi
 
 RUNNER=(node dist/bundle/farplane-cli.cjs)
@@ -134,10 +110,7 @@ run_quiet() {
 }
 
 seed_task() {
-  if [[ "$SKIP_BOARD" -eq 1 ]]; then
-    return 0
-  fi
-  run_quiet "${RUNNER[@]}" team board task add "$@"
+  run_quiet "${RUNNER[@]}" team ticket create "$@"
 }
 
 archive_active_teams() {
@@ -347,4 +320,4 @@ if [[ "$PROFILE" == "ladder" ]]; then
 fi
 create_autonomous_agency
 
-echo "reset-demo-office:done profile=$PROFILE board_seeded=$((1 - SKIP_BOARD))"
+echo "reset-demo-office:done profile=$PROFILE ticket_seeded=1"

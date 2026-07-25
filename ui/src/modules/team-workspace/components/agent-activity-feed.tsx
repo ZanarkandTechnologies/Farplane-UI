@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -12,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useAppStore } from "@/store";
 import { api } from "../../../../../convex/_generated/api";
 
@@ -40,7 +40,7 @@ type AgentCandidate = {
 
 type FeedEvent = {
   id: string;
-  sourceType: "agent_event" | "board_event";
+  sourceType: "agent_event";
   occurredAt: number;
   beatId?: string;
   sessionKey?: string;
@@ -80,14 +80,12 @@ function eventTypeLabel(event: FeedEvent): string {
   return event.activityType ?? event.eventType ?? event.sourceType;
 }
 
-function sourceGlyph(sourceType: FeedEvent["sourceType"]): string {
-  if (sourceType === "board_event") return "$";
+function sourceGlyph(_sourceType: FeedEvent["sourceType"]): string {
   return "S";
 }
 
 export function AgentActivityFeed({ teamId, candidates }: AgentActivityFeedProps): JSX.Element {
   const [selectedAgent, setSelectedAgent] = useState<string>("all");
-  const [selectedSource, setSelectedSource] = useState<string>("all");
   const [beatsOnly, setBeatsOnly] = useState(false);
   const [beforeTs, setBeforeTs] = useState<number | undefined>(undefined);
   const [pages, setPages] = useState<TeamFeedPage[]>([]);
@@ -104,16 +102,16 @@ export function AgentActivityFeed({ teamId, candidates }: AgentActivityFeedProps
           limit: 120,
           beforeTs,
           agentId: selectedAgent === "all" ? undefined : selectedAgent,
-          sourceType: selectedSource === "all" ? undefined : selectedSource,
           allowedAgentIds: candidates.map((candidate) => candidate.agentId),
         }
       : "skip",
   ) as TeamFeedPage | undefined;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: A scope/filter change starts a fresh pagination window.
   useEffect(() => {
     setBeforeTs(undefined);
     setPages([]);
-  }, [teamId, selectedAgent, selectedSource]);
+  }, [teamId, selectedAgent]);
 
   useEffect(() => {
     if (!feedPage) return;
@@ -139,16 +137,6 @@ export function AgentActivityFeed({ teamId, candidates }: AgentActivityFeedProps
     () => (beatsOnly ? allEvents.filter((event) => Boolean(event.beatId)) : allEvents),
     [allEvents, beatsOnly],
   );
-
-  const sourceCounts = useMemo(() => {
-    const counts: Record<string, number> = {
-      all: allEvents.length,
-      agent_event: 0,
-      board_event: 0,
-    };
-    for (const event of allEvents) counts[event.sourceType] = (counts[event.sourceType] ?? 0) + 1;
-    return counts;
-  }, [allEvents]);
 
   const agentCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -184,23 +172,14 @@ export function AgentActivityFeed({ teamId, candidates }: AgentActivityFeedProps
               ))}
             </SelectContent>
           </Select>
-          <Select value={selectedSource} onValueChange={setSelectedSource}>
-            <SelectTrigger className="h-8 w-[160px] text-xs">
-              <SelectValue placeholder="All sources" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All ({sourceCounts.all ?? 0})</SelectItem>
-              <SelectItem value="agent_event">Agent ({sourceCounts.agent_event ?? 0})</SelectItem>
-              <SelectItem value="board_event">Board ({sourceCounts.board_event ?? 0})</SelectItem>
-            </SelectContent>
-          </Select>
-          <label className="ml-1 flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="ml-1 flex items-center gap-2 text-xs text-muted-foreground">
             <Checkbox
+              id="team-activity-beat-filter"
               checked={beatsOnly}
               onCheckedChange={(value) => setBeatsOnly(Boolean(value))}
             />
-            Beat-tagged
-          </label>
+            <label htmlFor="team-activity-beat-filter">Beat-tagged</label>
+          </div>
         </div>
         <Badge variant="outline" className="text-[10px] uppercase">
           {visibleEvents.length} rows
@@ -209,8 +188,8 @@ export function AgentActivityFeed({ teamId, candidates }: AgentActivityFeedProps
 
       <ScrollArea className="h-full min-h-0 rounded-md border p-3">
         <div className="space-y-2">
-          {visibleEvents.map((event, index) => (
-            <div key={`${event.id}-${index}`} className="rounded-md border bg-muted/20 p-2 text-sm">
+          {visibleEvents.map((event) => (
+            <div key={event.id} className="rounded-md border bg-muted/20 p-2 text-sm">
               <div className="mb-1 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border text-[11px]">

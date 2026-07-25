@@ -11,6 +11,9 @@ import type {
   ProjectUiCharter,
   ProjectUiContentItem,
   ProjectUiContentMetricCard,
+  ProjectUiHighlightCard,
+  ProjectUiHighlightLink,
+  ProjectUiHighlights,
   ProjectUiMetricCard,
   ProjectUiMetricPoint,
   ProjectUiMetricSourceGap,
@@ -27,6 +30,9 @@ export type {
   ProjectUiCharter,
   ProjectUiContentItem,
   ProjectUiContentMetricCard,
+  ProjectUiHighlightCard,
+  ProjectUiHighlightLink,
+  ProjectUiHighlights,
   ProjectUiMetricCard,
   ProjectUiMetricPoint,
   ProjectUiMetricSourceGap,
@@ -301,6 +307,74 @@ function parseAutomation(value: unknown): ProjectUiAutomation | null {
   };
 }
 
+function parseHighlightLink(value: unknown): ProjectUiHighlightLink | null {
+  if (typeof value === "string") {
+    const href = value.trim();
+    return href ? { label: href, href } : null;
+  }
+  const row = record(value);
+  const href = stringValue(row.href ?? row.url).trim();
+  if (!href) return null;
+  return {
+    label: stringValue(row.label ?? row.title).trim() || href,
+    href,
+  };
+}
+
+function parseHighlightCard(
+  value: unknown,
+  expectedKind: ProjectUiHighlightCard["kind"],
+): ProjectUiHighlightCard | null {
+  const row = record(value);
+  const id = stringValue(row.id).trim();
+  const team = stringValue(row.team).trim();
+  const report = stringValue(row.report).trim();
+  const summary = stringValue(row.summary).trim();
+  const kind = stringValue(row.kind).trim() || expectedKind;
+  const lesson = optionalString(row.lesson);
+  if (
+    !id ||
+    !team ||
+    !report ||
+    !summary ||
+    kind !== expectedKind ||
+    (expectedKind === "failure" && !lesson)
+  ) {
+    return null;
+  }
+  return {
+    id,
+    kind: expectedKind,
+    team,
+    projectId: optionalString(row.project_id ?? row.projectId),
+    report,
+    summary,
+    lesson,
+    links: arrayValue(row.links)
+      .map(parseHighlightLink)
+      .filter((link): link is ProjectUiHighlightLink => Boolean(link)),
+    cadence: optionalString(row.cadence),
+    period: optionalString(row.period),
+    createdAt: optionalString(row.created_at ?? row.createdAt),
+    sourceHref: optionalString(row.source_href ?? row.sourceHref),
+    sourceGapIds: stringList(row.source_gap_ids ?? row.sourceGapIds),
+  };
+}
+
+function parseHighlights(value: unknown): ProjectUiHighlights | undefined {
+  const row = record(value);
+  if (Object.keys(row).length === 0) return undefined;
+  return {
+    wins: arrayValue(row.wins)
+      .map((entry) => parseHighlightCard(entry, "win"))
+      .filter((card): card is ProjectUiHighlightCard => Boolean(card)),
+    failures: arrayValue(row.failures)
+      .map((entry) => parseHighlightCard(entry, "failure"))
+      .filter((card): card is ProjectUiHighlightCard => Boolean(card)),
+    sourceGapIds: stringList(row.source_gap_ids ?? row.sourceGapIds),
+  };
+}
+
 export function parseProjectUiSnapshot(value: unknown): ProjectUiSnapshot | null {
   const source = record(value);
   const tabs = record(source.tabs);
@@ -312,6 +386,7 @@ export function parseProjectUiSnapshot(value: unknown): ProjectUiSnapshot | null
   const objectives = record(tabs.objectives);
   const cadence = record(tabs.cadence);
   const distribution = record(tabs.distribution);
+  const highlights = parseHighlights(tabs.highlights);
   const series = Array.isArray(metrics.series) ? metrics.series : [];
   const definitions = Object.values(record(metrics.definitions));
   const metricContents = Array.isArray(metrics.contents) ? metrics.contents : [];
@@ -377,6 +452,7 @@ export function parseProjectUiSnapshot(value: unknown): ProjectUiSnapshot | null
         ),
         sourceGapIds: stringList(distribution.source_gap_ids ?? distribution.sourceGapIds),
       },
+      ...(highlights ? { highlights } : {}),
     },
   };
 }

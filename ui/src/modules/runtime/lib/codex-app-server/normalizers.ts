@@ -534,6 +534,13 @@ export function toCodexCompanyModel(
     artefactPath: task.artefactPath,
     syncState: task.syncState ?? "healthy",
     syncError: task.syncError,
+    frontMatter: task.frontMatter,
+    markdown: task.markdown,
+    notes: task.notes,
+    approvalState: task.approvalState,
+    linkedSessionKey: task.linkedSessionKey,
+    createdAt: task.createdAt,
+    dueAt: task.dueAt,
     updatedAt: task.updatedAt ?? nowMs,
   }));
 

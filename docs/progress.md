@@ -39,7 +39,10 @@ UI-first OpenClaw mapping pivot:
 - Added employee-triggered Agent Memory Panel (`List`, `Search`, `Graph`) backed by parsed OpenClaw memory files (`MEMORY.md` + `memory/*.md`) through a new state-bridge endpoint, with visual QA spec/report artifacts under `docs/research/qa-testing/`.
 - Added phase-2 planning artifacts: founder-direction study (`ST01`), new specs (`SC06`-`SC10`), and expected visual QA ASCII baselines for Kanban Federation Panel and Agent Personalization Studio.
 - Implemented SC06 baseline: federated task contracts (`provider`, `canonicalProvider`, `syncState`, `providerUrl`), project policy/profile structures, manual resync route, provider/canonical controls in Team Kanban, and Notion profile bootstrap UI for deterministic tool metadata.
-- Reworked `SC12` onto the shared board/session model and finished the proposal purge: workflow now lives on normal board tasks with markdown task memory, `review` is a real board lane, `team proposal` is gone, and per-agent boards are filtered views over one canonical team board.
+- Reworked `SC12` onto the shared ticket/session model and finished the proposal
+  purge: workflow now lives in filesystem tickets with Markdown task memory,
+  `review` is a canonical ticket phase, `team proposal` is gone, and per-agent
+  views filter the same project ticket set.
 - Tightened the SC12 operator surface: the CEO Workbench task detail modal now uses a wider two-pane layout for readable task memory plus review actions, and the legacy office `Approvals` launcher has been removed so review flows only through `Human Review`.
 - Added Notion plugin gateway methods for task list/create/update/sync and profile bootstrap (`notion-shell.tasks.*`, `notion-shell.profile.bootstrap`) so external provider logic stays plugin-first.
 - Fixed office placement persistence regression: drag-release updates now resolve canonical office-object IDs across UI/persistence boundaries, re-sync local transforms after reload, and preserve last confirmed transform on save failure; added targeted tests and QA artifacts for placement persistence.
@@ -57,8 +60,8 @@ UI-first OpenClaw mapping pivot:
 ## Mini-PRD Context
 
 - **Goal:** Ship a daily competitor-intel workflow that reads `skills/competitor-feature-scout/watchlist.md`, scans last-day commits with `skills/competitor-feature-scout/SKILL.md`, and posts bounded adoption findings to the main agent bot via Farplane CLI.
-- **User Outcome:** An operator or CEO agent can maintain a small repo watchlist and receive auditable, bounded follow-up work on the correct Farplane team board without manually re-checking the same commit ranges.
-- **Constraints:** Follow `MEM-0152` (watchlist-driven, modular, cheap query before deeper analysis, bounded task creation), `MEM-0153` (CLI-and-skill-first workflow ownership), existing `team board task add` / Convex board flow, and current OpenClaw cron job patterns under `~/.openclaw/cron/jobs.json`.
+- **User Outcome:** An operator or CEO agent can maintain a small repo watchlist and receive auditable, bounded follow-up work in the correct Farplane project tickets without manually re-checking the same commit ranges.
+- **Constraints:** Follow `MEM-0152` (watchlist-driven, modular, cheap query before deeper analysis, bounded task creation), `MEM-0153` (CLI-and-skill-first workflow ownership), the filesystem `team ticket create` flow, and current OpenClaw cron job patterns under `~/.openclaw/cron/jobs.json`.
 - **Risks:** Repo fetch/auth ambiguity, duplicate tasks from repeated commit ranges, noisy heuristics, unclear boundary between deterministic CLI work and agent skill reasoning, and missing confidence/task-cap defaults.
 - **Success Criteria:** One command can run the workflow end-to-end for a watchlist subset; cron can trigger it on cadence; state prevents reprocessing; digests/proposal history are persisted; only capped high-confidence `adapt` items create tasks.
 
@@ -78,7 +81,7 @@ UI-first OpenClaw mapping pivot:
   - `cli/farplane-cli.ts`
   - new `cli/meta-commands/*` registrar and helpers
   - `cli/sidecar-store.ts` or adjacent helper for `~/.openclaw/competitor-intel/**`
-  - shared board-task creation helper extracted from `cli/team-commands/team-board.ts` if needed
+  - shared filesystem-ticket creation helper from `cli/project-ticket-store.ts`
   - `cli/team-commands.test.ts` or new `cli/meta-commands.test.ts`
   - `docs/HISTORY.md`
   - `docs/MEMORY.md` if new durable invariants are introduced during implementation
@@ -95,13 +98,13 @@ UI-first OpenClaw mapping pivot:
 - **Dependency Order:**
   1. Define watchlist parser, state schema, artifact paths, dedupe key format, and per-run cap behavior.
   2. Implement `scout` command: parse enabled repos, determine due entries, fetch new commit ranges, classify `ignore|candidate|priority`, persist digest + state.
-  3. Implement `finalize` command: accept scout findings shaped by `competitor-feature-scout`, persist history, enforce cap rules, and create board tasks through existing board infrastructure.
+  3. Implement `finalize` command: accept scout findings shaped by `competitor-feature-scout`, persist history, enforce cap rules, and create filesystem tickets through the shared ticket store.
   4. Implement `cron install`: upsert one CEO-oriented cron job that instructs the agent to run the scout command, use the two research skills, and call `finalize`.
   5. Add tests, docs, memory/history updates, and CLI bundle coverage.
 - **Validation Strategy:**
   - Prefer isolated CLI tests with temporary `OPENCLAW_STATE_DIR`.
   - Stub repo inputs with fixture commit metadata rather than live network fetches.
-  - Verify board-task creation through existing test seams and persisted proposal/task history.
+  - Verify filesystem-ticket creation through temporary project fixtures and persisted proposal/task history.
 - **Rollback / Safety Notes:**
   - Default new commands to dry-run/read-only unless `--apply` is set.
   - Never advance `lastProcessedSha` for candidate batches until proposal finalization is persisted.
@@ -119,8 +122,8 @@ UI-first OpenClaw mapping pivot:
 - **Test Case 2: Finalize creates bounded deduplicated tasks**
   - Given: a proposal payload with two `adapt` proposals above threshold, one duplicate commit range already recorded, and a max-tasks-per-run cap of `1`.
   - When: `npm run shell -- meta competitor-repos finalize --json-input '<payload>' --apply`
-  - Then: exactly one new board task is created on the watchlist entry’s `taskTeamId`, the duplicate is skipped, and proposal history records the created task id plus dedupe status.
-  - Observable assertion: `team board task list --team-id <taskTeamId> --json` includes one new task whose detail references the proposal id / commit range.
+  - Then: exactly one new filesystem ticket is created in the watchlist entry’s project, the duplicate is skipped, and proposal history records the created ticket id plus dedupe status.
+  - Observable assertion: `team ticket list --project-id <taskProjectId> --json` includes one new ticket whose Notes section references the proposal id / commit range.
 
 - **Test Case 3: Cron install writes a stable CEO workflow job**
   - Given: a CEO agent id and empty `~/.openclaw/cron/jobs.json`
@@ -131,8 +134,8 @@ UI-first OpenClaw mapping pivot:
 - **Test Case 4: Dry-run never mutates task state**
   - Given: candidate scout output and proposal payloads that would otherwise create tasks
   - When: the operator runs `scout --dry-run` and `finalize` without `--apply`
-  - Then: digests are emitted for review but no board tasks are added and no `lastProcessedSha` is advanced past candidate ranges.
-  - Observable assertion: board task list is unchanged while artifact files are present.
+  - Then: digests are emitted for review but no tickets are added and no `lastProcessedSha` is advanced past candidate ranges.
+  - Observable assertion: the project ticket set is unchanged while artifact files are present.
 
 ## Execution Todo List (Mandatory)
 
@@ -140,7 +143,7 @@ UI-first OpenClaw mapping pivot:
 - [ ] Add `meta competitor-repos scout` command with deterministic heuristics and persisted digest output.
 - [ ] Add `meta competitor-repos finalize` command with proposal-history persistence, dedupe, threshold gating, and capped task creation.
 - [ ] Add `meta competitor-repos cron install` command that writes a CEO workflow cron job.
-- [ ] Reuse existing board-command infrastructure instead of shelling out to ad hoc queues.
+- [ ] Reuse the shared filesystem ticket store instead of shelling out to ad hoc queues.
 - [ ] Add/extend CLI tests for scout, finalize, and cron install flows.
 - [ ] Update `docs/HISTORY.md`.
 - [ ] Promote any new durable invariant to `docs/MEMORY.md` and reference the resulting `MEM-####` in new logic files.
@@ -153,11 +156,11 @@ UI-first OpenClaw mapping pivot:
 
 ## Review / Test Criteria
 
-- **Correctness:** watchlist entries map to the right repos, commit ranges, and team boards.
+- **Correctness:** watchlist entries map to the right repos, commit ranges, and project ticket sets.
 - **Completeness:** repeated runs remain idempotent; ignored/candidate/adapt/watch paths all persist audit trails.
 - **Usability:** operator-facing commands stay CLI-first and `--json` friendly.
 - **Observability:** digests, proposal history, cron job state, and created tasks are directly inspectable.
-- **Risk Control:** no board spam, no silent cursor advancement, and safe dry-run behavior.
+- **Risk Control:** no ticket spam, no silent cursor advancement, and safe dry-run behavior.
 
 ## Final Wow Gate
 
@@ -167,4 +170,4 @@ UI-first OpenClaw mapping pivot:
 
 ## Approval Handoff
 
-Prepared to implement a CLI-first, cron-triggered competitor-repo workflow with deterministic scout/finalize boundaries, persisted sidecar state/artifacts, CEO-agent skill handoff, and bounded board-task creation. Yes/no to execute this plan.
+Prepared to implement a CLI-first, cron-triggered competitor-repo workflow with deterministic scout/finalize boundaries, persisted sidecar state/artifacts, CEO-agent skill handoff, and bounded filesystem-ticket creation. Yes/no to execute this plan.

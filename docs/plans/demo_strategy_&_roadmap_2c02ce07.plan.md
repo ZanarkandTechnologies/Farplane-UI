@@ -29,7 +29,7 @@ isProject: false
 
 You have two different things mixed together: **platform primitives** (object-skill interface, vibe coding tools) and **use cases** (sales teams, competitor tracking, self-building). The demo needs a use case, not a primitive.
 
-**Your best demo angle is already planned and half-built:** the self-copying competitor intel team. It's meta, it's memorable, it shows the full loop (autonomous work → CEO review → founder approval → board task), and it doesn't require money to be in the story yet.
+**Your best demo angle is already planned and half-built:** the self-copying competitor intel team. It's meta, it's memorable, it shows the full loop (autonomous work -> CEO review -> founder approval -> filesystem ticket), and it doesn't require money to be in the story yet.
 
 Miro Fish / world simulations / polymarket trading: I'd park this entirely. It's a completely separate product surface with no code overlap. Don't introduce it at this demo.
 
@@ -37,7 +37,7 @@ Miro Fish / world simulations / polymarket trading: I'd park this entirely. It's
 
 ## Demo This Week: The Self-Copying Team
 
-**Narrative:** *Farplane's first autonomous team doesn't sell anything — it makes Farplane better. Every morning it scans GitHub repos from other AI office projects, finds interesting commits, and the CEO presents adoption proposals. You approve one. A task lands on the board. The office ran itself overnight.*
+**Narrative:** *Farplane's first autonomous team doesn't sell anything - it makes Farplane better. Every morning it scans GitHub repos from other AI office projects, finds interesting commits, and the CEO presents adoption proposals. You approve one. A task lands in the ticket queue. The office ran itself overnight.*
 
 That's a 90-second story with a clear beginning, middle, and end.
 
@@ -46,7 +46,7 @@ That's a 90-second story with a clear beginning, middle, and end.
 - `skills/farplane-competitor-feature-scout/` — skill, watchlist, memory files
 - `skills/farplane-competitor-feature-scout/watchlist.md` — placeholder, needs real repos
 - CEO Workbench + Human Review flow — built in UI
-- Team Panel + board tasks — built in UI
+- Team Panel + filesystem tickets - built in UI
 - Full technical plan for CLI commands — in `docs/progress.md`
 
 ### What to build for the demo (3-4 days)
@@ -69,7 +69,7 @@ You do NOT need `finalize` or full task auto-creation for the demo. The story wo
 2. Open CEO Workbench → Human Review → pre-seeded proposal is there
 3. Walk through what the scout found (commits from a real repo, real reasoning)
 4. Click Approve
-5. Show the task land on the team board
+5. Show the task land in the filesystem ticket queue
 6. Show the cron schedule — "this repeats every morning"
 
 ---
@@ -111,4 +111,3 @@ You do NOT need `finalize` or full task auto-creation for the demo. The story wo
 - The CEO review + founder approval loop actually works
 - The office is the control surface for that loop (not a terminal)
 - The product story doesn't require money to be compelling yet
-

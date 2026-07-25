@@ -50,7 +50,7 @@ The product doctrine behind this model lives in
 1. Define the business or goal you want to pursue.
 2. Ask the CEO agent to form a focused team around that goal.
 3. Review the proposal in Farplane and approve the work.
-4. Manage the resulting team from the office, the board surfaces, and the CLI.
+4. Manage the resulting team from the office, filesystem ticket surfaces, and the CLI.
 
 Inside a team:
 
@@ -73,7 +73,7 @@ The main MVP loop is founder control, not artificial office scale.
 
 - you already use OpenClaw and want a founder-facing orchestration layer on top
 - you want to define a business goal and let agents organize into focused teams around it
-- you need one place to monitor sessions, proposals, board state, memory, and skills
+- you need one place to monitor sessions, proposals, tickets, memory, and skills
 - you want CLI control and office UI together instead of choosing one or the other
 - you want the system to feel playful and customizable while still being operationally useful
 
@@ -82,7 +82,7 @@ The main MVP loop is founder control, not artificial office scale.
 - `CEO-led team formation`: create teams through a proposal and approval loop instead of hardcoding a company upfront
 - `Office UI`: run Farplane from a visual office with focused operator surfaces instead of a pile of raw terminals
 - `Farplane CLI`: Core-owned command routing for onboarding, teams, office state, doctor checks, and office decor
-- `Session-scoped CLI identity`: agents can soft-login per shell session so status, coordination, and board writes resolve caller identity consistently without repeating `--agent-id`
+- `Session-scoped CLI identity`: agents can soft-login per shell session so status, coordination, and ticket writes resolve caller identity consistently without repeating `--agent-id`
 - `Skills workbench`: inspect skills, demos, file-backed metadata, and per-agent skill configuration from one place
 - `Memory and session visibility`: inspect agent memory, session context, and current work state from OpenClaw-backed data
 - `Team presence and memory`: team overview surfaces show each member as a compact face/avatar card with role, live state, latest task, and quick actions, while the Memory tab keeps shared coordination/history in one append-only log instead of faux team chat
@@ -97,7 +97,7 @@ The main MVP loop is founder control, not artificial office scale.
 | --- | --- |
 | You have OpenClaw agents, configs, sidecars, and terminals, but no clear founder control surface. | You get one office and one workflow for forming teams, reviewing proposals, and overseeing active work. |
 | You can run agents, but the jump from "one agent" to "a business with teams" is mostly manual. | The CEO can propose a team around a goal and Farplane gives you a reviewable path to approve and manage it. |
-| You lose the story of what the office is doing because runtime details live in too many places. | Farplane brings memory, skills, sessions, boards, and team context into one operator-facing layer. |
+| You lose the story of what the office is doing because runtime details live in too many places. | Farplane brings memory, skills, sessions, tickets, and team context into one operator-facing layer. |
 | Your tooling feels purely operational and hard to enjoy using. | Farplane treats the office as both a control surface and a place you can personalize, decorate, and grow. |
 | You want to use skills and integrations more intentionally, but discovery and operator visibility are weak. | Farplane adds skill-aware UI and CLI workflows so agents and operators can use the repo's skill system more effectively. |
 
@@ -106,15 +106,21 @@ The main MVP loop is founder control, not artificial office scale.
 Prerequisites:
 
 - Node.js 20+
-- OpenClaw installed locally or on the target machine
-- OpenClaw onboarding completed first on that machine
+- Corepack (included with supported Node.js releases)
 
-Important:
+Start the basic local Office:
 
-- Farplane does not replace OpenClaw setup.
-- If OpenClaw has not created `~/.openclaw/openclaw.json` and the main CEO agent `main`, the Farplane office will not show the main agent correctly.
+```bash
+corepack pnpm install --frozen-lockfile
+corepack pnpm run ui
+```
 
-**OpenClaw onboarding (do this first):**
+Open the printed URL at `/office`, commonly
+`http://127.0.0.1:5173/office`. Codex app-server, OpenClaw, and Convex are not
+required for this basic launch; configure them only for their data-backed
+surfaces.
+
+**Optional OpenClaw onboarding:**
 
 1. Install and run the OpenClaw onboarding wizard (recommended on macOS/Linux or Windows via WSL2):
    ```bash
@@ -122,7 +128,7 @@ Important:
    ```
 2. Use **QuickStart** for the fastest path (default workspace, gateway on port 18789, coding tool profile). The wizard creates `~/.openclaw/openclaw.json`, seeds the workspace, and configures model/auth.
 3. OpenClaw’s default single-agent setup uses agent id **`main`**, which is what Farplane expects. If you added agents manually and don’t have `main`, either add it (`openclaw agents add main` and use the default workspace) or ensure `~/.openclaw/openclaw.json` has `agents.list` with an entry whose `id` is `"main"`.
-4. Then run Farplane onboarding (see below).
+4. Then run Farplane onboarding if you want OpenClaw-backed teams (see below).
 
 Docs: [Onboarding Wizard (CLI)](https://docs.openclaw.ai/start/wizard), [CLI Onboarding Reference](https://docs.openclaw.ai/start/wizard-cli-reference).
 
@@ -133,7 +139,7 @@ Deployment docs:
 From the repo root:
 
 ```bash
-npm install
+corepack pnpm install --frozen-lockfile
 farplane ui link "$PWD"
 farplane onboarding
 eval "$(farplane agent login --agent-id main)"
@@ -163,7 +169,7 @@ After that:
 2. Complete the in-app onboarding flow.
 3. Ask the CEO agent to create your first team proposal.
 4. Approve the proposal in `Human Review` inside the CEO Workbench.
-5. Inspect the created team in the office and board surfaces.
+5. Inspect the created team in the office and filesystem ticket surfaces.
 6. Use `farplane office decor ...` after the core founder workflow is working.
 
 If you are exposing Farplane from another VPS over a private tailnet, use the dedicated [VPS + Tailscale Serve runbook](./docs/how-to/vps-tailscale-farplane.md). It covers the required split between Farplane's `State Bridge URL` and the OpenClaw `Gateway URL`, plus the extra `/farplane/openclaw` proxy rule needed when Farplane lives under a path instead of `/`.
@@ -173,7 +179,7 @@ If you are exposing Farplane from another VPS over a private tailnet, use the de
 Use this when you want to show the product story clearly instead of loading a crowded office:
 
 ```bash
-npm install
+corepack pnpm install --frozen-lockfile
 farplane ui link "$PWD"
 farplane onboarding --launch-ui
 scripts/reset-demo-office.sh --profile ladder
@@ -184,7 +190,7 @@ Then in the product:
 1. Start with only the CEO and founder control loop visible.
 2. Ask the CEO to form a `1-claw` team from a small brief.
 3. Review and approve the proposal.
-4. Show the created team board and activity.
+4. Show the created team ticket queue and `farplane status` activity.
 5. Repeat with a `2-claw` or `3-claw` team to show that Farplane scales by spawning focused teams, not by shipping a giant default company.
 
 ## FAQ
@@ -259,7 +265,7 @@ OpenClaw runtime files, when the optional OpenClaw adapter is configured with
 From the repo root:
 
 ```bash
-npm install
+corepack pnpm install --frozen-lockfile
 farplane ui link "$PWD"
 farplane onboarding --yes
 farplane ui start
@@ -268,9 +274,9 @@ farplane ui start
 Validation:
 
 ```bash
-npm run test:once
-npm run typecheck
-npm run build
+corepack pnpm run test:once
+corepack pnpm run typecheck
+corepack pnpm run build
 ```
 
 Refresh the global CLI alias after pulling repo updates:
@@ -281,23 +287,23 @@ cd ../Farplane && farplane install
 
 Useful commands:
 
-- `npm run cli -- onboarding --json`
-- `npm run cli -- onboarding --install-cli`
-- `npm run cli -- onboarding --skip-install-cli`
-- `npm run cli -- onboarding --launch-ui`
+- `corepack pnpm run cli onboarding --json`
+- `corepack pnpm run cli onboarding --install-cli`
+- `corepack pnpm run cli onboarding --skip-install-cli`
+- `corepack pnpm run cli onboarding --launch-ui`
 - `eval "$(farplane agent login --agent-id alpha-pm)"`
-- `npm run cli -- whoami --json`
-- `npm run cli -- agent list --json`
-- `npm run cli -- agent search --query builder --json`
-- `npm run cli -- agent send --from alpha-pm --to alpha-builder --message "Need blocker update" --task-id task-42 --json`
-- `npm run cli -- ui`
-- `npm run cli -- team run live --team-id team-proj-farplane-dev-team --cadence-minutes 1 --goal "Live demo loop" --json`
-- `npm run cli -- team monitor --team-id team-proj-farplane-dev-team --json`
-- `npm run cli -- team archive --team-id team-proj-example --deregister-openclaw`
-- `npm run cli -- office decor docs`
-- `npm run cli -- office decor list`
-- `npm run cli -- office decor pack list`
-- `npm run cli -- office decor floor list`
+- `corepack pnpm run cli whoami --json`
+- `corepack pnpm run cli agent list --json`
+- `corepack pnpm run cli agent search --query builder --json`
+- `corepack pnpm run cli agent send --from alpha-pm --to alpha-builder --message "Need blocker update" --task-id task-42 --json`
+- `corepack pnpm run cli ui`
+- `corepack pnpm run cli team run live --team-id team-proj-farplane-dev-team --cadence-minutes 1 --goal "Live demo loop" --json`
+- `corepack pnpm run cli team monitor --team-id team-proj-farplane-dev-team --json`
+- `corepack pnpm run cli team archive --team-id team-proj-example --deregister-openclaw`
+- `corepack pnpm run cli office decor docs`
+- `corepack pnpm run cli office decor list`
+- `corepack pnpm run cli office decor pack list`
+- `corepack pnpm run cli office decor floor list`
 
 For autonomous-team MVP work, the main runtime artifacts are:
 
@@ -306,31 +312,31 @@ For autonomous-team MVP work, the main runtime artifacts are:
 - `~/.openclaw/projects/<projectId>/outputs/`
 - `~/.openclaw/workspace-<agentId>/HEARTBEAT.md`
 
-Realtime shared operational memory now lives in Convex-backed team/task surfaces, while OpenClaw workspace memory remains agent-owned/private and heavier artefacts stay filesystem-backed.
+Task and review memory now lives in filesystem `ticket.md` files. Realtime operational activity remains Convex-backed through `agentEvents` and is reported with `farplane status`; OpenClaw workspace memory remains agent-owned/private and heavier artefacts stay filesystem-backed.
 - agent-attributed CLI writes should come from a shell session that has been initialized with `farplane agent login`; `FARPLANE_AGENT_ID` is the canonical caller identity and team/project scope are derived from the company model, with conflicting manual overrides failing fast.
-- `npm run cli -- office decor wall list`
-- `npm run cli -- office decor background list`
-- `npm run cli -- office decor pack apply clam-cabinet`
-- `npm run cli -- office decor background set midnight_tide`
-- `npm run cli:reinstall` for the module-local `farplane-ui` alias only
+- `corepack pnpm run cli office decor wall list`
+- `corepack pnpm run cli office decor background list`
+- `corepack pnpm run cli office decor pack apply clam-cabinet`
+- `corepack pnpm run cli office decor background set midnight_tide`
+- `corepack pnpm run cli:reinstall` for the module-local `farplane-ui` alias only
 - `farplane ui`
-- `npm run cli -- doctor team-data --json`
-- `npm run cli -- office doctor --json`
-- `npm run cli -- team list --json`
+- `corepack pnpm run cli doctor team-data --json`
+- `corepack pnpm run cli office doctor --json`
+- `corepack pnpm run cli team list --json`
 
 When you archive a team with `--deregister-openclaw`, Farplane now removes that team's OpenClaw `agents.list` entries and deletes each managed agent workspace under `~/.openclaw` so retired businesses do not leave stale runtime folders behind.
-- `npm run cli -- team proposal list --json`
-- `npm run cli -- team proposal show --proposal-id <proposalId> --json`
+- `corepack pnpm run cli team proposal list --json`
+- `corepack pnpm run cli team proposal show --proposal-id <proposalId> --json`
 - `scripts/reset-demo-office.sh --profile minimal`
 - `scripts/reset-demo-office.sh --profile ladder`
 
 Notes:
 
-- `npm run typecheck` is the workspace-wide TypeScript gate and includes the UI package.
-- `npm run typecheck:root` checks only the repo-root/CLI/Convex TypeScript program.
-- `npm run build` currently preserves the narrower root-owned build gate; use `npm run ui:build` for the Vite bundle.
+- `corepack pnpm run typecheck` is the workspace-wide TypeScript gate and includes the UI package.
+- `corepack pnpm run typecheck:root` checks only the repo-root/CLI/Convex TypeScript program.
+- `corepack pnpm run build` currently preserves the narrower root-owned build gate; use `corepack pnpm run ui:build` for the Vite bundle.
 - The UI reads Farplane-owned office sidecars from `~/.farplane`; Codex is the default runtime adapter, Codex app-server is reached only through the local state bridge, and OpenClaw runtime state remains adapter-owned when explicitly enabled.
-- Optional Codex app-server smoke: run `codex app-server --listen ws://127.0.0.1:47891`, then launch the UI with `CODEX_APP_SERVER_URL=ws://127.0.0.1:47891 npm run ui -- --host 127.0.0.1`.
+- Optional Codex app-server smoke: run `codex app-server --listen ws://127.0.0.1:47891`, then launch the UI with `CODEX_APP_SERVER_URL=ws://127.0.0.1:47891 corepack pnpm run ui -- --host 127.0.0.1`.
 - Normal local setup should use Settings -> Runtime -> Project Config for the settings listed in `.env.example`, including runtime URLs, hook/debug flags, review settings, and API keys. Farplane stores runtime config, file-change hook settings, and secrets in local private `~/.farplane/config.toml`.
 - Env vars remain supported for bootstrap, CI, and explicit shell overrides; runtime config file reads should go through `~/.farplane/config.toml`.
 - Optional: add a Meshy API key in Settings -> Runtime -> Project Config to enable **Generate with AI** in Decoration -> Import; generated GLB furniture is saved to Custom Library.

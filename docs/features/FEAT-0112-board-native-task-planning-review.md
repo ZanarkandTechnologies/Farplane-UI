@@ -1,4 +1,4 @@
-# SC12: Board-Native Task Planning And Review
+# SC12: Filesystem Ticket Planning And Review
 
 ## Status
 
@@ -8,28 +8,28 @@ Active SC12 replacement spec. This is the target workflow contract for Farplane 
 
 Define the minimal workflow Farplane should support for agent-led planning:
 
-- one canonical team board per team
+- filesystem `ticket.md` files as the canonical task and review state
 - markdown task memory as the working state
-- `review` as a normal board lane
+- `review` as a normal ticket status
 - human review through the same task, not a separate proposal object
-- per-agent board views as filters over the team board, not separate persisted boards
+- per-agent views as filters over filesystem tickets, not separate persisted stores
 
 ## Workflow Contract
 
-1. Agent reads the team board.
+1. Agent reads the filesystem ticket queue.
 2. If there are no actionable tickets, agent creates one or more planning tasks.
 3. Agent writes the plan into the task memory.
 4. Agent moves the task into `review` when human sign-off is needed.
-5. Human reviews by operating the `review` lane.
+5. Human reviews by operating tickets in `review`.
 6. After review, work continues on the same task.
 7. Agent claims the task, gathers more context, and appends progress into the same task memory.
-8. The task moves through normal board lanes until complete.
+8. The task moves through normal ticket statuses until complete.
 
 ## State Model
 
-Structured board metadata stays thin:
+Structured ticket frontmatter stays thin:
 
-- `taskId`
+- `ticket_id`
 - `projectId`
 - `teamId`
 - `title`
@@ -40,7 +40,7 @@ Structured board metadata stays thin:
 - timestamps
 - optional generic review metadata like `approvalState`
 
-Rich task state lives in markdown task memory:
+Rich task state lives in the ticket Markdown body:
 
 - goal
 - plan
@@ -50,27 +50,27 @@ Rich task state lives in markdown task memory:
 - progress log
 - execution outcome
 
-## Per-Agent Boards
+## Per-Agent Views
 
-Each team has one canonical board. An agent board is a filtered view over that board, usually by:
+Each project has one canonical filesystem ticket set. An agent view is a filtered view over those tickets, usually by:
 
 - `ownerAgentId`
 - `status`
 - unassigned tasks
 - review tasks
 
-Do not create a second persisted board store per agent.
+Do not create a second persisted store per agent.
 
 ## Required CLI Surface
 
-- `team board task add`
-- `team board task update`
-- `team board task move`
-- `team board task claim`
-- `team board task mine`
-- `team board task memory show`
-- `team board task memory set`
-- `team board task memory append`
+- `team ticket create`
+- `team ticket update`
+- `team ticket status`
+- `team ticket claim`
+- `team ticket list`
+- `team ticket memory show`
+- `team ticket memory set`
+- `team ticket memory append`
 
 ## Product Rules
 
@@ -84,6 +84,6 @@ Do not create a second persisted board store per agent.
 
 1. An agent can create a planning task when no actionable work exists.
 2. The agent can append a plan to task memory and move the task into `review`.
-3. Human review can happen entirely through the board and task memory.
+3. Human review can happen entirely through the ticket and task memory.
 4. An agent can claim a reviewed task and continue from the same task memory.
-5. Per-agent task views are filtered board views, not separate board stores.
+5. Per-agent task views are filtered ticket views, not separate stores.

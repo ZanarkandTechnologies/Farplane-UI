@@ -79,11 +79,11 @@ flowchart TB
 
 Farplane intentionally uses a hybrid state model.
 
-- Convex is canonical for realtime operational state:
+- Convex is canonical for realtime operational activity:
   - agent live status
   - agent activity/event timelines
-  - team board tasks
-  - team board events
+- Filesystem `ticket.md` files are canonical for team tasks, review state, and
+  task memory.
 - Local Farplane sidecars under `~/.farplane` are canonical for UI-owned structural state:
   - `company.json` for company/project metadata and sidecar-owned policies
   - `office.json` for room layout, decor, and camera/view settings
@@ -98,7 +98,7 @@ Farplane intentionally uses a hybrid state model.
 
 This split is deliberate for the current single-VPS/local-instance architecture:
 
-- realtime value exists mainly for status and task workflows, which Convex already handles well
+- realtime value exists mainly for agent status/activity, which Convex already handles well
 - office layout and object placement are warm local config, not high-frequency collaborative data
 - OpenClaw itself expects file-backed runtime/config ownership, so moving `openclaw.json` into Convex would fight the runtime boundary instead of simplifying it
 - office layout and object persistence carry local invariants around tile-backed room shape, cluster-anchor placement, and archive cleanup that are already encoded in sidecar-backed flows
