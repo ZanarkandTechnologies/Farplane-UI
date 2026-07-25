@@ -12,39 +12,23 @@ export const addResourceAnalysis = mutation({
     const job = await getJobOrThrow(ctx, args.jobId);
     const asset = await getAssetOrThrow(ctx, args.assetId);
     if (asset.ingestionJobId !== args.jobId) throw new Error("resource_bank_asset_job_mismatch");
-    const facts = args.facts ?? [];
-    const interpretation = args.interpretation ?? [];
-    const whyItWorks = args.whyItWorks ?? [];
-    const takeaways = args.takeaways ?? [];
-    const remixConstraints = args.remixConstraints ?? [];
+    const analysisMarkdown = cleanText(args.analysisMarkdown, 6_000);
+    if (!analysisMarkdown) throw new Error("resource_bank_analysis_markdown_required");
     const tags = mergeTags(job.tags, asset.tags, args.tags);
     const embeddingText =
       cleanText(args.embeddingText, 6_000) ??
       buildAnalysisEmbeddingText({
-        facts,
-        frameNotes: args.frameNotes,
-        interpretation,
-        promptGuess: args.promptGuess,
-        remixConstraints,
-        takeaways,
+        analysisMarkdown,
         transcriptText: args.transcriptText,
         userIntent: args.userIntent ?? job.note,
-        whyItWorks,
       });
     return await ctx.db.insert("resourceBankAnalyses", {
       ingestionJobId: args.jobId,
       assetId: args.assetId,
-      analysisType: args.analysisType,
       sourceSkill: cleanText(args.sourceSkill, 120) ?? "ingest-content",
-      facts,
-      interpretation,
+      analysisMarkdown,
       userIntent: cleanText(args.userIntent ?? job.note, 2_000),
-      whyItWorks,
-      takeaways,
       transcriptText: cleanText(args.transcriptText, 6_000),
-      frameNotes: cleanText(args.frameNotes, 2_000),
-      promptGuess: cleanText(args.promptGuess, 2_000),
-      remixConstraints,
       confidence: args.confidence ?? "medium",
       embeddingTarget: "analysis_search",
       embeddingText,

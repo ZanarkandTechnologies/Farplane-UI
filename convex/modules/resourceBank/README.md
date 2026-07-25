@@ -6,21 +6,27 @@ knowledge extracted from them.
 Core model:
 
 ```text
-ingestion job -> primary asset -> analysis summary -> creative elements
+ingestion job -> primary asset -> transcript? + analysis Markdown -> selected creative elements
                                       -> optional skill findings
                                       -> optional Brand Kit promotion
 ```
 
 The active Tasty Pack contract is intentionally minimal. It returns captures:
-source metadata, compact analysis, and extracted creative elements. Creative
-elements are the production-use components the operator may want later:
-`visual`, `audio`, `hook`, `storyboard`, `editing`, `copy`, `character`,
-`format`, and `constraint`. `character` covers distinctive hosts, guides,
+source metadata, optional transcript, freeform analysis Markdown, and selected
+creative elements. Creative elements are production-use components the operator
+explicitly chose for reuse:
+`format`, `storyboard`, `visual`, `character`, `audio`, and `editing`. A value
+qualifies only when it is independently selectable, independently conditionable
+from an example, and owned by a recognizable production step. Opening hooks and
+semantic copy fold into `storyboard`; subtitle rendering/timing folds into
+`editing`; rights and IP constraints remain production policy or Brand Kit prompt
+instructions. `character` covers distinctive hosts, guides,
 personas, archetypes, mascots, or recurring figures that carry the creative
 premise without copying protected identity. Creative elements also carry
-operator taste priority directly:
-`pinned` means the element is grounded in the operator's ingestion `note` and
-should drive downstream planning. Do not add a separate production-pattern record
+operator taste priority directly. Every active write requires `pinned: true`,
+meaning the element is grounded in the operator's ingestion `note` and should
+drive downstream planning. Unselected source observations stay in analysis
+Markdown rather than becoming unpinned element rows. Do not add a separate production-pattern record
 for this; the usable pattern emerges from the ordered element list.
 
 The canonical reusable creative element payload is:
@@ -39,13 +45,15 @@ The canonical reusable creative element payload is:
 }
 ```
 
-`whyItWorks` and `goldenRecipe` are required non-empty strings on new writes.
+`whyItWorks` and `goldenRecipe` are required non-empty strings on new writes,
+and `pinned` must be `true`.
 `goldenExample.assetId` must point at an asset from the same ingestion job as the
 element. Storage is temporarily widened for the live TASK-0068 migration, but
 the add/update mutations reject incomplete new rows.
 
-Do not store frame, clip, transcript, or audio evidence as first-class Tasty Pack
-output by default. Extract the value into creative elements, with an optional
+Do not store frame, clip, or audio evidence as first-class Tasty Pack output by
+default. A transcript may be returned once at capture level, outside analysis
+Markdown. Extract selected reusable value into creative elements, with an optional
 `anchor` such as `0-3s`, `opening frame`, `caption`, or `voiceover`. Add
 separate retained evidence only when a future workflow needs direct media reuse,
 debugging, rights review, or audit proof.
@@ -71,8 +79,15 @@ direct image URLs or local dev paths.
 Tasty Pack retrieval filters primary assets by timeframe plus retrieval facets
 (`audiences`, `industries`, `ageRanges`, `customerRoles`, `outputTypes`, and
 optional `tastinessScore`), then hydrates attached analyses and creative
-elements. Pack elements are ordered by pinned status and recency so content
-planning can simply focus more on the operator-stated taste components.
+elements. New pack elements are selected and pinned; ordering by pin remains
+for legacy/external rows so content planning can detect and de-prioritize old
+violations.
+
+Analysis writes use one `analysisMarkdown` string plus optional
+`transcriptText`, `userIntent`, confidence, and retrieval metadata. Headings
+such as `Breakdown`, `Why It Works`, and `Reuse Notes` are prose conventions,
+not schema fields. This keeps the capture contract usable for videos, posts,
+websites, landing pages, screenshots, documents, and notes.
 
 `retrieval:createTastyPack` returns complete elements inside
 `captures[].elements[]`:
@@ -147,8 +162,8 @@ npx convex run modules/resourceBank/maintenance:backfillCreativeElementPins \
 ```
 
 The one-time pin backfill treated the preexisting curated corpus as important
-saved taste. New ingests should only pin elements when the operator's ingestion
-note explicitly says that ingredient matters.
+saved taste. New ingests create an element only when the operator's ingestion
+note explicitly says that ingredient matters, and active writes always pin it.
 
 Brand Kits are the approved durable identity layer above Resource Bank. Resource
 Bank creative elements remain observed inspiration/candidates; Brand Kit
@@ -165,7 +180,7 @@ production skills can resolve one immutable packet through
 when kit element counts, collaboration, per-element audit history, or cross-kit
 reuse make the embedded row materially hard to operate.
 
-Brand Kit element snapshots use the same nine kinds as Resource Bank creative
+Brand Kit element snapshots use the same six kinds as Resource Bank creative
 elements. Each snapshot copies `description`, `whyItWorks`, `goldenRecipe`, and
 a stable displayable `goldenExample` locator:
 
@@ -222,8 +237,9 @@ UI depend on external skill internals.
 
 Promotion dedupe hashes approved content plus stable source URLs, not resettable
 Resource Bank row or storage IDs. Optional idempotency keys are stored only as
-non-secret hashes tied to the content snapshot, so exact retries dedupe while a
-meaningfully changed approved instruction creates a new revision.
+non-secret hashes tied to the content snapshot. An unchanged retry is a no-op;
+when the same Resource Bank element changes, promotion replaces that kit snapshot
+and bumps the revision instead of appending a duplicate.
 
 TASK-0068 used a guarded snapshot, reset, reingest, and atomic Brand Kit
 replacement. The migration completed before the schema became strict; its

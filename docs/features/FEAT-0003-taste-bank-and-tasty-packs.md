@@ -276,8 +276,13 @@ Pinned elements sort ahead of ordinary context elements so the content
 implementation plan can build around them. The production pattern emerges from
 the ordered element list instead of a competing stored object.
 
-Creative element kinds include `visual`, `audio`, `hook`, `storyboard`,
-`editing`, `copy`, `character`, `format`, and `constraint`. Use `character` for
+Creative element kinds are `format`, `storyboard`, `visual`, `character`,
+`audio`, and `editing`. A candidate becomes an element only when it is
+independently selectable, independently conditionable from an example, and
+owned by a recognizable production step. Opening hooks and semantic copy belong
+inside `storyboard`; subtitle rendering and timing belong inside `editing`;
+rights and IP restrictions belong in production policy or a Brand Kit prompt.
+Use `character` for
 distinctive personas, guides, archetypes, mascots, or recurring figures such as
 "deadpan tech shaman" or "old-school corporate trainer"; pair it with remix
 constraints when likeness or IP should not be copied.

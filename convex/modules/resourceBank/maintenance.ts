@@ -110,7 +110,9 @@ export const countLegacyCreativeElements = query({
       ctx.db.query("resourceBankCreativeElements").collect(),
       ctx.db.query("brandKits").collect(),
     ]);
-    const legacyCreativeElements = creativeElements.filter((row) => !isCompleteResourceElement(row));
+    const legacyCreativeElements = creativeElements.filter(
+      (row) => !isCompleteResourceElement(row),
+    );
     const legacyBrandKitElements = brandKits.flatMap((kit) =>
       kit.elements
         .filter((element) => !isCompleteBrandKitElement(element))
@@ -225,7 +227,8 @@ export const resetResourceBankAfterSnapshot = mutation({
 
 function isCompleteResourceElement(element: Doc<"resourceBankCreativeElements">): boolean {
   return Boolean(
-    cleanText(element.whyItWorks, 2_000) &&
+    isCanonicalCreativeElementKind(element.kind) &&
+      cleanText(element.whyItWorks, 2_000) &&
       element.goldenExample.assetId &&
       cleanText(element.goldenRecipe, 6_000),
   );
@@ -233,24 +236,32 @@ function isCompleteResourceElement(element: Doc<"resourceBankCreativeElements">)
 
 function isCompleteBrandKitElement(element: Doc<"brandKits">["elements"][number]): boolean {
   return Boolean(
-    isCanonicalKind(element.kind) &&
+    isCanonicalCreativeElementKind(element.kind) &&
       cleanText(element.description, 2_000) &&
       cleanText(element.whyItWorks, 2_000) &&
-      element.goldenExample &&
+      hasStableBrandKitGoldenExample(element.goldenExample) &&
       cleanText(element.goldenRecipe, 6_000),
   );
 }
 
-function isCanonicalKind(kind: string): boolean {
-  return [
-    "visual",
-    "audio",
-    "hook",
-    "storyboard",
-    "editing",
-    "copy",
-    "character",
-    "format",
-    "constraint",
-  ].includes(kind);
+export function isCanonicalCreativeElementKind(kind: string): boolean {
+  return ["visual", "audio", "storyboard", "editing", "character", "format"].includes(kind);
+}
+
+export function hasStableBrandKitGoldenExample(example: {
+  title?: string;
+  assetId?: unknown;
+  storageId?: unknown;
+  sourceUrl?: string;
+  canonicalUrl?: string;
+  localPath?: string;
+}): boolean {
+  return Boolean(
+    cleanText(example.title, 240) &&
+      (example.assetId ||
+        example.storageId ||
+        cleanText(example.sourceUrl, 2_000) ||
+        cleanText(example.canonicalUrl, 2_000) ||
+        cleanText(example.localPath, 2_000)),
+  );
 }

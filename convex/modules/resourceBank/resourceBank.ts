@@ -41,17 +41,10 @@ export type ResourceBankAssetRow = {
 export type ResourceBankAnalysisRow = {
   _id?: string;
   assetId: string;
-  analysisType: string;
   sourceSkill?: string;
-  facts?: string[];
-  interpretation?: string[];
+  analysisMarkdown: string;
   userIntent?: string;
-  whyItWorks: string[];
-  takeaways: string[];
   transcriptText?: string;
-  frameNotes?: string;
-  promptGuess?: string;
-  remixConstraints: string[];
   confidence?: string;
   embeddingText: string;
   tags: string[];
@@ -78,16 +71,7 @@ export type ResourceBankCreativeElementRow = {
   ingestionJobId?: string;
   assetId: string;
   analysisId?: string;
-  kind:
-    | "visual"
-    | "audio"
-    | "hook"
-    | "storyboard"
-    | "editing"
-    | "copy"
-    | "character"
-    | "format"
-    | "constraint";
+  kind: "visual" | "audio" | "storyboard" | "editing" | "character" | "format";
   title: string;
   description: string;
   whyItWorks: string;
@@ -276,14 +260,13 @@ export type TastyPackElement = {
 
 export type TastyPackAnalysis = {
   operatorNote?: string;
-  summary: string[];
-  whySaved: string[];
-  extractionLimits: string[];
+  markdown: string;
 };
 
 export type TastyPackCapture = {
   captureId: string;
   source: TastyPackSource;
+  transcript?: string;
   analysis: TastyPackAnalysis;
   elements: TastyPackElement[];
 };
@@ -586,6 +569,7 @@ export function buildTastyPack(input: {
     return {
       captureId: asset._id ?? `asset-${asset.createdAtMs}`,
       source: toSource(asset),
+      transcript: analyses.find((analysis) => analysis.transcriptText)?.transcriptText,
       analysis: toAnalysisSummary(analyses, asset),
       elements: elements.map(toElement),
     };
@@ -707,9 +691,10 @@ function toAnalysisSummary(
 ): TastyPackAnalysis {
   return {
     operatorNote: asset?.operatorNote,
-    summary: analyses.flatMap((analysis) => analysis.whyItWorks).slice(0, 6),
-    whySaved: analyses.flatMap((analysis) => analysis.takeaways).slice(0, 6),
-    extractionLimits: analyses.flatMap((analysis) => analysis.remixConstraints).slice(0, 6),
+    markdown: analyses
+      .map((analysis) => analysis.analysisMarkdown)
+      .filter(Boolean)
+      .join("\n\n"),
   };
 }
 
@@ -727,33 +712,15 @@ export function buildAssetSearchableText(input: {
 }
 
 export function buildAnalysisEmbeddingText(input: {
-  facts?: readonly string[];
-  frameNotes?: string;
-  interpretation?: readonly string[];
-  promptGuess?: string;
-  remixConstraints?: readonly string[];
-  takeaways?: readonly string[];
+  analysisMarkdown: string;
   transcriptText?: string;
   userIntent?: string;
-  whyItWorks?: readonly string[];
 }): string {
   return [
-    "Facts",
-    ...(input.facts ?? []),
     "User intent",
     input.userIntent,
-    "Interpretation",
-    ...(input.interpretation ?? []),
-    "Why it works",
-    ...(input.whyItWorks ?? []),
-    "Takeaways",
-    ...(input.takeaways ?? []),
-    "Prompt guess",
-    input.promptGuess,
-    "Remix constraints",
-    ...(input.remixConstraints ?? []),
-    "Frame notes",
-    input.frameNotes,
+    "Analysis",
+    input.analysisMarkdown,
     "Transcript",
     input.transcriptText,
   ]

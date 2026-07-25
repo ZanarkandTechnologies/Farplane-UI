@@ -11,17 +11,26 @@ import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../../_generated/server";
 import { getAssetOrThrow, getJobOrThrow, nowMs, toBrandKitRow } from "./records";
 import {
+  type BrandKitRow,
   buildBrandKitIdempotencyHash,
   buildBrandKitSourceSnapshotHash,
   cleanText,
   mergeTags,
   requireCleanText,
-  type BrandKitRow,
 } from "./resourceBank";
 
 type BrandKit = Doc<"brandKits">;
 type ResourceElement = Doc<"resourceBankCreativeElements">;
 type ResourceAsset = Doc<"resourceBankAssets">;
+
+type PromotionCandidate = {
+  elementId: string;
+  sourceSnapshotHash: string;
+  provenance: {
+    resourceElementId?: Id<"resourceBankCreativeElements">;
+    idempotencyKeyHash?: string;
+  };
+};
 
 export async function resolveBrandKit(
   ctx: Pick<QueryCtx | MutationCtx, "db">,
@@ -77,10 +86,7 @@ export async function toBrandKitViewRow(ctx: QueryCtx, row: BrandKit) {
   };
 }
 
-export async function toBrandKitProductionRow(
-  ctx: QueryCtx,
-  row: BrandKit,
-): Promise<BrandKitRow> {
+export async function toBrandKitProductionRow(ctx: QueryCtx, row: BrandKit): Promise<BrandKitRow> {
   const view = await toBrandKitViewRow(ctx, row);
   const elements = view.elements.map((element) => {
     const description = requireCleanText(
@@ -144,6 +150,7 @@ export async function promoteResourceElementIds(
 ) {
   const timestamp = nowMs();
   const createdElementIds: string[] = [];
+  const updatedElementIds: string[] = [];
   const dedupedElementIds: string[] = [];
   const sourceElementIds: Id<"resourceBankCreativeElements">[] = [];
   const nextElements = [...row.elements];
@@ -164,27 +171,54 @@ export async function promoteResourceElementIds(
       idempotencyKey: args.idempotencyKey,
     });
     sourceElementIds.push(elementId);
-    const existing = nextElements.find(
-      (candidate) =>
-        candidate.sourceSnapshotHash === snapshot.sourceSnapshotHash ||
-        (snapshot.provenance.idempotencyKeyHash !== undefined &&
-          candidate.provenance.idempotencyKeyHash === snapshot.provenance.idempotencyKeyHash),
-    );
-    if (existing) {
-      dedupedElementIds.push(existing.elementId);
+    const disposition = classifyBrandKitPromotion(nextElements, elementId, snapshot);
+    if (disposition.action === "dedupe") {
+      dedupedElementIds.push(disposition.elementId);
+      continue;
+    }
+    if (disposition.action === "update") {
+      nextElements[disposition.index] = snapshot;
+      updatedElementIds.push(snapshot.elementId);
       continue;
     }
     nextElements.push(snapshot);
     createdElementIds.push(snapshot.elementId);
   }
-  if (createdElementIds.length > 0) {
+  if (createdElementIds.length > 0 || updatedElementIds.length > 0) {
     await ctx.db.patch(row._id, {
       elements: nextElements,
       revision: row.revision + 1,
       updatedAtMs: timestamp,
     });
   }
-  return promotionReceipt(row, createdElementIds, dedupedElementIds, sourceElementIds);
+  return promotionReceipt(
+    row,
+    createdElementIds,
+    dedupedElementIds,
+    sourceElementIds,
+    updatedElementIds,
+  );
+}
+
+export function classifyBrandKitPromotion(
+  elements: readonly PromotionCandidate[],
+  sourceElementId: Id<"resourceBankCreativeElements">,
+  snapshot: PromotionCandidate,
+):
+  | { action: "dedupe"; elementId: string }
+  | { action: "update"; index: number }
+  | { action: "create" } {
+  const exact = elements.find(
+    (candidate) =>
+      candidate.sourceSnapshotHash === snapshot.sourceSnapshotHash ||
+      (snapshot.provenance.idempotencyKeyHash !== undefined &&
+        candidate.provenance.idempotencyKeyHash === snapshot.provenance.idempotencyKeyHash),
+  );
+  if (exact) return { action: "dedupe", elementId: exact.elementId };
+  const sourceIndex = elements.findIndex(
+    (candidate) => candidate.provenance.resourceElementId === sourceElementId,
+  );
+  return sourceIndex >= 0 ? { action: "update", index: sourceIndex } : { action: "create" };
 }
 
 export function assertDisplayableGoldenExample(example: {
@@ -238,12 +272,15 @@ export function promotionReceipt(
   createdElementIds: string[],
   dedupedElementIds: string[],
   sourceElementIds: Id<"resourceBankCreativeElements">[],
+  updatedElementIds: string[] = [],
 ) {
+  const changed = createdElementIds.length > 0 || updatedElementIds.length > 0;
   return {
     brandKitId: row.kitId,
     revisionBefore: row.revision,
-    revisionAfter: createdElementIds.length > 0 ? row.revision + 1 : row.revision,
+    revisionAfter: changed ? row.revision + 1 : row.revision,
     createdElementIds,
+    updatedElementIds,
     dedupedElementIds,
     sourceElementIds,
   };
@@ -259,16 +296,8 @@ function snapshotFromResourceElement(input: {
 }) {
   const kind = input.element.kind;
   const title = cleanText(input.element.title, 240) ?? "Untitled brand element";
-  const description = requireCleanText(
-    input.element.description,
-    "brand_kit_description",
-    2_000,
-  );
-  const whyItWorks = requireCleanText(
-    input.element.whyItWorks,
-    "brand_kit_why_it_works",
-    2_000,
-  );
+  const description = requireCleanText(input.element.description, "brand_kit_description", 2_000);
+  const whyItWorks = requireCleanText(input.element.whyItWorks, "brand_kit_why_it_works", 2_000);
   const goldenRecipe = requireCleanText(
     input.element.goldenRecipe,
     "brand_kit_golden_recipe",
@@ -323,10 +352,7 @@ function snapshotFromResourceElement(input: {
   };
 }
 
-async function hydrateBrandKitGoldenExample(
-  ctx: QueryCtx,
-  element: BrandKit["elements"][number],
-) {
+async function hydrateBrandKitGoldenExample(ctx: QueryCtx, element: BrandKit["elements"][number]) {
   return {
     ...element.goldenExample,
     storageUrl: element.goldenExample.storageId

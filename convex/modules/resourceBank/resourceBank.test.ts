@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
+import type { Id } from "../../_generated/dataModel";
+import { classifyBrandKitPromotion } from "./brandKitSupport";
 import { assertBrandKitPromptRevision, assertBrandKitRevision } from "./brandKits";
+import { hasStableBrandKitGoldenExample, isCanonicalCreativeElementKind } from "./maintenance";
+import {
+  addCreativeElementArgsValidator,
+  updateCreativeElementArgsValidator,
+} from "./validators";
 
 import {
   assertSafeProviderHandles,
@@ -26,6 +33,33 @@ import {
 } from "./resourceBank";
 
 describe("resource bank helpers", () => {
+  it("requires selected creative-element writes and does not expose unpinning", () => {
+    expect(addCreativeElementArgsValidator.pinned).toMatchObject({
+      kind: "literal",
+      value: true,
+    });
+    expect("pinned" in updateCreativeElementArgsValidator).toBe(false);
+  });
+
+  it("audits only the six governed kinds and stable Brand Kit example locators", () => {
+    expect(
+      ["format", "storyboard", "visual", "character", "audio", "editing"].every(
+        isCanonicalCreativeElementKind,
+      ),
+    ).toBe(true);
+    expect(["hook", "copy", "constraint"].some(isCanonicalCreativeElementKind)).toBe(false);
+    expect(
+      hasStableBrandKitGoldenExample({
+        title: "Golden frame",
+        sourceUrl: "https://example.com/frame.jpg",
+      }),
+    ).toBe(true);
+    expect(hasStableBrandKitGoldenExample({ title: "Golden frame" })).toBe(false);
+    expect(hasStableBrandKitGoldenExample({ sourceUrl: "https://example.com/frame.jpg" })).toBe(
+      false,
+    );
+  });
+
   it("rejects stale optimistic Brand Kit and prompt revisions", () => {
     expect(() => assertBrandKitRevision({ revision: 4 }, 4)).not.toThrow();
     expect(() => assertBrandKitRevision({ revision: 4 }, 3)).toThrow("brand_kit_revision_mismatch");
@@ -46,11 +80,10 @@ describe("resource bank helpers", () => {
 
   it("builds explicit embedding text from selected fields", () => {
     const analysisText = buildAnalysisEmbeddingText({
-      facts: ["first minute uses warm key light"],
-      interpretation: ["contrast cuts keep the open fast"],
-      whyItWorks: ["lighting separates face from dense background"],
-      takeaways: ["reuse lighting and pacing, not the creator identity"],
-      promptGuess: "warm side key, dense desk background, fast jump cuts",
+      analysisMarkdown:
+        "## Breakdown\nThe first minute uses warm key light and fast contrast cuts.\n\n## Why It Works\nLighting separates the face from a dense background.",
+      transcriptText: "The opening introduces the contrast immediately.",
+      userIntent: "Reuse lighting and pacing, not the creator identity.",
     });
     const skillText = buildSkillFindingEmbeddingText({
       label: "Warm side-key talking-head open",
@@ -70,7 +103,8 @@ describe("resource bank helpers", () => {
     });
 
     expect(analysisText).toContain("first minute uses warm key light");
-    expect(analysisText).toContain("warm side key");
+    expect(analysisText).toContain("Reuse lighting and pacing");
+    expect(analysisText).toContain("opening introduces the contrast");
     expect(skillText).toContain("Break down lighting");
     expect(skillText).toContain("skill:video-lighting");
     expect(elementText).toContain("Reveal with fast caption movement");
@@ -79,16 +113,18 @@ describe("resource bank helpers", () => {
     expect(elementText).toContain("0-3s");
   });
 
-  it("normalizes Brand Kit ids and preserves Resource Bank kinds in kit snapshots", () => {
+  it("normalizes Brand Kit ids and preserves the six production-owned kinds", () => {
     expect(normalizeBrandKitSlug(" Farplane Creator Kit! ")).toBe("farplane-creator-kit");
     expect(normalizeBrandKitId(" Farplane Creator Kit! ")).toBe("brand-kit:farplane-creator-kit");
     expect(normalizeBrandKitId("brand-kit:farplane-creator-kit")).toBe(
       "brand-kit:farplane-creator-kit",
     );
-    expect(mapResourceKindToBrandKitKind("hook")).toBe("hook");
-    expect(mapResourceKindToBrandKitKind("copy")).toBe("copy");
+    expect(mapResourceKindToBrandKitKind("format")).toBe("format");
     expect(mapResourceKindToBrandKitKind("storyboard")).toBe("storyboard");
-    expect(mapResourceKindToBrandKitKind("constraint")).toBe("constraint");
+    expect(mapResourceKindToBrandKitKind("visual")).toBe("visual");
+    expect(mapResourceKindToBrandKitKind("character")).toBe("character");
+    expect(mapResourceKindToBrandKitKind("audio")).toBe("audio");
+    expect(mapResourceKindToBrandKitKind("editing")).toBe("editing");
   });
 
   it("creates stable snapshot hashes independent of object key order", () => {
@@ -100,7 +136,7 @@ describe("resource bank helpers", () => {
 
   it("keeps Brand Kit source snapshot hashes independent of promotion idempotency", () => {
     const snapshotInput = {
-      kind: "hook" as const,
+      kind: "storyboard" as const,
       title: "Cold open",
       description: "Open on the strongest visual.",
       whyItWorks: "Immediate visual proof reduces setup time.",
@@ -142,6 +178,36 @@ describe("resource bank helpers", () => {
         goldenExample: { title: "Different crop", sourceUrl: "https://example.com/post#crop" },
       }),
     ).not.toBe(buildBrandKitSourceSnapshotHash(input));
+  });
+
+  it("dedupes unchanged promotions and replaces changed snapshots from the same source element", () => {
+    const sourceElementId = "ks7source" as Id<"resourceBankCreativeElements">;
+    const existing = {
+      elementId: "resource:old",
+      sourceSnapshotHash: "hash-old",
+      provenance: { resourceElementId: sourceElementId, idempotencyKeyHash: "key-old" },
+    };
+
+    expect(
+      classifyBrandKitPromotion([existing], sourceElementId, {
+        ...existing,
+        elementId: "resource:same",
+      }),
+    ).toEqual({ action: "dedupe", elementId: "resource:old" });
+    expect(
+      classifyBrandKitPromotion([existing], sourceElementId, {
+        elementId: "resource:new",
+        sourceSnapshotHash: "hash-new",
+        provenance: { resourceElementId: sourceElementId, idempotencyKeyHash: "key-new" },
+      }),
+    ).toEqual({ action: "update", index: 0 });
+    expect(
+      classifyBrandKitPromotion([], sourceElementId, {
+        elementId: "resource:new",
+        sourceSnapshotHash: "hash-new",
+        provenance: { resourceElementId: sourceElementId },
+      }),
+    ).toEqual({ action: "create" });
   });
 
   it("rejects provider handles that look like secrets", () => {
@@ -208,10 +274,10 @@ describe("resource bank helpers", () => {
       },
       elements: [
         {
-          elementId: "manual:hook",
-          kind: "hook" as const,
-          title: "Deadpan opening line",
-          description: "Open with a dry one-line premise.",
+          elementId: "manual:storyboard",
+          kind: "storyboard" as const,
+          title: "Deadpan opening beat",
+          description: "Open with a dry one-line premise, then reveal the visual proof.",
           whyItWorks: "The understated delivery lets the visual absurdity land.",
           goldenExample: { title: "Opening line", sourceUrl: "https://example.com/open" },
           goldenRecipe: "Write one short deadpan line that makes the premise obvious.",
@@ -252,7 +318,7 @@ describe("resource bank helpers", () => {
     expect(snapshot.kitRevision).toBe(8);
     expect(snapshot.prompt).toEqual(kit.prompt);
     expect(snapshot.elements.map((element) => element.elementId)).toEqual([
-      "manual:hook",
+      "manual:storyboard",
       "manual:visual",
     ]);
     expect(snapshot.elements[0]?.goldenRecipe).toContain("deadpan");
@@ -309,10 +375,8 @@ describe("resource bank helpers", () => {
         {
           _id: "analysis-1",
           assetId: "asset-1",
-          analysisType: "video",
-          whyItWorks: ["clear structure"],
-          takeaways: ["reuse the cold open"],
-          remixConstraints: [],
+          analysisMarkdown:
+            "## Breakdown\nThe source has a clear structure.\n\n## Reuse Notes\nReuse the cold open.",
           embeddingText: "clear structure",
           tags: ["format:short-video"],
           createdAtMs: 10,
@@ -322,7 +386,7 @@ describe("resource bank helpers", () => {
         {
           _id: "element-1",
           assetId: "asset-1",
-          kind: "hook",
+          kind: "storyboard",
           title: "Cold open",
           description: "Open on the strongest visual.",
           whyItWorks: "The viewer understands the payoff before the explanation starts.",
@@ -332,7 +396,7 @@ describe("resource bank helpers", () => {
           },
           goldenRecipe: "Generate a cold open that starts on the strongest proof frame.",
           anchor: "hero",
-          pinned: false,
+          pinned: true,
           embeddingText: "cold open",
           tags: ["format:short-video"],
           createdAtMs: 10,
@@ -507,12 +571,9 @@ describe("resource bank helpers", () => {
         {
           _id: "analysis-1",
           assetId: "asset-1",
-          analysisType: "video",
-          whyItWorks: ["The reel makes an AI employee premise instantly legible."],
-          takeaways: ["Operator liked the first three seconds and transformation pattern."],
-          remixConstraints: [
-            "Audio was not fingerprinted; exact source footage should not be copied.",
-          ],
+          analysisMarkdown:
+            "## Breakdown\nThe reel makes an AI employee premise instantly legible.\n\n## Reuse Notes\nThe operator liked the first three seconds and transformation pattern. Audio was not fingerprinted; exact source footage should not be copied.",
+          transcriptText: "Meet your new AI office employee.",
           embeddingText: "AI office employee transformation reel",
           tags: ["style:old-school-corporate"],
           createdAtMs: 999_050,
@@ -523,41 +584,22 @@ describe("resource bank helpers", () => {
           _id: "element-1",
           ingestionJobId: "job-1",
           assetId: "asset-1",
-          kind: "hook",
-          title: "Office-worker transformation hook",
-          description: "The first three seconds show a jarring office-worker transformation.",
+          kind: "storyboard",
+          title: "Cold-open agent identity reveal",
+          description:
+            "The first three seconds show a jarring office-worker transformation before the scene flips into the AI employee-agent premise.",
           whyItWorks: "The transformation makes the AI employee premise legible immediately.",
           goldenExample: {
             assetId: "asset-1",
-            description: "Opening transformation beat.",
+            description: "Opening transformation and identity-reveal beats.",
           },
           goldenRecipe:
-            "Generate a 3-second office-worker transformation that reveals the AI employee premise.",
-          anchor: "0-3s",
-          pinned: false,
-          embeddingText: "first three seconds office-worker transformation hook",
+            "Storyboard a jarring office-worker transformation that opens immediately and flips into an AI employee-agent reveal.",
+          anchor: "opening beat",
+          pinned: true,
+          embeddingText: "cold open office-worker transformation AI employee agent reveal",
           tags: ["style:old-school-corporate"],
           createdAtMs: 999_100,
-        },
-        {
-          _id: "element-2",
-          ingestionJobId: "job-1",
-          assetId: "asset-1",
-          kind: "storyboard",
-          title: "Agent identity reveal",
-          description: "A human office scene flips into an AI employee-agent premise.",
-          whyItWorks: "The scene flip gives the abstract product idea a visible before/after.",
-          goldenExample: {
-            assetId: "asset-1",
-            description: "Human office scene flips into agent identity.",
-          },
-          goldenRecipe:
-            "Storyboard a human office scene that flips into an AI employee-agent reveal.",
-          anchor: "3-8s",
-          pinned: true,
-          embeddingText: "timeline beat AI office employee agent reveal",
-          tags: ["story:agent-reveal"],
-          createdAtMs: 999_200,
         },
         {
           _id: "element-3",
@@ -584,11 +626,11 @@ describe("resource bank helpers", () => {
     expect(pack.captures).toHaveLength(1);
     expect(pack.captures[0]?.source.sourceHandle).toBe("https://example.com/reel");
     expect(pack.captures[0]?.analysis.operatorNote).toContain("fast identity reveal");
-    expect(pack.captures[0]?.analysis.whySaved[0]).toContain("first three seconds");
+    expect(pack.captures[0]?.analysis.markdown).toContain("first three seconds");
+    expect(pack.captures[0]?.transcript).toBe("Meet your new AI office employee.");
     expect(pack.captures[0]?.elements.map((element) => element.kind)).toEqual([
       "character",
       "storyboard",
-      "hook",
     ]);
     expect(pack.captures[0]?.elements[0]?.title).toBe("Deadpan legacy-office guide");
     expect(pack.captures[0]?.elements[0]?.pinned).toBe(true);
@@ -612,7 +654,7 @@ describe("resource bank helpers", () => {
       {
         _id: "ordinary-recent",
         assetId: "asset-1",
-        kind: "copy",
+        kind: "editing",
         title: "Ordinary recent",
         description: "Useful context.",
         whyItWorks: "The wording stays direct enough to scan.",
@@ -626,12 +668,12 @@ describe("resource bank helpers", () => {
       {
         _id: "pinned-older",
         assetId: "asset-1",
-        kind: "hook",
+        kind: "format",
         title: "Pinned older",
         description: "Important operator taste.",
-        whyItWorks: "The hook reflects the operator-stated priority.",
-        goldenExample: { assetId: "asset-1", description: "Pinned hook frame." },
-        goldenRecipe: "Generate a hook around the operator-stated priority.",
+        whyItWorks: "The format reflects the operator-stated priority.",
+        goldenExample: { assetId: "asset-1", description: "Pinned format example." },
+        goldenRecipe: "Generate the format around the operator-stated priority.",
         pinned: true,
         embeddingText: "pinned older",
         tags: [],
@@ -660,7 +702,7 @@ describe("resource bank helpers", () => {
     ]);
   });
 
-  it("warns when an operator note produces no pinned elements", () => {
+  it("warns for a legacy unselected element when an operator note exists", () => {
     const filters = resolveTastyPackFilters({ timeframe: "past_week" }, 1_000_000);
     const pack = buildTastyPack({
       filters,

@@ -132,11 +132,10 @@ export const retrieveForCreation = query({
       packets.push({
         assetId: asset._id,
         title: asset.title,
-        why_relevant: analyses[0]?.whyItWorks ?? [],
+        why_relevant: analyses[0]?.analysisMarkdown,
         skill_findings: findings.map(toSkillFindingRow),
         source_analysis: analyses.map(toAnalysisRow),
-        prompt_guess: analyses.find((analysis) => analysis.promptGuess)?.promptGuess,
-        remix_constraints: analyses.flatMap((analysis) => analysis.remixConstraints),
+        transcript: analyses.find((analysis) => analysis.transcriptText)?.transcriptText,
         attribution: {
           author: asset.author,
           status: asset.attributionStatus,

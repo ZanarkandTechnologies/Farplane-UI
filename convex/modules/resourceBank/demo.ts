@@ -59,15 +59,18 @@ export const seedDemoResourceBank = mutation({
     const analysisId = await ctx.db.insert("resourceBankAnalyses", {
       ingestionJobId: jobId,
       assetId,
-      analysisType: "video",
       sourceSkill: "ingest-content",
-      facts: ["The requested scope is the first minute."],
-      interpretation: ["Warm side lighting separates the subject from a dense background."],
+      analysisMarkdown: [
+        "## Breakdown",
+        "The requested scope is the first minute. Warm side lighting separates the subject from a dense background, while quick contrast cuts keep the opening moving.",
+        "",
+        "## Why It Works",
+        "The first minute combines a legible hook with quick contrast edits.",
+        "",
+        "## Reuse Notes",
+        "Reuse the lighting setup and pacing map without copying the exact footage, creator identity, or caption wording.",
+      ].join("\n"),
       userIntent: "Reuse the structure, lighting, and editing technique later.",
-      whyItWorks: ["The first minute combines a legible hook with quick contrast edits."],
-      takeaways: ["Reuse the lighting setup and pacing map without copying the creator."],
-      promptGuess: "Warm side-key talking head, dense background, quick contrast cuts.",
-      remixConstraints: ["Do not copy the exact footage, creator identity, or caption wording."],
       confidence: "medium",
       embeddingTarget: "analysis_search",
       embeddingText:
@@ -101,15 +104,16 @@ export const seedDemoResourceBank = mutation({
       ingestionJobId: jobId,
       assetId,
       analysisId,
-      kind: "hook",
-      title: "Warm side-key cold open",
+      kind: "storyboard",
+      title: "Warm side-key cold-open sequence",
       description:
         "Open with a face-forward warm side key and quick contrast cut before the first beat settles.",
       whyItWorks:
         "The warm face-first frame establishes a human focal point, then the immediate contrast cut earns a second look before the premise settles.",
       goldenExample: {
         assetId,
-        description: "The primary demo video, specifically its face-first opening and first contrast cut.",
+        description:
+          "The primary demo video, specifically its face-first opening and first contrast cut.",
       },
       goldenRecipe:
         "Create a 0-3 second cold open for the supplied topic: begin on one warmly side-lit face filling the frame, state the concrete consequence in one clause, then hard-cut to a visually opposite proof image before the clause ends.",

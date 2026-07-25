@@ -104,31 +104,13 @@ export const addResourceAssetArgsValidator = {
   retentionNote: v.optional(v.string()),
 };
 
-export const analysisTypeValidator = v.union(
-  v.literal("summary"),
-  v.literal("visual"),
-  v.literal("video"),
-  v.literal("copy"),
-  v.literal("style"),
-  v.literal("prompt"),
-  v.literal("skill-extraction"),
-  v.literal("usefulness"),
-);
-
 export const addResourceAnalysisArgsValidator = {
   jobId: v.id("resourceBankIngestionJobs"),
   assetId: v.id("resourceBankAssets"),
-  analysisType: analysisTypeValidator,
   sourceSkill: v.string(),
-  facts: v.optional(v.array(v.string())),
-  interpretation: v.optional(v.array(v.string())),
+  analysisMarkdown: v.string(),
   userIntent: v.optional(v.string()),
-  whyItWorks: v.optional(v.array(v.string())),
-  takeaways: v.optional(v.array(v.string())),
   transcriptText: v.optional(v.string()),
-  frameNotes: v.optional(v.string()),
-  promptGuess: v.optional(v.string()),
-  remixConstraints: v.optional(v.array(v.string())),
   confidence: v.optional(confidenceValidator),
   embeddingText: v.optional(v.string()),
   embeddingModel: v.optional(v.string()),
@@ -146,13 +128,10 @@ export const findingKindValidator = v.union(
 export const creativeElementKindValidator = v.union(
   v.literal("visual"),
   v.literal("audio"),
-  v.literal("hook"),
   v.literal("storyboard"),
   v.literal("editing"),
-  v.literal("copy"),
   v.literal("character"),
   v.literal("format"),
-  v.literal("constraint"),
 );
 
 export const brandKitElementKindValidator = creativeElementKindValidator;
@@ -247,7 +226,7 @@ export const addCreativeElementArgsValidator = {
   goldenExample: creativeElementGoldenExampleValidator,
   goldenRecipe: v.string(),
   anchor: v.optional(v.string()),
-  pinned: v.optional(v.boolean()),
+  pinned: v.literal(true),
   embeddingText: v.optional(v.string()),
   embedding: v.optional(v.array(v.float64())),
   tags: v.optional(v.array(v.string())),
@@ -262,7 +241,6 @@ export const updateCreativeElementArgsValidator = {
   goldenExample: v.optional(creativeElementGoldenExampleValidator),
   goldenRecipe: v.optional(v.string()),
   anchor: v.optional(v.string()),
-  pinned: v.optional(v.boolean()),
   tags: v.optional(v.array(v.string())),
 };
 

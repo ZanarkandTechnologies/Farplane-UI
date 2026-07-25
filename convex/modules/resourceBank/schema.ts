@@ -118,26 +118,10 @@ export const resourceBankTables = {
   resourceBankAnalyses: defineTable({
     ingestionJobId: v.id("resourceBankIngestionJobs"),
     assetId: v.id("resourceBankAssets"),
-    analysisType: v.union(
-      v.literal("summary"),
-      v.literal("visual"),
-      v.literal("video"),
-      v.literal("copy"),
-      v.literal("style"),
-      v.literal("prompt"),
-      v.literal("skill-extraction"),
-      v.literal("usefulness"),
-    ),
     sourceSkill: v.string(),
-    facts: v.array(v.string()),
-    interpretation: v.array(v.string()),
+    analysisMarkdown: v.string(),
     userIntent: v.optional(v.string()),
-    whyItWorks: v.array(v.string()),
-    takeaways: v.array(v.string()),
     transcriptText: v.optional(v.string()),
-    frameNotes: v.optional(v.string()),
-    promptGuess: v.optional(v.string()),
-    remixConstraints: v.array(v.string()),
     confidence: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
     embeddingTarget: v.literal("analysis_search"),
     embeddingText: v.string(),
@@ -153,12 +137,12 @@ export const resourceBankTables = {
     .index("by_project_createdAtMs", ["projectId", "createdAtMs"])
     .searchIndex("search_analysis", {
       searchField: "embeddingText",
-      filterFields: ["analysisType", "projectId", "taskId"],
+      filterFields: ["projectId", "taskId"],
     })
     .vectorIndex("by_embedding", {
       vectorField: "embedding",
       dimensions: RESOURCE_BANK_EMBEDDING_DIMENSIONS,
-      filterFields: ["analysisType", "projectId", "taskId"],
+      filterFields: ["projectId", "taskId"],
     }),
 
   resourceBankSkillFindings: defineTable({
@@ -217,13 +201,10 @@ export const resourceBankTables = {
         kind: v.union(
           v.literal("visual"),
           v.literal("audio"),
-          v.literal("hook"),
           v.literal("storyboard"),
           v.literal("editing"),
-          v.literal("copy"),
           v.literal("character"),
           v.literal("format"),
-          v.literal("constraint"),
         ),
         title: v.string(),
         description: v.string(),
@@ -290,13 +271,10 @@ export const resourceBankTables = {
     kind: v.union(
       v.literal("visual"),
       v.literal("audio"),
-      v.literal("hook"),
       v.literal("storyboard"),
       v.literal("editing"),
-      v.literal("copy"),
       v.literal("character"),
       v.literal("format"),
-      v.literal("constraint"),
     ),
     title: v.string(),
     description: v.string(),

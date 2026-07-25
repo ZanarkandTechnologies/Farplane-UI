@@ -92,7 +92,7 @@ export const addCreativeElement = mutation({
       goldenExample,
       goldenRecipe,
       anchor: cleanText(args.anchor, 500),
-      pinned: args.pinned ?? false,
+      pinned: true,
       embeddingTarget: "creative_element_search",
       embeddingText,
       embedding: args.embedding,
@@ -270,7 +270,7 @@ export const updateCreativeElement = mutation({
       goldenExample,
       goldenRecipe,
       anchor,
-      pinned: args.pinned ?? row.pinned ?? false,
+      pinned: true,
       tags,
       embeddingText,
     });
@@ -285,7 +285,7 @@ export const updateCreativeElement = mutation({
       goldenExample: updated.goldenExample,
       goldenRecipe: updated.goldenRecipe,
       anchor: updated.anchor,
-      pinned: updated.pinned ?? false,
+      pinned: true,
     };
   },
 });
