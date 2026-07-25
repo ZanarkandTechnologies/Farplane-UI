@@ -65,6 +65,7 @@ collect_source_file_sizes() {
   while IFS= read -r -d '' path; do
     is_excluded_path "$path" && continue
     is_source_file "$path" || continue
+    [ -f "$ROOT/$path" ] || continue
 
     lines="$(wc -l <"$ROOT/$path" | tr -d ' ')"
     if [ "$lines" -ge "$BLOCK_THRESHOLD" ]; then
