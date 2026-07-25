@@ -12,13 +12,10 @@ export type CreativeElementKind =
   | "all"
   | "visual"
   | "audio"
-  | "hook"
   | "storyboard"
   | "editing"
-  | "copy"
   | "character"
-  | "format"
-  | "constraint";
+  | "format";
 
 export type ResourceBankPreviewStatus = {
   state: "ready" | "source_handle" | "missing";
@@ -51,7 +48,9 @@ export type ResourceBankDashboard = {
 
 export type ResourceBankCreativeElement = {
   _id?: Id<"resourceBankCreativeElements">;
+  ingestionJobId?: string;
   assetId: string;
+  analysisId?: string;
   kind: Exclude<CreativeElementKind, "all">;
   title: string;
   description: string;
@@ -70,6 +69,13 @@ export type ResourceBankCreativeElement = {
   assetSourceUrl?: string;
   assetCanonicalUrl?: string;
   previewAsset?: ResourceBankAssetPreview;
+  projectId?: string;
+  taskId?: string;
+};
+
+export type BrandKitPromotionTarget = {
+  elementId: Id<"resourceBankCreativeElements">;
+  title: string;
 };
 
 export type ResourceBankAsset = ResourceBankAssetPreview & {
@@ -85,17 +91,10 @@ export type ResourceBankAsset = ResourceBankAssetPreview & {
   derivedAssets?: ResourceBankAssetPreview[];
   analyses: Array<{
     _id?: string;
-    analysisType: string;
     sourceSkill?: string;
-    facts?: string[];
-    interpretation?: string[];
+    analysisMarkdown: string;
     userIntent?: string;
-    whyItWorks: string[];
-    takeaways: string[];
     transcriptText?: string;
-    frameNotes?: string;
-    promptGuess?: string;
-    remixConstraints: string[];
     confidence?: string;
     createdAtMs: number;
   }>;
@@ -186,6 +185,7 @@ export type BrandKitPromotionReceipt = {
   revisionBefore: number;
   revisionAfter: number;
   createdElementIds: string[];
+  updatedElementIds: string[];
   dedupedElementIds: string[];
   sourceElementIds: string[];
 };

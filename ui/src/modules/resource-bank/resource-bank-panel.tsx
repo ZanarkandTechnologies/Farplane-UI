@@ -20,6 +20,7 @@ import { UI_Z } from "@/lib/z-index";
 import { isConvexEnabled } from "@/providers/convex-provider";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
+import { AddToBrandKitDialog } from "./add-to-brand-kit-dialog";
 import { AssetWorkspace } from "./asset-workspace";
 import { BrandKitWorkspace } from "./brand-kit-workspace";
 import { ElementsWorkspace } from "./elements-workspace";
@@ -28,6 +29,7 @@ import { StatePanel } from "./state-panel";
 import type {
   BrandKit,
   BrandKitPromotionReceipt,
+  BrandKitPromotionTarget,
   CreativeElementKind,
   ResourceBankCreativeElement,
   ResourceBankDashboard,
@@ -45,6 +47,9 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
   const [selectedBrandKitId, setSelectedBrandKitId] = useState<Id<"brandKits"> | null>(null);
   const [defaultBrandKitId, setDefaultBrandKitId] = useState("");
   const [brandConfigState, setBrandConfigState] = useState<"idle" | "loading" | "saving">("idle");
+  const [promotionTarget, setPromotionTarget] = useState<BrandKitPromotionTarget | null>(null);
+  const [promotionKitId, setPromotionKitId] = useState<Id<"brandKits"> | null>(null);
+  const [promotionSaving, setPromotionSaving] = useState(false);
 
   const seedDemo = useMutation(api.modules.resourceBank.demo.seedDemoResourceBank);
   const updateBrandKit = useMutation(api.modules.resourceBank.brandKits.updateBrandKit);
@@ -169,10 +174,9 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
             canSeedDemo={canSeedDemo}
             query={query}
             selectedAsset={selectedAsset}
-            selectedBrandKit={selectedBrandKit}
             onSeedDemo={() => void seedDemo({ confirm: "seed-resource-bank-demo" })}
             onSelectAsset={setSelectedAssetId}
-            onPromoteElementId={handlePromoteElementId}
+            onRequestAddToKit={openKitPicker}
           />
         </TabsContent>
 
@@ -183,9 +187,8 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
           <ElementsWorkspace
             creativeElements={creativeElements}
             elementKind={elementKind}
-            selectedBrandKit={selectedBrandKit}
             onKindChange={setElementKind}
-            onPromoteElement={(element) => void handlePromoteElementId(element._id)}
+            onRequestAddToKit={openKitPicker}
             onSelectAsset={(assetId) => {
               setSelectedAssetId(assetId);
               setActiveTab("assets");
@@ -217,19 +220,34 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
   })();
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="flex h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-md p-0 sm:h-[94dvh] sm:w-[96vw] sm:max-w-[96vw]"
-        style={{ zIndex: UI_Z.panelElevated }}
-      >
-        <DialogHeader className="shrink-0 border-b px-3 py-3 sm:px-4">
-          <DialogTitle className="text-base">Resource Bank</DialogTitle>
-        </DialogHeader>
-        <div className="flex min-h-0 min-w-0 flex-1 px-2 py-2 sm:px-4 sm:py-3">
-          {content}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          className="flex h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-md p-0 sm:h-[94dvh] sm:w-[96vw] sm:max-w-[96vw]"
+          style={{ zIndex: UI_Z.panelElevated }}
+        >
+          <DialogHeader className="shrink-0 border-b px-3 py-3 sm:px-4">
+            <DialogTitle className="text-base">Resource Bank</DialogTitle>
+          </DialogHeader>
+          <div className="flex min-h-0 min-w-0 flex-1 px-2 py-2 sm:px-4 sm:py-3">{content}</div>
+        </DialogContent>
+      </Dialog>
+      <AddToBrandKitDialog
+        element={promotionTarget}
+        brandKits={activeBrandKits}
+        defaultBrandKitId={defaultBrandKitId}
+        selectedKitId={promotionKitId}
+        saving={promotionSaving}
+        onOpenChange={(pickerOpen) => {
+          if (!pickerOpen && !promotionSaving) {
+            setPromotionTarget(null);
+            setPromotionKitId(null);
+          }
+        }}
+        onSelectKit={setPromotionKitId}
+        onConfirm={() => void handleConfirmPromotion()}
+      />
+    </>
   );
 
   async function handleUpdateBrandKit(
@@ -264,23 +282,40 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
     }
   }
 
-  async function handlePromoteElementId(
-    elementId: Id<"resourceBankCreativeElements"> | undefined,
-  ): Promise<void> {
-    if (!selectedBrandKit?._id || !elementId) return;
+  function openKitPicker(element: {
+    _id?: Id<"resourceBankCreativeElements">;
+    title: string;
+  }): void {
+    if (!element._id) return;
+    const defaultKit = activeBrandKits.find((kit) => kit.kitId === defaultBrandKitId);
+    const initialKit = defaultKit ?? selectedBrandKit ?? activeBrandKits[0] ?? null;
+    setPromotionTarget({ elementId: element._id, title: element.title });
+    setPromotionKitId(initialKit?._id ?? null);
+  }
+
+  async function handleConfirmPromotion(): Promise<void> {
+    const destinationKit = activeBrandKits.find((kit) => kit._id === promotionKitId);
+    if (!destinationKit?._id || !promotionTarget) return;
     try {
+      setPromotionSaving(true);
       const receipt = (await promoteResourceElementsToBrandKit({
-        brandKitId: selectedBrandKit._id,
-        elementIds: [elementId],
+        brandKitId: destinationKit._id,
+        elementIds: [promotionTarget.elementId],
         requestedBy: "resource-bank-ui",
       })) as BrandKitPromotionReceipt;
       toast.success(
         receipt.createdElementIds.length > 0
-          ? `Added to ${selectedBrandKit.name}.`
-          : `Already in ${selectedBrandKit.name}.`,
+          ? `Added to ${destinationKit.name}.`
+          : receipt.updatedElementIds.length > 0
+            ? `Updated in ${destinationKit.name}.`
+            : `Already in ${destinationKit.name}.`,
       );
+      setPromotionTarget(null);
+      setPromotionKitId(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not add element to Brand Kit.");
+    } finally {
+      setPromotionSaving(false);
     }
   }
 }

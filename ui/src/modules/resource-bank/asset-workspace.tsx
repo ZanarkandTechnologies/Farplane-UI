@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MediaPreview } from "./media-preview";
 import { assetIcon, formatKind, formatTag, formatTime, sourceUrl } from "./resource-bank-utils";
-import type { BrandKit, ResourceBankAsset } from "./types";
+import type { ResourceBankAsset } from "./types";
 
 type AssetElement = NonNullable<ResourceBankAsset["creativeElements"]>[number];
 
@@ -13,10 +13,9 @@ export function AssetWorkspace(props: {
   canSeedDemo: boolean;
   query: string;
   selectedAsset: ResourceBankAsset | null;
-  selectedBrandKit: BrandKit | null;
   onSeedDemo: () => void;
   onSelectAsset: (assetId: string | null) => void;
-  onPromoteElementId: (elementId: AssetElement["_id"]) => void;
+  onRequestAddToKit: (element: AssetElement) => void;
 }): ReactElement {
   const selected = props.selectedAsset;
   return (
@@ -70,11 +69,7 @@ export function AssetWorkspace(props: {
           )}
         </div>
       </section>
-      <AssetInspector
-        asset={selected}
-        selectedBrandKit={props.selectedBrandKit}
-        onPromoteElementId={props.onPromoteElementId}
-      />
+      <AssetInspector asset={selected} onRequestAddToKit={props.onRequestAddToKit} />
     </div>
   );
 }
@@ -103,8 +98,7 @@ function EmptyAssetState(props: {
 
 function AssetInspector(props: {
   asset: ResourceBankAsset | null;
-  selectedBrandKit: BrandKit | null;
-  onPromoteElementId: (elementId: AssetElement["_id"]) => void;
+  onRequestAddToKit: (element: AssetElement) => void;
 }): ReactElement {
   const asset = props.asset;
   if (!asset) {
@@ -143,14 +137,12 @@ function AssetInspector(props: {
           title="Pinned taste"
           elements={pinned}
           active
-          selectedBrandKit={props.selectedBrandKit}
-          onPromoteElementId={props.onPromoteElementId}
+          onRequestAddToKit={props.onRequestAddToKit}
         />
         <ElementGroup
           title="Creative elements"
           elements={supporting}
-          selectedBrandKit={props.selectedBrandKit}
-          onPromoteElementId={props.onPromoteElementId}
+          onRequestAddToKit={props.onRequestAddToKit}
         />
         <Breakdown asset={asset} />
       </div>
@@ -161,9 +153,8 @@ function AssetInspector(props: {
 function ElementGroup(props: {
   title: string;
   elements: NonNullable<ResourceBankAsset["creativeElements"]>;
-  selectedBrandKit: BrandKit | null;
   active?: boolean;
-  onPromoteElementId: (elementId: AssetElement["_id"]) => void;
+  onRequestAddToKit: (element: AssetElement) => void;
 }): ReactElement {
   return (
     <div className="mt-4">
@@ -178,18 +169,16 @@ function ElementGroup(props: {
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0 truncate text-xs font-semibold">{element.title}</div>
                 <div className="flex shrink-0 items-center gap-1">
-                  {props.selectedBrandKit ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-7 px-2 text-[11px]"
-                      disabled={!element._id}
-                      onClick={() => props.onPromoteElementId(element._id)}
-                    >
-                      <PackageCheck className="size-3.5" />
-                      Add
-                    </Button>
-                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-7 px-2 text-[11px]"
+                    disabled={!element._id}
+                    onClick={() => props.onRequestAddToKit(element)}
+                  >
+                    <PackageCheck className="size-3.5" />
+                    Add
+                  </Button>
                   <Badge variant={props.active ? "default" : "secondary"}>
                     {formatKind(element.kind)}
                   </Badge>
@@ -219,15 +208,26 @@ function Breakdown(props: { asset: ResourceBankAsset }): ReactElement {
       <div className="text-xs font-semibold uppercase text-muted-foreground">Breakdown</div>
       {props.asset.analyses.slice(0, 2).map((analysis) => (
         <div
-          key={analysis._id ?? `${analysis.analysisType}:${analysis.createdAtMs}`}
+          key={analysis._id ?? `${analysis.sourceSkill ?? "analysis"}:${analysis.createdAtMs}`}
           className="border p-3"
         >
           <div className="flex flex-wrap gap-1">
-            <Badge variant="secondary">{analysis.analysisType}</Badge>
+            {analysis.sourceSkill ? <Badge variant="secondary">{analysis.sourceSkill}</Badge> : null}
             {analysis.confidence ? <Badge variant="outline">{analysis.confidence}</Badge> : null}
           </div>
-          <TextList title="Why it works" items={analysis.whyItWorks} />
-          <TextList title="Takeaways" items={analysis.takeaways} />
+          <div className="mt-3 whitespace-pre-wrap text-xs leading-5">
+            {analysis.analysisMarkdown}
+          </div>
+          {analysis.transcriptText ? (
+            <details className="mt-3 border-t pt-3">
+              <summary className="cursor-pointer text-[11px] font-semibold uppercase text-muted-foreground">
+                Transcript
+              </summary>
+              <div className="mt-2 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
+                {analysis.transcriptText}
+              </div>
+            </details>
+          ) : null}
         </div>
       ))}
       {props.asset.skillFindings.map((finding) => (
@@ -241,23 +241,6 @@ function Breakdown(props: { asset: ResourceBankAsset }): ReactElement {
           <div className="mt-2 text-xs leading-5">{finding.howToReuse}</div>
         </div>
       ))}
-    </div>
-  );
-}
-
-function TextList(props: { title: string; items: string[] | undefined }): ReactElement | null {
-  const items = props.items?.filter(Boolean) ?? [];
-  if (items.length === 0) return null;
-  return (
-    <div className="mt-3">
-      <div className="text-[11px] font-semibold uppercase text-muted-foreground">{props.title}</div>
-      <div className="mt-2 space-y-1">
-        {items.slice(0, 3).map((text) => (
-          <div key={text} className="bg-muted px-3 py-2 text-xs leading-5">
-            {text}
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
