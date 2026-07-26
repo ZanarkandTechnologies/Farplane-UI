@@ -15,7 +15,7 @@ import { shuffleOfficeObjects } from "../cli/office-arrange";
 import type { OfficeObjectModel, OfficeSettingsModel } from "../cli/sidecar-store";
 import { buildNewTeamClusterObject } from "../cli/team-cluster-placement";
 import { createFinanceStore } from "../cli/finance-store";
-import { listProjectTickets } from "../cli/project-ticket-store";
+import { scanProjectTickets } from "../cli/project-ticket-store";
 import {
   getSkillStudioDetail,
   listSkillStudioCatalog,
@@ -2791,34 +2791,45 @@ async function readProjectTicketTasks(project: {
   projectId: string;
   projectPath: string;
   ticketsDir?: string;
-}): Promise<JsonObject[]> {
+  includeMarkdown?: boolean;
+}): Promise<{ tasks: JsonObject[]; issues: JsonObject[] }> {
   const configuredTicketsDir = normalizeRelativeConfigPath(project.ticketsDir, "tickets");
   if (configuredTicketsDir !== "tickets") {
     throw new Error(`unsupported_tickets_dir:${configuredTicketsDir}`);
   }
-  return (await listProjectTickets(project.projectPath)).map((ticket) => {
-    return {
-      id: ticket.ticketId,
+  const scan = await scanProjectTickets(project.projectPath);
+  return {
+    tasks: scan.tickets.map(
+      (ticket) =>
+        ({
+          id: ticket.ticketId,
+          projectId: project.projectId,
+          title: ticket.title,
+          status: ticket.status,
+          ownerAgentId: ticket.ownerAgentId || undefined,
+          priority: normalizeTicketPriority(ticket.priority),
+          provider: "internal",
+          canonicalProvider: "internal",
+          providerUrl: `file://${ticket.filePath}`,
+          artefactPath: ticket.artefactPath,
+          syncState: "healthy",
+          frontMatter: ticket.frontMatter,
+          ...(project.includeMarkdown ? { markdown: ticket.markdown } : {}),
+          notes: ticket.notes || undefined,
+          approvalState: ticket.approvalState,
+          linkedSessionKey: ticket.linkedSessionKey,
+          createdAt: ticket.createdAt,
+          dueAt: ticket.dueAt,
+          updatedAt: ticket.updatedAt,
+        }) satisfies JsonObject,
+    ),
+    issues: scan.issues.map((issue) => ({
       projectId: project.projectId,
-      title: ticket.title,
-      status: ticket.status,
-      ownerAgentId: ticket.ownerAgentId || undefined,
-      priority: normalizeTicketPriority(ticket.priority),
-      provider: "internal",
-      canonicalProvider: "internal",
-      providerUrl: `file://${ticket.filePath}`,
-      artefactPath: ticket.artefactPath,
-      syncState: "healthy",
-      frontMatter: ticket.frontMatter,
-      markdown: ticket.markdown,
-      notes: ticket.notes || undefined,
-      approvalState: ticket.approvalState,
-      linkedSessionKey: ticket.linkedSessionKey,
-      createdAt: ticket.createdAt,
-      dueAt: ticket.dueAt,
-      updatedAt: ticket.updatedAt,
-    } satisfies JsonObject;
-  });
+      ticketId: issue.ticketId,
+      artefactPath: path.relative(project.projectPath, issue.filePath).replace(/\\/g, "/"),
+      error: issue.error,
+    })),
+  };
 }
 
 function normalizeKanbanProvider(value: unknown): "filesystem_tickets" | "notion" | "linear" {
@@ -2910,7 +2921,13 @@ async function readProjectKanbanSnapshot(input: {
   }
   const ticketsDir = normalizeRelativeConfigPath(providerConfig.ticketsDir, "tickets");
   const ticketRoot = path.join(projectPath, ticketsDir);
-  const tasks = (await readProjectTicketTasks({ projectId, projectPath, ticketsDir })).filter((task) => {
+  const ticketScan = await readProjectTicketTasks({
+    projectId,
+    projectPath,
+    ticketsDir,
+    includeMarkdown: true,
+  });
+  const tasks = ticketScan.tasks.filter((task) => {
     const artefactPath = String(task.artefactPath ?? "");
     return isTrackedTicketArtifactPath(artefactPath, ticketsDir);
   });
@@ -2923,6 +2940,7 @@ async function readProjectKanbanSnapshot(input: {
     ticketsDir,
     ticketRoot,
     tasks,
+    ticketReadIssues: ticketScan.issues,
     taskCount: tasks.length,
     readAtMs,
     sourceVersion: kanbanSourceVersion(tasks, providerConfig),
@@ -3705,7 +3723,9 @@ async function buildProjectReadModel(input: unknown): Promise<JsonObject> {
       projectPath: String(entry.projectPath ?? "").trim(),
     }))
     .filter((entry) => entry.projectId && isSafeProjectPath(entry.projectPath));
-  const ticketTaskLists = await Promise.all(normalizedProjects.map((project) => readProjectTicketTasks(project)));
+  const ticketScans = await Promise.all(
+    normalizedProjects.map((project) => readProjectTicketTasks(project)),
+  );
   const projectPms = await Promise.all(
     normalizedProjects.map(async (project) => {
       const pm = await readProjectPmConfig(project.projectPath);
@@ -3729,7 +3749,8 @@ async function buildProjectReadModel(input: unknown): Promise<JsonObject> {
   );
   return {
     generatedAt: Date.now(),
-    ticketTasks: ticketTaskLists.flat(),
+    ticketTasks: ticketScans.flatMap((scan) => scan.tasks),
+    ticketReadIssues: ticketScans.flatMap((scan) => scan.issues),
     projectPms: projectPms.filter(Boolean),
     projectManagers: mergeProjectManagers([...normalizeProjectManagers(managersRaw), ...officeManagers]),
     officeVisibility,
@@ -4544,9 +4565,16 @@ function farplaneStateBridge() {
         }
 
         if (method === "POST" && pathname === "/farplane/projects/read-model") {
-          const body = await readBody(req);
-          const readModel = await buildProjectReadModel(body);
-          writeJson(res, 200, readModel);
+          try {
+            const body = await readBody(req);
+            const readModel = await buildProjectReadModel(body);
+            writeJson(res, 200, readModel);
+          } catch (error) {
+            writeJson(res, 422, {
+              ok: false,
+              error: error instanceof Error ? error.message : "project_read_model_failed",
+            });
+          }
           return;
         }
 

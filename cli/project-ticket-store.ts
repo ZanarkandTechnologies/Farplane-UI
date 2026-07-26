@@ -46,6 +46,17 @@ export type ProjectTicketPatch = {
   priority?: ProjectTicketPriority;
 };
 
+export type ProjectTicketReadIssue = {
+  ticketId: string;
+  filePath: string;
+  error: string;
+};
+
+export type ProjectTicketScan = {
+  tickets: ProjectTicket[];
+  issues: ProjectTicketReadIssue[];
+};
+
 const TICKET_ID_PATTERN = /^TASK-(\d{4,})$/;
 const SCALAR_FIELD_PATTERN = /^([A-Za-z0-9_-]+):(?:[ \t]*(.*))?$/;
 
@@ -261,12 +272,22 @@ export async function readProjectTicket(
 }
 
 export async function listProjectTickets(projectPath: string): Promise<ProjectTicket[]> {
+  const scan = await scanProjectTickets(projectPath);
+  if (scan.issues[0]) throw new Error(scan.issues[0].error);
+  return scan.tickets;
+}
+
+/**
+ * Read all independently valid tickets without letting a partial editor save
+ * make sibling tickets or the UI's polling route unavailable.
+ */
+export async function scanProjectTickets(projectPath: string): Promise<ProjectTicketScan> {
   const root = ticketsRoot(projectPath);
   let entries: Array<{ name: string; isDirectory(): boolean }>;
   try {
     entries = await readdir(root, { withFileTypes: true });
   } catch (error) {
-    if ((error as { code?: string }).code === "ENOENT") return [];
+    if ((error as { code?: string }).code === "ENOENT") return { tickets: [], issues: [] };
     throw error;
   }
   const ids = entries
@@ -274,10 +295,19 @@ export async function listProjectTickets(projectPath: string): Promise<ProjectTi
     .map((entry) => entry.name)
     .sort((left, right) => left.localeCompare(right));
   const tickets: ProjectTicket[] = [];
+  const issues: ProjectTicketReadIssue[] = [];
   for (const ticketId of ids) {
-    tickets.push(await readProjectTicket(projectPath, ticketId));
+    try {
+      tickets.push(await readProjectTicket(projectPath, ticketId));
+    } catch (error) {
+      issues.push({
+        ticketId,
+        filePath: path.join(root, ticketId, "ticket.md"),
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
-  return tickets;
+  return { tickets, issues };
 }
 
 async function nextTicketNumber(projectPath: string): Promise<number> {

@@ -7,6 +7,7 @@ import {
   createProjectTicket,
   listProjectTickets,
   readProjectTicket,
+  scanProjectTickets,
   setProjectTicketNotes,
   updateProjectTicket,
 } from "./project-ticket-store.js";
@@ -135,6 +136,29 @@ describe("project ticket store", () => {
     await expect(createProjectTicket({ projectPath: "relative", title: "No" })).rejects.toThrow(
       "invalid_project_path",
     );
+  });
+
+  it("isolates a partially saved ticket while retaining valid siblings", async () => {
+    const projectPath = await temporaryProject();
+    const valid = await createProjectTicket({ projectPath, title: "Valid sibling" });
+    const partialDirectory = path.join(projectPath, "tickets", "TASK-0042");
+    await mkdir(partialDirectory, { recursive: true });
+    await writeFile(
+      path.join(partialDirectory, "ticket.md"),
+      "---\nticket_id:\nstatus: active\n---\n# Partial save\n",
+      "utf-8",
+    );
+
+    const scan = await scanProjectTickets(projectPath);
+
+    expect(scan.tickets.map((ticket) => ticket.ticketId)).toEqual([valid.ticketId]);
+    expect(scan.issues).toEqual([
+      expect.objectContaining({
+        ticketId: "TASK-0042",
+        error: "invalid_ticket_id:",
+      }),
+    ]);
+    await expect(listProjectTickets(projectPath)).rejects.toThrow("invalid_ticket_id:");
   });
 
   it("projects heartbeat counts from tracking-context filesystem tickets", async () => {
