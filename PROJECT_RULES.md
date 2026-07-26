@@ -24,7 +24,7 @@ This file defines project-specific technical rules, stack details, and execution
 - `qa/`: reusable browser QA runbooks, cookbook pages, shortcuts, probes, and evidence expectations
 - `farplane/`: tracked Farplane project config (`manifest.json`, `harness.yaml`, `metrics.yaml`, `automations.toml`, `bindings.yaml`, hooks, PM thread manifest)
 - `.farplane/`: ignored local runtime state, automation state, reports, eval runs, logs, content ledgers, metric observations, and project UI snapshots
-- `tickets/`: tracked Farplane ticket queue (`TASK-*/ticket.md`, `archive/`, `templates/`); legacy `TKT-*` lanes are local-only
+- `tickets/`: local-only Farplane ticket queue, archives, templates, and legacy lanes
 
 ## UI Modularity Rules
 
@@ -63,7 +63,7 @@ This file defines project-specific technical rules, stack details, and execution
 - Types: no `any`; explicit return types on exported APIs
 - Testing: colocated Vitest tests for behavior changes; Playwright is the target for stable browser regression paths
 - Documentation: update `docs/HISTORY.md` for material changes; promote durable rules to `docs/MEMORY.md`
-- Workflow: `tickets/TASK-*/ticket.md` is the active Farplane task queue; legacy `tickets/{todo,building,review,done}/TKT-*` lanes and `docs/progress.md` are reference/local-only
+- Workflow: `tickets/TASK-*/ticket.md` is the local Farplane task queue; the entire `tickets/` tree and `docs/progress.md` are reference/local-only
 - QA: use `qa/README.md` and `qa/cookbook/*` as the canonical QA entrypoint; older `docs/how-to/*` QA guides remain reference runbooks
 - Security: treat inbound channel payloads as untrusted; keep secrets in env/secret resolvers and out of browser bundles/logs
 - Shared utilities: prefer module-local helpers, domain-scoped `ui/src/lib`,

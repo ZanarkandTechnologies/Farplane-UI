@@ -24,14 +24,8 @@ skills/external/
 
 /docs/research/*/*
 
-# Farplane tickets are tracked only for the TASK-* project queue. Legacy TKT
-# lanes and proof artifacts remain local-only.
-/tickets/INDEX.md
-/tickets/todo/
-/tickets/building/
-/tickets/review/
-/tickets/done/
-/tickets/**/artifacts/
+# Farplane tickets are local operator state, not shared repository history.
+/tickets/
 
 # One-off browser QA screenshots/logs belong in local evidence bundles or
 # ticket-local artifacts, not the shared repo history.
@@ -42,15 +36,6 @@ skills/external/
 
 # Farplane local runtime and work state
 .farplane/
-tickets/**
-!tickets/README.md
-!tickets/templates/
-!tickets/templates/**
-!tickets/TASK-*/
-!tickets/TASK-*/ticket.md
-!tickets/archive/
-!tickets/archive/TASK-*/
-!tickets/archive/TASK-*/ticket.md
 .agents/*
 !.agents/skills/
 !.agents/skills/**

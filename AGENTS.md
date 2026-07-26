@@ -31,7 +31,7 @@ This file is loaded every loop. Keep it operational and concise.
 - Taste: `docs/TASTE.md`
 - QA: `qa/README.md`, then the relevant `qa/cookbook/*` page
 - Code review: `docs/code_review.md` and `docs/review-agent.md`
-- Tickets: active `tickets/TASK-*/ticket.md` work objects; completed tickets move to `tickets/archive/TASK-*/ticket.md`
+- Tickets: local-only `tickets/` work objects; do not commit ticket state
 
 ## Source Ownership
 
@@ -50,8 +50,8 @@ Work flows through:
 
 - Use `docs/bootstrap-brief.md` for project profile, lifecycle route, prototype gates, and pipeline handoff.
 - Use `docs/prd.md` for requirements, first SLC slice, constraints, and autonomy readiness.
-- Use active `tickets/TASK-*/ticket.md` files as the work objects; keep status, blockers, evidence, and spawned follow-ups in the ticket.
-- Commit only the Farplane `tickets/TASK-*/ticket.md` queue, `tickets/templates/`, and archive markers. Keep legacy `TKT-*` lanes, progress logs, prompts, proof artifacts, screenshots, and generated ticket data local-only.
+- Use active `tickets/TASK-*/ticket.md` files as local work objects; keep status, blockers, evidence, and spawned follow-ups in the ticket.
+- Keep the entire `tickets/` tree local-only. Do not stage ticket bodies, templates, archive markers, progress logs, prompts, proof artifacts, screenshots, or generated ticket data.
 - Plan each material ticket before build; prove and review before closeout.
 - Technical commands, stack rules, runtime, and QA paths live in `PROJECT_RULES.md`.
 
