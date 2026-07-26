@@ -11,6 +11,118 @@ class MockChild extends EventEmitter {
   stdin = null;
 }
 
+async function runGatewayCase(cliArgs: string[], expectedScriptArgs: string[]) {
+  const child = new MockChild();
+  const spawnMock = vi.fn(() => child);
+  vi.doMock("node:child_process", () => ({ spawn: spawnMock }));
+  const { registerGatewayCommands } = await import("./gateway-commands.js");
+
+  const program = new Command();
+  registerGatewayCommands(program);
+  const parsePromise = program.parseAsync(cliArgs, { from: "user" });
+  child.emit("exit", 0, null);
+  await parsePromise;
+
+  expect(spawnMock).toHaveBeenCalledWith(
+    expect.stringContaining("node_modules/.bin/tsx"),
+    expectedScriptArgs,
+    expect.objectContaining({ cwd: process.cwd(), stdio: "inherit" }),
+  );
+}
+
+const gatewayForwardingCases = [
+  {
+    name: "runs the Telegram gateway through the CLI adapter entrypoint",
+    cliArgs: ["gateway", "telegram", "--once", "--check-config"],
+    scriptArgs: ["scripts/telegram-gateway.ts", "--once", "--check-config"],
+  },
+  {
+    name: "runs replyable Telegram sends through the gateway script entrypoint",
+    cliArgs: [
+      "gateway",
+      "telegram",
+      "send",
+      "--thread-id",
+      "thread-source",
+      "--session-id",
+      "session-source",
+      "--text",
+      "Approve?",
+      "--title",
+      "Approval request",
+    ],
+    scriptArgs: [
+      "scripts/telegram-gateway.ts",
+      "--send",
+      "--thread-id",
+      "thread-source",
+      "--session-id",
+      "session-source",
+      "--text",
+      "Approve?",
+      "--title",
+      "Approval request",
+      "--parse-mode",
+      "none",
+    ],
+  },
+  {
+    name: "passes explicit Telegram document sends through the gateway script entrypoint",
+    cliArgs: [
+      "gateway",
+      "telegram",
+      "send",
+      "--thread-id",
+      "thread-source",
+      "--document",
+      "/tmp/plan.md",
+      "--text",
+      "Plan attached",
+    ],
+    scriptArgs: [
+      "scripts/telegram-gateway.ts",
+      "--send",
+      "--thread-id",
+      "thread-source",
+      "--text",
+      "Plan attached",
+      "--document",
+      "/tmp/plan.md",
+      "--parse-mode",
+      "none",
+    ],
+  },
+  {
+    name: "runs Phone Chaser review binding through the gateway script entrypoint",
+    cliArgs: [
+      "gateway",
+      "telegram",
+      "review-bind",
+      "--thread-id",
+      "thread-source",
+      "--title",
+      "Review request",
+      "--ttl-minutes",
+      "15",
+    ],
+    scriptArgs: [
+      "scripts/telegram-gateway.ts",
+      "review-bind",
+      "--thread-id",
+      "thread-source",
+      "--title",
+      "Review request",
+      "--ttl-minutes",
+      "15",
+    ],
+  },
+  {
+    name: "runs the Phone Chaser review relay through the gateway script entrypoint",
+    cliArgs: ["gateway", "telegram", "review-relay", "--port", "8790"],
+    scriptArgs: ["scripts/telegram-gateway.ts", "review-relay", "--port", "8790"],
+  },
+] as const;
+
 describe("gateway CLI", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -19,183 +131,9 @@ describe("gateway CLI", () => {
     vi.resetModules();
   });
 
-  it("runs the Telegram gateway through the CLI adapter entrypoint", async () => {
-    const child = new MockChild();
-    const spawnMock = vi.fn(() => child);
-    vi.doMock("node:child_process", () => ({ spawn: spawnMock }));
-    const { registerGatewayCommands } = await import("./gateway-commands.js");
-
-    const program = new Command();
-    registerGatewayCommands(program);
-    const parsePromise = program.parseAsync(
-      ["gateway", "telegram", "--once", "--check-config"],
-      { from: "user" },
-    );
-    child.emit("exit", 0, null);
-    await parsePromise;
-
-    expect(spawnMock).toHaveBeenCalledWith(
-      expect.stringContaining("node_modules/.bin/tsx"),
-      ["scripts/telegram-gateway.ts", "--once", "--check-config"],
-      expect.objectContaining({
-        cwd: process.cwd(),
-        stdio: "inherit",
-      }),
-    );
-  });
-
-  it("runs replyable Telegram sends through the gateway script entrypoint", async () => {
-    const child = new MockChild();
-    const spawnMock = vi.fn(() => child);
-    vi.doMock("node:child_process", () => ({ spawn: spawnMock }));
-    const { registerGatewayCommands } = await import("./gateway-commands.js");
-
-    const program = new Command();
-    registerGatewayCommands(program);
-    const parsePromise = program.parseAsync(
-      [
-        "gateway",
-        "telegram",
-        "send",
-        "--thread-id",
-        "thread-source",
-        "--session-id",
-        "session-source",
-        "--text",
-        "Approve?",
-        "--title",
-        "Approval request",
-      ],
-      { from: "user" },
-    );
-    child.emit("exit", 0, null);
-    await parsePromise;
-
-    expect(spawnMock).toHaveBeenCalledWith(
-      expect.stringContaining("node_modules/.bin/tsx"),
-      [
-        "scripts/telegram-gateway.ts",
-        "--send",
-        "--thread-id",
-        "thread-source",
-        "--session-id",
-        "session-source",
-        "--text",
-        "Approve?",
-        "--title",
-        "Approval request",
-        "--parse-mode",
-        "none",
-      ],
-      expect.objectContaining({ cwd: process.cwd(), stdio: "inherit" }),
-    );
-  });
-
-  it("passes explicit Telegram document sends through the gateway script entrypoint", async () => {
-    const child = new MockChild();
-    const spawnMock = vi.fn(() => child);
-    vi.doMock("node:child_process", () => ({ spawn: spawnMock }));
-    const { registerGatewayCommands } = await import("./gateway-commands.js");
-
-    const program = new Command();
-    registerGatewayCommands(program);
-    const parsePromise = program.parseAsync(
-      [
-        "gateway",
-        "telegram",
-        "send",
-        "--thread-id",
-        "thread-source",
-        "--document",
-        "/tmp/plan.md",
-        "--text",
-        "Plan attached",
-      ],
-      { from: "user" },
-    );
-    child.emit("exit", 0, null);
-    await parsePromise;
-
-    expect(spawnMock).toHaveBeenCalledWith(
-      expect.stringContaining("node_modules/.bin/tsx"),
-      [
-        "scripts/telegram-gateway.ts",
-        "--send",
-        "--thread-id",
-        "thread-source",
-        "--text",
-        "Plan attached",
-        "--document",
-        "/tmp/plan.md",
-        "--parse-mode",
-        "none",
-      ],
-      expect.objectContaining({ cwd: process.cwd(), stdio: "inherit" }),
-    );
-  });
-
-  it("runs Phone Chaser review binding through the gateway script entrypoint", async () => {
-    const child = new MockChild();
-    const spawnMock = vi.fn(() => child);
-    vi.doMock("node:child_process", () => ({ spawn: spawnMock }));
-    const { registerGatewayCommands } = await import("./gateway-commands.js");
-
-    const program = new Command();
-    registerGatewayCommands(program);
-    const parsePromise = program.parseAsync(
-      [
-        "gateway",
-        "telegram",
-        "review-bind",
-        "--thread-id",
-        "thread-source",
-        "--title",
-        "Review request",
-        "--ttl-minutes",
-        "15",
-      ],
-      { from: "user" },
-    );
-    child.emit("exit", 0, null);
-    await parsePromise;
-
-    expect(spawnMock).toHaveBeenCalledWith(
-      expect.stringContaining("node_modules/.bin/tsx"),
-      [
-        "scripts/telegram-gateway.ts",
-        "review-bind",
-        "--thread-id",
-        "thread-source",
-        "--title",
-        "Review request",
-        "--ttl-minutes",
-        "15",
-      ],
-      expect.objectContaining({ cwd: process.cwd(), stdio: "inherit" }),
-    );
-  });
-
-  it("runs the Phone Chaser review relay through the gateway script entrypoint", async () => {
-    const child = new MockChild();
-    const spawnMock = vi.fn(() => child);
-    vi.doMock("node:child_process", () => ({ spawn: spawnMock }));
-    const { registerGatewayCommands } = await import("./gateway-commands.js");
-
-    const program = new Command();
-    registerGatewayCommands(program);
-    const parsePromise = program.parseAsync(
-      ["gateway", "telegram", "review-relay", "--port", "8790"],
-      { from: "user" },
-    );
-    child.emit("exit", 0, null);
-    await parsePromise;
-
-    expect(spawnMock).toHaveBeenCalledWith(
-      expect.stringContaining("node_modules/.bin/tsx"),
-      ["scripts/telegram-gateway.ts", "review-relay", "--port", "8790"],
-      expect.objectContaining({ cwd: process.cwd(), stdio: "inherit" }),
-    );
-  });
+  for (const { name, cliArgs, scriptArgs } of gatewayForwardingCases) {
+    it(name, () => runGatewayCase([...cliArgs], [...scriptArgs]));
+  }
 
   it("installs Telegram daemon LaunchAgent files from the CLI", async () => {
     const home = await mkdtemp(path.join(os.tmpdir(), "farplane-telegram-daemon-"));
@@ -207,7 +145,12 @@ describe("gateway CLI", () => {
     await program.parseAsync(["gateway", "telegram", "daemon", "install"], { from: "user" });
 
     const runnerPath = path.join(home, ".farplane", "telegram-gateway", "run-gateway.sh");
-    const plistPath = path.join(home, "Library", "LaunchAgents", "com.farplane.telegram-gateway.plist");
+    const plistPath = path.join(
+      home,
+      "Library",
+      "LaunchAgents",
+      "com.farplane.telegram-gateway.plist",
+    );
     const runner = await readFile(runnerPath, "utf8");
     const plist = await readFile(plistPath, "utf8");
     const runnerStat = await stat(runnerPath);
@@ -234,7 +177,11 @@ describe("gateway CLI", () => {
     registerGatewayCommands(program);
     await program.parseAsync(["gateway", "telegram", "daemon", "restart"], { from: "user" });
 
-    expect(spawnMock).toHaveBeenCalledWith("plutil", expect.arrayContaining(["-lint"]), expect.any(Object));
+    expect(spawnMock).toHaveBeenCalledWith(
+      "plutil",
+      expect.arrayContaining(["-lint"]),
+      expect.any(Object),
+    );
     expect(spawnMock).toHaveBeenCalledWith(
       "launchctl",
       expect.arrayContaining(["bootout", expect.stringMatching(/^gui\//)]),
@@ -247,7 +194,11 @@ describe("gateway CLI", () => {
     );
     expect(spawnMock).toHaveBeenCalledWith(
       "launchctl",
-      expect.arrayContaining(["kickstart", "-k", expect.stringContaining("com.farplane.telegram-gateway")]),
+      expect.arrayContaining([
+        "kickstart",
+        "-k",
+        expect.stringContaining("com.farplane.telegram-gateway"),
+      ]),
       expect.any(Object),
     );
 
