@@ -24,11 +24,13 @@ export type GlobalFinanceRollup = {
   expenseLimit: number | null;
   actualExpense: number;
   actualIncome: number;
+  actualNetCashFlow: number;
   estimatedExpense: number;
   estimatedIncome: number;
   remainingExpenseBudget: number | null;
   configuredMetricCount: number;
   observedMetricCount: number;
+  observedActualMetricCount: number;
   observedActualExpenseMetricCount: number;
   configuredProjectCount: number;
   reportingProjectCount: number;
@@ -140,6 +142,7 @@ export function buildGlobalFinanceRollup(
   let estimatedIncome = 0;
   let configuredMetricCount = 0;
   let observedMetricCount = 0;
+  let observedActualMetricCount = 0;
   let observedActualExpenseMetricCount = 0;
 
   for (const project of configs) {
@@ -156,6 +159,7 @@ export function buildGlobalFinanceRollup(
       if (amount === null) continue;
       observedMetricCount += 1;
       reportingProjects.add(project.projectId);
+      if (definition.basis === "actual") observedActualMetricCount += 1;
       if (definition.basis === "actual" && definition.flow === "expense") {
         actualExpense += amount;
         observedActualExpenseMetricCount += 1;
@@ -176,12 +180,14 @@ export function buildGlobalFinanceRollup(
     expenseLimit,
     actualExpense,
     actualIncome,
+    actualNetCashFlow: actualIncome - actualExpense,
     estimatedExpense,
     estimatedIncome,
     remainingExpenseBudget:
       expenseLimit === null ? null : Math.max(0, expenseLimit - actualExpense),
     configuredMetricCount,
     observedMetricCount,
+    observedActualMetricCount,
     observedActualExpenseMetricCount,
     configuredProjectCount: configuredProjects.size,
     reportingProjectCount: reportingProjects.size,

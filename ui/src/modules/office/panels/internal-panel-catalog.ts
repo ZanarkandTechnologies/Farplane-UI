@@ -15,6 +15,7 @@ export type OfficeInternalPanelId =
   | "organization"
   | "team-workspace"
   | "telemetry"
+  | "finance"
   | "raw-telemetry"
   | "thread-data"
   | "resource-bank"
@@ -60,6 +61,12 @@ export const OFFICE_INTERNAL_PANEL_CATALOG: OfficeInternalPanelCatalogEntry[] = 
     label: "Harness Usage",
     description: "Open project and team agent-hour usage dashboards.",
     keywords: ["harness", "usage", "agent hours", "runtime", "projects"],
+  },
+  {
+    id: "finance",
+    label: "Finance",
+    description: "Open company cash balance, daily flow observations, and close history.",
+    keywords: ["finance", "money", "cash flow", "income", "expenses", "weekly close"],
   },
   {
     id: "raw-telemetry",

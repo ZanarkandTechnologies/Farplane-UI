@@ -2,7 +2,7 @@
 # Runtime logs, run IDs, last-run status, and automation memory stay outside tracked config.
 schema = "farplane_project_automations"
 framework_template_version = "1.0.0"
-updated_at = "2026-07-14"
+updated_at = "2026-07-20"
 owner = "automation-advisor"
 
 [[automations]]
@@ -271,3 +271,74 @@ type = "weekly"
 timezone = "Asia/Kuala_Lumpur"
 days = ["Mon"]
 time = "06:15"
+
+[[automations]]
+id = "farplane-ui-daily-finance-backfill"
+name = "Farplane UI Daily Finance Backfill"
+kind = "cron"
+status = "active"
+prompt = '''
+Backfill yesterday's firm finance observation from Slash by running:
+`npm run shell -- finance backfill slash`
+
+Project root:
+/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI
+
+Gates:
+- Read aggregate posted transaction flow only; do not mirror raw transactions.
+- Do not move money, change provider state, deploy, push, or spend.
+- If credentials or provider coverage are unavailable, preserve the source-gap
+  receipt written by the command and report the exact gap.
+- A retry must replace the same Slash/date component rather than double count.
+
+Final response:
+- Report the date backfilled, income, expenses, signed net, and source gaps.
+- State whether the run changed the observation or was an idempotent refresh.
+
+Config source:
+farplane/automations.toml automation id="farplane-ui-daily-finance-backfill"
+'''
+
+[automations.target]
+workspace = "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI"
+
+[automations.schedule]
+type = "daily"
+timezone = "Asia/Kuala_Lumpur"
+time = "05:15"
+
+[[automations]]
+id = "farplane-ui-weekly-finance-close"
+name = "Farplane UI Weekly Finance Close"
+kind = "cron"
+status = "active"
+prompt = '''
+Close the prior completed Monday-Sunday firm finance week by running:
+`npm run shell -- finance close-week`
+
+Project root:
+/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI
+
+Gates:
+- Never close the active week.
+- Never replace an existing close without explicit operator approval.
+- Do not move money, change provider state, deploy, push, or spend.
+- If the prior week is already closed, report the existing-close state and do
+  not run the replacement command.
+
+Final response:
+- Report the closed week key, income, expenses, signed net, and observation dates.
+- Link or name the immutable snapshot and audit receipt paths.
+
+Config source:
+farplane/automations.toml automation id="farplane-ui-weekly-finance-close"
+'''
+
+[automations.target]
+workspace = "/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI"
+
+[automations.schedule]
+type = "weekly"
+timezone = "Asia/Kuala_Lumpur"
+days = ["Mon"]
+time = "05:20"

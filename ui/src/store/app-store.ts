@@ -166,6 +166,8 @@ interface AppState {
   setSkillStudioSurface: (surface: SkillStudioSurface) => void;
   isTelemetryPanelOpen: boolean;
   setIsTelemetryPanelOpen: (isOpen: boolean) => void;
+  isFinancePanelOpen: boolean;
+  setIsFinancePanelOpen: (isOpen: boolean) => void;
   isRawTelemetryPanelOpen: boolean;
   setIsRawTelemetryPanelOpen: (isOpen: boolean) => void;
   isThreadDataPanelOpen: boolean;
@@ -320,6 +322,8 @@ export const useAppStore = create<AppState>()(
     setSkillStudioSurface: (surface) => set({ skillStudioSurface: surface }),
     isTelemetryPanelOpen: false,
     setIsTelemetryPanelOpen: (isOpen) => set({ isTelemetryPanelOpen: isOpen }),
+    isFinancePanelOpen: false,
+    setIsFinancePanelOpen: (isOpen) => set({ isFinancePanelOpen: isOpen }),
     isRawTelemetryPanelOpen: false,
     setIsRawTelemetryPanelOpen: (isOpen) => set({ isRawTelemetryPanelOpen: isOpen }),
     isThreadDataPanelOpen: false,

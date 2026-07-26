@@ -70,9 +70,11 @@ describe("finance metric roll-up", () => {
       expenseLimit: 400,
       actualExpense: 20,
       actualIncome: 30,
+      actualNetCashFlow: 10,
       remainingExpenseBudget: 380,
       configuredMetricCount: 2,
       observedMetricCount: 2,
+      observedActualMetricCount: 2,
       observedActualExpenseMetricCount: 1,
       configuredProjectCount: 1,
       reportingProjectCount: 1,
@@ -108,6 +110,8 @@ describe("finance metric roll-up", () => {
 
     expect(rollup.actualExpense).toBe(0);
     expect(rollup.actualIncome).toBe(0);
+    expect(rollup.actualNetCashFlow).toBe(0);
+    expect(rollup.observedActualMetricCount).toBe(0);
     expect(rollup.estimatedIncome).toBe(45);
     expect(rollup.observedActualExpenseMetricCount).toBe(0);
     expect(rollup.configuredMetricCount).toBe(1);
@@ -139,6 +143,7 @@ describe("finance metric roll-up", () => {
     );
 
     expect(rollup.actualExpense).toBe(6);
+    expect(rollup.actualNetCashFlow).toBe(-6);
   });
 
   it("uses the operator's local calendar month", () => {

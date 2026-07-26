@@ -3,11 +3,11 @@
 import { CircleDollarSign, Footprints } from "lucide-react";
 import { useMemo } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useFinanceProjection } from "@/modules/finance";
 import type { OfficeLayoutModel } from "@/modules/office/lib/office-layout";
 import { deriveOfficeSpaceStats } from "@/modules/office/lib/office-space-stats";
 import type { EmployeeData, OfficeObject } from "@/modules/office/lib/types";
 import { SoundtrackHudControl } from "@/modules/soundtrack";
-import { type FinanceRollupProject, useGlobalFinanceRollup } from "@/modules/telemetry";
 
 function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
@@ -25,7 +25,7 @@ export function OfficeStatsHud(props: {
   employees: EmployeeData[];
   officeObjects: OfficeObject[];
   officeLayout: OfficeLayoutModel;
-  projects: FinanceRollupProject[];
+  onOpenFinance: () => void;
 }) {
   const stats = useMemo(
     () =>
@@ -36,42 +36,37 @@ export function OfficeStatsHud(props: {
       }),
     [props.employees, props.officeObjects, props.officeLayout],
   );
-  const { rollup, isLoading, error } = useGlobalFinanceRollup(props.projects);
-  const formatter = useMemo(() => currencyFormatter(rollup?.currency ?? "USD"), [rollup?.currency]);
-  const hasObservedSpend = Boolean(rollup && rollup.observedActualExpenseMetricCount > 0);
-  const utilization =
-    rollup?.expenseLimit && rollup.expenseLimit > 0
-      ? rollup.actualExpense / rollup.expenseLimit
-      : 0;
+  const { projection, isLoading, error } = useFinanceProjection();
+  const formatter = useMemo(
+    () => currencyFormatter(projection?.currency ?? "USD"),
+    [projection?.currency],
+  );
+  const latestBalance = projection?.latestBalance ?? null;
+  const hasCashSnapshot = latestBalance !== null;
+  const cashBalance = (latestBalance?.balanceCents ?? 0) / 100;
   const financeTone =
-    utilization >= 1
-      ? "text-destructive"
-      : utilization >= 0.8
-        ? "text-amber-300"
-        : "text-foreground";
+    cashBalance < 0 ? "text-destructive" : cashBalance > 0 ? "text-emerald-400" : "text-foreground";
   const triggerValue = isLoading
     ? "…"
     : error
       ? "—"
-      : formatter.format(
-          hasObservedSpend ? (rollup?.actualExpense ?? 0) : (rollup?.expenseLimit ?? 0),
-        );
+      : hasCashSnapshot
+        ? formatter.format(cashBalance)
+        : "—";
   const financeState = isLoading
     ? "loading"
     : error
       ? "error"
-      : hasObservedSpend
+      : hasCashSnapshot
         ? "ready"
         : "missing";
   const accessibleLabel = isLoading
     ? "Finance metrics loading"
     : error
       ? "Finance metrics unavailable"
-      : hasObservedSpend
-        ? `Finance: ${formatter.format(rollup?.actualExpense ?? 0)} spent this month`
-        : rollup?.expenseLimit !== null && rollup?.expenseLimit !== undefined
-          ? `Finance: ${formatter.format(rollup.expenseLimit)} monthly budget, no current spend observations`
-          : "Finance: no current spend observations";
+      : hasCashSnapshot
+        ? `Company cash: ${formatter.format(cashBalance)} as of ${latestBalance.asOf}`
+        : "Finance: no company cash snapshot";
   const walkabilityTone =
     stats.walkablePercent < 0.85
       ? "text-destructive"
@@ -88,6 +83,7 @@ export function OfficeStatsHud(props: {
         <TooltipTrigger asChild>
           <button
             type="button"
+            onClick={props.onOpenFinance}
             aria-label={accessibleLabel}
             data-testid="office-finance-hud-trigger"
             data-finance-state={financeState}
@@ -107,20 +103,20 @@ export function OfficeStatsHud(props: {
         >
           <div className="flex items-baseline justify-between gap-5 whitespace-nowrap">
             <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              {hasObservedSpend ? "AI spend" : "AI budget"}
+              {hasCashSnapshot ? "Company cash" : "Finance"}
             </span>
             <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
-              {triggerValue}
+              <span className={financeTone}>{triggerValue}</span>
             </span>
           </div>
           <div className="mt-1 whitespace-nowrap text-[10px] text-muted-foreground">
             {error
               ? "Spend readings unavailable"
-              : hasObservedSpend
-                ? `${formatter.format(rollup?.remainingExpenseBudget ?? 0)} remaining this month`
-                : "No current spend readings"}
-            {!error && rollup && rollup.unavailableProjectCount > 0
-              ? ` · ${rollup.unavailableProjectCount} source unavailable`
+              : hasCashSnapshot
+                ? `As of ${latestBalance.asOf} · ${latestBalance.source}`
+                : "No company cash snapshot"}
+            {!error && projection && projection.sourceGaps.length > 0
+              ? ` · ${projection.sourceGaps.length} source gap${projection.sourceGaps.length === 1 ? "" : "s"}`
               : ""}
           </div>
         </TooltipContent>

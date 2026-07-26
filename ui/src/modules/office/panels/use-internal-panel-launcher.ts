@@ -19,6 +19,7 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
   const setIsOrganizationPanelOpen = useAppStore((state) => state.setIsOrganizationPanelOpen);
   const setIsGlobalTeamPanelOpen = useAppStore((state) => state.setIsGlobalTeamPanelOpen);
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
+  const setIsFinancePanelOpen = useAppStore((state) => state.setIsFinancePanelOpen);
   const setIsRawTelemetryPanelOpen = useAppStore((state) => state.setIsRawTelemetryPanelOpen);
   const setIsThreadDataPanelOpen = useAppStore((state) => state.setIsThreadDataPanelOpen);
   const setIsResourceBankPanelOpen = useAppStore((state) => state.setIsResourceBankPanelOpen);
@@ -51,6 +52,9 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
           break;
         case "telemetry":
           setIsTelemetryPanelOpen(true);
+          break;
+        case "finance":
+          setIsFinancePanelOpen(true);
           break;
         case "raw-telemetry":
           setIsRawTelemetryPanelOpen(true);
@@ -122,6 +126,7 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
       setIsCeoWorkbenchOpen,
       setIsDocumentLibraryPanelOpen,
       setIsFurnitureShopOpen,
+      setIsFinancePanelOpen,
       setIsGlobalTeamPanelOpen,
       setIsResourceBankPanelOpen,
       setIsWorldMapPanelOpen,

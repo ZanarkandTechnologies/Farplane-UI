@@ -19,6 +19,12 @@ export const moduleRegistry = {
     description: "Operator configuration for runtime, office, and local UI behavior.",
     surfaces: ["panel", "hud"],
   },
+  finance: {
+    id: "finance",
+    label: "Finance",
+    description: "Company cash balance, daily flow observations, and close history.",
+    surfaces: ["nav", "panel", "hud"],
+  },
   "skills-studio": {
     id: "skills-studio",
     label: "Skills Studio",

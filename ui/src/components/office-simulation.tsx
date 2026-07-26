@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Badge } from "@/components/ui/badge";
+import { FinancePanel } from "@/modules/finance";
 import ChatDialog from "@/modules/chat/components/chat-dialog";
 import { RawTelemetryPanel } from "@/modules/hook-telemetry";
 import {
@@ -68,7 +69,6 @@ function OfficeSimulationContent() {
     officeObjects,
     officeAreas,
     officeSettings,
-    companyModel,
     isLoading,
   } = useOfficeWorldStore(useShallow(selectOfficeWorldContextData));
 
@@ -89,6 +89,8 @@ function OfficeSimulationContent() {
   const setIsSettingsModalOpen = useAppStore((state) => state.setIsSettingsModalOpen);
   const isTelemetryPanelOpen = useAppStore((state) => state.isTelemetryPanelOpen);
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
+  const isFinancePanelOpen = useAppStore((state) => state.isFinancePanelOpen);
+  const setIsFinancePanelOpen = useAppStore((state) => state.setIsFinancePanelOpen);
   const isRawTelemetryPanelOpen = useAppStore((state) => state.isRawTelemetryPanelOpen);
   const setIsRawTelemetryPanelOpen = useAppStore((state) => state.setIsRawTelemetryPanelOpen);
   const isThreadDataPanelOpen = useAppStore((state) => state.isThreadDataPanelOpen);
@@ -249,6 +251,7 @@ function OfficeSimulationContent() {
               <SettingsDialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen} />
             ) : null}
             <TelemetryPanel open={isTelemetryPanelOpen} onOpenChange={setIsTelemetryPanelOpen} />
+            <FinancePanel open={isFinancePanelOpen} onOpenChange={setIsFinancePanelOpen} />
             {!isReadOnly ? (
               <RawTelemetryPanel
                 open={isRawTelemetryPanelOpen}
@@ -282,7 +285,7 @@ function OfficeSimulationContent() {
                 employees={employees}
                 officeObjects={officeObjects}
                 officeLayout={officeSettings.officeLayout}
-                projects={companyModel?.projects ?? []}
+                onOpenFinance={() => setIsFinancePanelOpen(true)}
               />
             </div>
             {isReadOnly ? (

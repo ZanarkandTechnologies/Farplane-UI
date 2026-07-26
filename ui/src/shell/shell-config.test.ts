@@ -22,6 +22,11 @@ describe("Farplane shell config", () => {
     expect(DEFAULT_FARPLANE_UI_CONFIG.modules).toContain("soundtrack");
   });
 
+  it("registers Finance as shared panel and HUD chrome", () => {
+    expect(moduleRegistry.finance.surfaces).toEqual(["nav", "panel", "hud"]);
+    expect(DEFAULT_FARPLANE_UI_CONFIG.modules).toContain("finance");
+  });
+
   it("keeps valid renderer, persistence, and registered module ids", () => {
     expect(
       normalizeFarplaneUiConfig({

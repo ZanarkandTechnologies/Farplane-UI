@@ -51,6 +51,23 @@ window.__FARPLANE_QA__.openPanel("agent-session");
 window.__FARPLANE_QA__.runCommand("builder-mode");
 ```
 
+### Finance Snapshot Proof
+
+Use an isolated state root when proving company cash so personal finance data is
+never touched:
+
+```bash
+FARPLANE_STATE_DIR=/tmp/farplane-finance-proof \
+  corepack pnpm --filter @farplane/cli cli finance snapshot record \
+  --balance -400 --as-of 2026-07-22 --source bank-statement --json
+```
+
+Launch the UI with the same `FARPLANE_STATE_DIR`, open `/office`, and inspect
+`office-finance-hud-trigger` and `finance-latest-balance`. The HUD and panel must
+both show negative `$400` in the destructive tone, while the panel retains
+separate weekly/monthly flow cards. Capture a screenshot plus browser console
+and page errors.
+
 ## Playwright Path
 
 Target stable regression coverage for:
