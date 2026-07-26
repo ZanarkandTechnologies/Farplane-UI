@@ -13,6 +13,7 @@ export type EvalTaskSummary = {
 };
 
 export type EvalSummary = {
+  schema_version?: number;
   job_id: string;
   label?: string;
   created_at?: string;
@@ -24,6 +25,8 @@ export type EvalSummary = {
   task_count?: number;
   pass_rate?: number;
   verdict_counts?: Record<string, number>;
+  benchmark_path?: string;
+  benchmark?: EvalBenchmark;
   tasks: EvalTaskSummary[];
 };
 
@@ -66,18 +69,78 @@ export type EvalAgent = {
   transcript_path?: string;
 };
 
+export type EvalTiming = {
+  duration_ms?: number | null;
+  total_tokens?: number | null;
+};
+
+export type EvalAssertionResult = {
+  text?: string;
+  passed?: boolean;
+  evidence?: string;
+};
+
+export type EvalGrading = {
+  assertion_results?: EvalAssertionResult[];
+  summary?: {
+    passed?: number;
+    failed?: number;
+    total?: number;
+  };
+};
+
+export type EvalVariantResult = {
+  agent?: EvalAgent;
+  judge?: EvalJudge;
+  timing?: EvalTiming;
+  grading?: EvalGrading;
+  artifact_dir?: string;
+  behavior_trace?: unknown;
+  skipped?: boolean;
+  reason?: string;
+  skill_triggered?: boolean;
+};
+
+export type EvalComparison = {
+  delta?: string;
+  skill_value?: boolean;
+};
+
+export type EvalBenchmarkVariant = {
+  pass_rate?: { mean?: number | null; stddev?: number | null };
+  duration_ms?: { mean?: number | null; stddev?: number | null };
+  total_tokens?: { mean?: number | null; stddev?: number | null };
+};
+
+export type EvalBenchmark = {
+  schema_version?: number;
+  job_id?: string;
+  repetitions?: number;
+  run_summary?: {
+    candidate?: EvalBenchmarkVariant;
+    baseline?: EvalBenchmarkVariant;
+    delta?: Record<string, number | null | undefined>;
+  };
+};
+
 export type EvalTaskDetail = {
+  schema_version?: number;
   task_id?: string;
   title?: string;
   task?: EvalTask;
   agent?: EvalAgent;
   judge?: EvalJudge;
+  candidate?: EvalVariantResult;
+  baseline?: EvalVariantResult;
+  comparison?: EvalComparison;
+  behavior_trace?: unknown;
   summary?: EvalTaskSummary;
   artifacts?: Record<string, string>;
   raw?: unknown;
 };
 
 export type EvalRunIndexEntry = {
+  schema_version?: number;
   job_id: string;
   label?: string;
   created_at?: string;

@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { EvalExperimentOverview } from "@/modules/evals/components/eval-experiment-overview";
 import {
   EvalHealthCards,
   type EvalHealthTarget,
@@ -552,7 +553,8 @@ export function EvalOsPanel(): ReactElement {
               )}
             </div>
           ) : (
-            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+            <div className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-3">
+              <EvalExperimentOverview summary={summary} />
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <Badge variant={health.failureCount ? "destructive" : "secondary"}>
                   {formatPercent(health.passRate)}

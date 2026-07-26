@@ -6,8 +6,10 @@ Eval OS is the global mini app for Farplane/Codex eval artifacts.
 
 - `.farplane/evals/runs/index.json`
 - `.farplane/evals/runs/<job_id>/summary.json`
+- `.farplane/evals/runs/<job_id>/benchmark.json`
 - `.farplane/evals/runs/<job_id>/tasks/<task_id>.json`
-- `.farplane/evals/runs/<job_id>/tasks/<task_id>/agent_answer.txt`
+- `.farplane/evals/runs/<job_id>/tasks/<task_id>/{candidate,baseline}/outputs/agent_answer.txt`
+- `.farplane/evals/runs/<job_id>/tasks/<task_id>/{candidate,baseline}/{timing,grading}.json`
 
 The Vite bridge exposes these through `/farplane/evals/*` for the browser. Root precedence is:
 
@@ -31,6 +33,7 @@ The runner is the only writer for this directory in normal use. Manual JSON uplo
 
 ## Boundaries
 
-- Eval OS owns run history, health, result drilldown, and report artifact viewing.
+- Eval OS owns run history, candidate-versus-baseline metrics, assertion evidence, behavior traces, health, and report artifact viewing.
+- The Core `eval` skill owns eval semantics, execution, grading, and artifact production. This UI is the read-only browser for that contract.
 - Skill OS owns skill registry, template rollout, skill files, and skill-local eval definitions.
 - Convex is intentionally out of scope until cloud/shared eval history is needed.
