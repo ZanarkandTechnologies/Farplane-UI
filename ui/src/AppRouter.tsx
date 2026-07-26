@@ -47,8 +47,8 @@ export function AppRouter(): React.JSX.Element {
       <Route
         path="/skill-rollout"
         element={
-          <main className="h-[100dvh] w-[100dvw] overflow-auto bg-background p-4 text-foreground">
-            <SkillOsMiniApp initialTab="rollout" />
+          <main className="box-border h-[100dvh] w-[100dvw] overflow-hidden bg-background p-4 text-foreground">
+            <SkillOsMiniApp initialFilter="needs-care" />
           </main>
         }
       />
@@ -79,7 +79,7 @@ export function AppRouter(): React.JSX.Element {
       <Route
         path="/skills"
         element={
-          <main className="h-[100dvh] w-[100dvw] overflow-auto bg-background p-4 text-foreground">
+          <main className="box-border h-[100dvh] w-[100dvw] overflow-hidden bg-background p-4 text-foreground">
             <SkillOsMiniApp />
           </main>
         }
