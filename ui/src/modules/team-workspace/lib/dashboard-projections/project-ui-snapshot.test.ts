@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import autonomySnapshot from "./fixtures/autonomy-savings-snapshot-v2.json";
+import autonomySnapshot from "./fixtures/autonomy-savings-snapshot-v3.json";
 import { parseProjectUiSnapshot, sourceGapText } from "./project-ui-snapshot";
 
 function contractSnapshot() {
   return {
     generated_at: "2026-07-12T00:00:00Z",
-    schema_version: 2,
+    schema_version: 3,
     project: { id: "farplane", name: "Farplane" },
     source_gaps: [
       {
@@ -25,6 +25,7 @@ function contractSnapshot() {
           metric_id: "quality",
           label: "Quality",
           description: "Eval pass rate.",
+          type: "stock",
           direction: "maximize",
           max_age_days: 7,
           selection_role: "guard",
@@ -55,7 +56,20 @@ function contractSnapshot() {
             metric_id: "quality",
             label: "Quality",
             status: "stale",
-            current: null,
+            type: "stock",
+            current: { value: null, observed_at: "2026-07-01", status: "stale" },
+            window: { start: "2026-07-06", end: "2026-07-12", timezone: "UTC" },
+            comparison: {
+              previous_start: "2026-06-29",
+              previous_end: "2026-07-05",
+              previous_value: 1,
+              absolute_delta: null,
+              percent_delta: null,
+              progress_delta: null,
+              momentum: "unknown",
+              reason: "stale_observation",
+            },
+            cumulative: null,
             unit: "ratio",
             series: [{ date: "2026-07-01", value: 1 }],
             source_gaps: [
@@ -120,7 +134,7 @@ function contractSnapshot() {
 }
 
 describe("project UI snapshot model", () => {
-  it("parses schema 2 charter, objective selection, definitions, and stale guards", () => {
+  it("parses schema 3 charter, objective selection, definitions, and stale guards", () => {
     const snapshot = parseProjectUiSnapshot(contractSnapshot());
     expect(snapshot?.tabs.overview.charter.mission).toBe("Make useful work.");
     expect(snapshot?.tabs.objectives.guards[0]).toMatchObject({
@@ -152,7 +166,7 @@ describe("project UI snapshot model", () => {
     ).toBeNull();
   });
 
-  it("preserves generic observation payload provenance on flat schema-v2 cards", () => {
+  it("preserves generic observation payload provenance on flat schema-v3 cards", () => {
     const snapshot = parseProjectUiSnapshot(autonomySnapshot);
     expect(snapshot?.metrics.series[0]?.series[0]?.payload).toMatchObject({
       attribution_coverage: 0.75,
@@ -181,7 +195,7 @@ describe("project UI snapshot model", () => {
     expect(highlights?.sourceGapIds).toEqual(["highlight_report_missing"]);
   });
 
-  it("keeps schema-v2 compatibility when highlights are absent and drops invalid rows", () => {
+  it("keeps schema-v3 highlights optional and drops invalid rows", () => {
     const absent = contractSnapshot();
     delete (absent.tabs as Partial<typeof absent.tabs>).highlights;
     expect(parseProjectUiSnapshot(absent)?.tabs.highlights).toBeUndefined();

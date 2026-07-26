@@ -2,163 +2,193 @@ kind: project-harness
 status: active
 project: Farplane UI
 created_at: 2026-06-17
-updated_at: 2026-07-12
-framework_template_version: "0.4.0"
+updated_at: '2026-07-26'
+framework_template_version: 0.5.3
 owner: harness
-
 identity:
-  mission: >-
-    Build and distribute the trusted local founder-control UI for Farplane:
-    a compact, inspectable office where an operator can see teams, steer
-    runtime-backed agents, review artifacts, and move ideas into
-    ticket-backed execution and proof.
-  human_thesis: >-
-    Farplane UI should preserve founder judgment while making autonomous work
-    easier to trust. The office exists to keep AI work visible,
-    interruptible, reviewable, and grounded in files rather than hidden
-    runtime state.
-  north_star: >-
-    Farplane UI becomes the trusted local founder-control surface for running,
-    explaining, proving, and sharing Farplane workflows.
-
+  mission: 'Build and distribute the trusted local founder-control UI for Farplane: a compact, inspectable
+    office where an operator can see teams, steer runtime-backed agents, review artifacts, and move ideas
+    into ticket-backed execution and proof.'
+  human_thesis: Farplane UI should preserve founder judgment while making autonomous work easier to trust.
+    The office exists to keep AI work visible, interruptible, reviewable, and grounded in files rather
+    than hidden runtime state.
+  north_star: Farplane UI becomes the trusted local founder-control surface for running, explaining, proving,
+    and sharing Farplane workflows.
+  problems:
+  - id: opaque_agent_operations
+    statement: Founders need to see, steer, review, and prove autonomous work without transcript archaeology.
+    metric_refs:
+    - accepted_ui_product_cycles
+    - accepted_ui_workflows_releases
+  - id: ungrounded_product_distribution
+    statement: UI demos and launch content need direct links to accepted product evidence and adoption learning.
+    metric_refs:
+    - evidence_distribution_reach
+    - decision_changing_adoption_briefs
 metric_refs:
   objectives:
-    - metric_id: accepted_ui_product_cycles
-      priority: 1
+  - metric_id: accepted_ui_product_cycles
+    priority: 1
   guards: []
-
-products:
-  accepted_founder_control_ui:
-    description: >-
-      Accepted local UI releases and workflows that help a founder see, steer,
-      review, or prove AI work without transcript archaeology.
-    output: >-
-      A reviewed UI workflow or release with source-backed behavior, proof
-      evidence, residual risk, and a clear operator next action.
-    skill_refs:
-      - farplane-ui-product-ops
-    metric_refs:
-      - metric_id: accepted_ui_workflows_releases
-        priority: 2
-  evidence_backed_ui_demos_and_content:
-    description: >-
-      Demos, screenshots, clips, posts, videos, and launch notes whose claims
-      are tied to accepted Farplane UI evidence.
-    output: >-
-      A distribution artifact with claim-to-proof links, source UI evidence,
-      platform-specific draft or publish gate, and response observations when
-      available.
-    skill_refs:
-      - farplane-ui-product-ops
-    metric_refs:
-      - metric_id: evidence_distribution_reach
-        priority: 3
-  adoption_market_learning:
-    description: >-
-      Source-backed adoption and market learning that changes product,
-      workflow, positioning, or distribution decisions for Farplane UI.
-    output: >-
-      A decision brief that names evidence, confidence, the decision changed,
-      and the next action or no-action result.
-    skill_refs:
-      - farplane-ui-product-ops
-    metric_refs:
-      - metric_id: decision_changing_adoption_briefs
-        priority: 4
-
 feature_definition:
-  definition: >-
-    A Farplane UI feature is a durable local UI workflow, renderer/module
-    contract, runtime adapter surface, proof surface, or distribution handoff
-    that helps a founder operate, trust, or share Farplane work.
+  definition: A Farplane UI feature is a durable local UI workflow, renderer/module contract, runtime
+    adapter surface, proof surface, or distribution handoff that helps a founder operate, trust, or share
+    Farplane work.
   statuses:
-    - stable
-    - experimental
+  - stable
+  - experimental
   evidence_may_include:
-    - tickets
-    - browser_qa
-    - screenshots
-    - project_snapshots
-    - review_reports
-    - accepted_demos
-    - adoption_briefs
+  - tickets
+  - browser_qa
+  - screenshots
+  - project_snapshots
+  - review_reports
+  - accepted_demos
+  - adoption_briefs
   not_automatically_features:
-    - individual tickets
-    - raw content ideas
-    - unreviewed screenshots
-    - hidden runtime state
-    - automation configuration
-    - retired product-controller rows
-
+  - individual tickets
+  - raw content ideas
+  - unreviewed screenshots
+  - hidden runtime state
+  - automation configuration
+  - retired product-controller rows
 operating_principles:
-  - Prefer visible project artifacts over transcript memory.
-  - Keep runtime state inspectable and adapter-backed.
-  - Make Codex the default local office runtime and keep OpenClaw optional.
-  - Shape material work through tickets, specs, or Goal Packets before broad implementation.
-  - Prove UI-bearing changes with browser evidence, focused checks, or reviewer output before closeout.
-  - Tie content and demos to accepted UI evidence before distribution work counts as product progress.
-
+- Prefer visible project artifacts over transcript memory.
+- Keep runtime state inspectable and adapter-backed.
+- Make Codex the default local office runtime and keep OpenClaw optional.
+- Shape material work through tickets, specs, or Goal Packets before broad implementation.
+- Prove UI-bearing changes with browser evidence, focused checks, or reviewer output before closeout.
+- Tie content and demos to accepted UI evidence before distribution work counts as product progress.
 stable_capabilities:
-  - pulse-update
-  - interval-update
-  - feed-scout
-  - dogfood-review
-  - content-impl-plan
-  - storyboard
-  - social-content
-  - video-production
-  - remotion
-  - x-account
-  - instagram-account
-  - qa
-  - review
-  - visual-qa
-  - frontend-craft
-  - update-strategy
-
+- pulse-update
+- interval-update
+- feed-scout
+- dogfood-review
+- content-impl-plan
+- storyboard
+- social-content
+- video-production
+- remotion
+- x-account
+- instagram-account
+- qa
+- review
+- visual-qa
+- frontend-craft
+- update-strategy
 leverage_commitments:
-  - id: founder_control_office
-    why_it_compounds: A reliable local cockpit makes every downstream agent workflow easier to steer and review.
-    evidence_to_seek: Operators can enter /office, understand current work, and take the next action without reading chat history.
-    pivot_signal: The office becomes decorative or slower than direct file or CLI work.
-  - id: runtime_visibility
-    why_it_compounds: Adapter-backed runtime state turns opaque sessions into inspectable teams and artifacts.
-    evidence_to_seek: Codex and optional OpenClaw state appear in stable modules with clear loading, failure, and provenance states.
-    pivot_signal: Runtime panels create false confidence or hide source uncertainty.
-  - id: evidence_backed_distribution
-    why_it_compounds: Distribution grounded in accepted UI evidence creates trust and teaches product direction.
-    evidence_to_seek: Demos and posts point to real accepted workflows and produce response data that changes tickets, positioning, or onboarding.
-    pivot_signal: Content work detaches from accepted product evidence or becomes a separate controller.
-
+- id: founder_control_office
+  why_it_compounds: A reliable local cockpit makes every downstream agent workflow easier to steer and
+    review.
+  evidence_to_seek: Operators can enter /office, understand current work, and take the next action without
+    reading chat history.
+  pivot_signal: The office becomes decorative or slower than direct file or CLI work.
+- id: runtime_visibility
+  why_it_compounds: Adapter-backed runtime state turns opaque sessions into inspectable teams and artifacts.
+  evidence_to_seek: Codex and optional OpenClaw state appear in stable modules with clear loading, failure,
+    and provenance states.
+  pivot_signal: Runtime panels create false confidence or hide source uncertainty.
+- id: evidence_backed_distribution
+  why_it_compounds: Distribution grounded in accepted UI evidence creates trust and teaches product direction.
+  evidence_to_seek: Demos and posts point to real accepted workflows and produce response data that changes
+    tickets, positioning, or onboarding.
+  pivot_signal: Content work detaches from accepted product evidence or becomes a separate controller.
 constraints:
   non_tradeoffs:
-    - Do not store secrets in tracked config.
-    - Do not hide automation, runtime, or ticket state outside visible files or ignored .farplane ledgers.
-    - Do not silently change the durable product boundary from local office cockpit to hosted control plane or generic SaaS.
-    - Do not make OpenClaw required for workflows that should work through the default Codex adapter.
-    - Do not publish, deploy, spend, mutate accounts, or contact customers without explicit approval.
+  - Do not store secrets in tracked config.
+  - Do not hide automation, runtime, or ticket state outside visible files or ignored .farplane ledgers.
+  - Do not silently change the durable product boundary from local office cockpit to hosted control plane
+    or generic SaaS.
+  - Do not make OpenClaw required for workflows that should work through the default Codex adapter.
+  - Do not publish, deploy, spend, mutate accounts, or contact customers without explicit approval.
   allocation_guardrails:
-    product_focus: Prioritize office workflows that help the operator see, steer, review, or prove AI work.
+    product_focus: Prioritize office workflows that help the operator see, steer, review, or prove AI
+      work.
     runtime_adapters: Keep adapter-specific behavior behind explicit runtime boundaries and settings.
     proof: UI-bearing tickets need browser evidence or an explicit reason it is not useful.
-    content: Content work must name the accepted UI evidence it showcases before it becomes ordinary BAU ticket work.
-    maintenance: Maintenance should unblock product trust, runtime clarity, or ticket execution rather than becoming the main product.
-
+    content: Content work must name the accepted UI evidence it showcases before it becomes ordinary BAU
+      ticket work.
+    maintenance: Maintenance should unblock product trust, runtime clarity, or ticket execution rather
+      than becoming the main product.
 authority:
   agents_may:
-    - Update tickets, docs, QA surfaces, and proposed harness deltas through evidence-backed changes.
-    - Create ordinary BAU tickets for accepted UI evidence, distribution learning, proof gaps, and capability refinement.
-    - Propose static charter changes when new evidence shows this harness is steering the wrong product.
+  - Update tickets, docs, QA surfaces, and proposed harness deltas through evidence-backed changes.
+  - Create ordinary BAU tickets for accepted UI evidence, distribution learning, proof gaps, and capability
+    refinement.
+  - Propose static charter changes when new evidence shows this harness is steering the wrong product.
   human_approval_required:
-    - publishing
-    - spend
-    - customer_contact
-    - deploy
-    - account_mutation
-    - destructive_cleanup
-    - product_boundary_change
-    - protected_charter_change
+  - publishing
+  - spend
+  - customer_contact
+  - deploy
+  - account_mutation
+  - destructive_cleanup
+  - product_boundary_change
+  - protected_charter_change
+change_rule: Protected charter changes require an explicit human-approved harness delta; reports and agents
+  may propose but may not silently apply them.
+areas:
+  accepted_founder_control_ui:
+    description: 'Accepted local UI releases and workflows that help a founder see, steer, review, or
+      prove AI work without transcript archaeology.
 
-change_rule: >-
-  Protected charter changes require an explicit human-approved harness delta;
-  reports and agents may propose but may not silently apply them.
+
+      Expected output: A reviewed UI workflow or release with source-backed behavior, proof evidence,
+      residual risk, and a clear operator next action.'
+    icp:
+      label: Founder-operators running autonomous agent teams
+      description: Builders who need a local, inspectable cockpit for agent work and proof.
+      jobs_to_be_done:
+      - Understand current work and take the next action without reading chat history.
+      - Verify that a claimed workflow is backed by source evidence.
+      pain_points:
+      - Opaque runtime state and transcript archaeology.
+      evidence_bar: A reviewed workflow with browser proof, provenance, and explicit residual risk.
+    skill_refs:
+    - farplane-ui-product-ops
+    metric_refs:
+    - metric_id: accepted_ui_workflows_releases
+      priority: 2
+  evidence_backed_ui_demos_and_content:
+    description: 'Demos, screenshots, clips, posts, videos, and launch notes whose claims are tied to
+      accepted Farplane UI evidence.
+
+
+      Expected output: A distribution artifact with claim-to-proof links, source UI evidence, platform-specific
+      draft or publish gate, and response observations when available.'
+    icp:
+      label: Technical builders evaluating Farplane UI
+      description: Prospective adopters who need honest demonstrations before trying the product.
+      jobs_to_be_done:
+      - See an accepted workflow operate with real project evidence.
+      pain_points:
+      - Polished demos detached from actual behavior.
+      evidence_bar: Claim-to-proof links plus source UI evidence and response observations.
+    skill_refs:
+    - farplane-ui-product-ops
+    metric_refs:
+    - metric_id: evidence_distribution_reach
+      priority: 3
+  adoption_market_learning:
+    description: 'Source-backed adoption and market learning that changes product, workflow, positioning,
+      or distribution decisions for Farplane UI.
+
+
+      Expected output: A decision brief that names evidence, confidence, the decision changed, and the
+      next action or no-action result.'
+    icp:
+      label: Farplane UI product operators
+      description: Maintainers deciding what to build, position, or distribute next.
+      jobs_to_be_done:
+      - Turn adoption evidence into a product or no-action decision.
+      pain_points:
+      - Research that never changes a decision.
+      evidence_bar: A sourced brief naming confidence, the decision changed, and the next action.
+    skill_refs:
+    - farplane-ui-product-ops
+    metric_refs:
+    - metric_id: decision_changing_adoption_briefs
+      priority: 4
+planning:
+  skill_refs:
+  - farplane-ui-product-ops

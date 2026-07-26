@@ -1,0 +1,261 @@
+{
+  "generated_at": "2026-07-12T12:00:00Z",
+  "schema_version": 3,
+  "project": {
+    "id": "farplane-ui",
+    "name": "Farplane UI"
+  },
+  "source_gaps": [],
+  "metrics": {
+    "contents": [],
+    "primitives": {},
+    "readings": {},
+    "definitions": {},
+    "series": [
+      {
+        "metric_id": "clone_hours",
+        "label": "Parallel clone hours",
+        "primitive_id": "manual_source_gap",
+        "status": "available",
+        "current": {
+          "value": 8,
+          "observed_at": "2026-07-12",
+          "status": "available"
+        },
+        "unit": "hours",
+        "series": [
+          {
+            "date": "2026-07-12",
+            "value": 8,
+            "payload": {
+              "attribution_coverage": 0.75
+            }
+          }
+        ],
+        "source_gaps": [],
+        "type": "flow",
+        "window": {
+          "start": "2026-07-06",
+          "end": "2026-07-12",
+          "timezone": "UTC"
+        },
+        "comparison": {
+          "previous_start": "2026-06-29",
+          "previous_end": "2026-07-05",
+          "previous_value": null,
+          "absolute_delta": null,
+          "percent_delta": null,
+          "progress_delta": null,
+          "momentum": "unknown",
+          "reason": "no_previous_observation"
+        },
+        "cumulative": {
+          "value": 8,
+          "through": "2026-07-12",
+          "status": "available"
+        }
+      },
+      {
+        "metric_id": "concurrent_agent_wall_hours",
+        "label": "Concurrent agent wall hours",
+        "primitive_id": "manual_source_gap",
+        "status": "available",
+        "current": {
+          "value": 5.5,
+          "observed_at": "2026-07-12",
+          "status": "available"
+        },
+        "unit": "hours",
+        "series": [
+          {
+            "date": "2026-07-12",
+            "value": 5.5,
+            "payload": {
+              "attribution_coverage": 0.75
+            }
+          }
+        ],
+        "source_gaps": [],
+        "type": "flow",
+        "window": {
+          "start": "2026-07-06",
+          "end": "2026-07-12",
+          "timezone": "UTC"
+        },
+        "comparison": {
+          "previous_start": "2026-06-29",
+          "previous_end": "2026-07-05",
+          "previous_value": null,
+          "absolute_delta": null,
+          "percent_delta": null,
+          "progress_delta": null,
+          "momentum": "unknown",
+          "reason": "no_previous_observation"
+        },
+        "cumulative": {
+          "value": 5.5,
+          "through": "2026-07-12",
+          "status": "available"
+        }
+      },
+      {
+        "metric_id": "accepted_clone_hours",
+        "label": "Accepted clone hours",
+        "primitive_id": "manual_source_gap",
+        "status": "available",
+        "current": {
+          "value": 6,
+          "observed_at": "2026-07-12",
+          "status": "available"
+        },
+        "unit": "hours",
+        "series": [
+          {
+            "date": "2026-07-12",
+            "value": 6,
+            "payload": {
+              "attribution_coverage": 0.75
+            }
+          }
+        ],
+        "source_gaps": [],
+        "type": "flow",
+        "window": {
+          "start": "2026-07-06",
+          "end": "2026-07-12",
+          "timezone": "UTC"
+        },
+        "comparison": {
+          "previous_start": "2026-06-29",
+          "previous_end": "2026-07-05",
+          "previous_value": null,
+          "absolute_delta": null,
+          "percent_delta": null,
+          "progress_delta": null,
+          "momentum": "unknown",
+          "reason": "no_previous_observation"
+        },
+        "cumulative": {
+          "value": 6,
+          "through": "2026-07-12",
+          "status": "available"
+        }
+      },
+      {
+        "metric_id": "nonaccepted_clone_hours",
+        "label": "Non-accepted clone hours",
+        "primitive_id": "manual_source_gap",
+        "status": "available",
+        "current": {
+          "value": 2,
+          "observed_at": "2026-07-12",
+          "status": "available"
+        },
+        "unit": "hours",
+        "series": [
+          {
+            "date": "2026-07-12",
+            "value": 2,
+            "payload": {
+              "attribution_coverage": 0.75
+            }
+          }
+        ],
+        "source_gaps": [],
+        "type": "flow",
+        "window": {
+          "start": "2026-07-06",
+          "end": "2026-07-12",
+          "timezone": "UTC"
+        },
+        "comparison": {
+          "previous_start": "2026-06-29",
+          "previous_end": "2026-07-05",
+          "previous_value": null,
+          "absolute_delta": null,
+          "percent_delta": null,
+          "progress_delta": null,
+          "momentum": "unknown",
+          "reason": "no_previous_observation"
+        },
+        "cumulative": {
+          "value": 2,
+          "through": "2026-07-12",
+          "status": "available"
+        }
+      },
+      {
+        "metric_id": "potential_human_time_saved_hours_estimated",
+        "label": "Potential human time saved",
+        "primitive_id": "manual_source_gap",
+        "status": "available",
+        "current": {
+          "value": 5.5,
+          "observed_at": "2026-07-12",
+          "status": "available"
+        },
+        "unit": "hours",
+        "series": [
+          {
+            "date": "2026-07-12",
+            "value": 5.5,
+            "payload": {
+              "attribution_coverage": 0.75,
+              "confidence": "medium"
+            }
+          }
+        ],
+        "source_gaps": [],
+        "type": "flow",
+        "window": {
+          "start": "2026-07-06",
+          "end": "2026-07-12",
+          "timezone": "UTC"
+        },
+        "comparison": {
+          "previous_start": "2026-06-29",
+          "previous_end": "2026-07-05",
+          "previous_value": null,
+          "absolute_delta": null,
+          "percent_delta": null,
+          "progress_delta": null,
+          "momentum": "unknown",
+          "reason": "no_previous_observation"
+        },
+        "cumulative": {
+          "value": 5.5,
+          "through": "2026-07-12",
+          "status": "available"
+        }
+      }
+    ]
+  },
+  "tabs": {
+    "overview": {
+      "charter": {
+        "mission": "Make autonomy legible."
+      },
+      "pinned_metrics": [],
+      "pinned_metric_cards": [],
+      "source_gap_ids": []
+    },
+    "objectives": {
+      "selection": {
+        "objectives": [],
+        "guards": []
+      },
+      "metric_cards": [],
+      "source_gap_ids": []
+    },
+    "cadence": {
+      "automations": [],
+      "source_gap_ids": []
+    },
+    "distribution": {
+      "content_items": [],
+      "content_metric_cards": [],
+      "content_metric_ids": [],
+      "source_gap_ids": []
+    }
+  }
+}

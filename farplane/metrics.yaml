@@ -1,8 +1,8 @@
 kind: project-metrics
 status: active
 created_at: 2026-07-12
-updated_at: 2026-07-19
-framework_template_version: "0.3.0"
+updated_at: 2026-07-26
+framework_template_version: "0.4.0"
 owner: metric-advisor
 finance:
   currency: USD
@@ -12,11 +12,10 @@ finance:
 metrics:
   ai_spend:
     label: AI spend
-    description: >-
-      Actual AI-related spend recorded as one USD amount per calendar day.
-      Refreshes replace the reading for that date instead of adding a duplicate.
+    description: Actual AI-related spend recorded as one USD amount per calendar day. Refreshes replace
+      the reading for that date instead of adding a duplicate.
     pinned: false
-    kind: daily_count
+    type: flow
     unit: usd
     display: bar_plus_cumulative
     direction: minimize
@@ -24,63 +23,72 @@ metrics:
     finance:
       flow: expense
       basis: actual
+    refresh_ref: local_project_metrics
   accepted_ui_product_cycles:
     label: Accepted UI product cycles
-    description: >-
-      Daily count of completed tickets whose proof advances one selected
-      Farplane UI descriptive product and names accepted evidence, reviewer or
-      QA signal, and residual risk.
+    description: Daily count of completed tickets whose proof advances one selected Farplane UI descriptive
+      product and names accepted evidence, reviewer or QA signal, and residual risk.
     pinned: true
-    kind: daily_count
+    type: flow
     unit: cycles
     display: bar_plus_cumulative
     direction: maximize
     max_age_days: 7
+    refresh_ref: local_project_metrics
   accepted_ui_workflows_releases:
     label: Accepted UI workflows/releases
-    description: >-
-      Daily count of completed Farplane UI tickets whose proof shows a
-      reviewed local UI workflow or release accepted through ticket Done /
-      Proof, QA, and review evidence.
+    description: Daily count of completed Farplane UI tickets whose proof shows a reviewed local UI workflow
+      or release accepted through ticket Done / Proof, QA, and review evidence.
     pinned: false
-    kind: daily_count
+    type: flow
     unit: workflows
     display: bar_plus_cumulative
     direction: maximize
     max_age_days: 7
+    refresh_ref: local_project_metrics
   evidence_distribution_reach:
     label: Evidence distribution reach
-    description: >-
-      Same-window reach for demos or content that name accepted Farplane UI
-      evidence in their source packet. Platform components stay in the
-      observation payload, and missing access is recorded as a source gap.
+    description: Same-window reach for demos or content that name accepted Farplane UI evidence in their
+      source packet. Platform components stay in the observation payload, and missing access is recorded
+      as a source gap.
     pinned: false
-    kind: daily_count
+    type: flow
     unit: views
     display: bar_plus_cumulative
     direction: maximize
     max_age_days: 7
+    refresh_ref: local_project_metrics
   decision_changing_adoption_briefs:
     label: Decision-changing adoption briefs
-    description: >-
-      Daily count of adoption, user, or market learning briefs whose evidence
-      changes a product, workflow, positioning, distribution, or no-action
-      decision for Farplane UI.
+    description: Daily count of adoption, user, or market learning briefs whose evidence changes a product,
+      workflow, positioning, distribution, or no-action decision for Farplane UI.
     pinned: false
-    kind: daily_count
+    type: flow
     unit: briefs
     display: bar_plus_cumulative
     direction: maximize
     max_age_days: 14
+    refresh_ref: local_project_metrics
   qualified_install_interest_signal:
     label: Qualified install/interest signal
-    description: >-
-      Qualified install, clone, access, or "how do I try this?" interest
-      attributable to Farplane UI evidence. This is intentionally unselected
-      until an honest provider or manual ledger exists.
+    description: Qualified install, clone, access, or "how do I try this?" interest attributable to Farplane
+      UI evidence. This is intentionally unselected until an honest provider or manual ledger exists.
     pinned: false
-    kind: daily_count
+    type: flow
     unit: signals
     display: bar_plus_cumulative
     direction: maximize
     max_age_days: 14
+    refresh_ref: local_project_metrics
+refreshers:
+  local_project_metrics:
+    refresh: Read the metric definition and project-local evidence for the requested date; write one raw
+      observation per metric with provenance and explicit source gaps. Never infer a healthy zero from
+      missing evidence.
+    provides:
+    - ai_spend
+    - accepted_ui_product_cycles
+    - accepted_ui_workflows_releases
+    - evidence_distribution_reach
+    - decision_changing_adoption_briefs
+    - qualified_install_interest_signal

@@ -22,7 +22,7 @@ function projectConfig(): FarplaneProjectConfig {
         childCount: null,
         parsedJson: {
           generated_at: "2026-07-25T00:00:00Z",
-          schema_version: 2,
+          schema_version: 3,
           project_root: "/tmp/farplane",
           project: { id: "farplane" },
           sources: [],

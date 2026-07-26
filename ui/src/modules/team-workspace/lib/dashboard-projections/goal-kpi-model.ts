@@ -263,6 +263,21 @@ function metricRowFromProjectUi(metric: ProjectUiMetricCard): KpiMetricRow {
     sourceId: metric.primitiveId,
     status: metric.status,
     current: metric.current,
+    currentObservedAt: metric.currentObservedAt ?? undefined,
+    currentStatus: metric.currentStatus,
+    type: metric.type,
+    windowStart: metric.window.start,
+    windowEnd: metric.window.end,
+    windowTimezone: metric.window.timezone,
+    previousValue: metric.comparison.previousValue,
+    absoluteDelta: metric.comparison.absoluteDelta,
+    percentDelta: metric.comparison.percentDelta,
+    progressDelta: metric.comparison.progressDelta,
+    momentum: metric.comparison.momentum,
+    comparisonReason: metric.comparison.reason ?? undefined,
+    cumulativeValue: metric.cumulative?.value ?? null,
+    cumulativeThrough: metric.cumulative?.through,
+    cumulativeStatus: metric.cumulative?.status,
     unit: metric.unit,
     target: target.label,
     targetDirection: target.direction,
@@ -270,8 +285,6 @@ function metricRowFromProjectUi(metric: ProjectUiMetricCard): KpiMetricRow {
     targetDeadline: target.deadline,
     targetHit: metric.targetHit,
     sourceGapIds: metric.sourceGapIds,
-    aggregation: "",
-    cumulative: false,
     display: metric.display,
     series: metric.series,
   };
@@ -306,11 +319,6 @@ function parseSeries(value: unknown): MetricSeriesPoint[] {
       return {
         date,
         value: toNumberOrNull(row.value),
-        current:
-          toNumberOrNull(row.current) ??
-          toNumberOrNull(row.cumulative) ??
-          toNumberOrNull(row.value),
-        dailyDiff: toNumberOrNull(row.daily_diff),
         items: parseBreakdownItems(row.items ?? recordPayload(row.payload).items ?? []),
       };
     })
@@ -410,6 +418,7 @@ function uniqueSourceGaps(gaps: MetricSourceGap[]): MetricSourceGap[] {
 export function parseMetricsUiSnapshot(value: unknown): MetricsUiSnapshot | null {
   if (!value || typeof value !== "object") return null;
   const source = value as Record<string, unknown>;
+  if (source.schema_version !== 3) return null;
   const rawMetrics = Array.isArray(source.metrics) ? source.metrics : [];
   const rawGaps = Array.isArray(source.source_gaps) ? source.source_gaps : [];
   const metricRows = rawMetrics
@@ -420,6 +429,12 @@ export function parseMetricsUiSnapshot(value: unknown): MetricsUiSnapshot | null
       if (!metricId) return null;
       const metricGaps = Array.isArray(row.source_gaps) ? row.source_gaps : [];
       const hasGaps = metricGaps.length > 0;
+      const current = recordPayload(row.current);
+      const window = recordPayload(row.window);
+      const comparison = recordPayload(row.comparison);
+      const cumulative = recordPayload(row.cumulative);
+      const metricType = toStringValue(row.type);
+      if (metricType !== "flow" && metricType !== "stock") return null;
       return {
         metricId,
         label: toStringValue(row.label) || humanizeId(metricId),
@@ -434,14 +449,29 @@ export function parseMetricsUiSnapshot(value: unknown): MetricsUiSnapshot | null
         product: toStringValue(row.product),
         sourceId: toStringValue(row.source_id) || toStringValue(row.product) || metricId,
         status: toStringValue(row.status) || (hasGaps ? "source_gap" : "available"),
-        current: toNumberOrNull(row.current),
+        current: toNumberOrNull(current.value),
+        currentObservedAt: toStringValue(current.observed_at) || undefined,
+        currentStatus: toStringValue(current.status) || "missing",
+        type: metricType,
+        windowStart: toStringValue(window.start),
+        windowEnd: toStringValue(window.end),
+        windowTimezone: toStringValue(window.timezone),
+        previousValue: toNumberOrNull(comparison.previous_value),
+        absoluteDelta: toNumberOrNull(comparison.absolute_delta),
+        percentDelta: toNumberOrNull(comparison.percent_delta),
+        progressDelta: toNumberOrNull(comparison.progress_delta),
+        momentum: toStringValue(comparison.momentum) || "unknown",
+        comparisonReason: toStringValue(comparison.reason) || undefined,
+        cumulativeValue: metricType === "flow" ? toNumberOrNull(cumulative.value) : null,
+        cumulativeThrough:
+          metricType === "flow" ? toStringValue(cumulative.through) || undefined : undefined,
+        cumulativeStatus:
+          metricType === "flow" ? toStringValue(cumulative.status) || undefined : undefined,
         unit: toStringValue(row.unit),
         target:
           typeof row.target === "number" || typeof row.target === "string" ? row.target : null,
         targetHit: typeof row.target_hit === "boolean" ? row.target_hit : null,
         sourceGapIds: stringList(row.source_gap_ids ?? row.sourceGapIds),
-        aggregation: toStringValue(row.aggregation),
-        cumulative: row.cumulative === true,
         display: toStringValue(row.display),
         series: parseSeries(row.series),
       };

@@ -325,8 +325,8 @@ export function buildOverviewSummarySurface({
     0,
   );
   const distributionGaps = socialContent.items.reduce((total, item) => total + item.gaps.length, 0);
-  const latestDailyDiff = metricSeries
-    .flatMap((metric) => metric.series.slice(-1).map((point) => point.dailyDiff))
+  const windowProgressDelta = metricSeries
+    .map((metric) => metric.comparison.progressDelta)
     .filter((value): value is number => typeof value === "number")
     .reduce((total, value) => total + value, 0);
   const reportsSource = projectConfig?.runtimeSources.find((source) => source.id === "reports");
@@ -404,13 +404,13 @@ export function buildOverviewSummarySurface({
             },
             {
               id: "today_move",
-              label: "Today Move",
+              label: "Window Momentum",
               value:
-                typeof latestDailyDiff === "number"
-                  ? `${latestDailyDiff >= 0 ? "+" : ""}${numberText(latestDailyDiff)}`
+                typeof windowProgressDelta === "number"
+                  ? `${windowProgressDelta >= 0 ? "+" : ""}${numberText(windowProgressDelta)}`
                   : "n/a",
-              detail: "sum of latest daily KPI diffs",
-              target: "daily motion",
+              detail: "sum of direction-aware window deltas",
+              target: "window progress",
               provider: projectUiSnapshot ? "metrics.series" : "provider_missing",
               status: projectUiSnapshot ? "available" : "missing",
               priority: 2,

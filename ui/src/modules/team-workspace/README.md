@@ -10,8 +10,10 @@ Farplane harness, optimization, metrics, and cadence render from the generated
 canonical; the browser does not reinterpret YAML/TOML semantics for these
 dashboard surfaces. Tickets remain the work/proof state shown by Kanban.
 
-The required schema-v2 boundary is `tabs.overview.charter`, `tabs.objectives`,
-and `metrics.definitions/series`. Charter projects mission, thesis, principles,
+The required schema-v3 boundary is `tabs.overview.charter`, `tabs.objectives`,
+and `metrics.definitions/series`. Every metric series card consumes Core's
+typed `current`, `comparison`, `cumulative`, and raw `series` views; the UI
+does not derive momentum from adjacent observations. Charter projects mission, thesis, principles,
 non-tradeoffs, and stable capabilities. Objectives projects ordered objectives,
 hard guards, freshness-aware readings, and source gaps. The UI has no Goals or
 Products navigation/schema and does not fall back to `goals.yaml`.

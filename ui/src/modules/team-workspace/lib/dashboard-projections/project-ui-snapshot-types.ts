@@ -34,10 +34,31 @@ export type ProjectUiMetricTarget = {
 export type ProjectUiMetricPoint = {
   date: string;
   value: number | null;
-  current: number | null;
-  dailyDiff: number | null;
   payload: Record<string, unknown>;
   items: Array<{ id: string; kind?: string; url?: string; value: number | null }>;
+};
+
+export type ProjectUiMetricWindow = {
+  start: string;
+  end: string;
+  timezone: string;
+};
+
+export type ProjectUiMetricComparison = {
+  previousStart: string;
+  previousEnd: string;
+  previousValue: number | null;
+  absoluteDelta: number | null;
+  percentDelta: number | null;
+  progressDelta: number | null;
+  momentum: string;
+  reason: string | null;
+};
+
+export type ProjectUiMetricCumulative = {
+  value: number | null;
+  through: string;
+  status: string;
 };
 
 export type ProjectUiMetricSourceGap = {
@@ -49,19 +70,13 @@ export type ProjectUiMetricSourceGap = {
   status: string;
 };
 
-export type ProjectUiMetricCard = {
+export type ProjectUiMetricDefinition = {
   metricId: string;
   label: string;
   description?: string;
   productId: string;
   primitiveId: string;
-  status: string;
-  current: number | null;
-  series: ProjectUiMetricPoint[];
-  target: ProjectUiMetricTarget | number | string | null;
-  targetHit: boolean | null;
-  sourceGapIds: string[];
-  sourceGaps: ProjectUiMetricSourceGap[];
+  type: "flow" | "stock";
   unit: string;
   display: string;
   direction: string;
@@ -69,6 +84,21 @@ export type ProjectUiMetricCard = {
   maxAgeDays: number | null;
   pinned: boolean;
   selectionRole: string;
+};
+
+export type ProjectUiMetricCard = ProjectUiMetricDefinition & {
+  status: string;
+  current: number | null;
+  currentObservedAt: string | null;
+  currentStatus: string;
+  window: ProjectUiMetricWindow;
+  comparison: ProjectUiMetricComparison;
+  cumulative: ProjectUiMetricCumulative | null;
+  series: ProjectUiMetricPoint[];
+  target: ProjectUiMetricTarget | number | string | null;
+  targetHit: boolean | null;
+  sourceGapIds: string[];
+  sourceGaps: ProjectUiMetricSourceGap[];
 };
 
 export type ProjectUiContentMetricCard = {
@@ -163,7 +193,7 @@ export type ProjectUiSnapshot = {
   sourceGaps: ProjectUiSourceGap[];
   metrics: {
     contents: ProjectUiContentItem[];
-    definitions: ProjectUiMetricCard[];
+    definitions: ProjectUiMetricDefinition[];
     primitives: Record<string, unknown>;
     readings: Record<string, unknown>;
     series: ProjectUiMetricCard[];

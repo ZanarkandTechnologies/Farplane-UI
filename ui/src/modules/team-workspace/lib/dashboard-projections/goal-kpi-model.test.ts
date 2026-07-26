@@ -42,6 +42,7 @@ describe("goal KPI model", () => {
   it("joins goal KPI IDs with metric readings and source gaps", () => {
     const axes = parseGoalAxesFromGoalsMarkdown(goalsMarkdown);
     const snapshot = parseMetricsUiSnapshot({
+      schema_version: 3,
       snapshot_date: "2026-07-01",
       generated_at: "2026-07-01T00:00:00Z",
       metrics: [
@@ -52,8 +53,18 @@ describe("goal KPI model", () => {
           axis: "distribution_from_evidence",
           source_id: "x_account_metrics",
           status: "available",
-          current: 265,
-          series: [{ date: "2026-07-01", value: 265, current: 265, daily_diff: null }],
+          type: "stock",
+          current: { value: 265, observed_at: "2026-07-01", status: "available" },
+          window: { start: "2026-06-25", end: "2026-07-01", timezone: "UTC" },
+          comparison: {
+            previous_value: 250,
+            absolute_delta: 15,
+            percent_delta: 6,
+            progress_delta: 15,
+            momentum: "improving",
+          },
+          cumulative: null,
+          series: [{ date: "2026-07-01", value: 265 }],
         },
         {
           metric_id: "x_retention_score",
@@ -61,7 +72,17 @@ describe("goal KPI model", () => {
           axis: "distribution_from_evidence",
           source_id: "x_account_metrics",
           status: "source_gap",
-          current: null,
+          type: "stock",
+          current: { value: null, observed_at: null, status: "source_gap" },
+          window: { start: "2026-06-25", end: "2026-07-01", timezone: "UTC" },
+          comparison: {
+            previous_value: null,
+            absolute_delta: null,
+            percent_delta: null,
+            progress_delta: null,
+            momentum: "unknown",
+          },
+          cumulative: null,
           series: [],
         },
       ],
@@ -83,9 +104,9 @@ describe("goal KPI model", () => {
     );
   });
 
-  it("parses schema v2 content rows and per-metric source gaps", () => {
+  it("parses schema v3 metric projections, content rows, and per-metric source gaps", () => {
     const snapshot = parseMetricsUiSnapshot({
-      schema_version: 2,
+      schema_version: 3,
       snapshot_date: "2026-07-02",
       metrics: [
         {
@@ -93,8 +114,18 @@ describe("goal KPI model", () => {
           label: "Instagram likes",
           product: "distribution",
           unit: "likes",
-          current: 133,
-          series: [{ date: "2026-07-01", value: 133, cumulative: 133 }],
+          type: "flow",
+          current: { value: 133, observed_at: "2026-07-01", status: "available" },
+          window: { start: "2026-06-25", end: "2026-07-01", timezone: "UTC" },
+          comparison: {
+            previous_value: 100,
+            absolute_delta: 33,
+            percent_delta: 33,
+            progress_delta: 33,
+            momentum: "improving",
+          },
+          cumulative: { value: 300, through: "2026-07-01", status: "available" },
+          series: [{ date: "2026-07-01", value: 133 }],
           source_gaps: ["instagram export missing retention"],
         },
       ],
@@ -121,8 +152,10 @@ describe("goal KPI model", () => {
       ],
     });
 
-    expect(snapshot?.schemaVersion).toBe(2);
-    expect(snapshot?.metrics[0].series[0].current).toBe(133);
+    expect(snapshot?.schemaVersion).toBe(3);
+    expect(snapshot?.metrics[0].series[0].value).toBe(133);
+    expect(snapshot?.metrics[0].absoluteDelta).toBe(33);
+    expect(snapshot?.metrics[0].cumulativeValue).toBe(300);
     expect(snapshot?.sourceGaps[0].reason).toBe("instagram export missing retention");
     expect(snapshot?.contents[0].contentId).toBe("instagram:17966345906934171");
     expect(snapshot?.contents[0].externalId).toBe("17966345906934171");

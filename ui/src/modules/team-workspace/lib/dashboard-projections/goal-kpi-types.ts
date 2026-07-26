@@ -29,8 +29,6 @@ export type MetricBreakdownItem = {
 export type MetricSeriesPoint = {
   date: string;
   value: number | null;
-  current: number | null;
-  dailyDiff: number | null;
   items: MetricBreakdownItem[];
 };
 
@@ -43,6 +41,21 @@ export type KpiMetricRow = {
   sourceId: string;
   status: string;
   current: number | null;
+  currentObservedAt?: string;
+  currentStatus: string;
+  type: "flow" | "stock";
+  windowStart: string;
+  windowEnd: string;
+  windowTimezone: string;
+  previousValue: number | null;
+  absoluteDelta: number | null;
+  percentDelta: number | null;
+  progressDelta: number | null;
+  momentum: string;
+  comparisonReason?: string;
+  cumulativeValue: number | null;
+  cumulativeThrough?: string;
+  cumulativeStatus?: string;
   unit?: string;
   target: number | string | null;
   targetDirection?: string;
@@ -50,8 +63,6 @@ export type KpiMetricRow = {
   targetDeadline?: string;
   targetHit: boolean | null;
   sourceGapIds?: string[];
-  aggregation: string;
-  cumulative: boolean;
   display: string;
   series: MetricSeriesPoint[];
 };

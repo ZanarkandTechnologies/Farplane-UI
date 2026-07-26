@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FarplaneProjectConfig } from "@/modules/team-workspace/lib/project-config";
-import autonomySnapshot from "./fixtures/autonomy-savings-snapshot-v2.json";
+import autonomySnapshot from "./fixtures/autonomy-savings-snapshot-v3.json";
 import { buildOverviewSummarySurface } from "./overview-summary-surface";
 
 function projectConfigWithSnapshot(parsedJson: unknown): FarplaneProjectConfig {
@@ -170,7 +170,7 @@ describe("overview summary surface", () => {
       aiBurn24hUsd: 0,
       projectConfig: projectConfigWithSnapshot({
         generated_at: "2026-07-03T00:00:00Z",
-        schema_version: 2,
+        schema_version: 3,
         source_gaps: [],
         metrics: {
           contents: [],
@@ -183,13 +183,26 @@ describe("overview summary surface", () => {
               product_id: "experiments",
               primitive_id: "ticket_count_by_kpi",
               status: "available",
-              current: 7,
+              type: "flow",
+              current: { value: 7, observed_at: "2026-07-03", status: "available" },
+              window: { start: "2026-06-27", end: "2026-07-03", timezone: "UTC" },
+              comparison: {
+                previous_start: "2026-06-20",
+                previous_end: "2026-06-26",
+                previous_value: 5,
+                absolute_delta: 2,
+                percent_delta: 40,
+                progress_delta: 2,
+                momentum: "improving",
+                reason: null,
+              },
+              cumulative: { value: 20, through: "2026-07-03", status: "available" },
               display: "bar_plus_cumulative",
               pinned: true,
               target: { direction: "above", value: 10, unit: "cycles" },
               target_hit: false,
               source_gap_ids: [],
-              series: [{ date: "2026-07-03", current: 7, daily_diff: 2 }],
+              series: [{ date: "2026-07-03", value: 7 }],
             },
           ],
         },
@@ -228,7 +241,7 @@ describe("overview summary surface", () => {
       aiBurn24hUsd: 0,
       projectConfig: projectConfigWithSnapshot({
         generated_at: "2026-07-03T00:00:00Z",
-        schema_version: 2,
+        schema_version: 3,
         source_gaps: [
           {
             id: "metric_source_gap:evidence_distribution_reach",
@@ -248,7 +261,20 @@ describe("overview summary surface", () => {
                 metric_id: "evidence_distribution_reach",
                 label: "Evidence distribution reach",
                 status: "source_gap",
-                current: null,
+                type: "flow",
+                current: { value: null, observed_at: null, status: "source_gap" },
+                window: { start: "2026-06-27", end: "2026-07-03", timezone: "UTC" },
+                comparison: {
+                  previous_start: "2026-06-20",
+                  previous_end: "2026-06-26",
+                  previous_value: null,
+                  absolute_delta: null,
+                  percent_delta: null,
+                  progress_delta: null,
+                  momentum: "unknown",
+                  reason: "source_gap",
+                },
+                cumulative: { value: null, through: "2026-07-03", status: "source_gap" },
                 description: "Pinned overview rollup of same-window platform view readings.",
                 source_gaps: [
                   {
@@ -298,7 +324,7 @@ describe("overview summary surface", () => {
       teamScope: "codex-proj-users-kenjipcx-zanarkand-technologies-projects-farplane",
       projectConfig: projectConfigWithSnapshot({
         generated_at: "2026-07-24T00:00:00Z",
-        schema_version: 2,
+        schema_version: 3,
         project: { id: "proj-farplane" },
         source_gaps: [],
         metrics: { contents: [], primitives: {}, readings: {}, series: [] },

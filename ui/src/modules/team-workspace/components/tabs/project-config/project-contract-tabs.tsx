@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   findProjectUiSnapshot,
   type ProjectUiMetricCard,
+  type ProjectUiMetricDefinition,
 } from "@/modules/team-workspace/lib/dashboard-projections/project-ui-snapshot";
 import type { FarplaneProjectConfig, ProjectConfigLoadState } from "./config-types";
 import { ConfigLoadingState } from "./shared";
@@ -115,7 +116,7 @@ function MetricSection({
   hardGuard?: boolean;
   rows: Array<{
     card?: ProjectUiMetricCard;
-    definition?: ProjectUiMetricCard;
+    definition?: ProjectUiMetricDefinition;
     metricId: string;
     meta: string;
     sourceGaps: Array<{ id: string; message: string }>;
@@ -155,7 +156,7 @@ function MetricStatusCard({
   sourceGaps,
 }: {
   card?: ProjectUiMetricCard;
-  definition?: ProjectUiMetricCard;
+  definition?: ProjectUiMetricDefinition;
   hardGuard: boolean;
   meta: string;
   metricId: string;
@@ -174,6 +175,11 @@ function MetricStatusCard({
     definition?.maxAgeDays === null || definition?.maxAgeDays === undefined
       ? "freshness not bounded"
       : `max age ${definition.maxAgeDays}d`;
+  const comparisonDelta = card?.comparison.absoluteDelta;
+  const comparisonValue =
+    typeof comparisonDelta === "number"
+      ? `${comparisonDelta > 0 ? "+" : ""}${comparisonDelta} ${card?.unit ?? ""}`.trim()
+      : "not available";
 
   return (
     <Card
@@ -209,6 +215,76 @@ function MetricStatusCard({
         <p className="text-xs text-muted-foreground">
           Direction: {definition?.direction || card?.direction || "unspecified"} · {freshness}
         </p>
+        {card ? (
+          <div className="grid gap-2 rounded-md border bg-background/40 p-2 sm:grid-cols-2">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                Window
+              </p>
+              <p className="mt-1 tabular-nums">
+                {card.window.start} → {card.window.end}
+              </p>
+              <p className="text-xs text-muted-foreground">{card.window.timezone}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                Comparison
+              </p>
+              <p className="mt-1 font-medium tabular-nums">
+                {card.comparison.momentum} · {comparisonValue}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                previous {card.comparison.previousValue ?? "n/a"}
+              </p>
+            </div>
+            {card.type === "flow" ? (
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                  Cumulative
+                </p>
+                <p className="mt-1 font-medium tabular-nums">
+                  {card.cumulative?.value ?? "n/a"} {card.unit}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  through {card.cumulative?.through || card.window.end}
+                </p>
+              </div>
+            ) : null}
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                Raw observations
+              </p>
+              <div
+                className="mt-2 flex h-8 items-end gap-1"
+                role="img"
+                aria-label={`${card.series.length} raw observations`}
+              >
+                {card.series.length > 0 ? (
+                  card.series.slice(-12).map((point) => {
+                    const max = Math.max(
+                      ...card.series.map((entry) => Math.abs(entry.value ?? 0)),
+                      1,
+                    );
+                    const height = Math.max(
+                      12,
+                      Math.min(100, (Math.abs(point.value ?? 0) / max) * 100),
+                    );
+                    return (
+                      <span
+                        key={point.date}
+                        className="min-h-1 w-2 rounded-sm bg-primary/70"
+                        style={{ height: `${height}%` }}
+                        title={`${point.date}: ${point.value ?? "missing"}`}
+                      />
+                    );
+                  })
+                ) : (
+                  <span className="text-xs text-muted-foreground">none</span>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
         {guard ? (
           <p className="text-xs font-medium">
             Guard: {humanizeGuard(guard.operator)} {guard.threshold ?? "threshold missing"}

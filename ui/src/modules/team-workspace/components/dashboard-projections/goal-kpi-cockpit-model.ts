@@ -11,23 +11,12 @@ const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 
 export type KpiChartPoint = {
   date: string;
   label: string;
-  current: number | null;
-  dailyDiff: number | null;
+  value: number | null;
+  cumulative: number | null;
 };
 
 export function formatMetricValue(value: number | null): string {
   return typeof value === "number" && Number.isFinite(value) ? numberFormatter.format(value) : "-";
-}
-
-function computedDailyDiff(
-  point: { current: number | null; dailyDiff: number | null },
-  previous: { current: number | null } | null,
-): number | null {
-  if (typeof point.dailyDiff === "number") return point.dailyDiff;
-  if (typeof point.current === "number" && typeof previous?.current === "number") {
-    return point.current - previous.current;
-  }
-  return null;
 }
 
 function formatShortDate(date: Date): string {
@@ -40,9 +29,9 @@ function addUtcDays(date: Date, days: number): Date {
   return next;
 }
 
-function sortedMetricPoints(metric: KpiMetricRow | null): Array<
-  KpiMetricRow["series"][number] & { parsedDate: Date }
-> {
+function sortedMetricPoints(
+  metric: KpiMetricRow | null,
+): Array<KpiMetricRow["series"][number] & { parsedDate: Date }> {
   return (metric?.series ?? [])
     .map((point) => ({
       ...point,
@@ -52,29 +41,25 @@ function sortedMetricPoints(metric: KpiMetricRow | null): Array<
     .sort((left, right) => left.parsedDate.getTime() - right.parsedDate.getTime());
 }
 
-export function latestDailyDiff(metric: KpiMetricRow | null): number | null {
-  const datedPoints = sortedMetricPoints(metric);
-  const latest = datedPoints.at(-1);
-  if (!latest) return null;
-  return computedDailyDiff(latest, datedPoints.at(-2) ?? null);
-}
-
 export function buildRollingSevenDayChartData(metric: KpiMetricRow): KpiChartPoint[] {
   const datedPoints = sortedMetricPoints(metric);
   const latestDate = datedPoints.at(-1)?.parsedDate;
   if (!latestDate) return [];
   const pointByDate = new Map(datedPoints.map((point) => [point.date, point]));
   const firstDate = addUtcDays(latestDate, -6);
+  let cumulative = datedPoints
+    .filter((point) => point.parsedDate < firstDate)
+    .reduce((total, point) => total + (point.value ?? 0), 0);
   return Array.from({ length: 7 }, (_, index) => {
     const date = addUtcDays(firstDate, index);
     const key = date.toISOString().slice(0, 10);
     const point = pointByDate.get(key);
-    const previous = point ? datedPoints[datedPoints.indexOf(point) - 1] ?? null : null;
+    if (typeof point?.value === "number") cumulative += point.value;
     return {
       date: key,
       label: formatShortDate(date),
-      current: point?.current ?? null,
-      dailyDiff: point ? computedDailyDiff(point, previous) : null,
+      value: point?.value ?? null,
+      cumulative: metric.type === "flow" ? cumulative : null,
     };
   });
 }
@@ -104,11 +89,13 @@ export function targetCopy(metric: KpiMetricRow | null): string {
 }
 
 export function trendLabel(metric: KpiMetricRow | null): string {
-  if (!metric || metric.series.length === 0) return "no trend";
-  const diff = latestDailyDiff(metric);
-  if (diff === null) return "latest";
-  if (diff > 0) return `+${numberFormatter.format(diff)}`;
-  return numberFormatter.format(diff);
+  if (!metric) return "no trend";
+  if (metric.absoluteDelta === null) return metric.momentum;
+  const delta =
+    metric.absoluteDelta > 0
+      ? `+${numberFormatter.format(metric.absoluteDelta)}`
+      : numberFormatter.format(metric.absoluteDelta);
+  return `${metric.momentum} ${delta}`;
 }
 
 export function metricStateLabel(status: string): string {

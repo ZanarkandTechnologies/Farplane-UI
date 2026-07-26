@@ -1,8 +1,8 @@
 {
   "schema": "farplane_project",
-  "spec_version": "2.0.3",
+  "spec_version": "2.0.12",
   "template_uses": {
-    "farplane-framework": "2.0.3"
+    "farplane-framework": "2.0.12"
   },
   "project": {
     "name": "Farplane UI",
@@ -45,7 +45,8 @@
       ".farplane/metrics/daily/",
       ".farplane/project/ui/",
       ".farplane/reports/",
-      ".farplane/crm/",
+      ".farplane/views.yaml",
+      ".farplane/entities/",
       ".farplane/evals/runs/",
       ".farplane/events/",
       ".farplane/logs/",
@@ -55,18 +56,14 @@
   },
   "optional": {
     "tracked": [
-      "farplane/hooks.json",
       "farplane/pm.json",
       ".githooks/README.md",
       ".githooks/pre-commit",
       ".githooks/pre-push",
-      "scripts/pre_commit_check.sh",
-      "scripts/pre_push_check.sh",
-      "docs/code_review.md",
-      "docs/review-agent.md",
-      "scripts/collect_review_context.sh",
-      "scripts/codex_review_agent.ts",
-      "scripts/run_pre_push_review.sh"
+      "bin/validators/run_git_gate.py",
+      "rules/git-review-gates.toml",
+      "skills/code-review/SKILL.md",
+      "skills/review/SKILL.md"
     ],
     "ignored": []
   },
@@ -95,5 +92,17 @@
         "tmp/**"
       ]
     }
+  },
+  "_template_metadata": {
+    "template_id": "farplane-framework",
+    "template_version": "2.0.12",
+    "feature_refs": [
+      "FEAT-0060",
+      "FEAT-0063"
+    ],
+    "consumer_scope": "project",
+    "applies_to": [
+      "farplane/manifest.json"
+    ]
   }
 }

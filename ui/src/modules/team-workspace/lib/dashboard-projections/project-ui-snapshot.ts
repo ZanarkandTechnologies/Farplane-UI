@@ -15,6 +15,7 @@ import type {
   ProjectUiHighlightLink,
   ProjectUiHighlights,
   ProjectUiMetricCard,
+  ProjectUiMetricDefinition,
   ProjectUiMetricPoint,
   ProjectUiMetricSourceGap,
   ProjectUiMetricTarget,
@@ -34,6 +35,7 @@ export type {
   ProjectUiHighlightLink,
   ProjectUiHighlights,
   ProjectUiMetricCard,
+  ProjectUiMetricDefinition,
   ProjectUiMetricPoint,
   ProjectUiMetricSourceGap,
   ProjectUiMetricTarget,
@@ -147,8 +149,6 @@ function parseMetricPoint(value: unknown): ProjectUiMetricPoint | null {
   return {
     date,
     value: nullableNumber(row.value),
-    current: nullableNumber(row.current ?? row.cumulative ?? row.value),
-    dailyDiff: nullableNumber(row.daily_diff ?? row.dailyDiff),
     payload: record(row.payload),
     items: items
       .map((entry): ProjectUiMetricPoint["items"][number] | null => {
@@ -170,6 +170,19 @@ function parseMetricCard(value: unknown): ProjectUiMetricCard | null {
   const row = record(value);
   const metricId = stringValue(row.metric_id ?? row.metricId).trim();
   if (!metricId) return null;
+  const current = record(row.current);
+  const window = record(row.window);
+  const comparison = record(row.comparison);
+  const cumulative = record(row.cumulative);
+  const metricType = stringValue(row.type);
+  if (
+    (metricType !== "flow" && metricType !== "stock") ||
+    !stringValue(window.start) ||
+    !stringValue(window.end) ||
+    !stringValue(window.timezone)
+  ) {
+    return null;
+  }
   const series = Array.isArray(row.series) ? row.series : [];
   return {
     metricId,
@@ -180,7 +193,33 @@ function parseMetricCard(value: unknown): ProjectUiMetricCard | null {
     productId: stringValue(row.product_id ?? row.productId ?? row.product),
     primitiveId: stringValue(row.primitive_id ?? row.primitiveId ?? row.source_id ?? row.sourceId),
     status: stringValue(row.status) || "missing",
-    current: nullableNumber(row.current),
+    current: nullableNumber(current.value),
+    currentObservedAt: optionalString(current.observed_at) ?? null,
+    currentStatus: stringValue(current.status) || "missing",
+    type: metricType,
+    window: {
+      start: stringValue(window.start),
+      end: stringValue(window.end),
+      timezone: stringValue(window.timezone),
+    },
+    comparison: {
+      previousStart: stringValue(comparison.previous_start),
+      previousEnd: stringValue(comparison.previous_end),
+      previousValue: nullableNumber(comparison.previous_value),
+      absoluteDelta: nullableNumber(comparison.absolute_delta),
+      percentDelta: nullableNumber(comparison.percent_delta),
+      progressDelta: nullableNumber(comparison.progress_delta),
+      momentum: stringValue(comparison.momentum) || "unknown",
+      reason: optionalString(comparison.reason) ?? null,
+    },
+    cumulative:
+      metricType === "flow"
+        ? {
+            value: nullableNumber(cumulative.value),
+            through: stringValue(cumulative.through),
+            status: stringValue(cumulative.status) || "missing",
+          }
+        : null,
     series: series
       .map(parseMetricPoint)
       .filter((point): point is ProjectUiMetricPoint => Boolean(point)),
@@ -200,7 +239,31 @@ function parseMetricCard(value: unknown): ProjectUiMetricCard | null {
   };
 }
 
-function parseMetricGuard(value: unknown): ProjectUiMetricCard["guard"] {
+function parseMetricDefinition(value: unknown): ProjectUiMetricDefinition | null {
+  const row = record(value);
+  const metricId = stringValue(row.metric_id ?? row.metricId).trim();
+  const metricType = stringValue(row.type);
+  if (!metricId || (metricType !== "flow" && metricType !== "stock")) return null;
+  return {
+    metricId,
+    label: stringValue(row.label) || metricId,
+    description: optionalString(
+      row.description ?? row.tooltip ?? row.calculation_description ?? row.calculationDescription,
+    ),
+    productId: stringValue(row.product_id ?? row.productId ?? row.product),
+    primitiveId: stringValue(row.primitive_id ?? row.primitiveId ?? row.source_id ?? row.sourceId),
+    type: metricType,
+    unit: stringValue(row.unit),
+    display: stringValue(row.display),
+    direction: stringValue(row.direction ?? row.target_direction ?? row.targetDirection),
+    guard: parseMetricGuard(row.guard),
+    maxAgeDays: nullableNumber(row.max_age_days ?? row.maxAgeDays),
+    pinned: row.pinned === true,
+    selectionRole: stringValue(row.selection_role ?? row.selectionRole),
+  };
+}
+
+function parseMetricGuard(value: unknown): ProjectUiMetricDefinition["guard"] {
   const row = record(value);
   const operator = stringValue(row.operator).trim();
   if (!operator) return null;
@@ -380,7 +443,7 @@ export function parseProjectUiSnapshot(value: unknown): ProjectUiSnapshot | null
   const tabs = record(source.tabs);
   const metrics = record(source.metrics);
   if (!source.generated_at && !source.generatedAt) return null;
-  if (source.schema_version !== 2) return null;
+  if (source.schema_version !== 3) return null;
   const overview = record(tabs.overview);
   if (!("charter" in overview) || !("objectives" in tabs)) return null;
   const objectives = record(tabs.objectives);
@@ -409,8 +472,8 @@ export function parseProjectUiSnapshot(value: unknown): ProjectUiSnapshot | null
         .map(parseContentItem)
         .filter((item): item is ProjectUiContentItem => Boolean(item)),
       definitions: definitions
-        .map(parseMetricCard)
-        .filter((metric): metric is ProjectUiMetricCard => Boolean(metric)),
+        .map(parseMetricDefinition)
+        .filter((metric): metric is ProjectUiMetricDefinition => Boolean(metric)),
       primitives: record(metrics.primitives),
       readings: record(metrics.readings ?? metrics.latest),
       series: series
