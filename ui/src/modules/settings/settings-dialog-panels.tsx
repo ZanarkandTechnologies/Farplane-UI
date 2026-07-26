@@ -163,7 +163,6 @@ function OverlayToggle(props: {
 
 type OfficeViewSettingsPanelProps = {
   viewProfile: OfficeSettingsModel["viewProfile"];
-  layoutStrategy: NonNullable<OfficeSettingsModel["layoutStrategy"]>;
   cameraOrientation: OfficeSettingsModel["cameraOrientation"];
   orbitControlsEnabled: boolean;
   statusText: string;
@@ -175,9 +174,6 @@ type OfficeViewSettingsPanelProps = {
   characterSpriteEmployeeId: string;
   characterGraphicsStatusText: string;
   onViewProfileChange: (value: OfficeSettingsModel["viewProfile"]) => void;
-  onLayoutStrategyChange: (
-    value: NonNullable<OfficeSettingsModel["layoutStrategy"]>,
-  ) => void;
   onCameraOrientationChange: (
     value: OfficeSettingsModel["cameraOrientation"],
   ) => void;
@@ -193,7 +189,6 @@ type OfficeViewSettingsPanelProps = {
 export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
   const {
     viewProfile,
-    layoutStrategy,
     cameraOrientation,
     orbitControlsEnabled,
     statusText,
@@ -205,7 +200,6 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
     characterSpriteEmployeeId,
     characterGraphicsStatusText,
     onViewProfileChange,
-    onLayoutStrategyChange,
     onCameraOrientationChange,
     onOrbitControlsEnabledChange,
     onSave,
@@ -215,54 +209,21 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
     onCharacterSpriteEmployeeIdChange,
     onApplyCharacterGraphics,
   } = props;
-  const usesProjectAreas =
-    layoutStrategy === "team_neighborhoods" ||
-    layoutStrategy === "activity_treemap" ||
-    layoutStrategy === "hierarchical_treemap" ||
-    layoutStrategy === "area_sorted_pack" ||
-    layoutStrategy === "command_districts";
-  const usesCenteredProjectAreas =
-    usesProjectAreas && layoutStrategy !== "area_sorted_pack";
-
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-1">
         <Label>Office View</Label>
         <span className="text-xs text-muted-foreground">
-          Switch camera, layout mode, and rendering preferences for the office.
+          Adjust camera and rendering preferences for your saved office.
         </span>
       </div>
 
-      <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground">
-          Office Layout Mode
-        </Label>
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-          <ModeOptionButton
-            label="Manual Builder"
-            description="Turn off auto layout and keep builder-placed objects where they are."
-            selected={layoutStrategy === "manual"}
-            onClick={() => onLayoutStrategyChange("manual")}
-          />
-          <ModeOptionButton
-            label="Classic Auto-Fit"
-            description="Pack desks and furniture into a compact open office."
-            selected={layoutStrategy === "legacy"}
-            onClick={() => onLayoutStrategyChange("legacy")}
-          />
-          <ModeOptionButton
-            label="Project Areas"
-            description="Center the heaviest project district, spread root peers around it, and keep nested project tables compact."
-            selected={usesCenteredProjectAreas}
-            onClick={() => onLayoutStrategyChange("hierarchical_treemap")}
-          />
-          <ModeOptionButton
-            label="Area Sorted Pack"
-            description="Sort project areas by table footprint, seed the largest cluster bottom-left, and grow a compact square-ish district."
-            selected={layoutStrategy === "area_sorted_pack"}
-            onClick={() => onLayoutStrategyChange("area_sorted_pack")}
-          />
-        </div>
+      <div className="rounded-md border bg-muted/30 px-3 py-2">
+        <p className="text-sm font-medium text-foreground">Saved office</p>
+        <p className="mt-1 text-xs leading-snug text-muted-foreground">
+          Furniture and floor placement stay fixed until you move them in Builder,
+          shuffle explicitly, or equip a different office template.
+        </p>
       </div>
 
       <SelectField
@@ -374,31 +335,6 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
         ) : null}
       </div>
     </div>
-  );
-}
-
-function ModeOptionButton(props: {
-  label: string;
-  description: string;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  const { label, description, selected, onClick } = props;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${
-        selected
-          ? "border-primary bg-primary/10 text-foreground"
-          : "border-border bg-background hover:bg-muted"
-      }`}
-    >
-      <span className="block font-medium leading-tight">{label}</span>
-      <span className="mt-1 block text-xs leading-snug text-muted-foreground">
-        {description}
-      </span>
-    </button>
   );
 }
 

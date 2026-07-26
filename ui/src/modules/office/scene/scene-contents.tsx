@@ -33,22 +33,22 @@ import {
 } from "@/modules/office/components/employee/use-team-character-preview";
 import { getOfficeLayoutBounds } from "@/modules/office/lib/office-layout";
 import { measureOfficeSceneQuality } from "@/modules/office/lib/office-scene-quality";
-import { useOfficeWorldStore } from "@/modules/office/store";
 import { updateOfficeQaState } from "@/modules/office/qa/office-qa-state";
+import { useOfficeWorldStore } from "@/modules/office/store";
 import { applySyntheticSkillDemo } from "@/modules/office/synthetic-skill-demo";
 import { useAppStore } from "@/store";
-import { OfficeClickProbe } from "./office-click-probe";
 import { getLiveEmployeePosition } from "./employee-position-registry";
+import { OfficeClickProbe } from "./office-click-probe";
 import { getOfficeDebugOverlayPlan, OfficeDebugOverlaySystem } from "./office-debug-overlay-system";
 import { OfficeLayoutEditor } from "./office-layout-editor";
 import { OfficeLighting } from "./office-lighting";
-import { ThreadLineageEffects } from "./thread-lineage-effects";
 import {
   buildNavigableOfficeObjectSignature,
   getNavigableOfficeObjects,
 } from "./office-object-navigation";
 import { OfficeObjectRenderer } from "./office-object-renderer";
 import { getOrbitWallFadeMask, OfficeRoomShell, type WallFadeMask } from "./office-room-shell";
+import { ThreadLineageEffects } from "./thread-lineage-effects";
 import type { OfficeSceneProps } from "./types";
 import { useOfficeSceneBootstrap } from "./use-office-scene-bootstrap";
 import { useOfficeSceneCameraTransition, useOfficeSceneTheme } from "./use-office-scene-camera";
@@ -77,7 +77,12 @@ function OfficeCameraQaProbe({
   policy,
 }: {
   controlsRef: React.RefObject<React.ElementRef<typeof OrbitControls> | null>;
-  policy: { controlsEnabled: boolean; rotateEnabled: boolean; panEnabled: boolean; zoomEnabled: boolean };
+  policy: {
+    controlsEnabled: boolean;
+    rotateEnabled: boolean;
+    panEnabled: boolean;
+    zoomEnabled: boolean;
+  };
 }): null {
   useFrame((state) => {
     if (!import.meta.env.DEV || typeof window === "undefined") return;
@@ -294,8 +299,8 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
       const agentId = extractAgentId(selectedAgentId);
       return agentId ? `employee-${agentId}` : null;
     })();
-    const candidateIds = [currentEmployeeId, fallbackEmployeeId].filter(
-      (value): value is string => Boolean(value),
+    const candidateIds = [currentEmployeeId, fallbackEmployeeId].filter((value): value is string =>
+      Boolean(value),
     );
     for (const employeeId of candidateIds) {
       const employee = presentedEmployeesForScene.find((item) => item._id === employeeId);
@@ -325,11 +330,9 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
       updateOfficeQaState({ storyInvocationAt: performance.now() });
       const employee = [...presentedEmployeesForScene].sort((left, right) => {
         const leftDistance =
-          (left.initialPosition[0] - target[0]) ** 2 +
-          (left.initialPosition[2] - target[2]) ** 2;
+          (left.initialPosition[0] - target[0]) ** 2 + (left.initialPosition[2] - target[2]) ** 2;
         const rightDistance =
-          (right.initialPosition[0] - target[0]) ** 2 +
-          (right.initialPosition[2] - target[2]) ** 2;
+          (right.initialPosition[0] - target[0]) ** 2 + (right.initialPosition[2] - target[2]) ** 2;
         return leftDistance - rightDistance;
       })[0];
       if (!employee) return;
@@ -425,12 +428,15 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
         officeLayout={officeLayout}
         officeViewSettings={officeViewSettings}
       />
-      <OfficeCameraQaProbe controlsRef={orbitControlsRef} policy={{
-        controlsEnabled: viewState.controlsEnabled,
-        rotateEnabled: viewState.rotateEnabled,
-        panEnabled: viewState.panEnabled,
-        zoomEnabled: viewState.zoomEnabled,
-      }} />
+      <OfficeCameraQaProbe
+        controlsRef={orbitControlsRef}
+        policy={{
+          controlsEnabled: viewState.controlsEnabled,
+          rotateEnabled: viewState.rotateEnabled,
+          panEnabled: viewState.panEnabled,
+          zoomEnabled: viewState.zoomEnabled,
+        }}
+      />
 
       {isFixed25 && viewState.minZoom != null && viewState.maxZoom != null ? (
         <ZoomClamp minZoom={viewState.minZoom} maxZoom={viewState.maxZoom} />

@@ -43,16 +43,6 @@ type SettingsDialogProps = {
   onOpenChange?: (open: boolean) => void;
 };
 
-type LayoutStrategyInput = NonNullable<OfficeSettingsModel["layoutStrategy"]>;
-
-function normalizeLayoutStrategyInput(
-  value: OfficeSettingsModel["layoutStrategy"],
-): LayoutStrategyInput {
-  if (value === "manual" || value === "legacy") return value;
-  if (value === "area_sorted_pack") return value;
-  return "hierarchical_treemap";
-}
-
 export default function SettingsDialog(props: SettingsDialogProps) {
   const { open, onOpenChange } = props;
   const adapter = useOfficeRuntimeAdapter();
@@ -99,9 +89,6 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   const [viewProfileInput, setViewProfileInput] = useState<
     OfficeSettingsModel["viewProfile"]
   >(officeSettings.viewProfile);
-  const [layoutStrategyInput, setLayoutStrategyInput] = useState<
-    LayoutStrategyInput
-  >(normalizeLayoutStrategyInput(officeSettings.layoutStrategy));
   const [cameraOrientationInput, setCameraOrientationInput] = useState<
     OfficeSettingsModel["cameraOrientation"]
   >(officeSettings.cameraOrientation);
@@ -141,7 +128,6 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     setRuntimeStatusText("");
     setRuntimeConfigStatusText("");
     setViewProfileInput(officeSettings.viewProfile);
-    setLayoutStrategyInput(normalizeLayoutStrategyInput(officeSettings.layoutStrategy));
     setCameraOrientationInput(officeSettings.cameraOrientation);
     setOrbitControlsEnabled(officeSettings.orbitControlsEnabled);
     setViewStatusText("");
@@ -156,7 +142,6 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   }, [
     dialogOpen,
     officeSettings.cameraOrientation,
-    officeSettings.layoutStrategy,
     officeSettings.orbitControlsEnabled,
     officeSettings.viewProfile,
   ]);
@@ -230,7 +215,7 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     setViewStatusText("");
     const nextSettings: OfficeSettingsModel = {
       ...officeSettings,
-      layoutStrategy: layoutStrategyInput,
+      layoutStrategy: "manual",
       viewProfile: viewProfileInput,
       cameraOrientation: cameraOrientationInput,
       orbitControlsEnabled,
@@ -329,7 +314,6 @@ export default function SettingsDialog(props: SettingsDialogProps) {
           <TabsContent value="office" className="mt-4 space-y-3">
             <OfficeViewSettingsPanel
               viewProfile={viewProfileInput}
-              layoutStrategy={layoutStrategyInput}
               cameraOrientation={cameraOrientationInput}
               orbitControlsEnabled={orbitControlsEnabled}
               statusText={viewStatusText}
@@ -341,7 +325,6 @@ export default function SettingsDialog(props: SettingsDialogProps) {
               characterSpriteEmployeeId={characterSpriteEmployeeIdInput}
               characterGraphicsStatusText={characterGraphicsStatusText}
               onViewProfileChange={setViewProfileInput}
-              onLayoutStrategyChange={setLayoutStrategyInput}
               onCameraOrientationChange={setCameraOrientationInput}
               onOrbitControlsEnabledChange={setOrbitControlsEnabled}
               onSave={() => void handleSaveViewSettings()}

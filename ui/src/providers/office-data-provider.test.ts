@@ -3233,6 +3233,105 @@ describe("office-data-provider team synthesis", () => {
     );
   });
 
+  it("prunes persisted team clusters that no longer belong to an active project", () => {
+    const project = {
+      id: "proj-farplane-ui",
+      departmentId: "dept-codex-projects",
+      name: "Farplane UI",
+      githubUrl: "",
+      status: "active" as const,
+      goal: "Build the product",
+      kpis: [],
+      accountEvents: [],
+      ledger: [],
+      experiments: [],
+      metricEvents: [],
+      resources: [],
+      resourceEvents: [],
+    };
+    const repaired = repairTeamClusterPlacements({
+      unified: createUnifiedOfficeModel({
+        company: createCompanyModel({ projects: [project] }),
+        officeObjects: [
+          {
+            id: "team-cluster-team-proj-farplane-ui",
+            identifier: "team-cluster-team-proj-farplane-ui",
+            meshType: "team-cluster",
+            position: [0, 0, 0],
+            metadata: { teamId: "team-proj-farplane-ui", name: "Farplane UI", deskCount: 1 },
+          },
+          {
+            id: "team-cluster-team-codex-proj-local-deadbeef",
+            identifier: "team-cluster-team-codex-proj-local-deadbeef",
+            meshType: "team-cluster",
+            position: [6, 0, 6],
+            metadata: {
+              teamId: "team-codex-proj-local-deadbeef",
+              name: "local-deadbeef",
+              deskCount: 1,
+            },
+          },
+          {
+            id: "plant-kept",
+            identifier: "plant-kept",
+            meshType: "plant",
+            position: [3, 0, 3],
+            metadata: {},
+          },
+        ],
+      }),
+      officeSettings: createOfficeSettings(),
+    });
+
+    expect(repaired.changed).toBe(true);
+    expect(
+      repaired.unified.officeObjects.some(
+        (object) => object.metadata?.teamId === "team-codex-proj-local-deadbeef",
+      ),
+    ).toBe(false);
+    expect(repaired.unified.officeObjects.some((object) => object.id === "plant-kept")).toBe(true);
+  });
+
+  it("persists project table label changes when placement is otherwise stable", () => {
+    const project = {
+      id: "proj-farplane-ui",
+      departmentId: "dept-codex-projects",
+      name: "Old Project Name",
+      githubUrl: "",
+      status: "active" as const,
+      goal: "Old project goal",
+      kpis: [],
+      accountEvents: [],
+      ledger: [],
+      experiments: [],
+      metricEvents: [],
+      resources: [],
+      resourceEvents: [],
+    };
+    const initial = repairTeamClusterPlacements({
+      unified: createUnifiedOfficeModel({
+        company: createCompanyModel({ projects: [project] }),
+      }),
+      officeSettings: createOfficeSettings(),
+    });
+    const renamedCompany = createCompanyModel({
+      projects: [{ ...project, name: "Farplane UI", goal: "Current project goal" }],
+    });
+
+    const renamed = repairTeamClusterPlacements({
+      unified: { ...initial.unified, company: renamedCompany },
+      officeSettings: initial.officeSettings,
+    });
+    const projectCluster = renamed.unified.officeObjects.find(
+      (object) => object.metadata?.teamId === "team-proj-farplane-ui",
+    );
+
+    expect(renamed.changed).toBe(true);
+    expect(renamed.repairedTeamIds).toContain("team-proj-farplane-ui");
+    expect(projectCluster?.metadata?.name).toBe("Farplane UI");
+    expect(projectCluster?.metadata?.description).toBe("Current project goal");
+  });
+
   it("repairs grown team clusters into non-overlapping persisted placements with an annex fallback", () => {
     const projectBase = {
       departmentId: "dept-codex-projects",

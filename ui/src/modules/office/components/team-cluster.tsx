@@ -33,7 +33,7 @@ import { useAppStore } from "@/store";
 import Desk from "./desk";
 import { InteractiveObject } from "./interactive-object";
 import RoundTeamTable from "./round-team-table";
-import { shouldShowTeamLabel } from "./team-label";
+import { getTeamLabelDistanceFactor, shouldShowTeamLabel } from "./team-label";
 
 // Constants
 const DEFAULT_OCCUPANCY_WIDTH = 9.2;
@@ -293,6 +293,9 @@ export default function TeamCluster({
           <Html
             position={[0, FLOATING_LABEL_HEIGHT, 0]}
             center
+            distanceFactor={getTeamLabelDistanceFactor(isCommandNeighborhood)}
+            sprite
+            transform
             zIndexRange={[112, 0]}
             style={{
               backfaceVisibility: "hidden",

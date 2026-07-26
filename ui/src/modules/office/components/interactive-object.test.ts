@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { getBuilderClickAction } from "./interactive-object.builder";
 import { getRuntimeHoverLabel } from "./interactive-object";
+import { getBuilderClickAction } from "./interactive-object.builder";
 
 describe("interactive object hover labels", () => {
-  it("uses the UI title for shelf-style objects", () => {
-    expect(
-      getRuntimeHoverLabel({
+  for (const { name, object, expected } of [
+    {
+      name: "uses the UI title for shelf-style objects",
+      object: {
         displayName: "Research Shelf",
         uiBinding: {
           kind: "internalPanel",
@@ -15,47 +16,59 @@ describe("interactive object hover labels", () => {
           openMode: "panel",
         },
         skillBinding: null,
-      }),
-    ).toBe("Docs Library");
-  });
-
-  it("does not infer labels from skill semantics", () => {
-    expect(
-      getRuntimeHoverLabel({
+      },
+      expected: "Docs Library",
+    },
+    {
+      name: "does not infer labels from skill semantics",
+      object: {
         displayName: "Growth Gym",
         uiBinding: { kind: "none" },
         skillBinding: { skillId: "self-improve", label: "Growth Gym" },
-      }),
-    ).toBeNull();
-  });
-
-  it("keeps unbound furniture unlabeled", () => {
-    expect(
-      getRuntimeHoverLabel({
+      },
+      expected: null,
+    },
+    {
+      name: "keeps unbound furniture unlabeled",
+      object: {
         displayName: "Plant",
         uiBinding: { kind: "none" },
         skillBinding: null,
-      }),
-    ).toBeNull();
-  });
+      },
+      expected: null,
+    },
+  ] as const) {
+    it(name, () => {
+      expect(getRuntimeHoverLabel(object)).toBe(expected);
+    });
+  }
 });
 
 describe("interactive object builder click logic", () => {
-  it("opens config on repeat click when settings are allowed", () => {
-    expect(getBuilderClickAction({ isSelected: true, allowSettings: true })).toBe("open-config");
-  });
-
-  it("clears selection on repeat click when settings are disabled", () => {
-    expect(getBuilderClickAction({ isSelected: true, allowSettings: false })).toBe(
-      "clear-selection",
-    );
-  });
-
-  it("selects the object on first click", () => {
-    expect(getBuilderClickAction({ isSelected: false, allowSettings: false })).toBe("select");
-  });
-
-  it("still treats the first click as selection when settings are available", () => {
-    expect(getBuilderClickAction({ isSelected: false, allowSettings: true })).toBe("select");
-  });
+  for (const { name, input, expected } of [
+    {
+      name: "opens config on repeat click when settings are allowed",
+      input: { isSelected: true, allowSettings: true },
+      expected: "open-config",
+    },
+    {
+      name: "clears selection on repeat click when settings are disabled",
+      input: { isSelected: true, allowSettings: false },
+      expected: "clear-selection",
+    },
+    {
+      name: "selects the object on first click",
+      input: { isSelected: false, allowSettings: false },
+      expected: "select",
+    },
+    {
+      name: "still treats the first click as selection when settings are available",
+      input: { isSelected: false, allowSettings: true },
+      expected: "select",
+    },
+  ] as const) {
+    it(name, () => {
+      expect(getBuilderClickAction(input)).toBe(expected);
+    });
+  }
 });

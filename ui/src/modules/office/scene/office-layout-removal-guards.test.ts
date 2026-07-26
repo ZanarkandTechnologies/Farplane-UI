@@ -34,27 +34,54 @@ const fullLayout = {
   ],
 };
 
+function makeOfficeObject(overrides: Partial<OfficeObject> = {}): OfficeObject {
+  return {
+    _id: "plant-1",
+    companyId: "company-demo",
+    meshType: "plant",
+    position: [1, 0, 1],
+    rotation: [0, 0, 0],
+    ...overrides,
+  };
+}
+
+function makePersistedObject(
+  overrides: Partial<OfficeObjectSidecarModel> = {},
+): OfficeObjectSidecarModel {
+  return {
+    id: "office-plant-1",
+    identifier: "plant-1",
+    meshType: "plant",
+    position: [1, 0, 1],
+    rotation: [0, 0, 0],
+    metadata: {},
+    ...overrides,
+  };
+}
+
+function makeTeam(overrides: Partial<TeamData> = {}): TeamData {
+  return {
+    _id: "team-alpha",
+    companyId: "company-demo",
+    name: "Alpha",
+    description: "Alpha team",
+    clusterPosition: [2, 0, 1],
+    employees: [],
+    ...overrides,
+  };
+}
+
+function layoutWithout(...removedTiles: string[]): typeof fullLayout {
+  return {
+    ...fullLayout,
+    tiles: fullLayout.tiles.filter((tile) => !removedTiles.includes(tile)),
+  };
+}
+
 describe("office layout removal guards", () => {
   it("prefers the latest persisted object position over stale provider state", () => {
-    const providerObjects: OfficeObject[] = [
-      {
-        _id: "plant-1",
-        companyId: "company-demo",
-        meshType: "plant",
-        position: [0, 0, 0],
-        rotation: [0, 0, 0],
-      },
-    ];
-    const persistedObjects: OfficeObjectSidecarModel[] = [
-      {
-        id: "office-plant-1",
-        identifier: "plant-1",
-        meshType: "plant",
-        position: [3, 0, 1],
-        rotation: [0, 0, 0],
-        metadata: {},
-      },
-    ];
+    const providerObjects = [makeOfficeObject({ position: [0, 0, 0] })];
+    const persistedObjects = [makePersistedObject({ position: [3, 0, 1] })];
 
     const effectiveObjects = mergeOfficeObjectsWithPersistedPositions(
       providerObjects,
@@ -62,10 +89,7 @@ describe("office layout removal guards", () => {
     );
 
     const removingOldTile = getOfficeLayoutRemovalBlockers({
-      candidateLayout: {
-        ...fullLayout,
-        tiles: fullLayout.tiles.filter((tile) => tile !== "0:1"),
-      },
+      candidateLayout: layoutWithout("0:1"),
       officeObjects: effectiveObjects,
       teams: [],
       managementAnchor: [2, 0, 1],
@@ -74,10 +98,7 @@ describe("office layout removal guards", () => {
     expect(removingOldTile.isValid).toBe(true);
 
     const removingNewTile = getOfficeLayoutRemovalBlockers({
-      candidateLayout: {
-        ...fullLayout,
-        tiles: fullLayout.tiles.filter((tile) => tile !== "3:1"),
-      },
+      candidateLayout: layoutWithout("3:1"),
       officeObjects: effectiveObjects,
       teams: [],
       managementAnchor: [2, 0, 1],
@@ -88,25 +109,14 @@ describe("office layout removal guards", () => {
   });
 
   it("updates team anchors from persisted cluster objects", () => {
-    const teams: TeamData[] = [
-      {
-        _id: "team-alpha",
-        companyId: "company-demo",
-        name: "Alpha",
-        description: "Alpha team",
-        clusterPosition: [0, 0, 0],
-        employees: [],
-      },
-    ];
-    const persistedObjects: OfficeObjectSidecarModel[] = [
-      {
+    const teams = [makeTeam({ clusterPosition: [0, 0, 0] })];
+    const persistedObjects = [
+      makePersistedObject({
         id: "office-cluster-team-alpha",
         identifier: "cluster-team-alpha",
         meshType: "team-cluster",
         position: [2, 0, 1],
-        rotation: [0, 0, 0],
-        metadata: {},
-      },
+      }),
     ];
 
     const effectiveTeams = mergeTeamsWithPersistedClusterPositions(teams, persistedObjects);
@@ -124,120 +134,78 @@ describe("office layout removal guards", () => {
     ).toBe("plant-1, bookshelf-1, team-alpha +2 more");
   });
 
-  it("describes blockers with readable object and team labels", () => {
-    expect(
-      describeOfficeLayoutRemovalBlockers({
+  for (const { name, input, expected } of [
+    {
+      name: "describes blockers with readable object and team labels",
+      input: {
         blockers: {
           objectIds: ["plant-1"],
           teamIds: ["team-alpha"],
           keepsManagementArea: false,
         },
-        officeObjects: [
-          {
-            _id: "plant-1",
-            companyId: "company-demo",
-            meshType: "plant",
-            position: [1, 0, 1],
-            rotation: [0, 0, 0],
-          },
-        ],
-        teams: [
-          {
-            _id: "team-alpha",
-            companyId: "company-demo",
-            name: "Alpha",
-            description: "Alpha team",
-            clusterPosition: [2, 0, 1],
-            employees: [],
-          },
-        ],
+        officeObjects: [makeOfficeObject()],
+        teams: [makeTeam()],
         persistedObjects: [
-          {
+          makePersistedObject({
             id: "plant-1",
             identifier: "plant-main",
-            meshType: "plant",
-            position: [1, 0, 1],
-            rotation: [0, 0, 0],
-            metadata: {},
-          },
+          }),
         ],
-      }),
-    ).toBe("plant-main, Team: Alpha, Management zone");
-  });
-
-  it("does not double-count a team when its blocking cluster object is already present", () => {
-    const blockers = getOfficeLayoutRemovalBlockers({
-      candidateLayout: {
-        ...fullLayout,
-        tiles: fullLayout.tiles.filter((tile) => tile !== "2:1"),
       },
-      officeObjects: [
-        {
-          _id: "team-cluster-team-alpha",
-          companyId: "company-demo",
-          meshType: "team-cluster",
-          position: [2, 0, 1],
-          rotation: [0, 0, 0],
-          metadata: { teamId: "team-alpha" },
-        },
-      ],
-      teams: [
-        {
-          _id: "team-alpha",
-          companyId: "company-demo",
-          name: "Alpha",
-          description: "Alpha team",
-          clusterPosition: [2, 0, 1],
-          employees: [],
-        },
-      ],
-      managementAnchor: [4, 0, 1],
-    });
-
-    expect(blockers.objectIds).toEqual(["team-cluster-team-alpha"]);
-    expect(blockers.teamIds).toEqual([]);
-  });
-
-  it("describes blocking team-cluster objects with the team name", () => {
-    expect(
-      describeOfficeLayoutRemovalBlockers({
+      expected: "plant-main, Team: Alpha, Management zone",
+    },
+    {
+      name: "describes blocking team-cluster objects with the team name",
+      input: {
         blockers: {
           objectIds: ["team-cluster-team-alpha"],
           teamIds: [],
           keepsManagementArea: true,
         },
         officeObjects: [
-          {
+          makeOfficeObject({
             _id: "team-cluster-team-alpha",
-            companyId: "company-demo",
             meshType: "team-cluster",
             position: [2, 0, 1],
-            rotation: [0, 0, 0],
             metadata: { teamId: "team-alpha" },
-          },
+          }),
         ],
-        teams: [
-          {
-            _id: "team-alpha",
-            companyId: "company-demo",
-            name: "Alpha",
-            description: "Alpha team",
-            clusterPosition: [2, 0, 1],
-            employees: [],
-          },
-        ],
+        teams: [makeTeam()],
         persistedObjects: [
-          {
+          makePersistedObject({
             id: "team-cluster-team-alpha",
             identifier: "team-cluster-team-alpha",
             meshType: "team-cluster",
             position: [2, 0, 1],
-            rotation: [0, 0, 0],
             metadata: { teamId: "team-alpha" },
-          },
+          }),
         ],
-      }),
-    ).toBe("Team: Alpha");
+      },
+      expected: "Team: Alpha",
+    },
+  ] as const) {
+    it(name, () => {
+      expect(describeOfficeLayoutRemovalBlockers(input)).toBe(expected);
+    });
+  }
+
+  it("does not double-count a team when its blocking cluster object is already present", () => {
+    const blockers = getOfficeLayoutRemovalBlockers({
+      candidateLayout: layoutWithout("2:1"),
+      officeObjects: [
+        makeOfficeObject({
+          _id: "team-cluster-team-alpha",
+          meshType: "team-cluster",
+          position: [2, 0, 1],
+          metadata: { teamId: "team-alpha" },
+        }),
+      ],
+      teams: [makeTeam()],
+      managementAnchor: [4, 0, 1],
+    });
+
+    expect(blockers.objectIds).toEqual(["team-cluster-team-alpha"]);
+    expect(blockers.teamIds).toEqual([]);
   });
 
   it("only reports blockers newly introduced by the candidate layout", () => {

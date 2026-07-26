@@ -59,7 +59,6 @@ import {
   useOfficeRuntimeAdapter,
   type OfficeRuntimeAdapter,
 } from "@/modules/runtime";
-import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import { isConvexEnabled } from "@/providers/convex-provider";
 import {
   LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS,
@@ -73,7 +72,6 @@ import {
   mergeObservedCodexWorkerRows,
   mergeObservedCodexWorkersIntoUnifiedOfficeModel,
   observedCodexWorkersToLiveStatuses,
-  persistPlacementRepairIfAllowed,
 } from "@/providers/office-data-refresh";
 import { api } from "../../../convex/_generated/api";
 
@@ -218,7 +216,6 @@ export function OfficeDataProvider({
   children: ReactNode;
 }): React.JSX.Element {
   const sharedAdapter = useOfficeRuntimeAdapter();
-  const { isReadOnly } = useOfficeAccessMode();
   const worldContextData = useOfficeWorldStore(
     useShallow(selectOfficeWorldContextData),
   );
@@ -500,35 +497,8 @@ export function OfficeDataProvider({
           });
           const repairedUnified = placementRepair.unified;
           const repairedOfficeSettings = placementRepair.officeSettings;
-          const placementRepairPersistence =
-            await persistPlacementRepairIfAllowed({
-              adapter,
-              changed: placementRepair.changed,
-              expandedLayout: placementRepair.expandedLayout,
-              officeObjects: repairedUnified.officeObjects,
-              officeSettings: repairedOfficeSettings,
-              readOnly: isReadOnly,
-            });
-          if (!placementRepairPersistence.skipped) {
-            logOfficeRefresh("placement-repair", {
-              reason: currentReason,
-              expandedLayout: placementRepair.expandedLayout,
-              repairedTeamIds: placementRepair.repairedTeamIds,
-            });
-            const { objectsResult, settingsResult } =
-              placementRepairPersistence;
-            if (!objectsResult.ok || !settingsResult.ok) {
-              logOfficeRefresh("placement-repair-persist-error", {
-                objectsError: objectsResult.ok
-                  ? undefined
-                  : objectsResult.error,
-                settingsError: settingsResult.ok
-                  ? undefined
-                  : settingsResult.error,
-              });
-            }
-          } else if (placementRepair.changed) {
-            logOfficeRefresh("placement-repair-skip-readonly", {
+          if (placementRepair.changed) {
+            logOfficeRefresh("placement-repair-projection-only", {
               reason: currentReason,
               expandedLayout: placementRepair.expandedLayout,
               repairedTeamIds: placementRepair.repairedTeamIds,
@@ -613,7 +583,7 @@ export function OfficeDataProvider({
         nextReason = pendingLoadReasonRef.current;
       }
     },
-    [isReadOnly, refreshAdapterLiveStatus],
+    [refreshAdapterLiveStatus],
   );
 
   useEffect(() => {

@@ -993,11 +993,7 @@ function getCentralCommandTeamAnchor(input: {
   ];
   const slot = ringSlots[input.index];
   if (slot) {
-    return [
-      Math.round(input.origin[0] + slot[0]),
-      0,
-      Math.round(input.origin[2] + slot[1]),
-    ];
+    return [Math.round(input.origin[0] + slot[0]), 0, Math.round(input.origin[2] + slot[1])];
   }
   const overflowIndex = input.index - ringSlots.length;
   const angle = (overflowIndex / Math.max(1, input.total - ringSlots.length)) * Math.PI * 2;
@@ -1068,31 +1064,30 @@ function getTeamClusterRepairSpecs(input: {
   const activeProjects = input.unified.company.projects.filter(
     (project) => project.status !== "archived",
   );
-  const selectedProjects = (input.commandOfficeCapacity == null
-    ? activeProjects
-    : activeProjects.slice(0, input.commandOfficeCapacity));
+  const selectedProjects =
+    input.commandOfficeCapacity == null
+      ? activeProjects
+      : activeProjects.slice(0, input.commandOfficeCapacity);
   if (input.commandOfficeCapacity != null) {
     selectedProjects.sort((left, right) => left.id.localeCompare(right.id));
   }
   selectedProjects.forEach((project, projectIndex) => {
-      const teamId = `team-${project.id}`;
-      const projectAgents = companyAgents.filter((agent) => agent.projectId === project.id);
-      const existing = persistedTeamClusterByTeamId.get(teamId);
-      const preferredAreaAnchor = officeAreaLayout.projectAreaByProjectId[project.id]
-        ? getOfficeAreaAnchor(officeAreaLayout.projectAreaByProjectId[project.id])
-        : undefined;
-      specs.push({
-        teamId,
-        name: project.name,
-        description: project.goal,
-        deskCount: input.commandOfficeCapacity == null ? Math.max(projectAgents.length, 1) : 1,
-        preferredPosition:
-          existing?.position ??
-          preferredAreaAnchor ??
-          getDefaultProjectClusterPosition(projectIndex),
-        existing,
-      });
+    const teamId = `team-${project.id}`;
+    const projectAgents = companyAgents.filter((agent) => agent.projectId === project.id);
+    const existing = persistedTeamClusterByTeamId.get(teamId);
+    const preferredAreaAnchor = officeAreaLayout.projectAreaByProjectId[project.id]
+      ? getOfficeAreaAnchor(officeAreaLayout.projectAreaByProjectId[project.id])
+      : undefined;
+    specs.push({
+      teamId,
+      name: project.name,
+      description: project.goal,
+      deskCount: input.commandOfficeCapacity == null ? Math.max(projectAgents.length, 1) : 1,
+      preferredPosition:
+        existing?.position ?? preferredAreaAnchor ?? getDefaultProjectClusterPosition(projectIndex),
+      existing,
     });
+  });
 
   return specs;
 }
@@ -1242,25 +1237,11 @@ export function repairTeamClusterPlacements(input: {
     const teamId = resolveTeamClusterTeamId(object);
     if (teamId) repairedByTeamId.set(teamId, object);
   }
-  const expectedTeamIds = new Set(specs.map((spec) => spec.teamId));
-  const activeProjectTeamIds = new Set(
-    input.unified.company.projects
-      .filter((project) => project.status !== "archived")
-      .map((project) => `team-${project.id}`),
-  );
   const nextObjects = [
     ...originalObjects.filter((object) => {
       if (object.meshType !== "team-cluster") return true;
       const teamId = resolveTeamClusterTeamId(object);
-      if (
-        input.officeSettings.officeKit?.kitId === "command-office" &&
-        teamId &&
-        activeProjectTeamIds.has(teamId) &&
-        !expectedTeamIds.has(teamId)
-      ) {
-        return false;
-      }
-      return !teamId || !expectedTeamIds.has(teamId);
+      return !teamId;
     }),
     ...specs.map(
       (spec) =>
@@ -1276,6 +1257,8 @@ export function repairTeamClusterPlacements(input: {
         repaired &&
           (!spec.existing ||
             !arePositionsEqual(spec.existing.position, repaired.position) ||
+            spec.existing.metadata?.name !== repaired.metadata?.name ||
+            spec.existing.metadata?.description !== repaired.metadata?.description ||
             spec.existing.metadata?.deskCount !== spec.deskCount ||
             spec.existing.metadata?.footprintWidth !== repaired.metadata?.footprintWidth ||
             spec.existing.metadata?.footprintDepth !== repaired.metadata?.footprintDepth),
@@ -1802,9 +1785,10 @@ export function toOfficeData(
         metadata: { ...(persistedCommandCommonsEntry.metadata ?? {}) },
       }
     : null;
-  const commandCommonsSeed = usesCentralCommandCommons && !persistedCommandCommonsObject
-    ? createCommandCommonsObject({ center: compactAnchorOrigin, companyId })
-    : null;
+  const commandCommonsSeed =
+    usesCentralCommandCommons && !persistedCommandCommonsObject
+      ? createCommandCommonsObject({ center: compactAnchorOrigin, companyId })
+      : null;
   const commandCommonsPosition = commandCommonsSeed
     ? resolveSceneObjectPosition({
         object: toPlacementObject(commandCommonsSeed),
@@ -2080,30 +2064,30 @@ export function toOfficeData(
   const clusterObjects: OfficeObject[] = teams
     .filter((team) => !usesCentralCommandCommons || (team.deskCount ?? 0) > 0)
     .map((team, index) => {
-    const persistedCluster = persistedTeamClusterByTeamId.get(team._id);
-    const deskCount = Math.max(team.deskCount ?? 1, 1);
-    return {
-      _id: persistedCluster?.id ?? `team-cluster-${team._id}`,
-      companyId,
-      meshType: "team-cluster",
-      position: team.clusterPosition ?? getDefaultProjectClusterPosition(Math.max(0, index - 1)),
-      rotation: persistedCluster?.rotation ?? [0, 0, 0],
-      scale: persistedCluster?.scale,
-      metadata: {
-        ...getTeamClusterPlacementMetadata(persistedCluster?.metadata, deskCount),
-        teamId: team._id,
-        commandCommonsNeighborhood: usesCentralCommandCommons,
-        ...(usesCentralCommandCommons
-          ? {
-              footprintWidth: 6.25,
-              footprintDepth: 4.75,
-              footprintClearance: 0.65,
-              visualFootprintWidth: 7.4,
-              visualFootprintDepth: 5.8,
-            }
-          : {}),
-      },
-    };
+      const persistedCluster = persistedTeamClusterByTeamId.get(team._id);
+      const deskCount = Math.max(team.deskCount ?? 1, 1);
+      return {
+        _id: persistedCluster?.id ?? `team-cluster-${team._id}`,
+        companyId,
+        meshType: "team-cluster",
+        position: team.clusterPosition ?? getDefaultProjectClusterPosition(Math.max(0, index - 1)),
+        rotation: persistedCluster?.rotation ?? [0, 0, 0],
+        scale: persistedCluster?.scale,
+        metadata: {
+          ...getTeamClusterPlacementMetadata(persistedCluster?.metadata, deskCount),
+          teamId: team._id,
+          commandCommonsNeighborhood: usesCentralCommandCommons,
+          ...(usesCentralCommandCommons
+            ? {
+                footprintWidth: 6.25,
+                footprintDepth: 4.75,
+                footprintClearance: 0.65,
+                visualFootprintWidth: 7.4,
+                visualFootprintDepth: 5.8,
+              }
+            : {}),
+        },
+      };
     });
   const officeLayoutContentObjects = [
     ...(commandCommonsObject ? [commandCommonsObject] : []),
@@ -2131,29 +2115,29 @@ export function toOfficeData(
   const mappedSidecarFurnitureCandidates: OfficeObject[] = sidecarFurnitureEntries
     .filter((item) => item !== persistedCommandCommonsEntry)
     .map((item) => {
-    const rotation = item.rotation ?? [0, 0, 0];
-    const metadata = { ...(item.metadata ?? {}) };
-    const preservePlacement =
-      isManualLayout ||
-      isOfficeObjectPlacementLocked(item) ||
-      (!usesCanonicalAutoLayoutSolver && !isAutoPackableStarterObject(item));
-    const position = preservePlacement
-      ? item.position
-      : getCompactFurnitureAnchor({
-          meshType: item.meshType,
-          index: unlockedFurnitureIndex,
-          officeLayout: preliminaryOfficeLayout,
-        });
-    if (!preservePlacement) unlockedFurnitureIndex += 1;
-    return {
-      _id: normalizeOfficeObjectId(item.id),
-      companyId,
-      meshType: item.meshType,
-      position,
-      rotation,
-      scale: item.scale,
-      metadata,
-    };
+      const rotation = item.rotation ?? [0, 0, 0];
+      const metadata = { ...(item.metadata ?? {}) };
+      const preservePlacement =
+        isManualLayout ||
+        isOfficeObjectPlacementLocked(item) ||
+        (!usesCanonicalAutoLayoutSolver && !isAutoPackableStarterObject(item));
+      const position = preservePlacement
+        ? item.position
+        : getCompactFurnitureAnchor({
+            meshType: item.meshType,
+            index: unlockedFurnitureIndex,
+            officeLayout: preliminaryOfficeLayout,
+          });
+      if (!preservePlacement) unlockedFurnitureIndex += 1;
+      return {
+        _id: normalizeOfficeObjectId(item.id),
+        companyId,
+        meshType: item.meshType,
+        position,
+        rotation,
+        scale: item.scale,
+        metadata,
+      };
     });
   const dedupedSidecarFurnitureCandidates = hydrateCanonicalActivityRooms(
     mappedSidecarFurnitureCandidates,

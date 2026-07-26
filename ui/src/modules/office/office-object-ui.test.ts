@@ -21,40 +21,39 @@ describe("office object ui helpers", () => {
     expect(normalizeHttpUrl("")).toBeNull();
   });
 
-  it("parses embed bindings from metadata", () => {
-    expect(
-      parseOfficeObjectUiBinding({
+  for (const { name, metadata, expected } of [
+    {
+      name: "parses embed bindings from metadata",
+      metadata: {
         uiBinding: {
           kind: "embed",
           title: "World Monitor",
           url: "https://earth.nullschool.net",
           aspectRatio: "wide",
         },
-      }),
-    ).toEqual({
-      kind: "embed",
-      title: "World Monitor",
-      url: "https://earth.nullschool.net/",
-      openMode: "panel",
-      aspectRatio: "wide",
-    });
-  });
-
-  it("falls back to none for invalid bindings", () => {
-    expect(
-      parseOfficeObjectUiBinding({
+      },
+      expected: {
+        kind: "embed",
+        title: "World Monitor",
+        url: "https://earth.nullschool.net/",
+        openMode: "panel",
+        aspectRatio: "wide",
+      },
+    },
+    {
+      name: "falls back to none for invalid bindings",
+      metadata: {
         uiBinding: {
           kind: "embed",
           title: "Blocked",
           url: "ftp://example.com",
         },
-      }),
-    ).toEqual({ kind: "none" });
-  });
-
-  it("parses skill shelf bindings from metadata", () => {
-    expect(
-      parseOfficeObjectUiBinding({
+      },
+      expected: { kind: "none" },
+    },
+    {
+      name: "parses skill shelf bindings from metadata",
+      metadata: {
         uiBinding: {
           kind: "skillShelf",
           title: "Documentation",
@@ -62,16 +61,97 @@ describe("office object ui helpers", () => {
           category: "docs",
           skillIds: ["openai-docs", "reference-grounding", "openai-docs", ""],
         },
-      }),
-    ).toEqual({
-      kind: "skillShelf",
-      title: "Documentation",
-      openMode: "panel",
-      aspectRatio: "square",
-      category: "docs",
-      skillIds: ["openai-docs", "reference-grounding"],
+      },
+      expected: {
+        kind: "skillShelf",
+        title: "Documentation",
+        openMode: "panel",
+        aspectRatio: "square",
+        category: "docs",
+        skillIds: ["openai-docs", "reference-grounding"],
+      },
+    },
+    {
+      name: "falls back to none for empty skill shelves",
+      metadata: {
+        uiBinding: {
+          kind: "skillShelf",
+          title: "   ",
+          category: "docs",
+        },
+      },
+      expected: { kind: "none" },
+    },
+    {
+      name: "normalizes legacy project document library bindings into internal panels",
+      metadata: {
+        uiBinding: {
+          kind: "documentLibrary",
+          title: "Project Docs",
+          aspectRatio: "wide",
+        },
+      },
+      expected: {
+        kind: "internalPanel",
+        panelId: "document-library",
+        title: "Project Docs",
+        openMode: "panel",
+      },
+    },
+    {
+      name: "parses internal panel bindings from metadata",
+      metadata: {
+        uiBinding: {
+          kind: "internalPanel",
+          panelId: "resource-bank",
+        },
+      },
+      expected: {
+        kind: "internalPanel",
+        panelId: "resource-bank",
+        title: "Resource Bank",
+        openMode: "panel",
+      },
+    },
+    {
+      name: "parses a World activity-landmark binding through the shared panel contract",
+      metadata: {
+        landmarkKind: "library",
+        uiBinding: {
+          kind: "internalPanel",
+          panelId: "world",
+          title: "World",
+        },
+      },
+      expected: {
+        kind: "internalPanel",
+        panelId: "world",
+        title: "World",
+        openMode: "panel",
+      },
+    },
+    {
+      name: "parses an Organization activity-landmark binding through the shared panel contract",
+      metadata: {
+        landmarkKind: "organization-hall",
+        uiBinding: {
+          kind: "internalPanel",
+          panelId: "organization",
+          title: "Organization",
+        },
+      },
+      expected: {
+        kind: "internalPanel",
+        panelId: "organization",
+        title: "Organization",
+        openMode: "panel",
+      },
+    },
+  ] as const) {
+    it(name, () => {
+      expect(parseOfficeObjectUiBinding(metadata)).toEqual(expected);
     });
-  });
+  }
 
   it("parses idle interaction phrases from object metadata", () => {
     expect(
@@ -94,18 +174,6 @@ describe("office object ui helpers", () => {
         idleInteraction: { enabled: false, phrases: ["ignored"] },
       }),
     ).toEqual({ enabled: false });
-  });
-
-  it("falls back to none for empty skill shelves", () => {
-    expect(
-      parseOfficeObjectUiBinding({
-        uiBinding: {
-          kind: "skillShelf",
-          title: "   ",
-          category: "docs",
-        },
-      }),
-    ).toEqual({ kind: "none" });
   });
 
   it("builds metadata without dropping unrelated keys", () => {
@@ -153,75 +221,6 @@ describe("office object ui helpers", () => {
       aspectRatio: "tall",
       category: "docs",
       skillIds: ["openai-docs"],
-    });
-  });
-
-  it("normalizes legacy project document library bindings into internal panels", () => {
-    expect(
-      parseOfficeObjectUiBinding({
-        uiBinding: {
-          kind: "documentLibrary",
-          title: "Project Docs",
-          aspectRatio: "wide",
-        },
-      }),
-    ).toEqual({
-      kind: "internalPanel",
-      panelId: "document-library",
-      title: "Project Docs",
-      openMode: "panel",
-    });
-  });
-
-  it("parses internal panel bindings from metadata", () => {
-    expect(
-      parseOfficeObjectUiBinding({
-        uiBinding: {
-          kind: "internalPanel",
-          panelId: "resource-bank",
-        },
-      }),
-    ).toEqual({
-      kind: "internalPanel",
-      panelId: "resource-bank",
-      title: "Resource Bank",
-      openMode: "panel",
-    });
-  });
-
-  it("parses a World activity-landmark binding through the shared panel contract", () => {
-    expect(
-      parseOfficeObjectUiBinding({
-        landmarkKind: "library",
-        uiBinding: {
-          kind: "internalPanel",
-          panelId: "world",
-          title: "World",
-        },
-      }),
-    ).toEqual({
-      kind: "internalPanel",
-      panelId: "world",
-      title: "World",
-      openMode: "panel",
-    });
-  });
-
-  it("parses an Organization activity-landmark binding through the shared panel contract", () => {
-    expect(
-      parseOfficeObjectUiBinding({
-        landmarkKind: "organization-hall",
-        uiBinding: {
-          kind: "internalPanel",
-          panelId: "organization",
-          title: "Organization",
-        },
-      }),
-    ).toEqual({
-      kind: "internalPanel",
-      panelId: "organization",
-      title: "Organization",
-      openMode: "panel",
     });
   });
 

@@ -21,6 +21,10 @@ import { Canvas } from "@react-three/fiber";
 import { memo, useMemo } from "react";
 import { useChatStore } from "@/modules/chat/chat-store";
 import { getOfficeLayoutBounds } from "@/modules/office/lib/office-layout";
+import {
+  getOfficeFrameloop,
+  hasBlockingOfficePanel,
+} from "@/modules/office/scene/office-render-policy";
 import { OfficeSceneCameraRig } from "@/modules/office/scene/office-scene-camera-rig";
 import { SceneContents } from "@/modules/office/scene/scene-contents";
 import type { OfficeSceneProps } from "@/modules/office/scene/types";
@@ -33,9 +37,15 @@ import { useAppStore } from "@/store";
 const OfficeScene = memo((props: OfficeSceneProps) => {
   const background = useOfficeSceneBackground(props.officeDecorSettings);
   const isBuilderMode = useAppStore((state) => state.isBuilderMode);
+  const blockingPanelOpen = useAppStore(hasBlockingOfficePanel);
   const isChatOpen = useChatStore((state) => state.isChatOpen);
   const presentationMode = useChatStore((state) => state.presentationMode);
   const forcePerspective = isChatOpen && presentationMode === "story";
+  const frameloop = getOfficeFrameloop({
+    blockingPanelOpen,
+    chatOpen: isChatOpen,
+    presentationMode,
+  });
   const layoutCenter = useMemo(() => {
     const bounds = getOfficeLayoutBounds(props.officeLayout);
     return { x: bounds.centerX, z: bounds.centerZ, width: bounds.width, depth: bounds.depth };
@@ -49,6 +59,8 @@ const OfficeScene = memo((props: OfficeSceneProps) => {
   return (
     <Canvas
       shadows="percentage"
+      frameloop={frameloop}
+      data-office-frameloop={frameloop}
       camera={{
         position: initialCameraConfig.position,
         fov: initialCameraConfig.fov,

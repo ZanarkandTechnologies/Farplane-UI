@@ -23,8 +23,8 @@ import PathVisualizer from "@/modules/navigation/components/path-visualizer";
 import type { StatusType } from "@/modules/navigation/components/status-indicator";
 import type { ActivityScenePresentation } from "@/modules/office/activity-scenes";
 import type {
-  EmployeeData,
   EmployeeActivityState,
+  EmployeeData,
   EmployeeIdleInteractionTarget,
 } from "@/modules/office/lib/types";
 import type { AgentState, TeamCharacterPolicy } from "@/modules/runtime";
@@ -33,6 +33,7 @@ import { resolveTeamCharacter } from "../../team-character-policy";
 import { ContextMenu } from "../context-menu";
 import { ActivitySceneProps } from "./activity-scene-props";
 import { CharacterTransformPoof } from "./character-transform-poof";
+import { EMPLOYEE_HIT_CAPSULE_WIDTH, EMPLOYEE_VISUAL_SCALE } from "./employee-scene-scale";
 import { EmployeePresenceAura, resolveEmployeePresenceVisual } from "./presence-visuals";
 import { ThreeHumanCharacterRenderer } from "./renderers/three-human";
 import type { CharacterRendererConfig } from "./renderers/types";
@@ -44,7 +45,6 @@ import { useEmployeeCharacterRenderer } from "./use-employee-character-renderer"
 import { useEmployeeLocomotion } from "./use-employee-locomotion";
 import { useEmployeeVisualEffects } from "./use-employee-visual-effects";
 import type { TeamCharacterPreviewDetail } from "./use-team-character-preview";
-import { EMPLOYEE_HIT_CAPSULE_WIDTH, EMPLOYEE_VISUAL_SCALE } from "./employee-scene-scale";
 
 export interface EmployeeProps {
   _id: Id<"employees">;
@@ -341,7 +341,12 @@ const Employee = memo(function Employee({
       >
         <mesh name={`employee-hit-target-${id}`} position={[0, 0.68, 0]}>
           <cylinderGeometry
-            args={[EMPLOYEE_HIT_CAPSULE_WIDTH / 2 - 0.1, EMPLOYEE_HIT_CAPSULE_WIDTH / 2, TOTAL_HEIGHT + 0.55, 20]}
+            args={[
+              EMPLOYEE_HIT_CAPSULE_WIDTH / 2 - 0.1,
+              EMPLOYEE_HIT_CAPSULE_WIDTH / 2,
+              TOTAL_HEIGHT + 0.55,
+              20,
+            ]}
           />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>

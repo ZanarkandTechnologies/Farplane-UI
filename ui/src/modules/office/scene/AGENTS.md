@@ -7,6 +7,8 @@
 
 ## Invariants
 - Scene bootstrap is coordinated through explicit readiness signals, not ad hoc local loaders.
+- Blocking operational panels suspend the retained Canvas through `office-render-policy.ts`; do not
+  unmount the scene, and keep Story presentation live unless another blocking panel is open.
 - Office object registration and nav-grid initialization stay coupled through one bootstrap hook.
 - Pure derived scene data should remain testable without mounting React Three Fiber.
 - View switching is settings-backed and presentation-only: camera/profile changes may alter render-time orientation, but they must not rewrite persisted office-object transforms.

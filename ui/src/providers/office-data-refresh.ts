@@ -11,7 +11,6 @@
 import type {
   AgentLiveStatus,
   CompanyModel,
-  OfficeRuntimeAdapter,
   OfficeSettingsModel,
   PendingApprovalModel,
   UnifiedOfficeModel,
@@ -30,25 +29,6 @@ type OfficeStructuralSignatureInput = {
   observedWorkers: ObservedCodexWorkerRow[];
 };
 
-type PlacementRepairPersistenceInput = {
-  adapter: Pick<OfficeRuntimeAdapter, "saveOfficeObjects" | "saveOfficeSettings">;
-  changed: boolean;
-  expandedLayout: boolean;
-  officeObjects: UnifiedOfficeModel["officeObjects"];
-  officeSettings: OfficeSettingsModel;
-  readOnly: boolean;
-};
-
-type PlacementRepairPersistenceResult =
-  | {
-      skipped: true;
-    }
-  | {
-      skipped: false;
-      objectsResult: Awaited<ReturnType<OfficeRuntimeAdapter["saveOfficeObjects"]>>;
-      settingsResult: Awaited<ReturnType<OfficeRuntimeAdapter["saveOfficeSettings"]>>;
-    };
-
 export const OBSERVED_CODEX_PRESENCE_RANGE_MS = LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS;
 
 function isCodexAgentId(agentId: string): boolean {
@@ -62,8 +42,8 @@ function stableJson(value: unknown): string {
   if (!value || typeof value !== "object") {
     return JSON.stringify(value);
   }
-  const entries = Object.entries(value as Record<string, unknown>).sort(
-    ([left], [right]) => left.localeCompare(right),
+  const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
+    left.localeCompare(right),
   );
   return `{${entries
     .map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`)
@@ -183,9 +163,7 @@ export function buildOfficeStructuralRefreshSignature(
   });
 }
 
-export function buildAgentLiveStatusSignature(
-  statuses: Record<string, AgentLiveStatus>,
-): string {
+export function buildAgentLiveStatusSignature(statuses: Record<string, AgentLiveStatus>): string {
   return stableJson(statuses);
 }
 
@@ -236,36 +214,6 @@ function overlayConvexLiveStatus(
     currentSkillId: convexStatus.currentSkillId ?? adapterStatus.currentSkillId,
     bubbleMessages: convexStatus.bubbleMessages,
     officeTravelIntent: convexStatus.officeTravelIntent,
-  };
-}
-
-export async function persistPlacementRepairIfAllowed(
-  input: PlacementRepairPersistenceInput,
-): Promise<PlacementRepairPersistenceResult> {
-  if (!input.changed || input.readOnly) {
-    return { skipped: true };
-  }
-
-  const currentObjects = await input.adapter.getOfficeObjects();
-  const repairedIds = new Set(input.officeObjects.map((object) => object.id));
-  const nonClusterObjectsMissingFromProjection = currentObjects.filter(
-    (object) => object.meshType !== "team-cluster" && !repairedIds.has(object.id),
-  );
-  const repairedObjects = [...input.officeObjects, ...nonClusterObjectsMissingFromProjection];
-  const [objectsResult, settingsResult] = await Promise.all([
-    input.adapter.saveOfficeObjects(repairedObjects),
-    !input.expandedLayout
-      ? Promise.resolve<Awaited<ReturnType<OfficeRuntimeAdapter["saveOfficeSettings"]>>>({
-          ok: true,
-          settings: input.officeSettings,
-        })
-      : input.adapter.saveOfficeSettings(input.officeSettings),
-  ]);
-
-  return {
-    skipped: false,
-    objectsResult,
-    settingsResult,
   };
 }
 
