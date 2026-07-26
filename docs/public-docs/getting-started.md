@@ -1,24 +1,32 @@
 # Getting Started
 
-This is the longer companion to the root `README.md`. The default setup path is now `farplane onboarding`, not manual template copying.
+This is the longer companion to the root `README.md`. Start the local Office
+first; run onboarding only when you need runtime-backed teams or integrations.
 
 ## Prerequisites
 
 - Node.js 20+
-- OpenClaw installed
-- Access to the machine that will host `~/.openclaw`
-- OpenClaw onboarding already completed on that machine
+- Corepack (included with supported Node.js releases)
 
-If OpenClaw has not yet created `~/.openclaw/openclaw.json` with the main CEO agent `main`, stop there first. Farplane onboarding now checks this before it writes Farplane-specific files.
+Codex app-server, OpenClaw, and Convex are optional for the basic Office. Add
+only the runtime services needed by the surfaces you want to exercise.
 
 ## First Run
 
 From the repo root:
 
 ```bash
-npm install
-npm run shell -- onboarding
-npm run shell -- ui
+corepack pnpm install --frozen-lockfile
+corepack pnpm run ui
+```
+
+Open the printed local URL at `/office` (commonly
+`http://127.0.0.1:5173/office`).
+
+For runtime-backed onboarding after the Office launches:
+
+```bash
+corepack pnpm run shell onboarding
 ```
 
 Onboarding now handles:
@@ -52,7 +60,7 @@ This split is intentional because the Vite app reads its env from `ui/`, not the
 If you run `npx convex dev` and it writes a Convex URL into the repo-root `.env.local`, import it back into Farplane config with:
 
 ```bash
-npm run shell -- onboarding
+corepack pnpm run shell onboarding
 ```
 
 That refreshes `~/.farplane/config.toml` so the UI bridge, CLI, hooks, and scripts resolve the same value.
@@ -62,8 +70,8 @@ That refreshes `~/.farplane/config.toml` so the UI bridge, CLI, hooks, and scrip
 Repo-local:
 
 ```bash
-npm run shell -- onboarding --json
-npm run shell -- onboarding --launch-ui
+corepack pnpm run shell onboarding --json
+corepack pnpm run shell onboarding --launch-ui
 ```
 
 Global:
@@ -77,17 +85,17 @@ farplane ui
 Useful follow-up checks:
 
 ```bash
-npm run shell -- doctor team-data --json
-npm run shell -- office doctor --json
-npm run shell -- team monitor --team-id team-proj-farplane-dev-team --json
+corepack pnpm run shell doctor team-data --json
+corepack pnpm run shell office doctor --json
+corepack pnpm run shell team monitor --team-id team-proj-farplane-dev-team --json
 ```
 
 Useful runtime loop for autonomous-team MVP work:
 
 ```bash
-npm run shell -- team create --name "Farplane Dev Team" --description "Internal product team" --goal "Improve Farplane" --auto-roles pm,builder
-npm run shell -- team run live --team-id team-proj-farplane-dev-team --cadence-minutes 1 --goal "Live demo loop" --json
-npm run shell -- team monitor --team-id team-proj-farplane-dev-team --json
+corepack pnpm run shell team create --name "Farplane Dev Team" --description "Internal product team" --goal "Improve Farplane" --auto-roles pm,builder
+corepack pnpm run shell team run live --team-id team-proj-farplane-dev-team --cadence-minutes 1 --goal "Live demo loop" --json
+corepack pnpm run shell team monitor --team-id team-proj-farplane-dev-team --json
 ```
 
 Canonical files to inspect during a live run:

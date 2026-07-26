@@ -4,17 +4,19 @@ This file is loaded every loop. Keep it operational and concise.
 
 ## Build & Run
 
-- Install: `npm install`
-- Dev gateway: `npm run gateway`
-- Status: `npm run status`
+- Prerequisite: Node.js 20+ with Corepack enabled.
+- Install: `corepack pnpm install --frozen-lockfile`
+- Office: `corepack pnpm run ui`, then open the printed URL at `/office`.
+- Runtime integrations are optional for basic launch; configure Codex,
+  OpenClaw, or Convex only for the data-backed surfaces being tested.
 
 ## Validation (Backpressure)
 
 - Current pre-push gate: `bash scripts/pre_push_check.sh`
-- Tests: `npm run test:once`
-- Typecheck: `npm run typecheck` (workspace-wide)
-- Root-only typecheck: `npm run typecheck:root`
-- Build: `npm run build` (root-owned TypeScript program)
+- Tests: `corepack pnpm run test:once`
+- Typecheck: `corepack pnpm run typecheck` (workspace-wide)
+- Root-only typecheck: `corepack pnpm run typecheck:root`
+- Build: `corepack pnpm run build` (root-owned TypeScript program)
 
 ## Docs State
 

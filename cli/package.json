@@ -10,11 +10,7 @@
     "typecheck": "tsc -p ../tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@mariozechner/pi-agent-core": "latest",
-    "@mariozechner/pi-ai": "latest",
-    "@mariozechner/pi-coding-agent": "latest",
     "@slack/bolt": "latest",
-    "@whiskeysockets/baileys": "^6.17.16",
     "commander": "latest",
     "convex": "^1.32.0",
     "croner": "latest",

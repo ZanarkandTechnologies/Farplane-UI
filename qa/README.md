@@ -36,8 +36,8 @@ Every UI QA report should reconcile:
 
 ## Runtime Paths
 
-- App-only local run: `npm run ui`
-- QA/evidence run: start `npm run ui`, then use the relevant cookbook page.
+- App-only local run: `corepack pnpm run ui`
+- QA/evidence run: start `corepack pnpm run ui`, then use the relevant cookbook page.
 - Expected local UI target: Vite prints the active host/port; common local
   target is `http://127.0.0.1:5173`.
 - Codex runtime needs `CODEX_APP_SERVER_URL` when using app-server-backed

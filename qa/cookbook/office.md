@@ -20,8 +20,11 @@ canvas-only clicking.
 Start the app:
 
 ```bash
-npm run ui
+corepack pnpm run ui
 ```
+
+Open the printed local URL at `/office`. A basic Office launch does not require
+Codex app-server, OpenClaw, or Convex.
 
 For Codex-backed project/thread data, start the UI with `CODEX_APP_SERVER_URL`
 pointing at the Codex app server.

@@ -22,7 +22,7 @@ From the Farplane repo:
 
 ```bash
 pnpm install
-pnpm run shell -- onboarding --yes
+pnpm run shell onboarding --yes
 ```
 
 This bootstraps:

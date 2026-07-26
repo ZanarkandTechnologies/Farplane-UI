@@ -6,7 +6,7 @@
  *
  * KEY CONCEPTS:
  * - Farplane CLI stays the primary operator entrypoint.
- * - The UI command shells out to the repo-local `npm run ui`.
+ * - The UI command calls the same package-manager-neutral launcher as the root script.
  *
  * USAGE:
  * - farplane ui
@@ -17,16 +17,13 @@
  */
 
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Command } from "commander";
 import { cliBlue, cliDim, cliSection } from "./cli-utils.js";
 
-function npmCommand(): string {
-  return process.platform === "win32" ? "npm.cmd" : "npm";
-}
-
-/** Repo root: parent of the cli package so `npm run ui` (root script) runs correctly. */
+/** Resolve the checkout root from either source (`cli/`) or bundled (`dist/bundle/`) execution. */
 function resolveRepoRoot(): string {
   const override = process.env.FARPLANE_REPO_ROOT?.trim();
   if (override) return path.resolve(override);
@@ -34,10 +31,18 @@ function resolveRepoRoot(): string {
     typeof __dirname === "string" && __dirname.trim()
       ? __dirname
       : path.dirname(fileURLToPath(import.meta.url));
+  let candidate = path.resolve(cliDir);
+  while (true) {
+    if (existsSync(path.join(candidate, "scripts", "run-ui.mjs"))) return candidate;
+    const parent = path.dirname(candidate);
+    if (parent === candidate) break;
+    candidate = parent;
+  }
   return path.resolve(cliDir, "..");
 }
 
 type StartUiDevServerOptions = {
+  args?: readonly string[];
   cwd?: string;
   propagateSignal?: boolean;
 };
@@ -45,15 +50,11 @@ type StartUiDevServerOptions = {
 export async function startUiDevServer(options: StartUiDevServerOptions = {}): Promise<void> {
   const cwd = options.cwd ?? resolveRepoRoot();
   const propagateSignal = options.propagateSignal !== false;
-  // On Windows, spawning .cmd files (e.g. npm.cmd) without a shell throws EINVAL (Node CVE-2024-27980).
-  // Use a single command string with shell: true so the shell runs npm.
-  const useShell = process.platform === "win32";
   const baseOpts = { cwd, stdio: "inherit" as const, env: process.env };
+  const launcherPath = path.join(cwd, "scripts", "run-ui.mjs");
 
   await new Promise<void>((resolve, reject) => {
-    const child = useShell
-      ? spawn("npm run ui", [], { ...baseOpts, shell: true })
-      : spawn(npmCommand(), ["run", "ui"], baseOpts);
+    const child = spawn(process.execPath, [launcherPath, ...(options.args ?? [])], baseOpts);
 
     child.on("error", reject);
     child.on("exit", (code, signal) => {
@@ -76,13 +77,13 @@ export async function startUiDevServer(options: StartUiDevServerOptions = {}): P
 
 export function registerUiCommands(program: Command): void {
   program
-    .command("ui")
+    .command("ui [viteArgs...]")
     .description("Start the Farplane UI dev server")
-    .action(async () => {
+    .action(async (viteArgs: string[] = []) => {
       console.log(cliSection("Farplane UI"));
-      console.log(cliDim("Starting the Vite dev server with `npm run ui`."));
+      console.log(cliDim("Starting the Vite dev server with the shared local launcher."));
       console.log(cliBlue("Stop it with Ctrl+C. You can rerun this command any time."));
       console.log("");
-      await startUiDevServer();
+      await startUiDevServer({ args: viteArgs });
     });
 }

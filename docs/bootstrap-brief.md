@@ -30,7 +30,7 @@ Existing-project migration brief for aligning Farplane UI with the current
   and `.farplane/reviews/`
 - testability: QA cookbook, browser evidence bundles, dev-only probes,
   Vitest/Playwright where stable
-- deploy/runtime: local npm workspace first; Convex/OpenClaw only when the
+- deploy/runtime: local pnpm workspace first; Convex/OpenClaw only when the
   tested feature needs them
 - proof: pre-push gates, QA reports, screenshots/snapshots, and reviewer lane
   output for material changes
@@ -39,7 +39,7 @@ Existing-project migration brief for aligning Farplane UI with the current
 
 - product slice options: prioritize one vertical operator workflow over broad
   backlog conversion
-- architecture/topology options: keep the current npm workspace monorepo and
+- architecture/topology options: keep the current pnpm workspace monorepo and
   avoid new wrappers unless they reduce real runtime ambiguity
 - data ownership options: Farplane sidecars own Farplane UI state; OpenClaw and
   Convex remain adapter-backed external systems
@@ -128,14 +128,14 @@ already exist, and `docs/TASTE.md` plus browser evidence for visual changes.
 
 ## Canonical Commands
 
-- Install: `npm install`
-- App-only local run: `npm run ui`
-- CLI: `npm run cli -- <command>`
-- Root build gate: `npm run build`
-- UI production build gate: `npm run ui:build`
-- Lint: `npm run lint`
-- Tests: `npm run test:once`
-- Full typecheck target: `npm run typecheck`
+- Install: `corepack pnpm install --frozen-lockfile`
+- App-only local run: `corepack pnpm run ui`
+- CLI: `corepack pnpm run cli <command>`
+- Root build gate: `corepack pnpm run build`
+- UI production build gate: `corepack pnpm run ui:build`
+- Lint: `corepack pnpm run lint`
+- Tests: `corepack pnpm run test:once`
+- Full typecheck target: `corepack pnpm run typecheck`
 
 ## Hook Policy
 
@@ -161,24 +161,24 @@ already exist, and `docs/TASTE.md` plus browser evidence for visual changes.
 
 Required pre-push gates now:
 
-- `npm run build`
-- `npm run ui:build`
+- `corepack pnpm run build`
+- `corepack pnpm run ui:build`
 
 Advisory until follow-up cleanup:
 
-- `npm run lint`, currently blocked by one known `noUnsafeFinally` issue in
+- `corepack pnpm run lint`, currently blocked by one known `noUnsafeFinally` issue in
   `ui/src/components/hud/furniture-shop.tsx`.
-- `npm run test:once`, currently needs Vitest alias/test-environment cleanup for
+- `corepack pnpm run test:once`, currently needs Vitest alias/test-environment cleanup for
   UI `@/` imports when run from the root.
-- `npm run typecheck`, currently blocked by broader UI type debt.
+- `corepack pnpm run typecheck`, currently blocked by broader UI type debt.
 
 Target strict pre-push gate after cleanup:
 
-- `npm run lint`
-- `npm run typecheck`
-- `npm run test:once`
-- `npm run build`
-- `npm run ui:build`
+- `corepack pnpm run lint`
+- `corepack pnpm run typecheck`
+- `corepack pnpm run test:once`
+- `corepack pnpm run build`
+- `corepack pnpm run ui:build`
 
 ## QA Policy
 
@@ -227,8 +227,8 @@ Ask before:
 
 ## Follow-Up Tickets To Create
 
-- Fix lint debt so `npm run lint` can become required pre-push.
-- Fix root Vitest alias/environment so `npm run test:once` can become required
+- Fix lint debt so `corepack pnpm run lint` can become required pre-push.
+- Fix root Vitest alias/environment so `corepack pnpm run test:once` can become required
   pre-push.
-- Drain full UI typecheck debt so `npm run typecheck` can become required.
+- Drain full UI typecheck debt so `corepack pnpm run typecheck` can become required.
 - Refactor the largest source files and then enable strict large-file blocking.
