@@ -21,15 +21,20 @@ Overview also derives its autonomy-and-savings presentation from the flat
 preserves attribution/source gaps, and does not recalculate completed
 agent-hours; Harness Usage remains the runtime telemetry owner.
 
-Overview reads optional win and failure cards from
+The dedicated Wins and Failures tabs read optional win and failure cards from
 `tabs.highlights` in the same project snapshot. Core derives the display fields
 from the append-only Interval highlight ledgers; the UI filters with one
 project-local team-slug adapter and never reads report prose or remote task
-state for this surface. Wins emphasize exceptional verified metric
-movement. Failures keep the reusable lesson visible beside generic evidence
-links. Each gallery initially shows three recent cards with explicit
-progressive disclosure. Local evidence opens through the project-scoped,
-read-only `/farplane/project-file` bridge rather than a `file://` URL.
+state for this surface. Wins emphasize exceptional verified metric movement.
+Failures admit one Daily card per calendar day, lead with the reusable lesson
+as the “Failure of the day,” and retain what happened and the
+evidence links. Both tabs use full responsive galleries. Local evidence opens
+through the project-scoped, read-only `/farplane/project-file` bridge rather
+than a `file://` URL.
+
+The Failures gallery groups those canonical Daily cards by Monday-based week.
+It does not add votes, ranking, promotion state, or a duplicate weekly
+highlight.
 
 ## Public API / Entrypoints
 
@@ -49,5 +54,5 @@ read-only `/farplane/project-file` bridge rather than a `file://` URL.
 
 - Run targeted Team Panel tests: `npm run test:once -- team-panel`
 - Run focused highlight tests:
-  `corepack pnpm vitest run ui/src/modules/team-workspace/lib/dashboard-projections/project-ui-snapshot.test.ts ui/src/modules/team-workspace/lib/dashboard-projections/overview-summary-surface.test.ts ui/src/modules/team-workspace/components/tabs/overview/overview-highlights.test.ts ui/vite-bridge/project-file.test.ts`
+  `corepack pnpm vitest run ui/src/modules/team-workspace/lib/dashboard-projections/project-ui-snapshot.test.ts ui/src/modules/team-workspace/lib/dashboard-projections/overview-summary-surface.test.ts ui/src/modules/team-workspace/components/tabs/highlights/highlights-gallery-tab.test.ts ui/vite-bridge/project-file.test.ts`
 - Run workspace typecheck: `npm run typecheck`

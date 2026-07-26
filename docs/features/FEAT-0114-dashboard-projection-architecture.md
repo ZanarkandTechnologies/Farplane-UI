@@ -119,8 +119,10 @@ state, and provenance. Card components only render projection rows.
 ## Interval Highlight Surface
 
 Interval owns highlight admission after a Daily or Weekly report is finalized.
-A win must describe exceptional verified metric movement, while a failure must
-include a reusable lesson. The browser does not infer either from report prose.
+A win must describe exceptional verified metric movement. Failure highlights
+are Daily-only and admit at most one failure for each team and calendar period;
+each must include a reusable lesson. Weekly reports may summarize failures but
+do not add gallery cards. The browser does not infer either from report prose.
 
 Core projects the local ledgers into an additive schema-v2 slice:
 
@@ -139,15 +141,17 @@ Workspace resolves them against the active project path for navigation. It uses
 one adapter to compare the project-local slug with active UI keys such as
 `team-proj-farplane`; it does not query or extend a Convex task store.
 
-Overview renders wins and failures as separate galleries. Failure lessons stay
-fully visible, and absent or partial highlight slices produce honest empty
-states. JSONL remains canonical local state, Core remains the derivation owner,
-and the UI remains a tolerant renderer. Convex persistence and synchronization
-are outside this feature. Each gallery initially shows the three newest cards
-with explicit disclosure for older rows. Project-relative evidence links open
-through the read-only `/farplane/project-file` bridge, which confines reads to
-the selected project root instead of relying on browser-blocked `file://`
-navigation.
+Overview renders wins and failures as separate galleries. The failure gallery
+shows one “Failure of the day” card per period, ignores weekly rows, and
+deterministically collapses duplicate same-day rows as a tolerant rendering
+guard. The UI groups those Daily records into Monday-based browsing weeks
+without adding votes, ranking, promotion state, another highlight record, or a
+second persistence layer. JSONL remains canonical highlight state, Core
+remains the derivation owner, and the UI remains a tolerant renderer.
+Convex persistence and synchronization are outside this feature.
+Project-relative evidence links open through the read-only
+`/farplane/project-file` bridge, which confines reads to the selected project
+root instead of relying on browser-blocked `file://` navigation.
 
 ## Report Surface
 

@@ -274,6 +274,19 @@ function scopedHighlights(
     .sort((left, right) => (right.createdAt ?? "").localeCompare(left.createdAt ?? ""));
 }
 
+function dailyFailures(cards: OverviewHighlightCard[]): OverviewHighlightCard[] {
+  const seenPeriods = new Set<string>();
+  return cards.filter((card) => {
+    const isDaily =
+      card.cadence?.toLowerCase() === "daily" ||
+      /\/interval\/daily(?:_interval)?\//i.test(card.report);
+    const period = card.period || card.createdAt?.slice(0, 10);
+    if (!isDaily || !period || seenPeriods.has(period)) return false;
+    seenPeriods.add(period);
+    return true;
+  });
+}
+
 export function buildOverviewSummarySurface({
   projectConfig,
   aiBurn24hUsd,
@@ -341,11 +354,13 @@ export function buildOverviewSummarySurface({
     projectId,
     projectConfig?.projectPath,
   );
-  const failures = scopedHighlights(
-    projectUiSnapshot?.tabs.highlights?.failures ?? [],
-    teamScope,
-    projectId,
-    projectConfig?.projectPath,
+  const failures = dailyFailures(
+    scopedHighlights(
+      projectUiSnapshot?.tabs.highlights?.failures ?? [],
+      teamScope,
+      projectId,
+      projectConfig?.projectPath,
+    ),
   );
 
   return {

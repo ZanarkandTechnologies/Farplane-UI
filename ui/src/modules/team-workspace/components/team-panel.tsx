@@ -36,6 +36,7 @@ import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
 import { KanbanTab } from "./kanban-tab";
 import { DistributionTab } from "./tabs/distribution";
+import { HighlightsGalleryTab } from "./tabs/highlights";
 import { NewsTab } from "./tabs/news";
 import { SkillsReadinessTab } from "./tabs/operator-intelligence";
 import { OverviewTab } from "./tabs/overview";
@@ -75,7 +76,15 @@ type TabGroup = {
 };
 
 const TAB_GROUPS: TabGroup[] = [
-  { id: "overview", label: "Overview", children: [{ label: "Overview", value: "overview" }] },
+  {
+    id: "overview",
+    label: "Overview",
+    children: [
+      { label: "Overview", value: "overview" },
+      { label: "Wins", value: "wins" },
+      { label: "Failures", value: "failures" },
+    ],
+  },
   {
     id: "work",
     label: "Work",
@@ -286,7 +295,7 @@ export function TeamPanel({
           className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6"
         >
           <div className="mt-4 max-w-full overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex w-max items-center gap-2">
+            <div className="flex w-max flex-col items-start gap-2 sm:flex-row sm:items-center">
               <div className="flex items-center gap-1 rounded-md border bg-muted/20 p-1">
                 {TAB_GROUPS.map((group) => {
                   const active = group.id === activeTabGroup.id;
@@ -306,9 +315,13 @@ export function TeamPanel({
                   );
                 })}
               </div>
-              <TabsList className="flex h-auto w-max flex-nowrap justify-start gap-1 border border-primary/20 bg-primary/10 p-1">
+              <TabsList className="flex h-9 w-max flex-nowrap justify-start gap-4 rounded-none border-0 border-b bg-transparent p-0">
                 {activeTabGroup.children.map((child) => (
-                  <TabsTrigger className="h-8 flex-none" key={child.value} value={child.value}>
+                  <TabsTrigger
+                    className="h-9 flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 shadow-none data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                    key={child.value}
+                    value={child.value}
+                  >
                     {child.label}
                   </TabsTrigger>
                 ))}
@@ -331,6 +344,24 @@ export function TeamPanel({
               projectConfigState={projectConfigState.state}
               projectConfigError={projectConfigState.error}
               projectTasks={projectTasks}
+            />
+          </TabsContent>
+
+          <TabsContent value="wins" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <HighlightsGalleryTab
+              kind="wins"
+              projectConfig={projectConfigState.config}
+              projectConfigState={projectConfigState.state}
+              teamScope={team?._id ?? project?.id}
+            />
+          </TabsContent>
+
+          <TabsContent value="failures" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <HighlightsGalleryTab
+              kind="failures"
+              projectConfig={projectConfigState.config}
+              projectConfigState={projectConfigState.state}
+              teamScope={team?._id ?? project?.id}
             />
           </TabsContent>
 

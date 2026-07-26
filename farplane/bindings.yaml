@@ -1,6 +1,6 @@
 kind: project-bindings
 project:
-  id: hooks-test
+  id: farplane-ui
 metric_bindings: {}
 event_routes:
   - route_id: completion-a

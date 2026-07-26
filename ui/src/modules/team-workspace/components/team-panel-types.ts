@@ -16,6 +16,8 @@
 
 export type TabKey =
   | "overview"
+  | "wins"
+  | "failures"
   | "reports"
   | "charter"
   | "objectives"
