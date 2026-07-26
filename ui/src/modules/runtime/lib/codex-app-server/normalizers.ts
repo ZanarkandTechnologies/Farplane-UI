@@ -342,6 +342,12 @@ export function toCodexCompanyModel(
   configuredProjectPaths: string[] = [],
   readModel: {
     ticketTasks?: CodexProjectReadModelTask[];
+    ticketReadIssues?: Array<{
+      projectId?: string;
+      ticketId?: string;
+      artefactPath?: string;
+      error?: string;
+    }>;
     projectManagers?: CodexProjectManagerPin[];
     projectPms?: CodexProjectPmBinding[];
     officeVisibility?: CodexOfficeVisibilityConfig;

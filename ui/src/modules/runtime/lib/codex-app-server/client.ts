@@ -1,15 +1,15 @@
 import type {
+  CodexAppServerHealthResponse,
   CodexConfigReadResponse,
+  CodexOfficeVisibilityConfig,
+  CodexProjectPmConfig,
+  CodexProjectReadModelResponse,
   CodexRpcBridgeResponse,
   CodexThreadListResponse,
   CodexThreadReadResponse,
   CodexThreadStartResponse,
   CodexTurnStartResponse,
-  CodexProjectReadModelResponse,
-  CodexOfficeVisibilityConfig,
-  CodexProjectPmConfig,
   CodexUiStateResponse,
-  CodexAppServerHealthResponse,
 } from "./types";
 
 type FetchLike = typeof fetch;
@@ -46,7 +46,11 @@ export class CodexAppServerClient {
       throw new Error(`codex_app_server_bridge_bad_json:${response.status}`);
     }
     if (!response.ok || payload.ok === false) {
-      throw new Error(payload.ok === false ? payload.error ?? `codex_rpc_failed:${method}` : `codex_rpc_failed:${response.status}`);
+      throw new Error(
+        payload.ok === false
+          ? (payload.error ?? `codex_rpc_failed:${method}`)
+          : `codex_rpc_failed:${response.status}`,
+      );
     }
     return payload.result;
   }
@@ -218,7 +222,11 @@ export class CodexAppServerClient {
     });
   }
 
-  async steerTurn(threadId: string, expectedTurnId: string, message: string): Promise<CodexTurnStartResponse> {
+  async steerTurn(
+    threadId: string,
+    expectedTurnId: string,
+    message: string,
+  ): Promise<CodexTurnStartResponse> {
     return this.request<CodexTurnStartResponse>("turn/steer", {
       threadId,
       expectedTurnId,
@@ -227,6 +235,8 @@ export class CodexAppServerClient {
   }
 }
 
-export function createCodexAppServerClient(options: CodexAppServerClientOptions): CodexAppServerClient {
+export function createCodexAppServerClient(
+  options: CodexAppServerClientOptions,
+): CodexAppServerClient {
   return new CodexAppServerClient(options);
 }

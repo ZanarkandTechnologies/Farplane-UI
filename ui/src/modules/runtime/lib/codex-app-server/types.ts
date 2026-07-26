@@ -123,7 +123,13 @@ export type CodexProjectReadModelTask = {
   frontMatter?: Record<string, string>;
   markdown?: string;
   notes?: string;
-  approvalState?: "draft" | "pending_review" | "approved" | "rejected" | "changes_requested" | "executed";
+  approvalState?:
+    | "draft"
+    | "pending_review"
+    | "approved"
+    | "rejected"
+    | "changes_requested"
+    | "executed";
   linkedSessionKey?: string;
   createdAt?: number;
   dueAt?: number;
@@ -174,6 +180,12 @@ export type CodexOfficeVisibilityConfig = {
 export type CodexProjectReadModelResponse = {
   generatedAt?: number;
   ticketTasks?: CodexProjectReadModelTask[];
+  ticketReadIssues?: Array<{
+    projectId?: string;
+    ticketId?: string;
+    artefactPath?: string;
+    error?: string;
+  }>;
   projectManagers?: CodexProjectManagerPin[];
   projectPms?: CodexProjectPmBinding[];
   officeVisibility?: CodexOfficeVisibilityConfig;

@@ -144,14 +144,20 @@ function normalizeStringList(value: unknown): string[] {
   ];
 }
 
+function isAbsoluteProjectPath(value: string): boolean {
+  return value.startsWith("/") || value.startsWith("\\\\") || /^[a-zA-Z]:[\\/]/.test(value);
+}
+
 function codexProjectPathsFromUiState(value: CodexUiStateResponse): string[] {
   return [
-    ...new Set([
-      ...normalizeStringList(value.pinnedProjectIds),
-      ...normalizeStringList(value.projectOrder),
-      ...normalizeStringList(value.savedWorkspaceRoots),
-      ...normalizeStringList(value.activeWorkspaceRoots),
-    ]),
+    ...new Set(
+      [
+        ...normalizeStringList(value.pinnedProjectIds),
+        ...normalizeStringList(value.projectOrder),
+        ...normalizeStringList(value.savedWorkspaceRoots),
+        ...normalizeStringList(value.activeWorkspaceRoots),
+      ].filter(isAbsoluteProjectPath),
+    ),
   ];
 }
 
