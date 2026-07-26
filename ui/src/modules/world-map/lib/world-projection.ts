@@ -13,6 +13,7 @@ import type {
   WorldNode,
   WorldPointFeature,
   WorldProjection,
+  WorldTimelineEntry,
   WorldView,
 } from "../types";
 
@@ -46,6 +47,15 @@ function stringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter(
     (entry): entry is string => typeof entry === "string" && Boolean(entry.trim()),
+  );
+}
+
+function tagMap(value: unknown): Record<string, string[]> {
+  const row = record(value);
+  return Object.fromEntries(
+    Object.entries(row)
+      .map(([key, entries]) => [key, stringArray(entries)] as const)
+      .filter(([, entries]) => entries.length > 0),
   );
 }
 
@@ -133,6 +143,31 @@ function parseView(value: unknown): WorldView | null {
   return { id, name, entityIds };
 }
 
+function parseTimelineEntry(value: unknown, fallbackProjectId: string): WorldTimelineEntry | null {
+  const row = record(value);
+  const projectId = text(row.project_id, row.projectId, fallbackProjectId) || "unknown-project";
+  const key = text(row.key);
+  const date = text(row.date);
+  const sourceEntityId = text(row.source_entity_id, row.sourceEntityId);
+  const context = text(row.context);
+  const displayContext = text(row.display_context, row.displayContext, context);
+  const entityIds = stringArray(row.entity_ids ?? row.entityIds);
+  if (!key || !date || !sourceEntityId || !displayContext || !entityIds.length) return null;
+  return {
+    key,
+    projectId,
+    date,
+    sourceEntityId,
+    entityIds,
+    entityKeys: stringArray(row.entity_keys ?? row.entityKeys),
+    context,
+    displayContext,
+    tags: tagMap(row.tags),
+    sourcePath: text(row.source_path, row.sourcePath, row.path) || undefined,
+    section: text(row.section) || undefined,
+  };
+}
+
 export function parseWorldProjection(input: unknown): WorldProjection {
   const root = record(input);
   const projectRow = record(root.project);
@@ -161,6 +196,12 @@ export function parseWorldProjection(input: unknown): WorldProjection {
   const views = (Array.isArray(root.views) ? root.views : [])
     .map(parseView)
     .filter((row): row is WorldView => row !== null);
+  const timeline = (Array.isArray(root.timeline) ? root.timeline : [])
+    .map((row) => parseTimelineEntry(row, projectId))
+    .filter((row): row is WorldTimelineEntry => row !== null)
+    .sort(
+      (left, right) => right.date.localeCompare(left.date) || left.key.localeCompare(right.key),
+    );
   return {
     schemaVersion: text(root.schema_version, root.schemaVersion, root.version, "1"),
     generatedAt: text(root.generated_at, root.generatedAt) || undefined,
@@ -172,6 +213,7 @@ export function parseWorldProjection(input: unknown): WorldProjection {
     nodes,
     edges,
     views,
+    timeline,
     issues,
     stale: root.stale === true,
   };
@@ -216,9 +258,7 @@ export function filterWorldNodes(
 
 export function filterWorldEdges(edges: WorldEdge[], nodes: WorldNode[]): WorldEdge[] {
   const visibleKeys = new Set(nodes.map((node) => node.key));
-  return edges.filter(
-    (edge) => visibleKeys.has(edge.sourceKey) && visibleKeys.has(edge.targetKey),
-  );
+  return edges.filter((edge) => visibleKeys.has(edge.sourceKey) && visibleKeys.has(edge.targetKey));
 }
 
 export function worldGeoJson(

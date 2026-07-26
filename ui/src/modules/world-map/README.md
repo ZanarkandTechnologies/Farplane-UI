@@ -38,6 +38,13 @@ to the linked entity—rather than claiming a supplier/customer predicate. The
 renderer retains that order and disables motion when the browser requests
 reduced motion.
 
+Company and person Markdown may also carry dated bullets under `## Timeline`.
+The additive projection rows preserve optional metadata without creating extra
+graph nodes. Selecting an entity shows neutral metadata badges and all timeline
+rows that either originate from or link to that entity. World does not assign
+domain semantics to view-specific signals, metrics, resources, or weights;
+specialized consumers read `.farplane/views/<view-id>.json` instead.
+
 Open **World** from the office launcher or command palette. The currently
 selected Command Center project is used by default and can be changed in the
 panel header. The starter and current offices expose the same panel through the

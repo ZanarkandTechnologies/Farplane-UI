@@ -63,6 +63,31 @@
       "section": "Relationships"
     }
   ],
+  "timeline": [
+    {
+      "key": "fixture-supply-chain:timeline:capacity",
+      "project_id": "fixture-supply-chain",
+      "date": "2026-07-16",
+      "source_entity_id": "penang-castings",
+      "entity_ids": ["acme-motors", "penang-castings"],
+      "entity_keys": [
+        "fixture-supply-chain:acme-motors",
+        "fixture-supply-chain:penang-castings"
+      ],
+      "context": "[type:capacity] [factor:power] [signal:feasibility-up] [metric:planned-capacity] [value:140] [unit:MW] Penang Castings expanded capacity for Acme Motors.",
+      "display_context": "Penang Castings expanded capacity for Acme Motors.",
+      "tags": {
+        "type": ["capacity"],
+        "factor": ["power"],
+        "signal": ["feasibility-up"],
+        "metric": ["planned-capacity"],
+        "value": ["140"],
+        "unit": ["MW"]
+      },
+      "path": ".farplane/entities/penang-castings.md",
+      "section": "Timeline"
+    }
+  ],
   "views": [
     {
       "id": "malaysia-suppliers",

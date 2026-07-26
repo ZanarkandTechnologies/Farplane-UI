@@ -48,6 +48,13 @@ launcher or `Ctrl/Cmd+K` command palette.
    compact bottom notice rather than a full-canvas scrim.
 13. Click the Farplane Map activity landmark and verify it opens the same World
    panel; confirm Research Library still opens Docs Library.
+14. Select an entity with metadata-bearing timeline rows and verify generic
+    key/value badges, date, and newest-first evidence. Confirm World does not
+    assign risk, feasibility, or resource semantics. Select a linked target
+    entity and verify the same row appears once with its source entity named.
+15. Select an entity without timeline rows and verify the compact empty state;
+    malformed additive timeline rows must be omitted without dropping nodes or
+    associations.
 
 ## Automated checks
 

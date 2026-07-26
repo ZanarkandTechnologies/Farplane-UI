@@ -9,7 +9,10 @@ import {
 } from "./world-projection";
 
 const fixture = JSON.parse(
-  readFileSync(path.resolve(__dirname, "../fixtures/project/.farplane/entities/world.json"), "utf8"),
+  readFileSync(
+    path.resolve(__dirname, "../fixtures/project/.farplane/entities/world.json"),
+    "utf8",
+  ),
 ) as unknown;
 
 describe("world projection", () => {
@@ -35,6 +38,20 @@ describe("world projection", () => {
         entityIds: ["penang-castings", "precision-alloys"],
       },
     ]);
+    expect(projection.timeline).toHaveLength(1);
+    expect(projection.timeline[0]).toMatchObject({
+      date: "2026-07-16",
+      sourceEntityId: "penang-castings",
+      entityIds: ["acme-motors", "penang-castings"],
+      tags: {
+        factor: ["power"],
+        metric: ["planned-capacity"],
+        signal: ["feasibility-up"],
+        unit: ["MW"],
+        value: ["140"],
+        type: ["capacity"],
+      },
+    });
   });
 
   it("combines named-view membership with ordinary filters and removes orphaned edges", () => {
@@ -44,10 +61,7 @@ describe("world projection", () => {
       { query: "", kind: "all", location: "Malaysia", viewId: "malaysia-suppliers" },
       projection.views,
     );
-    expect(nodes.map((node) => node.entityId)).toEqual([
-      "penang-castings",
-      "precision-alloys",
-    ]);
+    expect(nodes.map((node) => node.entityId)).toEqual(["penang-castings", "precision-alloys"]);
     expect(filterWorldEdges(projection.edges, nodes)).toEqual([]);
     expect(
       filterWorldNodes(
@@ -109,6 +123,7 @@ describe("world projection", () => {
         path: ".farplane/entities/acme.md",
       },
     ]);
+    expect(projection.timeline).toEqual([]);
   });
 
   it("handles large local projections with deterministic filtering", () => {

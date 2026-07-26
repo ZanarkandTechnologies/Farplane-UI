@@ -1,6 +1,5 @@
 import { AlertTriangle, Globe2, LocateOff, RefreshCw, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -15,111 +14,11 @@ import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
 import { useWorldProjection } from "../hooks/use-world-projection";
 import { filterWorldEdges, filterWorldNodes, hasCoordinates } from "../lib/world-projection";
-import type { WorldEdge, WorldNode, WorldSelection } from "../types";
+import type { WorldSelection } from "../types";
+import { WorldEntityDetail } from "./world-entity-detail";
 import { WorldMapCanvas } from "./world-map-canvas";
 
 type WorldMapPanelProps = { open: boolean; onOpenChange: (open: boolean) => void };
-
-function DetailPanel(props: {
-  edges: WorldEdge[];
-  nodes: WorldNode[];
-  selection: WorldSelection;
-  onSelect: (selection: WorldSelection) => void;
-}): React.JSX.Element {
-  const nodeByKey = new Map(props.nodes.map((node) => [node.key, node]));
-  if (!props.selection) {
-    return (
-      <div className="flex h-full items-center justify-center px-5 text-center text-xs text-muted-foreground">
-        Select an entity or association to inspect its source context.
-      </div>
-    );
-  }
-  if (props.selection.type === "edge") {
-    const edge = props.edges.find((candidate) => candidate.key === props.selection?.key);
-    if (!edge)
-      return (
-        <div className="p-4 text-xs text-muted-foreground">
-          Association is outside the current filter.
-        </div>
-      );
-    const source = nodeByKey.get(edge.sourceKey);
-    const target = nodeByKey.get(edge.targetKey);
-    return (
-      <div className="space-y-4 p-4">
-        <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            Association
-          </div>
-          <div className="mt-2 text-sm font-semibold">
-            {source?.name ?? edge.sourceEntityId} ↔ {target?.name ?? edge.targetEntityId}
-          </div>
-        </div>
-        <blockquote className="border-l-2 border-sky-400 bg-muted/40 px-3 py-2 text-sm leading-6">
-          {edge.displayContext}
-        </blockquote>
-        {edge.section ? (
-          <div className="text-xs text-muted-foreground">Section: {edge.section}</div>
-        ) : null}
-        {edge.sourcePath ? (
-          <div className="break-all font-mono text-[11px] text-muted-foreground">
-            {edge.sourcePath}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-  const node = props.nodes.find((candidate) => candidate.key === props.selection?.key);
-  if (!node)
-    return (
-      <div className="p-4 text-xs text-muted-foreground">Entity is outside the current filter.</div>
-    );
-  const connected = props.edges.filter(
-    (edge) => edge.sourceKey === node.key || edge.targetKey === node.key,
-  );
-  return (
-    <div className="space-y-4 p-4">
-      <div>
-        <Badge variant="secondary" className="mb-2 capitalize">
-          {node.kind}
-        </Badge>
-        <h3 className="text-base font-semibold">{node.name}</h3>
-        <div className="mt-1 font-mono text-[11px] text-muted-foreground">{node.entityId}</div>
-      </div>
-      <dl className="grid grid-cols-[70px_1fr] gap-x-3 gap-y-2 text-xs">
-        <dt className="text-muted-foreground">Location</dt>
-        <dd>{node.location || "Unlocated"}</dd>
-        <dt className="text-muted-foreground">Position</dt>
-        <dd>{hasCoordinates(node) ? `${node.latitude}, ${node.longitude}` : "Not plotted"}</dd>
-      </dl>
-      {connected.length ? (
-        <div>
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            Connected
-          </div>
-          <div className="space-y-1.5">
-            {connected.map((edge) => (
-              <button
-                key={edge.key}
-                type="button"
-                onClick={() => props.onSelect({ type: "edge", key: edge.key })}
-                className="w-full rounded-md border px-2.5 py-2 text-left text-xs hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:outline-none"
-              >
-                <div className="line-clamp-2 leading-5">{edge.displayContext}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="text-xs text-muted-foreground">No explicit associations.</div>
-      )}
-      {node.sourcePath ? (
-        <div className="break-all border-t pt-3 font-mono text-[11px] text-muted-foreground">
-          {node.sourcePath}
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React.JSX.Element {
   const { companyModel } = useOfficeDataContext();
@@ -146,16 +45,13 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
   }, [open, projects, selectedProjectId, setSelectedProjectId]);
 
   useEffect(() => {
+    if (!project?.id) return;
     setSelection(null);
     setViewId("all");
   }, [project?.id]);
 
   useEffect(() => {
-    if (
-      projection &&
-      viewId !== "all" &&
-      !projection.views.some((view) => view.id === viewId)
-    ) {
+    if (projection && viewId !== "all" && !projection.views.some((view) => view.id === viewId)) {
       setSelection(null);
       setViewId("all");
     }
@@ -239,6 +135,8 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
                 <span>{plottedCount} plotted</span>
                 <span>·</span>
                 <span>{filteredEdges.length} associations</span>
+                <span>·</span>
+                <span>{projection.timeline.length} timeline events</span>
               </div>
             ) : null}
             <Button
@@ -268,13 +166,10 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
             </div>
           </div>
         ) : world.isLoading ? (
-          <div
-            role="status"
-            className="flex flex-1 items-center justify-center text-sm text-muted-foreground"
-          >
+          <output className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
             <RefreshCw aria-hidden="true" className="mr-2 size-4 animate-spin" />
             Loading world projection…
-          </div>
+          </output>
         ) : world.isError ? (
           <div role="alert" className="flex flex-1 items-center justify-center p-8 text-center">
             <div>
@@ -306,10 +201,7 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
         ) : (
           <div className="flex min-h-0 flex-1 flex-col">
             {projection.stale || projection.issues.length > 0 ? (
-              <div
-                role="status"
-                className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-200"
-              >
+              <output className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
                 <AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />
                 <span>
                   {projection.stale ? "Projection is marked stale. " : ""}
@@ -317,7 +209,7 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
                     ? `${projection.issues.length} compilation issue${projection.issues.length === 1 ? "" : "s"}.`
                     : ""}
                 </span>
-              </div>
+              </output>
             ) : null}
             <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(112px,0.5fr)_minmax(220px,1.5fr)_minmax(112px,0.5fr)] sm:grid-rows-[minmax(140px,0.65fr)_minmax(280px,1.35fr)_minmax(140px,0.65fr)] lg:grid-cols-[260px_minmax(0,1fr)_300px] lg:grid-rows-1">
               <aside className="flex min-h-0 flex-col border-b bg-muted/15 lg:border-r lg:border-b-0">
@@ -420,9 +312,10 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
                 />
               </main>
               <aside className="min-h-0 overflow-y-auto border-t bg-card/40 lg:border-t-0 lg:border-l">
-                <DetailPanel
+                <WorldEntityDetail
                   nodes={projection.nodes}
                   edges={projection.edges}
+                  timeline={projection.timeline}
                   selection={selection}
                   onSelect={setSelection}
                 />

@@ -43,6 +43,20 @@ export type WorldView = {
   entityIds: string[];
 };
 
+export type WorldTimelineEntry = {
+  key: string;
+  projectId: string;
+  date: string;
+  sourceEntityId: string;
+  entityIds: string[];
+  entityKeys: string[];
+  context: string;
+  displayContext: string;
+  tags: Record<string, string[]>;
+  sourcePath?: string;
+  section?: string;
+};
+
 export type WorldProjection = {
   schemaVersion: string;
   generatedAt?: string;
@@ -50,6 +64,7 @@ export type WorldProjection = {
   nodes: WorldNode[];
   edges: WorldEdge[];
   views: WorldView[];
+  timeline: WorldTimelineEntry[];
   issues: WorldIssue[];
   stale: boolean;
 };

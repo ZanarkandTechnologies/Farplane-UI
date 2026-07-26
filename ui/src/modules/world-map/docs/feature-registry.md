@@ -10,11 +10,12 @@
 | Map provider config | Vite state bridge + Settings | `VITE_MAPBOX_ACCESS_TOKEN` is persisted through canonical `~/.farplane/config.toml`; `GET /farplane/map-config` exposes only the bounded browser-safe renderer payload |
 | Office entry | activity-landmark `uiBinding` | The starter and current Farplane Map landmark launches the registered `world` internal panel without a separate navigation path; Research Library remains a Docs Library entry |
 | Evidence detail | `WorldMapPanel` | Entity source path and exact Markdown-derived association context |
+| Entity timeline | Core projection + `WorldEntityDetail` | Dated `Timeline` bullets render on every linked entity with inline tags shown as neutral badges; domain interpretation belongs to specialized view consumers and no additional graph nodes are introduced |
 
 States: no selected project, provider/map loading, map unavailable with retry,
 missing projection, invalid/read failure, empty/filtered-none, unlocated-only,
 stale, compilation issues, all entities, named view selected, node selected,
-and association selected.
+association selected, metadata-bearing timeline present, and entity without timeline data.
 
 Deferred: Convex aggregation, cross-project identity resolution, editing,
 geocoding, semantic relation inference, and SQLite.
