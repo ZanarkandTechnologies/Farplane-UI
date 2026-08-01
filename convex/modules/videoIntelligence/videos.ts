@@ -30,10 +30,9 @@ const queueResultValidator = v.object({
 });
 
 export const queueVideo = mutation({
-  args: { bridgeSecret: v.string(), videoId: v.string(), title: v.string() },
+  args: { videoId: v.string(), title: v.string() },
   returns: queueResultValidator,
   handler: async (ctx, args) => {
-    assertBridgeSecret(args.bridgeSecret);
     const canonicalUrl = canonicalVideoUrl(args.videoId);
     const title = clean(args.title, 300) || args.videoId;
     const now = Date.now();
@@ -108,13 +107,11 @@ export const queueVideo = mutation({
 
 export const attachThread = mutation({
   args: {
-    bridgeSecret: v.string(),
     jobId: v.id("resourceBankIngestionJobs"),
     threadId: v.string(),
   },
   returns: v.object({ ok: v.boolean() }),
   handler: async (ctx, args) => {
-    assertBridgeSecret(args.bridgeSecret);
     await ctx.db.patch(args.jobId, {
       externalTaskRef: `codex-thread:${clean(args.threadId, 180)}`,
       updatedAtMs: Date.now(),
@@ -125,14 +122,12 @@ export const attachThread = mutation({
 
 export const failVideo = mutation({
   args: {
-    bridgeSecret: v.string(),
     jobId: v.id("resourceBankIngestionJobs"),
     error: v.string(),
     threadId: v.optional(v.string()),
   },
   returns: v.object({ ok: v.boolean() }),
   handler: async (ctx, args) => {
-    assertBridgeSecret(args.bridgeSecret);
     await ctx.db.patch(args.jobId, {
       status: "failed",
       error: clean(args.error, 2_000),
@@ -147,7 +142,6 @@ export const failVideo = mutation({
 
 export const completeVideo = mutation({
   args: {
-    bridgeSecret: v.string(),
     jobId: v.id("resourceBankIngestionJobs"),
     assetId: v.id("resourceBankAssets"),
     videoId: v.string(),
@@ -156,7 +150,6 @@ export const completeVideo = mutation({
   },
   returns: v.object({ dossierId: v.id("videoIntelligenceDossiers") }),
   handler: async (ctx, args) => {
-    assertBridgeSecret(args.bridgeSecret);
     const [job, asset] = await Promise.all([ctx.db.get(args.jobId), ctx.db.get(args.assetId)]);
     if (!job || !asset || asset.ingestionJobId !== args.jobId) {
       throw new Error("video_intelligence_resource_binding_invalid");
@@ -383,18 +376,6 @@ async function firstAssetBySourceUrl(ctx: MutationCtx, videoId: string) {
     if (asset) return asset;
   }
   return null;
-}
-
-function assertBridgeSecret(value: string): void {
-  const expected = process.env.VIDEO_INTELLIGENCE_BRIDGE_SECRET;
-  if (!expected || value.length !== expected.length) {
-    throw new Error("video_intelligence_bridge_unauthorized");
-  }
-  let mismatch = 0;
-  for (let index = 0; index < expected.length; index += 1) {
-    mismatch |= value.charCodeAt(index) ^ expected.charCodeAt(index);
-  }
-  if (mismatch !== 0) throw new Error("video_intelligence_bridge_unauthorized");
 }
 
 function nullableText(value: string | null, max: number): string | undefined {

@@ -3,10 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { test } from "node:test";
-import {
-  resolveBridgeSecret,
-  resolveConvexUrl,
-} from "./video-intelligence-cloud.js";
+import { resolveConvexUrl } from "./video-intelligence-cloud.js";
 
 test("cloud adapter prefers an explicit Convex URL", async () => {
   assert.equal(
@@ -33,12 +30,5 @@ test("cloud adapter rejects an insecure remote Convex URL", async () => {
   await assert.rejects(
     resolveConvexUrl({ CONVEX_URL: "http://example.com" }),
     /must use HTTPS/,
-  );
-});
-
-test("cloud adapter accepts an explicit bridge credential without persisting it", async () => {
-  assert.equal(
-    await resolveBridgeSecret({ VIDEO_INTELLIGENCE_BRIDGE_SECRET: "test-secret" }),
-    "test-secret",
   );
 });

@@ -1,14 +1,11 @@
 /** Convex-backed Video Intelligence adapter for the local YouTube/Codex bridge. */
 import { readFile } from "node:fs/promises";
-import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
-import { promisify } from "node:util";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../convex/_generated/api.js";
 import type { Analysis as VideoIntelligenceAnalysis } from "./local-agent.js";
 
-const execFileAsync = promisify(execFile);
 const FARPLANE_UI_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 export type { VideoIntelligenceAnalysis };
@@ -56,8 +53,6 @@ export function createVideoIntelligenceCloudStore(
 ): VideoIntelligenceStore {
   const bindings = new Map<string, JobBinding>();
   const jobs = new Map<string, VideoIngestJob>();
-  let secretPromise: Promise<string> | undefined;
-  const bridgeSecret = () => (secretPromise ??= resolveBridgeSecret());
 
   return {
     async readProjection() {
@@ -69,10 +64,10 @@ export function createVideoIntelligenceCloudStore(
     },
 
     async enqueue(input) {
-      const [client, secret] = await Promise.all([clientPromise, bridgeSecret()]);
+      const client = await clientPromise;
       const binding = await client.mutation(
         api.modules.videoIntelligence.videos.queueVideo,
-        { ...input, bridgeSecret: secret },
+        input,
       );
       const normalized: JobBinding = {
         ...binding,
@@ -89,9 +84,8 @@ export function createVideoIntelligenceCloudStore(
       const binding = requireBinding(bindings, jobId);
       const current = jobs.get(jobId) ?? toJob(binding, "queued");
       if (update.threadId) {
-        const [client, secret] = await Promise.all([clientPromise, bridgeSecret()]);
+        const client = await clientPromise;
         await client.mutation(api.modules.videoIntelligence.videos.attachThread, {
-          bridgeSecret: secret,
           jobId: binding.jobId as never,
           threadId: update.threadId,
         });
@@ -107,11 +101,10 @@ export function createVideoIntelligenceCloudStore(
 
     async complete(jobId, analysis, threadId) {
       const binding = requireBinding(bindings, jobId);
-      const [client, secret] = await Promise.all([clientPromise, bridgeSecret()]);
+      const client = await clientPromise;
       const result = await client.mutation(
         api.modules.videoIntelligence.videos.completeVideo,
         {
-          bridgeSecret: secret,
           jobId: binding.jobId as never,
           assetId: binding.assetId as never,
           videoId: binding.videoId,
@@ -133,9 +126,8 @@ export function createVideoIntelligenceCloudStore(
 
     async fail(jobId, error, threadId) {
       const binding = requireBinding(bindings, jobId);
-      const [client, secret] = await Promise.all([clientPromise, bridgeSecret()]);
+      const client = await clientPromise;
       await client.mutation(api.modules.videoIntelligence.videos.failVideo, {
-        bridgeSecret: secret,
         jobId: binding.jobId as never,
         error,
         threadId,
@@ -168,27 +160,6 @@ export async function resolveConvexUrl(
   }
   throw new Error(
     "Convex cloud URL is missing. Set CONVEX_URL or VITE_CONVEX_URL in the environment or repo .env.local.",
-  );
-}
-
-export async function resolveBridgeSecret(
-  env: Record<string, string | undefined> = process.env,
-): Promise<string> {
-  const direct = env.VIDEO_INTELLIGENCE_BRIDGE_SECRET?.trim();
-  if (direct) return direct;
-  try {
-    const { stdout } = await execFileAsync(
-      "pnpm",
-      ["exec", "convex", "env", "get", "VIDEO_INTELLIGENCE_BRIDGE_SECRET"],
-      { cwd: FARPLANE_UI_ROOT, maxBuffer: 16_384 },
-    );
-    const secret = stdout.trim();
-    if (secret) return secret;
-  } catch {
-    // The actionable error below intentionally omits command output and credentials.
-  }
-  throw new Error(
-    "Video Intelligence bridge credential is unavailable. Set VIDEO_INTELLIGENCE_BRIDGE_SECRET or authenticate the local Convex CLI.",
   );
 }
 

@@ -50,9 +50,9 @@ task as soon as Codex assigns its task ID.
 
 The bridge reads `CONVEX_URL` or `VITE_CONVEX_URL` from the environment, falling
 back to the Farplane UI root `.env.local`. It does not create a local Video
-Intelligence database. Cloud writes require `VIDEO_INTELLIGENCE_BRIDGE_SECRET`;
-when it is not injected, the local bridge retrieves the value from the
-authenticated Convex CLI without persisting it to disk.
+Intelligence database. It uses the same direct Convex function pattern as
+Resource Bank and Tasty Packs; the loopback bridge remains restricted to the
+Farplane browser-extension origins.
 
 ## Interaction
 

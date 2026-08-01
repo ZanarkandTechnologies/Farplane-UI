@@ -1,8 +1,7 @@
 # Video Intelligence Convex Module
 
-`videos.ts` receives trusted writes from the origin-restricted YouTube bridge.
-Every public mutation also validates the Convex-hosted bridge credential, so
-the deployment URL alone cannot authorize writes.
+`videos.ts` receives writes from the origin-restricted YouTube bridge using the
+same ordinary Convex function pattern as Resource Bank and Tasty Packs.
 It reuses or creates the canonical Resource Bank job and asset, retains the
 analysis, upserts a dossier, resolves provisional stories and tags, and replaces
 the video's source contributions atomically.

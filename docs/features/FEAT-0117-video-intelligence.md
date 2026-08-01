@@ -135,8 +135,8 @@ contributions during the query; they are not separate comparison-run records.
 ## Application Surfaces
 
 - The YouTube extension calls the origin-restricted loopback bridge.
-- Convex mutations independently require the bridge credential; the local
-  origin restriction is not the cloud authorization boundary.
+- The origin-restricted local bridge calls ordinary Convex mutations, matching
+  the existing Resource Bank and Tasty Pack storage pattern.
 - `POST /analyze-youtube` persists queued/running/completed/failed lifecycle.
 - `POST /ingest-cached` records a validated browser-cache hit.
 - `POST /jobs` returns the durable queue to the extension popup.

@@ -7,19 +7,11 @@ environment: configured Convex development deployment
 
 # Video Intelligence Cloud Proof
 
-## Authorization boundary
+## Write path
 
-The public `queueVideo` mutation was invoked directly with an incorrect bridge
-credential and a valid YouTube ID. Convex rejected the call with
-`video_intelligence_bridge_unauthorized`; no Resource Bank job or asset was
-written.
-
-```bash
-pnpm exec convex run modules/videoIntelligence/videos:queueVideo \
-  '{"bridgeSecret":"wrong","videoId":"dQw4w9WgXcQ","title":"Unauthorized probe"}'
-```
-
-Observed result: non-zero exit with `video_intelligence_bridge_unauthorized`.
+The origin-restricted local YouTube bridge calls ordinary Convex mutations,
+matching the existing Resource Bank and Tasty Pack pattern. Video Intelligence
+does not introduce a separate bridge credential.
 
 ## Historical projection
 
@@ -33,10 +25,20 @@ legacy dossiers sourced from the existing Resource Bank, with these titles:
 
 The restarted loopback bridge returned the same four jobs from `POST /jobs`.
 
+## Browser rendering
+
+After restarting the stale Vite process, the actual AI Office panel rendered
+all four Convex-backed videos. The prior process was still serving the removed
+local polling hook even though the source file had changed on disk.
+
+- Library screenshot: `docs/research/qa-testing/FEAT-0117/video-intelligence-library.png`
+- Dossier screenshot: `docs/research/qa-testing/FEAT-0117/video-intelligence-dossier.png`
+- Browser console errors: none
+
 ## Automated checks
 
 - Convex TypeScript check passed.
 - YouTube bridge type-check passed.
-- YouTube bridge suite passed: 16 tests.
+- YouTube bridge suite passed: 15 tests.
 - Video Intelligence domain and UI model suites passed: 14 tests.
 - AI Office production build passed.
