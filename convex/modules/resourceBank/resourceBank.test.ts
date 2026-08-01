@@ -243,6 +243,15 @@ describe("resource bank helpers", () => {
       revision: 1,
       updatedAtMs: 100,
     });
+    expect(() =>
+      normalizeBrandKitPromptInput(
+        {
+          text: "For narration use Fish Audio model s2.1-pro-free and Fish voice reference ID 536d3a5e000945adb7038665781a4aca.",
+        },
+        undefined,
+        200,
+      ),
+    ).not.toThrow();
 
     const updated = normalizeBrandKitPromptInput({ text: "Tighter opening hook." }, prompt, 200);
     expect(updated).toEqual({

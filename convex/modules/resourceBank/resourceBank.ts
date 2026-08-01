@@ -355,7 +355,11 @@ export function normalizeBrandKitPromptInput(
     input.text === undefined
       ? (existing?.text ?? "")
       : (cleanText(input.text, RESOURCE_BANK_TEXT_LIMIT) ?? "");
-  if (looksLikeSecret(text)) throw new Error("brand_kit_prompt_text_looks_secret");
+  const secretScanText = text.replace(
+    /\b(?:fish(?:\s+audio)?\s+)?(?:voice|model)\s+(?:reference\s+)?id\s*[:=]?\s*[a-f0-9]{32}\b/gi,
+    "public provider reference",
+  );
+  if (looksLikeSecret(secretScanText)) throw new Error("brand_kit_prompt_text_looks_secret");
   return {
     text,
     revision: existing ? existing.revision + 1 : 1,
