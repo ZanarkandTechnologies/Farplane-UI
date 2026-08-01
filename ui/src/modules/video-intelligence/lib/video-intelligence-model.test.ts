@@ -12,7 +12,7 @@ import {
 } from "./video-intelligence-model";
 
 const projection: VideoIntelligenceProjection = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   revision: 1,
   updatedAt: "2026-07-31T00:00:00.000Z",
   jobs: [
@@ -66,6 +66,7 @@ const projection: VideoIntelligenceProjection = {
         rationale: "Read it.",
         matchedProfile: [],
       },
+      legacy: false,
       createdAt: "2026-07-30T00:00:00.000Z",
       updatedAt: "2026-07-30T00:00:00.000Z",
     },

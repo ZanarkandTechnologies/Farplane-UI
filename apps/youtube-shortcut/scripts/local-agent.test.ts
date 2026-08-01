@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { mkdtemp, rm } from "node:fs/promises";
 import { homedir } from "node:os";
-import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { test } from "node:test";
 import {
@@ -16,7 +14,10 @@ import {
   type Analysis,
   type RpcClient,
 } from "./local-agent.js";
-import { createVideoIntelligenceStore } from "./video-intelligence-store.js";
+import type {
+  VideoIngestJob,
+  VideoIntelligenceStore,
+} from "./video-intelligence-cloud.js";
 
 const result: Analysis = {
   schemaVersion: 3,
@@ -71,10 +72,40 @@ const result: Analysis = {
   },
 };
 
-async function isolatedStore(t: { after: (callback: () => unknown) => void }) {
-  const directory = await mkdtemp(resolve(tmpdir(), "farplane-video-intelligence-"));
-  t.after(() => rm(directory, { recursive: true, force: true }));
-  return createVideoIntelligenceStore(resolve(directory, "state.json"));
+function isolatedStore(): VideoIntelligenceStore {
+  const jobs: VideoIngestJob[] = [];
+  const updateJob: VideoIntelligenceStore["updateJob"] = async (jobId, update) => {
+    const job = jobs.find((candidate) => candidate.id === jobId);
+    if (!job) throw new Error(`Unknown test job: ${jobId}`);
+    Object.assign(job, update, { updatedAt: new Date().toISOString() });
+    return job;
+  };
+  return {
+    async readProjection() {
+      return { jobs };
+    },
+    async enqueue(input) {
+      const now = new Date().toISOString();
+      const job: VideoIngestJob = {
+        id: `test-job-${jobs.length + 1}`,
+        ...input,
+        status: "queued",
+        createdAt: now,
+        updatedAt: now,
+      };
+      jobs.unshift(job);
+      return job;
+    },
+    updateJob,
+    async complete(jobId, _analysis, threadId) {
+      const dossierId = `test-dossier-${jobId}`;
+      await updateJob(jobId, { status: "succeeded", threadId, dossierId });
+      return { id: dossierId };
+    },
+    async fail(jobId, error, threadId) {
+      return updateJob(jobId, { status: "failed", error, threadId });
+    },
+  };
 }
 
 test("canonical URL accepts only a YouTube video id", () => {
@@ -267,7 +298,7 @@ test("transcript extraction failure is surfaced as a failure, not an answer", as
 });
 
 test("HTTP bridge denies foreign origins and exposes only the analysis contract", async (t) => {
-  const store = await isolatedStore(t);
+  const store = isolatedStore();
   const server = createLocalAgentServer(async () => ({
     analysis: result,
     threadId: "thread-1",
@@ -335,7 +366,7 @@ test("HTTP bridge denies foreign origins and exposes only the analysis contract"
 });
 
 test("HTTP bridge preserves the persistent thread id when analysis fails", async (t) => {
-  const store = await isolatedStore(t);
+  const store = isolatedStore();
   const server = createLocalAgentServer(async () => {
     throw Object.assign(new Error("Structured result rejected"), {
       threadId: "thread-failed",

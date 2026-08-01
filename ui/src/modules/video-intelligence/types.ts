@@ -32,7 +32,7 @@ export type VideoDossier = {
   publisher: string | null;
   publishedAt: string | null;
   summary: string;
-  sourceStatus: "TRANSCRIPT_USED" | "SUMMARY_ONLY";
+  sourceStatus: "TRANSCRIPT_USED" | "SUMMARY_ONLY" | "RESOURCE_BANK";
   sourceNote: string;
   threadId: string;
   storyIds: string[];
@@ -48,7 +48,7 @@ export type VideoDossier = {
     verdict: "DELIVERED" | "PARTIAL" | "BAIT" | "UNVERIFIABLE";
     confidence: number;
     evidence: string[];
-  };
+  } | null;
   keyPoints: {
     finding: string;
     detail: string | null;
@@ -61,7 +61,8 @@ export type VideoDossier = {
     reasonCode: string;
     rationale: string;
     matchedProfile: string[];
-  };
+  } | null;
+  legacy: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -139,7 +140,7 @@ export type StoryAggregate = {
 };
 
 export type VideoIntelligenceProjection = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   revision: number;
   jobs: VideoIngestJob[];
   dossiers: VideoDossier[];

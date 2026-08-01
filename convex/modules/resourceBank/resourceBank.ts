@@ -42,7 +42,7 @@ export type ResourceBankAnalysisRow = {
   _id?: string;
   assetId: string;
   sourceSkill?: string;
-  analysisMarkdown: string;
+  analysisMarkdown?: string;
   userIntent?: string;
   transcriptText?: string;
   confidence?: string;

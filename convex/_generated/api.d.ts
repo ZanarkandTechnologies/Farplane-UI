@@ -43,6 +43,10 @@ import type * as modules_runtimeTelemetry_validators from "../modules/runtimeTel
 import type * as modules_skillInvocations_contracts from "../modules/skillInvocations/contracts.js";
 import type * as modules_skillInvocations_queries from "../modules/skillInvocations/queries.js";
 import type * as modules_skillInvocations_validators from "../modules/skillInvocations/validators.js";
+import type * as modules_videoIntelligence_domain from "../modules/videoIntelligence/domain.js";
+import type * as modules_videoIntelligence_projection from "../modules/videoIntelligence/projection.js";
+import type * as modules_videoIntelligence_validators from "../modules/videoIntelligence/validators.js";
+import type * as modules_videoIntelligence_videos from "../modules/videoIntelligence/videos.js";
 import type * as status from "../status.js";
 import type * as status_contract from "../status_contract.js";
 import type * as status_http_contract from "../status_http_contract.js";
@@ -90,6 +94,10 @@ declare const fullApi: ApiFromModules<{
   "modules/skillInvocations/contracts": typeof modules_skillInvocations_contracts;
   "modules/skillInvocations/queries": typeof modules_skillInvocations_queries;
   "modules/skillInvocations/validators": typeof modules_skillInvocations_validators;
+  "modules/videoIntelligence/domain": typeof modules_videoIntelligence_domain;
+  "modules/videoIntelligence/projection": typeof modules_videoIntelligence_projection;
+  "modules/videoIntelligence/validators": typeof modules_videoIntelligence_validators;
+  "modules/videoIntelligence/videos": typeof modules_videoIntelligence_videos;
   status: typeof status;
   status_contract: typeof status_contract;
   status_http_contract: typeof status_http_contract;

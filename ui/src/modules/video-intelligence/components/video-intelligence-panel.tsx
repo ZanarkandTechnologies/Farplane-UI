@@ -5,9 +5,9 @@
  * Navigation stays module-local so drill-down and Back preserve library context.
  */
 
-import { AlertTriangle, FileVideo2, GitCompareArrows, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, Cloud, FileVideo2, GitCompareArrows, Loader2 } from "lucide-react";
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { UI_Z } from "@/lib/z-index";
 import { useVideoIntelligence } from "../hooks/use-video-intelligence";
@@ -73,19 +73,9 @@ export function VideoIntelligencePanel({
                 Videos, events, and cited reporting
               </p>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-8 gap-1.5 px-2 text-[11px]"
-              onClick={() => void loadState.refresh()}
-              disabled={loadState.status === "loading"}
-            >
-              <RefreshCw
-                className={`size-3.5 ${loadState.status === "loading" ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </Button>
+            <Badge variant="outline" className="gap-1 text-[9px] uppercase tracking-wide">
+              <Cloud className="size-3" /> Convex live
+            </Badge>
           </div>
         </DialogHeader>
 
@@ -100,11 +90,6 @@ export function VideoIntelligencePanel({
             icon={<AlertTriangle className="size-5 text-destructive" />}
             title="Video Intelligence unavailable"
             detail={loadState.error}
-            action={
-              <Button size="sm" variant="outline" onClick={() => void loadState.refresh()}>
-                Try again
-              </Button>
-            }
           />
         ) : !projection || projection.jobs.length === 0 ? (
           <PanelState
@@ -218,12 +203,10 @@ function PanelState({
   icon,
   title,
   detail,
-  action,
 }: {
   icon: ReactElement;
   title: string;
   detail: string;
-  action?: ReactElement;
 }) {
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center p-8">
@@ -233,7 +216,6 @@ function PanelState({
         </div>
         <h2 className="text-sm font-semibold">{title}</h2>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
-        {action ? <div className="mt-4">{action}</div> : null}
       </div>
     </div>
   );

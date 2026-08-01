@@ -9,10 +9,11 @@ import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { z } from "zod";
 import {
-  createVideoIntelligenceStore,
+  createVideoIntelligenceCloudStore,
   type VideoIngestJob,
   type VideoIntelligenceAnalysis,
-} from "./video-intelligence-store.js";
+  type VideoIntelligenceStore,
+} from "./video-intelligence-cloud.js";
 
 export const LOCAL_HOST = "127.0.0.1";
 export const LOCAL_PORT = 47893;
@@ -484,7 +485,7 @@ export function createLocalAgentServer(
     input: unknown,
     onThreadStarted?: (threadId: string) => void,
   ) => Promise<AnalysisRun> = analyzeYouTube,
-  intelligenceStore = createVideoIntelligenceStore(),
+  intelligenceStore: VideoIntelligenceStore = createVideoIntelligenceCloudStore(),
 ) {
   return createServer(async (req, res) => {
     const origin = allowedOrigin(req);

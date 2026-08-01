@@ -5,7 +5,9 @@ video dossiers, and story comparisons.
 
 ## Rules
 
-- Keep canonical writes in the loopback bridge and local sidecar.
+- Keep canonical video, dossier, story, claim, and tag state in Convex. The loopback bridge is only a trusted write client.
+- Read the panel projection directly through Convex React; do not add a filesystem or Vite proxy mirror.
+- Show existing Resource Bank YouTube assets as source-honest legacy dossiers until structured Video Intelligence analysis exists.
 - Treat claims without evidence as visibly uncited; never manufacture timestamps.
 - Derive the story comparison from structured contributions, never parsed Markdown.
 - Keep library tab, query, tag filter, dossier/story selection, and scroll context module-local; only panel-open state is global.

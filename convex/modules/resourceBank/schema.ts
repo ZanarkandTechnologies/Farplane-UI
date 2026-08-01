@@ -107,9 +107,12 @@ export const resourceBankTables = {
     updatedAtMs: v.number(),
   })
     .index("by_createdAtMs", ["createdAtMs"])
+    .index("by_assetKind_assetRole_createdAtMs", ["assetKind", "assetRole", "createdAtMs"])
+    .index("by_canonicalUrl", ["canonicalUrl"])
     .index("by_job", ["ingestionJobId"])
     .index("by_project_createdAtMs", ["projectId", "createdAtMs"])
     .index("by_task_createdAtMs", ["taskId", "createdAtMs"])
+    .index("by_sourceUrl", ["sourceUrl"])
     .searchIndex("search_assets", {
       searchField: "searchableText",
       filterFields: ["assetKind", "assetRole", "projectId", "taskId"],
@@ -119,7 +122,15 @@ export const resourceBankTables = {
     ingestionJobId: v.id("resourceBankIngestionJobs"),
     assetId: v.id("resourceBankAssets"),
     sourceSkill: v.string(),
-    analysisMarkdown: v.string(),
+    analysisType: v.optional(v.string()),
+    analysisMarkdown: v.optional(v.string()),
+    facts: v.optional(v.array(v.string())),
+    interpretation: v.optional(v.array(v.string())),
+    whyItWorks: v.optional(v.array(v.string())),
+    takeaways: v.optional(v.array(v.string())),
+    promptGuess: v.optional(v.string()),
+    remixConstraints: v.optional(v.array(v.string())),
+    frameNotes: v.optional(v.string()),
     userIntent: v.optional(v.string()),
     transcriptText: v.optional(v.string()),
     confidence: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
@@ -137,12 +148,12 @@ export const resourceBankTables = {
     .index("by_project_createdAtMs", ["projectId", "createdAtMs"])
     .searchIndex("search_analysis", {
       searchField: "embeddingText",
-      filterFields: ["projectId", "taskId"],
+      filterFields: ["analysisType", "projectId", "taskId"],
     })
     .vectorIndex("by_embedding", {
       vectorField: "embedding",
       dimensions: RESOURCE_BANK_EMBEDDING_DIMENSIONS,
-      filterFields: ["projectId", "taskId"],
+      filterFields: ["analysisType", "projectId", "taskId"],
     }),
 
   resourceBankSkillFindings: defineTable({

@@ -3,15 +3,17 @@ kind: feature-spec
 status: active
 project: Farplane UI
 created_at: 2026-07-31
-updated_at: 2026-07-31
+updated_at: 2026-08-02
 owner: video-intelligence
 related_systems:
   - ../systems/README.md
 source_refs:
   - ../../apps/youtube-shortcut/scripts/local-agent.ts
-  - ../../apps/youtube-shortcut/scripts/video-intelligence-store.ts
+  - ../../apps/youtube-shortcut/scripts/video-intelligence-cloud.ts
+  - ../../convex/modules/videoIntelligence/
   - ../../ui/src/modules/video-intelligence/README.md
   - ../../docs/MEMORY.md
+  - ../proof/video-intelligence-cloud-proof.md
 external_grounding:
   - local Cura video library and dossier implementation
   - official Convex functions and schema documentation
@@ -42,7 +44,7 @@ YouTube request
 - A queue item is written before the long-running Codex analysis begins.
 - Browser-cache hits still enter the durable queue through `/ingest-cached`;
   they do not launch another Codex analysis task.
-- One deterministic dossier ID owns repeated ingests of the same YouTube video.
+- One dossier, keyed to the canonical Resource Bank asset, owns repeated ingests of the same YouTube video.
   The dossier records its repeat count rather than duplicating story evidence.
 - A video may contribute to up to three reportable stories.
 - A story is one time-bounded event. Stable tag records group longer-running
@@ -110,32 +112,35 @@ The analyzer must not fabricate timestamps. A null timestamp links to the
 source without implying a time. Claims without a source excerpt are rejected by
 the structured schema.
 
-## Sidecar Contract
+## Convex Cloud Contract
 
-The canonical file is:
+Canonical records live in the existing Convex deployment:
 
 ```text
-FARPLANE_STATE_DIR ||
-FARPLANE_HOME ||
-~/.farplane
-  /video-intelligence/state.json
+resourceBankIngestionJobs -> resourceBankAssets -> resourceBankAnalyses
+                                      |
+                                      +-> videoIntelligenceDossiers
+                                             -> videoIntelligenceContributions
+                                             -> videoIntelligenceStories
+                                             -> videoIntelligenceTags
 ```
 
-State schema v2 contains jobs, dossiers, stories, tags, related-story edges,
-contributions, aggregates, a monotonically increasing revision, and an updated
-timestamp. The single loopback writer serializes read-modify-write operations
-and commits through atomic rename. Valid v1 state is projected into v2 without
-mutating on read, preserves existing record IDs, and persists as v2 on the next
-write. Interrupted temporary files are ignored. A malformed canonical file or
-unsupported future schema fails closed.
+Resource Bank remains the canonical owner of the source asset and ingest job.
+Video Intelligence adds reporting structure keyed to that asset. Existing
+Resource Bank YouTube videos without a structured dossier are projected as
+honest legacy dossiers, so historical ingestions appear without fabricating
+claims. Story aggregates and related-story edges are computed from canonical
+contributions during the query; they are not separate comparison-run records.
 
 ## Application Surfaces
 
 - The YouTube extension calls the origin-restricted loopback bridge.
+- Convex mutations independently require the bridge credential; the local
+  origin restriction is not the cloud authorization boundary.
 - `POST /analyze-youtube` persists queued/running/completed/failed lifecycle.
 - `POST /ingest-cached` records a validated browser-cache hit.
 - `POST /jobs` returns the durable queue to the extension popup.
-- `GET /farplane/video-intelligence` returns the browser-safe local projection.
+- AI Office subscribes directly to the Convex Video Intelligence projection.
 - AI Office launches one dense Video Intelligence panel through the shared
   launcher registry, command palette, keyboard shortcut, and office-object
   binding.
@@ -150,16 +155,18 @@ unsupported future schema fails closed.
 - Project relevance is an analysis hint grounded only in explicitly named work
   from the operator profile. It does not mutate project memory.
 - Publisher reputation, editable graph visualization, tag/topic merge/split
-  governance, cloud sync, multi-user permissions, and non-YouTube ingestion are
+  governance, multi-user permissions, and non-YouTube ingestion are
   deferred.
 - Markdown and graph views may be derived later from the structured records,
   but neither may be parsed back into canonical state.
 
 ## Proof
 
-- Two analyses completing through overlapping writes survive reload as one
+- Two analyses completing through Convex mutations resolve as one
   story with two perspectives and shared cited reporting.
 - Re-ingesting one video preserves one dossier and increments its repeat count.
-- A failed analysis remains visible in the queue after bridge restart.
+- A failed analysis remains visible in Convex after bridge restart.
+- Existing Resource Bank YouTube assets appear as legacy dossiers before any
+  Video Intelligence-specific backfill.
 - AI Office can open the same persisted queue, dossier, and story comparison
   through the registry-driven entrypoint.

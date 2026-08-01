@@ -1,13 +1,13 @@
 # Video Intelligence
 
 Video Intelligence is Farplane's durable viewing memory for the YouTube
-shortcut. The local bridge records a queue item immediately, turns completed
+shortcut. The local bridge writes a Resource Bank queue item to Convex immediately, turns completed
 analysis into a cited dossier, attaches each reported event or claim to a
 provisional story, and rebuilds the story comparison from every linked source.
 
-The AI Office panel is read-only. Canonical state lives at
-`$FARPLANE_STATE_DIR/video-intelligence/state.json`, falling back to
-`$FARPLANE_HOME` and then `~/.farplane`.
+The AI Office panel is read-only and subscribes directly to Convex. Existing
+Resource Bank YouTube assets appear as legacy dossiers immediately; a later
+Video Intelligence analysis adds structured claims, stories, and perspectives.
 
 ## Workflow
 
@@ -20,4 +20,4 @@ The AI Office panel is read-only. Canonical state lives at
 The information-flow section is read-only: source edges mean `contributes` and
 story edges mean conservatively `related`. It never claims citation or
 causality. Publisher scoring, tag rename/merge governance, editable graphs, and
-cloud sync remain deferred.
+multi-user editorial permissions remain deferred.

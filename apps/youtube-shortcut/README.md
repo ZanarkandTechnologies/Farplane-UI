@@ -1,9 +1,10 @@
 # Farplane YouTube Shortcut
 
-A local-first Plasmo extension that puts an **Analyze** action in the top-right
+A Plasmo extension that puts an **Analyze** action in the top-right
 corner of YouTube video thumbnails. A cache miss creates a persistent Codex
 task and runs the installed `summarize` skill; a cache hit reopens the stored
-answer and task.
+answer and task. Ingest jobs, source assets, dossiers, stories, and reporting
+claims are retained in the project's Convex cloud deployment.
 
 New summary tasks use `/Users/kenjipcx/Zanarkand Technologies/Analyst` as their
 working directory, which files them under the registered Codex Analyst project.
@@ -43,9 +44,15 @@ corepack pnpm youtube:serve
 
 That starts the Codex app-server on `127.0.0.1:47892` and the extension bridge
 on `127.0.0.1:47893`. The extension popup opens on a **Jobs** tab with the 20
-most recent bridge jobs; runtime health and setup live under **Status**.
+most recent Convex-backed jobs; runtime health and setup live under **Status**.
 Running, completed, and failed jobs link directly to their persistent Codex
 task as soon as Codex assigns its task ID.
+
+The bridge reads `CONVEX_URL` or `VITE_CONVEX_URL` from the environment, falling
+back to the Farplane UI root `.env.local`. It does not create a local Video
+Intelligence database. Cloud writes require `VIDEO_INTELLIGENCE_BRIDGE_SECRET`;
+when it is not injected, the local bridge retrieves the value from the
+authenticated Convex CLI without persisting it to disk.
 
 ## Interaction
 

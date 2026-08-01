@@ -75,6 +75,9 @@ importers:
 
   apps/youtube-shortcut:
     dependencies:
+      convex:
+        specifier: ^1.32.0
+        version: 1.32.0(react@19.2.3)
       lucide-react:
         specifier: ^0.473.0
         version: 0.473.0(react@19.2.3)

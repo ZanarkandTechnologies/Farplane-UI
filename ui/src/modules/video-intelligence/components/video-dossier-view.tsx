@@ -107,9 +107,15 @@ function DossierArticle({
           <Badge variant="secondary" className="text-[9px] uppercase">
             {dossier.sourceStatus.replaceAll("_", " ")}
           </Badge>
-          <Badge variant="outline" className="text-[9px] uppercase">
-            {dossier.recommendation.decision}
-          </Badge>
+          {dossier.recommendation ? (
+            <Badge variant="outline" className="text-[9px] uppercase">
+              {dossier.recommendation.decision}
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-[9px] uppercase">
+              Legacy ingest
+            </Badge>
+          )}
           {dossier.duplicateIngestCount > 1 ? (
             <Badge variant="outline" className="text-[9px]">
               Watched {dossier.duplicateIngestCount}×
@@ -173,10 +179,12 @@ function DossierArticle({
         </section>
       ) : null}
 
-      <section>
-        <SectionLabel>Why watch or skip</SectionLabel>
-        <p className="text-xs leading-5">{dossier.recommendation.rationale}</p>
-      </section>
+      {dossier.recommendation ? (
+        <section>
+          <SectionLabel>Why watch or skip</SectionLabel>
+          <p className="text-xs leading-5">{dossier.recommendation.rationale}</p>
+        </section>
+      ) : null}
 
       <section>
         <SectionLabel>Key points</SectionLabel>

@@ -10,10 +10,11 @@
     "dev:agent": "tsx scripts/local-agent.ts",
     "build": "plasmo build",
     "package": "plasmo package",
-    "test": "node --import tsx --test background.test.ts scripts/local-agent.test.ts scripts/video-intelligence-store.test.ts",
+    "test": "node --import tsx --test background.test.ts scripts/local-agent.test.ts scripts/video-intelligence-cloud.test.ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "convex": "^1.32.0",
     "lucide-react": "^0.473.0",
     "plasmo": "0.90.5",
     "react": "19.2.3",
