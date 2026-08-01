@@ -45,6 +45,7 @@ import {
   localFarplaneEventsToObservedCodexWorkers,
 } from "./src/providers/local-observed-codex-workers";
 import { resolveEvalArtifactsRoot } from "./src/modules/evals/lib/eval-artifacts";
+import { createVideoIntelligenceStore } from "../apps/youtube-shortcut/scripts/video-intelligence-store";
 
 type JsonObject = Record<string, unknown>;
 type MemoryEntryType = "discovery" | "decision" | "problem" | "solution" | "pattern" | "warning" | "success" | "refactor" | "bugfix" | "feature";
@@ -93,6 +94,9 @@ const PROJECT_MANAGERS_PATH = path.join(FARPLANE_HOME, "project-managers.json");
 const TELEGRAM_GATEWAY_STATE_PATH = path.join(FARPLANE_HOME, "telegram-gateway", "state.json");
 const GLOBAL_EVALS_ROOT = path.join(FARPLANE_HOME, "evals");
 const GLOBAL_FINANCE_STORE = createFinanceStore(FARPLANE_HOME);
+const GLOBAL_VIDEO_INTELLIGENCE_STORE = createVideoIntelligenceStore(
+  path.join(FARPLANE_HOME, "video-intelligence", "state.json"),
+);
 const PROJECT_EVALS_ROOT = path.join(REPO_ROOT, ".farplane", "evals");
 const FRAMEWORK_EVALS_ROOT = path.join(FARPLANE_FRAMEWORK_ROOT, ".farplane", "evals");
 const FARPLANE_MINE_ROOT =
@@ -4503,6 +4507,24 @@ function farplaneStateBridge() {
             writeJson(res, 422, {
               ok: false,
               error: error instanceof Error ? error.message : "finance_projection_unavailable",
+            });
+          }
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/video-intelligence") {
+          try {
+            writeJson(res, 200, {
+              ok: true,
+              projection: await GLOBAL_VIDEO_INTELLIGENCE_STORE.readProjection(),
+            });
+          } catch (error) {
+            writeJson(res, 422, {
+              ok: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "video_intelligence_projection_unavailable",
             });
           }
           return;

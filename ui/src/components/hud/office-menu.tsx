@@ -58,6 +58,9 @@ export function OfficeMenu({ className }: SpeedDialProps) {
     (state) => state.setIsSkillInvocationsPanelOpen,
   );
   const setIsResourceBankPanelOpen = useAppStore((state) => state.setIsResourceBankPanelOpen);
+  const setIsVideoIntelligencePanelOpen = useAppStore(
+    (state) => state.setIsVideoIntelligencePanelOpen,
+  );
   const setIsWorldMapPanelOpen = useAppStore((state) => state.setIsWorldMapPanelOpen);
   const setIsDocumentLibraryPanelOpen = useAppStore((state) => state.setIsDocumentLibraryPanelOpen);
   const setSelectedSkillStudioSkillId = useAppStore((state) => state.setSelectedSkillStudioSkillId);
@@ -163,6 +166,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         openSettings: () => setIsSettingsModalOpen(true),
         openSkillInvocations: () => setIsSkillInvocationsPanelOpen(true),
         openResourceBank: () => setIsResourceBankPanelOpen(true),
+        openVideoIntelligence: () => setIsVideoIntelligencePanelOpen(true),
         openWorld: () => setIsWorldMapPanelOpen(true),
         openDocumentLibrary: () => setIsDocumentLibraryPanelOpen(true),
         openTelemetry: () => setIsTelemetryPanelOpen(true),
@@ -188,6 +192,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
       setIsOrganizationPanelOpen,
       setIsSkillInvocationsPanelOpen,
       setIsResourceBankPanelOpen,
+      setIsVideoIntelligencePanelOpen,
       setIsWorldMapPanelOpen,
       setIsDocumentLibraryPanelOpen,
       setIsTelemetryPanelOpen,

@@ -44,6 +44,12 @@ export const moduleRegistry = {
       "Saved media references, analysis, extracted skill findings, and retrieval handles.",
     surfaces: ["nav", "panel", "hud", "office-object"],
   },
+  "video-intelligence": {
+    id: "video-intelligence",
+    label: "Video Intelligence",
+    description: "Durable video queue, cited dossiers, and cross-source story perspectives.",
+    surfaces: ["panel", "hud", "office-object"],
+  },
   world: {
     id: "world",
     label: "World",

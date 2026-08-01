@@ -27,6 +27,15 @@ describe("Farplane shell config", () => {
     expect(DEFAULT_FARPLANE_UI_CONFIG.modules).toContain("finance");
   });
 
+  it("registers Video Intelligence for panel, HUD, and office-object launch", () => {
+    expect(moduleRegistry["video-intelligence"].surfaces).toEqual([
+      "panel",
+      "hud",
+      "office-object",
+    ]);
+    expect(DEFAULT_FARPLANE_UI_CONFIG.modules).toContain("video-intelligence");
+  });
+
   it("keeps valid renderer, persistence, and registered module ids", () => {
     expect(
       normalizeFarplaneUiConfig({

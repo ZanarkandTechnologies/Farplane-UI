@@ -33,6 +33,7 @@ function createPanelHarness(
     openOrganization: vi.fn(),
     openRawTelemetry: vi.fn(),
     openResourceBank: vi.fn(),
+    openVideoIntelligence: vi.fn(),
     openRollout: vi.fn(),
     openSettings: vi.fn(),
     openSkillInvocations: vi.fn(),
@@ -100,6 +101,7 @@ describe("office panel registry", () => {
     actions.find((action) => action.id === "organization")?.perform();
     actions.find((action) => action.id === "document-library")?.perform();
     actions.find((action) => action.id === "resource-bank")?.perform();
+    actions.find((action) => action.id === "video-intelligence")?.perform();
     actions.find((action) => action.id === "world")?.perform();
     actions.find((action) => action.id === "skill-os")?.perform();
     actions.find((action) => action.id === "template-tracking")?.perform();
@@ -118,6 +120,7 @@ describe("office panel registry", () => {
     expect(handlers.openOrganization).toHaveBeenCalledTimes(1);
     expect(handlers.openDocumentLibrary).toHaveBeenCalledTimes(1);
     expect(handlers.openResourceBank).toHaveBeenCalledTimes(1);
+    expect(handlers.openVideoIntelligence).toHaveBeenCalledTimes(1);
     expect(handlers.openWorld).toHaveBeenCalledTimes(1);
     expect(actions.some((action) => String(action.id) === "skill-invocations")).toBe(false);
     expect(handlers.openSkillInvocations).not.toHaveBeenCalled();
@@ -151,6 +154,7 @@ describe("office panel registry", () => {
       "skill-os",
       "evals",
       "resource-bank",
+      "video-intelligence",
       "world",
       "document-library",
       "telemetry",

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
+import { mkdtemp, rm } from "node:fs/promises";
 import { homedir } from "node:os";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { test } from "node:test";
 import {
@@ -14,11 +16,38 @@ import {
   type Analysis,
   type RpcClient,
 } from "./local-agent.js";
+import { createVideoIntelligenceStore } from "./video-intelligence-store.js";
 
 const result: Analysis = {
-  schemaVersion: 1,
+  schemaVersion: 3,
   sourceStatus: "TRANSCRIPT_USED",
   sourceNote: "Transcript inspected.",
+  summary: "The title's claim is directionally correct but constrained.",
+  publisher: "Example Channel",
+  publishedAt: "2026-07-20",
+  stories: [
+    {
+      title: "Example product launches with a constraint",
+      summary: "The product launched, although one advertised capability is limited.",
+      eventDate: "2026-07-20",
+      entities: ["Example product"],
+      tags: ["Example Product", "Product Launch"],
+      frame: "A practical assessment of the launch claim.",
+      claims: [
+        {
+          statement: "The product launched with a limited capability.",
+          stance: "neutral",
+          evidence: {
+            timestamp: "01:20",
+            excerpt: "The capability is available, with this important limit.",
+            schemaVersion: 2,
+            extractorVersion: "summarize-v3",
+          },
+        },
+      ],
+    },
+  ],
+  projectRelevance: [],
   clickbait: {
     answer: "Yes, with limits.",
     verdict: "PARTIAL",
@@ -41,6 +70,12 @@ const result: Analysis = {
     matchedProfile: [],
   },
 };
+
+async function isolatedStore(t: { after: (callback: () => unknown) => void }) {
+  const directory = await mkdtemp(resolve(tmpdir(), "farplane-video-intelligence-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  return createVideoIntelligenceStore(resolve(directory, "state.json"));
+}
 
 test("canonical URL accepts only a YouTube video id", () => {
   assert.equal(
@@ -232,10 +267,11 @@ test("transcript extraction failure is surfaced as a failure, not an answer", as
 });
 
 test("HTTP bridge denies foreign origins and exposes only the analysis contract", async (t) => {
+  const store = await isolatedStore(t);
   const server = createLocalAgentServer(async () => ({
     analysis: result,
     threadId: "thread-1",
-  }));
+  }), store);
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   t.after(() => server.close());
@@ -299,11 +335,12 @@ test("HTTP bridge denies foreign origins and exposes only the analysis contract"
 });
 
 test("HTTP bridge preserves the persistent thread id when analysis fails", async (t) => {
+  const store = await isolatedStore(t);
   const server = createLocalAgentServer(async () => {
     throw Object.assign(new Error("Structured result rejected"), {
       threadId: "thread-failed",
     });
-  });
+  }, store);
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   t.after(() => server.close());

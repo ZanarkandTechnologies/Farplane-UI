@@ -54,6 +54,11 @@ describe("app store perf guards", () => {
     expect(useAppStore.getState().isThreadDataPanelOpen).toBe(true);
   });
 
+  it("stores Video Intelligence panel open state", () => {
+    useAppStore.getState().setIsVideoIntelligencePanelOpen(true);
+    expect(useAppStore.getState().isVideoIntelligencePanelOpen).toBe(true);
+  });
+
   it("stores organization panel open state for shared launch surfaces", () => {
     useAppStore.getState().setIsOrganizationPanelOpen(true);
     expect(useAppStore.getState().isOrganizationPanelOpen).toBe(true);

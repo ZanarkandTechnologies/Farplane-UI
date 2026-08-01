@@ -19,6 +19,7 @@ export type OfficeInternalPanelId =
   | "raw-telemetry"
   | "thread-data"
   | "resource-bank"
+  | "video-intelligence"
   | "world"
   | "document-library"
   | "skill-os"
@@ -85,6 +86,12 @@ export const OFFICE_INTERNAL_PANEL_CATALOG: OfficeInternalPanelCatalogEntry[] = 
     label: "Resource Bank",
     description: "Open saved media references, analysis, and extracted skill findings.",
     keywords: ["resource", "bank", "assets", "references", "ingestion"],
+  },
+  {
+    id: "video-intelligence",
+    label: "Video Intelligence",
+    description: "Open the durable video queue, dossiers, and story perspectives.",
+    keywords: ["video", "intelligence", "stories", "claims", "perspectives", "youtube"],
   },
   {
     id: "world",

@@ -23,9 +23,35 @@ Object.assign(globalThis, {
 });
 
 const analysis = {
-  schemaVersion: 1 as const,
+  schemaVersion: 3 as const,
   sourceStatus: "TRANSCRIPT_USED" as const,
   sourceNote: "Transcript inspected.",
+  summary: "The claim is qualified.",
+  publisher: "Example Channel",
+  publishedAt: "2026-07-20",
+  stories: [
+    {
+      title: "Example claim is qualified",
+      summary: "A constraint changes the headline claim.",
+      eventDate: "2026-07-20",
+      entities: ["Example"],
+      tags: ["Example", "Product Claim"],
+      frame: "Constraint-first reporting.",
+      claims: [
+        {
+          statement: "The claim has an important constraint.",
+          stance: "neutral" as const,
+          evidence: {
+            timestamp: "01:20",
+            excerpt: "The transcript adds a constraint.",
+            schemaVersion: 2 as const,
+            extractorVersion: "summarize-v3",
+          },
+        },
+      ],
+    },
+  ],
+  projectRelevance: [],
   clickbait: {
     answer: "The claim is qualified.",
     verdict: "PARTIAL" as const,
@@ -76,14 +102,18 @@ test("job list is fetched from the local bridge", async () => {
 test("cache hit reuses analysis and thread id without a local-agent call", async () => {
   storage.clear();
   fetchCalls = 0;
-  storage.set("farplane-youtube-analysis-v1:dQw4w9WgXcQ", {
-    schemaVersion: 2,
+  storage.set("farplane-youtube-analysis-v3:dQw4w9WgXcQ", {
+    schemaVersion: 3,
     analysis,
     threadId: "thread-cached",
   });
-  globalThis.fetch = async () => {
+  globalThis.fetch = async (_input, init) => {
     fetchCalls += 1;
-    throw new Error("cache hit must not fetch");
+    assert.match(String(init?.body), /thread-cached/);
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
   };
 
   assert.deepEqual(await analyze("dQw4w9WgXcQ", "Claim?"), {
@@ -92,7 +122,7 @@ test("cache hit reuses analysis and thread id without a local-agent call", async
     threadId: "thread-cached",
     cached: true,
   });
-  assert.equal(fetchCalls, 0);
+  assert.equal(fetchCalls, 1);
 });
 
 test("cache miss stores the validated analysis and persistent thread id", async () => {
@@ -113,8 +143,8 @@ test("cache miss stores the validated analysis and persistent thread id", async 
     cached: false,
   });
   assert.equal(fetchCalls, 1);
-  assert.deepEqual(storage.get("farplane-youtube-analysis-v1:dQw4w9WgXcQ"), {
-    schemaVersion: 2,
+  assert.deepEqual(storage.get("farplane-youtube-analysis-v3:dQw4w9WgXcQ"), {
+    schemaVersion: 3,
     analysis,
     threadId: "thread-new",
   });
@@ -123,8 +153,8 @@ test("cache miss stores the validated analysis and persistent thread id", async 
 test("transcript-unavailable cache entries are not shown as answers", async () => {
   storage.clear();
   fetchCalls = 0;
-  storage.set("farplane-youtube-analysis-v1:dQw4w9WgXcQ", {
-    schemaVersion: 2,
+  storage.set("farplane-youtube-analysis-v3:dQw4w9WgXcQ", {
+    schemaVersion: 3,
     analysis: {
       ...analysis,
       sourceStatus: "TRANSCRIPT_UNAVAILABLE",
@@ -154,4 +184,27 @@ test("transcript-unavailable cache entries are not shown as answers", async () =
     cached: false,
   });
   assert.equal(fetchCalls, 1);
+});
+
+test("stale v2 cache entries are ignored and replaced by v3 analysis", async () => {
+  storage.clear();
+  fetchCalls = 0;
+  storage.set("farplane-youtube-analysis-v2:dQw4w9WgXcQ", {
+    schemaVersion: 2,
+    analysis: { ...analysis, schemaVersion: 2 },
+    threadId: "thread-stale",
+  });
+  globalThis.fetch = async () => {
+    fetchCalls += 1;
+    return new Response(
+      JSON.stringify({ ok: true, analysis, threadId: "thread-v3" }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+
+  const result = await analyze("dQw4w9WgXcQ", "Claim?");
+  assert.equal(result.cached, false);
+  assert.equal(result.threadId, "thread-v3");
+  assert.equal(fetchCalls, 1);
+  assert.ok(storage.has("farplane-youtube-analysis-v3:dQw4w9WgXcQ"));
 });

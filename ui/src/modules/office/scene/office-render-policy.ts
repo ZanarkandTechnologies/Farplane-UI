@@ -19,6 +19,7 @@ export type OfficeBlockingPanelState = {
   isOrganizationPanelOpen: boolean;
   isRawTelemetryPanelOpen: boolean;
   isResourceBankPanelOpen: boolean;
+  isVideoIntelligencePanelOpen: boolean;
   isSettingsModalOpen: boolean;
   isSkillInvocationsPanelOpen: boolean;
   isSkillsPanelOpen: boolean;
@@ -46,6 +47,7 @@ export function hasBlockingOfficePanel(state: OfficeBlockingPanelState): boolean
       state.isOrganizationPanelOpen ||
       state.isRawTelemetryPanelOpen ||
       state.isResourceBankPanelOpen ||
+      state.isVideoIntelligencePanelOpen ||
       state.isSettingsModalOpen ||
       state.isSkillInvocationsPanelOpen ||
       state.isSkillsPanelOpen ||

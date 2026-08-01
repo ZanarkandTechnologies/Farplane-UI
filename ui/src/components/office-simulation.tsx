@@ -25,6 +25,7 @@ import { SkillInvocationsPanel } from "@/modules/skill-invocations";
 import { TeamPanel } from "@/modules/team-workspace";
 import { TelemetryPanel } from "@/modules/telemetry";
 import { ThreadDataDialog } from "@/modules/thread-data";
+import { VideoIntelligencePanel } from "@/modules/video-intelligence";
 import { WorldMapPanel } from "@/modules/world-map";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import { OfficeDataProvider, useOptionalOfficeDataContext } from "@/providers/office-data-provider";
@@ -101,6 +102,10 @@ function OfficeSimulationContent() {
   );
   const isResourceBankPanelOpen = useAppStore((state) => state.isResourceBankPanelOpen);
   const setIsResourceBankPanelOpen = useAppStore((state) => state.setIsResourceBankPanelOpen);
+  const isVideoIntelligencePanelOpen = useAppStore((state) => state.isVideoIntelligencePanelOpen);
+  const setIsVideoIntelligencePanelOpen = useAppStore(
+    (state) => state.setIsVideoIntelligencePanelOpen,
+  );
   const isWorldMapPanelOpen = useAppStore((state) => state.isWorldMapPanelOpen);
   const setIsWorldMapPanelOpen = useAppStore((state) => state.setIsWorldMapPanelOpen);
   const [isLogsDrawerOpen, setIsLogsDrawerOpen] = useState(false);
@@ -271,6 +276,10 @@ function OfficeSimulationContent() {
             <ResourceBankPanel
               open={isResourceBankPanelOpen}
               onOpenChange={setIsResourceBankPanelOpen}
+            />
+            <VideoIntelligencePanel
+              open={isVideoIntelligencePanelOpen}
+              onOpenChange={setIsVideoIntelligencePanelOpen}
             />
             <WorldMapPanel open={isWorldMapPanelOpen} onOpenChange={setIsWorldMapPanelOpen} />
             <ProjectDocumentLibraryPanel />

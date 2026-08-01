@@ -33,6 +33,7 @@ import {
   MessageSquareText,
   Network,
   RadioTower,
+  ScanSearch,
   Settings,
   ShoppingBag,
   TestTube2,
@@ -66,6 +67,7 @@ export type OfficePanelActionId =
   | "raw-telemetry"
   | "thread-data"
   | "resource-bank"
+  | "video-intelligence"
   | "world"
   | "document-library"
   | "skill-os"
@@ -114,6 +116,7 @@ export type OfficePanelRegistryDependencies = {
   openSettings: () => void;
   openSkillInvocations: () => void;
   openResourceBank: () => void;
+  openVideoIntelligence: () => void;
   openWorld: () => void;
   openDocumentLibrary: () => void;
   openCeoWorkbench: () => void;
@@ -139,6 +142,7 @@ const OFFICE_LAUNCHER_ACTION_ORDER: OfficePanelActionId[] = [
   "skill-os",
   "evals",
   "resource-bank",
+  "video-intelligence",
   "world",
   "document-library",
   "telemetry",
@@ -219,6 +223,7 @@ export function createOfficePanelActions(
   const rawTelemetryPanel = getOfficeInternalPanelEntry("raw-telemetry");
   const threadDataPanel = getOfficeInternalPanelEntry("thread-data");
   const resourceBankPanel = getOfficeInternalPanelEntry("resource-bank");
+  const videoIntelligencePanel = getOfficeInternalPanelEntry("video-intelligence");
   const worldPanel = getOfficeInternalPanelEntry("world");
   const documentLibraryPanel = getOfficeInternalPanelEntry("document-library");
   const skillOsPanel = getOfficeInternalPanelEntry("skill-os");
@@ -318,6 +323,17 @@ export function createOfficePanelActions(
       shortcut: { key: "r", label: "Alt+Shift+R", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openResourceBank,
+    },
+    {
+      id: "video-intelligence",
+      label: videoIntelligencePanel.label,
+      description: videoIntelligencePanel.description,
+      group: "panel",
+      icon: ScanSearch,
+      keywords: [...videoIntelligencePanel.keywords, "video", "stories", "perspectives"],
+      shortcut: { key: "v", label: "Alt+Shift+V", altKey: true, shiftKey: true },
+      color: SECONDARY_BUTTON_COLOR,
+      perform: deps.openVideoIntelligence,
     },
     {
       id: "world",

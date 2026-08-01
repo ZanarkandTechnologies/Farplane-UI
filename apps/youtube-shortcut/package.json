@@ -10,7 +10,7 @@
     "dev:agent": "tsx scripts/local-agent.ts",
     "build": "plasmo build",
     "package": "plasmo package",
-    "test": "node --import tsx --test background.test.ts scripts/local-agent.test.ts",
+    "test": "node --import tsx --test background.test.ts scripts/local-agent.test.ts scripts/video-intelligence-store.test.ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

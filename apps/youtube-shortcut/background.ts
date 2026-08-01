@@ -2,9 +2,35 @@
 
 const LOCAL_AGENT = "http://127.0.0.1:47893";
 type Analysis = {
-  schemaVersion: 1;
+  schemaVersion: 3;
   sourceStatus: "TRANSCRIPT_USED" | "TRANSCRIPT_UNAVAILABLE" | "SUMMARY_ONLY";
   sourceNote: string;
+  summary: string;
+  publisher: string | null;
+  publishedAt: string | null;
+  stories: {
+    title: string;
+    summary: string;
+    eventDate: string | null;
+    entities: string[];
+    tags: string[];
+    frame: string;
+    claims: {
+      statement: string;
+      stance: "supports" | "opposes" | "neutral" | "unclear";
+      evidence: {
+        timestamp: string | null;
+        excerpt: string;
+        schemaVersion: 2;
+        extractorVersion: string;
+      };
+    }[];
+  }[];
+  projectRelevance: {
+    project: string;
+    reason: string;
+    confidence: number;
+  }[];
   clickbait: {
     answer: string;
     verdict: "DELIVERED" | "PARTIAL" | "BAIT" | "UNVERIFIABLE";
@@ -46,7 +72,7 @@ function oneOf<T extends string>(value: unknown, options: readonly T[]): value i
 }
 
 function parseAnalysis(value: unknown): Analysis {
-  if (!isRecord(value) || value.schemaVersion !== 1) throw new Error("Invalid analysis");
+  if (!isRecord(value) || value.schemaVersion !== 3) throw new Error("Invalid analysis");
   const clickbait = value.clickbait;
   const recommendation = value.recommendation;
   if (
@@ -56,6 +82,19 @@ function parseAnalysis(value: unknown): Analysis {
       "SUMMARY_ONLY",
     ]) ||
     typeof value.sourceNote !== "string" ||
+    typeof value.summary !== "string" ||
+    (value.publisher !== null && typeof value.publisher !== "string") ||
+    (value.publishedAt !== null && typeof value.publishedAt !== "string") ||
+    !Array.isArray(value.stories) ||
+    !value.stories.every(isStory) ||
+    !Array.isArray(value.projectRelevance) ||
+    !value.projectRelevance.every(
+      (relevance) =>
+        isRecord(relevance) &&
+        typeof relevance.project === "string" &&
+        typeof relevance.reason === "string" &&
+        typeof relevance.confidence === "number",
+    ) ||
     !isRecord(clickbait) ||
     typeof clickbait.answer !== "string" ||
     !oneOf(clickbait.verdict, ["DELIVERED", "PARTIAL", "BAIT", "UNVERIFIABLE"]) ||
@@ -90,10 +129,43 @@ function parseAnalysis(value: unknown): Analysis {
   return value as Analysis;
 }
 
+function isStory(value: unknown): boolean {
+  if (
+    !isRecord(value) ||
+    typeof value.title !== "string" ||
+    typeof value.summary !== "string" ||
+    (value.eventDate !== null && typeof value.eventDate !== "string") ||
+    !strings(value.entities) ||
+    !strings(value.tags) ||
+    value.tags.length < 1 ||
+    typeof value.frame !== "string" ||
+    !Array.isArray(value.claims)
+  ) {
+    return false;
+  }
+  return value.claims.every((claim) => {
+    if (
+      !isRecord(claim) ||
+      typeof claim.statement !== "string" ||
+      !oneOf(claim.stance, ["supports", "opposes", "neutral", "unclear"]) ||
+      !isRecord(claim.evidence)
+    ) {
+      return false;
+    }
+    return (
+      (claim.evidence.timestamp === null ||
+        typeof claim.evidence.timestamp === "string") &&
+      typeof claim.evidence.excerpt === "string" &&
+      claim.evidence.schemaVersion === 2 &&
+      typeof claim.evidence.extractorVersion === "string"
+    );
+  });
+}
+
 function parseCacheEntry(value: unknown) {
   if (
     !isRecord(value) ||
-    value.schemaVersion !== 2 ||
+    value.schemaVersion !== 3 ||
     typeof value.threadId !== "string" ||
     !value.threadId
   ) {
@@ -133,16 +205,31 @@ async function fetchJson(path: string, init: RequestInit, timeoutMs: number) {
 }
 
 export async function analyze(videoId: string, title: string) {
-  const cacheKey = `farplane-youtube-analysis-v1:${videoId}`;
+  const cacheKey = `farplane-youtube-analysis-v3:${videoId}`;
   const cached = (await chrome.storage.local.get(cacheKey))[cacheKey];
   const parsed = parseCacheEntry(cached);
-  if (parsed)
+  if (parsed) {
+    await fetchJson(
+      "/ingest-cached",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          videoId,
+          title,
+          analysis: parsed.analysis,
+          threadId: parsed.threadId,
+        }),
+      },
+      10_000,
+    );
     return {
       ok: true,
       analysis: parsed.analysis,
       threadId: parsed.threadId,
       cached: true,
     };
+  }
 
   const payload = await fetchJson(
     "/analyze-youtube",
@@ -159,7 +246,7 @@ export async function analyze(videoId: string, title: string) {
   }
   const threadId = payload.threadId;
   await chrome.storage.local.set({
-    [cacheKey]: { schemaVersion: 2, analysis, threadId },
+    [cacheKey]: { schemaVersion: 3, analysis, threadId },
   });
   return { ok: true, analysis, threadId, cached: false };
 }

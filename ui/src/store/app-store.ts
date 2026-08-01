@@ -176,6 +176,8 @@ interface AppState {
   setIsSkillInvocationsPanelOpen: (isOpen: boolean) => void;
   isResourceBankPanelOpen: boolean;
   setIsResourceBankPanelOpen: (isOpen: boolean) => void;
+  isVideoIntelligencePanelOpen: boolean;
+  setIsVideoIntelligencePanelOpen: (isOpen: boolean) => void;
   isWorldMapPanelOpen: boolean;
   setIsWorldMapPanelOpen: (isOpen: boolean) => void;
   isDocumentLibraryPanelOpen: boolean;
@@ -332,6 +334,8 @@ export const useAppStore = create<AppState>()(
     setIsSkillInvocationsPanelOpen: (isOpen) => set({ isSkillInvocationsPanelOpen: isOpen }),
     isResourceBankPanelOpen: false,
     setIsResourceBankPanelOpen: (isOpen) => set({ isResourceBankPanelOpen: isOpen }),
+    isVideoIntelligencePanelOpen: false,
+    setIsVideoIntelligencePanelOpen: (isOpen) => set({ isVideoIntelligencePanelOpen: isOpen }),
     isWorldMapPanelOpen: false,
     setIsWorldMapPanelOpen: (isOpen) => set({ isWorldMapPanelOpen: isOpen }),
     isDocumentLibraryPanelOpen: false,
