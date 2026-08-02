@@ -1,23 +1,19 @@
 /**
  * Config loading for the Telegram gateway.
  *
- * Inputs: env vars, keychain token fallback, and ~/.farplane/config.toml.
+ * Inputs: environment-injected credentials and non-secret ~/.farplane/config.toml settings.
  * Outputs: resolved gateway config for CLI/runtime use.
- * Side effects: reads local config and may read macOS keychain.
+ * Side effects: reads non-secret local config.
  */
 
-import { execFile } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
 
 import { readFarplaneConfigFileObject, readFarplaneConfigValue } from "../../cli/runtime-config.js";
 import type { ResolvedTelegramGatewayConfig, TelegramGatewayFileConfig } from "./types";
 
 const DEFAULT_RESPONSE_TIMEOUT_MS = 180000;
 const DEFAULT_REVIEW_RELAY_PORT = 8789;
-
-const execFileAsync = promisify(execFile);
 
 export function defaultConfigPath(): string {
   const root = process.env.FARPLANE_STATE_DIR?.trim() || path.join(os.homedir(), ".farplane");
@@ -58,7 +54,7 @@ export async function resolveGatewayConfig(): Promise<ResolvedTelegramGatewayCon
   );
   return {
     enabled: fileConfig.telegram?.enabled !== false,
-    botToken: envToken ?? fileConfig.telegram?.botToken?.trim() ?? "",
+    botToken: envToken ?? "",
     responseTimeoutMs:
       Number.isFinite(responseTimeoutMs) && responseTimeoutMs >= 0 ? responseTimeoutMs : DEFAULT_RESPONSE_TIMEOUT_MS,
     appServerUrl:
@@ -105,7 +101,6 @@ function normalizeTelegramConfig(
       row.dm_policy === "allowlist" || row.dmPolicy === "allowlist" ? "allowlist" : undefined,
     groupPolicy:
       row.group_policy === "allowlist" || row.groupPolicy === "allowlist" ? "allowlist" : undefined,
-    botToken: stringValue(row.bot_token) || stringValue(row.botToken),
     allowFrom:
       stringList(row.allow_from).length > 0
         ? stringList(row.allow_from)
@@ -142,20 +137,7 @@ function normalizeRuntimeConfig(
 
 async function readTelegramToken(): Promise<string | null> {
   const envToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
-  if (envToken) return envToken;
-  try {
-    const { stdout } = await execFileAsync("security", [
-      "find-generic-password",
-      "-a",
-      process.env.USER ?? "",
-      "-s",
-      "codex-telegram-bot-token",
-      "-w",
-    ]);
-    return stdout.trim() || null;
-  } catch {
-    return null;
-  }
+  return envToken || null;
 }
 
 function parseList(value: string | undefined): string[] {

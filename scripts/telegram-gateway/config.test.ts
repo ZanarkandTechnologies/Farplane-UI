@@ -17,7 +17,7 @@ describe("telegram gateway config", () => {
         "",
         "[telegram]",
         "enabled = true",
-        'bot_token = "secret-token"',
+        'bot_token = "ignored-secret-token"',
         'allow_from = ["100", "200"]',
         'default_thread_id = "thread-ceo"',
         'dm_policy = "allowlist"',
@@ -37,7 +37,6 @@ describe("telegram gateway config", () => {
       },
       telegram: {
         enabled: true,
-        botToken: "secret-token",
         allowFrom: ["100", "200"],
         defaultThreadId: "thread-ceo",
         dmPolicy: "allowlist",

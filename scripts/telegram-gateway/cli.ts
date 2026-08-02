@@ -241,7 +241,7 @@ export async function runTelegramGatewayCli(rawArgs = process.argv.slice(2)): Pr
   }
   if (!config.botToken || config.allowedChatIds.length === 0) {
     const needs = [];
-    if (!config.botToken) needs.push("telegram.botToken");
+    if (!config.botToken) needs.push("TELEGRAM_BOT_TOKEN");
     if (config.allowedChatIds.length === 0) needs.push("telegram.allowFrom");
     console.log(
       JSON.stringify({

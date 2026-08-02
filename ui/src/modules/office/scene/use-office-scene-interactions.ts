@@ -61,7 +61,7 @@ export function useOfficeSceneInteractions(params: { employees: EmployeeData[] }
         teamId: employee.teamId,
         builtInRole: employee.builtInRole,
       });
-      await openEmployeeChat(employee._id, true);
+      await openEmployeeChat(employee._id, true, employee.name);
     },
     [employees, openEmployeeChat, setActiveChatParticipant],
   );

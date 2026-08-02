@@ -4,7 +4,7 @@
  * OpenClaw extension for Notion channel behavior, webhook ingress, and Notion helper RPCs.
  *
  * KEY CONCEPTS:
- * - Channel config is read from `channels.notion.accounts.<accountId>`.
+ * - The Notion API key is injected as `NOTION_API_KEY`; account config owns non-secret policy.
  * - Plugin-level config is read from `plugins.entries.notion-shell.config`.
  * - Accepted `comment.created` events proxy into OpenClaw `/hooks/agent`.
  *
@@ -87,7 +87,7 @@ function getAccount(cfg: Json, accountId: string): NotionWebhookAccountConfig {
   const accounts = asObject(notion.accounts);
   const raw = asObject(accounts[accountId]);
   return {
-    apiKey: typeof raw.apiKey === "string" ? raw.apiKey : undefined,
+    apiKey: process.env.NOTION_API_KEY?.trim() || undefined,
     pageIds: Array.isArray(raw.pageIds)
       ? raw.pageIds.filter((value): value is string => typeof value === "string")
       : [],

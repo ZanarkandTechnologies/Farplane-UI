@@ -45,6 +45,12 @@ import {
   localFarplaneEventsToObservedCodexWorkers,
 } from "./src/providers/local-observed-codex-workers";
 import { resolveEvalArtifactsRoot } from "./src/modules/evals/lib/eval-artifacts";
+import {
+  loadProjectAgentProfiles,
+  normalizeAgentPortraitRef,
+} from "./server/agent-profiles";
+import { createRealtimeCallSession } from "./server/realtime-call";
+import { stripSecretConfigValues } from "./server/runtime-config-sanitizer";
 
 type JsonObject = Record<string, unknown>;
 type MemoryEntryType = "discovery" | "decision" | "problem" | "solution" | "pattern" | "warning" | "success" | "refactor" | "bugfix" | "feature";
@@ -130,6 +136,7 @@ const FARPLANE_PROJECT_CONFIG_FILES = [
   { path: "farplane/harness.yaml", title: "Harness", kind: "harness", format: "yaml" },
   { path: "farplane/metrics.yaml", title: "Metrics", kind: "metrics", format: "yaml" },
   { path: "farplane/brand.yaml", title: "Brand", kind: "brand", format: "yaml" },
+  { path: "farplane/agents.yaml", title: "Agent Profiles", kind: "agents", format: "yaml" },
   { path: "farplane/automations.toml", title: "Automations", kind: "automations", format: "toml" },
   { path: "farplane/bindings.yaml", title: "Bindings", kind: "bindings", format: "yaml" },
   { path: "farplane/hooks.json", title: "Hooks", kind: "hooks", format: "json" },
@@ -434,8 +441,8 @@ function serializeTomlSection(name: string, row: unknown): string[] {
 
 function serializeFarplaneConfigToml(row: JsonObject): string {
   const lines = [
-    "# Managed by Farplane UI Settings. Keep this file local and private.",
-    "# Farplane Core treats this as the canonical runtime config.",
+    "# Managed by Farplane UI Settings. This file contains non-secret operator settings only.",
+    "# Inject credentials into processes with `farplane run -- <command>`.",
     "",
     ...serializeTomlSection("runtime", row.runtime),
     ...serializeTomlSection("convex", row.convex),
@@ -511,16 +518,8 @@ function localConfigString(pathParts: string[]): string {
   return canonicalConfigString(pathParts);
 }
 
-function localSecretString(pathParts: string[]): string {
-  return canonicalConfigString(pathParts);
-}
-
 function localConfigEnvString(name: string): string {
   return localConfigString(["env", name]);
-}
-
-function localSecretEnvString(name: string): string {
-  return localSecretString(["env", name]);
 }
 
 function firstLocalConfigString(paths: string[][]): string {
@@ -531,13 +530,6 @@ function firstLocalConfigString(paths: string[][]): string {
   return "";
 }
 
-function firstLocalSecretString(paths: string[][]): string {
-  for (const pathParts of paths) {
-    const value = localSecretString(pathParts);
-    if (value) return value;
-  }
-  return "";
-}
 
 function firstEnvValue(names: string[]): string {
   for (const name of names) {
@@ -675,21 +667,7 @@ function setNestedStringIfPresent(
   setNestedString(row, pathParts, String(source[sourceKey] ?? ""));
 }
 
-function runtimeSecretStatus(pathParts: string[], envNames: string[]): JsonObject {
-  const saved =
-    localSecretString(pathParts) ||
-    (pathParts[0] === "integrations" && pathParts[1] === "meshyApiKey"
-      ? localSecretString(["integrations", "meshy_api_key"])
-      : "") ||
-    (pathParts[0] === "integrations" && pathParts[1] === "notionApiKey"
-      ? localSecretString(["integrations", "notion_api_key"])
-      : "") ||
-    (pathParts[0] === "convex" && pathParts[1] === "telemetryToken"
-      ? localSecretString(["convex", "telemetry_token"])
-      : "");
-  if (saved) {
-    return { configured: true, source: "saved" };
-  }
+function runtimeSecretStatus(envNames: string[]): JsonObject {
   for (const name of envNames) {
     if (process.env[name]?.trim()) {
       return { configured: true, source: "env" };
@@ -700,6 +678,7 @@ function runtimeSecretStatus(pathParts: string[], envNames: string[]): JsonObjec
 
 type RuntimeEnvConfig = {
   name: string;
+  aliases?: string[];
   label: string;
   group: string;
   description: string;
@@ -728,6 +707,13 @@ const RUNTIME_ENV_CATALOG: RuntimeEnvConfig[] = [
     label: "Telemetry Token",
     group: "Convex / telemetry backend",
     description: "Optional token required by protected telemetry HTTP endpoints.",
+    secret: true,
+  },
+  {
+    name: "FARPLANE_STATE_BRIDGE_TOKEN",
+    label: "State Bridge Token",
+    group: "Credential readiness",
+    description: "Optional bearer token protecting the local Farplane state bridge.",
     secret: true,
   },
   {
@@ -790,14 +776,15 @@ const RUNTIME_ENV_CATALOG: RuntimeEnvConfig[] = [
   {
     name: "VITE_GATEWAY_TOKEN",
     label: "Gateway Token",
-    group: "UI-safe Vite values",
-    description: "Optional gateway bearer token. Treated as a local secret by Settings.",
+    group: "Credential readiness",
+    description: "Optional gateway bearer token injected when the UI process launches.",
     secret: true,
   },
   {
     name: "VITE_MAPBOX_ACCESS_TOKEN",
+    aliases: ["MAPBOX_ACCESS_TOKEN"],
     label: "Mapbox Public Token",
-    group: "UI-safe map provider",
+    group: "Credential readiness",
     description:
       "Public browser token for the World vector map. Use a read-only, URL-restricted Mapbox application token.",
     placeholder: "pk.eyJ1Ijo…",
@@ -805,16 +792,67 @@ const RUNTIME_ENV_CATALOG: RuntimeEnvConfig[] = [
   },
   {
     name: "FARPLANE_MESHY_API_KEY",
+    aliases: ["MESHY_API_KEY"],
     label: "Farplane Meshy API Key",
     group: "Optional integrations",
-    description: "Preferred server-side Meshy key for generated furniture.",
+    description: "Server-side Meshy key for generated furniture; MESHY_API_KEY is also supported.",
     secret: true,
   },
   {
-    name: "MESHY_API_KEY",
-    label: "Meshy API Key",
+    name: "NOTION_API_KEY",
+    label: "Notion API Key",
     group: "Optional integrations",
-    description: "Fallback Meshy key name used by scripts and integrations.",
+    description: "Required when the Notion plugin or live Notion lookup is enabled.",
+    secret: true,
+  },
+  {
+    name: "TELEGRAM_BOT_TOKEN",
+    label: "Telegram Bot Token",
+    group: "Optional integrations",
+    description: "Required when the Telegram gateway is enabled.",
+    secret: true,
+  },
+  {
+    name: "SLASH_API_KEY",
+    label: "Slash API Key",
+    group: "Optional integrations",
+    description: "Required for read-only Slash finance collection.",
+    secret: true,
+  },
+  {
+    name: "LIVEKIT_URL",
+    label: "LiveKit URL",
+    group: "Realtime employee calls",
+    description: "Required with the LiveKit API credentials for realtime employee calls.",
+    secret: true,
+  },
+  {
+    name: "LIVEKIT_API_KEY",
+    label: "LiveKit API Key",
+    group: "Realtime employee calls",
+    description: "Required with LIVEKIT_URL and LIVEKIT_API_SECRET for realtime employee calls.",
+    secret: true,
+  },
+  {
+    name: "LIVEKIT_API_SECRET",
+    label: "LiveKit API Secret",
+    group: "Realtime employee calls",
+    description: "Required with LIVEKIT_URL and LIVEKIT_API_KEY for realtime employee calls.",
+    secret: true,
+  },
+  {
+    name: "OPENAI_API_KEY",
+    aliases: ["CODEX_API_KEY"],
+    label: "OpenAI / Codex Model Key",
+    group: "Optional model and media tools",
+    description: "Used by Codex review and model-backed helpers; CODEX_API_KEY is also supported.",
+    secret: true,
+  },
+  {
+    name: "ELEVENLABS_API_KEY",
+    label: "ElevenLabs API Key",
+    group: "Optional model and media tools",
+    description: "Required only for ElevenLabs-backed audio generation tools.",
     secret: true,
   },
   {
@@ -854,9 +892,9 @@ const RUNTIME_ENV_CATALOG: RuntimeEnvConfig[] = [
 ];
 
 function runtimeEnvStatus(config: RuntimeEnvConfig): JsonObject {
-  const saved = config.secret ? localSecretEnvString(config.name) : localConfigEnvString(config.name);
+  const saved = config.secret ? "" : localConfigEnvString(config.name);
   if (saved) return { configured: true, source: "saved" };
-  if (process.env[config.name]?.trim()) {
+  if ([config.name, ...(config.aliases ?? [])].some((name) => process.env[name]?.trim())) {
     return { configured: true, source: "env" };
   }
   return { configured: false, source: "missing" };
@@ -917,12 +955,9 @@ function readRuntimeConfigForUi(): JsonObject {
         "",
     },
     secrets: {
-      meshyApiKey: runtimeSecretStatus(
-        ["integrations", "meshyApiKey"],
-        ["FARPLANE_MESHY_API_KEY", "MESHY_API_KEY"],
-      ),
-      notionApiKey: runtimeSecretStatus(["integrations", "notionApiKey"], ["NOTION_API_KEY"]),
-      telemetryToken: runtimeSecretStatus(["convex", "telemetryToken"], ["FARPLANE_TELEMETRY_TOKEN"]),
+      meshyApiKey: runtimeSecretStatus(["FARPLANE_MESHY_API_KEY", "MESHY_API_KEY"]),
+      notionApiKey: runtimeSecretStatus(["NOTION_API_KEY"]),
+      telemetryToken: runtimeSecretStatus(["FARPLANE_TELEMETRY_TOKEN"]),
     },
     telegram: {
       enabled: telegram.enabled !== false,
@@ -939,7 +974,7 @@ function readRuntimeConfigForUi(): JsonObject {
         localConfigString(["telegram", "group_policy"]) ||
         localConfigString(["telegram", "groupPolicy"]),
       streamingMode: typeof telegramStreaming.mode === "string" ? telegramStreaming.mode : "",
-      botToken: runtimeSecretStatus(["telegram", "bot_token"], ["TELEGRAM_BOT_TOKEN"]),
+      botToken: runtimeSecretStatus(["TELEGRAM_BOT_TOKEN"]),
     },
     env: RUNTIME_ENV_CATALOG.map((config) => ({
       ...config,
@@ -951,12 +986,6 @@ function readRuntimeConfigForUi(): JsonObject {
 
 function readMapConfigForUi(): JsonObject {
   const accessToken =
-    localSecretEnvString("VITE_MAPBOX_ACCESS_TOKEN") ||
-    localSecretEnvString("MAPBOX_ACCESS_TOKEN") ||
-    firstLocalSecretString([
-      ["maps", "mapbox_public_token"],
-      ["maps", "mapboxPublicToken"],
-    ]) ||
     process.env.VITE_MAPBOX_ACCESS_TOKEN?.trim() ||
     process.env.MAPBOX_ACCESS_TOKEN?.trim() ||
     "";
@@ -973,10 +1002,6 @@ async function saveRuntimeConfigFromUi(input: unknown): Promise<JsonObject> {
   const configInput =
     body.config && typeof body.config === "object" && !Array.isArray(body.config)
       ? (body.config as JsonObject)
-      : {};
-  const secretInput =
-    body.secrets && typeof body.secrets === "object" && !Array.isArray(body.secrets)
-      ? (body.secrets as JsonObject)
       : {};
   const telegramInput =
     body.telegram && typeof body.telegram === "object" && !Array.isArray(body.telegram)
@@ -1010,17 +1035,8 @@ async function saveRuntimeConfigFromUi(input: unknown): Promise<JsonObject> {
     if (!Object.prototype.hasOwnProperty.call(envInput, entry.name)) continue;
     const rawValue = envInput[entry.name];
     const value = typeof rawValue === "string" ? rawValue.trim() : "";
-    if (entry.secret && !value) continue;
+    if (entry.secret) continue;
     setNestedString(config, ["env", entry.name], value);
-  }
-
-  for (const [key, pathParts] of [
-    ["meshyApiKey", ["integrations", "meshy_api_key"]],
-    ["notionApiKey", ["integrations", "notion_api_key"]],
-    ["telemetryToken", ["convex", "telemetry_token"]],
-  ] as const) {
-    const value = typeof secretInput[key] === "string" ? secretInput[key].trim() : "";
-    if (value) setNestedString(config, [...pathParts], value);
   }
   if (Object.keys(telegramInput).length > 0) {
     setNestedValue(config, ["telegram", "enabled"], telegramInput.enabled === false ? false : true);
@@ -1034,26 +1050,37 @@ async function saveRuntimeConfigFromUi(input: unknown): Promise<JsonObject> {
           .map((entry) => entry.trim());
     setNestedValue(config, ["telegram", "allow_from"], rawAllowFrom.map(String).filter(Boolean));
     setNestedString(config, ["telegram", "streaming", "mode"], String(telegramInput.streamingMode ?? "off"));
-    const botToken = typeof telegramInput.botToken === "string" ? telegramInput.botToken.trim() : "";
-    if (botToken) setNestedString(config, ["telegram", "bot_token"], botToken);
   }
-  const secretEnv =
-    config.env && typeof config.env === "object" && !Array.isArray(config.env)
-      ? (config.env as JsonObject)
-      : {};
-  const meshyApiKey =
-    objectStringAt(secretEnv, ["FARPLANE_MESHY_API_KEY"]) ||
-    objectStringAt(secretEnv, ["MESHY_API_KEY"]) ||
-    firstLocalSecretString([
-      ["integrations", "meshy_api_key"],
-      ["integrations", "meshyApiKey"],
-    ]);
-  const telemetryToken =
-    objectStringAt(secretEnv, ["FARPLANE_TELEMETRY_TOKEN"]);
-  if (meshyApiKey) setNestedString(config, ["integrations", "meshy_api_key"], meshyApiKey);
-  if (telemetryToken) setNestedString(config, ["convex", "telemetry_token"], telemetryToken);
-  setNestedValue(config, ["env", "NOTION_API_KEY"], undefined);
-  setNestedValue(config, ["env", "NOTION_TOKEN"], undefined);
+
+  for (const pathParts of [
+    ["integrations", "meshy_api_key"],
+    ["integrations", "meshyApiKey"],
+    ["integrations", "notion_api_key"],
+    ["integrations", "notionApiKey"],
+    ["integrations", "slash", "api_key"],
+    ["integrations", "slash", "apiKey"],
+    ["convex", "telemetry_token"],
+    ["convex", "telemetryToken"],
+    ["telegram", "bot_token"],
+    ["telegram", "botToken"],
+    ["maps", "mapbox_public_token"],
+    ["maps", "mapboxPublicToken"],
+  ]) {
+    setNestedValue(config, pathParts, undefined);
+  }
+  for (const entry of RUNTIME_ENV_CATALOG) {
+    if (entry.secret) setNestedValue(config, ["env", entry.name], undefined);
+  }
+  for (const name of [
+    "NOTION_API_KEY",
+    "NOTION_TOKEN",
+    "TELEGRAM_BOT_TOKEN",
+    "MAPBOX_ACCESS_TOKEN",
+    "SLASH_API_KEY",
+  ]) {
+    setNestedValue(config, ["env", name], undefined);
+  }
+  stripSecretConfigValues(config);
 
   await mkdir(FARPLANE_HOME, { recursive: true });
   await writeFile(FARPLANE_CONFIG_TOML_PATH, serializeFarplaneConfigToml(config), "utf-8");
@@ -1766,6 +1793,24 @@ type CodexRpcSessionOptions = {
 
 let codexThreadGoalsCache: { key: string; loadedAt: number; result: JsonObject } | null = null;
 let codexThreadGoalsInFlight: { key: string; promise: Promise<JsonObject> } | null = null;
+const CODEX_THREAD_LIST_FAST_FALLBACK_MS = 3_500;
+
+function withCodexThreadListDeadline<T>(request: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("codex_thread_list_fast_fallback")),
+      CODEX_THREAD_LIST_FAST_FALLBACK_MS,
+    );
+  });
+  // The websocket request can finish after the office has fallen back to the
+  // filesystem projection. Observe that late failure so it cannot become an
+  // unhandled rejection.
+  void request.catch(() => undefined);
+  return Promise.race([request, deadline]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
 
 async function enrichCodexThreadListWithGoals(
   result: unknown,
@@ -1805,9 +1850,21 @@ async function requestCodexThreadListWithGoals(params: JsonObject): Promise<Json
   if (codexThreadGoalsInFlight?.key === key) return codexThreadGoalsInFlight.promise;
 
   const promise = (async () => {
-    const result = await requestCodexAppServerRpc("thread/list", params, {
-      includeThreadGoals: true,
-    });
+    let result: unknown;
+    try {
+      result = await withCodexThreadListDeadline(
+        requestCodexAppServerRpc("thread/list", params, {
+          includeThreadGoals: true,
+        }),
+      );
+    } catch {
+      // Thread discovery is optional boot data. Avoid following an app-server
+      // timeout with an expensive filesystem scan; the next poll can hydrate
+      // workers after the office shell is already interactive.
+      const fallbackResult = { data: [], source: "codex-unavailable" };
+      codexThreadGoalsCache = { key, loadedAt: Date.now(), result: fallbackResult };
+      return fallbackResult;
+    }
     const mergedResult = await mergeCodexThreadListWithFilesystem(
       result,
       codexThreadListLimit(params),
@@ -2054,9 +2111,6 @@ function inferMeshExtensionFromUrl(rawUrl: string): ".glb" | ".gltf" {
 
 function getMeshyApiKey(): string {
   return (
-    localSecretEnvString("FARPLANE_MESHY_API_KEY") ||
-    localSecretEnvString("MESHY_API_KEY") ||
-    localSecretString(["integrations", "meshyApiKey"]) ||
     process.env.FARPLANE_MESHY_API_KEY?.trim() ||
     process.env.MESHY_API_KEY?.trim() ||
     ""
@@ -4621,6 +4675,116 @@ function farplaneStateBridge() {
             return;
           }
           writeJson(res, 200, await readFarplaneProjectConfig(projectPath));
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/agent-profiles") {
+          const scope = url.searchParams.get("scope") === "office" ? "office" : "project";
+          const projectPath =
+            scope === "office"
+              ? REPO_ROOT
+              : url.searchParams.get("projectPath")?.trim() || REPO_ROOT;
+          if (!isSafeProjectPath(projectPath)) {
+            writeJson(res, 400, { ok: false, error: "project_path_required" });
+            return;
+          }
+          const result = await loadProjectAgentProfiles(path.resolve(projectPath));
+          writeJson(res, 200, {
+            ok: result.errors.length === 0,
+            ...result,
+            projectPath: path.resolve(projectPath),
+            profiles: Object.fromEntries(
+              result.profiles.map((profile) => [
+                profile.agentId,
+                {
+                  ...profile,
+                  portrait: profile.portraitRef,
+                  portraitUrl: `/farplane/agent-profile-asset?projectPath=${encodeURIComponent(path.resolve(projectPath))}&ref=${encodeURIComponent(profile.portraitRef)}`,
+                },
+              ]),
+            ),
+          });
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/agent-profile-asset") {
+          const projectPath = url.searchParams.get("projectPath")?.trim() ?? "";
+          const portraitRef = normalizeAgentPortraitRef(url.searchParams.get("ref") ?? "");
+          if (!isSafeProjectPath(projectPath) || !portraitRef) {
+            writeJson(res, 400, { ok: false, error: "agent_profile_asset_invalid" });
+            return;
+          }
+          const assetPath = resolveProjectRelativePath(projectPath, portraitRef);
+          if (!assetPath) {
+            writeJson(res, 400, { ok: false, error: "agent_profile_asset_invalid" });
+            return;
+          }
+          const asset = await readFile(assetPath).catch(() => null);
+          if (!asset) {
+            writeJson(res, 404, { ok: false, error: "agent_profile_asset_not_found" });
+            return;
+          }
+          const extension = path.extname(assetPath).toLowerCase();
+          const contentType =
+            extension === ".png"
+              ? "image/png"
+              : extension === ".webp"
+                ? "image/webp"
+                : extension === ".svg"
+                  ? "image/svg+xml"
+                  : extension === ".gif"
+                    ? "image/gif"
+                    : "image/jpeg";
+          res.statusCode = 200;
+          res.setHeader("Content-Type", contentType);
+          res.setHeader("Cache-Control", "no-store");
+          res.end(asset);
+          return;
+        }
+
+        if (method === "POST" && pathname === "/farplane/realtime-call/session") {
+          if (!hasBridgeWriteAccess(req)) {
+            writeJson(res, 403, { ok: false, error: "forbidden" });
+            return;
+          }
+          try {
+            const body = await readBody(req);
+            const request = body as { projectPath?: unknown; agentIds?: unknown; scope?: unknown };
+            const scope = request.scope === "office" ? "office" : "project";
+            const projectPath =
+              scope === "office"
+                ? REPO_ROOT
+                : typeof request.projectPath === "string"
+                  ? request.projectPath.trim()
+                  : "";
+            const agentIds = Array.isArray(request.agentIds)
+              ? [...new Set(request.agentIds.filter((id): id is string => typeof id === "string"))]
+              : [];
+            if (!isSafeProjectPath(projectPath) || agentIds.length === 0) {
+              throw new Error("realtime_call_request_invalid");
+            }
+            const configured = await loadProjectAgentProfiles(path.resolve(projectPath));
+            if (configured.errors.length > 0) {
+              throw new Error("agent_profile_config_invalid");
+            }
+            const profilesById = new Map(
+              configured.profiles.map((profile) => [profile.agentId, profile]),
+            );
+            const agents = agentIds.map((agentId) => profilesById.get(agentId));
+            if (agents.some((profile) => !profile)) {
+              throw new Error("agent_profile_not_found");
+            }
+            writeJson(
+              res,
+              200,
+              await createRealtimeCallSession({ projectPath: path.resolve(projectPath), agents }),
+            );
+          } catch (error) {
+            writeJson(res, 422, {
+              ok: false,
+              error: error instanceof Error ? error.message : "realtime_call_session_failed",
+            });
+          }
           return;
         }
 

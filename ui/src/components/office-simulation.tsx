@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Badge } from "@/components/ui/badge";
-import { FinancePanel } from "@/modules/finance";
 import ChatDialog from "@/modules/chat/components/chat-dialog";
+import { FinancePanel } from "@/modules/finance";
 import { RawTelemetryPanel } from "@/modules/hook-telemetry";
 import {
   AgentMemoryPanel,
@@ -19,6 +19,7 @@ import {
 import { ProjectDocumentLibraryPanel } from "@/modules/office/components/project-document-library-panel";
 import { selectOfficeWorldContextData, useOfficeWorldStore } from "@/modules/office/store";
 import { ResourceBankPanel } from "@/modules/resource-bank";
+import { RealtimeCallDialog, RealtimeCallLauncher } from "@/modules/realtime-call";
 import { gatewayBase } from "@/modules/runtime";
 import { SettingsDialog } from "@/modules/settings";
 import { SkillInvocationsPanel } from "@/modules/skill-invocations";
@@ -213,6 +214,8 @@ function OfficeSimulationContent() {
         {sceneShellReady ? (
           <>
             {!isReadOnly ? <ChatDialog /> : null}
+            {!isReadOnly ? <RealtimeCallDialog /> : null}
+            {!isReadOnly ? <RealtimeCallLauncher /> : null}
             {!isPublic ? <AgentMemoryPanel /> : null}
             {!isReadOnly ? <ManageAgentModal /> : null}
             {/* Keep mounted so close/reopen preserves in-panel draft state; TeamPanel gates its expensive queries when closed. */}

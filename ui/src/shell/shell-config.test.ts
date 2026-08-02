@@ -36,6 +36,11 @@ describe("Farplane shell config", () => {
     expect(DEFAULT_FARPLANE_UI_CONFIG.modules).toContain("video-intelligence");
   });
 
+  it("registers Realtime Call for its roster HUD and employee actions", () => {
+    expect(moduleRegistry["realtime-call"].surfaces).toEqual(["hud", "office-object"]);
+    expect(DEFAULT_FARPLANE_UI_CONFIG.modules).toContain("realtime-call");
+  });
+
   it("keeps valid renderer, persistence, and registered module ids", () => {
     expect(
       normalizeFarplaneUiConfig({

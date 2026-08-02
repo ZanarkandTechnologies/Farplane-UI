@@ -6,12 +6,12 @@
  *
  * KEY CONCEPTS:
  * - Required sidecars live in `~/.openclaw`.
- * - UI-safe env vars live in `ui/.env.local`; local secrets live in Farplane config.
+ * - UI-safe values may live in `ui/.env.local`; credentials are injected at process launch.
  * - Onboarding is idempotent and bootstraps the first-party Notion comment bridge.
  *
  * USAGE:
  * - farplane onboarding
- * - farplane onboarding --yes --style cozy --gateway-token token123
+ * - farplane onboarding --yes --style cozy
  *
  * MEMORY REFERENCES:
  * - MEM-0102
@@ -47,7 +47,6 @@ import {
   cliYellow,
 } from "./cli-utils.js";
 import { findInvalidOfficeObjects } from "./office-commands.js";
-import { readFarplaneConfigFileObject } from "./runtime-config.js";
 import {
   type CompanyModel,
   createSidecarStore,
@@ -103,7 +102,6 @@ type OnboardingResult = {
 type OnboardingOptions = {
   style?: string;
   gatewayUrl?: string;
-  gatewayToken?: string;
   stateUrl?: string;
   convexUrl?: string;
   installCli?: boolean;
@@ -121,7 +119,6 @@ const OFFICE_STYLE_PRESETS: readonly OfficeStylePreset[] = [
 ] as const;
 const DEFAULT_UI_ENV: Record<string, string> = {
   VITE_GATEWAY_URL: "http://127.0.0.1:18789",
-  VITE_GATEWAY_TOKEN: "",
   VITE_STATE_URL: "http://127.0.0.1:5173",
   VITE_CONVEX_URL: "",
 };
@@ -132,7 +129,6 @@ const DEFAULT_NOTION_ACCOUNT_ID = "default";
 const DEFAULT_NOTION_TARGET_AGENT_ID = "main";
 const CONTROLLED_UI_ENV_KEYS = [
   "VITE_GATEWAY_URL",
-  "VITE_GATEWAY_TOKEN",
   "VITE_STATE_URL",
   "VITE_CONVEX_URL",
 ] as const;
@@ -186,11 +182,6 @@ async function readJsonTemplate<T>(filePath: string): Promise<T> {
 
 function asObject(value: unknown): JsonObject {
   return value && typeof value === "object" ? (value as JsonObject) : {};
-}
-
-function stringConfigValue(filePath: string, pathParts: string[]): string {
-  const value = readFarplaneConfigFileObject(filePath, pathParts);
-  return typeof value === "string" ? value.trim() : "";
 }
 
 function asArray(value: unknown): unknown[] {
@@ -446,10 +437,7 @@ function generateHookToken(): string {
   return randomBytes(24).toString("hex");
 }
 
-function ensureNotionCommentBridgeDefaults(
-  config: JsonObject,
-  farplaneConfigPath: string,
-): JsonObject {
+function ensureNotionCommentBridgeDefaults(config: JsonObject): JsonObject {
   const repoRoot = resolveRepoRoot();
   const plugins = asObject(config.plugins);
   const load = asObject(plugins.load);
@@ -501,11 +489,7 @@ function ensureNotionCommentBridgeDefaults(
   const notionChannels = asObject(channels.notion);
   const accounts = asObject(notionChannels.accounts);
   const defaultAccount = asObject(accounts[DEFAULT_NOTION_ACCOUNT_ID]);
-  const notionApiKey =
-    (typeof defaultAccount.apiKey === "string" && defaultAccount.apiKey.trim()) ||
-    process.env.NOTION_API_KEY?.trim() ||
-    stringConfigValue(farplaneConfigPath, ["integrations", "notion_api_key"]) ||
-    undefined;
+  const { apiKey: _legacyApiKey, ...nonSecretDefaultAccount } = defaultAccount;
 
   return {
     ...config,
@@ -568,8 +552,7 @@ function ensureNotionCommentBridgeDefaults(
         accounts: {
           ...accounts,
           [DEFAULT_NOTION_ACCOUNT_ID]: {
-            ...defaultAccount,
-            ...(notionApiKey ? { apiKey: notionApiKey } : {}),
+            ...nonSecretDefaultAccount,
             requireWakeWord:
               typeof defaultAccount.requireWakeWord === "boolean"
                 ? defaultAccount.requireWakeWord
@@ -694,11 +677,6 @@ function chooseUiEnvValues(inputValues: {
       inputValues.currentUiEnv.VITE_GATEWAY_URL?.trim() ||
       inputValues.exampleUiEnv.VITE_GATEWAY_URL?.trim() ||
       DEFAULT_UI_ENV.VITE_GATEWAY_URL,
-    VITE_GATEWAY_TOKEN:
-      inputValues.opts.gatewayToken?.trim() ||
-      inputValues.currentUiEnv.VITE_GATEWAY_TOKEN?.trim() ||
-      inputValues.exampleUiEnv.VITE_GATEWAY_TOKEN?.trim() ||
-      DEFAULT_UI_ENV.VITE_GATEWAY_TOKEN,
     VITE_STATE_URL:
       inputValues.opts.stateUrl?.trim() ||
       inputValues.currentUiEnv.VITE_STATE_URL?.trim() ||
@@ -747,9 +725,7 @@ function buildNextSteps(inputValues: {
       "Review the generated OpenClaw config at `~/.openclaw/openclaw.json` if you need to customize agents or runtime defaults.",
     );
   }
-  if (!inputValues.uiEnv.VITE_GATEWAY_TOKEN?.trim()) {
-    steps.push("Set `VITE_GATEWAY_TOKEN` in `ui/.env.local` if your gateway requires bearer auth.");
-  }
+  steps.push("Launch credentialed runtimes with `farplane run -- <command>` so Doppler injects secrets.");
   steps.push(
     `Optional: run \`npm --prefix ${inputValues.repoRoot} run shell -- doctor team-data --json\` for a standalone health check.`,
   );
@@ -765,7 +741,6 @@ export function registerOnboardingCommands(program: Command): void {
     )
     .option("--style <preset>", "Office style preset: default|pixel|brutalist|cozy")
     .option("--gateway-url <url>", "Gateway URL for the UI")
-    .option("--gateway-token <token>", "Gateway bearer token for the UI")
     .option("--state-url <url>", "State bridge URL for the UI")
     .option("--convex-url <url>", "Convex URL for the UI")
     .option("--install-cli", "Run `npm link` from the repo root during onboarding")
@@ -786,7 +761,6 @@ export function registerOnboardingCommands(program: Command): void {
       const exampleEnvPath = path.join(uiRoot, ".env.example");
       const rootEnvPath = path.join(repoRoot, ".env.local");
       const pendingApprovalsPath = path.join(store.companyPath, "..", "pending-approvals.json");
-      const farplaneConfigPath = path.join(path.dirname(store.companyPath), "config.toml");
       const rootEnv = await readDotEnvFile(rootEnvPath);
       const existingOpenclaw = await store.readOpenclawConfig();
       const existingShellcorpConfig = await store.readShellcorpConfig();
@@ -908,7 +882,7 @@ export function registerOnboardingCommands(program: Command): void {
           opts,
         }),
       );
-      nextOpenclaw = ensureNotionCommentBridgeDefaults(nextOpenclaw, farplaneConfigPath);
+      nextOpenclaw = ensureNotionCommentBridgeDefaults(nextOpenclaw);
       const openclawBefore = openclawBeforeRaw;
       const openclawAfter = JSON.stringify(nextOpenclaw);
       const farplaneConfigAfter = JSON.stringify(nextShellcorpConfig);
@@ -994,6 +968,7 @@ export function registerOnboardingCommands(program: Command): void {
         ...currentUiEnv,
         ...nextUiEnvValues,
       };
+      delete nextUiEnv.VITE_GATEWAY_TOKEN;
       const previousUiRaw = (await fileExists(uiEnvPath)) ? await readFile(uiEnvPath, "utf-8") : "";
       const nextUiRaw = serializeDotEnv(nextUiEnv);
       let uiEnvStatus: FileStatus = "unchanged";

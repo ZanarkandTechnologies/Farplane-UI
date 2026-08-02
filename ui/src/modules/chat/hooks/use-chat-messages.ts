@@ -26,6 +26,7 @@ import {
 import { useAppStore } from "@/store";
 import { useGateway } from "../../../providers/gateway-provider";
 import { useOfficeRuntimeAdapter } from "../../../modules/runtime";
+import type { ProjectAgentProfile } from "@/modules/realtime-call/types";
 
 type SubmissionStatus = "submitted" | "streaming" | "ready";
 type ChatGatewayEventPayload = {
@@ -512,7 +513,10 @@ function mapTimelineEventToLocal(event: { role: string; text: string; ts: number
     ];
 }
 
-export function useChatMessages(threadId: string | null): {
+export function useChatMessages(
+    threadId: string | null,
+    agentProfile: ProjectAgentProfile | null = null,
+): {
     messages: LocalChatMessage[];
     handleSubmit: (messageParam: unknown) => Promise<void>;
     abort: () => Promise<void>;
@@ -527,6 +531,7 @@ export function useChatMessages(threadId: string | null): {
     const messagesByThread = useChatStore((state) => state.messagesByThread);
     const selectedAgentId = useAppStore((state) => state.selectedAgentId);
     const selectedSessionKey = useAppStore((state) => state.selectedSessionKey);
+    const setSelectedSessionKey = useAppStore((state) => state.setSelectedSessionKey);
     const showWorkingOutput = useChatStore((state) => state.showWorkingOutput);
     const { client } = useGateway();
     const adapter = useOfficeRuntimeAdapter();
@@ -781,14 +786,33 @@ export function useChatMessages(threadId: string | null): {
                         agentId: selectedAgentId,
                         sessionKey: effectiveSessionKey,
                         message: text,
+                        ...(agentProfile
+                            ? {
+                                metadata: {
+                                    farplaneAgentProfile: {
+                                        agentId: agentProfile.agentId,
+                                        name: agentProfile.name ?? agentProfile.agentId,
+                                        title: agentProfile.title ?? "",
+                                        background: agentProfile.background ?? "",
+                                    },
+                                },
+                            }
+                            : {}),
                     });
                     if (!result.ok) {
                         throw new Error(result.error ?? "codex_message_send_failed");
                     }
-                    const mapped = await reloadHistory(effectiveSessionKey);
+                    const resolvedSessionKey = result.sessionKey?.trim() || effectiveSessionKey;
+                    if (resolvedSessionKey !== selectedSessionKey) {
+                        setSelectedSessionKey(resolvedSessionKey);
+                    }
+                    const mapped = await reloadHistory(resolvedSessionKey);
                     useChatStore.getState().setMessagesByThread({
                         ...useChatStore.getState().messagesByThread,
-                        [effectiveThreadId]: mapped.length > 0 ? mapped : useChatStore.getState().messagesByThread[effectiveThreadId],
+                        [resolvedSessionKey]:
+                            mapped.length > 0
+                                ? mapped
+                                : useChatStore.getState().messagesByThread[effectiveThreadId],
                     });
                     setStreamingText("");
                     setActiveRunId(null);
@@ -802,12 +826,17 @@ export function useChatMessages(threadId: string | null): {
                     idempotencyKey: runId,
                 });
             } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : "message_send_failed";
+                const visibleError =
+                    errorMessage === "codex_turn_system_error"
+                        ? "Codex could not complete this reply. Try again when the local Codex runtime is idle."
+                        : errorMessage;
                 const nextMessages = useChatStore.getState().messagesByThread[effectiveThreadId] ?? [];
                 useChatStore.getState().setMessagesByThread({
                     ...useChatStore.getState().messagesByThread,
                     [effectiveThreadId]: [
                         ...nextMessages,
-                        createAssistantMessage(error instanceof Error ? `Error: ${error.message}` : "Error: message_send_failed"),
+                        createAssistantMessage(`Error: ${visibleError}`),
                     ],
                 });
                 setStreamingText("");
@@ -815,7 +844,17 @@ export function useChatMessages(threadId: string | null): {
                 setSubmissionStatus("ready");
             }
         },
-        [adapter, client, effectiveSessionKey, effectiveThreadId, reloadHistory, selectedAgentId],
+        [
+            adapter,
+            agentProfile,
+            client,
+            effectiveSessionKey,
+            effectiveThreadId,
+            reloadHistory,
+            selectedAgentId,
+            selectedSessionKey,
+            setSelectedSessionKey,
+        ],
     );
 
     const abort = useCallback(async (): Promise<void> => {

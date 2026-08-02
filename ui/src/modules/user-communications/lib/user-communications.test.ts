@@ -17,14 +17,13 @@ describe("user communications config helpers", () => {
         mainThreadId: " thread-main ",
         stateBase: "",
         codexAppServerUrl: "",
-        botToken: " token ",
+        botTokenConfigured: true,
         allowFrom: " 100 ",
       }),
     ).toEqual({
       mainThreadId: "thread-main",
       stateBase: DEFAULT_USER_COMMUNICATIONS_CONFIG.stateBase,
       codexAppServerUrl: DEFAULT_USER_COMMUNICATIONS_CONFIG.codexAppServerUrl,
-      botToken: "token",
       botTokenConfigured: true,
       allowFrom: "100",
     });
@@ -35,15 +34,17 @@ describe("user communications config helpers", () => {
       mainThreadId: "thread-main",
       stateBase: "http://localhost:5173",
       codexAppServerUrl: "ws://127.0.0.1:47891",
-      botToken: "token",
       botTokenConfigured: true,
       allowFrom: "100, 200",
     };
 
-    expect(buildTelegramGatewayEnv(config)).toBe("npm run cli -- gateway telegram --once");
+    expect(buildTelegramGatewayEnv(config)).toBe(
+      "farplane run -- npm run cli -- gateway telegram --once",
+    );
     expect(buildTelegramGatewayConfigToml(config)).toContain("[telegram]");
     expect(buildTelegramGatewayConfigToml(config)).toContain('main_thread_id = "thread-main"');
     expect(buildTelegramGatewayConfigToml(config)).toContain('allow_from = ["100", "200"]');
+    expect(buildTelegramGatewayConfigToml(config)).not.toContain("bot_token =");
   });
 
   it("builds activity rows from gateway state", () => {

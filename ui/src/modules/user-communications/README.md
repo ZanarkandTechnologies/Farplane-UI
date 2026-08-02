@@ -8,6 +8,7 @@ status: building
 
 Founder-facing configuration for the local Telegram reply gateway.
 
-The module stores only local browser configuration for the main Codex thread and
-Codex app-server URL. Telegram credentials and reply mappings stay in the local
-Node gateway state, outside browser code.
+The module stores only non-secret configuration such as the main Codex thread,
+allowlist, and Codex app-server URL. `TELEGRAM_BOT_TOKEN` is injected when the
+Node gateway launches with `farplane run -- …`; the token is never written to
+browser state or `~/.farplane/config.toml`.

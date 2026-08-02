@@ -1769,7 +1769,7 @@ describe("office-data-provider team synthesis", () => {
     expect(
       result.officeObjects.some((object) => object.metadata?.teamId === "team-management"),
     ).toBe(false);
-    expect(result.employees).toHaveLength(2);
+    expect(result.employees).toHaveLength(4);
     expect(result.employees).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1780,13 +1780,26 @@ describe("office-data-provider team synthesis", () => {
           presencePersistent: true,
           persistenceTag: "heartbeat",
         }),
-        expect.objectContaining({
-          _id: "employee-project-pulse:codex-proj-workspace-farplane-ui",
-          projectPulse: true,
-          deskId: "desk-team-codex-proj-workspace-farplane-ui-0",
-        }),
+        ...[
+          ["employee-farplane-finance", "Finance Director"],
+          ["employee-farplane-people", "People Operations"],
+          ["employee-farplane-office-manager", "Office Manager"],
+        ].map(([employeeId, jobTitle]) =>
+          expect.objectContaining({
+            _id: employeeId,
+            teamId: "team-codex-proj-workspace-farplane-ui",
+            jobTitle,
+            presencePersistent: true,
+            wantsToWander: false,
+          }),
+        ),
       ]),
     );
+    expect(
+      result.officeObjects.find(
+        (object) => object.metadata?.teamId === "team-codex-proj-workspace-farplane-ui",
+      )?.metadata?.executivePod,
+    ).toBe(true);
   });
 
   it("does not crown the first Codex thread unless it is the CEO", () => {
@@ -2751,7 +2764,9 @@ describe("office-data-provider team synthesis", () => {
       expect.arrayContaining([leftProject.id, rightProject.id]),
     );
     expect(generatedWalls).toHaveLength(0);
-    expect(result.officeObjects.filter((object) => object.meshType === "command-commons")).toHaveLength(1);
+    expect(
+      result.officeObjects.filter((object) => object.meshType === "command-commons"),
+    ).toHaveLength(1);
     expect(result.officeSettings.decor).toEqual({
       floorPatternId: "graphite_grid",
       wallColorId: "command_charcoal",

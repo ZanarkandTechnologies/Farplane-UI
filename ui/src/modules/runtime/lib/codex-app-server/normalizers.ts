@@ -22,6 +22,7 @@ import type {
 export const CODEX_MAIN_AGENT_ID = "codex-main";
 export const CODEX_THREAD_PREFIX = "codex-thread:";
 export const CODEX_PM_PREFIX = "codex-pm:";
+export const CODEX_FARPLANE_AGENT_THREAD_PREFIX = "Farplane Agent [";
 const DEFAULT_ACTIVE_THREAD_WINDOW_MINUTES = 180;
 const RECENT_IDLE_UPDATE_READY_MS = 60 * 60 * 1000;
 const CODEX_MISC_PROJECT_PATH = "farplane://codex/misc";
@@ -39,6 +40,31 @@ const CODEX_MAIN_AGENT: AgentCardModel = {
 
 function safeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+export function farplaneAgentThreadName(agentId: string, displayName: string): string {
+  return `${CODEX_FARPLANE_AGENT_THREAD_PREFIX}${agentId}] ${displayName}`;
+}
+
+export function farplaneAgentIdFromThread(thread: CodexThread): string | null {
+  const name = safeText(thread.name);
+  if (!name.startsWith(CODEX_FARPLANE_AGENT_THREAD_PREFIX)) return null;
+  const closingBracket = name.indexOf("]", CODEX_FARPLANE_AGENT_THREAD_PREFIX.length);
+  if (closingBracket < 0) return null;
+  const agentId = name.slice(CODEX_FARPLANE_AGENT_THREAD_PREFIX.length, closingBracket).trim();
+  return agentId || null;
+}
+
+export function isFarplaneAgentThread(thread: CodexThread): boolean {
+  return Boolean(farplaneAgentIdFromThread(thread));
+}
+
+function farplaneAgentThreadLabel(thread: CodexThread): string | null {
+  if (!isFarplaneAgentThread(thread)) return null;
+  const name = safeText(thread.name);
+  const closingBracket = name.indexOf("]", CODEX_FARPLANE_AGENT_THREAD_PREFIX.length);
+  const displayName = name.slice(closingBracket + 1).trim();
+  return displayName ? `Chat with ${displayName}` : "Agent chat";
 }
 
 function safeJsonText(value: unknown): string {
@@ -322,8 +348,9 @@ function normalizeProjectPms(projectPms?: CodexProjectPmBinding[]): CodexProject
 }
 
 export function toCodexAgentCards(threads: CodexThread[]): AgentCardModel[] {
-  if (threads.length === 0) return [CODEX_MAIN_AGENT];
-  return threads.map((thread) => ({
+  const visibleThreads = threads.filter((thread) => !isFarplaneAgentThread(thread));
+  if (visibleThreads.length === 0) return [CODEX_MAIN_AGENT];
+  return visibleThreads.map((thread) => ({
     agentId: toThreadAgentId(thread.id),
     displayName: safeText(thread.agentNickname) || threadOfficeDisplayName(thread),
     workspacePath: safeText(thread.cwd) || "~/.codex",
@@ -400,7 +427,7 @@ export function toCodexCompanyModel(
   const projectlessThreadIds = new Set(
     visibility.projectlessThreadIds.map(safeText).filter(Boolean),
   );
-  const projectThreads = threads;
+  const projectThreads = threads.filter((thread) => !isFarplaneAgentThread(thread));
   const threadsByProjectPath = new Map<string, CodexThread[]>();
   for (const projectPath of projectPaths) {
     threadsByProjectPath.set(projectPath, []);
@@ -722,8 +749,16 @@ export function toCodexCompanyModel(
 
 export function toCodexSessionRows(agentId: string, threads: CodexThread[]): SessionRowModel[] {
   const threadId = parseCodexThreadId(agentId);
+  const farplaneAgentThreads = threads.filter(
+    (thread) =>
+      thread.status?.type !== "systemError" && farplaneAgentIdFromThread(thread) === agentId,
+  );
   const rows =
-    agentId === CODEX_MAIN_AGENT_ID ? threads : threads.filter((thread) => thread.id === threadId);
+    agentId === CODEX_MAIN_AGENT_ID
+      ? threads.filter((thread) => !isFarplaneAgentThread(thread))
+      : farplaneAgentThreads.length > 0
+        ? farplaneAgentThreads.slice(0, 1)
+        : threads.filter((thread) => thread.id === threadId);
   return toCodexSessionRowsForThreads(agentId, rows);
 }
 
@@ -747,7 +782,7 @@ function toCodexSessionRowsForThreads(agentId: string, threads: CodexThread[]): 
     parentThreadId: inferredDelegationParentThreadId(thread),
     updatedAt: secondsToMs(thread.updatedAt),
     channel: "codex",
-    peerLabel: threadTitle(thread),
+    peerLabel: farplaneAgentThreadLabel(thread) ?? threadTitle(thread),
     origin: safeText(thread.modelProvider) || "codex",
   }));
 }

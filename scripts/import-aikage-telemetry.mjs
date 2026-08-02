@@ -99,7 +99,7 @@ function readTomlObject(filePath) {
 }
 
 function savedConfigValue(name, { secret = false } = {}) {
-  void secret;
+  if (secret) return process.env[name]?.trim() || "";
   const root = farplaneHome();
   const source = readTomlObject(path.join(root, "config.toml"));
   const value = source.env?.[name];

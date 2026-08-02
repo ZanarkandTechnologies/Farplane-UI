@@ -123,6 +123,7 @@ import type {
   ReconciliationWarning,
   UnifiedOfficeModel,
 } from "@/modules/runtime";
+import { EXECUTIVE_SPECIALISTS, resolveExecutiveHostTeamId } from "@/lib/executive-specialists";
 import { deriveEmployeeActivity } from "./office-employee-activity";
 
 type ScenePlacementObject = OfficePlacementObject;
@@ -1054,7 +1055,7 @@ function getTeamClusterRepairSpecs(input: {
       teamId,
       name: "Management",
       description: "Executive control desk inside the dedicated management zone.",
-      deskCount: 1,
+      deskCount: EXECUTIVE_SPECIALISTS.length + 1,
       preferredPosition:
         existing?.position ?? getManagementAnchorFromOfficeLayout(input.officeLayout),
       existing,
@@ -1451,21 +1452,31 @@ function buildPersistedTeamClusterByTeamId(
 export function fallbackData(): OfficeDataContextValue {
   const teamId = "team-farplane";
   const companyId = demoCompany._id;
+  const executiveLayout = solveRoundTeamTableLayout(EXECUTIVE_SPECIALISTS.length + 1);
+  const executiveEmployeePosition = (stationIndex: number): [number, number, number] => {
+    const station = executiveLayout.stations[stationIndex];
+    const local = getEmployeePositionAtRoundTableStation(station);
+    return [local[0], local[1], 8 + local[2]];
+  };
   const teams: TeamData[] = [
     {
       _id: teamId,
       companyId,
       name: "Farplane",
       description: "Default project cluster",
-      deskCount: 3,
+      deskCount: EXECUTIVE_SPECIALISTS.length + 1,
       clusterPosition: [0, 0, 8],
-      employees: ["employee-main"],
+      employees: [
+        "employee-main",
+        ...EXECUTIVE_SPECIALISTS.map((specialist) => `employee-${specialist.agentId}`),
+      ],
     },
   ];
   const desks: DeskLayoutData[] = [
     { id: "desk-farplane-0", deskIndex: 0, team: "Farplane" },
     { id: "desk-farplane-1", deskIndex: 1, team: "Farplane" },
     { id: "desk-farplane-2", deskIndex: 2, team: "Farplane" },
+    { id: "desk-farplane-3", deskIndex: 3, team: "Farplane" },
   ];
   const employees: EmployeeData[] = [
     {
@@ -1475,7 +1486,7 @@ export function fallbackData(): OfficeDataContextValue {
       builtInRole: "operator",
       name: "Main Agent",
       team: "Farplane",
-      initialPosition: [0, 0, 8],
+      initialPosition: executiveEmployeePosition(0),
       isBusy: false,
       isCEO: true,
       isSupervisor: false,
@@ -1483,6 +1494,27 @@ export function fallbackData(): OfficeDataContextValue {
       status: "info",
       statusMessage: "Waiting for runtime adapter data.",
     },
+    ...EXECUTIVE_SPECIALISTS.map(
+      (specialist, index): EmployeeData => ({
+        _id: `employee-${specialist.agentId}`,
+        companyId,
+        teamId,
+        builtInRole: specialist.role,
+        name: specialist.name,
+        team: "Executive Office",
+        initialPosition: executiveEmployeePosition(index + 1),
+        isBusy: false,
+        isCEO: false,
+        isSupervisor: true,
+        jobTitle: specialist.title,
+        status: "info",
+        statusMessage: specialist.status,
+        presencePersistent: true,
+        persistenceTag: "pinned",
+        wantsToWander: false,
+        appearance: specialist.appearance,
+      }),
+    ),
   ];
   const officeObjects: OfficeObject[] = [
     {
@@ -1491,7 +1523,7 @@ export function fallbackData(): OfficeDataContextValue {
       meshType: "team-cluster",
       position: [0, 0, 8],
       rotation: [0, 0, 0],
-      metadata: { teamId },
+      metadata: { teamId, executivePod: true },
     },
   ];
   return {
@@ -1619,6 +1651,9 @@ export function toOfficeData(
   const hasPinnedCeoThread = companyAgents.some(
     (agent) => agent.role === "ceo" && agent.agentId.startsWith("codex-thread:"),
   );
+  const configuredCeo = companyAgents.find((agent) => agent.isCeo || agent.role === "ceo");
+  const executiveProjectId = configuredCeo?.projectId;
+  const executiveSeatCount = EXECUTIVE_SPECIALISTS.length + 1;
   const projectPlacementEntries: ProjectPlacementEntry[] = projectList
     .map((project, sourceIndex) => {
       const projectAgents = companyAgents.filter((agent) => agent.projectId === project.id);
@@ -1626,7 +1661,12 @@ export function toOfficeData(
         project,
         sourceIndex,
         projectAgents,
-        deskCount: usesCentralCommandCommons ? 1 : Math.max(projectAgents.length, 1),
+        deskCount:
+          project.id === executiveProjectId
+            ? Math.max(projectAgents.length, 1) + EXECUTIVE_SPECIALISTS.length
+            : usesCentralCommandCommons
+              ? 1
+              : Math.max(projectAgents.length, 1),
       };
     })
     .sort((left, right) =>
@@ -1679,7 +1719,7 @@ export function toOfficeData(
         projectId: entry.project.id,
         deskCount: entry.deskCount,
       })),
-    ...(!hasPinnedCeoThread ? [{ teamId: "team-management", deskCount: 1 }] : []),
+    ...(!hasPinnedCeoThread ? [{ teamId: "team-management", deskCount: executiveSeatCount }] : []),
   ];
   const officeLayout = isManualLayout
     ? sourceOfficeLayout
@@ -1880,8 +1920,12 @@ export function toOfficeData(
           largestFootprint: largestTeamFootprint,
           footprint: usesCanonicalAutoLayoutSolver
             ? {
-                width: getClusterOccupancyFootprint(1).width * TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
-                depth: getClusterOccupancyFootprint(1).depth * TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
+                width:
+                  getClusterOccupancyFootprint(executiveSeatCount).width *
+                  TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
+                depth:
+                  getClusterOccupancyFootprint(executiveSeatCount).depth *
+                  TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
               }
             : undefined,
         });
@@ -1891,7 +1935,7 @@ export function toOfficeData(
         isTeamClusterPlacementLocked(persistedTeamClusterByTeamId.get("team-management"))
           ? (teamClusterAnchorsByTeamId.get("team-management") ?? ceoAnchor)
           : managementCompactAnchor,
-      deskCount: 1,
+      deskCount: executiveSeatCount,
       officeLayout,
       reservation: scenePlacementReservation,
       metadata: { teamId: "team-management" },
@@ -1906,9 +1950,9 @@ export function toOfficeData(
       companyId,
       name: "Management",
       description: "Executive control desk inside the dedicated management zone.",
-      deskCount: 1,
+      deskCount: executiveSeatCount,
       clusterPosition: managementClusterPosition,
-      employees: [],
+      employees: EXECUTIVE_SPECIALISTS.map((specialist) => `employee-${specialist.agentId}`),
     });
   }
 
@@ -1982,6 +2026,28 @@ export function toOfficeData(
     }
   }
 
+  const executiveHostTeamId = resolveExecutiveHostTeamId({
+    agents: companyAgents,
+    projectTeamIds: projectToTeamId,
+    availableTeamIds: new Set(teams.map((team) => String(team._id))),
+  });
+  const executiveHostTeam = teams.find((team) => team._id === executiveHostTeamId);
+  if (executiveHostTeam) {
+    const specialistEmployeeIds = EXECUTIVE_SPECIALISTS.map(
+      (specialist) => `employee-${specialist.agentId}`,
+    );
+    executiveHostTeam.employees = [
+      ...new Set([...executiveHostTeam.employees, ...specialistEmployeeIds]),
+    ];
+    const hostAlreadyReserved =
+      executiveHostTeamId === "team-management" ||
+      (executiveProjectId && executiveHostTeamId === projectToTeamId.get(executiveProjectId));
+    if (!hostAlreadyReserved) {
+      executiveHostTeam.deskCount =
+        Math.max(executiveHostTeam.deskCount ?? 1, 1) + EXECUTIVE_SPECIALISTS.length;
+    }
+  }
+
   const desks: DeskLayoutData[] = teams.flatMap((team) =>
     Array.from(
       {
@@ -2028,7 +2094,8 @@ export function toOfficeData(
     const stationLayout = resolveTeamStationLayout({
       deskCount: orderedDesks.length,
       employeeCount: team.employees.length,
-      forceGrid: usesCentralCommandCommons,
+      forceGrid: usesCentralCommandCommons && team._id !== executiveHostTeamId,
+      forceRound: team._id === executiveHostTeamId,
     });
     const total = stationLayout.usesRoundTable
       ? stationLayout.stationCount
@@ -2076,6 +2143,7 @@ export function toOfficeData(
         metadata: {
           ...getTeamClusterPlacementMetadata(persistedCluster?.metadata, deskCount),
           teamId: team._id,
+          executivePod: team._id === executiveHostTeamId,
           commandCommonsNeighborhood: usesCentralCommandCommons,
           ...(usesCentralCommandCommons
             ? {
@@ -2337,7 +2405,7 @@ export function toOfficeData(
       ? isOfficeSupervisor || agent.agentId === "codex-main" || Boolean(codexThreadGoal)
       : undefined;
     const claimsPersistentDesk =
-      !usesCentralCommandCommons || (isOfficeCeo && teamId === "team-management");
+      !usesCentralCommandCommons || (isOfficeCeo && teamId === executiveHostTeamId);
     const activeSkillId = liveStatus?.currentSkillId?.trim();
     const skillOccupantIds = activeSkillId ? (skillOccupants.get(activeSkillId) ?? []) : [];
     const skillOccupantIndex =
@@ -2373,7 +2441,8 @@ export function toOfficeData(
       resolveTeamStationLayout({
         deskCount: teamDeskLayouts.length,
         employeeCount: team?.employees.length ?? 0,
-        forceGrid: usesCentralCommandCommons,
+        forceGrid: usesCentralCommandCommons && teamId !== executiveHostTeamId,
+        forceRound: teamId === executiveHostTeamId,
       }).usesRoundTable
         ? solveRoundTeamTableLayout(initialDeskLayout.total).stations[initialDeskLayout.layoutIndex]
         : null;
@@ -2512,42 +2581,90 @@ export function toOfficeData(
       appearance,
     };
   });
-  const projectPulseEmployees: EmployeeData[] = usesCentralCommandCommons
-    ? projectPlacementEntries.map(({ project }) => {
-        const teamId = `team-${project.id}`;
-        const team = teams.find((entry) => entry._id === teamId);
-        const teamCenter = team?.clusterPosition ?? [0, 0, 8];
-        const desk = normalizedDeskLayoutsByTeamId.get(teamId)?.[0];
-        const deskPosition = desk
-          ? getAbsoluteDeskPosition(teamCenter, desk.layoutIndex, desk.total)
-          : teamCenter;
-        const deskRotation = desk ? getDeskRotation(desk.layoutIndex, desk.total) : 0;
+  const executiveSpecialistEmployees: EmployeeData[] = executiveHostTeam
+    ? EXECUTIVE_SPECIALISTS.map((specialist, index) => {
+        const teamCenter =
+          executiveHostTeam.clusterPosition ?? ([0, 0, 8] as [number, number, number]);
+        const teamDeskLayouts = normalizedDeskLayoutsByTeamId.get(executiveHostTeam._id) ?? [];
+        const specialistLayouts = teamDeskLayouts.slice(-EXECUTIVE_SPECIALISTS.length);
+        const desk = specialistLayouts[index];
+        const station = desk
+          ? solveRoundTeamTableLayout(desk.total).stations[desk.layoutIndex]
+          : undefined;
+        const localPosition = station ? getEmployeePositionAtRoundTableStation(station) : null;
         return {
-          _id: `employee-project-pulse:${project.id}`,
+          _id: `employee-${specialist.agentId}`,
           companyId,
-          teamId,
-          builtInRole: "pm",
-          name: `${project.name} Pulse`,
-          team: project.name,
-          initialPosition: desk
-            ? getEmployeePositionAtDesk(deskPosition, deskRotation)
+          teamId: executiveHostTeam._id,
+          builtInRole: specialist.role,
+          name: specialist.name,
+          team: "Executive Office",
+          initialPosition: localPosition
+            ? [
+                teamCenter[0] + localPosition[0],
+                teamCenter[1] + localPosition[1],
+                teamCenter[2] + localPosition[2],
+              ]
             : teamCenter,
           isBusy: false,
           deskId: desk?.deskId as EmployeeData["deskId"],
           isCEO: false,
           isSupervisor: true,
-          jobTitle: `Project Pulse (${project.id})`,
+          jobTitle: specialist.title,
           status: "info",
-          statusMessage: "Persistent project presence",
+          statusMessage: specialist.status,
           activityState: "idle",
-          activityLabel: "Project pulse",
-          activityDetail: project.goal,
+          activityLabel: "Executive specialist",
           presencePersistent: true,
-          projectPulse: true,
+          persistenceTag: "pinned",
+          wantsToWander: false,
+          teamCharacterPolicy: executiveHostTeam.characterPolicy,
+          appearance: specialist.appearance,
         };
       })
     : [];
-  const employees: EmployeeData[] = [...runtimeEmployees, ...projectPulseEmployees];
+  const projectPulseEmployees: EmployeeData[] = usesCentralCommandCommons
+    ? projectPlacementEntries
+        .filter(({ project }) => `team-${project.id}` !== executiveHostTeamId)
+        .map(({ project }) => {
+          const teamId = `team-${project.id}`;
+          const team = teams.find((entry) => entry._id === teamId);
+          const teamCenter = team?.clusterPosition ?? [0, 0, 8];
+          const desk = normalizedDeskLayoutsByTeamId.get(teamId)?.[0];
+          const deskPosition = desk
+            ? getAbsoluteDeskPosition(teamCenter, desk.layoutIndex, desk.total)
+            : teamCenter;
+          const deskRotation = desk ? getDeskRotation(desk.layoutIndex, desk.total) : 0;
+          return {
+            _id: `employee-project-pulse:${project.id}`,
+            companyId,
+            teamId,
+            builtInRole: "pm",
+            name: `${project.name} Pulse`,
+            team: project.name,
+            initialPosition: desk
+              ? getEmployeePositionAtDesk(deskPosition, deskRotation)
+              : teamCenter,
+            isBusy: false,
+            deskId: desk?.deskId as EmployeeData["deskId"],
+            isCEO: false,
+            isSupervisor: true,
+            jobTitle: `Project Pulse (${project.id})`,
+            status: "info",
+            statusMessage: "Persistent project presence",
+            activityState: "idle",
+            activityLabel: "Project pulse",
+            activityDetail: project.goal,
+            presencePersistent: true,
+            projectPulse: true,
+          };
+        })
+    : [];
+  const employees: EmployeeData[] = [
+    ...runtimeEmployees,
+    ...executiveSpecialistEmployees,
+    ...projectPulseEmployees,
+  ];
 
   return {
     company: demoCompany,

@@ -209,10 +209,20 @@ export class CodexAppServerClient {
     });
   }
 
-  async startThread(cwd?: string): Promise<CodexThreadStartResponse> {
+  async startThread(options: {
+    cwd?: string;
+    developerInstructions?: string;
+  } = {}): Promise<CodexThreadStartResponse> {
     return this.request<CodexThreadStartResponse>("thread/start", {
-      ...(cwd ? { cwd } : {}),
+      ...(options.cwd ? { cwd: options.cwd } : {}),
+      ...(options.developerInstructions
+        ? { developerInstructions: options.developerInstructions }
+        : {}),
     });
+  }
+
+  async setThreadName(threadId: string, name: string): Promise<void> {
+    await this.request("thread/name/set", { threadId, name });
   }
 
   async startTurn(threadId: string, message: string): Promise<CodexTurnStartResponse> {

@@ -3,9 +3,8 @@
 /**
  * CODEX RUNTIME ADAPTER
  * =====================
- * Default Farplane UI runtime for v0. It treats Codex as one flexible project
- * worker and keeps persistent agent customization disabled until the Codex
- * thread-map adapter exists.
+ * Default Farplane UI runtime. It maps ordinary Codex threads into office workers
+ * and keeps Farplane specialist chats in hidden, named backing threads.
  */
 
 import {
@@ -17,6 +16,8 @@ import {
   type CodexThread,
   type CodexUiStateResponse,
   codexProjectId,
+  farplaneAgentIdFromThread,
+  farplaneAgentThreadName,
   findActiveTurnId,
   isCodexPmAgentId,
   normalizeCodexProjectPmThreadIds,
@@ -40,6 +41,7 @@ import type {
   AgentsListResult,
   ChannelsStatusSnapshot,
   ChatSendRequest,
+  ChatSendResult,
   CompanyModel,
   CronJob,
   CronStatus,
@@ -220,6 +222,76 @@ function isObservedCodexAgentId(value: string): boolean {
   return value.startsWith("codex-observed:");
 }
 
+type FarplaneAgentChatProfile = {
+  agentId: string;
+  name: string;
+  title: string;
+  background: string;
+};
+
+function boundedMetadataText(value: unknown, maxLength: number): string {
+  return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+
+function readFarplaneAgentChatProfile(
+  request: ChatSendRequest,
+): FarplaneAgentChatProfile | null {
+  const raw = request.metadata?.farplaneAgentProfile;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const row = raw as Record<string, unknown>;
+  const agentId = boundedMetadataText(row.agentId, 160);
+  const name = boundedMetadataText(row.name, 160);
+  if (!agentId || agentId !== request.agentId || !name) return null;
+  return {
+    agentId,
+    name,
+    title: boundedMetadataText(row.title, 240),
+    background: boundedMetadataText(row.background, 2_000),
+  };
+}
+
+function farplaneAgentDeveloperInstructions(profile: FarplaneAgentChatProfile): string {
+  return [
+    `You are ${profile.name}${profile.title ? `, the ${profile.title}` : ""}, a persistent Farplane office specialist.`,
+    profile.background,
+    "Stay in this role throughout the thread and answer the founder directly.",
+    "Use your specialty as the primary lens, but be candid when another specialist should own the decision.",
+    "Do not claim to be continuously running or to have completed work that is not visible in the thread.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+const CODEX_CHAT_TURN_POLL_MS = 250;
+const CODEX_CHAT_TURN_TIMEOUT_MS = 120_000;
+
+async function waitForCodexChatTurn(
+  client: CodexAppServerClient,
+  threadId: string,
+  turnId: string,
+): Promise<void> {
+  const deadline = Date.now() + CODEX_CHAT_TURN_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const response = await client.readThread(threadId);
+    const thread = response.thread;
+    const turn = thread?.turns?.find((candidate) => candidate.id === turnId);
+    if (!turn) {
+      await new Promise((resolve) => globalThis.setTimeout(resolve, CODEX_CHAT_TURN_POLL_MS));
+      continue;
+    }
+    if (thread?.status?.type === "systemError") {
+      throw new Error("codex_turn_system_error");
+    }
+    const status = turn?.status?.trim().toLowerCase();
+    if (status === "completed") return;
+    if (status === "failed" || status === "cancelled" || status === "interrupted") {
+      throw new Error(`codex_turn_${status}`);
+    }
+    await new Promise((resolve) => globalThis.setTimeout(resolve, CODEX_CHAT_TURN_POLL_MS));
+  }
+  throw new Error("codex_turn_timeout");
+}
+
 export class CodexRuntimeAdapter extends OpenClawAdapter {
   readonly runtimeKind = "codex" as const;
   readonly runtimeLabel = "Codex";
@@ -305,7 +377,12 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
       const nextCache = {
         loadedAt: Date.now(),
         threads,
-        includesGoals: options.includeGoals === true && threads.some((thread) => "goal" in thread),
+        // The dedicated endpoint has already completed the goal-enrichment
+        // contract even when the result is empty or the server used its
+        // fail-open projection. Treat that response as goal-capable so React
+        // Strict Mode and adjacent bootstrap reads do not immediately repeat
+        // the same unhealthy RPC.
+        includesGoals: options.includeGoals === true,
       };
       if (nextCache.includesGoals || !this.threadsCache?.includesGoals) {
         this.threadsCache = nextCache;
@@ -614,7 +691,7 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
 
   async sendMessage(
     input: ChatSendRequest,
-  ): Promise<{ ok: boolean; eventId?: string; error?: string }> {
+  ): Promise<ChatSendResult> {
     if (isObservedCodexAgentId(input.agentId) || isObservedCodexAgentId(input.sessionKey)) {
       return { ok: false, error: "codex_observed_worker_read_only" };
     }
@@ -624,8 +701,36 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
       if (!(await this.isCodexAppServerAvailable({ force: true }))) {
         return { ok: false, error: "codex_app_server_unavailable" };
       }
+      const farplaneProfile = readFarplaneAgentChatProfile(input);
       let threadId = parseCodexThreadId(input.sessionKey || input.agentId);
-      if (!threadId || threadId === CODEX_MAIN_AGENT_ID) {
+      if (farplaneProfile) {
+        const threads = await this.listCodexThreads({ force: true });
+        const selectedThread = threads.find((thread) => thread.id === threadId);
+        const selectedBelongsToAgent =
+          selectedThread &&
+          selectedThread.status?.type !== "systemError" &&
+          farplaneAgentIdFromThread(selectedThread) === farplaneProfile.agentId;
+        if (!selectedBelongsToAgent) {
+          threadId =
+            threads.find(
+              (thread) =>
+                thread.status?.type !== "systemError" &&
+                farplaneAgentIdFromThread(thread) === farplaneProfile.agentId,
+            )?.id ?? "";
+        }
+        if (!threadId) {
+          const started = await this.codexClient.startThread({
+            developerInstructions: farplaneAgentDeveloperInstructions(farplaneProfile),
+          });
+          threadId = started.thread?.id ?? "";
+          if (threadId) {
+            await this.codexClient.setThreadName(
+              threadId,
+              farplaneAgentThreadName(farplaneProfile.agentId, farplaneProfile.name),
+            );
+          }
+        }
+      } else if (!threadId || threadId === CODEX_MAIN_AGENT_ID) {
         const started = await this.codexClient.startThread();
         threadId = started.thread?.id ?? "";
       }
@@ -636,8 +741,17 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
       const result = activeTurnId
         ? await this.codexClient.steerTurn(threadId, activeTurnId, message)
         : await this.codexClient.startTurn(threadId, message);
+      const turnId = result.turn?.id ?? "";
+      if (!turnId) {
+        return { ok: false, error: "codex_turn_start_failed" };
+      }
+      await waitForCodexChatTurn(this.codexClient, threadId, turnId);
       this.threadsCache = null;
-      return { ok: true, eventId: result.turn?.id };
+      return {
+        ok: true,
+        eventId: turnId,
+        sessionKey: `${CODEX_THREAD_PREFIX}${threadId}`,
+      };
     } catch (error) {
       return {
         ok: false,

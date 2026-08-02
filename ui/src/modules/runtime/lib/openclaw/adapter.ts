@@ -99,6 +99,7 @@ import type {
   ChannelsStatusSnapshot,
   ChannelUiMetaEntry,
   ChatSendRequest,
+  ChatSendResult,
   CompanyAgentModel,
   CompanyModel,
   CompanyOfficeObjectModel,
@@ -719,7 +720,7 @@ export class OpenClawAdapter {
 
   async sendMessage(
     input: ChatSendRequest,
-  ): Promise<{ ok: boolean; eventId?: string; error?: string }> {
+  ): Promise<ChatSendResult> {
     let response: Response;
     try {
       response = await fetch(`${this.stateUrl}/openclaw/chat/send`, {
@@ -737,6 +738,7 @@ export class OpenClawAdapter {
     return {
       ok: Boolean(payload.ok ?? true),
       eventId: typeof payload.eventId === "string" ? payload.eventId : undefined,
+      sessionKey: input.sessionKey,
       error: typeof payload.error === "string" ? payload.error : undefined,
     };
   }

@@ -5,7 +5,7 @@
  *
  * KEY CONCEPTS:
  * - CLI owns the operator entrypoint; adapter implementations can remain repo scripts.
- * - Telegram config is read from ~/.farplane/config.toml by default.
+ * - Telegram settings come from ~/.farplane/config.toml; credentials come from injected env.
  */
 
 import { spawn } from "node:child_process";
@@ -116,14 +116,8 @@ set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export FARPLANE_REPO_ROOT=${shellDoubleQuote(paths.repoRoot)}
 
-if [[ -f "$HOME/.codex/private/telegram.env" ]]; then
-  set -a
-  source "$HOME/.codex/private/telegram.env"
-  set +a
-fi
-
 cd "$FARPLANE_REPO_ROOT"
-exec npm run --workspace @farplane/cli shell -- gateway telegram "$@"
+exec farplane run -- npm run --workspace @farplane/cli shell -- gateway telegram "$@"
 `;
 }
 
@@ -322,7 +316,7 @@ export function registerGatewayCommands(program: Command): void {
     .option("--check-config", "Check config without polling Telegram", false)
     .action(async (opts: { once?: boolean; dryRun?: boolean; checkConfig?: boolean }) => {
       console.log(cliSection("Telegram Gateway"));
-      console.log(cliDim("Config: ~/.farplane/config.toml"));
+      console.log(cliDim("Settings: ~/.farplane/config.toml; credentials: injected environment"));
       console.log(cliBlue("Stop a long-running gateway with Ctrl+C."));
       console.log("");
       await startTelegramGateway({

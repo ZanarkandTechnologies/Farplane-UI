@@ -9,7 +9,6 @@
  * Invariant: a projection handoff configures the destination camera before publishing it.
  */
 
-import { OrthographicCamera, PerspectiveCamera } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { useLayoutEffect, useRef } from "react";
 import * as THREE from "three";
@@ -29,6 +28,11 @@ type OfficeCameraPair = {
 
 type OfficeProjectionCamera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
 
+export type OfficeSceneViewport = {
+  width: number;
+  height: number;
+};
+
 export function selectOfficeSceneCamera(
   projection: OfficeSceneCameraConfig["projection"],
   cameras: OfficeCameraPair,
@@ -39,6 +43,7 @@ export function selectOfficeSceneCamera(
 export function applyOfficeSceneCameraConfig(
   camera: OfficeProjectionCamera,
   config: OfficeSceneCameraConfig,
+  viewport: OfficeSceneViewport,
 ): void {
   camera.position.set(...config.position);
   camera.lookAt(new THREE.Vector3(...config.target));
@@ -49,6 +54,23 @@ export function applyOfficeSceneCameraConfig(
   } else if (camera instanceof THREE.OrthographicCamera) {
     camera.zoom = config.zoom;
   }
+  applyOfficeSceneCameraViewport(camera, viewport);
+}
+
+export function applyOfficeSceneCameraViewport(
+  camera: OfficeProjectionCamera,
+  viewport: OfficeSceneViewport,
+): void {
+  const width = Math.max(1, viewport.width);
+  const height = Math.max(1, viewport.height);
+  if (camera instanceof THREE.PerspectiveCamera) {
+    camera.aspect = width / height;
+  } else {
+    camera.left = width / -2;
+    camera.right = width / 2;
+    camera.top = height / 2;
+    camera.bottom = height / -2;
+  }
   camera.updateProjectionMatrix();
 }
 
@@ -58,6 +80,8 @@ export function OfficeSceneCameraRig({
   config: OfficeSceneCameraConfig;
 }): React.JSX.Element {
   const set = useThree((state) => state.set);
+  const viewportWidth = useThree((state) => state.size.width);
+  const viewportHeight = useThree((state) => state.size.height);
   const initialCamera = useThree((state) => state.camera);
   const activeCamera = useThree((state) => state.camera);
   const perspectiveRef = useRef<THREE.PerspectiveCamera>(null);
@@ -67,8 +91,9 @@ export function OfficeSceneCameraRig({
 
   useLayoutEffect(() => {
     if (import.meta.env.DEV && typeof window !== "undefined") {
-      (window as Window & { __FARPLANE_OFFICE_CAMERA_CONFIG__?: OfficeSceneCameraConfig })
-        .__FARPLANE_OFFICE_CAMERA_CONFIG__ = config;
+      (
+        window as Window & { __FARPLANE_OFFICE_CAMERA_CONFIG__?: OfficeSceneCameraConfig }
+      ).__FARPLANE_OFFICE_CAMERA_CONFIG__ = config;
     }
     const nextCamera = selectOfficeSceneCamera(config.projection, {
       perspective: perspectiveRef.current,
@@ -78,16 +103,17 @@ export function OfficeSceneCameraRig({
 
     const projectionChanged = activeProjectionRef.current !== config.projection;
     const activeCameraDrifted = activeCamera !== nextCamera;
+    const viewport = { width: viewportWidth, height: viewportHeight };
     if (projectionChanged || activeCameraDrifted) {
-      applyOfficeSceneCameraConfig(nextCamera, config);
+      applyOfficeSceneCameraConfig(nextCamera, config, viewport);
       activeProjectionRef.current = config.projection;
       set({ camera: nextCamera });
     } else {
-      // Position and target remain transition-owned when the projection is stable.
+      // Position, target, and zoom remain transition/control-owned when the projection is stable.
       if (nextCamera instanceof THREE.PerspectiveCamera) nextCamera.fov = config.fov;
-      nextCamera.updateProjectionMatrix();
+      applyOfficeSceneCameraViewport(nextCamera, viewport);
     }
-  }, [activeCamera, config, set]);
+  }, [activeCamera, config, set, viewportHeight, viewportWidth]);
 
   useLayoutEffect(
     () => () => {
@@ -98,8 +124,8 @@ export function OfficeSceneCameraRig({
 
   return (
     <>
-      <PerspectiveCamera ref={perspectiveRef} near={0.1} far={1000} />
-      <OrthographicCamera ref={orthographicRef} near={0.1} far={1000} />
+      <perspectiveCamera ref={perspectiveRef} near={0.1} far={1000} />
+      <orthographicCamera ref={orthographicRef} near={0.1} far={1000} />
     </>
   );
 }

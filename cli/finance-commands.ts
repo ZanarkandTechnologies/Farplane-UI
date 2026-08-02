@@ -2,7 +2,7 @@
  * FINANCE COMMANDS
  * ================
  * Ownership: operator-only writes and reads for the global Farplane finance sidecar.
- * Inputs: manual observations, Slash credentials from config.toml, and close dates.
+ * Inputs: manual observations, environment-injected Slash credentials, and close dates.
  * Outputs: JSON/text projections and immutable close snapshots.
  * Side effects: delegates all durable writes to finance-store; never prints provider secrets.
  */
@@ -58,7 +58,7 @@ function readSlashConfig(): SlashFinanceConfig {
   const row =
     value && typeof value === "object" && !Array.isArray(value) ? (value as SlashConfigRow) : {};
   return {
-    apiKey: stringAt(row, "api_key", "apiKey"),
+    apiKey: process.env.SLASH_API_KEY?.trim() || "",
     legalEntityId: stringAt(row, "legal_entity_id", "legalEntityId") || undefined,
     baseUrl: stringAt(row, "base_url", "baseUrl") || undefined,
   };

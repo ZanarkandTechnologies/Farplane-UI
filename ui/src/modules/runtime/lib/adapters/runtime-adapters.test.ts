@@ -442,6 +442,131 @@ describe("runtime adapters", () => {
     ]);
   });
 
+  it("keeps Farplane agent chat threads persistent without duplicating office workers", async () => {
+    let namedThread: { id: string; name?: string; status?: { type: "idle" } } | null = null;
+    let latestTurnId = "";
+    const rpcMethods: Array<{ method?: string; params?: Record<string, unknown> }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/codex/app-server/health")) {
+        return new Response(JSON.stringify({ ok: true, configured: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (!url.endsWith("/codex/app-server/rpc")) {
+        return new Response(JSON.stringify({}), { status: 404 });
+      }
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        method?: string;
+        params?: Record<string, unknown>;
+      };
+      rpcMethods.push(body);
+      if (body.method === "thread/list") {
+        return new Response(JSON.stringify({ ok: true, result: { data: namedThread ? [namedThread] : [] } }));
+      }
+      if (body.method === "thread/start") {
+        return new Response(
+          JSON.stringify({ ok: true, result: { thread: { id: "ledger-thread", status: { type: "idle" } } } }),
+        );
+      }
+      if (body.method === "thread/name/set") {
+        namedThread = {
+          id: "ledger-thread",
+          name: String(body.params?.name ?? ""),
+          status: { type: "idle" },
+        };
+        return new Response(JSON.stringify({ ok: true, result: {} }));
+      }
+      if (body.method === "thread/read") {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            result: {
+              thread: namedThread
+                ? {
+                    ...namedThread,
+                    turns: latestTurnId
+                      ? [{ id: latestTurnId, status: "completed", items: [] }]
+                      : [],
+                  }
+                : null,
+            },
+          }),
+        );
+      }
+      if (body.method === "turn/start") {
+        latestTurnId = "turn-ledger";
+        return new Response(JSON.stringify({ ok: true, result: { turn: { id: "turn-ledger" } } }));
+      }
+      return new Response(JSON.stringify({ ok: false, error: "unexpected_rpc" }), { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const adapter = new CodexRuntimeAdapter("", "http://state");
+    const request = {
+      agentId: "farplane-finance",
+      sessionKey: CODEX_MAIN_AGENT_ID,
+      message: "How much runway do we have?",
+      metadata: {
+        farplaneAgentProfile: {
+          agentId: "farplane-finance",
+          name: "Ledger",
+          title: "Finance Director",
+          background: "Protects runway and reviews spending.",
+        },
+      },
+    };
+
+    await expect(adapter.sendMessage(request)).resolves.toEqual({
+      ok: true,
+      eventId: "turn-ledger",
+      sessionKey: "codex-thread:ledger-thread",
+    });
+    await expect(
+      adapter.sendMessage({ ...request, sessionKey: "codex-thread:ledger-thread" }),
+    ).resolves.toEqual(expect.objectContaining({ sessionKey: "codex-thread:ledger-thread" }));
+    await expect(adapter.listSessions("farplane-finance")).resolves.toEqual([
+      expect.objectContaining({
+        agentId: "farplane-finance",
+        sessionKey: "codex-thread:ledger-thread",
+        peerLabel: "Chat with Ledger",
+      }),
+    ]);
+    await expect(adapter.listAgents()).resolves.toEqual([
+      expect.objectContaining({ agentId: CODEX_MAIN_AGENT_ID }),
+    ]);
+
+    expect(rpcMethods.filter((entry) => entry.method === "thread/start")).toHaveLength(1);
+    expect(rpcMethods.filter((entry) => entry.method === "thread/name/set")).toHaveLength(1);
+    expect(
+      rpcMethods.find((entry) => entry.method === "thread/start")?.params?.developerInstructions,
+    ).toContain("You are Ledger, the Finance Director");
+    expect(namedThread?.name).toBe("Farplane Agent [farplane-finance] Ledger");
+  });
+
+  it("hides failed Farplane backing threads so the next message can recover", () => {
+    expect(
+      toCodexSessionRows("farplane-finance", [
+        {
+          id: "failed-ledger",
+          name: "Farplane Agent [farplane-finance] Ledger",
+          status: { type: "systemError" },
+        },
+        {
+          id: "healthy-ledger",
+          name: "Farplane Agent [farplane-finance] Ledger",
+          status: { type: "idle" },
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        sessionKey: "codex-thread:healthy-ledger",
+        peerLabel: "Chat with Ledger",
+      }),
+    ]);
+  });
+
   it("does not use Codex thread preview as the office worker title", () => {
     expect(
       toCodexAgentCards([

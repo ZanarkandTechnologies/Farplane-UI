@@ -12,8 +12,8 @@ This runbook now uses a comments-only integration path:
 2. Add plugin load path pointing to this repo plugin directory.
 3. Enable `notion-shell` entry.
 4. Set plugin default account id.
-5. Set Notion API key under channel account config.
-6. Restart OpenClaw gateway.
+5. Bind `NOTION_API_KEY` in the project's Doppler config.
+6. Restart the OpenClaw gateway through `farplane run -- <command>`.
 
 Minimal config shape:
 
@@ -37,7 +37,6 @@ Minimal config shape:
     "notion": {
       "accounts": {
         "default": {
-          "apiKey": "secret_xxx",
           "requireWakeWord": true,
           "wakeWords": ["@shell"]
         }
@@ -65,9 +64,15 @@ In the app:
 1. Open `Settings` -> `Control Deck (OpenClaw Config)`.
 2. Fill:
    - `notion-shell defaultAccountId`
-   - `channels.notion.accounts.default.apiKey`
 3. Click `Patch Draft From Controls`.
 4. Click `Preview Changes`.
+
+The Control Deck owns non-secret plugin policy only. Set the credential from a
+shell without putting its value in command history:
+
+```bash
+doppler secrets set NOTION_API_KEY
+```
 5. Enable `confirm config write`.
 6. Click `Apply Config`.
 7. Click `Load Live Config` to confirm persistence.

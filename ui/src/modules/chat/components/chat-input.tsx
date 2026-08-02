@@ -8,6 +8,8 @@ interface ChatInputProps {
   submissionStatus: "submitted" | "streaming" | "ready";
   isStreaming?: boolean;
   variant?: "classic" | "story";
+  disabled?: boolean;
+  placeholder?: string;
 }
 
 export function ChatInput({
@@ -16,13 +18,15 @@ export function ChatInput({
   submissionStatus,
   isStreaming,
   variant = "classic",
+  disabled = false,
+  placeholder,
 }: ChatInputProps) {
   const [text, setText] = useState("");
-  const canSubmit = submissionStatus !== "streaming" && Boolean(text.trim());
+  const canSubmit = !disabled && submissionStatus !== "streaming" && Boolean(text.trim());
 
   const submitMessage = async (): Promise<void> => {
     const trimmed = text.trim();
-    if (!trimmed || submissionStatus === "streaming") return;
+    if (!trimmed || disabled || submissionStatus === "streaming") return;
     await onSubmit({ text: trimmed });
     setText("");
   };
@@ -40,13 +44,15 @@ export function ChatInput({
       >
         <div className="flex items-end gap-2">
           <textarea
+            disabled={disabled}
             className={
               variant === "story"
                 ? "min-h-[68px] w-full border border-border/70 bg-background px-4 py-3 text-[12px] text-foreground placeholder:text-muted-foreground focus-visible:outline-none"
                 : "min-h-20 w-full rounded-md border bg-background p-3 text-sm"
             }
             placeholder={
-              variant === "story" ? "Write the next line..." : "Ask me to research something..."
+              placeholder ??
+              (variant === "story" ? "Write the next line..." : "Ask me to research something...")
             }
             value={text}
             onChange={(event) => setText(event.target.value)}

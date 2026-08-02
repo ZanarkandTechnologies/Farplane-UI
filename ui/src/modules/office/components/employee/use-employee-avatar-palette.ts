@@ -19,6 +19,9 @@ export function useEmployeeAvatarPalette(input: {
   appearance?: {
     clothesStyle?: "default" | "dj" | "professional" | "techBro";
     hairColor?: string;
+    skinColor?: string;
+    shirtColor?: string;
+    pantsColor?: string;
   };
 }): AvatarPalette {
   const { isCEO, appearance } = input;
@@ -68,9 +71,9 @@ export function useEmployeeAvatarPalette(input: {
 
     return {
       hair: appearance.hairColor ?? base.hair,
-      skin: base.skin,
-      shirt,
-      pants,
+      skin: appearance.skinColor ?? base.skin,
+      shirt: appearance.shirtColor ?? shirt,
+      pants: appearance.pantsColor ?? pants,
     };
   }, [appearance, colors, isCEO]);
 }

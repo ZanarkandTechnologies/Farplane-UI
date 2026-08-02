@@ -80,6 +80,12 @@ export const moduleRegistry = {
     description: "Operator intervention, thread messages, and chat panels.",
     surfaces: ["panel", "hud", "office-object"],
   },
+  "realtime-call": {
+    id: "realtime-call",
+    label: "Realtime Call",
+    description: "Project-scoped voice, camera, and screen-share calls with employees.",
+    surfaces: ["hud", "office-object"],
+  },
 } as const satisfies Record<string, ShellModuleDefinition>;
 
 export type FarplaneUiModuleId = keyof typeof moduleRegistry;

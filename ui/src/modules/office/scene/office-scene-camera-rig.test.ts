@@ -2,9 +2,12 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import {
   applyOfficeSceneCameraConfig,
+  applyOfficeSceneCameraViewport,
   type OfficeSceneCameraConfig,
   selectOfficeSceneCamera,
 } from "./office-scene-camera-rig";
+
+const viewport = { width: 1280, height: 720 };
 
 const perspectiveConfig: OfficeSceneCameraConfig = {
   projection: "perspective",
@@ -28,12 +31,13 @@ describe("office scene camera rig", () => {
   it("configures a destination camera before it becomes active", () => {
     const camera = new THREE.PerspectiveCamera();
 
-    applyOfficeSceneCameraConfig(camera, perspectiveConfig);
+    applyOfficeSceneCameraConfig(camera, perspectiveConfig, viewport);
 
     expect(camera.position.toArray()).toEqual(perspectiveConfig.position);
     expect(camera.fov).toBe(42);
     expect(camera.near).toBe(0.1);
     expect(camera.far).toBe(1000);
+    expect(camera.aspect).toBeCloseTo(16 / 9);
     const expectedDirection = new THREE.Vector3(...perspectiveConfig.target)
       .sub(new THREE.Vector3(...perspectiveConfig.position))
       .normalize();
@@ -45,13 +49,28 @@ describe("office scene camera rig", () => {
   it("applies orthographic zoom without changing the camera type", () => {
     const camera = new THREE.OrthographicCamera();
 
-    applyOfficeSceneCameraConfig(camera, {
-      ...perspectiveConfig,
-      projection: "orthographic",
-      zoom: 28,
-    });
+    applyOfficeSceneCameraConfig(
+      camera,
+      {
+        ...perspectiveConfig,
+        projection: "orthographic",
+        zoom: 28,
+      },
+      viewport,
+    );
 
     expect(camera.isOrthographicCamera).toBe(true);
     expect(camera.zoom).toBe(28);
+    expect([camera.left, camera.right, camera.top, camera.bottom]).toEqual([-640, 640, 360, -360]);
+  });
+
+  it("updates responsive projection bounds without resetting operator zoom", () => {
+    const camera = new THREE.OrthographicCamera(-640, 640, 360, -360);
+    camera.zoom = 32;
+
+    applyOfficeSceneCameraViewport(camera, { width: 900, height: 600 });
+
+    expect([camera.left, camera.right, camera.top, camera.bottom]).toEqual([-450, 450, 300, -300]);
+    expect(camera.zoom).toBe(32);
   });
 });

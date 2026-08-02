@@ -17,13 +17,16 @@ import {
   GitFork,
   MessageSquare,
   Monitor,
+  Phone,
   Search,
   UserCog,
 } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import type { Id } from "@/lib/entity-types";
+import { isExecutiveSpecialistAgentId } from "@/lib/executive-specialists";
 import type { EmployeeData } from "@/modules/office/lib/types";
+import { useRealtimeCallStore } from "@/modules/realtime-call";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useAppStore } from "@/store";
 import type { MenuAction } from "../context-menu";
@@ -48,6 +51,7 @@ export function useEmployeeActions(input: {
   const isOfficeOnboardingVisible = useAppStore((state) => state.isOfficeOnboardingVisible);
   const officeOnboardingStep = useAppStore((state) => state.officeOnboardingStep);
   const runtimeAdapter = useOfficeRuntimeAdapter();
+  const openRealtimeCall = useRealtimeCallStore((state) => state.openCall);
   const isControlled = controlledEmployeeId === id;
   const isCodex = runtimeAdapter.runtimeKind === "codex";
 
@@ -56,6 +60,42 @@ export function useEmployeeActions(input: {
       setSelectedObjectId(null);
       onClick(id);
     };
+
+    const agentId = String(id).replace(/^employee-/, "");
+    if (isExecutiveSpecialistAgentId(agentId)) {
+      return [
+        {
+          id: "call",
+          label: "Call",
+          icon: Phone,
+          color: "purple",
+          position: "top",
+          onClick: () => {
+            setSelectedObjectId(null);
+            openRealtimeCall([String(id)]);
+          },
+        },
+        {
+          id: "chat",
+          label: "Chat",
+          icon: MessageSquare,
+          color: "blue",
+          position: "left",
+          onClick: openConversation,
+        },
+        {
+          id: "view-agent",
+          label: "View Agent",
+          icon: Search,
+          color: "amber",
+          position: "bottom",
+          onClick: () => {
+            setSelectedObjectId(null);
+            setManageAgentEmployeeId(id);
+          },
+        },
+      ];
+    }
 
     if (isCodex) {
       const threadId = observedRuntime?.threadId ?? observedRuntime?.sessionKey;
@@ -76,6 +116,16 @@ export function useEmployeeActions(input: {
               return;
             }
             openConversation();
+          },
+        },
+        {
+          id: "call",
+          label: "Call",
+          icon: Phone,
+          color: "purple",
+          onClick: () => {
+            setSelectedObjectId(null);
+            openRealtimeCall([String(id)]);
           },
         },
         {
@@ -149,6 +199,16 @@ export function useEmployeeActions(input: {
         onClick: () => toast.info("Computer view is hidden for this demo."),
       },
       {
+        id: "call",
+        label: "Call",
+        icon: Phone,
+        color: "purple",
+        onClick: () => {
+          setSelectedObjectId(null);
+          openRealtimeCall([String(id)]);
+        },
+      },
+      {
         id: "manage",
         label: "Manage",
         icon: UserCog,
@@ -206,6 +266,7 @@ export function useEmployeeActions(input: {
     observedRuntime,
     officeOnboardingStep,
     onClick,
+    openRealtimeCall,
     runtimeAdapter.capabilities.employeeSkillEquip,
     setControlledEmployeeId,
     setIsSkillsPanelOpen,

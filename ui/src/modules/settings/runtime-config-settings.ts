@@ -1,13 +1,13 @@
 /**
  * Runtime config settings client.
  *
- * Inputs: Settings form values for local runtime URLs and API keys.
+ * Inputs: Settings form values for non-secret local runtime settings.
  * Outputs: sanitized config/status rows from the Vite state bridge.
  * Side effects: saves local Farplane runtime config to ~/.farplane/config.toml
- * through the bridge; secret values are never read back into the browser.
+ * through the bridge; credentials are environment-injected and never submitted.
  */
 
-type SecretSource = "saved" | "env" | "missing";
+type SecretSource = "env" | "missing";
 
 export type RuntimeSecretStatus = {
   configured: boolean;
@@ -31,26 +31,25 @@ export type RuntimeConfigForm = {
   stateBase: string;
   convexSiteUrl: string;
   convexClientUrl: string;
-  meshyApiKey: string;
-  notionApiKey: string;
-  telemetryToken: string;
   env: RuntimeEnvEntry[];
 };
 
-export type RuntimeConfigStatus = {
-  meshyApiKey: RuntimeSecretStatus;
-  notionApiKey: RuntimeSecretStatus;
-  telemetryToken: RuntimeSecretStatus;
-};
+export function credentialSetupCommands(name: string): {
+  setup: string;
+  set: string;
+  run: string;
+} {
+  return {
+    setup: "doppler setup",
+    set: `doppler secrets set ${name}`,
+    run: "farplane run -- corepack pnpm run ui",
+  };
+}
 
 type RuntimeConfigPayload = {
   config?: Partial<
-    Pick<
-      RuntimeConfigForm,
-      "codexAppServerUrl" | "stateBase" | "convexSiteUrl" | "convexClientUrl"
-    >
+    Pick<RuntimeConfigForm, "codexAppServerUrl" | "stateBase" | "convexSiteUrl" | "convexClientUrl">
   >;
-  secrets?: Partial<RuntimeConfigStatus>;
   env?: unknown[];
 };
 
@@ -65,16 +64,7 @@ export const EMPTY_RUNTIME_CONFIG_FORM: RuntimeConfigForm = {
   stateBase: "",
   convexSiteUrl: "",
   convexClientUrl: "",
-  meshyApiKey: "",
-  notionApiKey: "",
-  telemetryToken: "",
   env: [],
-};
-
-export const EMPTY_RUNTIME_CONFIG_STATUS: RuntimeConfigStatus = {
-  meshyApiKey: { configured: false, source: "missing" },
-  notionApiKey: { configured: false, source: "missing" },
-  telemetryToken: { configured: false, source: "missing" },
 };
 
 function normalizeSecretStatus(value: unknown): RuntimeSecretStatus {
@@ -82,10 +72,7 @@ function normalizeSecretStatus(value: unknown): RuntimeSecretStatus {
     return { configured: false, source: "missing" };
   }
   const row = value as Record<string, unknown>;
-  const source =
-    row.source === "saved" || row.source === "env" || row.source === "missing"
-      ? row.source
-      : "missing";
+  const source = row.source === "env" || row.source === "missing" ? row.source : "missing";
   return {
     configured: row.configured === true,
     source,
@@ -100,10 +87,7 @@ function normalizeRuntimeEnvEntry(value: unknown): RuntimeEnvEntry | null {
   return {
     name,
     label: typeof row.label === "string" && row.label.trim() ? row.label.trim() : name,
-    group:
-      typeof row.group === "string" && row.group.trim()
-        ? row.group.trim()
-        : "Runtime config",
+    group: typeof row.group === "string" && row.group.trim() ? row.group.trim() : "Runtime config",
     description: typeof row.description === "string" ? row.description.trim() : "",
     secret: row.secret === true,
     value: typeof row.value === "string" ? row.value : "",
@@ -115,12 +99,12 @@ function normalizeRuntimeEnvEntry(value: unknown): RuntimeEnvEntry | null {
 
 function formFromPayload(payload: RuntimeConfigPayload | undefined): {
   form: RuntimeConfigForm;
-  status: RuntimeConfigStatus;
 } {
   const config = payload?.config ?? {};
-  const secrets = payload?.secrets ?? {};
   const env = Array.isArray(payload?.env)
-    ? payload.env.map(normalizeRuntimeEnvEntry).filter((entry): entry is RuntimeEnvEntry => entry !== null)
+    ? payload.env
+        .map(normalizeRuntimeEnvEntry)
+        .filter((entry): entry is RuntimeEnvEntry => entry !== null)
     : [];
   return {
     form: {
@@ -131,17 +115,11 @@ function formFromPayload(payload: RuntimeConfigPayload | undefined): {
       convexClientUrl: config.convexClientUrl ?? "",
       env,
     },
-    status: {
-      meshyApiKey: normalizeSecretStatus(secrets.meshyApiKey),
-      notionApiKey: normalizeSecretStatus(secrets.notionApiKey),
-      telemetryToken: normalizeSecretStatus(secrets.telemetryToken),
-    },
   };
 }
 
 async function parseRuntimeConfigResponse(response: Response): Promise<{
   form: RuntimeConfigForm;
-  status: RuntimeConfigStatus;
 }> {
   const payload = (await response.json().catch(() => ({}))) as RuntimeConfigResponse;
   if (!response.ok || payload.ok === false) {
@@ -152,7 +130,6 @@ async function parseRuntimeConfigResponse(response: Response): Promise<{
 
 export async function loadRuntimeConfigSettings(): Promise<{
   form: RuntimeConfigForm;
-  status: RuntimeConfigStatus;
 }> {
   const response = await fetch("/farplane/runtime-config", {
     headers: { accept: "application/json" },
@@ -162,14 +139,7 @@ export async function loadRuntimeConfigSettings(): Promise<{
 
 export async function saveRuntimeConfigSettings(
   form: RuntimeConfigForm,
-): Promise<{ form: RuntimeConfigForm; status: RuntimeConfigStatus }> {
-  const secrets: Partial<
-    Pick<RuntimeConfigForm, "meshyApiKey" | "notionApiKey" | "telemetryToken">
-  > = {};
-  if (form.meshyApiKey.trim()) secrets.meshyApiKey = form.meshyApiKey.trim();
-  if (form.notionApiKey.trim()) secrets.notionApiKey = form.notionApiKey.trim();
-  if (form.telemetryToken.trim()) secrets.telemetryToken = form.telemetryToken.trim();
-
+): Promise<{ form: RuntimeConfigForm }> {
   const response = await fetch("/farplane/runtime-config", {
     method: "POST",
     headers: {
@@ -185,10 +155,9 @@ export async function saveRuntimeConfigSettings(
       },
       env: Object.fromEntries(
         form.env
-          .filter((entry) => !entry.secret || entry.value.trim().length > 0)
+          .filter((entry) => !entry.secret)
           .map((entry) => [entry.name, entry.value.trim()] as const),
       ),
-      secrets,
     }),
   });
   return parseRuntimeConfigResponse(response);

@@ -115,7 +115,11 @@ export const useChatStore = create<ChatState>()(
 );
 
 export function useChatActions(): {
-  openEmployeeChat: (employeeId: string, openDialog?: boolean) => Promise<void>;
+  openEmployeeChat: (
+    employeeId: string,
+    openDialog?: boolean,
+    displayName?: string,
+  ) => Promise<void>;
   openTeamChat: (teamId: string, openDialog?: boolean) => Promise<void>;
   createNewChat: (openDialog?: boolean) => Promise<void>;
 } {
@@ -127,7 +131,11 @@ export function useChatActions(): {
   const setThreads = useChatStore((state) => state.setThreads);
 
   return {
-    async openEmployeeChat(employeeId: string, openDialog = true): Promise<void> {
+    async openEmployeeChat(
+      employeeId: string,
+      openDialog = true,
+      displayName?: string,
+    ): Promise<void> {
       setCurrentEmployeeId(employeeId);
       setCurrentTeamId(null);
       const agentId = employeeId.startsWith("employee-")
@@ -143,12 +151,20 @@ export function useChatActions(): {
         }
       }
       const existing = threads.find((thread) => thread._id === `dm-${employeeId}`);
+      const title = displayName?.trim() ? `Chat with ${displayName.trim()}` : `Chat ${employeeId}`;
       if (existing) {
+        if (existing.title !== title) {
+          setThreads(
+            threads.map((thread) =>
+              thread._id === existing._id ? { ...thread, title } : thread,
+            ),
+          );
+        }
         setThreadId(existing._id);
       } else {
         const next = {
           _id: `dm-${employeeId}`,
-          title: `Chat ${employeeId}`,
+          title,
           agentId: agentId ?? undefined,
         };
         setThreads([next, ...threads]);

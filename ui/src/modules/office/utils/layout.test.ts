@@ -35,9 +35,7 @@ describe("office cluster layout", () => {
 
   it("grows round-table occupancy up to the active-agent design cap", () => {
     const seven = getClusterOccupancyFootprint(7);
-    const ten = getClusterOccupancyFootprint(
-      ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS,
-    );
+    const ten = getClusterOccupancyFootprint(ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS);
 
     expect(seven.width).toBeCloseTo(seven.depth);
     expect(ten.width).toBeCloseTo(ten.depth);
@@ -45,9 +43,7 @@ describe("office cluster layout", () => {
   });
 
   it("keeps a minimum gap between neighboring monitor stations at the design cap", () => {
-    const layout = solveRoundTeamTableLayout(
-      ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS,
-    );
+    const layout = solveRoundTeamTableLayout(ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS);
     const first = layout.stations[0];
     const second = layout.stations[1];
     const stationGap = Math.hypot(first.x - second.x, first.z - second.z);
@@ -56,14 +52,10 @@ describe("office cluster layout", () => {
   });
 
   it("keeps stress layouts above ten seats bounded instead of expanding the room", () => {
-    const ten = getClusterOccupancyFootprint(
-      ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS,
-    );
+    const ten = getClusterOccupancyFootprint(ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS);
     const twenty = getClusterOccupancyFootprint(20);
     const stressLayout = solveRoundTeamTableLayout(20);
-    const designLayout = solveRoundTeamTableLayout(
-      ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS,
-    );
+    const designLayout = solveRoundTeamTableLayout(ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS);
 
     expect(stressLayout.stations).toHaveLength(20);
     expect(stressLayout.radius).toBeCloseTo(designLayout.radius);
@@ -85,5 +77,17 @@ describe("office cluster layout", () => {
     expect(layout.stationCount).toBe(6);
     expect(layout.usesRoundTable).toBe(true);
     expect(layout.visibleGridDeskCount).toBe(0);
+  });
+
+  it("supports a four-seat joined executive table without changing the normal threshold", () => {
+    const executive = resolveTeamStationLayout({
+      deskCount: 4,
+      employeeCount: 4,
+      forceRound: true,
+    });
+    const ordinary = resolveTeamStationLayout({ deskCount: 4, employeeCount: 4 });
+
+    expect(executive).toMatchObject({ stationCount: 4, usesRoundTable: true });
+    expect(ordinary).toMatchObject({ stationCount: 4, usesRoundTable: false });
   });
 });

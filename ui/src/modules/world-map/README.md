@@ -23,10 +23,10 @@ A missing token, unavailable WebGL2 context, provider error, first-paint timeout
 or lost context produces an actionable error with retry instead of silently
 switching map engines.
 
-Configure a read-only, URL-restricted Mapbox public token under **Settings →
-Project Config → UI-safe map provider**. Settings persists it as
-`VITE_MAPBOX_ACCESS_TOKEN` in `~/.farplane/config.toml`; the browser receives it
-only through the bounded map-config bridge when World opens.
+Inject a read-only, URL-restricted `VITE_MAPBOX_ACCESS_TOKEN` when launching the
+UI with `farplane run -- corepack pnpm run ui`. The browser receives it only
+through the bounded map-config bridge when World opens; Farplane does not read
+or persist it in `~/.farplane/config.toml`.
 
 A node is plotted only when its canonical entity has paired `latitude` and
 `longitude`; the plain `location` field is searchable metadata and is not

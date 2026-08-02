@@ -16,6 +16,7 @@ import * as THREE from "three";
 interface RoundTeamTableProps {
   stationCount: number;
   isHovered: boolean;
+  variant?: "team" | "executive";
 }
 
 const defaultTableColor = new THREE.Color("#4f3a2c");
@@ -24,9 +25,20 @@ const tableEdgeColor = new THREE.Color("#8b684c");
 const hardwareColor = new THREE.Color("#0f172a");
 const standColor = new THREE.Color("#34383a");
 
-export default function RoundTeamTable({ stationCount, isHovered }: RoundTeamTableProps) {
+export default function RoundTeamTable({
+  stationCount,
+  isHovered,
+  variant = "team",
+}: RoundTeamTableProps) {
   const layout = useMemo(() => solveRoundTeamTableLayout(stationCount), [stationCount]);
-  const tableColor = isHovered ? hoveredTableColor : defaultTableColor;
+  const isExecutive = variant === "executive";
+  const tableColor = isExecutive
+    ? isHovered
+      ? new THREE.Color("#765839")
+      : new THREE.Color("#5d432c")
+    : isHovered
+      ? hoveredTableColor
+      : defaultTableColor;
 
   return (
     <group name="round-team-table">
@@ -37,7 +49,11 @@ export default function RoundTeamTable({ stationCount, isHovered }: RoundTeamTab
 
       <mesh position={[0, DESK_HEIGHT + 0.075, 0]} receiveShadow>
         <cylinderGeometry args={[layout.radius * 0.98, layout.radius * 0.98, 0.028, 64]} />
-        <meshStandardMaterial color={tableEdgeColor} roughness={0.86} />
+        <meshStandardMaterial
+          color={isExecutive ? "#b88942" : tableEdgeColor}
+          roughness={isExecutive ? 0.55 : 0.86}
+          metalness={isExecutive ? 0.28 : 0}
+        />
       </mesh>
 
       <mesh position={[0, DESK_HEIGHT / 2, 0]} castShadow>
@@ -49,6 +65,37 @@ export default function RoundTeamTable({ stationCount, isHovered }: RoundTeamTab
         <cylinderGeometry args={[0.62, 0.72, 0.1, 32]} />
         <meshStandardMaterial color="#2f3030" roughness={0.82} />
       </mesh>
+
+      {isExecutive ? (
+        <group name="executive-pod-decor">
+          <mesh position={[0, DESK_HEIGHT + 0.102, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.4, 0.56, 40]} />
+            <meshStandardMaterial
+              color="#d4a75f"
+              emissive="#6f481d"
+              emissiveIntensity={0.22}
+              roughness={0.45}
+              metalness={0.35}
+            />
+          </mesh>
+          <mesh position={[0, DESK_HEIGHT + 0.24, 0]} castShadow>
+            <octahedronGeometry args={[0.18, 0]} />
+            <meshStandardMaterial
+              color="#f2c97d"
+              emissive="#b26b24"
+              emissiveIntensity={0.38}
+              roughness={0.36}
+              metalness={0.24}
+            />
+          </mesh>
+          <pointLight
+            position={[0, DESK_HEIGHT + 0.42, 0]}
+            color="#f2bc6b"
+            intensity={0.42}
+            distance={3.4}
+          />
+        </group>
+      ) : null}
 
       {layout.stations.map((station, index) => (
         <group
@@ -62,7 +109,12 @@ export default function RoundTeamTable({ stationCount, isHovered }: RoundTeamTab
           </Box>
           <mesh position={[0, COMPUTER_HEIGHT / 2, 0.031]}>
             <planeGeometry args={[0.44, COMPUTER_HEIGHT * 0.66]} />
-            <meshStandardMaterial color={hardwareColor} roughness={0.5} />
+            <meshStandardMaterial
+              color={isExecutive && index > 0 ? "#172a31" : hardwareColor}
+              emissive={isExecutive && index > 0 ? "#0d5860" : "#000000"}
+              emissiveIntensity={isExecutive && index > 0 ? 0.18 : 0}
+              roughness={0.5}
+            />
           </mesh>
           <Box args={[0.16, 0.035, 0.16]} position={[0, 0.035, -0.12]}>
             <meshStandardMaterial color={standColor} roughness={0.7} />

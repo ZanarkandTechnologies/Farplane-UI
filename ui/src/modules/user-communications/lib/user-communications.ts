@@ -2,7 +2,7 @@
  * User communications config helpers.
  *
  * Inputs: Farplane runtime config payloads for the Telegram gateway.
- * Outputs: normalized main-thread configuration, TOML preview, and shell snippets.
+ * Outputs: normalized non-secret configuration, TOML preview, and shell snippets.
  * Side effects: none; browser callers own bridge reads/writes.
  */
 
@@ -10,7 +10,6 @@ export type UserCommunicationsConfig = {
   mainThreadId: string;
   stateBase: string;
   codexAppServerUrl: string;
-  botToken: string;
   botTokenConfigured: boolean;
   allowFrom: string;
 };
@@ -94,7 +93,6 @@ export const DEFAULT_USER_COMMUNICATIONS_CONFIG: UserCommunicationsConfig = {
   mainThreadId: "",
   stateBase: "http://127.0.0.1:5173",
   codexAppServerUrl: "ws://127.0.0.1:47891",
-  botToken: "",
   botTokenConfigured: false,
   allowFrom: "",
 };
@@ -107,14 +105,13 @@ export function normalizeUserCommunicationsConfig(
     stateBase: input?.stateBase?.trim() || DEFAULT_USER_COMMUNICATIONS_CONFIG.stateBase,
     codexAppServerUrl:
       input?.codexAppServerUrl?.trim() || DEFAULT_USER_COMMUNICATIONS_CONFIG.codexAppServerUrl,
-    botToken: input?.botToken?.trim() ?? "",
-    botTokenConfigured: input?.botTokenConfigured === true || Boolean(input?.botToken?.trim()),
+    botTokenConfigured: input?.botTokenConfigured === true,
     allowFrom: input?.allowFrom?.trim() ?? "",
   };
 }
 
 export function buildTelegramGatewayEnv(_config: UserCommunicationsConfig): string {
-  const lines = ["npm run cli -- gateway telegram --once"];
+  const lines = ["farplane run -- npm run cli -- gateway telegram --once"];
   return lines.filter((line): line is string => Boolean(line)).join("\n");
 }
 
@@ -136,9 +133,7 @@ export function buildTelegramGatewayConfigToml(config: UserCommunicationsConfig)
     "[telegram]",
     "enabled = true",
     'dm_policy = "allowlist"',
-    normalized.botToken
-      ? `bot_token = ${tomlString(normalized.botToken)}`
-      : "# bot_token is saved in ~/.farplane/config.toml",
+    "# TELEGRAM_BOT_TOKEN is injected into the gateway process environment.",
     `allow_from = [${allowFrom.map(tomlString).join(", ")}]`,
     `main_thread_id = ${tomlString(normalized.mainThreadId)}`,
     'group_policy = "allowlist"',

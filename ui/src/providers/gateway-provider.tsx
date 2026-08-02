@@ -4,7 +4,8 @@
  * Own the live WebSocket client for gateway-backed UI features.
  *
  * KEY CONCEPTS:
- * - Gateway config is local-ui state and can change at runtime.
+ * - Non-secret gateway config is local-ui state and can change at runtime.
+ * - Gateway credentials come only from the injected Vite environment.
  * - Saving config should reconnect in place instead of forcing a page reload.
  *
  * USAGE:
@@ -103,7 +104,6 @@ export function GatewayProvider({ children }: { children: ReactNode }): ReactEle
         logGatewayLifecycle("config-updated", {
           gatewayBaseChanged: saved.gatewayBase !== config.gatewayBase,
           stateBaseChanged: saved.stateBase !== config.stateBase,
-          tokenChanged: saved.gatewayToken !== config.gatewayToken,
         });
         setConfig(saved);
         return saved;

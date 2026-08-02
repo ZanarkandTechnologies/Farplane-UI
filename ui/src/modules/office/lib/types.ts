@@ -83,6 +83,9 @@ export interface Employee {
   appearance?: {
     clothesStyle?: "default" | "dj" | "professional" | "techBro";
     hairColor?: string;
+    skinColor?: string;
+    shirtColor?: string;
+    pantsColor?: string;
     petType?: "none" | "dog" | "cat" | "goldfish" | "rabbit" | "lobster";
     characterRenderer?: EmployeeCharacterRendererConfig;
   };

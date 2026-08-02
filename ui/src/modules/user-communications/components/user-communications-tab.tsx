@@ -4,7 +4,6 @@ import {
   Check,
   ChevronDown,
   Copy,
-  KeyRound,
   MessageSquareText,
   RadioTower,
   Search,
@@ -148,7 +147,6 @@ export function UserCommunicationsTab(): ReactElement {
             enabled: true,
             mainThreadId: normalized.mainThreadId,
             allowFrom: normalized.allowFrom,
-            botToken: normalized.botToken,
             dmPolicy: "allowlist",
             groupPolicy: "allowlist",
             streamingMode: "off",
@@ -191,9 +189,7 @@ export function UserCommunicationsTab(): ReactElement {
     [rows, routeFilter, search],
   );
   const isConfigured = Boolean(
-    config.mainThreadId.trim() &&
-      (config.botToken.trim() || config.botTokenConfigured) &&
-      config.allowFrom.trim(),
+    config.mainThreadId.trim() && config.botTokenConfigured && config.allowFrom.trim(),
   );
   const waitingCount = rows.filter((row) => row.status === "waiting reply").length;
   const failedCount = rows.filter((row) => row.status === "failed").length;
@@ -272,21 +268,16 @@ export function UserCommunicationsTab(): ReactElement {
                   placeholder="ws://127.0.0.1:47891"
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="telegram-bot-token">Bot token</Label>
-                <div className="relative">
-                  <KeyRound className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="telegram-bot-token"
-                    type="password"
-                    value={config.botToken}
-                    onChange={(event) =>
-                      setConfig((current) => ({ ...current, botToken: event.target.value }))
-                    }
-                    className="pl-9"
-                    placeholder={config.botTokenConfigured ? "saved in config.toml" : "bot token"}
-                  />
+              <div className="grid gap-1 rounded-md border bg-background px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Bot token</Label>
+                  <Badge variant={config.botTokenConfigured ? "secondary" : "destructive"}>
+                    {config.botTokenConfigured ? "environment ready" : "missing"}
+                  </Badge>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Inject <code>TELEGRAM_BOT_TOKEN</code> with <code>farplane run -- …</code>.
+                </p>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="telegram-allow-from">Allow from</Label>
@@ -320,13 +311,13 @@ export function UserCommunicationsTab(): ReactElement {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Copies the local gateway command. Settings save to ~/.farplane/config.toml.
+                  Copies the environment-injected gateway command. Non-secret settings save to ~/.farplane/config.toml.
                 </TooltipContent>
               </Tooltip>
             </div>
             <details className="mt-3">
               <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
-                Preview config.toml
+                Preview non-secret config.toml
               </summary>
               <pre className="mt-2 max-h-32 overflow-auto rounded-md border bg-background p-3 text-xs">
                 {configToml}

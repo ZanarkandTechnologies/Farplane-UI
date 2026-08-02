@@ -1,11 +1,15 @@
 export { CodexAppServerClient, createCodexAppServerClient } from "./client";
 export {
   CODEX_MAIN_AGENT_ID,
+  CODEX_FARPLANE_AGENT_THREAD_PREFIX,
   CODEX_PM_PREFIX,
   CODEX_THREAD_PREFIX,
   codexProjectId,
+  farplaneAgentIdFromThread,
+  farplaneAgentThreadName,
   findActiveTurnId,
   isCodexPmAgentId,
+  isFarplaneAgentThread,
   normalizeCodexProjectPmThreadIds,
   parseCodexPmProjectId,
   parseCodexThreadId,

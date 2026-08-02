@@ -11,6 +11,8 @@ import { Sparkles } from "lucide-react";
 import { UI_Z } from "@/lib/z-index";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
+import { isExecutiveSpecialistEmployeeId } from "@/lib/executive-specialists";
+import { useProjectAgentProfiles } from "@/modules/realtime-call/hooks/use-project-agent-profiles";
 
 /**
  * CHAT DIALOG
@@ -29,7 +31,26 @@ export default function ChatDialog() {
   const adapter = useOfficeRuntimeAdapter();
   const { companyModel } = useOfficeDataContext();
 
-  const { headerTitle, headerSubtitle, isEmployeeScopedChat, storyPersona } = useChatContext();
+  const { headerTitle, headerSubtitle, currentEmployeeId, isEmployeeScopedChat, storyPersona } =
+    useChatContext();
+  const isExecutiveSpecialistChat = Boolean(
+    currentEmployeeId && isExecutiveSpecialistEmployeeId(currentEmployeeId),
+  );
+  const officeProfiles = useProjectAgentProfiles(
+    null,
+    isChatOpen && isExecutiveSpecialistChat,
+    "office",
+  );
+  const scopedAgentId = currentEmployeeId?.replace(/^employee-/, "") ?? "";
+  const specialistProfile = isExecutiveSpecialistChat
+    ? (officeProfiles.data?.profiles[scopedAgentId] ?? null)
+    : null;
+  const specialistChatUnavailable = isExecutiveSpecialistChat && !specialistProfile;
+  const specialistChatPlaceholder = officeProfiles.error
+    ? "This agent's local profile could not be loaded."
+    : officeProfiles.isLoading
+      ? `Loading ${headerTitle}'s local profile…`
+      : undefined;
   const {
     threads,
     subthreadsMap,
@@ -43,7 +64,7 @@ export default function ChatDialog() {
     setSelectedAgentId,
   } = useChatThreads();
   const { messages, handleSubmit, abort, submissionStatus, isStreaming, streamingText } =
-    useChatMessages(threadId);
+    useChatMessages(threadId, specialistProfile);
   const streamingMessage: LocalChatMessage | null = streamingText.trim()
     ? {
         key: `stream-${threadId ?? "chat"}`,
@@ -223,6 +244,8 @@ export default function ChatDialog() {
               submissionStatus={submissionStatus}
               isStreaming={isStreaming}
               variant={isStoryMode ? "story" : "classic"}
+              disabled={specialistChatUnavailable}
+              placeholder={specialistChatPlaceholder}
             />
           </div>
         </div>

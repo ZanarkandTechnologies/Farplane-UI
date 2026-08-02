@@ -38,7 +38,7 @@ describe("runtime config resolver", () => {
       "http://saved-state.local",
     );
     expect(readFarplaneConfigValue("FARPLANE_TELEMETRY_TOKEN", { env, secret: true })).toBe(
-      "saved-token",
+      "env-token",
     );
     expect(firstFarplaneConfigValue(["FARPLANE_CONVEX_SITE_URL", "CONVEX_SITE_URL"], { env })).toBe(
       "https://saved.convex.site",

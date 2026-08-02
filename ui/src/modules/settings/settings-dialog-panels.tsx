@@ -3,14 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { OfficeSettingsModel } from "@/modules/runtime";
-import type { RuntimeAdapterKind } from "@/modules/runtime";
 import type { CharacterRendererId } from "@/modules/office/components/employee/renderers/types";
+import type { OfficeSettingsModel, RuntimeAdapterKind } from "@/modules/runtime";
 import type { OfficeOverlayKey, OfficeOverlaySettings } from "@/store";
-import type {
-  RuntimeEnvEntry,
-  RuntimeConfigForm,
-  RuntimeSecretStatus,
+import {
+  credentialSetupCommands,
+  type RuntimeConfigForm,
+  type RuntimeEnvEntry,
+  type RuntimeSecretStatus,
 } from "./runtime-config-settings";
 import type { CodexOfficeVisibilityForm } from "./use-codex-office-visibility-settings";
 
@@ -89,8 +89,7 @@ export function GeneralSettingsPanel(props: GeneralSettingsPanelProps) {
         <div className="flex flex-col gap-1">
           <Label>Debug Overlays</Label>
           <span className="text-xs text-muted-foreground">
-            Debug Mode is a master switch. These categories opt in one at a
-            time.
+            Debug Mode is a master switch. These categories opt in one at a time.
           </span>
         </div>
         <div className="space-y-1.5">
@@ -140,9 +139,7 @@ function OverlayToggle(props: {
   return (
     <label
       className={`grid grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-md px-2 py-2 text-sm transition-colors ${
-        disabled
-          ? "cursor-not-allowed opacity-50"
-          : "cursor-pointer hover:bg-muted"
+        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-muted"
       }`}
     >
       <Checkbox
@@ -153,9 +150,7 @@ function OverlayToggle(props: {
       />
       <span className="grid min-w-0 gap-0.5">
         <span className="font-medium leading-none">{label}</span>
-        <span className="text-xs leading-snug text-muted-foreground">
-          {description}
-        </span>
+        <span className="text-xs leading-snug text-muted-foreground">{description}</span>
       </span>
     </label>
   );
@@ -174,9 +169,7 @@ type OfficeViewSettingsPanelProps = {
   characterSpriteEmployeeId: string;
   characterGraphicsStatusText: string;
   onViewProfileChange: (value: OfficeSettingsModel["viewProfile"]) => void;
-  onCameraOrientationChange: (
-    value: OfficeSettingsModel["cameraOrientation"],
-  ) => void;
+  onCameraOrientationChange: (value: OfficeSettingsModel["cameraOrientation"]) => void;
   onOrbitControlsEnabledChange: (value: boolean) => void;
   onSave: () => void;
   onShuffle: () => void;
@@ -221,17 +214,15 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
       <div className="rounded-md border bg-muted/30 px-3 py-2">
         <p className="text-sm font-medium text-foreground">Saved office</p>
         <p className="mt-1 text-xs leading-snug text-muted-foreground">
-          Furniture and floor placement stay fixed until you move them in Builder,
-          shuffle explicitly, or equip a different office template.
+          Furniture and floor placement stay fixed until you move them in Builder, shuffle
+          explicitly, or equip a different office template.
         </p>
       </div>
 
       <SelectField
         label="View Profile"
         value={viewProfile}
-        onChange={(value) =>
-          onViewProfileChange(value as OfficeSettingsModel["viewProfile"])
-        }
+        onChange={(value) => onViewProfileChange(value as OfficeSettingsModel["viewProfile"])}
         options={[
           ["free_orbit_3d", "Free Orbit 3D"],
           ["fixed_2_5d", "Isometric 2.5D"],
@@ -242,9 +233,7 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
         label="Camera Orientation"
         value={cameraOrientation}
         onChange={(value) =>
-          onCameraOrientationChange(
-            value as OfficeSettingsModel["cameraOrientation"],
-          )
+          onCameraOrientationChange(value as OfficeSettingsModel["cameraOrientation"])
         }
         options={[
           ["south_east", "South East"],
@@ -264,9 +253,7 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
       <Button size="sm" onClick={onSave} disabled={isSaving}>
         {isSaving ? "Saving..." : "Apply View"}
       </Button>
-      {statusText ? (
-        <p className="text-xs text-muted-foreground">{statusText}</p>
-      ) : null}
+      {statusText ? <p className="text-xs text-muted-foreground">{statusText}</p> : null}
 
       <div className="flex items-center justify-between gap-4 border-t pt-3">
         <div className="flex flex-col gap-1">
@@ -275,12 +262,7 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
             Reflow tables and floor objects into open slots.
           </span>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onShuffle}
-          disabled={isShuffling}
-        >
+        <Button size="sm" variant="outline" onClick={onShuffle} disabled={isShuffling}>
           {isShuffling ? "Shuffling..." : "Shuffle"}
         </Button>
       </div>
@@ -299,9 +281,7 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
         <SelectField
           label="Renderer"
           value={characterRendererId}
-          onChange={(value) =>
-            onCharacterRendererIdChange(value as CharacterRendererId)
-          }
+          onChange={(value) => onCharacterRendererIdChange(value as CharacterRendererId)}
           options={[
             ["three-human", "Three.js Humans"],
             ["sprite-sheet-2d", "2D Sprite Sheet"],
@@ -329,9 +309,7 @@ export function OfficeViewSettingsPanel(props: OfficeViewSettingsPanelProps) {
           Apply Graphics
         </Button>
         {characterGraphicsStatusText ? (
-          <p className="text-xs text-muted-foreground">
-            {characterGraphicsStatusText}
-          </p>
+          <p className="text-xs text-muted-foreground">{characterGraphicsStatusText}</p>
         ) : null}
       </div>
     </div>
@@ -343,7 +321,6 @@ type RuntimeSettingsPanelProps = {
   runtimeStatusText: string;
   connected: boolean;
   gatewayBase: string;
-  gatewayToken: string;
   stateBase: string;
   defaultSessionKey: string;
   language: string;
@@ -356,7 +333,6 @@ type RuntimeSettingsPanelProps = {
   onRuntimeKindChange: (value: RuntimeAdapterKind) => void;
   onApplyRuntimeMode: () => void;
   onGatewayBaseChange: (value: string) => void;
-  onGatewayTokenChange: (value: string) => void;
   onStateBaseChange: (value: string) => void;
   onDefaultSessionKeyChange: (value: string) => void;
   onLanguageChange: (value: string) => void;
@@ -374,7 +350,6 @@ export function RuntimeSettingsPanel(props: RuntimeSettingsPanelProps) {
     runtimeStatusText,
     connected,
     gatewayBase,
-    gatewayToken,
     stateBase,
     defaultSessionKey,
     language,
@@ -387,7 +362,6 @@ export function RuntimeSettingsPanel(props: RuntimeSettingsPanelProps) {
     onRuntimeKindChange,
     onApplyRuntimeMode,
     onGatewayBaseChange,
-    onGatewayTokenChange,
     onStateBaseChange,
     onDefaultSessionKeyChange,
     onLanguageChange,
@@ -434,12 +408,10 @@ export function RuntimeSettingsPanel(props: RuntimeSettingsPanelProps) {
         <OpenClawRuntimeSettings
           connected={connected}
           gatewayBase={gatewayBase}
-          gatewayToken={gatewayToken}
           stateBase={stateBase}
           defaultSessionKey={defaultSessionKey}
           language={language}
           onGatewayBaseChange={onGatewayBaseChange}
-          onGatewayTokenChange={onGatewayTokenChange}
           onStateBaseChange={onStateBaseChange}
           onDefaultSessionKeyChange={onDefaultSessionKeyChange}
           onLanguageChange={onLanguageChange}
@@ -470,47 +442,34 @@ function RuntimeProjectConfigSettings(props: {
   const updateEnvEntry = (name: string, value: string) =>
     onFormChange({
       ...form,
-      env: form.env.map((entry) =>
-        entry.name === name ? { ...entry, value } : entry,
-      ),
+      env: form.env.map((entry) => (entry.name === name ? { ...entry, value } : entry)),
     });
-  const envGroups = form.env.reduce<Array<[string, RuntimeEnvEntry[]]>>(
-    (groups, entry) => {
-      const existing = groups.find(([group]) => group === entry.group);
-      if (existing) {
-        existing[1].push(entry);
-      } else {
-        groups.push([entry.group, [entry]]);
-      }
-      return groups;
-    },
-    [],
-  );
+  const envGroups = form.env.reduce<Array<[string, RuntimeEnvEntry[]]>>((groups, entry) => {
+    const existing = groups.find(([group]) => group === entry.group);
+    if (existing) {
+      existing[1].push(entry);
+    } else {
+      groups.push([entry.group, [entry]]);
+    }
+    return groups;
+  }, []);
 
   return (
     <div className="space-y-3 border-t pt-4">
       <div className="flex flex-col gap-1">
         <Label>Project Config</Label>
         <span className="text-xs text-muted-foreground">
-          Saved here first. Env files are fallbacks for shells, CI, and
-          bootstrap.
+          Non-secret settings save locally. Credential rows report the injected process environment.
         </span>
       </div>
 
       {envGroups.map(([group, entries]) => (
-        <div
-          key={group}
-          className="space-y-2 rounded-md border border-border/70 p-3"
-        >
+        <div key={group} className="space-y-2 rounded-md border border-border/70 p-3">
           <Label>{group}</Label>
           <div className="space-y-3">
             {entries.map((entry) =>
               entry.secret ? (
-                <SecretEnvInputField
-                  key={entry.name}
-                  entry={entry}
-                  onChange={(value) => updateEnvEntry(entry.name, value)}
-                />
+                <CredentialStatusRow key={entry.name} entry={entry} />
               ) : (
                 <EnvInputField
                   key={entry.name}
@@ -526,17 +485,12 @@ function RuntimeProjectConfigSettings(props: {
       <Button size="sm" onClick={onSave} disabled={isSaving}>
         {isSaving ? "Saving..." : "Save Project Config"}
       </Button>
-      {statusText ? (
-        <p className="text-xs text-muted-foreground">{statusText}</p>
-      ) : null}
+      {statusText ? <p className="text-xs text-muted-foreground">{statusText}</p> : null}
     </div>
   );
 }
 
-function EnvInputField(props: {
-  entry: RuntimeEnvEntry;
-  onChange: (value: string) => void;
-}) {
+function EnvInputField(props: { entry: RuntimeEnvEntry; onChange: (value: string) => void }) {
   const { entry, onChange } = props;
   return (
     <div className="space-y-1">
@@ -559,36 +513,37 @@ function EnvInputField(props: {
         />
       )}
       {entry.description ? (
-        <p className="text-xs leading-snug text-muted-foreground">
-          {entry.description}
-        </p>
+        <p className="text-xs leading-snug text-muted-foreground">{entry.description}</p>
       ) : null}
     </div>
   );
 }
 
-function SecretEnvInputField(props: {
-  entry: RuntimeEnvEntry;
-  onChange: (value: string) => void;
-}) {
-  const { entry, onChange } = props;
+function CredentialStatusRow(props: { entry: RuntimeEnvEntry }) {
+  const { entry } = props;
+  const commands = credentialSetupCommands(entry.name);
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-2">
         <Label className="text-xs text-muted-foreground">{entry.label}</Label>
         <ConfigSourceBadge status={entry.status} />
       </div>
-      <Input
-        type="password"
-        value={entry.value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={entry.status.configured ? "configured" : "paste key"}
-      />
       {entry.description ? (
-        <p className="text-xs leading-snug text-muted-foreground">
-          {entry.description}
-        </p>
+        <p className="text-xs leading-snug text-muted-foreground">{entry.description}</p>
       ) : null}
+      {entry.status.configured ? (
+        <p className="text-xs leading-snug text-emerald-600">
+          Available from the injected process environment.
+        </p>
+      ) : (
+        <div className="space-y-1 rounded-md bg-muted/60 p-2 text-xs text-muted-foreground">
+          <p>From this project checkout, add the value to Doppler and restart Farplane:</p>
+          <code className="block select-all break-all">{commands.setup}</code>
+          <code className="block select-all break-all">{commands.set}</code>
+          <code className="block select-all break-all">{commands.run}</code>
+          <p>The command prompts for the value; Farplane never stores it in local settings.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -598,9 +553,7 @@ function ConfigSourceBadge(props: { status: RuntimeSecretStatus }) {
   return (
     <span
       className={`rounded-sm px-1.5 py-0.5 text-[11px] ${
-        status.configured
-          ? "bg-emerald-500/10 text-emerald-600"
-          : "bg-muted text-muted-foreground"
+        status.configured ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground"
       }`}
     >
       {status.source}
@@ -617,15 +570,7 @@ function CodexRuntimeSettings(props: {
   onFormChange: (value: CodexOfficeVisibilityForm) => void;
   onSave: () => void;
 }) {
-  const {
-    stateBase,
-    form,
-    statusText,
-    isSaving,
-    onStateBaseChange,
-    onFormChange,
-    onSave,
-  } = props;
+  const { stateBase, form, statusText, isSaving, onStateBaseChange, onFormChange, onSave } = props;
   const patchForm = (patch: Partial<CodexOfficeVisibilityForm>) =>
     onFormChange({ ...form, ...patch });
 
@@ -636,9 +581,7 @@ function CodexRuntimeSettings(props: {
         value={stateBase}
         onChange={onStateBaseChange}
         placeholder={
-          typeof window !== "undefined"
-            ? window.location.origin
-            : "http://127.0.0.1:5173"
+          typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:5173"
         }
       />
 
@@ -650,18 +593,16 @@ function CodexRuntimeSettings(props: {
         onChange={(value) => patchForm({ recentMinutes: value })}
       />
       <p className="-mt-2 text-xs text-muted-foreground">
-        Shows ordinary Codex thread workers, and their desks, while they were
-        active within this many minutes. Persistent PM, CEO, running, and
-        automation heartbeat threads ignore this timer.
+        Shows ordinary Codex thread workers, and their desks, while they were active within this
+        many minutes. Persistent PM, CEO, running, and automation heartbeat threads ignore this
+        timer.
       </p>
 
       <ToggleRow
         label="Persistent Automation Heartbeats"
         description="Keep strategy or heartbeat automations visible; scheduled task-drainer runs still age out."
         enabled={form.showAutomationThreads}
-        onToggle={() =>
-          patchForm({ showAutomationThreads: !form.showAutomationThreads })
-        }
+        onToggle={() => patchForm({ showAutomationThreads: !form.showAutomationThreads })}
       />
 
       <InputField
@@ -681,9 +622,7 @@ function CodexRuntimeSettings(props: {
       <Button size="sm" onClick={onSave} disabled={isSaving}>
         {isSaving ? "Saving..." : "Apply Worker Visibility"}
       </Button>
-      {statusText ? (
-        <p className="text-xs text-muted-foreground">{statusText}</p>
-      ) : null}
+      {statusText ? <p className="text-xs text-muted-foreground">{statusText}</p> : null}
     </div>
   );
 }
@@ -691,12 +630,10 @@ function CodexRuntimeSettings(props: {
 function OpenClawRuntimeSettings(props: {
   connected: boolean;
   gatewayBase: string;
-  gatewayToken: string;
   stateBase: string;
   defaultSessionKey: string;
   language: string;
   onGatewayBaseChange: (value: string) => void;
-  onGatewayTokenChange: (value: string) => void;
   onStateBaseChange: (value: string) => void;
   onDefaultSessionKeyChange: (value: string) => void;
   onLanguageChange: (value: string) => void;
@@ -706,12 +643,10 @@ function OpenClawRuntimeSettings(props: {
   const {
     connected,
     gatewayBase,
-    gatewayToken,
     stateBase,
     defaultSessionKey,
     language,
     onGatewayBaseChange,
-    onGatewayTokenChange,
     onStateBaseChange,
     onDefaultSessionKeyChange,
     onLanguageChange,
@@ -723,9 +658,7 @@ function OpenClawRuntimeSettings(props: {
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center justify-between">
         <Label>Gateway Access</Label>
-        <span
-          className={`text-xs ${connected ? "text-emerald-500" : "text-amber-500"}`}
-        >
+        <span className={`text-xs ${connected ? "text-emerald-500" : "text-amber-500"}`}>
           {connected ? "connected" : "disconnected"}
         </span>
       </div>
@@ -736,21 +669,15 @@ function OpenClawRuntimeSettings(props: {
         onChange={onGatewayBaseChange}
         placeholder="http://127.0.0.1:18789"
       />
-      <InputField
-        label="Gateway Token"
-        type="password"
-        value={gatewayToken}
-        onChange={onGatewayTokenChange}
-        placeholder="optional bearer token"
-      />
+      <p className="text-xs leading-snug text-muted-foreground">
+        Gateway credentials are injected into the UI process environment and are not saved here.
+      </p>
       <InputField
         label="State Bridge URL"
         value={stateBase}
         onChange={onStateBaseChange}
         placeholder={
-          typeof window !== "undefined"
-            ? window.location.origin
-            : "http://127.0.0.1:5173"
+          typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:5173"
         }
       />
       <InputField
@@ -795,11 +722,7 @@ function ToggleRow(props: {
         <Label>{label}</Label>
         <span className="text-xs text-muted-foreground">{description}</span>
       </div>
-      <Button
-        onClick={onToggle}
-        variant={enabled ? "default" : "outline"}
-        size="sm"
-      >
+      <Button onClick={onToggle} variant={enabled ? "default" : "outline"} size="sm">
         {enabled ? "On" : "Off"}
       </Button>
     </div>

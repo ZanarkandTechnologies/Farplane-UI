@@ -46,6 +46,7 @@ in `docs/systems/` and should point back to the feature docs it owns.
 - `FEAT-0115-office-kits-presence-and-camera.md`
 - `FEAT-0116-global-finance-observations.md`
 - `FEAT-0117-video-intelligence.md`
+- `FEAT-0118-realtime-employee-calls.md`
 
 ## Planning Rule
 

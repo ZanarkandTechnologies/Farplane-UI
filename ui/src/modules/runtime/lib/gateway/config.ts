@@ -1,7 +1,7 @@
 /**
  * GATEWAY CONFIG
  * ==============
- * Centralized OpenClaw gateway URL and auth token wiring for the UI.
+ * Centralized OpenClaw gateway URL and environment-injected auth wiring for the UI.
  */
 
 const GATEWAY_UI_CONFIG_KEY = "farplane.gateway-config.v1";
@@ -29,7 +29,6 @@ function readStoredGatewayUiConfig(): Partial<GatewayUiConfig> {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     return {
       gatewayBase: typeof parsed.gatewayBase === "string" ? parsed.gatewayBase : undefined,
-      gatewayToken: typeof parsed.gatewayToken === "string" ? parsed.gatewayToken : undefined,
       stateBase: typeof parsed.stateBase === "string" ? parsed.stateBase : undefined,
       defaultSessionKey:
         typeof parsed.defaultSessionKey === "string" ? parsed.defaultSessionKey : undefined,
@@ -44,7 +43,7 @@ function resolveGatewayUiConfig(): GatewayUiConfig {
   const stored = readStoredGatewayUiConfig();
   return {
     gatewayBase: stored.gatewayBase?.trim() || DEFAULT_GATEWAY_BASE,
-    gatewayToken: stored.gatewayToken?.trim() || DEFAULT_GATEWAY_TOKEN,
+    gatewayToken: DEFAULT_GATEWAY_TOKEN,
     stateBase: stored.stateBase?.trim() || DEFAULT_STATE_BASE,
     defaultSessionKey: stored.defaultSessionKey?.trim() || DEFAULT_SESSION_KEY,
     language: stored.language?.trim() || DEFAULT_LANGUAGE,
@@ -59,13 +58,14 @@ export function saveGatewayUiConfig(next: Partial<GatewayUiConfig>): GatewayUiCo
   const current = resolveGatewayUiConfig();
   const merged: GatewayUiConfig = {
     gatewayBase: next.gatewayBase?.trim() ?? current.gatewayBase,
-    gatewayToken: next.gatewayToken?.trim() ?? current.gatewayToken,
+    gatewayToken: DEFAULT_GATEWAY_TOKEN,
     stateBase: next.stateBase?.trim() ?? current.stateBase,
     defaultSessionKey: next.defaultSessionKey?.trim() ?? current.defaultSessionKey,
     language: next.language?.trim() ?? current.language,
   };
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(GATEWAY_UI_CONFIG_KEY, JSON.stringify(merged));
+    const { gatewayToken: _credential, ...nonSecretConfig } = merged;
+    window.localStorage.setItem(GATEWAY_UI_CONFIG_KEY, JSON.stringify(nonSecretConfig));
   }
   return merged;
 }

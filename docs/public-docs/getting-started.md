@@ -36,7 +36,7 @@ Onboarding now handles:
 - Notion plugin load-path and default entry setup
 - office style preset capture
 - staged progress output for each bootstrap phase
-- migration of bootstrap env values into local private `~/.farplane/config.toml`
+- non-secret runtime settings in `~/.farplane/config.toml`
 - optional `ui/.env.local` bootstrap compatibility for Vite-safe values
 - doctor checks before sending you into the UI
 - optional immediate UI launch at the end of the flow
@@ -44,18 +44,49 @@ Onboarding now handles:
 ## UI Environment
 
 For day-to-day local projects, use Settings -> Runtime -> Project Config for
-the settings listed in `.env.example`, including runtime URLs, hook/debug
-flags, review settings, and API keys. Farplane stores local non-secret values
-and API keys in local private `~/.farplane/config.toml`. The Vite bridge,
-Farplane CLI, hooks, and runtime scripts read that local settings file before
-explicit shell env overrides.
+non-secret runtime URLs, hook/debug flags, and review settings. Farplane stores
+those operator values in `~/.farplane/config.toml`. Credentials are supplied
+only through the launched process environment; use `farplane run -- <command>`
+in this checkout so Doppler injects the project-bound secrets.
 
-Env files are bootstrap/import surfaces, not runtime config fallbacks:
+Env files are optional bootstrap surfaces for non-secret values, not secret stores:
 
-- repo-root `.env.local`: backend and private values such as Convex/OpenRouter/Notion tokens
+- repo-root `.env.local`: non-secret backend bootstrap values only
 - `ui/.env.local`: UI-safe `VITE_*` values only
 
 This split is intentional because the Vite app reads its env from `ui/`, not the repo root.
+
+### Configure optional features with Doppler
+
+The root [`.env.example`](../../.env.example) is the variable-name inventory;
+leave its credential values blank. From the checkout whose Doppler project
+should own the runtime:
+
+```bash
+doppler setup
+doppler secrets set VARIABLE_NAME
+farplane run -- corepack pnpm run ui
+```
+
+`doppler secrets set VARIABLE_NAME` prompts for the value instead of placing it
+in shell history. Configure only the features you use:
+
+| Feature | Doppler variables |
+| --- | --- |
+| Protected telemetry/state bridge | `FARPLANE_TELEMETRY_TOKEN`, `FARPLANE_STATE_BRIDGE_TOKEN` |
+| OpenClaw gateway | `VITE_GATEWAY_TOKEN` |
+| World map | `VITE_MAPBOX_ACCESS_TOKEN` or `MAPBOX_ACCESS_TOKEN` |
+| AI furniture generation | `FARPLANE_MESHY_API_KEY` or `MESHY_API_KEY` |
+| Notion | `NOTION_API_KEY` |
+| Telegram | `TELEGRAM_BOT_TOKEN` |
+| Slash finance | `SLASH_API_KEY` |
+| Realtime employee calls | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` |
+| Optional model/media tools | `OPENAI_API_KEY` or `CODEX_API_KEY`; `ELEVENLABS_API_KEY` for ElevenLabs audio |
+
+Settings -> Runtime -> Project Config shows whether each listed credential or
+supported alias is present in the launched process and prints the preferred
+Doppler variable command when it is missing. It never accepts or saves the
+value.
 
 If you run `npx convex dev` and it writes a Convex URL into the repo-root `.env.local`, import it back into Farplane config with:
 
@@ -63,7 +94,7 @@ If you run `npx convex dev` and it writes a Convex URL into the repo-root `.env.
 corepack pnpm run shell onboarding
 ```
 
-That refreshes `~/.farplane/config.toml` so the UI bridge, CLI, hooks, and scripts resolve the same value.
+That refreshes the non-secret Convex setting in `~/.farplane/config.toml`.
 
 ## CLI Notes
 

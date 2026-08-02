@@ -253,7 +253,7 @@ describe("onboarding CLI", () => {
     process.env.FARPLANE_REPO_ROOT = repoRoot;
     await seedOpenclawMainAgent(stateDir);
 
-    await runCommand(["onboarding", "--yes", "--style", "cozy", "--gateway-token", "token-123"]);
+    await runCommand(["onboarding", "--yes", "--style", "cozy"]);
 
     const companyRaw = await readFile(path.join(stateDir, "company.json"), "utf-8");
     const company = JSON.parse(companyRaw) as {
@@ -310,7 +310,7 @@ describe("onboarding CLI", () => {
     expect(openclaw.hooks?.allowRequestSessionKey).toBe(true);
     expect(openclaw.hooks?.allowedSessionKeyPrefixes).toContain("hook:notion:");
     expect(openclaw.hooks?.allowedAgentIds).toContain("main");
-    expect(openclaw.channels?.notion?.accounts?.default?.apiKey).toBe("secret_test");
+    expect(openclaw.channels?.notion?.accounts?.default?.apiKey).toBeUndefined();
     expect(openclaw.channels?.notion?.accounts?.default?.requireWakeWord).toBe(true);
     expect(openclaw.channels?.notion?.accounts?.default?.wakeWords).toEqual(["@shell"]);
 
@@ -319,7 +319,7 @@ describe("onboarding CLI", () => {
     expect(farplane.convex?.siteUrl).toBe("https://demo.convex.cloud");
 
     const uiEnvRaw = await readFile(path.join(repoRoot, "ui", ".env.local"), "utf-8");
-    expect(uiEnvRaw).toContain("VITE_GATEWAY_TOKEN=token-123");
+    expect(uiEnvRaw).not.toContain("VITE_GATEWAY_TOKEN");
     expect(uiEnvRaw).toContain("VITE_CONVEX_URL=https://demo.convex.cloud");
 
     const officeRaw = await readFile(path.join(stateDir, "office.json"), "utf-8");

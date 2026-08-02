@@ -68,9 +68,6 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   const [gatewayBaseInput, setGatewayBaseInput] = useState(
     gatewayConfig.gatewayBase,
   );
-  const [gatewayTokenInput, setGatewayTokenInput] = useState(
-    gatewayConfig.gatewayToken,
-  );
   const [stateBaseInput, setStateBaseInput] = useState(gatewayConfig.stateBase);
   const [defaultSessionKeyInput, setDefaultSessionKeyInput] = useState(
     gatewayConfig.defaultSessionKey,
@@ -117,7 +114,6 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     if (!dialogOpen) return;
     const next = getGatewayUiConfig();
     setGatewayBaseInput(next.gatewayBase);
-    setGatewayTokenInput(next.gatewayToken);
     setStateBaseInput(next.stateBase);
     setDefaultSessionKeyInput(next.defaultSessionKey);
     setLanguageInput(next.language);
@@ -167,7 +163,6 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   function handleRefreshGatewayConfig(): void {
     const next = getGatewayUiConfig();
     setGatewayBaseInput(next.gatewayBase);
-    setGatewayTokenInput(next.gatewayToken);
     setStateBaseInput(next.stateBase);
     setDefaultSessionKeyInput(next.defaultSessionKey);
     setLanguageInput(next.language);
@@ -177,13 +172,11 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   function handleConnectGateway(): void {
     const saved = updateConfig({
       gatewayBase: gatewayBaseInput,
-      gatewayToken: gatewayTokenInput,
       stateBase: stateBaseInput,
       defaultSessionKey: defaultSessionKeyInput,
       language: languageInput,
     });
     setGatewayBaseInput(saved.gatewayBase);
-    setGatewayTokenInput(saved.gatewayToken);
     setStateBaseInput(saved.stateBase);
     setDefaultSessionKeyInput(saved.defaultSessionKey);
     setLanguageInput(saved.language);
@@ -344,7 +337,6 @@ export default function SettingsDialog(props: SettingsDialogProps) {
               runtimeStatusText={runtimeStatusText}
               connected={connected}
               gatewayBase={gatewayBaseInput}
-              gatewayToken={gatewayTokenInput}
               stateBase={stateBaseInput}
               defaultSessionKey={defaultSessionKeyInput}
               language={languageInput}
@@ -357,7 +349,6 @@ export default function SettingsDialog(props: SettingsDialogProps) {
               onRuntimeKindChange={setRuntimeKindInput}
               onApplyRuntimeMode={handleApplyRuntimeMode}
               onGatewayBaseChange={setGatewayBaseInput}
-              onGatewayTokenChange={setGatewayTokenInput}
               onStateBaseChange={setStateBaseInput}
               onDefaultSessionKeyChange={setDefaultSessionKeyInput}
               onLanguageChange={setLanguageInput}

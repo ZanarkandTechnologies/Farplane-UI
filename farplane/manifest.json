@@ -1,8 +1,8 @@
 {
   "schema": "farplane_project",
-  "spec_version": "2.0.12",
+  "spec_version": "2.0.14",
   "template_uses": {
-    "farplane-framework": "2.0.12"
+    "farplane-framework": "2.0.14"
   },
   "project": {
     "name": "Farplane UI",
@@ -78,6 +78,7 @@
         "docs/features/README.md",
         "docs/systems/README.md",
         "farplane/README.md",
+        "farplane/agents.yaml",
         "farplane/harness.yaml",
         "farplane/metrics.yaml",
         "farplane/automations.toml",
@@ -95,7 +96,7 @@
   },
   "_template_metadata": {
     "template_id": "farplane-framework",
-    "template_version": "2.0.12",
+    "template_version": "2.0.14",
     "feature_refs": [
       "FEAT-0060",
       "FEAT-0063"

@@ -34,17 +34,19 @@ This bootstraps:
 
 ## 2. Add your Notion API key
 
-Put your Notion integration secret in the repo-root `.env.local` before onboarding, or add it directly into `~/.openclaw/openclaw.json` after onboarding.
+Bind `NOTION_API_KEY` in Doppler and launch the OpenClaw runtime with
+`farplane run -- <command>`. Onboarding configures only the non-secret Notion
+plugin policy; it does not copy the integration secret into local config.
 
 Example:
 
 ```bash
-cat >> .env.local <<'EOF'
-NOTION_API_KEY=secret_xxx
-EOF
+doppler secrets set NOTION_API_KEY
+farplane run -- pnpm run shell gateway start
 ```
 
-If onboarding already ran, open `~/.openclaw/openclaw.json` and confirm this shape exists:
+If onboarding already ran, open `~/.openclaw/openclaw.json` and confirm the
+non-secret policy shape exists. The API key must not appear in this file:
 
 ```json
 {
@@ -52,7 +54,6 @@ If onboarding already ran, open `~/.openclaw/openclaw.json` and confirm this sha
     "notion": {
       "accounts": {
         "default": {
-          "apiKey": "secret_xxx",
           "requireWakeWord": true,
           "wakeWords": ["@shell"]
         }

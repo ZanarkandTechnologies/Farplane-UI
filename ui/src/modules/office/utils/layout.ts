@@ -123,10 +123,7 @@ function getRoundTeamTableRadius(count: number): number {
   const designCount = Math.min(safeCount, ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS);
   const minStationRadius =
     ROUND_TEAM_TABLE_MONITOR_CENTER_GAP / (2 * Math.sin(Math.PI / designCount));
-  return Math.max(
-    ROUND_TEAM_TABLE_MIN_RADIUS,
-    minStationRadius + ROUND_TEAM_TABLE_EDGE_INSET,
-  );
+  return Math.max(ROUND_TEAM_TABLE_MIN_RADIUS, minStationRadius + ROUND_TEAM_TABLE_EDGE_INSET);
 }
 
 export function shouldUseRoundTeamTable(count: number): boolean {
@@ -137,14 +134,14 @@ export function resolveTeamStationLayout(input: {
   deskCount: number;
   employeeCount: number;
   forceGrid?: boolean;
+  forceRound?: boolean;
 }): TeamStationLayout {
   const persistentStationCount = Math.max(1, input.deskCount);
   const stationCount = clampCount(
-    input.forceGrid
-      ? persistentStationCount
-      : Math.max(input.deskCount, input.employeeCount, 1),
+    input.forceGrid ? persistentStationCount : Math.max(input.deskCount, input.employeeCount, 1),
   );
-  const usesRoundTable = !input.forceGrid && shouldUseRoundTeamTable(stationCount);
+  const usesRoundTable =
+    !input.forceGrid && (input.forceRound || shouldUseRoundTeamTable(stationCount));
   return {
     stationCount,
     usesRoundTable,
@@ -213,10 +210,7 @@ function solveTopology(count: number, policy: LayoutPolicy): LayoutSlot[] {
   return slots;
 }
 
-function getRawPosition(
-  slot: LayoutSlot,
-  footprint: MeshFootprint,
-): [number, number] {
+function getRawPosition(slot: LayoutSlot, footprint: MeshFootprint): [number, number] {
   const spacingX = footprint.width + footprint.clearanceX;
   const spacingZ = footprint.depth + footprint.clearanceZ;
   const x = slot.col * spacingX;
@@ -297,9 +291,7 @@ export function solveClusterLayout(
   };
 }
 
-export function getClusterOccupancyFootprint(
-  count: number,
-): ClusterOccupancyFootprint {
+export function getClusterOccupancyFootprint(count: number): ClusterOccupancyFootprint {
   const safeCount = clampCount(count);
   if (shouldUseRoundTeamTable(safeCount)) {
     const layout = solveRoundTeamTableLayout(safeCount);
@@ -311,11 +303,7 @@ export function getClusterOccupancyFootprint(
     };
   }
 
-  const solved = solveClusterLayout(
-    safeCount,
-    DESK_FOOTPRINT,
-    DEFAULT_LAYOUT_POLICY,
-  );
+  const solved = solveClusterLayout(safeCount, DESK_FOOTPRINT, DEFAULT_LAYOUT_POLICY);
   const points: Array<{ x: number; z: number }> = [];
 
   for (const transform of solved.transforms) {
@@ -332,10 +320,7 @@ export function getClusterOccupancyFootprint(
         z: transform.z - localX * sin + localZ * cos,
       });
     }
-    const employee = getEmployeePositionAtDesk(
-      [transform.x, 0, transform.z],
-      transform.yaw,
-    );
+    const employee = getEmployeePositionAtDesk([transform.x, 0, transform.z], transform.yaw);
     const employeeRadius = EMPLOYEE_RADIUS + 0.25;
     points.push(
       { x: employee[0] - employeeRadius, z: employee[2] - employeeRadius },
@@ -371,11 +356,7 @@ export function getDeskPosition(
   void clusterPosition;
   const safeTotal = clampCount(totalDesks);
   const safeIndex = Math.max(0, Math.min(Math.floor(deskIndex), safeTotal - 1));
-  const solved = solveClusterLayout(
-    safeTotal,
-    DESK_FOOTPRINT,
-    DEFAULT_LAYOUT_POLICY,
-  );
+  const solved = solveClusterLayout(safeTotal, DESK_FOOTPRINT, DEFAULT_LAYOUT_POLICY);
   const transform = solved.transforms[safeIndex];
   return [transform.x, 0, transform.z];
 }
@@ -383,11 +364,7 @@ export function getDeskPosition(
 export function getDeskRotation(deskIndex: number, totalDesks: number): number {
   const safeTotal = clampCount(totalDesks);
   const safeIndex = Math.max(0, Math.min(Math.floor(deskIndex), safeTotal - 1));
-  const solved = solveClusterLayout(
-    safeTotal,
-    DESK_FOOTPRINT,
-    DEFAULT_LAYOUT_POLICY,
-  );
+  const solved = solveClusterLayout(safeTotal, DESK_FOOTPRINT, DEFAULT_LAYOUT_POLICY);
   return solved.transforms[safeIndex].yaw;
 }
 
@@ -396,11 +373,7 @@ export function getAbsoluteDeskPosition(
   deskIndex: number,
   totalDesks: number,
 ): [number, number, number] {
-  const relativePosition = getDeskPosition(
-    clusterPosition,
-    deskIndex,
-    totalDesks,
-  );
+  const relativePosition = getDeskPosition(clusterPosition, deskIndex, totalDesks);
   return [
     clusterPosition[0] + relativePosition[0],
     clusterPosition[1] + relativePosition[1],
@@ -415,20 +388,12 @@ export function getEmployeePositionAtDesk(
   const offset = DESK_DEPTH / 2 + EMPLOYEE_RADIUS + 0.5;
   const forwardX = Math.sin(deskRotation);
   const forwardZ = Math.cos(deskRotation);
-  return [
-    deskPosition[0] + forwardX * offset,
-    0,
-    deskPosition[2] + forwardZ * offset,
-  ];
+  return [deskPosition[0] + forwardX * offset, 0, deskPosition[2] + forwardZ * offset];
 }
 
 export function getEmployeePositionAtRoundTableStation(
   station: RoundTableStationTransform,
 ): [number, number, number] {
   const employeeRadius = station.tableRadius + EMPLOYEE_RADIUS + 0.55;
-  return [
-    Math.sin(station.angle) * employeeRadius,
-    0,
-    Math.cos(station.angle) * employeeRadius,
-  ];
+  return [Math.sin(station.angle) * employeeRadius, 0, Math.cos(station.angle) * employeeRadius];
 }

@@ -105,13 +105,16 @@ export default function TeamCluster({
   const setIsTeamOptionsDialogOpen = useAppStore((state) => state.setIsTeamOptionsDialogOpen);
   const setActiveTeamForOptions = useAppStore((state) => state.setActiveTeamForOptions);
   const isDragging = useAppStore((state) => state.isDragging);
+  const isCommandNeighborhood = metadata?.commandCommonsNeighborhood === true;
+  const isExecutivePod = metadata?.executivePod === true;
 
   // Capacity tracking
   const currentDeskCount = desks.length;
   const stationLayout = resolveTeamStationLayout({
     deskCount: currentDeskCount,
     employeeCount: team.employees.length,
-    forceGrid: metadata?.commandCommonsNeighborhood === true,
+    forceGrid: isCommandNeighborhood && !isExecutivePod,
+    forceRound: isExecutivePod,
   });
   const stationCount = stationLayout.stationCount;
   const usesRoundTable = stationLayout.usesRoundTable;
@@ -187,12 +190,11 @@ export default function TeamCluster({
           persistedIndex: index,
         },
     );
-    return visibleDesks
-      .map(({ desk }, layoutIndex, visibleDesks) => ({
-        id: desk.id,
-        position: getDeskPosition(clusterPos, layoutIndex, visibleDesks.length),
-        rotationY: getDeskRotation(layoutIndex, visibleDesks.length),
-      }));
+    return visibleDesks.map(({ desk }, layoutIndex, visibleDesks) => ({
+      id: desk.id,
+      position: getDeskPosition(clusterPos, layoutIndex, visibleDesks.length),
+      rotationY: getDeskRotation(layoutIndex, visibleDesks.length),
+    }));
   }, [desks, objectId, stationLayout.visibleGridDeskCount, team.name]);
 
   const tableHitTarget = useMemo(() => {
@@ -229,7 +231,6 @@ export default function TeamCluster({
 
   // Render conditions
   const showCircle = isBuilderMode || placementMode.active;
-  const isCommandNeighborhood = metadata?.commandCommonsNeighborhood === true;
   const showFloatingLabel = shouldShowTeamLabel(team.name);
   const showDeskPlacementDetail =
     placementMode.active && placementMode.type === "desk" && (isHovered || usesRoundTable);
@@ -275,6 +276,7 @@ export default function TeamCluster({
             <RoundTeamTable
               stationCount={stationCount}
               isHovered={shouldEnableLocalHover && isHovered}
+              variant={isExecutivePod ? "executive" : "team"}
             />
           ) : (
             desksWithPositions.map((desk) => (

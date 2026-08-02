@@ -156,7 +156,7 @@ What `farplane onboarding` does:
 - expects the global `farplane` CLI to be owned by Farplane Core and delegates module commands into this checkout
 - asks for a basic office style preset
 - shows a staged bootstrap flow so you can see each setup phase complete
-- migrates bootstrap env values into local private `~/.farplane/config.toml`
+- persists non-secret runtime and operator settings in `~/.farplane/config.toml`
 - may generate `ui/.env.local` for one-time Vite bootstrap compatibility
 - persists the Convex site URL into Farplane runtime config so the CLI can reuse it without manual exports
 - verifies whether the configured Convex runtime is actually reachable before it recommends or auto-launches the UI
@@ -252,10 +252,13 @@ folders such as `Documents/Codex` into that table even when Codex has
 registered them as project paths.
 
 Local runtime settings are configured in the app under Settings -> Runtime ->
-Project Config. That panel mirrors the project settings from `.env.example`;
-runtime values and API keys are saved to local private
-`~/.farplane/config.toml`. The Vite bridge, CLI, hooks, and runtime scripts read
-that file first, with process env kept as bootstrap/CI overrides.
+Project Config. Non-secret URLs, policies, hook flags, and operator preferences
+are saved to `~/.farplane/config.toml`. API keys, tokens, passwords, and OAuth
+credentials are injected into each credentialed process; this checkout uses
+`farplane run -- <command>` with Doppler. The UI reports credential readiness
+without reading or writing secret values in local settings.
+For the feature-to-variable inventory and exact setup commands, see
+[UI Environment](docs/public-docs/getting-started.md#ui-environment).
 OpenClaw runtime files, when the optional OpenClaw adapter is configured with
 `VITE_FARPLANE_RUNTIME_ADAPTER=openclaw`, remain OpenClaw-owned under
 `~/.openclaw`.
@@ -337,9 +340,9 @@ Notes:
 - `corepack pnpm run build` currently preserves the narrower root-owned build gate; use `corepack pnpm run ui:build` for the Vite bundle.
 - The UI reads Farplane-owned office sidecars from `~/.farplane`; Codex is the default runtime adapter, Codex app-server is reached only through the local state bridge, and OpenClaw runtime state remains adapter-owned when explicitly enabled.
 - Optional Codex app-server smoke: run `codex app-server --listen ws://127.0.0.1:47891`, then launch the UI with `CODEX_APP_SERVER_URL=ws://127.0.0.1:47891 corepack pnpm run ui -- --host 127.0.0.1`.
-- Normal local setup should use Settings -> Runtime -> Project Config for the settings listed in `.env.example`, including runtime URLs, hook/debug flags, review settings, and API keys. Farplane stores runtime config, file-change hook settings, and secrets in local private `~/.farplane/config.toml`.
-- Env vars remain supported for bootstrap, CI, and explicit shell overrides; runtime config file reads should go through `~/.farplane/config.toml`.
-- Optional: add a Meshy API key in Settings -> Runtime -> Project Config to enable **Generate with AI** in Decoration -> Import; generated GLB furniture is saved to Custom Library.
+- Use Settings -> Runtime -> Project Config for non-secret runtime URLs, hook/debug flags, and review settings. `~/.farplane/config.toml` is a non-secret operator-settings file.
+- Launch credentialed processes with `farplane run -- <command>` so Doppler injects their required environment variables.
+- Optional: inject `FARPLANE_MESHY_API_KEY` or `MESHY_API_KEY` when launching the UI to enable **Generate with AI** in Decoration -> Import; generated GLB furniture is saved to Custom Library.
 - The global `farplane` alias comes from Farplane Core. This repo exposes only the module-local `farplane-ui` package bin for direct checkout development.
 - `templates/` is only for bootstrap and scaffolding. It is not the live source of truth after onboarding runs.
 

@@ -245,6 +245,13 @@ export interface ChatSendRequest {
   metadata?: Record<string, unknown>;
 }
 
+export interface ChatSendResult {
+  ok: boolean;
+  eventId?: string;
+  sessionKey?: string;
+  error?: string;
+}
+
 export interface OpenClawConfigSnapshot {
   stateVersion?: number;
   config: Record<string, unknown>;

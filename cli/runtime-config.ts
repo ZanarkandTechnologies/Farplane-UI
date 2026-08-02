@@ -118,6 +118,7 @@ export function readFarplaneConfigValue(
   options: { env?: NodeJS.ProcessEnv; secret?: boolean } = {},
 ): string {
   const env = options.env ?? process.env;
+  if (options.secret) return env[name]?.trim() || "";
   const hasExplicitStateRoot = Boolean(env.FARPLANE_STATE_DIR?.trim() || env.FARPLANE_HOME?.trim());
   const shouldReadLocalFiles = !options.env || env === process.env || hasExplicitStateRoot;
   const saved = shouldReadLocalFiles

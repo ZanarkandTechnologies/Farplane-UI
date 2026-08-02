@@ -29,6 +29,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { extractAgentId } from "@/lib/entity-utils";
+import { isExecutiveSpecialistEmployeeId } from "@/lib/executive-specialists";
 import { UI_Z } from "@/lib/z-index";
 import type {
   AgentFileEntry,
@@ -59,6 +60,7 @@ import {
   resolveAgentConfigDraft,
 } from "./config-draft";
 import { FilesPanel } from "./FilesTab";
+import { ExecutiveAgentProfileDialog } from "./executive-agent-profile-dialog";
 import { OverviewPanel } from "./OverviewTab";
 import { ToolsPanel } from "./ToolsTab";
 
@@ -88,6 +90,18 @@ export function ManageAgentModal(): ReactElement {
   const { employees } = useOfficeDataContext();
   const adapter = useOfficeRuntimeAdapter();
   const employee = employees.find((row) => row._id === manageAgentEmployeeId) ?? null;
+
+  if (employee && isExecutiveSpecialistEmployeeId(String(employee._id))) {
+    return (
+      <ExecutiveAgentProfileDialog
+        employee={employee}
+        open={Boolean(manageAgentEmployeeId)}
+        onOpenChange={(open) => {
+          if (!open) setManageAgentEmployeeId(null);
+        }}
+      />
+    );
+  }
 
   if (adapter.runtimeKind === "codex") {
     return (

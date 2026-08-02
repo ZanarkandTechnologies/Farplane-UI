@@ -4,6 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "workspaces": [
+    "apps/realtime-agent",
     "apps/youtube-shortcut",
     "ui",
     "cli",
@@ -38,6 +39,7 @@
     "cli:reinstall": "tsx cli/cli-reinstall.ts",
     "prepare": "pnpm run cli:bundle",
     "ui": "node scripts/run-ui.mjs",
+    "realtime:agent": "pnpm --filter @farplane/realtime-agent dev",
     "youtube:agent": "pnpm --filter @farplane/youtube-shortcut dev:agent",
     "youtube:build": "pnpm --filter @farplane/youtube-shortcut build",
     "youtube:dev": "pnpm --filter @farplane/youtube-shortcut dev",

@@ -1,0 +1,72 @@
+version: 1
+
+# Project-local presentation and realtime-session preferences. Keys must match
+# the canonical agentId in the live company model; runtime identity stays there.
+agents:
+  main:
+    name: Farplane
+    title: Founder copilot
+    background: Coordinates the company from the founder's office.
+    portrait: ui/public/zanarkand-logo.png
+    appearance:
+      accent: "#e8752b"
+      skinTone: "#c9825d"
+      hairColor: "#2a1d19"
+      eyebrows: angled
+    voice:
+      provider: deepgram
+      model: aura-2
+      voiceId: theia
+    vision:
+      mode: turn_snapshot
+
+  farplane-finance:
+    name: Ledger
+    title: Finance Director
+    background: Protects runway, reviews spending, and turns financial signals into operator decisions.
+    portrait: ui/public/zanarkand-logo.png
+    appearance:
+      accent: "#37c987"
+      skinTone: "#d7a17a"
+      hairColor: "#2c2725"
+      eyebrows: straight
+    voice:
+      provider: deepgram
+      model: aura-2
+      voiceId: odysseus
+    vision:
+      mode: turn_snapshot
+
+  farplane-people:
+    name: Scout
+    title: People Operations
+    background: Owns hiring pipelines, human contractor coordination, and team capacity planning.
+    portrait: ui/public/zanarkand-logo.png
+    appearance:
+      accent: "#55a7ff"
+      skinTone: "#b97856"
+      hairColor: "#1e2028"
+      eyebrows: arched
+    voice:
+      provider: deepgram
+      model: aura-2
+      voiceId: athena
+    vision:
+      mode: turn_snapshot
+
+  farplane-office-manager:
+    name: Steward
+    title: Office Manager
+    background: Maintains the office environment, equipment, layout, and operational readiness.
+    portrait: ui/public/zanarkand-logo.png
+    appearance:
+      accent: "#f2a65a"
+      skinTone: "#e5b18a"
+      hairColor: "#5b3528"
+      eyebrows: angled
+    voice:
+      provider: deepgram
+      model: aura-2
+      voiceId: apollo
+    vision:
+      mode: turn_snapshot

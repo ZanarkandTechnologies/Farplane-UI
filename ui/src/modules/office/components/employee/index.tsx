@@ -28,6 +28,7 @@ import type {
   EmployeeIdleInteractionTarget,
 } from "@/modules/office/lib/types";
 import type { AgentState, TeamCharacterPolicy } from "@/modules/runtime";
+import { useRealtimeCallStore } from "@/modules/realtime-call";
 import { useAppStore } from "@/store";
 import { resolveTeamCharacter } from "../../team-character-policy";
 import { ContextMenu } from "../context-menu";
@@ -93,6 +94,9 @@ export interface EmployeeProps {
   appearance?: {
     clothesStyle?: "default" | "dj" | "professional" | "techBro";
     hairColor?: string;
+    skinColor?: string;
+    shirtColor?: string;
+    pantsColor?: string;
     petType?: "none" | "dog" | "cat" | "goldfish" | "rabbit" | "lobster";
     characterRenderer?: CharacterRendererConfig;
   };
@@ -175,6 +179,10 @@ const Employee = memo(function Employee({
   const highlightedEmployeeIds = useAppStore((state) => state.highlightedEmployeeIds);
   const isOfficeOnboardingVisible = useAppStore((state) => state.isOfficeOnboardingVisible);
   const officeOnboardingStep = useAppStore((state) => state.officeOnboardingStep);
+  const isCallSelected = useRealtimeCallStore((state) =>
+    state.selectedEmployeeIds.includes(String(id)),
+  );
+  const toggleCallEmployee = useRealtimeCallStore((state) => state.toggleEmployee);
 
   const [isHovered, setIsHovered] = useState(false);
   const isHighlighted = highlightedEmployeeIds.has(id);
@@ -242,10 +250,23 @@ const Employee = memo(function Employee({
   const handleClick = useCallback(
     (event: ThreeEvent<MouseEvent>) => {
       event.stopPropagation();
+      if (event.nativeEvent.ctrlKey || event.nativeEvent.metaKey) {
+        toggleCallEmployee(String(id));
+        setSelectedObjectId(null);
+        markVisibleActivitySeen();
+        return;
+      }
       setSelectedObjectId(isSelected ? null : employeeIdString);
       markVisibleActivitySeen();
     },
-    [employeeIdString, isSelected, markVisibleActivitySeen, setSelectedObjectId],
+    [
+      employeeIdString,
+      id,
+      isSelected,
+      markVisibleActivitySeen,
+      setSelectedObjectId,
+      toggleCallEmployee,
+    ],
   );
 
   const hoverScale = isHovered && !isSelected ? 1.05 : 1;
@@ -392,11 +413,19 @@ const Employee = memo(function Employee({
           </mesh>
         ) : null}
 
-        {(isHovered || isSelected || isManuallyControlled) && (
+        {(isHovered || isSelected || isManuallyControlled || isCallSelected) && (
           <Edges
             scale={1.1}
-            color={isManuallyControlled ? "#38bdf8" : isSelected ? "#00ff00" : "#ffffff"}
-            lineWidth={isManuallyControlled || isSelected ? 2 : 1}
+            color={
+              isCallSelected
+                ? "#a855f7"
+                : isManuallyControlled
+                  ? "#38bdf8"
+                  : isSelected
+                    ? "#00ff00"
+                    : "#ffffff"
+            }
+            lineWidth={isManuallyControlled || isSelected || isCallSelected ? 2 : 1}
           />
         )}
 

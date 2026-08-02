@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-08-02 | feature | TASK-0076 | ui,agents,livekit,voice,vision,project-config | Added tracked project-local employee profiles, direct and Ctrl/Cmd multi-agent call selection, a LiveKit room UI with audio-driven portraits and media controls, explicit TypeScript agent dispatches with name-addressed group response routing, and turn-snapshot camera/screen vision while keeping credentials in Doppler.
+
 2026-07-22 | ui | TASK-0065 | ui,skills,runbook,experiments,responsive | Rebuilt the selected-skill workspace as a flat Operations Dossier with a responsive section rail, single content scroller, stronger Runbook hierarchy, visible skill health and latest learning, and source-honest experiment states.
 
 2026-07-22 | fix | setup,dependencies,ui,pnpm | Removed unused Pi/Baileys dependency trees, declared the UI's direct YAML build dependency, made Vite resolution and launch independent of npm hoisting, pinned the pnpm workspace toolchain, and replaced stale gateway/OpenClaw-gated setup instructions with a verified basic `/office` path.
