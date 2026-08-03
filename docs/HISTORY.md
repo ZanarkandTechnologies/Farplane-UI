@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-08-03 | bugfix | ui,office,threejs,vite,observability | Prevented R3F provider-context crashes during Vite dependency re-optimization by pre-bundling Fiber and Drei together, and added a Canvas error boundary with a focused console/QA diagnostic plus a recoverable reload state.
+
 2026-08-02 | feature | TASK-0076 | ui,agents,livekit,voice,vision,project-config | Added tracked project-local employee profiles, direct and Ctrl/Cmd multi-agent call selection, a LiveKit room UI with audio-driven portraits and media controls, explicit TypeScript agent dispatches with name-addressed group response routing, and turn-snapshot camera/screen vision while keeping credentials in Doppler.
 
 2026-07-22 | ui | TASK-0065 | ui,skills,runbook,experiments,responsive | Rebuilt the selected-skill workspace as a flat Operations Dossier with a responsive section rail, single content scroller, stronger Runbook hierarchy, visible skill health and latest learning, and source-honest experiment states.

@@ -110,3 +110,14 @@ Lesson:
 
 Promote:
 - Keep in the YouTube shortcut visual and runtime proof contract.
+
+2026-08-03 | office/runtime | Treat impossible provider-context errors as possible module-generation splits
+
+Context:
+- The office threw R3F's outside-Canvas error from a correctly nested `OrbitControls`. The stack referenced a Fiber chunk already absent from Vite's current dependency cache while Drei resolved through the new shared chunk.
+
+Lesson:
+- When a context hook says its provider is missing but component ancestry is valid, compare the browser's dependency chunk ids with the active optimizer metadata. Explicitly pre-bundle tightly coupled provider/hook packages in one startup batch, then prove the fix after a cold browser load.
+
+Promote:
+- Keep in the office runtime-debugging and Vite dependency proof contract.

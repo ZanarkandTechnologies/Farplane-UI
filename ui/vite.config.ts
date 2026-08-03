@@ -6761,6 +6761,8 @@ export default defineConfig({
       "react/jsx-dev-runtime",
       "react-dom",
       "react-dom/client",
+      "@react-three/fiber",
+      "@react-three/drei",
       "three",
     ],
   },

@@ -26,6 +26,7 @@ import {
   hasBlockingOfficePanel,
 } from "@/modules/office/scene/office-render-policy";
 import { OfficeSceneCameraRig } from "@/modules/office/scene/office-scene-camera-rig";
+import { OfficeSceneErrorBoundary } from "@/modules/office/scene/office-scene-error-boundary";
 import { SceneContents } from "@/modules/office/scene/scene-contents";
 import type { OfficeSceneProps } from "@/modules/office/scene/types";
 import {
@@ -57,22 +58,24 @@ const OfficeScene = memo((props: OfficeSceneProps) => {
   });
 
   return (
-    <Canvas
-      shadows="percentage"
-      frameloop={frameloop}
-      data-office-frameloop={frameloop}
-      camera={{
-        position: initialCameraConfig.position,
-        fov: initialCameraConfig.fov,
-        zoom: initialCameraConfig.zoom,
-        near: 0.1,
-        far: 1000,
-      }}
-      style={{ background, transition: "background 0.3s ease" }}
-    >
-      <OfficeSceneCameraRig config={initialCameraConfig} />
-      <SceneContents {...props} />
-    </Canvas>
+    <OfficeSceneErrorBoundary>
+      <Canvas
+        shadows="percentage"
+        frameloop={frameloop}
+        data-office-frameloop={frameloop}
+        camera={{
+          position: initialCameraConfig.position,
+          fov: initialCameraConfig.fov,
+          zoom: initialCameraConfig.zoom,
+          near: 0.1,
+          far: 1000,
+        }}
+        style={{ background, transition: "background 0.3s ease" }}
+      >
+        <OfficeSceneCameraRig config={initialCameraConfig} />
+        <SceneContents {...props} />
+      </Canvas>
+    </OfficeSceneErrorBoundary>
   );
 });
 

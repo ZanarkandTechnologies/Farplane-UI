@@ -21,9 +21,9 @@
 import { Menu } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SpeedDial, type SpeedDialItem } from "@/components/ui/speed-dial";
+import { getOfficeQaState } from "@/modules/office/qa/office-qa-state";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import { useAppStore } from "@/store";
-import { getOfficeQaState } from "@/modules/office/qa/office-qa-state";
 import { FurnitureShop } from "./furniture-shop";
 import { OfficeCommandPalette } from "./office-command-palette";
 import {
@@ -265,7 +265,9 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         getCameraState: () => unknown;
         getStoryCameraTiming: () => unknown;
         getThreadEffects: () => unknown;
-        seedLineageEvent: (edge: Parameters<NonNullable<ReturnType<typeof getOfficeQaState>["seedLineage"]>>[0]) => boolean;
+        seedLineageEvent: (
+          edge: Parameters<NonNullable<ReturnType<typeof getOfficeQaState>["seedLineage"]>>[0],
+        ) => boolean;
         runStoryCameraFixture: (target: [number, number, number] | null) => boolean;
         applyBuilderCustomizationFixture: () => Promise<boolean>;
         getOfficeQualityReport: () => unknown;
