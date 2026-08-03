@@ -94,6 +94,39 @@ afterEach(async () => {
 });
 
 describe("team ticket CLI", () => {
+  it("blocks ordinary ticket creation while a foundation ticket is active", async () => {
+    const { projectPath } = await setup();
+    const ticketDir = path.join(projectPath, "tickets", "TASK-0001");
+    await mkdir(ticketDir, { recursive: true });
+    await writeFile(
+      path.join(ticketDir, "ticket.md"),
+      [
+        "---",
+        "ticket_id: TASK-0001",
+        "title: Find the first customer",
+        "status: active",
+        "foundation_step: find_customer",
+        "foundation_sequence: 1",
+        "---",
+        "",
+        "# TASK-0001: Find the first customer",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    await expect(
+      run([
+        "team",
+        "ticket",
+        "create",
+        "--team-id",
+        "team-proj-alpha",
+        "--title",
+        "Bypass tutorial",
+      ]),
+    ).rejects.toThrow("foundation_locked:create_ticket");
+  });
+
   it("creates, claims, moves, filters, and updates Notes through filesystem tickets", async () => {
     const { projectPath } = await setup();
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);

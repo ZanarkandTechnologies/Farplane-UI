@@ -19,6 +19,7 @@
  * - MEM-0215
  */
 import type { Command } from "commander";
+import { assertProjectFoundationUnlocked } from "../project-ticket-store.js";
 import { ensureOpenclawHeartbeatScaffold } from "./_convex.js";
 import { buildTeamSnapshot } from "./team-config.js";
 import {
@@ -65,6 +66,7 @@ export function registerTeamRun(team: Command, store: SidecarStore): void {
         const company = await store.readCompanyModel();
         const projectId = projectIdFromTeamId(opts.teamId.trim());
         const { project } = resolveProjectOrFail(company, opts.teamId.trim());
+        await assertProjectFoundationUnlocked(project.trackingContext, "activate_autonomy");
         const { company: withProfile, profileId } = ensureHeartbeatProfile(company, projectId);
         const nextGoal = opts.goal?.trim() || project.goal;
         const nextProfiles = withProfile.heartbeatProfiles.map((profile) =>
@@ -130,6 +132,7 @@ export function registerTeamRun(team: Command, store: SidecarStore): void {
         const company = await store.readCompanyModel();
         const projectId = projectIdFromTeamId(opts.teamId.trim());
         const { project } = resolveProjectOrFail(company, opts.teamId.trim());
+        await assertProjectFoundationUnlocked(project.trackingContext, "activate_autonomy");
         const { company: withProfile, profileId } = ensureHeartbeatProfile(company, projectId);
         const nextGoal =
           opts.goal?.trim() ||

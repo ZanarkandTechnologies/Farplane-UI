@@ -7,6 +7,7 @@
 import path from "node:path";
 import { watch } from "node:fs";
 import { Command } from "commander";
+import { assertProjectFoundationUnlocked } from "../project-ticket-store.js";
 import {
   type SidecarStore,
   ensureCommandPermission,
@@ -68,8 +69,8 @@ export function registerTeamHeartbeat(team: Command, store: SidecarStore): void 
         ensureCommandPermission("team.heartbeat.write");
         const company = await store.readCompanyModel();
         const projectId = projectIdFromTeamId(opts.teamId);
-        if (!company.projects.some((entry) => entry.id === projectId))
-          fail(`team_not_found:${opts.teamId}`);
+        const { project } = resolveProjectOrFail(company, opts.teamId);
+        await assertProjectFoundationUnlocked(project.trackingContext, "activate_heartbeat");
         const withProfile = ensureHeartbeatProfile(company, projectId);
         const nextProfiles = withProfile.company.heartbeatProfiles.map((profile) =>
           profile.id === withProfile.profileId
@@ -111,11 +112,21 @@ export function registerTeamHeartbeat(team: Command, store: SidecarStore): void 
       if (opts.watch && opts.json) {
         fail("invalid_options:--watch cannot be used with --json");
       }
+      const assertTargetsUnlocked = async (): Promise<void> => {
+        const company = await store.readCompanyModel();
+        const targetProjects = opts.teamId?.trim()
+          ? [resolveProjectOrFail(company, opts.teamId.trim()).project]
+          : company.projects;
+        for (const project of targetProjects) {
+          await assertProjectFoundationUnlocked(project.trackingContext, "activate_heartbeat");
+        }
+      };
       const runSync = async (): Promise<{
         teamsTouched: number;
         heartbeatFilesWritten: number;
         teamsSkipped: number;
       }> => {
+        await assertTargetsUnlocked();
         return syncTeamHeartbeatFiles({ store, teamId: opts.teamId?.trim() || undefined });
       };
       const firstResult = await runSync();
@@ -183,6 +194,7 @@ export function registerTeamHeartbeat(team: Command, store: SidecarStore): void 
       ensureCommandPermission("team.heartbeat.write");
       const company = await store.readCompanyModel();
       const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
+      await assertProjectFoundationUnlocked(project.trackingContext, "activate_heartbeat");
       const teamAgents = company.agents.filter((agent) => agent.projectId === projectId);
       if (teamAgents.length === 0) {
         fail(`team_has_no_agents:${opts.teamId}`);

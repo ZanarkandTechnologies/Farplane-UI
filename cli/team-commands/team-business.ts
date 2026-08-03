@@ -9,7 +9,10 @@
 import path from "node:path";
 import { cp, mkdir, readdir, writeFile } from "node:fs/promises";
 import { Command } from "commander";
-import { createProjectTicket } from "../project-ticket-store.js";
+import {
+  assertProjectFoundationUnlocked,
+  createProjectTicket,
+} from "../project-ticket-store.js";
 import {
   type SidecarStore,
   type BusinessConfigModel,
@@ -479,6 +482,7 @@ export function registerTeamBusiness(team: Command, store: SidecarStore): void {
       ensureCommandPermission("team.business.write");
       const company = await store.readCompanyModel();
       const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
+      await assertProjectFoundationUnlocked(project.trackingContext, "create_ticket");
       const now = Date.now();
       const iso = (value: number): string => new Date(value).toISOString();
       const teamAgents = company.agents.filter((entry) => entry.projectId === projectId);
@@ -691,6 +695,7 @@ export function registerTeamBusiness(team: Command, store: SidecarStore): void {
         ensureCommandPermission("team.business.write");
         const company = await store.readCompanyModel();
         const { projectId, project } = resolveProjectOrFail(company, opts.teamId);
+        await assertProjectFoundationUnlocked(project.trackingContext, "create_ticket");
         const executorAgent =
           company.agents.find(
             (entry) => entry.projectId === projectId && entry.role === "biz_executor",

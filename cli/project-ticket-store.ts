@@ -57,8 +57,95 @@ export type ProjectTicketScan = {
   issues: ProjectTicketReadIssue[];
 };
 
+export type FoundationStep = "find_customer" | "deliver_value" | "collect_revenue";
+
+export type ProjectFoundationState = {
+  mode: "legacy" | "locked" | "unlocked";
+  activeTickets: ProjectTicket[];
+  completedCount: 0 | 1 | 2 | 3;
+  totalCount: 3;
+};
+
 const TICKET_ID_PATTERN = /^TASK-(\d{4,})$/;
 const SCALAR_FIELD_PATTERN = /^([A-Za-z0-9_-]+):(?:[ \t]*(.*))?$/;
+const FOUNDATION_STEPS = new Set<FoundationStep>([
+  "find_customer",
+  "deliver_value",
+  "collect_revenue",
+]);
+const FOUNDATION_SEQUENCE_BY_STEP: Record<FoundationStep, number> = {
+  find_customer: 1,
+  deliver_value: 2,
+  collect_revenue: 3,
+};
+
+function foundationStep(ticket: ProjectTicket): FoundationStep | null {
+  const value = ticket.frontMatter.foundation_step?.trim();
+  return FOUNDATION_STEPS.has(value as FoundationStep) ? (value as FoundationStep) : null;
+}
+
+function hasFoundationMarker(ticket: ProjectTicket): boolean {
+  return Boolean(
+    ticket.frontMatter.foundation_step?.trim() || ticket.frontMatter.foundation_sequence?.trim(),
+  );
+}
+
+function foundationContractIssue(tickets: ProjectTicket[]): string | null {
+  const seenSteps = new Set<FoundationStep>();
+  const seenSequences = new Set<number>();
+  for (const ticket of tickets) {
+    const step = foundationStep(ticket);
+    const sequence = Number.parseInt(ticket.frontMatter.foundation_sequence?.trim() ?? "", 10);
+    if (!step || sequence !== FOUNDATION_SEQUENCE_BY_STEP[step]) {
+      return `invalid_metadata:${ticket.ticketId}`;
+    }
+    if (seenSteps.has(step) || seenSequences.has(sequence)) {
+      return `duplicate_metadata:${ticket.ticketId}`;
+    }
+    seenSteps.add(step);
+    seenSequences.add(sequence);
+  }
+  return null;
+}
+
+export function deriveProjectFoundationState(
+  tickets: ProjectTicket[],
+): ProjectFoundationState {
+  const markedTickets = tickets.filter(hasFoundationMarker);
+  const activeTickets = markedTickets.filter((ticket) => ticket.status !== "done");
+  const completedCount = Math.max(0, Math.min(3, 3 - activeTickets.length)) as 0 | 1 | 2 | 3;
+  return {
+    mode:
+      activeTickets.length > 0 ? "locked" : markedTickets.length > 0 ? "unlocked" : "legacy",
+    activeTickets,
+    completedCount,
+    totalCount: 3,
+  };
+}
+
+export async function assertProjectFoundationUnlocked(
+  projectPath: string | undefined,
+  action: "create_ticket" | "activate_heartbeat" | "activate_autonomy",
+): Promise<void> {
+  if (!projectPath?.trim()) return;
+  const scan = await scanProjectTickets(projectPath);
+  for (const issue of scan.issues) {
+    const raw = await readFile(issue.filePath, "utf-8").catch(() => "");
+    if (/^foundation_(?:step|sequence):/m.test(raw)) {
+      throw new Error(`foundation_gate_unreadable:${action}:${issue.ticketId}`);
+    }
+  }
+  const state = deriveProjectFoundationState(scan.tickets);
+  if (state.mode !== "locked") return;
+  const contractIssue = foundationContractIssue(state.activeTickets);
+  if (contractIssue) {
+    throw new Error(`foundation_locked:${action}:${contractIssue}`);
+  }
+  const steps = state.activeTickets
+    .map((ticket) => foundationStep(ticket) ?? "invalid")
+    .join(",");
+  throw new Error(`foundation_locked:${action}:${steps}`);
+}
 
 function requireProjectPath(projectPath: string): string {
   const trimmed = projectPath.trim();
@@ -183,6 +270,7 @@ function deriveTicketStatus(frontmatterLines: string[]): ProjectTicketStatus {
   ) {
     return "done";
   }
+  if (lifecycleStatus === "todo") return "todo";
   if (lifecycleStatus === "blocked") return "blocked";
   if (lifecycleStatus === "review" || phase === "review" || phase === "verification")
     return "review";
@@ -383,6 +471,7 @@ export async function createProjectTicket(input: {
   const projectPath = requireProjectPath(input.projectPath);
   const title = input.title.trim();
   if (!title) throw new Error("invalid_ticket_title");
+  await assertProjectFoundationUnlocked(projectPath, "create_ticket");
   const root = ticketsRoot(projectPath);
   await mkdir(root, { recursive: true });
   if (input.ticketId) {

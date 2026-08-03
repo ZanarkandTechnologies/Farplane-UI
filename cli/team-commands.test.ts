@@ -212,6 +212,84 @@ afterEach(() => {
 });
 
 describe("team CLI", () => {
+  it("blocks heartbeat, autonomy, and business generation while foundation work is active", async () => {
+    const stateDir = await setupStateDir();
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+    await runCommand([
+      "team",
+      "create",
+      "--name",
+      "Foundation Team",
+      "--description",
+      "Tutorial gate",
+      "--goal",
+      "Reach first revenue",
+      "--business-type",
+      "affiliate_marketing",
+    ]);
+    const projectPath = path.join(stateDir, "foundation-project");
+    const ticketDir = path.join(projectPath, "tickets", "TASK-0001");
+    await mkdir(ticketDir, { recursive: true });
+    await writeFile(
+      path.join(ticketDir, "ticket.md"),
+      [
+        "---",
+        "ticket_id: TASK-0001",
+        "title: Find the first customer",
+        "status: active",
+        "foundation_step: find_customer",
+        "foundation_sequence: 1",
+        "---",
+        "",
+        "# TASK-0001: Find the first customer",
+      ].join("\n"),
+      "utf-8",
+    );
+    const companyPath = path.join(stateDir, "company.json");
+    const company = JSON.parse(await readFile(companyPath, "utf-8")) as CompanySnapshot;
+    const project = company.projects.find((entry) => entry.id === "proj-foundation-team");
+    if (!project) throw new Error("missing_test_project");
+    project.trackingContext = projectPath;
+    await writeFile(companyPath, `${JSON.stringify(company, null, 2)}\n`, "utf-8");
+    const before = await readFile(companyPath, "utf-8");
+
+    await expect(
+      runCommand([
+        "team",
+        "heartbeat",
+        "set",
+        "--team-id",
+        "team-proj-foundation-team",
+        "--cadence-minutes",
+        "5",
+        "--goal",
+        "Run automatically",
+      ]),
+    ).rejects.toThrow("foundation_locked:activate_heartbeat");
+    await expect(
+      runCommand([
+        "team",
+        "run",
+        "test-mode",
+        "--team-id",
+        "team-proj-foundation-team",
+        "--cadence-minutes",
+        "1",
+      ]),
+    ).rejects.toThrow("foundation_locked:activate_autonomy");
+    await expect(
+      runCommand([
+        "team",
+        "business",
+        "generate-lamp-videos",
+        "--team-id",
+        "team-proj-foundation-team",
+        "--simulate",
+      ]),
+    ).rejects.toThrow("foundation_locked:create_ticket");
+    expect(await readFile(companyPath, "utf-8")).toBe(before);
+  });
+
   it("creates, updates, and archives a team", async () => {
     const stateDir = await setupStateDir();
     process.env.OPENCLAW_STATE_DIR = stateDir;
