@@ -5,6 +5,12 @@
 Team-level operator surfaces for overview, kanban, timeline, memory,
 operator intelligence, and ledger workflows.
 
+Kanban also owns the first-project business foundation gate. When active
+filesystem tickets carry `foundation_step` metadata, it shows only those
+tickets and their three-step progress (`find_customer`, `deliver_value`, then
+`collect_revenue`). Normal board visibility returns only after every foundation
+ticket is closed; the UI never starts automation as part of that unlock.
+
 Farplane harness, optimization, metrics, and cadence render from the generated
 `.farplane/project/ui/latest.json` read model. Tracked project files remain
 canonical; the browser does not reinterpret YAML/TOML semantics for these

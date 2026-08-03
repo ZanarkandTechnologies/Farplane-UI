@@ -83,6 +83,56 @@ export type PanelTask = {
   dueAt?: number;
 };
 
+export type FoundationStep = "find_customer" | "deliver_value" | "collect_revenue";
+
+export type PanelFoundationState = {
+  mode: "legacy" | "locked" | "unlocked";
+  activeTasks: PanelTask[];
+  completedCount: 0 | 1 | 2 | 3;
+  totalCount: 3;
+};
+
+const FOUNDATION_STEPS = new Set<FoundationStep>([
+  "find_customer",
+  "deliver_value",
+  "collect_revenue",
+]);
+
+function foundationSequence(task: PanelTask): number {
+  const parsed = Number.parseInt(task.frontMatter?.foundation_sequence ?? "", 10);
+  return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+}
+
+function hasFoundationMarker(task: PanelTask): boolean {
+  return Boolean(
+    task.frontMatter?.foundation_step?.trim() ||
+      task.frontMatter?.foundation_sequence?.trim(),
+  );
+}
+
+export function derivePanelFoundationState(tasks: PanelTask[]): PanelFoundationState {
+  const markedTasks = tasks.filter(hasFoundationMarker);
+  const activeTasks = markedTasks
+    .filter((task) => task.status !== "done")
+    .sort(
+      (left, right) =>
+        foundationSequence(left) - foundationSequence(right) || left.id.localeCompare(right.id),
+    );
+  const validActiveSteps = new Set(
+    activeTasks
+      .map((task) => task.frontMatter?.foundation_step?.trim())
+      .filter((step): step is FoundationStep => FOUNDATION_STEPS.has(step as FoundationStep)),
+  );
+  const remainingCount = Math.max(activeTasks.length, validActiveSteps.size);
+  const completedCount = Math.max(0, Math.min(3, 3 - remainingCount)) as 0 | 1 | 2 | 3;
+  return {
+    mode: activeTasks.length > 0 ? "locked" : markedTasks.length > 0 ? "unlocked" : "legacy",
+    activeTasks,
+    completedCount,
+    totalCount: 3,
+  };
+}
+
 export type ActivityRow = {
   _id: string;
   agentId: string;

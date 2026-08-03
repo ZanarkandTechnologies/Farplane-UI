@@ -14,7 +14,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KanbanColumn } from "./kanban-column";
 import { TaskDetailModal } from "./task-detail-modal";
-import { buildKanbanColumns, type KanbanLaneKey, type PanelTask } from "./team-panel-types";
+import {
+  buildKanbanColumns,
+  derivePanelFoundationState,
+  type KanbanLaneKey,
+  type PanelTask,
+} from "./team-panel-types";
 import type { ProjectKanbanLoadState, ProjectKanbanSnapshot } from "./use-project-kanban";
 
 interface KanbanTabProps {
@@ -42,13 +47,15 @@ export function KanbanTab({
 }: KanbanTabProps): JSX.Element {
   const [selectedTask, setSelectedTask] = useState<PanelTask | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const foundation = useMemo(() => derivePanelFoundationState(projectTasks), [projectTasks]);
 
   const visibleTasks = useMemo(() => {
     if (kanbanState !== "ready") return [];
+    if (foundation.mode === "locked") return foundation.activeTasks;
     return focusAgentId
       ? projectTasks.filter((task) => task.ownerAgentId === focusAgentId)
       : projectTasks;
-  }, [focusAgentId, kanbanState, projectTasks]);
+  }, [focusAgentId, foundation, kanbanState, projectTasks]);
   const columns = buildKanbanColumns(visibleTasks);
   const sourceLabel =
     kanbanSnapshot?.providerConfig.provider.replace(/_/g, " ") ?? "filesystem tickets";
@@ -93,17 +100,39 @@ export function KanbanTab({
         ) : null}
       </div>
 
-      {focusAgentId ? (
+      {focusAgentId && foundation.mode !== "locked" ? (
         <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
           Showing tasks owned by <span className="font-mono">{focusAgentId}</span> in this panel
           scope.
         </div>
       ) : null}
 
+      {kanbanState === "ready" && foundation.mode === "locked" ? (
+        <div
+          className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3"
+          data-testid="business-foundation-gate"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Business foundation {foundation.completedCount}/{foundation.totalCount}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Finish these starter quests before creating normal work or enabling automation.
+              </p>
+            </div>
+            <Badge variant="outline" className="border-amber-500/50 text-amber-600">
+              Next: {foundation.activeTasks[0]?.title ?? "Complete the foundation"}
+            </Badge>
+          </div>
+        </div>
+      ) : null}
+
       {showReadOnlyNotice ? (
         <div className="rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-          Task changes are made in the canonical ticket files. This board refreshes from those
-          files.
+          {foundation.mode === "locked"
+            ? "Only foundation tickets are shown. Close them through the normal review flow to unlock the full project."
+            : "Task changes are made in the canonical ticket files. This board refreshes from those files."}
         </div>
       ) : null}
 

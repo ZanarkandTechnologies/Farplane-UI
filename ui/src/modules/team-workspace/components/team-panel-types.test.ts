@@ -3,6 +3,7 @@ import {
   buildKanbanColumns,
   type CommunicationRow,
   deriveAgentPresenceRows,
+  derivePanelFoundationState,
   isTaskInReviewLane,
   type PanelTask,
   type PresenceEmployee,
@@ -157,6 +158,62 @@ describe("deriveAgentPresenceRows", () => {
 });
 
 describe("kanban lane helpers", () => {
+  it("uses active foundation tickets as the whole locked board and advances progress", () => {
+    const foundationTask = (
+      id: string,
+      step: string,
+      sequence: number,
+      status: PanelTask["status"],
+    ): PanelTask => ({
+      id,
+      title: `Foundation ${sequence}`,
+      status,
+      priority: "high",
+      provider: "internal",
+      syncState: "healthy",
+      frontMatter: {
+        foundation_step: step,
+        foundation_sequence: String(sequence),
+      },
+    });
+    const ordinary: PanelTask = {
+      id: "TASK-0042",
+      title: "Ordinary work",
+      status: "todo",
+      priority: "medium",
+      provider: "internal",
+      syncState: "healthy",
+    };
+
+    const initial = derivePanelFoundationState([
+      ordinary,
+      foundationTask("TASK-0003", "collect_revenue", 3, "blocked"),
+      foundationTask("TASK-0001", "find_customer", 1, "in_progress"),
+      foundationTask("TASK-0002", "deliver_value", 2, "blocked"),
+    ]);
+    expect(initial).toMatchObject({ mode: "locked", completedCount: 0, totalCount: 3 });
+    expect(initial.activeTasks.map((task) => task.id)).toEqual([
+      "TASK-0001",
+      "TASK-0002",
+      "TASK-0003",
+    ]);
+
+    const afterOne = derivePanelFoundationState([
+      ordinary,
+      foundationTask("TASK-0002", "deliver_value", 2, "in_progress"),
+      foundationTask("TASK-0003", "collect_revenue", 3, "blocked"),
+    ]);
+    expect(afterOne).toMatchObject({ mode: "locked", completedCount: 1 });
+
+    expect(derivePanelFoundationState([ordinary])).toMatchObject({ mode: "legacy" });
+    expect(
+      derivePanelFoundationState([
+        ordinary,
+        foundationTask("TASK-0003", "collect_revenue", 3, "done"),
+      ]),
+    ).toMatchObject({ mode: "unlocked", activeTasks: [], completedCount: 3 });
+  });
+
   it("routes review-status tasks into the review lane", () => {
     const tasks: PanelTask[] = [
       {
