@@ -1,7 +1,7 @@
 kind: project-metrics
 status: active
 created_at: 2026-07-12
-updated_at: 2026-07-26
+updated_at: 2026-08-02
 framework_template_version: "0.4.0"
 owner: metric-advisor
 finance:

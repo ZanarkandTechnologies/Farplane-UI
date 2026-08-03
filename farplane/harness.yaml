@@ -2,7 +2,7 @@ kind: project-harness
 status: active
 project: Farplane UI
 created_at: 2026-06-17
-updated_at: '2026-07-26'
+updated_at: 2026-08-02
 framework_template_version: 0.5.3
 owner: harness
 identity:
