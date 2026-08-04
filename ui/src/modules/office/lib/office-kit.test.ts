@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { OfficeObject } from "./types";
-import { buildOfficeKitObjectKey, materializeCommandOfficeKit } from "./office-kit";
 import { toOfficeSettings } from "@/modules/runtime/lib/openclaw/normalize";
-import { buildCanonicalActivityRooms } from "./canonical-activity-rooms";
+import { buildOfficeKitObjectKey, materializeCommandOfficeKit } from "./office-kit";
 import { createRectangularOfficeLayout } from "./office-layout";
+import { buildOperatingRooms } from "./operating-room-catalog";
+import type { OfficeObject } from "./types";
 
 const sceneObjects: OfficeObject[] = [
   {
@@ -34,7 +34,9 @@ describe("office kit materialization", () => {
     const settings = toOfficeSettings({});
     const first = materializeCommandOfficeKit({ sceneObjects, persistedObjects: [], settings });
     const second = materializeCommandOfficeKit({
-      sceneObjects: [...sceneObjects].reverse().map((object) => ({ ...object, _id: `${object._id}-2` })),
+      sceneObjects: [...sceneObjects]
+        .reverse()
+        .map((object) => ({ ...object, _id: `${object._id}-2` })),
       persistedObjects: [],
       settings,
     });
@@ -83,17 +85,17 @@ describe("office kit materialization", () => {
     expect(result.settings.officeKit).toMatchObject({ status: "equipped", revision: 1 });
   });
 
-  it("persists every canonical activity room as a stable kit-owned semantic object", () => {
+  it("persists every operating room as a stable kit-owned semantic object", () => {
     const result = materializeCommandOfficeKit({
-      sceneObjects: [...sceneObjects, ...buildCanonicalActivityRooms()],
+      sceneObjects: [...sceneObjects, ...buildOperatingRooms()],
       persistedObjects: [],
       settings: toOfficeSettings({}),
     });
     const rooms = result.objects.filter((object) => object.meshType === "activity-landmark");
 
-    expect(rooms).toHaveLength(13);
-    expect(rooms.every((room) => room.id.includes(":activity-room:"))).toBe(true);
-    expect(rooms.every((room) => room.metadata?.canonicalActivityRoom === true)).toBe(true);
+    expect(rooms).toHaveLength(11);
+    expect(rooms.every((room) => room.id.includes(":operating-room:"))).toBe(true);
+    expect(rooms.every((room) => typeof room.metadata?.operatingRoomId === "string")).toBe(true);
   });
 
   it("preserves an object with tampered kit ownership metadata", () => {
@@ -134,7 +136,9 @@ describe("office kit materialization", () => {
       settings: first.settings,
     });
     expect(second.settings.officeKit?.revision).toBe(2);
-    expect(second.objects.map((object) => object.id)).toEqual(first.objects.map((object) => object.id));
+    expect(second.objects.map((object) => object.id)).toEqual(
+      first.objects.map((object) => object.id),
+    );
   });
 
   it("places team neighborhoods using their rendered visual footprint", () => {

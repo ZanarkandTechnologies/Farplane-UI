@@ -70,6 +70,7 @@ export type OfficePanelActionId =
   | "video-intelligence"
   | "world"
   | "document-library"
+  | "self-improvement-runs"
   | "skill-os"
   | "rollout"
   | "template-tracking"
@@ -119,6 +120,7 @@ export type OfficePanelRegistryDependencies = {
   openVideoIntelligence: () => void;
   openWorld: () => void;
   openDocumentLibrary: () => void;
+  openSelfImprovementRuns: () => void;
   openCeoWorkbench: () => void;
   openHumanReview: () => void;
   openTelemetry: () => void;
@@ -145,6 +147,7 @@ const OFFICE_LAUNCHER_ACTION_ORDER: OfficePanelActionId[] = [
   "video-intelligence",
   "world",
   "document-library",
+  "self-improvement-runs",
   "telemetry",
   "finance",
   "raw-telemetry",
@@ -226,6 +229,7 @@ export function createOfficePanelActions(
   const videoIntelligencePanel = getOfficeInternalPanelEntry("video-intelligence");
   const worldPanel = getOfficeInternalPanelEntry("world");
   const documentLibraryPanel = getOfficeInternalPanelEntry("document-library");
+  const selfImprovementPanel = getOfficeInternalPanelEntry("self-improvement-runs");
   const skillOsPanel = getOfficeInternalPanelEntry("skill-os");
   const rolloutPanel = getOfficeInternalPanelEntry("rollout");
   const templateTrackingPanel = getOfficeInternalPanelEntry("template-tracking");
@@ -355,6 +359,16 @@ export function createOfficePanelActions(
       keywords: documentLibraryPanel.keywords,
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openDocumentLibrary,
+    },
+    {
+      id: "self-improvement-runs",
+      label: selfImprovementPanel.label,
+      description: selfImprovementPanel.description,
+      group: "panel",
+      icon: TestTube2,
+      keywords: [...selfImprovementPanel.keywords, "lab"],
+      color: SECONDARY_BUTTON_COLOR,
+      perform: deps.openSelfImprovementRuns,
     },
     {
       id: "skill-os",

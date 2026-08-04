@@ -22,6 +22,7 @@ import { ResourceBankPanel } from "@/modules/resource-bank";
 import { RealtimeCallDialog, RealtimeCallLauncher } from "@/modules/realtime-call";
 import { gatewayBase } from "@/modules/runtime";
 import { SettingsDialog } from "@/modules/settings";
+import { SelfImprovementRunsPanel } from "@/modules/self-improvement";
 import { SkillInvocationsPanel } from "@/modules/skill-invocations";
 import { TeamPanel } from "@/modules/team-workspace";
 import { TelemetryPanel } from "@/modules/telemetry";
@@ -71,6 +72,7 @@ function OfficeSimulationContent() {
     officeObjects,
     officeAreas,
     officeSettings,
+    companyModel,
     isLoading,
   } = useOfficeWorldStore(useShallow(selectOfficeWorldContextData));
 
@@ -109,6 +111,12 @@ function OfficeSimulationContent() {
   );
   const isWorldMapPanelOpen = useAppStore((state) => state.isWorldMapPanelOpen);
   const setIsWorldMapPanelOpen = useAppStore((state) => state.setIsWorldMapPanelOpen);
+  const isSelfImprovementRunsPanelOpen = useAppStore(
+    (state) => state.isSelfImprovementRunsPanelOpen,
+  );
+  const setIsSelfImprovementRunsPanelOpen = useAppStore(
+    (state) => state.setIsSelfImprovementRunsPanelOpen,
+  );
   const [isLogsDrawerOpen, setIsLogsDrawerOpen] = useState(false);
   const [navigationReady, setNavigationReady] = useState(false);
   const [hasNavigationReadyOnce, setHasNavigationReadyOnce] = useState(false);
@@ -286,6 +294,11 @@ function OfficeSimulationContent() {
             />
             <WorldMapPanel open={isWorldMapPanelOpen} onOpenChange={setIsWorldMapPanelOpen} />
             <ProjectDocumentLibraryPanel />
+            <SelfImprovementRunsPanel
+              open={isSelfImprovementRunsPanelOpen}
+              onOpenChange={setIsSelfImprovementRunsPanelOpen}
+              projects={companyModel?.projects ?? []}
+            />
 
             <div className="pointer-events-none absolute top-4 left-4 z-[70]">
               <div className="pointer-events-auto">

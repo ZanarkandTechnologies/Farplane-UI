@@ -1,26 +1,16 @@
 /** Pure spatial-quality measurements published to the office QA surface. */
 
 import { DESK_HEIGHT, TOTAL_HEIGHT } from "@/constants";
-import type { OfficeObject } from "./types";
-import { CANONICAL_ACTIVITY_ROOM_KINDS } from "./canonical-activity-rooms";
-import {
-  getOfficeLayoutWallSegments,
-  type OfficeLayoutModel,
-} from "./office-layout";
 import {
   EMPLOYEE_HIT_CAPSULE_WIDTH,
   EMPLOYEE_VISUAL_SCALE,
 } from "../components/employee/employee-scene-scale";
-import {
-  getObjectFootprint,
-  isObjectFootprintInsideLayout,
-} from "../systems/occupancy-system";
+import { getObjectFootprint, isObjectFootprintInsideLayout } from "../systems/occupancy-system";
+import { getOfficeLayoutWallSegments, type OfficeLayoutModel } from "./office-layout";
+import { OPERATING_ROOM_IDS } from "./operating-room-catalog";
+import type { OfficeObject } from "./types";
 
-const COMPOSITION_MESH_TYPES = new Set([
-  "team-cluster",
-  "command-commons",
-  "activity-landmark",
-]);
+const COMPOSITION_MESH_TYPES = new Set(["team-cluster", "command-commons", "activity-landmark"]);
 const CIRCULATION_MESH_TYPES = new Set(["team-cluster", "command-commons"]);
 const WALL_MESH_TYPES = new Set(["glass-wall", "office-divider"]);
 
@@ -82,10 +72,7 @@ export function measureOfficeSceneQuality(
         leafIntersectionCount += 1;
         leafIntersections.push(`${String(left._id)}<>${String(right._id)}`);
       }
-      if (
-        CIRCULATION_MESH_TYPES.has(left.meshType) &&
-        CIRCULATION_MESH_TYPES.has(right.meshType)
-      ) {
+      if (CIRCULATION_MESH_TYPES.has(left.meshType) && CIRCULATION_MESH_TYPES.has(right.meshType)) {
         minimumCirculationClearance = Math.min(
           minimumCirculationClearance,
           edgeClearance(left, right),
@@ -108,13 +95,13 @@ export function measureOfficeSceneQuality(
     }
   }
   const employeeWorldHeight = TOTAL_HEIGHT * EMPLOYEE_VISUAL_SCALE;
-  const activityRoomKinds = officeObjects.flatMap((object) =>
-    object.meshType === "activity-landmark" && typeof object.metadata?.landmarkKind === "string"
-      ? [object.metadata.landmarkKind]
+  const operatingRoomIds = officeObjects.flatMap((object) =>
+    object.meshType === "activity-landmark" && typeof object.metadata?.operatingRoomId === "string"
+      ? [object.metadata.operatingRoomId]
       : [],
   );
-  const activityRoomKindCounts = activityRoomKinds.reduce<Record<string, number>>((counts, kind) => {
-    counts[kind] = (counts[kind] ?? 0) + 1;
+  const operatingRoomIdCounts = operatingRoomIds.reduce<Record<string, number>>((counts, id) => {
+    counts[id] = (counts[id] ?? 0) + 1;
     return counts;
   }, {});
   return {
@@ -128,13 +115,11 @@ export function measureOfficeSceneQuality(
     shellBoundaryIntersectionCount,
     leafIntersections,
     wallIntersections,
-    activityRoomCount: activityRoomKinds.length,
-    missingActivityRoomKinds: CANONICAL_ACTIVITY_ROOM_KINDS.filter(
-      (kind) => !activityRoomKindCounts[kind],
-    ),
-    duplicateActivityRoomKinds: Object.entries(activityRoomKindCounts)
+    operatingRoomCount: operatingRoomIds.length,
+    missingOperatingRoomIds: OPERATING_ROOM_IDS.filter((roomId) => !operatingRoomIdCounts[roomId]),
+    duplicateOperatingRoomIds: Object.entries(operatingRoomIdCounts)
       .filter(([, count]) => count > 1)
-      .map(([kind]) => kind),
+      .map(([roomId]) => roomId),
     minimumCirculationClearance: Number.isFinite(minimumCirculationClearance)
       ? minimumCirculationClearance
       : null,

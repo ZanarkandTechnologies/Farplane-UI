@@ -5,6 +5,90 @@
  */
 export const EXECUTIVE_SPECIALISTS = [
   {
+    agentId: "farplane-improvement",
+    role: "improvement_lead",
+    name: "Refine",
+    title: "Improvement Lead",
+    status: "Tracking self-improvement runs and verified behavior gains.",
+    appearance: {
+      clothesStyle: "techBro" as const,
+      hairColor: "#49372f",
+      skinColor: "#d9a27e",
+      shirtColor: "#0ea5e9",
+      pantsColor: "#21384b",
+    },
+  },
+  {
+    agentId: "farplane-research",
+    role: "research_lead",
+    name: "Sage",
+    title: "Research Lead",
+    status: "Grounding decisions in evidence and maintained sources.",
+    appearance: {
+      clothesStyle: "professional" as const,
+      hairColor: "#3d2c25",
+      skinColor: "#c98b68",
+      shirtColor: "#b58a52",
+      pantsColor: "#44382f",
+    },
+  },
+  {
+    agentId: "farplane-production",
+    role: "creative_producer",
+    name: "Frame",
+    title: "Creative Producer",
+    status: "Turning approved ideas into clear production-ready outputs.",
+    appearance: {
+      clothesStyle: "dj" as const,
+      hairColor: "#25242d",
+      skinColor: "#b97856",
+      shirtColor: "#a78bfa",
+      pantsColor: "#302944",
+    },
+  },
+  {
+    agentId: "farplane-qa",
+    role: "qa_lead",
+    name: "Proof",
+    title: "QA Lead",
+    status: "Testing critical paths and keeping completion claims honest.",
+    appearance: {
+      clothesStyle: "techBro" as const,
+      hairColor: "#222d32",
+      skinColor: "#d7a17a",
+      shirtColor: "#22d3ee",
+      pantsColor: "#173f46",
+    },
+  },
+  {
+    agentId: "farplane-harness",
+    role: "harness_advisor",
+    name: "Rig",
+    title: "Harness Advisor",
+    status: "Shaping reliable agent harnesses and measurable operating loops.",
+    appearance: {
+      clothesStyle: "techBro" as const,
+      hairColor: "#50372a",
+      skinColor: "#e2ad86",
+      shirtColor: "#f59e0b",
+      pantsColor: "#4a341b",
+    },
+  },
+  {
+    agentId: "farplane-skills",
+    role: "skills_architect",
+    name: "Glyph",
+    title: "Skills Architect",
+    status: "Designing reusable skills and keeping their contracts maintainable.",
+    appearance: {
+      clothesStyle: "professional" as const,
+      hairColor: "#2b2925",
+      skinColor: "#a96e4d",
+      shirtColor: "#34d399",
+      pantsColor: "#1e493d",
+    },
+  },
+  {
     agentId: "farplane-finance",
     role: "finance",
     name: "Ledger",
@@ -46,6 +130,48 @@ export const EXECUTIVE_SPECIALISTS = [
       pantsColor: "#54331f",
     },
   },
+  {
+    agentId: "farplane-comms",
+    role: "communications_lead",
+    name: "Relay",
+    title: "Communications Lead",
+    status: "Keeping operator communications clear, timely, and correctly routed.",
+    appearance: {
+      clothesStyle: "professional" as const,
+      hairColor: "#382b28",
+      skinColor: "#d19a76",
+      shirtColor: "#38bdf8",
+      pantsColor: "#21465a",
+    },
+  },
+  {
+    agentId: "farplane-usage",
+    role: "usage_analyst",
+    name: "Gauge",
+    title: "Usage Analyst",
+    status: "Watching agent-hour usage and operational telemetry signals.",
+    appearance: {
+      clothesStyle: "techBro" as const,
+      hairColor: "#262b2d",
+      skinColor: "#bc805d",
+      shirtColor: "#4ade80",
+      pantsColor: "#214330",
+    },
+  },
+  {
+    agentId: "farplane-mining",
+    role: "mining_analyst",
+    name: "Vein",
+    title: "Mining Analyst",
+    status: "Extracting structured evidence from task and thread history.",
+    appearance: {
+      clothesStyle: "professional" as const,
+      hairColor: "#342a39",
+      skinColor: "#e0aa83",
+      shirtColor: "#c084fc",
+      pantsColor: "#432d55",
+    },
+  },
 ] as const;
 
 export type ExecutiveSpecialist = (typeof EXECUTIVE_SPECIALISTS)[number];
@@ -62,6 +188,10 @@ export function isExecutiveSpecialistAgentId(value: string): value is ExecutiveS
 export function isExecutiveSpecialistEmployeeId(value: string): boolean {
   const agentId = value.startsWith("employee-") ? value.slice("employee-".length) : value;
   return isExecutiveSpecialistAgentId(agentId);
+}
+
+export function getExecutiveSpecialist(agentId: string): ExecutiveSpecialist | undefined {
+  return EXECUTIVE_SPECIALISTS.find((specialist) => specialist.agentId === agentId);
 }
 
 export function resolveExecutiveHostTeamId(input: {

@@ -5,9 +5,13 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useChatStore } from "@/modules/chat/chat-store";
 import { useAppStore } from "@/store";
-import type { AgentCardModel, SessionRowModel } from "@/modules/runtime";
+import {
+  type AgentCardModel,
+  roomHostLocalThreadId,
+  type SessionRowModel,
+  useOfficeRuntimeAdapter,
+} from "@/modules/runtime";
 import { useGateway } from "@/providers/gateway-provider";
-import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { isConvexEnabled } from "@/providers/convex-provider";
 import {
   chatThreadListContains,
@@ -75,13 +79,14 @@ function parseAgentIdFromKey(key: string): string {
 
 function mapRowsToThreads(agentId: string, rows: SessionRowModel[]) {
   return rows.map((row) => ({
-    _id: row.sessionKey,
+    _id: row.conversationKey ? roomHostLocalThreadId(row.conversationKey) : row.sessionKey,
     title: row.peerLabel || row.channel || row.sessionKey,
     agentId: row.agentId || agentId,
     sessionKey: row.sessionKey,
     parentThreadId: row.parentThreadId
       ? codexSessionKeyFromThreadId(row.parentThreadId)
       : undefined,
+    ...(row.conversationKey ? { conversationKey: row.conversationKey } : {}),
   }));
 }
 
@@ -191,9 +196,19 @@ export function useChatThreads(): {
       if (adapter.runtimeKind === "codex") {
         const rows = await adapter.listSessions(agentId);
         const mappedThreads = mapRowsToThreads(agentId, rows);
+        const mappedIds = new Set(mappedThreads.map((thread) => thread._id));
+        const pendingScopedThreads = useChatStore
+          .getState()
+          .threads.filter(
+            (thread) =>
+              thread.agentId === agentId &&
+              Boolean(thread.conversationKey) &&
+              !mappedIds.has(thread._id),
+          );
+        const nextThreads = [...pendingScopedThreads, ...mappedThreads];
         setSessions(rows);
-        setThreads(mappedThreads);
-        return mappedThreads;
+        setThreads(nextThreads);
+        return nextThreads;
       }
       const res = await client.request<SessionsListResult>("sessions.list", { agentId });
       const raw = Array.isArray(res?.sessions) ? res.sessions : [];

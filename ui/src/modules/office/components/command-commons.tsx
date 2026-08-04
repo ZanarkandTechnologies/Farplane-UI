@@ -2,13 +2,14 @@
  * COMMAND COMMONS
  * ===============
  * Procedural, generated focal table for the automatic office composition.
- * It receives only a transform, emits one obstacle-sized group, and has no
- * persistence or interaction side effects.
+ * It receives a transform and registered World action, then emits one
+ * obstacle-sized group with a static, performance-bounded interaction cue.
  */
 
-import { Box, Cylinder } from "@react-three/drei";
-import { COMPUTER_HEIGHT, DESK_HEIGHT } from "@/constants";
+import { Box, Cylinder, Torus } from "@react-three/drei";
+import type { ThreeEvent } from "@react-three/fiber";
 import { OFFICE_LANDMARK_THEME } from "@/config/office-theme";
+import { COMPUTER_HEIGHT, DESK_HEIGHT } from "@/constants";
 import {
   COMMAND_COMMONS_FRAME,
   COMMAND_COMMONS_SCALE,
@@ -44,18 +45,39 @@ const COMMAND_SCREEN_COLORS = [
 export default function CommandCommons({
   position,
   rotation = [0, 0, 0],
+  onOpenWorld,
 }: {
   position: [number, number, number];
   rotation?: [number, number, number];
+  onOpenWorld: () => void;
 }) {
+  const handleClick = (event: ThreeEvent<MouseEvent>): void => {
+    event.stopPropagation();
+    onOpenWorld();
+  };
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: This Three.js group is the scene pointer hit target; DOM keyboard access is provided by the registered launcher.
     <group
       position={position}
       rotation={rotation}
       scale={[COMMAND_COMMONS_SCALE, 1, COMMAND_COMMONS_SCALE]}
       name="command-commons"
+      onClick={handleClick}
+      onPointerOver={() => {
+        document.body.style.cursor = "pointer";
+      }}
+      onPointerOut={() => {
+        document.body.style.cursor = "auto";
+      }}
+      userData={{ panelId: "world", interactionLabel: "Open Company World" }}
     >
-      <pointLight position={[0, 4.2, 0]} intensity={3.8} color="#e8a25d" distance={8} decay={1.45} />
+      <pointLight
+        position={[0, 4.2, 0]}
+        intensity={3.8}
+        color="#e8a25d"
+        distance={8}
+        decay={1.45}
+      />
       <group name="command-commons-contained-architecture">
         {[-1, 1].flatMap((xSign) =>
           [-1, 1].map((zSign) => (
@@ -92,7 +114,11 @@ export default function CommandCommons({
             </Box>
             <Box
               args={[COMMAND_COMMONS_FRAME.postX * 1.72, 0.035, 0.055]}
-              position={[0, COMMAND_COMMONS_FRAME.height - 0.08, zSign * COMMAND_COMMONS_FRAME.postZ]}
+              position={[
+                0,
+                COMMAND_COMMONS_FRAME.height - 0.08,
+                zSign * COMMAND_COMMONS_FRAME.postZ,
+              ]}
             >
               <meshStandardMaterial color="#bd8654" emissive="#8f512d" emissiveIntensity={0.42} />
             </Box>
@@ -119,8 +145,29 @@ export default function CommandCommons({
       <Box args={[8.3, 0.055, 5.42]} position={[0, DESK_HEIGHT + 0.145, 0]} receiveShadow>
         <meshStandardMaterial color="#654833" roughness={0.58} />
       </Box>
-      {[[-3.35, -2.05], [3.35, -2.05], [-3.35, 2.05], [3.35, 2.05]].map(([x, z]) => (
-        <Cylinder key={`${x}:${z}`} args={[0.2, 0.28, DESK_HEIGHT, 16]} position={[x, DESK_HEIGHT / 2, z]} castShadow>
+      <group name="company-world-click-cue" position={[0, DESK_HEIGHT + 0.38, 0]}>
+        <Torus args={[0.62, 0.045, 8, 32]} rotation={[Math.PI / 2, 0, 0]}>
+          <meshStandardMaterial color="#67d9e8" emissive="#2e91a5" emissiveIntensity={0.8} />
+        </Torus>
+        <Torus args={[0.42, 0.035, 8, 24]} rotation={[Math.PI / 2, 0, Math.PI / 2]}>
+          <meshStandardMaterial color="#93e7dd" emissive="#3ba598" emissiveIntensity={0.65} />
+        </Torus>
+        <Cylinder args={[0.08, 0.08, 0.16, 12]} position={[0, 0.03, 0]}>
+          <meshStandardMaterial color="#d8fff8" emissive="#6cd8cc" emissiveIntensity={0.8} />
+        </Cylinder>
+      </group>
+      {[
+        [-3.35, -2.05],
+        [3.35, -2.05],
+        [-3.35, 2.05],
+        [3.35, 2.05],
+      ].map(([x, z]) => (
+        <Cylinder
+          key={`${x}:${z}`}
+          args={[0.2, 0.28, DESK_HEIGHT, 16]}
+          position={[x, DESK_HEIGHT / 2, z]}
+          castShadow
+        >
           <meshStandardMaterial color={M.darkMetal} roughness={0.55} metalness={0.35} />
         </Cylinder>
       ))}
@@ -134,13 +181,27 @@ export default function CommandCommons({
             position={[-2.73 + column * 1.82, DESK_HEIGHT + 0.21, -1.46 + row * 1.46]}
             castShadow
           >
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.34} roughness={0.38} metalness={0.16} />
+            <meshStandardMaterial
+              color={color}
+              emissive={color}
+              emissiveIntensity={0.34}
+              roughness={0.38}
+              metalness={0.16}
+            />
           </Box>
         );
       })}
-      {getCommandCommonsStationTransforms().map((station, index) => (
-        <group key={index} position={station.position} rotation={[0, station.rotationY, 0]}>
-          <Box args={[0.68, COMPUTER_HEIGHT * 0.72, 0.055]} position={[0, COMPUTER_HEIGHT * 0.36, 0]} castShadow>
+      {getCommandCommonsStationTransforms().map((station) => (
+        <group
+          key={`${station.position.join(":")}:${station.rotationY}`}
+          position={station.position}
+          rotation={[0, station.rotationY, 0]}
+        >
+          <Box
+            args={[0.68, COMPUTER_HEIGHT * 0.72, 0.055]}
+            position={[0, COMPUTER_HEIGHT * 0.36, 0]}
+            castShadow
+          >
             <meshStandardMaterial color={M.inactiveScreen} roughness={0.32} metalness={0.12} />
           </Box>
           <Box args={[0.12, 0.18, 0.12]} position={[0, -0.07, 0]}>
@@ -149,18 +210,32 @@ export default function CommandCommons({
         </group>
       ))}
       {[-2.86, 2.86].map((z) => (
-        <Box key={`edge-rail-z-${z}`} args={[8.9, 0.24, 0.18]} position={[0, DESK_HEIGHT + 0.31, z]} castShadow>
+        <Box
+          key={`edge-rail-z-${z}`}
+          args={[8.9, 0.24, 0.18]}
+          position={[0, DESK_HEIGHT + 0.31, z]}
+          castShadow
+        >
           <meshStandardMaterial color="#754d33" roughness={0.58} />
         </Box>
       ))}
       {[-4.32, 4.32].map((x) => (
-        <Box key={`edge-rail-x-${x}`} args={[0.18, 0.24, 5.55]} position={[x, DESK_HEIGHT + 0.31, 0]} castShadow>
+        <Box
+          key={`edge-rail-x-${x}`}
+          args={[0.18, 0.24, 5.55]}
+          position={[x, DESK_HEIGHT + 0.31, 0]}
+          castShadow
+        >
           <meshStandardMaterial color="#754d33" roughness={0.58} />
         </Box>
       ))}
       {[-2.65, -0.9, 0.9, 2.65].flatMap((x) =>
         [-2.9, 2.9].map((z) => (
-          <group key={`chair-${x}-${z}`} position={[x, 0, z]} rotation={[0, z > 0 ? Math.PI : 0, 0]}>
+          <group
+            key={`chair-${x}-${z}`}
+            position={[x, 0, z]}
+            rotation={[0, z > 0 ? Math.PI : 0, 0]}
+          >
             <Box args={[0.56, 0.12, 0.52]} position={[0, 0.46, 0]} castShadow>
               <meshStandardMaterial color="#2f302e" roughness={0.82} />
             </Box>

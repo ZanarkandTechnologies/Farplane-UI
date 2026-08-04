@@ -2,6 +2,11 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import {
+  parseRoomHostConversationKey,
+  type RoomHostConversationKey,
+  roomHostLocalThreadId,
+} from "@/modules/runtime";
 import { useAppStore } from "@/store";
 
 type ChatMode = "Chat" | "Files" | "Config";
@@ -42,6 +47,13 @@ export type LocalChatThread = {
   agentId?: string;
   sessionKey?: string;
   isPendingNew?: boolean;
+  conversationKey?: RoomHostConversationKey;
+};
+
+export type OpenEmployeeChatOptions = {
+  openDialog?: boolean;
+  displayName?: string;
+  conversationKey?: RoomHostConversationKey;
 };
 
 type ChatState = {
@@ -117,7 +129,7 @@ export const useChatStore = create<ChatState>()(
 export function useChatActions(): {
   openEmployeeChat: (
     employeeId: string,
-    openDialog?: boolean,
+    optionsOrOpenDialog?: OpenEmployeeChatOptions | boolean,
     displayName?: string,
   ) => Promise<void>;
   openTeamChat: (teamId: string, openDialog?: boolean) => Promise<void>;
@@ -133,9 +145,15 @@ export function useChatActions(): {
   return {
     async openEmployeeChat(
       employeeId: string,
-      openDialog = true,
-      displayName?: string,
+      optionsOrOpenDialog: OpenEmployeeChatOptions | boolean = true,
+      legacyDisplayName?: string,
     ): Promise<void> {
+      const options: OpenEmployeeChatOptions =
+        typeof optionsOrOpenDialog === "boolean"
+          ? { openDialog: optionsOrOpenDialog, displayName: legacyDisplayName }
+          : optionsOrOpenDialog;
+      const openDialog = options.openDialog ?? true;
+      const displayName = options.displayName;
       setCurrentEmployeeId(employeeId);
       setCurrentTeamId(null);
       const agentId = employeeId.startsWith("employee-")
@@ -145,30 +163,44 @@ export function useChatActions(): {
         const appState = useAppStore.getState();
         const isAgentSwitch = appState.selectedAgentId !== agentId;
         appState.setSelectedAgentId(agentId);
-        // Only reset session context when switching to a different agent.
-        if (isAgentSwitch) {
+        // Room-host conversations select a stable logical thread below; ordinary
+        // employee switching keeps the existing reset behavior.
+        if (isAgentSwitch && !options.conversationKey) {
           appState.setSelectedSessionKey(null);
         }
       }
-      const existing = threads.find((thread) => thread._id === `dm-${employeeId}`);
+      const conversationKey = options.conversationKey
+        ? parseRoomHostConversationKey(options.conversationKey)
+        : null;
+      if (
+        options.conversationKey &&
+        (!conversationKey || conversationKey.hostAgentId !== agentId)
+      ) {
+        throw new Error("invalid_room_host_conversation_key");
+      }
+      const localThreadId = conversationKey
+        ? roomHostLocalThreadId(conversationKey)
+        : `dm-${employeeId}`;
+      const existing = threads.find((thread) => thread._id === localThreadId);
       const title = displayName?.trim() ? `Chat with ${displayName.trim()}` : `Chat ${employeeId}`;
       if (existing) {
         if (existing.title !== title) {
           setThreads(
-            threads.map((thread) =>
-              thread._id === existing._id ? { ...thread, title } : thread,
-            ),
+            threads.map((thread) => (thread._id === existing._id ? { ...thread, title } : thread)),
           );
         }
         setThreadId(existing._id);
+        useAppStore.getState().setSelectedSessionKey(existing._id);
       } else {
         const next = {
-          _id: `dm-${employeeId}`,
+          _id: localThreadId,
           title,
           agentId: agentId ?? undefined,
+          ...(conversationKey ? { conversationKey } : {}),
         };
         setThreads([next, ...threads]);
         setThreadId(next._id);
+        useAppStore.getState().setSelectedSessionKey(next._id);
       }
       if (openDialog) setIsChatOpen(true);
     },

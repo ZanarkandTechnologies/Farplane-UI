@@ -1,7 +1,7 @@
 # World Map
 
-Project-scoped Command Center module for inspecting canonical entities and
-sentence-backed associations geographically through generated views.
+Company- and project-scoped Command Center module for inspecting canonical
+entities and sentence-backed associations geographically through generated views.
 
 ```text
 <project>/.farplane/entities/world.json
@@ -9,6 +9,13 @@ sentence-backed associations geographically through generated views.
   -> useWorldProjection
   -> filters + GeoJSON points/lines + source detail
 ```
+
+Company mode composes the same read through stable per-project query keys.
+Configured project ids qualify every node, edge, endpoint, and timeline key;
+same-named entities are never inferred to be identical. Reads are capped at 24
+projects and isolated so one failed projection becomes a warning without hiding
+healthy projects. The panel caps the aggregate at 400 nodes and 800 edges; the
+reserved center-preview budget is 80 nodes and 120 edges.
 
 Entity Markdown plus `.farplane/views.yaml` remain canonical. This module is a
 read-only consumer of the disposable Core projection and does not write entity
@@ -45,10 +52,13 @@ rows that either originate from or link to that entity. World does not assign
 domain semantics to view-specific signals, metrics, resources, or weights;
 specialized consumers read `.farplane/views/<view-id>.json` instead.
 
-Open **World** from the office launcher or command palette. The currently
-selected Command Center project is used by default and can be changed in the
-panel header. The starter and current offices expose the same panel through the
-**Farplane Map** activity landmark. The Research Library remains dedicated to
-the Docs Library.
+Open **Company World** from Command Commons, the office launcher, or command
+palette. **All projects** is the default; selecting one project reuses its
+existing cached query and restores project-local named views. Command Commons
+currently uses a static illuminated click cue rather than graph geometry. The
+aggregate is panel-owned, so mounting a scene preview today would start up to 24
+reads during office launch and couple the 3D render tree to projection refreshes.
+A future preview should consume a shared already-loaded aggregate snapshot, not
+create a second scene data owner or per-frame fetch path.
 
 See [feature registry](docs/feature-registry.md) and [QA runbook](docs/qa-runbook.md).

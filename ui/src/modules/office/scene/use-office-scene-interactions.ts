@@ -16,12 +16,15 @@
  * - MEM-0153
  */
 
-import { useCallback } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
-import { useAppStore } from "@/store";
+import { useCallback } from "react";
+import { toast } from "sonner";
 import { TOTAL_HEIGHT } from "@/constants";
 import { useChatActions } from "@/modules/chat";
+import { getOperatingRoomByHostAgentId } from "@/modules/office/lib/operating-room-catalog";
+import { buildRoomHostConversationKey } from "@/modules/office/lib/room-hosts";
 import type { EmployeeData, TeamData } from "@/modules/office/lib/types";
+import { useAppStore } from "@/store";
 
 export function useOfficeSceneInteractions(params: { employees: EmployeeData[] }): {
   handleBackgroundClick: (event: ThreeEvent<MouseEvent>) => void;
@@ -54,6 +57,17 @@ export function useOfficeSceneInteractions(params: { employees: EmployeeData[] }
       if (useAppStore.getState().placementMode.active) return;
       if (!employee.companyId) return;
 
+      const hostAgentId = String(employee._id).replace(/^employee-/, "");
+      const operatingRoom = getOperatingRoomByHostAgentId(hostAgentId);
+      const conversationKey = buildRoomHostConversationKey({
+        hostAgentId,
+        selectedProjectId: useAppStore.getState().selectedProjectId,
+      });
+      if (operatingRoom?.hostScope === "selected-project" && !conversationKey) {
+        toast.info(`Select a project before chatting with ${employee.name}.`);
+        return;
+      }
+
       setActiveChatParticipant({
         type: "employee",
         companyId: employee.companyId,
@@ -61,7 +75,11 @@ export function useOfficeSceneInteractions(params: { employees: EmployeeData[] }
         teamId: employee.teamId,
         builtInRole: employee.builtInRole,
       });
-      await openEmployeeChat(employee._id, true, employee.name);
+      await openEmployeeChat(employee._id, {
+        openDialog: true,
+        displayName: employee.name,
+        conversationKey: conversationKey ?? undefined,
+      });
     },
     [employees, openEmployeeChat, setActiveChatParticipant],
   );

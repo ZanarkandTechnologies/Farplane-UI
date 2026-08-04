@@ -69,6 +69,38 @@ export type WorldProjection = {
   stale: boolean;
 };
 
+export type CompanyWorldProjectRef = {
+  id: string;
+  name: string;
+  path: string;
+};
+
+export type CompanyWorldProject = CompanyWorldProjectRef & {
+  state: "ready" | "missing" | "error";
+  nodeCount: number;
+  edgeCount: number;
+};
+
+export type CompanyWorldWarning = {
+  code:
+    | "project_cap"
+    | "project_missing"
+    | "project_error"
+    | "duplicate_project"
+    | "duplicate_node_key"
+    | "invalid_edge_endpoint"
+    | "node_cap"
+    | "edge_cap";
+  message: string;
+  projectId?: string;
+};
+
+export type CompanyWorldProjection = WorldProjection & {
+  projects: CompanyWorldProject[];
+  warnings: CompanyWorldWarning[];
+  loadedAt: number;
+};
+
 export type WorldBridgePayload = {
   ok: boolean;
   state: "ready" | "missing";

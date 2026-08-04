@@ -150,8 +150,6 @@ interface AppState {
   setHighlightedEmployeeIds: (
     ids: Array<OfficeId<"employees">> | Set<OfficeId<"employees">> | null,
   ) => void;
-  trainingEmployeeId: OfficeId<"employees"> | null;
-  setTrainingEmployeeId: (id: OfficeId<"employees"> | null) => void;
   memoryPanelEmployeeId: OfficeId<"employees"> | null;
   setMemoryPanelEmployeeId: (id: OfficeId<"employees"> | null) => void;
   isTeamPanelOpen: boolean;
@@ -182,6 +180,8 @@ interface AppState {
   setIsWorldMapPanelOpen: (isOpen: boolean) => void;
   isDocumentLibraryPanelOpen: boolean;
   setIsDocumentLibraryPanelOpen: (isOpen: boolean) => void;
+  isSelfImprovementRunsPanelOpen: boolean;
+  setIsSelfImprovementRunsPanelOpen: (isOpen: boolean) => void;
   selectedSkillStudioSkillId: string | null;
   setSelectedSkillStudioSkillId: (skillId: string | null) => void;
   skillStudioFocusAgentId: string | null;
@@ -308,8 +308,6 @@ export const useAppStore = create<AppState>()(
         highlightedEmployeeIds:
           ids == null ? new Set<OfficeId<"employees">>() : ids instanceof Set ? ids : new Set(ids),
       }),
-    trainingEmployeeId: null,
-    setTrainingEmployeeId: (id) => set({ trainingEmployeeId: id }),
     memoryPanelEmployeeId: null,
     setMemoryPanelEmployeeId: (id) => set({ memoryPanelEmployeeId: id }),
     isTeamPanelOpen: false,
@@ -340,6 +338,8 @@ export const useAppStore = create<AppState>()(
     setIsWorldMapPanelOpen: (isOpen) => set({ isWorldMapPanelOpen: isOpen }),
     isDocumentLibraryPanelOpen: false,
     setIsDocumentLibraryPanelOpen: (isOpen) => set({ isDocumentLibraryPanelOpen: isOpen }),
+    isSelfImprovementRunsPanelOpen: false,
+    setIsSelfImprovementRunsPanelOpen: (isOpen) => set({ isSelfImprovementRunsPanelOpen: isOpen }),
     selectedSkillStudioSkillId: null,
     setSelectedSkillStudioSkillId: (skillId) => set({ selectedSkillStudioSkillId: skillId }),
     skillStudioFocusAgentId: null,

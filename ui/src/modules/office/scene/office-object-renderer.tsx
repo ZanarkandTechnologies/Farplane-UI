@@ -28,8 +28,10 @@ import Pantry from "@/modules/office/components/pantry";
 import Plant from "@/modules/office/components/plant";
 import TeamCluster from "@/modules/office/components/team-cluster";
 import WallArt from "@/modules/office/components/wall-art";
+import { COMMAND_COMMONS_PANEL_ID } from "@/modules/office/lib/central-command-commons";
 import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
 import type { DeskLayoutData, OfficeId, OfficeObject, TeamData } from "@/modules/office/lib/types";
+import { useOfficeInternalPanelLauncher } from "@/modules/office/panels/use-internal-panel-launcher";
 import { shouldUseRoundTeamTable } from "@/modules/office/utils/layout";
 import {
   CommandCommonsCompositionGeometry,
@@ -50,6 +52,7 @@ export function OfficeObjectRenderer(props: {
     objectRef: React.MutableRefObject<THREE.Group | null>,
   ) => (element: THREE.Group | null) => void;
 }): Array<JSX.Element | null> {
+  const launchInternalPanel = useOfficeInternalPanelLauncher();
   const {
     officeObjects,
     companyId,
@@ -148,6 +151,7 @@ export function OfficeObjectRenderer(props: {
               <CommandCommons
                 position={object.position as [number, number, number]}
                 rotation={object.rotation as [number, number, number]}
+                onOpenWorld={() => launchInternalPanel(COMMAND_COMMONS_PANEL_ID)}
               />
             </group>
           </group>

@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { measureOfficeSceneQuality } from "./office-scene-quality";
 import { createRectangularOfficeLayout } from "./office-layout";
-import { buildCanonicalActivityRooms } from "./canonical-activity-rooms";
+import { measureOfficeSceneQuality } from "./office-scene-quality";
+import { buildOperatingRooms } from "./operating-room-catalog";
 
 describe("office scene quality", () => {
   it("measures avatar scale and semantic furniture clearance from source geometry", () => {
-    const report = measureOfficeSceneQuality([
-      { _id: "a", meshType: "team-cluster", position: [0, 0, 0], rotation: [0, 0, 0] },
-      { _id: "b", meshType: "team-cluster", position: [12, 0, 0], rotation: [0, 0, 0] },
-      { _id: "wall", meshType: "glass-wall", position: [0, 0, 8], rotation: [0, 0, 0] },
-    ], createRectangularOfficeLayout({ width: 41, depth: 21 }));
+    const report = measureOfficeSceneQuality(
+      [
+        { _id: "a", meshType: "team-cluster", position: [0, 0, 0], rotation: [0, 0, 0] },
+        { _id: "b", meshType: "team-cluster", position: [12, 0, 0], rotation: [0, 0, 0] },
+        { _id: "wall", meshType: "glass-wall", position: [0, 0, 8], rotation: [0, 0, 0] },
+      ],
+      createRectangularOfficeLayout({ width: 41, depth: 21 }),
+    );
     expect(report.employeeToDeskHeightRatio).toBeGreaterThanOrEqual(1.8);
     expect(report.employeeToDeskHeightRatio).toBeLessThanOrEqual(2.4);
     expect(report.employeeHitCapsuleWidth).toBeGreaterThanOrEqual(0.45);
@@ -57,15 +60,15 @@ describe("office scene quality", () => {
     expect(report.leafIntersections).toContain("commons<>team");
   });
 
-  it("reports incomplete first-party activity-room inventory", () => {
-    const rooms = buildCanonicalActivityRooms();
+  it("reports completeness by operating-room identity instead of visual-kind coverage", () => {
+    const rooms = buildOperatingRooms();
     const complete = measureOfficeSceneQuality(rooms);
     const incomplete = measureOfficeSceneQuality(rooms.slice(1));
 
-    expect(complete.activityRoomCount).toBe(13);
-    expect(complete.missingActivityRoomKinds).toEqual([]);
-    expect(complete.duplicateActivityRoomKinds).toEqual([]);
-    expect(incomplete.activityRoomCount).toBe(12);
-    expect(incomplete.missingActivityRoomKinds).toEqual([rooms[0]?.metadata?.landmarkKind]);
+    expect(complete.operatingRoomCount).toBe(11);
+    expect(complete.missingOperatingRoomIds).toEqual([]);
+    expect(complete.duplicateOperatingRoomIds).toEqual([]);
+    expect(incomplete.operatingRoomCount).toBe(10);
+    expect(incomplete.missingOperatingRoomIds).toEqual([rooms[0]?.metadata?.operatingRoomId]);
   });
 });

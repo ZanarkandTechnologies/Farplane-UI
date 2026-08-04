@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { loadGlobalFinanceRollup, type ProjectConfigPayload } from "./use-global-finance-rollup";
 
 function payload(projectPath: string, amount: number): ProjectConfigPayload {
+  const currentMonthDate = `${new Date().toISOString().slice(0, 7)}-19`;
   return {
     ok: true,
     projectPath,
@@ -21,7 +22,7 @@ function payload(projectPath: string, amount: number): ProjectConfigPayload {
         id: "project-ui",
         parsedJson: {
           metrics: {
-            series: [{ metric_id: "spend", series: [{ date: "2026-07-19", value: amount }] }],
+            series: [{ metric_id: "spend", series: [{ date: currentMonthDate, value: amount }] }],
           },
         },
       },

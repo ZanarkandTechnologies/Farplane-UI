@@ -63,6 +63,9 @@ export function OfficeMenu({ className }: SpeedDialProps) {
   );
   const setIsWorldMapPanelOpen = useAppStore((state) => state.setIsWorldMapPanelOpen);
   const setIsDocumentLibraryPanelOpen = useAppStore((state) => state.setIsDocumentLibraryPanelOpen);
+  const setIsSelfImprovementRunsPanelOpen = useAppStore(
+    (state) => state.setIsSelfImprovementRunsPanelOpen,
+  );
   const setSelectedSkillStudioSkillId = useAppStore((state) => state.setSelectedSkillStudioSkillId);
   const setSkillStudioFocusAgentId = useAppStore((state) => state.setSkillStudioFocusAgentId);
   const setActiveTeamId = useAppStore((state) => state.setActiveTeamId);
@@ -169,6 +172,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         openVideoIntelligence: () => setIsVideoIntelligencePanelOpen(true),
         openWorld: () => setIsWorldMapPanelOpen(true),
         openDocumentLibrary: () => setIsDocumentLibraryPanelOpen(true),
+        openSelfImprovementRuns: () => setIsSelfImprovementRunsPanelOpen(true),
         openTelemetry: () => setIsTelemetryPanelOpen(true),
         openFinance: () => setIsFinancePanelOpen(true),
         openRawTelemetry: () => setIsRawTelemetryPanelOpen(true),
@@ -195,6 +199,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
       setIsVideoIntelligencePanelOpen,
       setIsWorldMapPanelOpen,
       setIsDocumentLibraryPanelOpen,
+      setIsSelfImprovementRunsPanelOpen,
       setIsTelemetryPanelOpen,
       setIsFinancePanelOpen,
       setIsRawTelemetryPanelOpen,
@@ -265,6 +270,12 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         getCameraState: () => unknown;
         getStoryCameraTiming: () => unknown;
         getThreadEffects: () => unknown;
+        getRoomActivity: () => unknown;
+        seedRoomActivity: (
+          groups: Parameters<
+            NonNullable<ReturnType<typeof getOfficeQaState>["seedRoomActivity"]>
+          >[0],
+        ) => boolean;
         seedLineageEvent: (
           edge: Parameters<NonNullable<ReturnType<typeof getOfficeQaState>["seedLineage"]>>[0],
         ) => boolean;
@@ -306,6 +317,13 @@ export function OfficeMenu({ className }: SpeedDialProps) {
       getCameraState: () => getOfficeQaState().camera ?? null,
       getStoryCameraTiming: () => getOfficeQaState().storyTiming ?? null,
       getThreadEffects: () => getOfficeQaState().effects ?? [],
+      getRoomActivity: () => getOfficeQaState().roomActivity ?? null,
+      seedRoomActivity: (groups) => {
+        const seed = getOfficeQaState().seedRoomActivity;
+        if (!seed) return false;
+        seed(groups);
+        return true;
+      },
       getOfficeQualityReport: () => getOfficeQaState().quality ?? null,
       seedLineageEvent: (edge) => {
         const seed = getOfficeQaState().seedLineage;

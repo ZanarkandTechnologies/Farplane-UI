@@ -20,6 +20,7 @@
  * - MEM-0194
  */
 
+import { useQuery } from "convex/react";
 import React, {
   createContext,
   type ReactNode,
@@ -29,9 +30,15 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { useQuery } from "convex/react";
 import { useShallow } from "zustand/react/shallow";
 import { useAgentLiveStatuses } from "@/hooks/use-agent-live-status";
+import {
+  type OfficeWorldChangedKey,
+  type OfficeWorldRefreshReason,
+  type OfficeWorldSnapshot,
+  selectOfficeWorldContextData,
+  useOfficeWorldStore,
+} from "@/modules/office/store";
 import type {
   AgentLiveStatus,
   FederatedTaskProvider,
@@ -41,43 +48,32 @@ import type {
   ProviderIndexProfile,
   UnifiedOfficeModel,
 } from "@/modules/runtime";
-import {
-  areStringArraysEqual,
-  fallbackData,
-  repairTeamClusterPlacements,
-  toOfficeData,
-  type OfficeDataContextValue,
-} from "@/providers/office-data-mapper";
-import {
-  selectOfficeWorldContextData,
-  useOfficeWorldStore,
-  type OfficeWorldChangedKey,
-  type OfficeWorldRefreshReason,
-  type OfficeWorldSnapshot,
-} from "@/modules/office/store";
-import {
-  useOfficeRuntimeAdapter,
-  type OfficeRuntimeAdapter,
-} from "@/modules/runtime";
+import { type OfficeRuntimeAdapter, useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { isConvexEnabled } from "@/providers/convex-provider";
 import {
   LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS,
   type ObservedCodexWorkerRow,
 } from "@/providers/local-observed-codex-workers";
 import {
-  OBSERVED_CODEX_PRESENCE_RANGE_MS,
+  areStringArraysEqual,
+  fallbackData,
+  type OfficeDataContextValue,
+  repairTeamClusterPlacements,
+  toOfficeData,
+} from "@/providers/office-data-mapper";
+import {
   buildAgentLiveStatusSignature,
   buildOfficeStructuralRefreshSignature,
   mergeAgentLiveStatuses,
   mergeObservedCodexWorkerRows,
   mergeObservedCodexWorkersIntoUnifiedOfficeModel,
+  OBSERVED_CODEX_PRESENCE_RANGE_MS,
   observedCodexWorkersToLiveStatuses,
 } from "@/providers/office-data-refresh";
+import { deriveVisibleOfficeProjects } from "@/providers/office-project-visibility";
 import { api } from "../../../convex/_generated/api";
 
-const OfficeDataContext = createContext<OfficeDataContextValue | undefined>(
-  undefined,
-);
+const OfficeDataContext = createContext<OfficeDataContextValue | undefined>(undefined);
 
 export type { OfficeDataContextValue };
 
@@ -110,9 +106,7 @@ function coalesceOfficeRefreshReason(
   return current;
 }
 
-function useLocalObservedCodexWorkers(
-  enabled: boolean,
-): ObservedCodexWorkerRow[] {
+function useLocalObservedCodexWorkers(enabled: boolean): ObservedCodexWorkerRow[] {
   const [workers, setWorkers] = useState<ObservedCodexWorkerRow[]>([]);
 
   useEffect(() => {
@@ -128,19 +122,14 @@ function useLocalObservedCodexWorkers(
           rangeMs: String(LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS),
           limit: "500",
         });
-        const response = await fetch(
-          `/farplane/local-observed-codex-workers?${params}`,
-          {
-            cache: "no-store",
-          },
-        );
-        if (!response.ok)
-          throw new Error(`local_observed_codex_failed:${response.status}`);
+        const response = await fetch(`/farplane/local-observed-codex-workers?${params}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error(`local_observed_codex_failed:${response.status}`);
         const body = (await response.json()) as {
           workers?: ObservedCodexWorkerRow[];
         };
-        if (!cancelled)
-          setWorkers(Array.isArray(body.workers) ? body.workers : []);
+        if (!cancelled) setWorkers(Array.isArray(body.workers) ? body.workers : []);
       } catch {
         // Keep the last observed worker set through transient local telemetry
         // failures. Clearing here turns a fetch blip into a structural office
@@ -173,10 +162,7 @@ function shouldLogOfficeRefresh(): boolean {
   return window.localStorage.getItem("farplane.debug.officeRefresh") === "1";
 }
 
-function logOfficeRefresh(
-  event: string,
-  details: Record<string, unknown> = {},
-): void {
+function logOfficeRefresh(event: string, details: Record<string, unknown> = {}): void {
   if (!shouldLogOfficeRefresh()) return;
   console.debug("[farplane:office-refresh]", event, details);
 }
@@ -210,15 +196,9 @@ function applyOfficeWorldSnapshot(
   return useOfficeWorldStore.getState().applySnapshot(snapshot, reason);
 }
 
-export function OfficeDataProvider({
-  children,
-}: {
-  children: ReactNode;
-}): React.JSX.Element {
+export function OfficeDataProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const sharedAdapter = useOfficeRuntimeAdapter();
-  const worldContextData = useOfficeWorldStore(
-    useShallow(selectOfficeWorldContextData),
-  );
+  const worldContextData = useOfficeWorldStore(useShallow(selectOfficeWorldContextData));
   const [actions, setActions] = useState<OfficeDataActions>(() => {
     const fallback = fallbackData();
     return {
@@ -239,17 +219,13 @@ export function OfficeDataProvider({
         }
       : "skip",
   ) as ObservedCodexWorkersQueryResult | undefined;
-  const convexObservedCodexWorkers =
-    observedCodexPresence?.workers ?? EMPTY_OBSERVED_CODEX_WORKERS;
+  const convexObservedCodexWorkers = observedCodexPresence?.workers ?? EMPTY_OBSERVED_CODEX_WORKERS;
   const localObservedCodexWorkers = useLocalObservedCodexWorkers(
     sharedAdapter.runtimeKind === "codex",
   );
   const observedCodexWorkers = useMemo(
     () =>
-      mergeObservedCodexWorkerRows([
-        ...convexObservedCodexWorkers,
-        ...localObservedCodexWorkers,
-      ]),
+      mergeObservedCodexWorkerRows([...convexObservedCodexWorkers, ...localObservedCodexWorkers]),
     [convexObservedCodexWorkers, localObservedCodexWorkers],
   );
   const observedCodexStatuses = useMemo(
@@ -267,16 +243,12 @@ export function OfficeDataProvider({
   const latestApprovalsRef = useRef<PendingApprovalModel[]>([]);
   const latestStructuralSignatureRef = useRef("");
   const latestLiveStatusSignatureRef = useRef("");
-  const latestAdapterLiveStatusRef = useRef<Record<string, AgentLiveStatus>>(
-    {},
-  );
+  const latestAdapterLiveStatusRef = useRef<Record<string, AgentLiveStatus>>({});
   const inFlightAdapterStatusRef = useRef<Promise<void> | null>(null);
   const agentIdsRef = useRef<string[]>([]);
   const runtimeKindRef = useRef(sharedAdapter.runtimeKind);
   const liveStatusByConvex = useAgentLiveStatuses(agentIds);
-  const liveStatusByConvexRef = useRef<
-    Record<string, AgentLiveStatus> | undefined
-  >(undefined);
+  const liveStatusByConvexRef = useRef<Record<string, AgentLiveStatus> | undefined>(undefined);
 
   useEffect(() => {
     runtimeKindRef.current = sharedAdapter.runtimeKind;
@@ -316,9 +288,17 @@ export function OfficeDataProvider({
         runtimeKind: runtimeKindRef.current,
         observedStatuses: observedCodexStatusesRef.current,
       });
+      const visibility = deriveVisibleOfficeProjects(unified.company.projects, {
+        companyAgents: unified.company.agents,
+        runtimeAgents: unified.runtimeAgents,
+        liveStatusByAgentId: statusByAgent,
+      });
+      const visibleProjectIds = new Set(visibility.visibleIds);
       applyOfficeWorldSnapshot(
         toOfficeWorldSnapshot(
-          toOfficeData(unified, settings, pendingApprovals, statusByAgent),
+          toOfficeData(unified, settings, pendingApprovals, statusByAgent, undefined, {
+            visibleProjectIds,
+          }),
           statusByAgent,
         ),
         "settings",
@@ -338,10 +318,8 @@ export function OfficeDataProvider({
       const statusRun = (async (): Promise<void> => {
         const statusStartedAt = performance.now();
         try {
-          const adapterStatusByAgent =
-            await adapter.getAgentsLiveStatus(nextAgentIds);
-          if (cancelledRef.current || generation !== loadGenerationRef.current)
-            return;
+          const adapterStatusByAgent = await adapter.getAgentsLiveStatus(nextAgentIds);
+          if (cancelledRef.current || generation !== loadGenerationRef.current) return;
           latestAdapterLiveStatusRef.current = adapterStatusByAgent;
           const mergedStatus = mergeAgentLiveStatuses({
             agentIds: nextAgentIds,
@@ -351,8 +329,7 @@ export function OfficeDataProvider({
             observedStatuses: observedCodexStatusesRef.current,
           });
           const nextStatusSignature = buildAgentLiveStatusSignature(mergedStatus);
-          if (latestLiveStatusSignatureRef.current === nextStatusSignature)
-            return;
+          if (latestLiveStatusSignatureRef.current === nextStatusSignature) return;
           latestLiveStatusSignatureRef.current = nextStatusSignature;
           const current = useOfficeWorldStore.getState();
           const liveChangedKeys = applyOfficeWorldSnapshot(
@@ -363,15 +340,12 @@ export function OfficeDataProvider({
             },
             "live-status",
           );
-          logOfficeRefresh(
-            liveChangedKeys.length === 0 ? "unchanged" : "changed",
-            {
-              reason,
-              elapsedMs: Math.round(performance.now() - statusStartedAt),
-              agents: nextAgentIds.length,
-              changedKeys: liveChangedKeys,
-            },
-          );
+          logOfficeRefresh(liveChangedKeys.length === 0 ? "unchanged" : "changed", {
+            reason,
+            elapsedMs: Math.round(performance.now() - statusStartedAt),
+            agents: nextAgentIds.length,
+            changedKeys: liveChangedKeys,
+          });
         } catch (error) {
           logOfficeRefresh("adapter-live-status-error", {
             reason,
@@ -428,148 +402,143 @@ export function OfficeDataProvider({
             runtimeKind: adapter.runtimeKind,
           });
           try {
-            const [unified, pendingApprovals, officeSettings, configSnapshot] =
-              await Promise.all([
-                adapter.getUnifiedOfficeModel(),
-                adapter.getPendingApprovals(),
-                adapter.getOfficeSettings(),
-                adapter.getConfigSnapshot(),
-              ]);
-          const observedWorkers = observedCodexWorkersRef.current;
-          const structuralSignature = buildOfficeStructuralRefreshSignature({
-            unified,
-            officeSettings,
-            pendingApprovals,
-            configSnapshot,
-            observedWorkers,
-          });
-          if (
-            currentReason === "poll" &&
-            latestStructuralSignatureRef.current === structuralSignature
-          ) {
-            refreshAdapterLiveStatus(
-              adapter,
-              agentIdsRef.current,
-              generation,
-              "adapter-live-status",
+            const [unified, pendingApprovals, officeSettings, configSnapshot] = await Promise.all([
+              adapter.getUnifiedOfficeModel(),
+              adapter.getPendingApprovals(),
+              adapter.getOfficeSettings(),
+              adapter.getConfigSnapshot(),
+            ]);
+            const observedWorkers = observedCodexWorkersRef.current;
+            const baseStructuralSignature = buildOfficeStructuralRefreshSignature({
+              unified,
+              officeSettings,
+              pendingApprovals,
+              configSnapshot,
+              observedWorkers,
+            });
+            const unifiedWithObserved =
+              adapter.runtimeKind === "codex"
+                ? mergeObservedCodexWorkersIntoUnifiedOfficeModel(unified, observedWorkers)
+                : unified;
+            const nextAgentIds = [
+              ...new Set([
+                ...unifiedWithObserved.runtimeAgents.map((item) => item.agentId),
+                ...unifiedWithObserved.configuredAgents.map((item) => item.agentId),
+              ]),
+            ];
+            agentIdsRef.current = nextAgentIds;
+            setAgentIds((current) =>
+              areStringArraysEqual(current, nextAgentIds) ? current : nextAgentIds,
             );
-            logOfficeRefresh("skip-unchanged-structural", {
-              reason: currentReason,
-              elapsedMs: Math.round(performance.now() - startedAt),
+
+            const statusByAgent = mergeAgentLiveStatuses({
+              agentIds: nextAgentIds,
+              adapterStatuses: latestAdapterLiveStatusRef.current,
+              convexStatuses: liveStatusByConvexRef.current,
+              runtimeKind: adapter.runtimeKind,
+              observedStatuses: observedCodexStatusesRef.current,
             });
-            return;
-          }
-          latestStructuralSignatureRef.current = structuralSignature;
-          const unifiedWithObserved =
-            adapter.runtimeKind === "codex"
-              ? mergeObservedCodexWorkersIntoUnifiedOfficeModel(
-                  unified,
-                  observedWorkers,
-                )
-              : unified;
-          const nextAgentIds = [
-            ...new Set([
-              ...unifiedWithObserved.runtimeAgents.map((item) => item.agentId),
-              ...unifiedWithObserved.configuredAgents.map(
-                (item) => item.agentId,
+            latestLiveStatusSignatureRef.current = buildAgentLiveStatusSignature(statusByAgent);
+
+            const visibility = deriveVisibleOfficeProjects(unifiedWithObserved.company.projects, {
+              companyAgents: unifiedWithObserved.company.agents,
+              runtimeAgents: unifiedWithObserved.runtimeAgents,
+              liveStatusByAgentId: statusByAgent,
+            });
+            const visibleProjectIds = new Set(visibility.visibleIds);
+            const structuralSignature = `${baseStructuralSignature}|office-projects:${visibility.visibleIds.join(",")}`;
+            if (
+              currentReason === "poll" &&
+              latestStructuralSignatureRef.current === structuralSignature
+            ) {
+              refreshAdapterLiveStatus(
+                adapter,
+                agentIdsRef.current,
+                generation,
+                "adapter-live-status",
+              );
+              logOfficeRefresh("skip-unchanged-structural", {
+                reason: currentReason,
+                elapsedMs: Math.round(performance.now() - startedAt),
+              });
+              return;
+            }
+            latestStructuralSignatureRef.current = structuralSignature;
+
+            const placementRepair = repairTeamClusterPlacements({
+              unified: unifiedWithObserved,
+              officeSettings,
+              visibleProjectIds,
+            });
+            const repairedUnified = placementRepair.unified;
+            const repairedOfficeSettings = placementRepair.officeSettings;
+            if (placementRepair.changed) {
+              logOfficeRefresh("placement-repair-projection-only", {
+                reason: currentReason,
+                expandedLayout: placementRepair.expandedLayout,
+                repairedTeamIds: placementRepair.repairedTeamIds,
+              });
+            }
+
+            const hadLoadedStructuralSnapshot = Boolean(latestUnifiedRef.current);
+            if (
+              (cancelledRef.current || generation !== loadGenerationRef.current) &&
+              hadLoadedStructuralSnapshot
+            ) {
+              logOfficeRefresh("drop-stale", { reason: currentReason, generation });
+              pendingLoadReasonRef.current = null;
+              return;
+            }
+            latestUnifiedRef.current = repairedUnified;
+            latestApprovalsRef.current = pendingApprovals;
+            const officeData = toOfficeData(
+              repairedUnified,
+              repairedOfficeSettings,
+              pendingApprovals,
+              statusByAgent,
+              configSnapshot,
+              { visibleProjectIds },
+            );
+            const changedKeys = applyOfficeWorldSnapshot(
+              toOfficeWorldSnapshot(officeData, statusByAgent),
+              currentReason,
+            );
+            const elapsedMs = Math.round(performance.now() - startedAt);
+            if (changedKeys.length === 0) {
+              logOfficeRefresh("unchanged", {
+                reason: currentReason,
+                elapsedMs,
+                agents: nextAgentIds.length,
+                objects: officeData.officeObjects.length,
+                changedKeys,
+              });
+            } else {
+              logOfficeRefresh("changed", {
+                reason: currentReason,
+                elapsedMs,
+                agents: nextAgentIds.length,
+                objects: officeData.officeObjects.length,
+                employees: officeData.employees.length,
+                changedKeys,
+              });
+            }
+            refreshAdapterLiveStatus(adapter, nextAgentIds, generation, "adapter-live-status");
+          } catch (error) {
+            logOfficeRefresh("error", {
+              reason: currentReason,
+              message: error instanceof Error ? error.message : String(error),
+            });
+            if (cancelledRef.current || generation !== loadGenerationRef.current) return;
+            const fallback = fallbackData();
+            applyOfficeWorldSnapshot(
+              toOfficeWorldSnapshot(
+                { ...fallback, isLoading: false },
+                {},
+                error instanceof Error ? error.message : String(error),
               ),
-            ]),
-          ];
-          agentIdsRef.current = nextAgentIds;
-          setAgentIds((current) =>
-            areStringArraysEqual(current, nextAgentIds)
-              ? current
-              : nextAgentIds,
-          );
-
-          const statusByAgent = mergeAgentLiveStatuses({
-            agentIds: nextAgentIds,
-            adapterStatuses: latestAdapterLiveStatusRef.current,
-            convexStatuses: liveStatusByConvexRef.current,
-            runtimeKind: adapter.runtimeKind,
-            observedStatuses: observedCodexStatusesRef.current,
-          });
-          latestLiveStatusSignatureRef.current = buildAgentLiveStatusSignature(statusByAgent);
-
-          const placementRepair = repairTeamClusterPlacements({
-            unified: unifiedWithObserved,
-            officeSettings,
-          });
-          const repairedUnified = placementRepair.unified;
-          const repairedOfficeSettings = placementRepair.officeSettings;
-          if (placementRepair.changed) {
-            logOfficeRefresh("placement-repair-projection-only", {
-              reason: currentReason,
-              expandedLayout: placementRepair.expandedLayout,
-              repairedTeamIds: placementRepair.repairedTeamIds,
-            });
+              "error",
+            );
           }
-
-          const hadLoadedStructuralSnapshot = Boolean(latestUnifiedRef.current);
-          if (
-            (cancelledRef.current ||
-              generation !== loadGenerationRef.current) &&
-            hadLoadedStructuralSnapshot
-          ) {
-            logOfficeRefresh("drop-stale", { reason: currentReason, generation });
-            pendingLoadReasonRef.current = null;
-            return;
-          }
-          latestUnifiedRef.current = repairedUnified;
-          latestApprovalsRef.current = pendingApprovals;
-          const officeData = toOfficeData(
-            repairedUnified,
-            repairedOfficeSettings,
-            pendingApprovals,
-            statusByAgent,
-            configSnapshot,
-          );
-          const changedKeys = applyOfficeWorldSnapshot(
-            toOfficeWorldSnapshot(officeData, statusByAgent),
-            currentReason,
-          );
-          const elapsedMs = Math.round(performance.now() - startedAt);
-          if (changedKeys.length === 0) {
-            logOfficeRefresh("unchanged", {
-              reason: currentReason,
-              elapsedMs,
-              agents: nextAgentIds.length,
-              objects: officeData.officeObjects.length,
-              changedKeys,
-            });
-          } else {
-            logOfficeRefresh("changed", {
-              reason: currentReason,
-              elapsedMs,
-              agents: nextAgentIds.length,
-              objects: officeData.officeObjects.length,
-              employees: officeData.employees.length,
-              changedKeys,
-            });
-          }
-          refreshAdapterLiveStatus(
-            adapter,
-            nextAgentIds,
-            generation,
-            "adapter-live-status",
-          );
-        } catch (error) {
-          logOfficeRefresh("error", {
-            reason: currentReason,
-            message: error instanceof Error ? error.message : String(error),
-          });
-          if (cancelledRef.current || generation !== loadGenerationRef.current)
-            return;
-          const fallback = fallbackData();
-          applyOfficeWorldSnapshot(
-            toOfficeWorldSnapshot(
-              { ...fallback, isLoading: false },
-              {},
-              error instanceof Error ? error.message : String(error),
-            ),
-            "error",
-          );
-        }
         })();
 
         inFlightLoadRef.current = run;
@@ -615,12 +584,7 @@ export function OfficeDataProvider({
       agents: agentIds.length,
       changedKeys,
     });
-  }, [
-    agentIds,
-    liveStatusByConvex,
-    observedCodexStatuses,
-    sharedAdapter.runtimeKind,
-  ]);
+  }, [agentIds, liveStatusByConvex, observedCodexStatuses, sharedAdapter.runtimeKind]);
 
   useEffect(() => {
     adapterRef.current = sharedAdapter;
@@ -701,25 +665,17 @@ export function OfficeDataProvider({
     };
   }, [memoizedValue]);
 
-  return (
-    <OfficeDataContext.Provider value={memoizedValue}>
-      {children}
-    </OfficeDataContext.Provider>
-  );
+  return <OfficeDataContext.Provider value={memoizedValue}>{children}</OfficeDataContext.Provider>;
 }
 
 export function useOfficeDataContext(): OfficeDataContextValue {
   const context = useOptionalOfficeDataContext();
   if (!context) {
-    throw new Error(
-      "useOfficeDataContext must be used within OfficeDataProvider",
-    );
+    throw new Error("useOfficeDataContext must be used within OfficeDataProvider");
   }
   return context;
 }
 
-export function useOptionalOfficeDataContext():
-  | OfficeDataContextValue
-  | undefined {
+export function useOptionalOfficeDataContext(): OfficeDataContextValue | undefined {
   return useContext(OfficeDataContext);
 }

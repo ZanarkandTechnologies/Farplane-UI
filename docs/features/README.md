@@ -3,7 +3,7 @@ kind: features-index
 status: active
 project: Farplane UI
 created_at: 2026-06-28
-updated_at: 2026-08-02
+updated_at: 2026-08-05
 framework_template_version: "1.6.4"
 owner: harness
 related_systems: ../systems/README.md
@@ -47,6 +47,7 @@ in `docs/systems/` and should point back to the feature docs it owns.
 - `FEAT-0116-global-finance-observations.md`
 - `FEAT-0117-video-intelligence.md`
 - `FEAT-0118-realtime-employee-calls.md`
+- `FEAT-0119-hosted-operating-rooms.md`
 
 ## Planning Rule
 

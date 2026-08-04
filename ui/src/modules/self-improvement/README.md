@@ -1,4 +1,7 @@
 # Self Improvement Module
 
-Owns self-improvement and training UI surfaces that are not specific to Skill Studio file editing.
-
+Owns the ticket-backed Self-Improvement Runs surface. It discovers bounded Goal
+Packets from configured local projects, includes only programs that explicitly
+declare a `skill_improvement` loop, and renders recorded lifecycle, score,
+evidence, and next-action fields without inventing missing values. Skill file
+editing and experiment detail remain owned by Skill Studio.

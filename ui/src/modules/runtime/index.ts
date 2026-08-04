@@ -31,6 +31,10 @@ export {
   codexProjectId,
   createCodexAppServerClient,
   findActiveTurnId,
+  farplaneAgentIdentityFromThread,
+  farplaneAgentIdFromThread,
+  farplaneAgentThreadName,
+  isFarplaneAgentThread,
   parseCodexThreadId,
   projectPmDisplayName,
   toCodexAgentCards,
@@ -115,6 +119,7 @@ export type {
   ProviderIndexProfile,
   ReconciliationWarning,
   ResourceEventModel,
+  RoomHostConversationKey,
   RoleSlotModel,
   SessionRowModel,
   SessionTimelineEvent,
@@ -153,6 +158,13 @@ export type {
   ToolCatalogProfile,
   ToolsCatalogResult,
   UnifiedOfficeModel,
+} from "./lib/openclaw";
+export {
+  decodeRoomHostConversationKey,
+  encodeRoomHostConversationKey,
+  parseRoomHostConversationKey,
+  roomHostConversationKeysEqual,
+  roomHostLocalThreadId,
 } from "./lib/openclaw";
 export { OpenClawAdapter } from "./lib/openclaw";
 export {

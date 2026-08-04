@@ -7,15 +7,13 @@
  * Invariant: only explicitly owned semantic prefabs are replaced; user objects survive.
  */
 
-import type {
-  OfficeObjectSidecarModel,
-  OfficeSettingsModel,
-} from "@/modules/runtime";
-import type { OfficeObject } from "./types";
+import type { OfficeObjectSidecarModel, OfficeSettingsModel } from "@/modules/runtime";
 import {
   createOfficePlacementReservation,
   reserveOfficeObjectPlacement,
 } from "../systems/placement-engine";
+import { isOperatingRoomId, resolveOperatingRoomId } from "./operating-room-catalog";
+import type { OfficeObject } from "./types";
 
 export const COMMAND_OFFICE_KIT_ID = "command-office";
 export const COMMAND_OFFICE_KIT_VERSION = 1;
@@ -91,12 +89,9 @@ function getSceneSemanticSlot(object: OfficeObject): { prefabId: string; slotId:
   if (object.meshType === "command-commons") {
     return { prefabId: "command-commons", slotId: "commons" };
   }
-  if (object.meshType === "activity-landmark" && object.metadata?.canonicalActivityRoom === true) {
-    const roomId =
-      typeof object.metadata.canonicalActivityRoomId === "string"
-        ? object.metadata.canonicalActivityRoomId.trim()
-        : "";
-    return roomId ? { prefabId: "activity-room", slotId: roomId } : null;
+  if (object.meshType === "activity-landmark") {
+    const roomId = object.metadata?.operatingRoomId;
+    return isOperatingRoomId(roomId) ? { prefabId: "operating-room", slotId: roomId } : null;
   }
   if (object.meshType !== "team-cluster") return null;
   const teamId = typeof object.metadata?.teamId === "string" ? object.metadata.teamId.trim() : "";
@@ -150,10 +145,10 @@ export function materializeCommandOfficeKit(input: {
       .map((object) => String(object.metadata?.teamId ?? ""))
       .filter(Boolean),
   );
-  const replacedCanonicalRoomIds = new Set(
+  const replacedOperatingRoomIds = new Set(
     ownedObjectsUnplaced
       .filter((object) => object.meshType === "activity-landmark")
-      .map((object) => String(object.metadata?.canonicalActivityRoomId ?? ""))
+      .map((object) => String(object.metadata?.operatingRoomId ?? ""))
       .filter(Boolean),
   );
   const preservedObjects = input.persistedObjects.filter((object) => {
@@ -162,7 +157,13 @@ export function materializeCommandOfficeKit(input: {
     // These three template partitions belong to the replaced starter focus pod,
     // not to user-authored inventory, and geometrically conflict with the commons.
     if (object.id.startsWith("farplane-focus-wall-")) return false;
-    if (replacedCanonicalRoomIds.has(object.id)) return false;
+    const persistedOperatingRoomId = resolveOperatingRoomId({
+      objectId: object.id,
+      metadata: object.metadata,
+    });
+    if (persistedOperatingRoomId && replacedOperatingRoomIds.has(persistedOperatingRoomId)) {
+      return false;
+    }
     if (object.meshType !== "team-cluster") return true;
     const teamId = typeof object.metadata?.teamId === "string" ? object.metadata.teamId : "";
     if (replacedTeamIds.has(teamId)) return false;

@@ -6,6 +6,7 @@ export {
   CODEX_THREAD_PREFIX,
   codexProjectId,
   farplaneAgentIdFromThread,
+  farplaneAgentIdentityFromThread,
   farplaneAgentThreadName,
   findActiveTurnId,
   isCodexPmAgentId,
@@ -23,6 +24,7 @@ export {
   toCodexSessionRows,
   toCodexTimeline,
 } from "./normalizers";
+export type { FarplaneAgentThreadIdentity } from "./normalizers";
 export type {
   CodexProjectPmBinding,
   CodexProjectPmConfig,

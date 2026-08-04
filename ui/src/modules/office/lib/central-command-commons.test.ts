@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createCommandCommonsObject, planCentralCommandCommons } from "./central-command-commons";
+import {
+  COMMAND_COMMONS_PANEL_ID,
+  createCommandCommonsObject,
+  planCentralCommandCommons,
+} from "./central-command-commons";
 import type { OfficeObject } from "./types";
 
 function destination(index: number): OfficeObject {
@@ -17,8 +21,14 @@ describe("central command commons", () => {
       _id: "generated-command-commons",
       meshType: "command-commons",
       position: [2, 0, -3],
-      metadata: { generated: true, footprintWidth: 11.8, footprintDepth: 8.4 },
+      metadata: {
+        generated: true,
+        footprintWidth: 11.8,
+        footprintDepth: 8.4,
+        uiBinding: { kind: "internalPanel", panelId: "world" },
+      },
     });
+    expect(COMMAND_COMMONS_PANEL_ID).toBe("world");
   });
 
   it("lays room-sized 5x4 bays across a balanced north and side perimeter", () => {

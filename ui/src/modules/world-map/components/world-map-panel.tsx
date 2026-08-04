@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
+import { useCompanyWorldProjection } from "../hooks/use-company-world-projection";
 import { useWorldProjection } from "../hooks/use-world-projection";
 import { filterWorldEdges, filterWorldNodes, hasCoordinates } from "../lib/world-projection";
 import type { WorldSelection } from "../types";
@@ -29,6 +30,7 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
   const [location, setLocation] = useState("");
   const [viewId, setViewId] = useState("all");
   const [selection, setSelection] = useState<WorldSelection>(null);
+  const [sourceId, setSourceId] = useState("all");
   const projects = useMemo(
     () =>
       (companyModel?.projects ?? []).filter((project) =>
@@ -36,19 +38,37 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
       ),
     [companyModel?.projects],
   );
-  const project = projects.find((candidate) => candidate.id === selectedProjectId) ?? projects[0];
-  const world = useWorldProjection(project?.trackingContext, open);
-  const projection = world.data?.projection ?? null;
+  const project =
+    projects.find((candidate) => candidate.id === sourceId) ??
+    projects.find((candidate) => candidate.id === selectedProjectId) ??
+    projects[0];
+  const projectRefs = useMemo(
+    () =>
+      projects.map((item) => ({
+        id: item.id,
+        name: item.name,
+        path: item.trackingContext as string,
+      })),
+    [projects],
+  );
+  const companyWorld = useCompanyWorldProjection(projectRefs, open);
+  const projectWorld = useWorldProjection(project?.trackingContext, open && sourceId !== "all");
+  const isCompanyMode = sourceId === "all";
+  const projection = isCompanyMode
+    ? companyWorld.projection
+    : (projectWorld.data?.projection ?? null);
+  const isLoading = isCompanyMode ? companyWorld.isLoading : projectWorld.isLoading;
+  const isFetching = isCompanyMode ? companyWorld.isFetching : projectWorld.isFetching;
 
   useEffect(() => {
-    if (open && !selectedProjectId && projects[0]) setSelectedProjectId(projects[0].id);
-  }, [open, projects, selectedProjectId, setSelectedProjectId]);
+    if (open) setSourceId("all");
+  }, [open]);
 
   useEffect(() => {
-    if (!project?.id) return;
+    if (!sourceId) return;
     setSelection(null);
     setViewId("all");
-  }, [project?.id]);
+  }, [sourceId]);
 
   useEffect(() => {
     if (projection && viewId !== "all" && !projection.views.some((view) => view.id === viewId)) {
@@ -84,19 +104,21 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
           <div className="flex flex-wrap items-center gap-3">
             <DialogTitle className="flex items-center gap-2 text-base">
               <Globe2 aria-hidden="true" className="size-4 text-sky-400" />
-              World
+              {isCompanyMode ? "Company World" : "World"}
             </DialogTitle>
             <Select
-              value={project?.id ?? ""}
+              value={sourceId}
               onValueChange={(value) => {
                 setSelection(null);
-                setSelectedProjectId(value);
+                setSourceId(value);
+                if (value !== "all") setSelectedProjectId(value);
               }}
             >
               <SelectTrigger aria-label="Select project" size="sm" className="min-w-44">
                 <SelectValue placeholder="Select project" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="all">All projects</SelectItem>
                 {projects.map((item) => (
                   <SelectItem key={item.id} value={item.id}>
                     {item.name}
@@ -104,7 +126,7 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
                 ))}
               </SelectContent>
             </Select>
-            {projection?.views.length ? (
+            {!isCompanyMode && projection?.views.length ? (
               <Select
                 value={viewId}
                 onValueChange={(value) => {
@@ -143,13 +165,13 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
               size="sm"
               variant="ghost"
               className="ml-auto"
-              onClick={() => void world.refetch()}
-              disabled={!project || world.isFetching}
+              onClick={() => void (isCompanyMode ? companyWorld.refetch() : projectWorld.refetch())}
+              disabled={!projects.length || isFetching}
               aria-label="Refresh world projection"
             >
               <RefreshCw
                 aria-hidden="true"
-                className={`size-4 ${world.isFetching ? "animate-spin" : ""}`}
+                className={`size-4 ${isFetching ? "animate-spin" : ""}`}
               />
             </Button>
           </div>
@@ -165,30 +187,30 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
               </div>
             </div>
           </div>
-        ) : world.isLoading ? (
+        ) : isLoading ? (
           <output className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
             <RefreshCw aria-hidden="true" className="mr-2 size-4 animate-spin" />
             Loading world projection…
           </output>
-        ) : world.isError ? (
+        ) : !isCompanyMode && projectWorld.isError ? (
           <div role="alert" className="flex flex-1 items-center justify-center p-8 text-center">
             <div>
               <AlertTriangle aria-hidden="true" className="mx-auto size-8 text-destructive" />
               <div className="mt-3 text-sm font-medium">World projection unavailable</div>
               <div className="mt-1 max-w-lg text-xs text-muted-foreground">
-                {world.error.message}
+                {projectWorld.error.message}
               </div>
               <Button
                 className="mt-4"
                 size="sm"
                 variant="outline"
-                onClick={() => void world.refetch()}
+                onClick={() => void projectWorld.refetch()}
               >
                 Retry
               </Button>
             </div>
           </div>
-        ) : world.data?.state === "missing" || !projection ? (
+        ) : (!isCompanyMode && projectWorld.data?.state === "missing") || !projection ? (
           <div className="flex flex-1 items-center justify-center p-8 text-center">
             <div>
               <LocateOff aria-hidden="true" className="mx-auto size-8 text-muted-foreground" />
@@ -200,13 +222,18 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col">
-            {projection.stale || projection.issues.length > 0 ? (
+            {projection.stale ||
+            projection.issues.length > 0 ||
+            (isCompanyMode && companyWorld.projection.warnings.length > 0) ? (
               <output className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
                 <AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />
                 <span>
                   {projection.stale ? "Projection is marked stale. " : ""}
                   {projection.issues.length
                     ? `${projection.issues.length} compilation issue${projection.issues.length === 1 ? "" : "s"}.`
+                    : ""}
+                  {isCompanyMode && companyWorld.projection.warnings.length
+                    ? ` ${companyWorld.projection.warnings.length} project warning${companyWorld.projection.warnings.length === 1 ? "" : "s"}: ${companyWorld.projection.warnings[0]?.message}`
                     : ""}
                 </span>
               </output>
@@ -294,6 +321,9 @@ export function WorldMapPanel({ open, onOpenChange }: WorldMapPanelProps): React
                         <div className="mt-0.5 truncate text-[11px] capitalize text-muted-foreground">
                           {node.kind}
                           {node.location ? ` · ${node.location}` : " · Unlocated"}
+                          {isCompanyMode
+                            ? ` · ${companyWorld.projection.projects.find((item) => item.id === node.projectId)?.name ?? node.projectId}`
+                            : ""}
                         </div>
                       </button>
                     ))

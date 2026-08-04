@@ -2,7 +2,7 @@
 
 /** Destination-room framing around an authored semantic landmark prop cluster. */
 
-import { Box, Cylinder } from "@react-three/drei";
+import { Box, Cylinder, Html } from "@react-three/drei";
 import { getOfficeLandmarkTheme, OFFICE_LANDMARK_THEME } from "@/config/office-theme";
 import { ACTIVITY_LANDMARK_KINDS, type ActivityLandmarkKind } from "../activity-scenes";
 import {
@@ -55,6 +55,8 @@ export function ActivityLandmarkVisual({
   destinationBayZone = false,
   destinationBayEdge = "north",
   roomFurnitureStyle,
+  roomLabel,
+  hostLabel,
 }: {
   kind: ActivityLandmarkKind;
   footprintWidth?: number;
@@ -63,6 +65,8 @@ export function ActivityLandmarkVisual({
   destinationBayZone?: boolean;
   destinationBayEdge?: "north" | "west" | "east";
   roomFurnitureStyle?: string;
+  roomLabel?: string;
+  hostLabel?: string;
 }) {
   const theme = getOfficeLandmarkTheme(kind);
   const zoneWidth = Math.max(2.4, footprintWidth);
@@ -127,6 +131,29 @@ export function ActivityLandmarkVisual({
       ) : null}
       {destinationBayZone && roomFurnitureStyle === "executive-walnut-v1" ? (
         <ExecutiveRoomFurniture kind={kind} />
+      ) : null}
+      {roomLabel ? (
+        <Html
+          center
+          position={[0, 2.58, 0]}
+          zIndexRange={[104, 0]}
+          style={{ pointerEvents: "none", userSelect: "none" }}
+        >
+          <div className="w-[78px] rounded-sm border border-white/20 bg-stone-950/92 px-1.5 py-1 text-center shadow-[0_5px_18px_rgba(0,0,0,0.45)] backdrop-blur-sm">
+            <div
+              className="mx-auto mb-1 h-0.5 w-6 rounded-full"
+              style={{ backgroundColor: theme.zoneColor }}
+            />
+            <div className="line-clamp-2 min-h-4 text-[7px] font-semibold uppercase leading-[1.15] tracking-[0.06em] text-stone-50">
+              {roomLabel}
+            </div>
+            {hostLabel ? (
+              <div className="mt-1 truncate text-[7px] font-medium leading-none text-emerald-200/90">
+                {hostLabel} · host
+              </div>
+            ) : null}
+          </div>
+        </Html>
       ) : null}
       <group
         name={`activity-destination-presentation-${kind}`}

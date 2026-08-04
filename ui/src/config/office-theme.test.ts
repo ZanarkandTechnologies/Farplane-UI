@@ -29,6 +29,7 @@ describe("office theme", () => {
       workshop: "creative",
       "skill-lab": "coordination",
       "organization-hall": "coordination",
+      "finance-office": "knowledge",
       "resource-archive": "knowledge",
       "comms-hub": "communication",
       "telemetry-console": "systems",
@@ -47,6 +48,19 @@ describe("office theme", () => {
       stone: "#81786e",
       upholstery: "#746e67",
       inactiveScreen: "#4e625f",
+    });
+  });
+
+  it("uses a neutral control-room environment instead of a sepia scene wash", () => {
+    expect(getOfficeTheme(true).scene).toEqual({
+      floor: "#30363d",
+      walls: "#313740",
+      background: "#0f1720",
+    });
+    expect(getOfficeTheme(true).lighting).toEqual({
+      ambient: "#d8e1e8",
+      directional: "#f5f7fa",
+      point: "#a7bdd0",
     });
   });
 });

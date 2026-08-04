@@ -1,11 +1,14 @@
-import type {
-  AgentCardModel,
-  AgentLiveStatus,
-  CompanyModel,
-  FederatedTaskModel,
-  SessionRowModel,
-  SessionTimelineEvent,
-  SessionTimelineModel,
+import {
+  type AgentCardModel,
+  type AgentLiveStatus,
+  type CompanyModel,
+  decodeRoomHostConversationKey,
+  encodeRoomHostConversationKey,
+  type FederatedTaskModel,
+  type RoomHostConversationKey,
+  type SessionRowModel,
+  type SessionTimelineEvent,
+  type SessionTimelineModel,
 } from "../openclaw";
 import type {
   CodexOfficeVisibilityConfig,
@@ -42,17 +45,45 @@ function safeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-export function farplaneAgentThreadName(agentId: string, displayName: string): string {
-  return `${CODEX_FARPLANE_AGENT_THREAD_PREFIX}${agentId}] ${displayName}`;
+export function farplaneAgentThreadName(
+  agentId: string,
+  displayName: string,
+  conversationKey?: RoomHostConversationKey,
+): string {
+  const scope = conversationKey ? `[scope:${encodeRoomHostConversationKey(conversationKey)}]` : "";
+  return `${CODEX_FARPLANE_AGENT_THREAD_PREFIX}${agentId}]${scope} ${displayName}`;
 }
 
-export function farplaneAgentIdFromThread(thread: CodexThread): string | null {
+export type FarplaneAgentThreadIdentity = {
+  agentId: string;
+  conversationKey?: RoomHostConversationKey;
+  scopeMalformed?: true;
+};
+
+export function farplaneAgentIdentityFromThread(
+  thread: CodexThread,
+): FarplaneAgentThreadIdentity | null {
   const name = safeText(thread.name);
   if (!name.startsWith(CODEX_FARPLANE_AGENT_THREAD_PREFIX)) return null;
   const closingBracket = name.indexOf("]", CODEX_FARPLANE_AGENT_THREAD_PREFIX.length);
   if (closingBracket < 0) return null;
   const agentId = name.slice(CODEX_FARPLANE_AGENT_THREAD_PREFIX.length, closingBracket).trim();
-  return agentId || null;
+  if (!agentId) return null;
+  const remainder = name.slice(closingBracket + 1);
+  if (!remainder.startsWith("[scope:")) return { agentId };
+  const scopeEnd = remainder.indexOf("]", "[scope:".length);
+  if (scopeEnd < 0) return { agentId, scopeMalformed: true };
+  const conversationKey = decodeRoomHostConversationKey(
+    remainder.slice("[scope:".length, scopeEnd),
+  );
+  if (!conversationKey || conversationKey.hostAgentId !== agentId) {
+    return { agentId, scopeMalformed: true };
+  }
+  return { agentId, conversationKey };
+}
+
+export function farplaneAgentIdFromThread(thread: CodexThread): string | null {
+  return farplaneAgentIdentityFromThread(thread)?.agentId ?? null;
 }
 
 export function isFarplaneAgentThread(thread: CodexThread): boolean {
@@ -63,7 +94,9 @@ function farplaneAgentThreadLabel(thread: CodexThread): string | null {
   if (!isFarplaneAgentThread(thread)) return null;
   const name = safeText(thread.name);
   const closingBracket = name.indexOf("]", CODEX_FARPLANE_AGENT_THREAD_PREFIX.length);
-  const displayName = name.slice(closingBracket + 1).trim();
+  const remainder = name.slice(closingBracket + 1);
+  const scopeEnd = remainder.startsWith("[scope:") ? remainder.indexOf("]") : -1;
+  const displayName = remainder.slice(scopeEnd >= 0 ? scopeEnd + 1 : 0).trim();
   return displayName ? `Chat with ${displayName}` : "Agent chat";
 }
 
@@ -429,6 +462,7 @@ export function toCodexCompanyModel(
   );
   const projectThreads = threads.filter((thread) => !isFarplaneAgentThread(thread));
   const threadsByProjectPath = new Map<string, CodexThread[]>();
+  const latestActivityByProjectPath = new Map<string, number>();
   for (const projectPath of projectPaths) {
     threadsByProjectPath.set(projectPath, []);
   }
@@ -442,6 +476,28 @@ export function toCodexCompanyModel(
         isPersistentAutomationHeartbeatThread(thread));
     const hasHeartbeat = hasExplicitHeartbeat || isThreadStatusActive(thread);
     const hasGoal = Boolean(thread.goal);
+    const pinnedManagerProjectPath = pinnedManagerProjectPathByThreadId.get(thread.id);
+    const pmProjectId = projectIdByPmThreadId.get(thread.id);
+    const pmProjectPath = pmProjectId ? projectPathByProjectId.get(pmProjectId) : null;
+    const matchedProjectPath =
+      pinnedManagerProjectPath ??
+      pmProjectPath ??
+      (cwd &&
+      !projectlessThreadIds.has(thread.id) &&
+      !isMiscProjectPath(cwd, visibility.miscPathIncludes)
+        ? findBestProjectPath(cwd, projectPaths)
+        : null);
+    const projectPath =
+      matchedProjectPath && !isMiscProjectPath(matchedProjectPath, visibility.miscPathIncludes)
+        ? matchedProjectPath
+        : CODEX_MISC_PROJECT_PATH;
+    const activityUpdatedAt = threadActivityUpdatedAtMs(thread);
+    if (activityUpdatedAt) {
+      latestActivityByProjectPath.set(
+        projectPath,
+        Math.max(latestActivityByProjectPath.get(projectPath) ?? 0, activityUpdatedAt),
+      );
+    }
     if (
       isInternalAuxiliaryThread(thread) &&
       !isCeoThread &&
@@ -460,21 +516,6 @@ export function toCodexCompanyModel(
     if (!isVisible) {
       continue;
     }
-    const pinnedManagerProjectPath = pinnedManagerProjectPathByThreadId.get(thread.id);
-    const pmProjectId = projectIdByPmThreadId.get(thread.id);
-    const pmProjectPath = pmProjectId ? projectPathByProjectId.get(pmProjectId) : null;
-    const matchedProjectPath =
-      pinnedManagerProjectPath ??
-      pmProjectPath ??
-      (cwd &&
-      !projectlessThreadIds.has(thread.id) &&
-      !isMiscProjectPath(cwd, visibility.miscPathIncludes)
-        ? findBestProjectPath(cwd, projectPaths)
-        : null);
-    const projectPath =
-      matchedProjectPath && !isMiscProjectPath(matchedProjectPath, visibility.miscPathIncludes)
-        ? matchedProjectPath
-        : CODEX_MISC_PROJECT_PATH;
     threadsByProjectPath.set(projectPath, [
       ...(threadsByProjectPath.get(projectPath) ?? []),
       thread,
@@ -593,6 +634,7 @@ export function toCodexCompanyModel(
       name: projectNameByPath.get(projectPath) ?? projectNameFromCwd(projectPath),
       githubUrl: "",
       status: "active",
+      lastActivityAt: latestActivityByProjectPath.get(projectPath),
       goal:
         projectPath === CODEX_MISC_PROJECT_PATH
           ? `Track ${rows.length} projectless Codex chat${rows.length === 1 ? "" : "s"}.`
@@ -749,15 +791,19 @@ export function toCodexCompanyModel(
 
 export function toCodexSessionRows(agentId: string, threads: CodexThread[]): SessionRowModel[] {
   const threadId = parseCodexThreadId(agentId);
-  const farplaneAgentThreads = threads.filter(
-    (thread) =>
-      thread.status?.type !== "systemError" && farplaneAgentIdFromThread(thread) === agentId,
-  );
+  const farplaneAgentThreads = threads.filter((thread) => {
+    const identity = farplaneAgentIdentityFromThread(thread);
+    return (
+      thread.status?.type !== "systemError" &&
+      identity?.agentId === agentId &&
+      !identity.scopeMalformed
+    );
+  });
   const rows =
     agentId === CODEX_MAIN_AGENT_ID
       ? threads.filter((thread) => !isFarplaneAgentThread(thread))
       : farplaneAgentThreads.length > 0
-        ? farplaneAgentThreads.slice(0, 1)
+        ? farplaneAgentThreads
         : threads.filter((thread) => thread.id === threadId);
   return toCodexSessionRowsForThreads(agentId, rows);
 }
@@ -775,16 +821,20 @@ export function toCodexProjectPmSessionRows(
 }
 
 function toCodexSessionRowsForThreads(agentId: string, threads: CodexThread[]): SessionRowModel[] {
-  return threads.map((thread) => ({
-    agentId,
-    sessionKey: toThreadAgentId(thread.id),
-    sessionId: thread.sessionId,
-    parentThreadId: inferredDelegationParentThreadId(thread),
-    updatedAt: secondsToMs(thread.updatedAt),
-    channel: "codex",
-    peerLabel: farplaneAgentThreadLabel(thread) ?? threadTitle(thread),
-    origin: safeText(thread.modelProvider) || "codex",
-  }));
+  return threads.map((thread) => {
+    const conversationKey = farplaneAgentIdentityFromThread(thread)?.conversationKey;
+    return {
+      agentId,
+      sessionKey: toThreadAgentId(thread.id),
+      sessionId: thread.sessionId,
+      parentThreadId: inferredDelegationParentThreadId(thread),
+      updatedAt: secondsToMs(thread.updatedAt),
+      channel: "codex",
+      peerLabel: farplaneAgentThreadLabel(thread) ?? threadTitle(thread),
+      origin: safeText(thread.modelProvider) || "codex",
+      ...(conversationKey ? { conversationKey } : {}),
+    };
+  });
 }
 
 function itemText(item: CodexThreadItem): string {

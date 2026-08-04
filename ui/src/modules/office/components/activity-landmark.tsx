@@ -8,6 +8,7 @@
  */
 
 import type { Id } from "@/lib/entity-types";
+import { getExecutiveSpecialist } from "@/lib/executive-specialists";
 import {
   getOfficePresentationRotationY,
   isFixedOfficeSceneView,
@@ -24,6 +25,7 @@ import {
   ACTIVITY_DESTINATION_ROOM_WIDTH,
   getActivityDestinationRoomDimensions,
 } from "../lib/activity-destination-room";
+import { getOperatingRoomDefinition, isOperatingRoomId } from "../lib/operating-room-catalog";
 import { parseOfficeObjectInteractionConfig } from "../office-object-ui";
 import { ActivityLandmarkVisual } from "./activity-destination-room-visual";
 import { InteractiveObject } from "./interactive-object";
@@ -80,6 +82,10 @@ export default function ActivityLandmark({
     interactionConfig.skillBinding?.label ??
     interactionConfig.skillBinding?.skillId ??
     null;
+  const operatingRoom = isOperatingRoomId(metadata?.operatingRoomId)
+    ? getOperatingRoomDefinition(metadata.operatingRoomId)
+    : null;
+  const roomHost = operatingRoom ? getExecutiveSpecialist(operatingRoom.hostAgentId) : null;
   return (
     <InteractiveObject
       objectType="activity-landmark"
@@ -105,6 +111,8 @@ export default function ActivityLandmark({
         roomFurnitureStyle={
           typeof metadata?.roomFurnitureStyle === "string" ? metadata.roomFurnitureStyle : undefined
         }
+        roomLabel={operatingRoom?.displayName}
+        hostLabel={roomHost?.name}
       />
     </InteractiveObject>
   );

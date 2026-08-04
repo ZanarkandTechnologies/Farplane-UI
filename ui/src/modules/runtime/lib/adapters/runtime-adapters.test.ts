@@ -4,11 +4,16 @@ import {
   CODEX_MAIN_AGENT_ID,
   CodexAppServerClient,
   CodexRuntimeAdapter,
+  encodeRoomHostConversationKey,
+  farplaneAgentIdentityFromThread,
+  farplaneAgentThreadName,
   createOfficeRuntimeAdapter,
   createReadOnlyOfficeRuntimeAdapter,
   OpenClawRuntimeAdapter,
   READONLY_MODE_ERROR,
   resolveRuntimeAdapterKind,
+  roomHostLocalThreadId,
+  isFarplaneAgentThread,
   toCodexAgentCards,
   toCodexCompanyModel,
   toCodexLiveStatus,
@@ -444,6 +449,7 @@ describe("runtime adapters", () => {
 
   it("keeps Farplane agent chat threads persistent without duplicating office workers", async () => {
     let namedThread: { id: string; name?: string; status?: { type: "idle" } } | null = null;
+    let namedThreadName = "";
     let latestTurnId = "";
     const rpcMethods: Array<{ method?: string; params?: Record<string, unknown> }> = [];
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -463,17 +469,23 @@ describe("runtime adapters", () => {
       };
       rpcMethods.push(body);
       if (body.method === "thread/list") {
-        return new Response(JSON.stringify({ ok: true, result: { data: namedThread ? [namedThread] : [] } }));
+        return new Response(
+          JSON.stringify({ ok: true, result: { data: namedThread ? [namedThread] : [] } }),
+        );
       }
       if (body.method === "thread/start") {
         return new Response(
-          JSON.stringify({ ok: true, result: { thread: { id: "ledger-thread", status: { type: "idle" } } } }),
+          JSON.stringify({
+            ok: true,
+            result: { thread: { id: "ledger-thread", status: { type: "idle" } } },
+          }),
         );
       }
       if (body.method === "thread/name/set") {
+        namedThreadName = String(body.params?.name ?? "");
         namedThread = {
           id: "ledger-thread",
-          name: String(body.params?.name ?? ""),
+          name: namedThreadName,
           status: { type: "idle" },
         };
         return new Response(JSON.stringify({ ok: true, result: {} }));
@@ -542,7 +554,7 @@ describe("runtime adapters", () => {
     expect(
       rpcMethods.find((entry) => entry.method === "thread/start")?.params?.developerInstructions,
     ).toContain("You are Ledger, the Finance Director");
-    expect(namedThread?.name).toBe("Farplane Agent [farplane-finance] Ledger");
+    expect(namedThreadName).toBe("Farplane Agent [farplane-finance] Ledger");
   });
 
   it("hides failed Farplane backing threads so the next message can recover", () => {
@@ -564,6 +576,146 @@ describe("runtime adapters", () => {
         sessionKey: "codex-thread:healthy-ledger",
         peerLabel: "Chat with Ledger",
       }),
+    ]);
+  });
+
+  it("round-trips scoped Farplane names while keeping malformed scopes hidden", () => {
+    const conversationKey = {
+      hostAgentId: "farplane-research",
+      roomId: "research-library",
+      scopeKind: "project" as const,
+      projectId: "project-acme",
+    };
+    const thread = {
+      id: "research-acme",
+      name: farplaneAgentThreadName("farplane-research", "Research Lead", conversationKey),
+    };
+
+    expect(thread.name).toBe(
+      `Farplane Agent [farplane-research][scope:${encodeRoomHostConversationKey(conversationKey)}] Research Lead`,
+    );
+    expect(farplaneAgentIdentityFromThread(thread)).toEqual({
+      agentId: "farplane-research",
+      conversationKey,
+    });
+    expect(roomHostLocalThreadId(conversationKey)).toBe(
+      roomHostLocalThreadId({ ...conversationKey }),
+    );
+    expect(toCodexAgentCards([thread])).toEqual([
+      expect.objectContaining({ agentId: CODEX_MAIN_AGENT_ID }),
+    ]);
+
+    const malformed = {
+      id: "malformed-scope",
+      name: "Farplane Agent [farplane-research][scope:%7Bbad] Research Lead",
+    };
+    expect(isFarplaneAgentThread(malformed)).toBe(true);
+    expect(farplaneAgentIdentityFromThread(malformed)).toEqual({
+      agentId: "farplane-research",
+      scopeMalformed: true,
+    });
+  });
+
+  it("isolates and reuses project-scoped room-host conversations", async () => {
+    type TestThread = { id: string; name?: string; status: { type: "idle" } };
+    const threads: TestThread[] = [];
+    const completedTurns = new Map<string, string>();
+    let startCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/codex/app-server/health")) {
+        return new Response(JSON.stringify({ ok: true, configured: true }));
+      }
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        method?: string;
+        params?: Record<string, unknown>;
+      };
+      if (body.method === "thread/list") {
+        return new Response(JSON.stringify({ ok: true, result: { data: threads } }));
+      }
+      if (body.method === "thread/start") {
+        startCount += 1;
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            result: { thread: { id: `research-${startCount}`, status: { type: "idle" } } },
+          }),
+        );
+      }
+      if (body.method === "thread/name/set") {
+        threads.push({
+          id: String(body.params?.threadId),
+          name: String(body.params?.name),
+          status: { type: "idle" },
+        });
+        return new Response(JSON.stringify({ ok: true, result: {} }));
+      }
+      if (body.method === "thread/read") {
+        const threadId = String(body.params?.threadId);
+        const thread = threads.find((candidate) => candidate.id === threadId);
+        const turnId = completedTurns.get(threadId);
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            result: {
+              thread: thread
+                ? {
+                    ...thread,
+                    turns: turnId ? [{ id: turnId, status: "completed", items: [] }] : [],
+                  }
+                : null,
+            },
+          }),
+        );
+      }
+      if (body.method === "turn/start") {
+        const threadId = String(body.params?.threadId);
+        const turnId = `turn-${threadId}`;
+        completedTurns.set(threadId, turnId);
+        return new Response(JSON.stringify({ ok: true, result: { turn: { id: turnId } } }));
+      }
+      return new Response(JSON.stringify({ ok: false, error: "unexpected_rpc" }), { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const adapter = new CodexRuntimeAdapter("", "http://state");
+    const profile = {
+      agentId: "farplane-research",
+      name: "Research Lead",
+      title: "Research Director",
+      background: "Grounds decisions in evidence.",
+    };
+    const acme = {
+      hostAgentId: profile.agentId,
+      roomId: "research-library",
+      scopeKind: "project" as const,
+      projectId: "acme",
+    };
+    const nova = { ...acme, projectId: "nova" };
+    const send = (conversationKey: typeof acme) =>
+      adapter.sendMessage({
+        agentId: profile.agentId,
+        sessionKey: CODEX_MAIN_AGENT_ID,
+        message: "What should we learn next?",
+        metadata: { farplaneAgentProfile: { ...profile, conversationKey } },
+      });
+
+    const acmeFirst = await send(acme);
+    const novaFirst = await send(nova);
+    const acmeAgain = await send(acme);
+
+    expect(acmeFirst.sessionKey).toBe("codex-thread:research-1");
+    expect(novaFirst.sessionKey).toBe("codex-thread:research-2");
+    expect(acmeAgain.sessionKey).toBe(acmeFirst.sessionKey);
+    expect(startCount).toBe(2);
+    await expect(adapter.listSessions(profile.agentId)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sessionKey: "codex-thread:research-1", conversationKey: acme }),
+        expect.objectContaining({ sessionKey: "codex-thread:research-2", conversationKey: nova }),
+      ]),
+    );
+    expect(toCodexAgentCards(threads)).toEqual([
+      expect.objectContaining({ agentId: CODEX_MAIN_AGENT_ID }),
     ]);
   });
 
@@ -937,6 +1089,64 @@ describe("runtime adapters", () => {
     expect(company.agents.some((agent) => agent.agentId === "codex-thread:old-farplane")).toBe(
       false,
     );
+  });
+
+  it("preserves latest project activity from an ordinary old thread without projecting a worker", () => {
+    const nowMs = Date.UTC(2026, 7, 5, 12);
+    const oldThreadUpdatedAtSeconds = (nowMs - 8 * 24 * 60 * 60 * 1000) / 1000;
+    const company = toCodexCompanyModel(
+      [
+        {
+          id: "ordinary-old-thread",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: oldThreadUpdatedAtSeconds,
+          preview: "Old project work",
+        },
+      ],
+      nowMs,
+      ["/workspace/farplane-ui"],
+    );
+
+    expect(company.projects).toEqual([
+      expect.objectContaining({
+        id: "codex-proj-workspace-farplane-ui",
+        lastActivityAt: oldThreadUpdatedAtSeconds * 1000,
+      }),
+    ]);
+    expect(
+      company.agents.some((agent) => agent.agentId === "codex-thread:ordinary-old-thread"),
+    ).toBe(false);
+  });
+
+  it("does not let scoped Farplane host conversations contaminate project activity", () => {
+    const nowMs = Date.UTC(2026, 7, 5, 12);
+    const company = toCodexCompanyModel(
+      [
+        {
+          id: "scoped-host-thread",
+          cwd: "/workspace/farplane-ui",
+          updatedAt: nowMs / 1000,
+          name: farplaneAgentThreadName("farplane-research", "Research Lead", {
+            hostAgentId: "farplane-research",
+            roomId: "research-library",
+            scopeKind: "project",
+            projectId: "codex-proj-workspace-farplane-ui",
+          }),
+        },
+      ],
+      nowMs,
+      ["/workspace/farplane-ui"],
+    );
+
+    expect(company.projects).toEqual([
+      expect.objectContaining({
+        id: "codex-proj-workspace-farplane-ui",
+        lastActivityAt: undefined,
+      }),
+    ]);
+    expect(
+      company.agents.some((agent) => agent.agentId === "codex-thread:scoped-host-thread"),
+    ).toBe(false);
   });
 
   it("uses Codex office visibility config for recency and heartbeat-pinned workers", () => {

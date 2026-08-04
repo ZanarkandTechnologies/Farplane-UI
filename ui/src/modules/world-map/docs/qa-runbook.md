@@ -21,7 +21,9 @@ launcher or `Ctrl/Cmd+K` command palette.
 
 ## Checks
 
-1. Select a project and verify counts for entities, plotted points, and associations.
+1. Open Command Commons and verify Company World opens in **All projects** mode.
+   Confirm healthy projects remain visible when one project is missing or invalid,
+   then select one project and verify counts for entities, plotted points, and associations.
 2. Select `Malaysia Suppliers`; Penang Castings and Precision Alloys remain,
    while the association to Acme Motors disappears because both endpoints are
    not in the view. Select **All entities** to restore all three nodes and the association.
@@ -46,8 +48,8 @@ launcher or `Ctrl/Cmd+K` command palette.
    remains dashed but static.
 12. Verify the unlocated-only state leaves the basemap fully legible and uses a
    compact bottom notice rather than a full-canvas scrim.
-13. Click the Farplane Map activity landmark and verify it opens the same World
-   panel; confirm Research Library still opens Docs Library.
+13. Click Command Commons and verify it opens the registered World panel; confirm
+   the center cue is static, restrained, and does not trigger repeated network reads.
 14. Select an entity with metadata-bearing timeline rows and verify generic
     key/value badges, date, and newest-first evidence. Confirm World does not
     assign risk, feasibility, or resource semantics. Select a linked target
