@@ -28,6 +28,9 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
   );
   const setIsWorldMapPanelOpen = useAppStore((state) => state.setIsWorldMapPanelOpen);
   const setIsDocumentLibraryPanelOpen = useAppStore((state) => state.setIsDocumentLibraryPanelOpen);
+  const setIsSelfImprovementRunsPanelOpen = useAppStore(
+    (state) => state.setIsSelfImprovementRunsPanelOpen,
+  );
   const setIsSkillsPanelOpen = useAppStore((state) => state.setIsSkillsPanelOpen);
   const setSkillStudioSurface = useAppStore((state) => state.setSkillStudioSurface);
   const setSelectedSkillStudioSkillId = useAppStore((state) => state.setSelectedSkillStudioSkillId);
@@ -76,6 +79,9 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
           break;
         case "document-library":
           setIsDocumentLibraryPanelOpen(true);
+          break;
+        case "self-improvement-runs":
+          setIsSelfImprovementRunsPanelOpen(true);
           break;
         case "skill-os":
         case "evals":
@@ -131,6 +137,7 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
       setCeoWorkbenchView,
       setIsCeoWorkbenchOpen,
       setIsDocumentLibraryPanelOpen,
+      setIsSelfImprovementRunsPanelOpen,
       setIsFurnitureShopOpen,
       setIsFinancePanelOpen,
       setIsGlobalTeamPanelOpen,

@@ -85,7 +85,11 @@ export function WorldEntityDetail(props: WorldEntityDetailProps): React.JSX.Elem
   const connected = props.edges.filter(
     (edge) => edge.sourceKey === node.key || edge.targetKey === node.key,
   );
-  const timeline = props.timeline.filter((entry) => entry.entityIds.includes(node.entityId));
+  const timeline = props.timeline.filter(
+    (entry) =>
+      entry.entityKeys.includes(node.key) ||
+      (entry.projectId === node.projectId && entry.entityIds.includes(node.entityId)),
+  );
   const tags = taggedValues(timeline);
 
   return (
@@ -148,7 +152,12 @@ export function WorldEntityDetail(props: WorldEntityDetailProps): React.JSX.Elem
                 <p className="mt-1 text-xs leading-5">{entry.displayContext}</p>
                 {entry.sourceEntityId !== node.entityId ? (
                   <div className="mt-1 text-[10px] text-muted-foreground">
-                    From {entry.sourceEntityId}
+                    From{" "}
+                    {props.nodes.find(
+                      (candidate) =>
+                        candidate.projectId === entry.projectId &&
+                        candidate.entityId === entry.sourceEntityId,
+                    )?.name ?? entry.sourceEntityId}
                   </div>
                 ) : null}
               </li>

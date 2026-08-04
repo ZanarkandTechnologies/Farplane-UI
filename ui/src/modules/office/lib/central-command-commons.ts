@@ -12,12 +12,14 @@ import {
   ACTIVITY_DESTINATION_BAY_DEPTH,
   ACTIVITY_DESTINATION_BAY_WIDTH,
 } from "./activity-destination-room";
-import { officeLayoutTileKey, parseOfficeLayoutTileKey } from "./office-layout";
-import type { OfficeObject } from "./types";
 import {
   COMMAND_COMMONS_VISUAL_DEPTH,
   COMMAND_COMMONS_VISUAL_WIDTH,
 } from "./command-commons-geometry";
+import { officeLayoutTileKey, parseOfficeLayoutTileKey } from "./office-layout";
+import type { OfficeObject } from "./types";
+
+export const COMMAND_COMMONS_PANEL_ID = "world" as const;
 
 export type CentralCommandBayEdge = "north" | "west" | "east";
 
@@ -30,8 +32,22 @@ export interface CentralCommandBaySlot {
 }
 
 export interface CentralCommandCommonsPlan {
-  coreBounds: { minX: number; maxX: number; minZ: number; maxZ: number; width: number; depth: number };
-  outerBounds: { minX: number; maxX: number; minZ: number; maxZ: number; width: number; depth: number };
+  coreBounds: {
+    minX: number;
+    maxX: number;
+    minZ: number;
+    maxZ: number;
+    width: number;
+    depth: number;
+  };
+  outerBounds: {
+    minX: number;
+    maxX: number;
+    minZ: number;
+    maxZ: number;
+    width: number;
+    depth: number;
+  };
   floorTiles: Set<string>;
   placedDestinations: OfficeObject[];
   roomSlots: CentralCommandBaySlot[];
@@ -79,10 +95,9 @@ function moduleKeys(centerX: number, centerZ: number): string[] {
   return keys;
 }
 
-export function createCommandCommonsObject(input: {
-  center?: [number, number, number];
-  companyId?: string;
-} = {}): OfficeObject {
+export function createCommandCommonsObject(
+  input: { center?: [number, number, number]; companyId?: string } = {},
+): OfficeObject {
   return {
     _id: "generated-command-commons",
     companyId: input.companyId,
@@ -96,6 +111,7 @@ export function createCommandCommonsObject(input: {
       footprintClearance: 0.6,
       visualFootprintWidth: COMMAND_COMMONS_VISUAL_WIDTH,
       visualFootprintDepth: COMMAND_COMMONS_VISUAL_DEPTH,
+      uiBinding: { kind: "internalPanel", panelId: COMMAND_COMMONS_PANEL_ID },
     },
   };
 }
@@ -125,9 +141,11 @@ export function planCentralCommandCommons(input: {
   );
   const minimumArea = input.minimumCoreTileArea ?? 0;
   while (
-    columns * ACTIVITY_DESTINATION_BAY_WIDTH * rows * ACTIVITY_DESTINATION_BAY_DEPTH < minimumArea
+    columns * ACTIVITY_DESTINATION_BAY_WIDTH * rows * ACTIVITY_DESTINATION_BAY_DEPTH <
+    minimumArea
   ) {
-    if (columns * ACTIVITY_DESTINATION_BAY_WIDTH <= rows * ACTIVITY_DESTINATION_BAY_DEPTH) columns += 1;
+    if (columns * ACTIVITY_DESTINATION_BAY_WIDTH <= rows * ACTIVITY_DESTINATION_BAY_DEPTH)
+      columns += 1;
     else rows += 1;
   }
 
@@ -144,8 +162,7 @@ export function planCentralCommandCommons(input: {
   const outerBounds = coreBounds;
 
   const northSlots: CentralCommandBaySlot[] = Array.from({ length: northCount }, (_, index) => {
-    const x =
-      coreBounds.minX + ((index + 1) / (northCount + 1)) * (coreBounds.width - 1);
+    const x = coreBounds.minX + ((index + 1) / (northCount + 1)) * (coreBounds.width - 1);
     const z = coreBounds.minZ + (ACTIVITY_DESTINATION_BAY_DEPTH - 1) / 2;
     return {
       edge: "north",
@@ -157,8 +174,7 @@ export function planCentralCommandCommons(input: {
   });
   const westSlots: CentralCommandBaySlot[] = Array.from({ length: westCount }, (_, index) => {
     const x = coreBounds.minX + (ACTIVITY_DESTINATION_BAY_WIDTH - 1) / 2;
-    const z =
-      coreBounds.minZ + ((index + 1) / (westCount + 1)) * (coreBounds.depth - 1);
+    const z = coreBounds.minZ + ((index + 1) / (westCount + 1)) * (coreBounds.depth - 1);
     return {
       edge: "west",
       position: [x, input.destinations[0]?.position[1] ?? 0, z],
@@ -169,8 +185,7 @@ export function planCentralCommandCommons(input: {
   });
   const eastSlots: CentralCommandBaySlot[] = Array.from({ length: eastCount }, (_, index) => {
     const x = coreBounds.maxX - (ACTIVITY_DESTINATION_BAY_WIDTH - 1) / 2;
-    const z =
-      coreBounds.minZ + ((index + 1) / (eastCount + 1)) * (coreBounds.depth - 1);
+    const z = coreBounds.minZ + ((index + 1) / (eastCount + 1)) * (coreBounds.depth - 1);
     return {
       edge: "east",
       position: [x, input.destinations[0]?.position[1] ?? 0, z],

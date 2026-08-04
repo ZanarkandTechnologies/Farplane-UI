@@ -6,6 +6,14 @@
 - Resolve semantic skill activity to scene targets in pure helpers before passing data into React Three Fiber.
 
 ## Invariants
+- Operating rooms are fixed catalog entrypoints. Their hosts are stable
+  deskless identities, not continuously running agents or per-project clones.
+- Room-host text chat must use the validated host/room/scope conversation key;
+  project-scoped rooms must never guess a project when none is selected.
+- The seven-day stale-project rule filters only Office3D geometry and presence;
+  it must not delete or filter the canonical company model used by other views.
+- Room activity is a transient projection of curated skill telemetry and must
+  not create tasks, agents, or persisted office objects.
 - Agent activity targets are keyed by `skillId`, never by persisted office-object IDs.
 - Office objects own placement and local runtime UI metadata; status events only report semantic activity.
 - Office placement/collision behavior belongs in `systems/occupancy-system.ts` and

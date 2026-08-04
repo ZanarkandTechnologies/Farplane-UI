@@ -78,6 +78,66 @@ export interface SessionRowModel {
   channel?: string;
   peerLabel?: string;
   origin?: string;
+  conversationKey?: RoomHostConversationKey;
+}
+
+export type RoomHostConversationKey =
+  | {
+      hostAgentId: string;
+      roomId: string;
+      scopeKind: "office";
+    }
+  | {
+      hostAgentId: string;
+      roomId: string;
+      scopeKind: "project";
+      projectId: string;
+    };
+
+function boundedConversationKeyPart(value: unknown, maxLength = 200): string {
+  return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+
+export function parseRoomHostConversationKey(value: unknown): RoomHostConversationKey | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const hostAgentId = boundedConversationKeyPart(row.hostAgentId);
+  const roomId = boundedConversationKeyPart(row.roomId);
+  if (!hostAgentId || !roomId) return null;
+  if (row.scopeKind === "office" && row.projectId === undefined) {
+    return { hostAgentId, roomId, scopeKind: "office" };
+  }
+  const projectId = boundedConversationKeyPart(row.projectId);
+  if (row.scopeKind === "project" && projectId) {
+    return { hostAgentId, roomId, scopeKind: "project", projectId };
+  }
+  return null;
+}
+
+export function encodeRoomHostConversationKey(key: RoomHostConversationKey): string {
+  const parsed = parseRoomHostConversationKey(key);
+  if (!parsed) throw new Error("invalid_room_host_conversation_key");
+  return encodeURIComponent(JSON.stringify(parsed));
+}
+
+export function decodeRoomHostConversationKey(value: string): RoomHostConversationKey | null {
+  try {
+    return parseRoomHostConversationKey(JSON.parse(decodeURIComponent(value)));
+  } catch {
+    return null;
+  }
+}
+
+export function roomHostLocalThreadId(key: RoomHostConversationKey): string {
+  return `dm-room-host-${encodeURIComponent(key.hostAgentId)}-${encodeRoomHostConversationKey(key)}`;
+}
+
+export function roomHostConversationKeysEqual(
+  left: RoomHostConversationKey | null | undefined,
+  right: RoomHostConversationKey | null | undefined,
+): boolean {
+  if (!left || !right) return !left && !right;
+  return encodeRoomHostConversationKey(left) === encodeRoomHostConversationKey(right);
 }
 
 export interface SessionTimelineEvent {
@@ -424,6 +484,8 @@ export interface ProjectModel {
   name: string;
   githubUrl: string;
   status: ProjectStatus;
+  /** Latest observed runtime activity; optional because sidecar/OpenClaw projects may not expose it. */
+  lastActivityAt?: number;
   goal: string;
   kpis: string[];
   trackingContext?: string;
@@ -513,12 +575,7 @@ export interface OfficeSettingsModel {
   };
   decor: {
     floorPatternId: "sandstone_tiles" | "graphite_grid" | "walnut_parquet";
-    wallColorId:
-      | "gallery_cream"
-      | "sage_mist"
-      | "harbor_blue"
-      | "clay_rose"
-      | "command_charcoal";
+    wallColorId: "gallery_cream" | "sage_mist" | "harbor_blue" | "clay_rose" | "command_charcoal";
     backgroundId: "shell_haze" | "midnight_tide" | "kelp_fog" | "estuary_glow";
   };
   viewProfile: "free_orbit_3d" | "fixed_2_5d";
@@ -575,7 +632,13 @@ export interface FederatedTaskModel extends TaskModel {
   frontMatter?: Record<string, string>;
   markdown?: string;
   notes?: string;
-  approvalState?: "draft" | "pending_review" | "approved" | "rejected" | "changes_requested" | "executed";
+  approvalState?:
+    | "draft"
+    | "pending_review"
+    | "approved"
+    | "rejected"
+    | "changes_requested"
+    | "executed";
   linkedSessionKey?: string;
   createdAt?: number;
   dueAt?: number;

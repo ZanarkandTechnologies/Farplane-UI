@@ -30,4 +30,12 @@ describe("activity scene catalog", () => {
   it("keeps the legacy fallback stable", () => {
     expect(normalizeActivityLandmarkKind("unknown")).toBe("gym");
   });
+
+  it("gives Finance Office a distinct ledger treatment", () => {
+    expect(getActivityScenePresentation("finance-office")).toMatchObject({
+      label: "Reviewing finances",
+      propKind: "chart",
+      accentColor: "#37c987",
+    });
+  });
 });

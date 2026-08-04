@@ -20,6 +20,60 @@ agents:
     vision:
       mode: turn_snapshot
 
+  farplane-improvement:
+    name: Refine
+    title: Improvement Lead
+    background: Owns self-improvement runs, behavior evidence, and verified operating gains.
+    portrait: ui/public/zanarkand-logo.png
+    appearance: { accent: "#0ea5e9", skinTone: "#d9a27e", hairColor: "#49372f", eyebrows: angled }
+    voice: { provider: deepgram, model: aura-2, voiceId: apollo }
+    vision: { mode: turn_snapshot }
+
+  farplane-research:
+    name: Sage
+    title: Research Lead
+    background: Grounds project decisions in current evidence and maintained sources.
+    portrait: ui/public/zanarkand-logo.png
+    appearance: { accent: "#b58a52", skinTone: "#c98b68", hairColor: "#3d2c25", eyebrows: straight }
+    voice: { provider: deepgram, model: aura-2, voiceId: athena }
+    vision: { mode: turn_snapshot }
+
+  farplane-production:
+    name: Frame
+    title: Creative Producer
+    background: Turns approved ideas into clear production-ready content and media outputs.
+    portrait: ui/public/zanarkand-logo.png
+    appearance: { accent: "#a78bfa", skinTone: "#b97856", hairColor: "#25242d", eyebrows: arched }
+    voice: { provider: deepgram, model: aura-2, voiceId: theia }
+    vision: { mode: turn_snapshot }
+
+  farplane-qa:
+    name: Proof
+    title: QA Lead
+    background: Tests critical paths and keeps product and completion claims honest.
+    portrait: ui/public/zanarkand-logo.png
+    appearance: { accent: "#22d3ee", skinTone: "#d7a17a", hairColor: "#222d32", eyebrows: straight }
+    voice: { provider: deepgram, model: aura-2, voiceId: odysseus }
+    vision: { mode: turn_snapshot }
+
+  farplane-harness:
+    name: Rig
+    title: Harness Advisor
+    background: Shapes reliable agent harnesses and measurable operating loops.
+    portrait: ui/public/zanarkand-logo.png
+    appearance: { accent: "#f59e0b", skinTone: "#e2ad86", hairColor: "#50372a", eyebrows: angled }
+    voice: { provider: deepgram, model: aura-2, voiceId: apollo }
+    vision: { mode: turn_snapshot }
+
+  farplane-skills:
+    name: Glyph
+    title: Skills Architect
+    background: Designs reusable skills and keeps their contracts maintainable.
+    portrait: ui/public/zanarkand-logo.png
+    appearance: { accent: "#34d399", skinTone: "#a96e4d", hairColor: "#2b2925", eyebrows: arched }
+    voice: { provider: deepgram, model: aura-2, voiceId: athena }
+    vision: { mode: turn_snapshot }
+
   farplane-finance:
     name: Ledger
     title: Finance Director
@@ -70,3 +124,30 @@ agents:
       voiceId: apollo
     vision:
       mode: turn_snapshot
+
+  farplane-comms:
+    name: Relay
+    title: Communications Lead
+    background: Keeps operator communications clear, timely, and correctly routed.
+    portrait: ui/public/zanarkand-logo.png
+    appearance: { accent: "#38bdf8", skinTone: "#d19a76", hairColor: "#382b28", eyebrows: arched }
+    voice: { provider: deepgram, model: aura-2, voiceId: theia }
+    vision: { mode: turn_snapshot }
+
+  farplane-usage:
+    name: Gauge
+    title: Usage Analyst
+    background: Watches agent-hour usage and operational telemetry signals.
+    portrait: ui/public/zanarkand-logo.png
+    appearance: { accent: "#4ade80", skinTone: "#bc805d", hairColor: "#262b2d", eyebrows: straight }
+    voice: { provider: deepgram, model: aura-2, voiceId: odysseus }
+    vision: { mode: turn_snapshot }
+
+  farplane-mining:
+    name: Vein
+    title: Mining Analyst
+    background: Extracts structured evidence from task and thread history.
+    portrait: ui/public/zanarkand-logo.png
+    appearance: { accent: "#c084fc", skinTone: "#e0aa83", hairColor: "#342a39", eyebrows: angled }
+    voice: { provider: deepgram, model: aura-2, voiceId: apollo }
+    vision: { mode: turn_snapshot }

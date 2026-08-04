@@ -9,16 +9,44 @@ The Office System provides the 3D office environment where employees, teams, and
 
 ## Core Components
 
-### Activity Destination Landmarks ✅
+### Hosted Operating Rooms ✅
+
+**Status**: Active (Aug 2026)
+
+The office has eleven fixed functional rooms, each with one deskless host, one
+registered operational panel, and optional short-lived worktables driven by
+curated skill telemetry. Hosts are stable chat entrypoints, not permanently
+running workers: office hosts reuse an office-scoped conversation, while
+Research, Production, and QA require the selected project and keep concurrent
+projects isolated.
+
+The seven-day inactivity rule affects only the Office3D projection. Hidden
+project clusters, employees, desks, pulses, and areas remain intact in the
+company model and other panels. Command Commons opens the bounded aggregate
+Company World. Self-Improvement Lab reads real ticket Goal Packets instead of
+the retired training modal.
+
+**Key files**:
+
+- `lib/operating-room-catalog.ts`: room inventory, hosts, scopes, panels, and curated skills
+- `lib/room-hosts.ts`: stable host projection and conversation keys
+- `lib/room-activity-projection.ts`: bounded transient worktable projection
+- `components/room-activity-layer.tsx`: restrained scene presentation
+- `../../providers/office-project-visibility.ts`: Office3D-only stale-project policy
+- `../world-map/hooks/use-company-world-projection.ts`: aggregate company graph
+- `../self-improvement/`: ticket-backed self-improvement run surface
+
+### Room Rendering And Placement ✅
 
 **Status**: Active (Jul 2026)
 
-Native low-poly `activity-landmark` objects are curated navigation destinations,
-not a mirror of every radial-dial action or panel tab. The live office maps Skill
-Lab, Organization Hall, QA Arcade, Harness Workshop, Resource Archive, Research
-Library, Comms Hub, Telemetry Console, and Thread Data Lab to their matching
-top-level panels. World uses a dedicated orb landmark; Builder,
-Settings, decoration, secondary/raw views, and leaf tabs stay launcher-only.
+Native low-poly `activity-landmark` objects now render the fixed eleven-room
+operating catalog: Self-Improvement Lab, Research Library, Production Studio,
+QA Lab, Harness Workshop, Skill Lab, Organization Hall, Finance Office, Comms
+Hub, Telemetry Console, and Thread Data Lab. Each room opens one registered
+top-level panel and projects one fixed, deskless host. Company World opens from
+the central Command Commons; Builder, Settings, decoration, secondary/raw
+views, and leaf tabs stay launcher-only.
 
 Landmark panel routing and avatar activity targeting are independent metadata
 bindings. `uiBinding` opens one registered top-level panel, while `skillBinding`
@@ -49,12 +77,12 @@ tables or one another, but activity landmarks do not register as runtime
 navigation obstacles. Employees walk through the open side to interior,
 occupant-spread activity spots instead of stopping outside the room.
 
-Each bay remains one persisted object. Its renderer owns the floor zone and
-permanent equipment; engaged employees receive only a transient scene prop. The
-shared activity catalog gives every kind honest ambient copy and
-a base animation fallback. Library engagement reuses Mini Kenji's maintained
-`review` row with a shared open-book prop, which appears only after arrival and
-is removed on interruption or departure.
+Each room remains one persisted object. Its renderer owns the floor zone,
+permanent equipment, and stable room/host plaque. Curated skill-invocation
+telemetry projects at most three transient project worktables plus an overflow
+count; generic execution and non-artifact ingest do not create room activity.
+The work projection expires after the existing five-minute telemetry freshness
+window and never creates a task, agent, or persistent furniture record.
 
 **Key files**:
 
@@ -67,7 +95,7 @@ is removed on interruption or departure.
 - `panels/use-internal-panel-launcher.ts`: shared landmark/launcher panel routing
 - `skill-targeting.ts`: primary and alias skill lookup
 - `activity-scenes.ts`: landmark-to-scene catalog and renderer fallback
-- `config/office-theme.ts`: scene-wide theme primitive, including permanent landmark materials and room-role colors
+- `../../../config/office-theme.ts`: scene-wide theme primitive, including permanent landmark materials and room-role colors
 - `components/employee/activity-scene-props.tsx`: engaged-only shared props
 - `lib/activity-destination-ring.ts`: pure three-sided room-rail planner
 - `lib/office-layout-solver.ts`: tables → compact core/decor pack → destination rails
@@ -180,10 +208,6 @@ Unified system for furniture and interactive objects in the 3D office.
 - ❌ `selectable-wrapper.tsx` (145 lines)
 - ❌ `use-drag-drop.ts` (320 lines)
 - ❌ `selection-store.ts` (23 lines)
-
-See `.docs/REFACTOR_SUMMARY.md` for full details.
-
----
 
 ### Employee Hover Labels & Team Directory ✅
 

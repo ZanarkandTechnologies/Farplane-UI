@@ -16,6 +16,7 @@ import type { OfficeObjectModel, OfficeSettingsModel } from "../cli/sidecar-stor
 import { buildNewTeamClusterObject } from "../cli/team-cluster-placement";
 import { createFinanceStore } from "../cli/finance-store";
 import { scanProjectTickets } from "../cli/project-ticket-store";
+import { readSelfImprovementRuns } from "./self-improvement-state";
 import {
   getSkillStudioDetail,
   listSkillStudioCatalog,
@@ -4627,6 +4628,28 @@ function farplaneStateBridge() {
             writeJson(res, 422, {
               ok: false,
               error: error instanceof Error ? error.message : "project_read_model_failed",
+            });
+          }
+          return;
+        }
+
+        if (method === "POST" && pathname === "/farplane/self-improvement/runs") {
+          try {
+            const body = (await readBody(req)) as JsonObject;
+            const rawProjects = Array.isArray(body.projects) ? body.projects : [];
+            const projects = rawProjects
+              .filter((entry): entry is JsonObject => Boolean(entry && typeof entry === "object"))
+              .map((entry) => ({
+                projectId: String(entry.projectId ?? "").trim(),
+                projectName: String(entry.projectName ?? "").trim(),
+                projectPath: String(entry.projectPath ?? "").trim(),
+              }));
+            writeJson(res, 200, await readSelfImprovementRuns(projects));
+          } catch (error) {
+            writeJson(res, 422, {
+              ok: false,
+              error:
+                error instanceof Error ? error.message : "self_improvement_runs_read_failed",
             });
           }
           return;

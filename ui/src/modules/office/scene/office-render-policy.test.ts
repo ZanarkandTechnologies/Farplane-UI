@@ -21,6 +21,7 @@ function makePanelState(
     isOrganizationPanelOpen: false,
     isRawTelemetryPanelOpen: false,
     isResourceBankPanelOpen: false,
+    isSelfImprovementRunsPanelOpen: false,
     isVideoIntelligencePanelOpen: false,
     isSettingsModalOpen: false,
     isSkillInvocationsPanelOpen: false,
@@ -32,7 +33,6 @@ function makePanelState(
     isWorldMapPanelOpen: false,
     manageAgentEmployeeId: null,
     memoryPanelEmployeeId: null,
-    trainingEmployeeId: null,
     viewComputerEmployeeId: null,
     ...overrides,
   };
@@ -49,6 +49,7 @@ describe("office render policy", () => {
     "isOrganizationPanelOpen",
     "isRawTelemetryPanelOpen",
     "isResourceBankPanelOpen",
+    "isSelfImprovementRunsPanelOpen",
     "isVideoIntelligencePanelOpen",
     "isSettingsModalOpen",
     "isSkillInvocationsPanelOpen",
@@ -67,7 +68,6 @@ describe("office render policy", () => {
     "activeObjectPanel",
     "manageAgentEmployeeId",
     "memoryPanelEmployeeId",
-    "trainingEmployeeId",
     "viewComputerEmployeeId",
   ] as const)("treats a populated %s as blocking", (key) => {
     expect(hasBlockingOfficePanel(makePanelState({ [key]: "open" }))).toBe(true);

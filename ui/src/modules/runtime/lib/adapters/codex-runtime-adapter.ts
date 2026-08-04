@@ -16,7 +16,7 @@ import {
   type CodexThread,
   type CodexUiStateResponse,
   codexProjectId,
-  farplaneAgentIdFromThread,
+  farplaneAgentIdentityFromThread,
   farplaneAgentThreadName,
   findActiveTurnId,
   isCodexPmAgentId,
@@ -46,12 +46,17 @@ import type {
   CronJob,
   CronStatus,
   OpenClawConfigSnapshot,
+  RoomHostConversationKey,
   SessionRowModel,
   SessionTimelineModel,
   ToolsCatalogResult,
   UnifiedOfficeModel,
 } from "../openclaw";
-import { OpenClawAdapter } from "../openclaw";
+import {
+  OpenClawAdapter,
+  parseRoomHostConversationKey,
+  roomHostConversationKeysEqual,
+} from "../openclaw";
 import type { RuntimeAdapterCapabilities } from "./contract";
 
 function buildCodexWorkload(
@@ -227,26 +232,29 @@ type FarplaneAgentChatProfile = {
   name: string;
   title: string;
   background: string;
+  conversationKey?: RoomHostConversationKey;
 };
 
 function boundedMetadataText(value: unknown, maxLength: number): string {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }
 
-function readFarplaneAgentChatProfile(
-  request: ChatSendRequest,
-): FarplaneAgentChatProfile | null {
+function readFarplaneAgentChatProfile(request: ChatSendRequest): FarplaneAgentChatProfile | null {
   const raw = request.metadata?.farplaneAgentProfile;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const row = raw as Record<string, unknown>;
   const agentId = boundedMetadataText(row.agentId, 160);
   const name = boundedMetadataText(row.name, 160);
   if (!agentId || agentId !== request.agentId || !name) return null;
+  const conversationKey = parseRoomHostConversationKey(row.conversationKey);
+  if (row.conversationKey !== undefined && !conversationKey) return null;
+  if (conversationKey && conversationKey.hostAgentId !== agentId) return null;
   return {
     agentId,
     name,
     title: boundedMetadataText(row.title, 240),
     background: boundedMetadataText(row.background, 2_000),
+    ...(conversationKey ? { conversationKey } : {}),
   };
 }
 
@@ -689,9 +697,7 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
     });
   }
 
-  async sendMessage(
-    input: ChatSendRequest,
-  ): Promise<ChatSendResult> {
+  async sendMessage(input: ChatSendRequest): Promise<ChatSendResult> {
     if (isObservedCodexAgentId(input.agentId) || isObservedCodexAgentId(input.sessionKey)) {
       return { ok: false, error: "codex_observed_worker_read_only" };
     }
@@ -706,17 +712,32 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
       if (farplaneProfile) {
         const threads = await this.listCodexThreads({ force: true });
         const selectedThread = threads.find((thread) => thread.id === threadId);
+        const selectedIdentity = selectedThread
+          ? farplaneAgentIdentityFromThread(selectedThread)
+          : null;
         const selectedBelongsToAgent =
           selectedThread &&
           selectedThread.status?.type !== "systemError" &&
-          farplaneAgentIdFromThread(selectedThread) === farplaneProfile.agentId;
+          selectedIdentity?.agentId === farplaneProfile.agentId &&
+          !selectedIdentity.scopeMalformed &&
+          roomHostConversationKeysEqual(
+            selectedIdentity.conversationKey,
+            farplaneProfile.conversationKey,
+          );
         if (!selectedBelongsToAgent) {
           threadId =
-            threads.find(
-              (thread) =>
+            threads.find((thread) => {
+              const identity = farplaneAgentIdentityFromThread(thread);
+              return (
                 thread.status?.type !== "systemError" &&
-                farplaneAgentIdFromThread(thread) === farplaneProfile.agentId,
-            )?.id ?? "";
+                identity?.agentId === farplaneProfile.agentId &&
+                !identity.scopeMalformed &&
+                roomHostConversationKeysEqual(
+                  identity.conversationKey,
+                  farplaneProfile.conversationKey,
+                )
+              );
+            })?.id ?? "";
         }
         if (!threadId) {
           const started = await this.codexClient.startThread({
@@ -726,7 +747,11 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
           if (threadId) {
             await this.codexClient.setThreadName(
               threadId,
-              farplaneAgentThreadName(farplaneProfile.agentId, farplaneProfile.name),
+              farplaneAgentThreadName(
+                farplaneProfile.agentId,
+                farplaneProfile.name,
+                farplaneProfile.conversationKey,
+              ),
             );
           }
         }

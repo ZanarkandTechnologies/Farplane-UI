@@ -1,7 +1,4 @@
 import { describe, expect, it } from "vitest";
-
-import { hookTelemetryRowsToObservedCodexWorkers } from "../../../convex/modules/hookTelemetry/projections";
-
 import {
   getOfficeLayoutBounds,
   type OfficeLayoutModel,
@@ -9,6 +6,7 @@ import {
 } from "@/modules/office/lib/office-layout";
 import { evaluateOfficePoiGraph } from "@/modules/office/lib/office-layout-quality";
 import { deriveOfficeSpaceStats } from "@/modules/office/lib/office-space-stats";
+import { getOperatingRoomId } from "@/modules/office/lib/operating-room-catalog";
 import type { EmployeeData, OfficeObject } from "@/modules/office/lib/types";
 import { getOfficeSkillAnchorPosition } from "@/modules/office/skill-targeting";
 import {
@@ -31,6 +29,7 @@ import type {
   OfficeSettingsModel,
   UnifiedOfficeModel,
 } from "@/modules/runtime";
+import { hookTelemetryRowsToObservedCodexWorkers } from "../../../convex/modules/hookTelemetry/projections";
 import {
   localFarplaneEventsToObservedCodexWorkers,
   type ObservedCodexWorkerRow,
@@ -1225,7 +1224,135 @@ describe("office-data-provider stabilization", () => {
   });
 });
 
+describe("Office3D project visibility projection", () => {
+  it("removes hidden project geometry and people without deleting company data", () => {
+    const visibleProject = {
+      id: "project-visible",
+      name: "Visible",
+      goal: "Ship visible work",
+      status: "active" as const,
+    };
+    const hiddenProject = {
+      id: "project-hidden",
+      name: "Hidden",
+      goal: "Keep durable history",
+      status: "active" as const,
+    };
+    const company = createCompanyModel({
+      projects: [visibleProject, hiddenProject],
+      agents: [
+        ...createCompanyModel().agents,
+        {
+          agentId: "visible-worker",
+          role: "worker" as const,
+          projectId: visibleProject.id,
+          lifecycleState: "active" as const,
+        },
+        {
+          agentId: "hidden-worker",
+          role: "worker" as const,
+          projectId: hiddenProject.id,
+          lifecycleState: "active" as const,
+        },
+      ],
+    });
+    const unified = createUnifiedOfficeModel({
+      company,
+      configuredAgents: [
+        createRuntimeAgent(),
+        createRuntimeAgent({ agentId: "visible-worker" }),
+        createRuntimeAgent({ agentId: "hidden-worker" }),
+      ],
+      runtimeAgents: [
+        createRuntimeAgent(),
+        createRuntimeAgent({ agentId: "visible-worker" }),
+        createRuntimeAgent({ agentId: "hidden-worker" }),
+      ],
+    });
+    const visibleProjectIds = new Set([visibleProject.id]);
+    const repaired = repairTeamClusterPlacements({
+      unified,
+      officeSettings: createOfficeSettings(),
+      visibleProjectIds,
+    });
+    const result = toOfficeData(repaired.unified, repaired.officeSettings, [], {}, undefined, {
+      visibleProjectIds,
+    });
+
+    expect(result.companyModel?.projects.map((project) => project.id)).toEqual([
+      visibleProject.id,
+      hiddenProject.id,
+    ]);
+    expect(result.teams.some((team) => team._id === `team-${visibleProject.id}`)).toBe(true);
+    expect(result.teams.some((team) => team._id === `team-${hiddenProject.id}`)).toBe(false);
+    expect(result.employees.some((employee) => employee._id === "employee-hidden-worker")).toBe(
+      false,
+    );
+    expect(
+      result.officeObjects.some((object) => object.metadata?.teamId === `team-${hiddenProject.id}`),
+    ).toBe(false);
+  });
+});
+
 describe("office-data-provider team synthesis", () => {
+  it("hydrates eleven placed operating rooms and projects their hosts without desk demand", () => {
+    const model = createUnifiedOfficeModel({
+      officeObjects: [
+        {
+          id: "activity-workshop",
+          identifier: "activity-workshop",
+          meshType: "activity-landmark",
+          position: [18, 0, 0],
+          rotation: [0, 0, 0],
+          metadata: { canonicalActivityRoomId: "activity-workshop" },
+        },
+        {
+          id: "activity-planning-room",
+          identifier: "activity-planning-room",
+          meshType: "activity-landmark",
+          position: [0, 0, 0],
+          rotation: [0, 0, 0],
+        },
+        {
+          id: "user-planning-landmark",
+          identifier: "user-planning-landmark",
+          meshType: "activity-landmark",
+          position: [4, 0, 4],
+          rotation: [0, 0, 0],
+          metadata: { landmarkKind: "planning", displayName: "Private planning nook" },
+        },
+      ],
+    });
+    const result = toOfficeData(model, {
+      ...createOfficeSettings(),
+      layoutStrategy: "team_neighborhoods",
+    });
+    const operatingRooms = result.officeObjects.filter(
+      (object) => getOperatingRoomId(object) !== null,
+    );
+    const roomHosts = result.employees.filter((employee) =>
+      String(employee._id).startsWith("employee-farplane-"),
+    );
+
+    expect(operatingRooms).toHaveLength(11);
+    expect(roomHosts).toHaveLength(11);
+    expect(roomHosts.every((employee) => employee.deskId === undefined)).toBe(true);
+    expect(result.employees.some((employee) => employee.name === "Steward")).toBe(false);
+    expect(result.employees.filter((employee) => employee.name === "Ledger")).toHaveLength(1);
+    expect(result.teams.flatMap((team) => team.employees)).not.toEqual(
+      expect.arrayContaining(roomHosts.map((employee) => employee._id)),
+    );
+    expect(result.desks).toHaveLength(
+      result.teams.reduce((total, team) => total + Math.max(team.deskCount ?? 0, 0), 0),
+    );
+    expect(result.officeObjects.some((object) => object._id === "activity-planning-room")).toBe(
+      false,
+    );
+    expect(result.officeObjects.some((object) => object._id === "user-planning-landmark")).toBe(
+      true,
+    );
+  });
+
   it("keeps Codex project tables visible while limiting employees to visible threads", () => {
     const idleProject = {
       id: "codex-proj-idle",
@@ -1769,32 +1896,17 @@ describe("office-data-provider team synthesis", () => {
     expect(
       result.officeObjects.some((object) => object.metadata?.teamId === "team-management"),
     ).toBe(false);
-    expect(result.employees).toHaveLength(4);
-    expect(result.employees).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          _id: "employee-codex-thread:strategy-thread",
-          teamId: "team-codex-proj-workspace-farplane-ui",
-          isCEO: true,
-          isSupervisor: true,
-          presencePersistent: true,
-          persistenceTag: "heartbeat",
-        }),
-        ...[
-          ["employee-farplane-finance", "Finance Director"],
-          ["employee-farplane-people", "People Operations"],
-          ["employee-farplane-office-manager", "Office Manager"],
-        ].map(([employeeId, jobTitle]) =>
-          expect.objectContaining({
-            _id: employeeId,
-            teamId: "team-codex-proj-workspace-farplane-ui",
-            jobTitle,
-            presencePersistent: true,
-            wantsToWander: false,
-          }),
-        ),
-      ]),
-    );
+    expect(result.employees).toHaveLength(1);
+    expect(result.employees).toEqual([
+      expect.objectContaining({
+        _id: "employee-codex-thread:strategy-thread",
+        teamId: "team-codex-proj-workspace-farplane-ui",
+        isCEO: true,
+        isSupervisor: true,
+        presencePersistent: true,
+        persistenceTag: "heartbeat",
+      }),
+    ]);
     expect(
       result.officeObjects.find(
         (object) => object.metadata?.teamId === "team-codex-proj-workspace-farplane-ui",
@@ -2770,7 +2882,7 @@ describe("office-data-provider team synthesis", () => {
     expect(result.officeSettings.decor).toEqual({
       floorPatternId: "graphite_grid",
       wallColorId: "command_charcoal",
-      backgroundId: "estuary_glow",
+      backgroundId: "midnight_tide",
     });
   });
 

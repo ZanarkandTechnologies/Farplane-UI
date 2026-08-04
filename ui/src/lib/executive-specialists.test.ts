@@ -6,11 +6,20 @@ import {
 } from "./executive-specialists";
 
 describe("executive specialists", () => {
-  it("keeps exactly three stable office-owned identities", () => {
+  it("keeps the eleven room hosts plus the non-spatial Steward identity stable", () => {
     expect(EXECUTIVE_SPECIALISTS.map((specialist) => specialist.agentId)).toEqual([
+      "farplane-improvement",
+      "farplane-research",
+      "farplane-production",
+      "farplane-qa",
+      "farplane-harness",
+      "farplane-skills",
       "farplane-finance",
       "farplane-people",
       "farplane-office-manager",
+      "farplane-comms",
+      "farplane-usage",
+      "farplane-mining",
     ]);
     expect(isExecutiveSpecialistEmployeeId("employee-farplane-finance")).toBe(true);
   });

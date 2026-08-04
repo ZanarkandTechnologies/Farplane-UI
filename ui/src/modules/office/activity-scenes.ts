@@ -113,6 +113,14 @@ const ACTIVITY_SCENES: Record<ActivityLandmarkKind, ActivityScenePresentation> =
     ambientPhrases: ["Reviewing the organization board", "Looking over the team map"],
     accentColor: "#f59e0b",
   },
+  "finance-office": {
+    sceneKey: "inspect-metrics",
+    label: "Reviewing finances",
+    propKind: "chart",
+    baseSpriteAnimation: "review",
+    ambientPhrases: ["Reviewing the ledger", "Checking a financial summary"],
+    accentColor: "#37c987",
+  },
   "resource-archive": {
     sceneKey: "catalog-resources",
     label: "Cataloging",

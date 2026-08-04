@@ -1,5 +1,7 @@
 # MEMORY
 
+2026-08-05 | decision | MEM-0259 | ui,office,rooms,projects,skills,invariant | The entrepreneur-simulator office uses a fixed catalog of shared functional rooms with one deskless host each; hosts reuse conversations keyed by host, room, and office/selected-project scope rather than cloning agents, curated skill telemetry may create only short-lived presentation worktables, and the seven-day stale-project policy filters Office3D geometry/presence without deleting company state or excluding projects from aggregate Company World.
+
 2026-08-02 | decision | MEM-0258 | secrets,doppler,settings,onboarding,invariant | Farplane UI must make environment-only credential setup discoverable without becoming a secret editor: the root `.env.example` inventories names only, public getting-started docs map optional features to Doppler variables and launch commands, and Settings credential rows report readiness plus exact value-free `doppler secrets set <NAME>` guidance when missing.
 
 2026-08-02 | decision | MEM-0257 | secrets,doppler,runtime-config,invariant | Supersedes the credential-storage portions of MEM-0253 and MEM-0161: API keys, tokens, passwords, and OAuth credentials enter credentialed processes through environment injection, with Doppler as this checkout's managed injector; `~/.farplane/config.toml` stores non-secret operator settings only, UI saves strip legacy secret-shaped fields, and Codex/OpenClaw-owned authentication state remains outside this Farplane settings contract.

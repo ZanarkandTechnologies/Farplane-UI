@@ -13,6 +13,7 @@ export const OFFICE_LANDMARK_KINDS = [
   "workshop",
   "skill-lab",
   "organization-hall",
+  "finance-office",
   "resource-archive",
   "comms-hub",
   "telemetry-console",
@@ -53,6 +54,7 @@ export const OFFICE_LANDMARK_THEME = {
     workshop: "creative",
     "skill-lab": "coordination",
     "organization-hall": "coordination",
+    "finance-office": "knowledge",
     "resource-archive": "knowledge",
     "comms-hub": "communication",
     "telemetry-console": "systems",
@@ -98,14 +100,14 @@ export interface OfficeTheme {
 export function getOfficeTheme(isDarkMode: boolean): OfficeTheme {
   return {
     scene: {
-      floor: isDarkMode ? "#34342f" : "#c9c0b2",
-      walls: isDarkMode ? "#3a332d" : "#d8cbbb",
-      background: isDarkMode ? "#1a1612" : "#e8dcc4",
+      floor: isDarkMode ? "#30363d" : "#cbd3d8",
+      walls: isDarkMode ? "#313740" : "#d8dfe3",
+      background: isDarkMode ? "#0f1720" : "#e7edf1",
     },
     lighting: {
-      ambient: isDarkMode ? "#d9c7ae" : "#fff3df",
-      directional: isDarkMode ? "#ffd7a6" : "#fff1d6",
-      point: isDarkMode ? "#ffb96f" : "#ffd79b",
+      ambient: isDarkMode ? "#d8e1e8" : "#fffaf2",
+      directional: isDarkMode ? "#f5f7fa" : "#ffffff",
+      point: isDarkMode ? "#a7bdd0" : "#d9e6ef",
     },
     interaction: {
       selectionEdge: "#00ff00",

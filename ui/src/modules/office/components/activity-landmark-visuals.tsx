@@ -239,6 +239,44 @@ function WorkshopLandmark() {
   );
 }
 
+function FinanceOfficeLandmark() {
+  return (
+    <group>
+      <Box args={[3.25, 0.18, 1.05]} position={[0, 0.82, 0.1]} castShadow>
+        {material(M.darkWalnut)}
+      </Box>
+      {[-1.35, 1.35].map((x) => (
+        <Box key={x} args={[0.14, 0.78, 0.14]} position={[x, 0.4, 0.1]}>
+          {material(M.darkMetal)}
+        </Box>
+      ))}
+      <Box args={[2.9, 1.5, 0.12]} position={[0, 1.32, -1.25]} castShadow>
+        {material(M.walnut)}
+      </Box>
+      {[0.55, 1.05, 1.55].map((height, index) => (
+        <Box key={height} args={[2.25, 0.08, 0.05]} position={[0, height, -1.15]}>
+          {material(index === 1 ? "#37c987" : M.warmPaper, index === 1 ? "#37c987" : undefined)}
+        </Box>
+      ))}
+      <Box args={[1.15, 0.62, 0.08]} position={[-0.65, 1.15, -1.05]}>
+        {material(M.inactiveScreen)}
+      </Box>
+      <Box args={[0.78, 0.55, 0.62]} position={[0.8, 1.12, 0.05]}>
+        {material(M.warmPaper)}
+      </Box>
+      {[0, 1, 2].map((index) => (
+        <Box
+          key={index}
+          args={[0.12, 0.18 + index * 0.13, 0.12]}
+          position={[-0.45 + index * 0.22, 0.98 + index * 0.065, 0.25]}
+        >
+          {material("#37c987")}
+        </Box>
+      ))}
+    </group>
+  );
+}
+
 export function ActivityLandmarkAuthoredVisual({ kind }: { kind: ActivityLandmarkKind }) {
   switch (kind) {
     case "library":
@@ -255,6 +293,8 @@ export function ActivityLandmarkAuthoredVisual({ kind }: { kind: ActivityLandmar
       return <SkillLabLandmark />;
     case "organization-hall":
       return <OrganizationHallLandmark />;
+    case "finance-office":
+      return <FinanceOfficeLandmark />;
     case "resource-archive":
       return <ResourceArchiveLandmark />;
     case "comms-hub":

@@ -19,8 +19,9 @@
 
 import { OrbitControls } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
+import { useQuery } from "convex/react";
 import type React from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { PlacementHandler } from "@/components/placement-handler";
 import { extractAgentId } from "@/lib/entity-utils";
@@ -31,12 +32,21 @@ import {
   getTeamCharacterPreviewForEmployee,
   useSyntheticTeamSkillDemo,
 } from "@/modules/office/components/employee/use-team-character-preview";
+import { RoomActivityLayer } from "@/modules/office/components/room-activity-layer";
 import { getOfficeLayoutBounds } from "@/modules/office/lib/office-layout";
 import { measureOfficeSceneQuality } from "@/modules/office/lib/office-scene-quality";
+import { OPERATING_ROOM_CATALOG } from "@/modules/office/lib/operating-room-catalog";
+import {
+  projectRoomActivities,
+  type RoomActivityCallerTarget,
+} from "@/modules/office/lib/room-activity-projection";
 import { updateOfficeQaState } from "@/modules/office/qa/office-qa-state";
 import { useOfficeWorldStore } from "@/modules/office/store";
 import { applySyntheticSkillDemo } from "@/modules/office/synthetic-skill-demo";
+import type { SkillInvocationDashboard } from "@/modules/skill-invocations/skill-invocations-types";
+import { isConvexEnabled } from "@/providers/convex-provider";
 import { useAppStore } from "@/store";
+import { api } from "../../../../../convex/_generated/api";
 import { getLiveEmployeePosition } from "./employee-position-registry";
 import { OfficeClickProbe } from "./office-click-probe";
 import { getOfficeDebugOverlayPlan, OfficeDebugOverlaySystem } from "./office-debug-overlay-system";
@@ -238,6 +248,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
     officeViewSettings,
   });
   const liveStatusByAgentId = useOfficeWorldStore((state) => state.liveStatusByAgentId);
+  const projects = useOfficeWorldStore((state) => state.companyModel?.projects);
   const runtimeEmployeesForScene = useMemo(
     () =>
       applyLiveStatusToSceneEmployees({
@@ -257,6 +268,76 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
       }),
     [officeObjects, runtimeEmployeesForScene, syntheticSkillDemo],
   );
+  const skillInvocationDashboard = useQuery(
+    api.modules.skillInvocations.queries.getSkillInvocationDashboard,
+    isConvexEnabled() ? { rangeDays: 1, limit: 200 } : "skip",
+  ) as SkillInvocationDashboard | undefined;
+  const [roomActivityNow, setRoomActivityNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!skillInvocationDashboard?.recentEvents.length) return;
+    setRoomActivityNow(Date.now());
+    const timer = window.setInterval(() => setRoomActivityNow(Date.now()), 10_000);
+    return () => window.clearInterval(timer);
+  }, [skillInvocationDashboard?.recentEvents.length]);
+  const recognizedSessionKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const employee of presentedEmployeesForScene) {
+      const observed = employee.observedRuntime;
+      if (!observed) continue;
+      if (observed.sessionKey) keys.add(observed.sessionKey);
+      if (observed.threadId) keys.add(observed.threadId);
+    }
+    return keys;
+  }, [presentedEmployeesForScene]);
+  const roomActivityGroups = useMemo(
+    () =>
+      projectRoomActivities({
+        invocations: skillInvocationDashboard?.recentEvents ?? [],
+        projects: projects ?? [],
+        catalog: OPERATING_ROOM_CATALOG,
+        now: roomActivityNow,
+        recognizedSessionKeys,
+      }),
+    [projects, recognizedSessionKeys, roomActivityNow, skillInvocationDashboard?.recentEvents],
+  );
+  const [roomActivityFixture, setRoomActivityFixture] = useState<typeof roomActivityGroups | null>(
+    null,
+  );
+  const presentedRoomActivityGroups = roomActivityFixture ?? roomActivityGroups;
+  const handleOpenRoomActivity = useCallback((target: RoomActivityCallerTarget): void => {
+    const state = useAppStore.getState();
+    if (target.kind === "session") {
+      state.setSelectedSessionKey(target.sessionKey);
+      state.setIsAgentSessionPanelOpen(true);
+      return;
+    }
+    state.setSelectedProjectId(target.projectId);
+    state.setIsGlobalTeamPanelOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    updateOfficeQaState({
+      seedRoomActivity: setRoomActivityFixture,
+      roomActivity: {
+        roomCount: presentedRoomActivityGroups.length,
+        visibleCount: presentedRoomActivityGroups.reduce(
+          (count, group) => count + group.activities.length,
+          0,
+        ),
+        overflowCount: presentedRoomActivityGroups.reduce(
+          (count, group) => count + group.overflowCount,
+          0,
+        ),
+        rooms: presentedRoomActivityGroups.map((group) => ({
+          roomId: group.roomId,
+          projects: group.activities.map((activity) => activity.projectLabel),
+          visibleCount: group.activities.length,
+          overflowCount: group.overflowCount,
+        })),
+      },
+    });
+  }, [presentedRoomActivityGroups]);
 
   useEffect(() => {
     if (!import.meta.env.DEV || typeof window === "undefined") return;
@@ -535,6 +616,13 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
       {!sceneBuilderMode ? <ThreadLineageEffects employees={presentedEmployeesForScene} /> : null}
 
       {officeObjectsRendered}
+      {!sceneBuilderMode ? (
+        <RoomActivityLayer
+          groups={presentedRoomActivityGroups}
+          officeObjects={officeObjects}
+          onOpenCallerTarget={handleOpenRoomActivity}
+        />
+      ) : null}
 
       <OfficeDebugOverlaySystem
         officeAreas={officeAreas}

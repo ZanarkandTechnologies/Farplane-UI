@@ -8,7 +8,7 @@ import {
 } from "./activity-landmark";
 
 describe("activity landmark kinds", () => {
-  it("keeps the thirteen persisted landmark kinds stable", () => {
+  it("keeps the fourteen persisted landmark kinds stable", () => {
     expect(ACTIVITY_LANDMARK_KINDS).toEqual([
       "gym",
       "library",
@@ -18,6 +18,7 @@ describe("activity landmark kinds", () => {
       "workshop",
       "skill-lab",
       "organization-hall",
+      "finance-office",
       "resource-archive",
       "comms-hub",
       "telemetry-console",

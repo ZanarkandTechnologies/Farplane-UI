@@ -163,6 +163,37 @@ presentation-only skill event without fabricating runtime telemetry. Select the
 Library destination to prove Mini Kenji's `review` row plus open-book fallback.
 Record the browser console and page errors alongside the screenshots.
 
+### Hosted Operating Rooms Proof
+
+For `TASK-0081` and later hosted-room composition, prove the office as one
+operating system rather than eleven unrelated landmarks:
+
+1. Capture the default office overview and confirm exactly eleven distinct
+   rooms, one fixed host per room, a readable center Command Commons, and no
+   duplicated specialist desks.
+2. Click one office-scoped host twice and confirm the same logical chat is
+   reused. Select project A then project B and confirm a Research/Production/QA
+   host opens isolated project conversations. With no selected project, confirm
+   the host asks for selection instead of opening the wrong scope.
+3. Emit or seed a curated room skill event and confirm one transient worktable
+   appears in the owning room, remains bounded to three visible tables plus
+   overflow, exposes no absolute path, and disappears after expiry without
+   changing persisted office objects.
+4. Open every room's registered panel. Confirm QA is labeled QA Lab, no Planning
+   Room remains, the legacy Resource Archive has migrated to Finance Office,
+   and Self-Improvement Lab shows real Goal
+   Packet runs or an honest empty state.
+5. Open Command Commons and confirm Company World defaults to All projects,
+   project-qualified entities do not collide, and a failed project read is a
+   warning rather than a blank aggregate.
+6. Seed projects at 6d23h59m, exactly 7d, and over 7d inactivity. Confirm the
+   first two render; the stale idle project has no cluster, employee, desk,
+   pulse, or area but remains in company-backed panels. Confirm running, active
+   Goal, recent heartbeat, and missing-timestamp exceptions remain visible.
+7. Record default-camera desktop and narrow-viewport screenshots, browser
+   console, page errors, and the room/host/project counts exposed by the QA
+   bridge.
+
 ## Agent-Browser Path
 
 Use `agent-browser` for quick proof:

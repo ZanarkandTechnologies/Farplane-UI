@@ -22,6 +22,7 @@ export type OfficeInternalPanelId =
   | "video-intelligence"
   | "world"
   | "document-library"
+  | "self-improvement-runs"
   | "skill-os"
   | "skill-rollout"
   | "harness-graph"
@@ -104,6 +105,12 @@ export const OFFICE_INTERNAL_PANEL_CATALOG: OfficeInternalPanelCatalogEntry[] = 
     label: "Docs Library",
     description: "Open project documentation gathered from every office project folder.",
     keywords: ["docs", "documents", "library", "bookshelf", "project docs", "files"],
+  },
+  {
+    id: "self-improvement-runs",
+    label: "Self-Improvement Runs",
+    description: "Inspect ticket-backed skill improvement runs across configured projects.",
+    keywords: ["self improvement", "skills", "experiments", "goal", "runs"],
   },
   {
     id: "skill-os",
