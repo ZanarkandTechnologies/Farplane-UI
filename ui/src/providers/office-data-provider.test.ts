@@ -2880,9 +2880,9 @@ describe("office-data-provider team synthesis", () => {
       result.officeObjects.filter((object) => object.meshType === "command-commons"),
     ).toHaveLength(1);
     expect(result.officeSettings.decor).toEqual({
-      floorPatternId: "graphite_grid",
-      wallColorId: "command_charcoal",
-      backgroundId: "midnight_tide",
+      floorPatternId: "sandstone_tiles",
+      wallColorId: "gallery_cream",
+      backgroundId: "shell_haze",
     });
   });
 

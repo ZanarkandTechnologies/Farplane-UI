@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getClusterOccupancyFootprint,
+  getEmployeePositionAtRoundTableStation,
   MAX_GRID_DESKS_PER_TEAM,
   ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS,
   ROUND_TEAM_TABLE_MIN_STATIONS,
-  getClusterOccupancyFootprint,
-  getEmployeePositionAtRoundTableStation,
   resolveTeamStationLayout,
   shouldUseRoundTeamTable,
   solveRoundTeamTableLayout,
@@ -89,5 +89,18 @@ describe("office cluster layout", () => {
 
     expect(executive).toMatchObject({ stationCount: 4, usesRoundTable: true });
     expect(ordinary).toMatchObject({ stationCount: 4, usesRoundTable: false });
+  });
+
+  it("keeps a one-seat executive pod finite when round-table topology is forced", () => {
+    const executive = resolveTeamStationLayout({
+      deskCount: 1,
+      employeeCount: 1,
+      forceRound: true,
+    });
+    const layout = solveRoundTeamTableLayout(executive.stationCount);
+
+    expect(executive).toMatchObject({ stationCount: 1, usesRoundTable: true });
+    expect(layout.radius).toBe(1.95);
+    expect(layout.radius).toBeLessThan(ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS);
   });
 });

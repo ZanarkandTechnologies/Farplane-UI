@@ -37,7 +37,7 @@ export function CommandCommonsCompositionGeometry({
             receiveShadow
           >
             <planeGeometry args={[segment.size[0], segment.size[1]]} />
-            <meshStandardMaterial color="#766b5c" roughness={0.94} />
+            <meshStandardMaterial color="#d8d7ca" roughness={0.94} />
           </mesh>
         ))}
       </group>
@@ -48,7 +48,7 @@ export function CommandCommonsCompositionGeometry({
         name={`walkable-command-zone-${object._id}`}
       >
         <planeGeometry args={[11.2, 8.8]} />
-        <meshStandardMaterial color="#5f4c3a" roughness={0.92} />
+        <meshStandardMaterial color="#c9c8b9" roughness={0.92} />
       </mesh>
     </>
   );
@@ -64,11 +64,11 @@ export function TeamNeighborhoodShellGeometry({ object }: { object: OfficeObject
         name={`walkable-team-neighborhood-zone-${object._id}`}
       >
         <planeGeometry args={[7.4, 5.8]} />
-        <meshStandardMaterial color="#777066" roughness={0.94} />
+        <meshStandardMaterial color="#d3d0c4" roughness={0.94} />
       </mesh>
       <mesh position={[0, 0.32, -2.05]} castShadow receiveShadow>
         <boxGeometry args={[5.55, 0.64, 0.38]} />
-        <meshStandardMaterial color="#312821" roughness={0.76} />
+        <meshStandardMaterial color="#67665e" roughness={0.76} />
       </mesh>
       <mesh position={[0, 0.66, -2.05]}>
         <boxGeometry args={[5.2, 0.045, 0.16]} />
@@ -76,7 +76,7 @@ export function TeamNeighborhoodShellGeometry({ object }: { object: OfficeObject
       </mesh>
       <mesh position={[-2.75, 0.32, 0.15]} castShadow receiveShadow>
         <boxGeometry args={[0.38, 0.64, 3.75]} />
-        <meshStandardMaterial color="#312821" roughness={0.76} />
+        <meshStandardMaterial color="#67665e" roughness={0.76} />
       </mesh>
       <mesh position={[-2.75, 0.66, 0.15]}>
         <boxGeometry args={[0.16, 0.045, 3.45]} />

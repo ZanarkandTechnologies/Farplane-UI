@@ -63,6 +63,9 @@ const OfficeScene = memo((props: OfficeSceneProps) => {
         shadows="percentage"
         frameloop={frameloop}
         data-office-frameloop={frameloop}
+        data-office-floor-pattern={props.officeDecorSettings.floorPatternId}
+        data-office-wall-color={props.officeDecorSettings.wallColorId}
+        data-office-background={props.officeDecorSettings.backgroundId}
         camera={{
           position: initialCameraConfig.position,
           fov: initialCameraConfig.fov,
@@ -72,6 +75,7 @@ const OfficeScene = memo((props: OfficeSceneProps) => {
         }}
         style={{ background, transition: "background 0.3s ease" }}
       >
+        <color attach="background" args={[background]} />
         <OfficeSceneCameraRig config={initialCameraConfig} />
         <SceneContents {...props} />
       </Canvas>

@@ -96,10 +96,10 @@ export const OFFICE_FLOOR_PATTERN_PRESETS: readonly OfficeFloorPatternPreset[] =
   {
     id: "sandstone_tiles",
     label: "Sandstone Tiles",
-    description: "Warm square tiles with subtle grout lines.",
+    description: "Pale architectural tiles with low-contrast warm variation.",
     swatch:
-      "linear-gradient(135deg, #d7c4a5 0%, #d7c4a5 48%, #efe2cc 48%, #efe2cc 52%, #c2b092 52%, #c2b092 100%)",
-    colors: ["#d7c4a5", "#efe2cc", "#c2b092"],
+      "linear-gradient(135deg, #deddd5 0%, #deddd5 48%, #e8e6de 48%, #e8e6de 52%, #d2d0c6 52%, #d2d0c6 100%)",
+    colors: ["#deddd5", "#e8e6de", "#d2d0c6"],
   },
   {
     id: "graphite_grid",

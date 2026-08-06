@@ -18,9 +18,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { getOfficeQaState, updateOfficeQaState } from "@/modules/office/qa/office-qa-state";
 import { getOfficeTheme } from "@/config/office-theme";
 import { getBackgroundPreset, type OfficeDecorSettings } from "@/modules/office/lib/office-decor";
+import { getOfficeQaState, updateOfficeQaState } from "@/modules/office/qa/office-qa-state";
 import type { OfficeSettingsModel } from "@/modules/runtime";
 import { buildConsultCameraState } from "./consult-camera";
 import {
@@ -29,42 +29,16 @@ import {
   type OfficeSceneViewSettings,
 } from "./view-profile";
 
-function useOfficeSceneIsDarkMode(): boolean {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-
-    const root = document.documentElement;
-    const syncTheme = (): void => {
-      setIsDarkMode(root.classList.contains("dark"));
-    };
-
-    syncTheme();
-
-    const observer = new MutationObserver(() => {
-      syncTheme();
-    });
-
-    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
-
-  return isDarkMode;
-}
-
 export function useOfficeSceneBackground(decorSettings?: OfficeDecorSettings): string {
-  const isDarkMode = useOfficeSceneIsDarkMode();
   return useMemo(() => {
-    if (!decorSettings) return getOfficeTheme(isDarkMode).scene.background;
+    if (!decorSettings) return getOfficeTheme(false).scene.background;
     const preset = getBackgroundPreset(decorSettings.backgroundId);
-    return isDarkMode ? preset.darkColor : preset.lightColor;
-  }, [decorSettings, isDarkMode]);
+    return preset.lightColor;
+  }, [decorSettings]);
 }
 
 export function useOfficeSceneTheme(): ReturnType<typeof getOfficeTheme> {
-  const isDarkMode = useOfficeSceneIsDarkMode();
-  return useMemo(() => getOfficeTheme(isDarkMode), [isDarkMode]);
+  return useMemo(() => getOfficeTheme(false), []);
 }
 
 export function getInitialOfficeCameraConfig(
@@ -149,6 +123,7 @@ export function useOfficeSceneCameraTransition(params: {
   const [projectionRetry, setProjectionRetry] = useState(0);
 
   useEffect(() => {
+    void projectionRetry;
     const controls = orbitControlsRef.current;
     if (!controls) return;
 
@@ -203,7 +178,9 @@ export function useOfficeSceneCameraTransition(params: {
     const storyTargetReadyAt = consultCameraTarget
       ? (storyTargetReadyRef.current ?? performance.now())
       : null;
-    const storyInvokedAt = consultCameraTarget ? (storyInvocationRef.current ?? storyTargetReadyAt) : null;
+    const storyInvokedAt = consultCameraTarget
+      ? (storyInvocationRef.current ?? storyTargetReadyAt)
+      : null;
     const publishStoryTiming = (settledAt: number): void => {
       if (
         storyTargetReadyAt == null ||

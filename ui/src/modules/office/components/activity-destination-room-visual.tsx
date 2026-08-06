@@ -80,7 +80,7 @@ export function ActivityLandmarkVisual({
         receiveShadow
       >
         <meshStandardMaterial
-          color={destinationBayZone ? "#514b42" : theme.zoneColor}
+          color={destinationBayZone ? "#d5d3c6" : theme.zoneColor}
           emissive="#000000"
           emissiveIntensity={0}
           roughness={0.94}
@@ -96,7 +96,7 @@ export function ActivityLandmarkVisual({
             castShadow
             receiveShadow
           >
-            <meshStandardMaterial color="#493c31" roughness={0.78} />
+            <meshStandardMaterial color="#8a887d" roughness={0.78} />
           </Box>
           {[-1, 1].map((side) => (
             <Box

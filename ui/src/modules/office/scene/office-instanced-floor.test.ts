@@ -30,10 +30,10 @@ describe("buildOfficeFloorInstancePlan", () => {
     const tiles = layout(["0:0", "1:0", "1:1", "3:1"]);
 
     expect(buildOfficeFloorInstancePlan(tiles, "sandstone_tiles", false).colors).toEqual([
-      "#efe2cc",
-      "#d7c4a5",
-      "#efe2cc",
-      "#efe2cc",
+      "#e8e6de",
+      "#deddd5",
+      "#e8e6de",
+      "#e8e6de",
     ]);
     expect(buildOfficeFloorInstancePlan(tiles, "graphite_grid", false).colors).toEqual([
       "#52504c",

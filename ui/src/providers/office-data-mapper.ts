@@ -2321,9 +2321,9 @@ export function toOfficeData(
       ? {
           ...officeSettings,
           decor: {
-            floorPatternId: "graphite_grid" as const,
-            wallColorId: "command_charcoal" as const,
-            backgroundId: "midnight_tide" as const,
+            floorPatternId: "sandstone_tiles" as const,
+            wallColorId: "gallery_cream" as const,
+            backgroundId: "shell_haze" as const,
           },
         }
       : officeSettings
@@ -2333,9 +2333,9 @@ export function toOfficeData(
         officeFootprint: getOfficeFootprintFromLayout(fittedOfficeLayout),
         decor: usesCentralCommandCommons
           ? {
-              floorPatternId: "graphite_grid" as const,
-              wallColorId: "command_charcoal" as const,
-              backgroundId: "midnight_tide" as const,
+              floorPatternId: "sandstone_tiles" as const,
+              wallColorId: "gallery_cream" as const,
+              backgroundId: "shell_haze" as const,
             }
           : officeSettings.decor,
       };

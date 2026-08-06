@@ -120,7 +120,10 @@ function clampCount(count: number): number {
 
 function getRoundTeamTableRadius(count: number): number {
   const safeCount = clampCount(count);
-  const designCount = Math.min(safeCount, ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS);
+  const designCount = Math.min(
+    Math.max(safeCount, ROUND_TEAM_TABLE_MIN_STATIONS),
+    ROUND_TEAM_TABLE_DESIGN_MAX_STATIONS,
+  );
   const minStationRadius =
     ROUND_TEAM_TABLE_MONITOR_CENTER_GAP / (2 * Math.sin(Math.PI / designCount));
   return Math.max(ROUND_TEAM_TABLE_MIN_RADIUS, minStationRadius + ROUND_TEAM_TABLE_EDGE_INSET);
