@@ -1,6 +1,6 @@
 ---
 name: ingest-content
-description: "Route liked links, images, videos, files, or notes into analyzed, searchable Resource Bank records with audience-aware Tasty Pack retrieval fields."
+description: "Save operator-selected links, images, videos, files, or notes as reusable Resource Bank references with audience-aware Tasty Pack retrieval fields."
 tier: 3
 group: content-social
 source: local
@@ -23,7 +23,11 @@ like this" to "I like the image used in the first few seconds." The default
 backing store is the Farplane UI Resource Bank module at
 `/Users/kenjipcx/Zanarkand Technologies/projects/Farplane-UI/convex/modules/resourceBank`.
 
-This skill is a Codex-native router pipeline, not a browser extension, app
+This is the explicit **Save** path. It is not Vidgard or a background video
+analysis path: do not invoke it just because a source was analyzed elsewhere.
+An existing `contentSource` may be reused, but it needs a separate
+`contentJobs(kind: save_reference)` request before anything appears in Resource
+Bank. This skill is a Codex-native router pipeline, not a browser extension, app
 agent, or autonomous posting loop. It should reuse subskills for each phase:
 read the content, break it down, extract usefulness, then store the source plus
 derived elements in Convex. For v1, save compact Resource Bank records that make
@@ -32,11 +36,14 @@ role, output type, project, and idea search; do not build a new UI, daemon,
 scheduler, or social posting system unless a separate ticket or skill owns that
 scope.
 
+The durable cross-product boundary is documented in
+[`docs/systems/content-capture-and-analysis.md`](../../docs/systems/content-capture-and-analysis.md).
+
 ## Skill Signature
 
 ```text
 ingest_content(source, note?, context?) -> saved_reference + reusable_elements + retrieval_handle + evidence
-state: reads(Resource Bank schema/functions, source content, user note); writes(Convex resourceBankIngestionJobs/resourceBankAssets/resourceBankAnalyses/resourceBankCreativeElements/resourceBankSkillFindings)
+state: reads(Resource Bank schema/functions, source content, user note); writes(Convex contentSources/contentJobs(kind: save_reference) plus Resource Bank assets, analyses, selected elements, and findings)
 gates: source_read_or_limit_recorded; note_intent_bound; retrieval_facets_extracted; usefulness_extracted; storage_write_verified; retrieval_verified
 routes: summarize | media-ingest | video-understanding | visual-design | image-generation | video-generation | social-content | video-production
 fails: treats all media as text; ignores note-specific segment; saves raw media without retention note; stores vibes without reusable levers; turns hook mechanics into a managed performance-tag taxonomy; skips retrieval verification
@@ -60,7 +67,7 @@ ingest_content(source, note?)
   -> read_content(source, note?)
   -> breakdown_content(evidence, note?)
   -> extract_usefulness(breakdown, note?)
-  -> store_content(source, evidence, usefulness, note?)
+  -> store_saved_reference(source, evidence, usefulness, note?)
   -> retrieval_handle
 ```
 
@@ -181,21 +188,17 @@ saved record; downstream production skills own making new assets from records.
      `thumbnail-backed`, `frame-backed`, `contact-sheet`, or `limited-source-read`
      so the UI and future agents can distinguish visual proof from URL-only
      references.
-- [ ] 6. Write to Farplane Resource Bank Convex.
-   - [ ] Create the ingestion job with
-     `modules/resourceBank/jobs:createIngestionJob`.
-   - [ ] Add the retained source asset with
-     `modules/resourceBank/assets:addResourceAsset`, including retrieval facets.
-   - [ ] Add at least one analysis with
-     `modules/resourceBank/analyses:addResourceAnalysis`, `sourceSkill:
-     "ingest-content"`, facts, interpretation, user intent, why-it-works,
-     takeaways, prompt guess, remix constraints, confidence, and embedding text.
-   - [ ] Add skill findings with
-     `modules/resourceBank/skillFindings:addSkillFinding` only when the source
-     clearly suggests a reusable technique, skill update, or skill candidate.
-   - [ ] Add creative elements with
-     `modules/resourceBank/creativeElements:addCreativeElement`, using `pinned`
-     only for elements grounded in the operator note.
+- [ ] 6. Write an explicit saved reference to Farplane Convex.
+   - [ ] Reuse or create `contentSources`, then create a
+     `contentJobs(kind: save_reference)` job. Never use an analysis-only
+     Vidgard job as a Resource Bank save.
+   - [ ] Use `modules/content/saves:saveReference` for the source, its generic
+     save job, retained primary asset, and optional analysis. Do not call the
+     legacy Resource Bank job writer for new captures.
+   - [ ] Add note-grounded reusable elements with
+     `modules/content/saves:addPinnedElement`; it requires a generic save job
+     and always sets `pinned: true`. Skill findings are deferred until their
+     generic writer is added; do not route them through the legacy job API.
    - [ ] Store segments and reusable context in the closest available current
      surface: asset `startMs`/`endMs`/`retentionNote`, analysis `takeaways`,
      `frameNotes`, `promptGuess`, `remixConstraints`, tags, creative elements,

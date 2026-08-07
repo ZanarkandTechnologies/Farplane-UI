@@ -6,6 +6,7 @@ created: 2026-06-26
 owner: Farplane UI
 source_ticket: tickets/review/TKT-028-resource-bank-ingestion-module/ticket.md
 source_skill: /Users/kenjipcx/.codex/skills/ingest-content/SKILL.md
+related_system: ../systems/content-capture-and-analysis.md
 ---
 
 # FP03: Taste Bank And Tasty Packs
@@ -150,10 +151,16 @@ instead of pretending the source was fully understood.
 The v1 model should stay compact:
 
 ```text
-ingestion job -> primary asset -> analyses -> creative elements
-                                      -> skill findings
-              -> derived assets such as frames, clips, transcripts, thumbnails
+content source -> save_reference job -> primary asset -> analyses -> pinned creative elements
+                                                         -> optional skill findings
+                         -> derived assets such as frames, clips, transcripts, thumbnails
 ```
+
+Resource Bank receives an asset only from an explicit Save. Vidgard's Analyze
+flow shares source identity but writes a separate `analyze_youtube` job and a
+Video Intelligence dossier; it does not add an asset to Resource Bank. The
+cross-feature Convex map lives in
+[Content Capture And Analysis](../systems/content-capture-and-analysis.md).
 
 Keep embeddings on analysis, creative element, and finding rows for v1. Add
 chunk tables or a RAG component only when the product needs chunked transcripts,

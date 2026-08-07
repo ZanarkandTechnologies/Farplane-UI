@@ -3,10 +3,10 @@ kind: feature-spec
 status: active
 project: Farplane UI
 created_at: 2026-07-31
-updated_at: 2026-08-02
+updated_at: 2026-08-08
 owner: video-intelligence
 related_systems:
-  - ../systems/README.md
+  - ../systems/content-capture-and-analysis.md
 source_refs:
   - ../../apps/youtube-shortcut/scripts/local-agent.ts
   - ../../apps/youtube-shortcut/scripts/video-intelligence-cloud.ts
@@ -44,7 +44,7 @@ YouTube request
 - A queue item is written before the long-running Codex analysis begins.
 - Browser-cache hits still enter the durable queue through `/ingest-cached`;
   they do not launch another Codex analysis task.
-- One dossier, keyed to the canonical Resource Bank asset, owns repeated ingests of the same YouTube video.
+- One dossier, keyed to the canonical shared content source, owns repeated ingests of the same YouTube video.
   The dossier records its repeat count rather than duplicating story evidence.
 - A video may contribute to up to three reportable stories.
 - A story is one time-bounded event. Stable tag records group longer-running
@@ -117,20 +117,19 @@ the structured schema.
 Canonical records live in the existing Convex deployment:
 
 ```text
-resourceBankIngestionJobs -> resourceBankAssets -> resourceBankAnalyses
-                                      |
-                                      +-> videoIntelligenceDossiers
-                                             -> videoIntelligenceContributions
-                                             -> videoIntelligenceStories
-                                             -> videoIntelligenceTags
+contentSources -> contentJobs(kind: analyze_youtube) -> videoIntelligenceDossiers
+                                                    -> videoIntelligenceContributions
+                                                    -> videoIntelligenceStories
+                                                    -> videoIntelligenceTags
 ```
 
-Resource Bank remains the canonical owner of the source asset and ingest job.
-Video Intelligence adds reporting structure keyed to that asset. Existing
-Resource Bank YouTube videos without a structured dossier are projected as
-honest legacy dossiers, so historical ingestions appear without fabricating
-claims. Story aggregates and related-story edges are computed from canonical
-contributions during the query; they are not separate comparison-run records.
+Video Intelligence owns analysis jobs; it must not create Resource Bank assets,
+analyses, or taste elements. Resource Bank is only the explicit save path:
+`contentJobs(kind: save_reference)` may attach a reusable source asset and
+pinned creative elements. Both paths reuse a `contentSource` when they refer to
+the same URL, but neither implies the other. The durable cross-feature map,
+including migration and skill boundaries, lives in
+[Content Capture And Analysis](../systems/content-capture-and-analysis.md).
 
 ## Application Surfaces
 
