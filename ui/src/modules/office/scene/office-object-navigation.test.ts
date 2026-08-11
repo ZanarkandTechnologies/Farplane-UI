@@ -60,6 +60,22 @@ describe("office object navigation helpers", () => {
     ).toEqual(["plant-1", "cluster-2"]);
   });
 
+  it("does not await a hidden department project deck as a navigation obstacle", () => {
+    const deck = createObject({
+      _id: "project-deck",
+      meshType: "team-cluster",
+      metadata: { teamId: "team-farplane", departmentIslandCluster: true },
+    });
+
+    expect(
+      getNavigableOfficeObjects({
+        officeObjects: [deck],
+        teamById: new Map([["team-farplane", createTeam()]]),
+        enabled: true,
+      }),
+    ).toEqual([]);
+  });
+
   it("keeps walkable activity room geometry out of the nav signature", () => {
     const gym = createObject({
       _id: "landmark-1",

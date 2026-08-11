@@ -17,6 +17,7 @@
 
 import type { ThreeEvent } from "@react-three/fiber";
 import type * as THREE from "three";
+import type { OfficeDioramaTheme } from "@/config/office-theme";
 import ActivityLandmark from "@/modules/office/components/activity-landmark";
 import Bookshelf from "@/modules/office/components/bookshelf";
 import CommandCommons from "@/modules/office/components/command-commons";
@@ -44,6 +45,8 @@ export function OfficeObjectRenderer(props: {
   teamById: Map<string, TeamData>;
   desksByTeamId: Map<string, DeskLayoutData[]>;
   officeFootprint: OfficeFootprint;
+  archipelagoMode?: boolean;
+  dioramaTheme?: OfficeDioramaTheme;
   handleTeamClick: (team: TeamData) => Promise<void>;
   handleManagementClick: (event: ThreeEvent<MouseEvent>) => void;
   getObjectRef: (objectId: string) => React.RefObject<THREE.Group | null>;
@@ -59,6 +62,8 @@ export function OfficeObjectRenderer(props: {
     teamById,
     desksByTeamId,
     officeFootprint,
+    archipelagoMode = false,
+    dioramaTheme,
     handleTeamClick,
     handleManagementClick,
     getObjectRef,
@@ -139,6 +144,7 @@ export function OfficeObjectRenderer(props: {
               scale={object.scale as [number, number, number] | undefined}
               companyId={companyId}
               metadata={object.metadata}
+              dioramaTheme={archipelagoMode ? dioramaTheme : undefined}
             />
           </group>
         );
@@ -146,11 +152,13 @@ export function OfficeObjectRenderer(props: {
       case "command-commons":
         return (
           <group key={object._id} name={`command-commons-composition-${object._id}`}>
-            <CommandCommonsCompositionGeometry object={object} />
+            {!archipelagoMode ? <CommandCommonsCompositionGeometry object={object} /> : null}
             <group ref={setRef} name={`obstacle-command-commons-${object._id}`}>
               <CommandCommons
                 position={object.position as [number, number, number]}
                 rotation={object.rotation as [number, number, number]}
+                simplified={archipelagoMode}
+                dioramaTheme={archipelagoMode ? dioramaTheme : undefined}
                 onOpenWorld={() => launchInternalPanel(COMMAND_COMMONS_PANEL_ID)}
               />
             </group>
@@ -158,6 +166,9 @@ export function OfficeObjectRenderer(props: {
         );
 
       case "team-cluster": {
+        // Automatic Project Council presentation replaces outer project decks
+        // without removing their derived team records or changing Builder.
+        if (archipelagoMode && object.metadata?.departmentIslandCluster === true) return null;
         const metadataTeamId =
           typeof object.metadata?.teamId === "string" ? object.metadata.teamId : "";
         const team = teamById.get(metadataTeamId);
@@ -175,7 +186,9 @@ export function OfficeObjectRenderer(props: {
         const showCommandNeighborhood = object.metadata?.commandCommonsNeighborhood === true;
         return (
           <group key={object._id} name={`team-neighborhood-${object._id}`}>
-            {showCommandNeighborhood ? <TeamNeighborhoodShellGeometry object={object} /> : null}
+            {showCommandNeighborhood && !archipelagoMode ? (
+              <TeamNeighborhoodShellGeometry object={object} />
+            ) : null}
             <group ref={setRef} name={obstacleName}>
               <TeamCluster
                 team={team}

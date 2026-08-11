@@ -55,6 +55,7 @@ function visualBoundsIntersect(left: OfficeObject, right: OfficeObject): boolean
 export function measureOfficeSceneQuality(
   officeObjects: OfficeObject[],
   officeLayout?: OfficeLayoutModel,
+  options?: { hasOfficeShell?: boolean },
 ) {
   const leaves = officeObjects.filter((object) => COMPOSITION_MESH_TYPES.has(object.meshType));
   const walls = officeObjects.filter((object) => WALL_MESH_TYPES.has(object.meshType));
@@ -86,6 +87,7 @@ export function measureOfficeSceneQuality(
       }
     }
     if (
+      options?.hasOfficeShell !== false &&
       officeLayout &&
       !isObjectFootprintInsideLayout(visualValidationObject(leaves[leftIndex]), officeLayout)
     ) {

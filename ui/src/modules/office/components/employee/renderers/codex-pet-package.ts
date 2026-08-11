@@ -15,6 +15,7 @@ export type CodexPetManifest = {
   id: string;
   displayName: string;
   description: string;
+  spriteVersionNumber?: number;
   spritesheetPath: string;
 };
 
@@ -39,6 +40,7 @@ export type SpriteSheetCharacterManifest = {
 };
 
 export const HATCH_PET_ATLAS = {
+  version: 1,
   width: 1536,
   height: 1872,
   columns: 8,
@@ -46,6 +48,27 @@ export const HATCH_PET_ATLAS = {
   cellWidth: 192,
   cellHeight: 208,
 } as const;
+
+/**
+ * Version 2 retains the same cell geometry and first nine standard animation
+ * rows. It appends two directional-look rows, so treating it as v1 shifts every
+ * UV row and makes the renderer fall back to a 3D employee.
+ */
+export const HATCH_PET_ATLAS_V2 = {
+  version: 2,
+  width: 1536,
+  height: 2288,
+  columns: 8,
+  rows: 11,
+  cellWidth: 192,
+  cellHeight: 208,
+} as const;
+
+const HATCH_PET_ATLASES = [HATCH_PET_ATLAS, HATCH_PET_ATLAS_V2] as const;
+
+function getHatchPetAtlas(spriteVersionNumber?: number) {
+  return spriteVersionNumber === HATCH_PET_ATLAS_V2.version ? HATCH_PET_ATLAS_V2 : HATCH_PET_ATLAS;
+}
 
 export const HATCH_PET_ANIMATIONS: Record<SpriteAnimationKey, SpriteSheetAnimationDefinition> = {
   idle: { row: 0, frames: 6, durationsMs: [280, 110, 110, 140, 140, 320], loop: true },
@@ -88,7 +111,7 @@ export function isCodexPetManifest(value: unknown): value is CodexPetManifest {
 }
 
 export function isValidHatchPetAtlasSize(width: number, height: number): boolean {
-  return width === HATCH_PET_ATLAS.width && height === HATCH_PET_ATLAS.height;
+  return HATCH_PET_ATLASES.some((atlas) => atlas.width === width && atlas.height === height);
 }
 
 export function buildCodexPetManifestUrl(petId: string): string {
@@ -103,14 +126,15 @@ export function normalizeCodexPetManifest(
   manifest: CodexPetManifest,
   atlasUrl: string,
 ): SpriteSheetCharacterManifest {
+  const atlas = getHatchPetAtlas(manifest.spriteVersionNumber);
   return {
     id: manifest.id,
     displayName: manifest.displayName,
     description: manifest.description,
     atlasUrl,
-    cell: { width: HATCH_PET_ATLAS.cellWidth, height: HATCH_PET_ATLAS.cellHeight },
-    grid: { columns: HATCH_PET_ATLAS.columns, rows: HATCH_PET_ATLAS.rows },
-    dimensions: { width: HATCH_PET_ATLAS.width, height: HATCH_PET_ATLAS.height },
+    cell: { width: atlas.cellWidth, height: atlas.cellHeight },
+    grid: { columns: atlas.columns, rows: atlas.rows },
+    dimensions: { width: atlas.width, height: atlas.height },
     anchor: { x: 0.5, y: 0 },
     scale: 1.08,
     animations: HATCH_PET_ANIMATIONS,

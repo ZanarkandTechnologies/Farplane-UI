@@ -145,6 +145,7 @@ export function OfficeRoomShell(props: {
   floorRef: React.RefObject<THREE.Mesh | null>;
   officeFootprint: OfficeFootprint;
   officeLayout: OfficeLayoutModel;
+  archipelagoMode?: boolean;
   officeDecorSettings: OfficeSettingsModel["decor"];
   officeViewSettings: OfficeSceneViewSettings;
   officeTheme: ReturnType<typeof getOfficeTheme>;
@@ -161,6 +162,7 @@ export function OfficeRoomShell(props: {
   const {
     floorRef,
     officeLayout,
+    archipelagoMode = false,
     officeDecorSettings,
     officeViewSettings,
     officeTheme,
@@ -212,66 +214,69 @@ export function OfficeRoomShell(props: {
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      <OfficeInstancedFloor
-        officeLayout={officeLayout}
-        floorPatternId={officeDecorSettings.floorPatternId}
-        sceneBuilderMode={sceneBuilderMode}
-        onClick={onBackgroundClick}
-        onContextMenu={onBackgroundContextMenu}
-      />
+      {!archipelagoMode ? (
+        <OfficeInstancedFloor
+          officeLayout={officeLayout}
+          floorPatternId={officeDecorSettings.floorPatternId}
+          sceneBuilderMode={sceneBuilderMode}
+          onClick={onBackgroundClick}
+          onContextMenu={onBackgroundContextMenu}
+        />
+      ) : null}
 
-      {wallSegments.map((segment) => {
-        const isFront =
-          (segment.id.endsWith(":north") && frontWalls.frontNorth) ||
-          (segment.id.endsWith(":south") && frontWalls.frontSouth) ||
-          (segment.id.endsWith(":west") && frontWalls.frontWest) ||
-          (segment.id.endsWith(":east") && frontWalls.frontEast);
-        const isOrbitFront =
-          orbitWallFadeMask != null &&
-          ((segment.id.endsWith(":north") && orbitWallFadeMask.frontNorth) ||
-            (segment.id.endsWith(":south") && orbitWallFadeMask.frontSouth) ||
-            (segment.id.endsWith(":west") && orbitWallFadeMask.frontWest) ||
-            (segment.id.endsWith(":east") && orbitWallFadeMask.frontEast));
-        const orbitWallOpacity =
-          orbitWallFadeMask != null
-            ? Math.max(
-                ORBIT_WALL_MIN_OPACITY,
-                baseWallOpacity -
-                  (baseWallOpacity - ORBIT_WALL_MIN_OPACITY) * orbitWallFadeMask.fadeStrength,
-              )
-            : baseWallOpacity;
-        const opacity =
-          isFront && isFixed25
-            ? frontWallOpacity
-            : isOrbitFront
-              ? orbitWallOpacity
+      {!archipelagoMode &&
+        wallSegments.map((segment) => {
+          const isFront =
+            (segment.id.endsWith(":north") && frontWalls.frontNorth) ||
+            (segment.id.endsWith(":south") && frontWalls.frontSouth) ||
+            (segment.id.endsWith(":west") && frontWalls.frontWest) ||
+            (segment.id.endsWith(":east") && frontWalls.frontEast);
+          const isOrbitFront =
+            orbitWallFadeMask != null &&
+            ((segment.id.endsWith(":north") && orbitWallFadeMask.frontNorth) ||
+              (segment.id.endsWith(":south") && orbitWallFadeMask.frontSouth) ||
+              (segment.id.endsWith(":west") && orbitWallFadeMask.frontWest) ||
+              (segment.id.endsWith(":east") && orbitWallFadeMask.frontEast));
+          const orbitWallOpacity =
+            orbitWallFadeMask != null
+              ? Math.max(
+                  ORBIT_WALL_MIN_OPACITY,
+                  baseWallOpacity -
+                    (baseWallOpacity - ORBIT_WALL_MIN_OPACITY) * orbitWallFadeMask.fadeStrength,
+                )
               : baseWallOpacity;
-        return (
-          <mesh
-            key={segment.id}
-            position={segment.position}
-            rotation={segment.rotation}
-            castShadow
-            receiveShadow
-            name={`wall-${segment.id}`}
-            ref={(mesh) => {
-              if (mesh) {
-                mesh.raycast = () => {};
-              }
-            }}
-          >
-            <boxGeometry args={[segment.width, WALL_HEIGHT, segment.depth]} />
-            <meshStandardMaterial
-              color={wallColor}
-              emissive={sceneBuilderMode ? officeTheme.scene.floor : "#000000"}
-              emissiveIntensity={sceneBuilderMode ? 0.05 : 0}
-              transparent
-              opacity={opacity}
-              depthWrite={opacity >= 0.95}
-            />
-          </mesh>
-        );
-      })}
+          const opacity =
+            isFront && isFixed25
+              ? frontWallOpacity
+              : isOrbitFront
+                ? orbitWallOpacity
+                : baseWallOpacity;
+          return (
+            <mesh
+              key={segment.id}
+              position={segment.position}
+              rotation={segment.rotation}
+              castShadow
+              receiveShadow
+              name={`wall-${segment.id}`}
+              ref={(mesh) => {
+                if (mesh) {
+                  mesh.raycast = () => {};
+                }
+              }}
+            >
+              <boxGeometry args={[segment.width, WALL_HEIGHT, segment.depth]} />
+              <meshStandardMaterial
+                color={wallColor}
+                emissive={sceneBuilderMode ? officeTheme.scene.floor : "#000000"}
+                emissiveIntensity={sceneBuilderMode ? 0.05 : 0}
+                transparent
+                opacity={opacity}
+                depthWrite={opacity >= 0.95}
+              />
+            </mesh>
+          );
+        })}
     </>
   );
 }

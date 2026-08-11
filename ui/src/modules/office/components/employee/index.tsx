@@ -61,6 +61,8 @@ export interface EmployeeProps {
   isSupervisor?: boolean;
   gender?: string;
   onClick: (employeeId: Id<"employees">) => void;
+  /** Overrides normal avatar selection for a presentation-specific primary destination. */
+  onActivate?: (employeeId: Id<"employees">) => void;
   debugMode?: boolean;
   debugPathOverlay?: boolean;
   status?: StatusType;
@@ -147,6 +149,7 @@ const Employee = memo(function Employee({
   isCEO,
   isSupervisor,
   onClick,
+  onActivate,
   profileImageUrl,
   debugMode = false,
   debugPathOverlay = debugMode,
@@ -256,6 +259,12 @@ const Employee = memo(function Employee({
         markVisibleActivitySeen();
         return;
       }
+      if (onActivate) {
+        setSelectedObjectId(null);
+        markVisibleActivitySeen();
+        onActivate(id);
+        return;
+      }
       setSelectedObjectId(isSelected ? null : employeeIdString);
       markVisibleActivitySeen();
     },
@@ -264,6 +273,7 @@ const Employee = memo(function Employee({
       id,
       isSelected,
       markVisibleActivitySeen,
+      onActivate,
       setSelectedObjectId,
       toggleCallEmployee,
     ],

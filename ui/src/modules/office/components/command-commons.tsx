@@ -6,14 +6,20 @@
  * obstacle-sized group with a static, performance-bounded interaction cue.
  */
 
-import { Box, Cylinder, Torus } from "@react-three/drei";
+import { Box, Cylinder, Html, Torus } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
-import { OFFICE_LANDMARK_THEME } from "@/config/office-theme";
+import { useState } from "react";
+import {
+  OFFICE_DIORAMA_THEME,
+  OFFICE_LANDMARK_THEME,
+  type OfficeDioramaTheme,
+} from "@/config/office-theme";
 import { COMPUTER_HEIGHT, DESK_HEIGHT } from "@/constants";
 import {
   COMMAND_COMMONS_FRAME,
   COMMAND_COMMONS_SCALE,
 } from "@/modules/office/lib/command-commons-geometry";
+import { NexusParticleField } from "./nexus-particle-field";
 
 const M = OFFICE_LANDMARK_THEME.materials;
 
@@ -45,12 +51,17 @@ const COMMAND_SCREEN_COLORS = [
 export default function CommandCommons({
   position,
   rotation = [0, 0, 0],
+  simplified = false,
+  dioramaTheme = OFFICE_DIORAMA_THEME,
   onOpenWorld,
 }: {
   position: [number, number, number];
   rotation?: [number, number, number];
+  simplified?: boolean;
+  dioramaTheme?: OfficeDioramaTheme;
   onOpenWorld: () => void;
 }) {
+  const [isHovered, setIsHovered] = useState(false);
   const handleClick = (event: ThreeEvent<MouseEvent>): void => {
     event.stopPropagation();
     onOpenWorld();
@@ -63,206 +74,271 @@ export default function CommandCommons({
       scale={[COMMAND_COMMONS_SCALE, 1, COMMAND_COMMONS_SCALE]}
       name="command-commons"
       onClick={handleClick}
-      onPointerOver={() => {
+      onPointerOver={(event) => {
+        event.stopPropagation();
+        setIsHovered(true);
         document.body.style.cursor = "pointer";
       }}
-      onPointerOut={() => {
+      onPointerOut={(event) => {
+        event.stopPropagation();
+        setIsHovered(false);
         document.body.style.cursor = "auto";
       }}
       userData={{ panelId: "world", interactionLabel: "Open Company World" }}
     >
       <pointLight
         position={[0, 4.2, 0]}
-        intensity={3.8}
-        color="#e8a25d"
+        intensity={simplified ? (dioramaTheme.mode === "night" ? 0.34 : 2.1) : 3.8}
+        color={simplified ? dioramaTheme.lighting.workLight : "#e8a25d"}
         distance={8}
         decay={1.45}
       />
-      <group name="command-commons-contained-architecture">
-        {[-1, 1].flatMap((xSign) =>
-          [-1, 1].map((zSign) => (
+      {!simplified ? (
+        <group name="command-commons-contained-architecture">
+          {[-1, 1].flatMap((xSign) =>
+            [-1, 1].map((zSign) => (
+              <Box
+                key={`frame-post-${xSign}-${zSign}`}
+                args={[
+                  COMMAND_COMMONS_FRAME.beamThickness,
+                  COMMAND_COMMONS_FRAME.height,
+                  COMMAND_COMMONS_FRAME.beamThickness,
+                ]}
+                position={[
+                  xSign * COMMAND_COMMONS_FRAME.postX,
+                  COMMAND_COMMONS_FRAME.height / 2,
+                  zSign * COMMAND_COMMONS_FRAME.postZ,
+                ]}
+                castShadow
+              >
+                <meshStandardMaterial color={M.darkWalnut} roughness={0.7} />
+              </Box>
+            )),
+          )}
+          {[-1, 1].map((zSign) => (
+            <group key={`frame-beam-${zSign}`}>
+              <Box
+                args={[
+                  COMMAND_COMMONS_FRAME.postX * 2,
+                  COMMAND_COMMONS_FRAME.beamThickness,
+                  COMMAND_COMMONS_FRAME.beamThickness,
+                ]}
+                position={[0, COMMAND_COMMONS_FRAME.height, zSign * COMMAND_COMMONS_FRAME.postZ]}
+                castShadow
+              >
+                <meshStandardMaterial color={M.darkWalnut} roughness={0.68} />
+              </Box>
+              <Box
+                args={[COMMAND_COMMONS_FRAME.postX * 1.72, 0.035, 0.055]}
+                position={[
+                  0,
+                  COMMAND_COMMONS_FRAME.height - 0.08,
+                  zSign * COMMAND_COMMONS_FRAME.postZ,
+                ]}
+              >
+                <meshStandardMaterial color="#bd8654" emissive="#8f512d" emissiveIntensity={0.42} />
+              </Box>
+            </group>
+          ))}
+          {[-1, 1].map((xSign) => (
             <Box
-              key={`frame-post-${xSign}-${zSign}`}
+              key={`frame-crossbeam-${xSign}`}
               args={[
                 COMMAND_COMMONS_FRAME.beamThickness,
-                COMMAND_COMMONS_FRAME.height,
                 COMMAND_COMMONS_FRAME.beamThickness,
+                COMMAND_COMMONS_FRAME.postZ * 2,
               ]}
-              position={[
-                xSign * COMMAND_COMMONS_FRAME.postX,
-                COMMAND_COMMONS_FRAME.height / 2,
-                zSign * COMMAND_COMMONS_FRAME.postZ,
-              ]}
-              castShadow
-            >
-              <meshStandardMaterial color={M.darkWalnut} roughness={0.7} />
-            </Box>
-          )),
-        )}
-        {[-1, 1].map((zSign) => (
-          <group key={`frame-beam-${zSign}`}>
-            <Box
-              args={[
-                COMMAND_COMMONS_FRAME.postX * 2,
-                COMMAND_COMMONS_FRAME.beamThickness,
-                COMMAND_COMMONS_FRAME.beamThickness,
-              ]}
-              position={[0, COMMAND_COMMONS_FRAME.height, zSign * COMMAND_COMMONS_FRAME.postZ]}
+              position={[xSign * COMMAND_COMMONS_FRAME.postX, COMMAND_COMMONS_FRAME.height, 0]}
               castShadow
             >
               <meshStandardMaterial color={M.darkWalnut} roughness={0.68} />
             </Box>
-            <Box
-              args={[COMMAND_COMMONS_FRAME.postX * 1.72, 0.035, 0.055]}
-              position={[
-                0,
-                COMMAND_COMMONS_FRAME.height - 0.08,
-                zSign * COMMAND_COMMONS_FRAME.postZ,
-              ]}
-            >
-              <meshStandardMaterial color="#bd8654" emissive="#8f512d" emissiveIntensity={0.42} />
-            </Box>
-          </group>
-        ))}
-        {[-1, 1].map((xSign) => (
-          <Box
-            key={`frame-crossbeam-${xSign}`}
-            args={[
-              COMMAND_COMMONS_FRAME.beamThickness,
-              COMMAND_COMMONS_FRAME.beamThickness,
-              COMMAND_COMMONS_FRAME.postZ * 2,
-            ]}
-            position={[xSign * COMMAND_COMMONS_FRAME.postX, COMMAND_COMMONS_FRAME.height, 0]}
-            castShadow
-          >
-            <meshStandardMaterial color={M.darkWalnut} roughness={0.68} />
-          </Box>
-        ))}
-      </group>
-      <Box args={[8.75, 0.24, 5.85]} position={[0, DESK_HEIGHT, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color="#4a3325" roughness={0.66} />
-      </Box>
-      <Box args={[8.3, 0.055, 5.42]} position={[0, DESK_HEIGHT + 0.145, 0]} receiveShadow>
-        <meshStandardMaterial color="#654833" roughness={0.58} />
-      </Box>
-      <group name="company-world-click-cue" position={[0, DESK_HEIGHT + 0.38, 0]}>
-        <Torus args={[0.62, 0.045, 8, 32]} rotation={[Math.PI / 2, 0, 0]}>
-          <meshStandardMaterial color="#67d9e8" emissive="#2e91a5" emissiveIntensity={0.8} />
-        </Torus>
-        <Torus args={[0.42, 0.035, 8, 24]} rotation={[Math.PI / 2, 0, Math.PI / 2]}>
-          <meshStandardMaterial color="#93e7dd" emissive="#3ba598" emissiveIntensity={0.65} />
-        </Torus>
-        <Cylinder args={[0.08, 0.08, 0.16, 12]} position={[0, 0.03, 0]}>
-          <meshStandardMaterial color="#d8fff8" emissive="#6cd8cc" emissiveIntensity={0.8} />
-        </Cylinder>
-      </group>
-      {[
-        [-3.35, -2.05],
-        [3.35, -2.05],
-        [-3.35, 2.05],
-        [3.35, 2.05],
-      ].map(([x, z]) => (
-        <Cylinder
-          key={`${x}:${z}`}
-          args={[0.2, 0.28, DESK_HEIGHT, 16]}
-          position={[x, DESK_HEIGHT / 2, z]}
-          castShadow
-        >
-          <meshStandardMaterial color={M.darkMetal} roughness={0.55} metalness={0.35} />
-        </Cylinder>
-      ))}
-      {COMMAND_SCREEN_COLORS.map((color, index) => {
-        const column = index % 4;
-        const row = Math.floor(index / 4);
-        return (
-          <Box
-            key={color}
-            args={[1.72, 0.07, 1.38]}
-            position={[-2.73 + column * 1.82, DESK_HEIGHT + 0.21, -1.46 + row * 1.46]}
-            castShadow
-          >
-            <meshStandardMaterial
-              color={color}
-              emissive={color}
-              emissiveIntensity={0.34}
-              roughness={0.38}
-              metalness={0.16}
-            />
-          </Box>
-        );
-      })}
-      {getCommandCommonsStationTransforms().map((station) => (
-        <group
-          key={`${station.position.join(":")}:${station.rotationY}`}
-          position={station.position}
-          rotation={[0, station.rotationY, 0]}
-        >
-          <Box
-            args={[0.68, COMPUTER_HEIGHT * 0.72, 0.055]}
-            position={[0, COMPUTER_HEIGHT * 0.36, 0]}
-            castShadow
-          >
-            <meshStandardMaterial color={M.inactiveScreen} roughness={0.32} metalness={0.12} />
-          </Box>
-          <Box args={[0.12, 0.18, 0.12]} position={[0, -0.07, 0]}>
-            <meshStandardMaterial color={M.darkMetal} roughness={0.5} />
-          </Box>
+          ))}
         </group>
-      ))}
-      {[-2.86, 2.86].map((z) => (
-        <Box
-          key={`edge-rail-z-${z}`}
-          args={[8.9, 0.24, 0.18]}
-          position={[0, DESK_HEIGHT + 0.31, z]}
-          castShadow
-        >
-          <meshStandardMaterial color="#754d33" roughness={0.58} />
-        </Box>
-      ))}
-      {[-4.32, 4.32].map((x) => (
-        <Box
-          key={`edge-rail-x-${x}`}
-          args={[0.18, 0.24, 5.55]}
-          position={[x, DESK_HEIGHT + 0.31, 0]}
-          castShadow
-        >
-          <meshStandardMaterial color="#754d33" roughness={0.58} />
-        </Box>
-      ))}
-      {[-2.65, -0.9, 0.9, 2.65].flatMap((x) =>
-        [-2.9, 2.9].map((z) => (
-          <group
-            key={`chair-${x}-${z}`}
-            position={[x, 0, z]}
-            rotation={[0, z > 0 ? Math.PI : 0, 0]}
+      ) : null}
+      {!simplified ? (
+        <>
+          <Box args={[8.75, 0.24, 5.85]} position={[0, DESK_HEIGHT, 0]} castShadow receiveShadow>
+            <meshStandardMaterial color="#4a3325" roughness={0.66} />
+          </Box>
+          <Box args={[8.3, 0.055, 5.42]} position={[0, DESK_HEIGHT + 0.145, 0]} receiveShadow>
+            <meshStandardMaterial color="#654833" roughness={0.58} />
+          </Box>
+        </>
+      ) : null}
+      <group name="company-world-click-cue" position={[0, DESK_HEIGHT + 0.38, 0]}>
+        {simplified ? (
+          <>
+            <mesh name="company-world-nexus-hit-target" position={[0, -0.34, 0]}>
+              <cylinderGeometry args={[4.6, 4.6, 0.08, 32]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            </mesh>
+            <NexusParticleField highlighted={isHovered} dioramaTheme={dioramaTheme} />
+            {isHovered ? (
+              <>
+                <mesh position={[0, -0.28, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={4}>
+                  <ringGeometry args={[3.75, 4.55, 48]} />
+                  <meshBasicMaterial
+                    color={dioramaTheme.nexusVortex.light}
+                    transparent
+                    opacity={0.3}
+                    depthWrite={false}
+                  />
+                </mesh>
+                <Html
+                  center
+                  distanceFactor={9}
+                  position={[0, 6.9, 0]}
+                  sprite
+                  transform
+                  zIndexRange={[60, 0]}
+                >
+                  <div className="pointer-events-none max-w-[220px] rounded-md border border-border/70 bg-background/95 px-2.5 py-1.5 text-center text-xs font-medium text-foreground shadow-lg backdrop-blur">
+                    <span className="block truncate">Company World</span>
+                  </div>
+                </Html>
+              </>
+            ) : null}
+            <pointLight
+              position={[0, 3, 0]}
+              color={dioramaTheme.nexusVortex.light}
+              intensity={dioramaTheme.mode === "night" ? 0.46 : 1.3}
+              distance={7.6}
+              decay={1.7}
+            />
+          </>
+        ) : (
+          <>
+            <Torus args={[0.62, 0.045, 8, 32]} rotation={[Math.PI / 2, 0, 0]}>
+              <meshStandardMaterial color="#67d9e8" emissive="#2e91a5" emissiveIntensity={0.8} />
+            </Torus>
+            <Torus args={[0.42, 0.035, 8, 24]} rotation={[Math.PI / 2, 0, Math.PI / 2]}>
+              <meshStandardMaterial color="#93e7dd" emissive="#3ba598" emissiveIntensity={0.65} />
+            </Torus>
+            <Cylinder args={[0.08, 0.08, 0.16, 12]} position={[0, 0.03, 0]}>
+              <meshStandardMaterial color="#d8fff8" emissive="#6cd8cc" emissiveIntensity={0.8} />
+            </Cylinder>
+          </>
+        )}
+      </group>
+      {!simplified &&
+        [
+          [-3.35, -2.05],
+          [3.35, -2.05],
+          [-3.35, 2.05],
+          [3.35, 2.05],
+        ].map(([x, z]) => (
+          <Cylinder
+            key={`${x}:${z}`}
+            args={[0.2, 0.28, DESK_HEIGHT, 16]}
+            position={[x, DESK_HEIGHT / 2, z]}
+            castShadow
           >
-            <Box args={[0.56, 0.12, 0.52]} position={[0, 0.46, 0]} castShadow>
-              <meshStandardMaterial color="#2f302e" roughness={0.82} />
+            <meshStandardMaterial color={M.darkMetal} roughness={0.55} metalness={0.35} />
+          </Cylinder>
+        ))}
+      {!simplified &&
+        COMMAND_SCREEN_COLORS.map((color, index) => {
+          const column = index % 4;
+          const row = Math.floor(index / 4);
+          return (
+            <Box
+              key={color}
+              args={[1.72, 0.07, 1.38]}
+              position={[-2.73 + column * 1.82, DESK_HEIGHT + 0.21, -1.46 + row * 1.46]}
+              castShadow
+            >
+              <meshStandardMaterial
+                color={color}
+                emissive={color}
+                emissiveIntensity={0.34}
+                roughness={0.38}
+                metalness={0.16}
+              />
             </Box>
-            <Box args={[0.56, 0.72, 0.1]} position={[0, 0.76, 0.24]} castShadow>
-              <meshStandardMaterial color="#373632" roughness={0.8} />
+          );
+        })}
+      {!simplified &&
+        getCommandCommonsStationTransforms().map((station) => (
+          <group
+            key={`${station.position.join(":")}:${station.rotationY}`}
+            position={station.position}
+            rotation={[0, station.rotationY, 0]}
+          >
+            <Box
+              args={[0.68, COMPUTER_HEIGHT * 0.72, 0.055]}
+              position={[0, COMPUTER_HEIGHT * 0.36, 0]}
+              castShadow
+            >
+              <meshStandardMaterial color={M.inactiveScreen} roughness={0.32} metalness={0.12} />
+            </Box>
+            <Box args={[0.12, 0.18, 0.12]} position={[0, -0.07, 0]}>
+              <meshStandardMaterial color={M.darkMetal} roughness={0.5} />
             </Box>
           </group>
-        )),
-      )}
-      {[-4.02, 4.02].flatMap((x) =>
-        [-1.35, 1.35].map((z) => (
-          <group key={`side-chair-${x}-${z}`} position={[x, 0, z]}>
-            <Box args={[0.52, 0.12, 0.56]} position={[0, 0.46, 0]} castShadow>
-              <meshStandardMaterial color="#2f302e" roughness={0.82} />
-            </Box>
-            <Box args={[0.1, 0.72, 0.56]} position={[x > 0 ? 0.24 : -0.24, 0.76, 0]} castShadow>
-              <meshStandardMaterial color="#373632" roughness={0.8} />
-            </Box>
-          </group>
-        )),
-      )}
-      <Box args={[7.82, 0.06, 0.08]} position={[0, DESK_HEIGHT + 0.19, -2.49]}>
-        <meshStandardMaterial color="#91694b" emissive="#5c3524" emissiveIntensity={0.18} />
-      </Box>
-      <Box args={[7.82, 0.06, 0.08]} position={[0, DESK_HEIGHT + 0.19, 2.49]}>
-        <meshStandardMaterial color="#91694b" emissive="#5c3524" emissiveIntensity={0.18} />
-      </Box>
+        ))}
+      {!simplified &&
+        [-2.86, 2.86].map((z) => (
+          <Box
+            key={`edge-rail-z-${z}`}
+            args={[8.9, 0.24, 0.18]}
+            position={[0, DESK_HEIGHT + 0.31, z]}
+            castShadow
+          >
+            <meshStandardMaterial color="#754d33" roughness={0.58} />
+          </Box>
+        ))}
+      {!simplified &&
+        [-4.32, 4.32].map((x) => (
+          <Box
+            key={`edge-rail-x-${x}`}
+            args={[0.18, 0.24, 5.55]}
+            position={[x, DESK_HEIGHT + 0.31, 0]}
+            castShadow
+          >
+            <meshStandardMaterial color="#754d33" roughness={0.58} />
+          </Box>
+        ))}
+      {!simplified &&
+        [-2.65, -0.9, 0.9, 2.65].flatMap((x) =>
+          [-2.9, 2.9].map((z) => (
+            <group
+              key={`chair-${x}-${z}`}
+              position={[x, 0, z]}
+              rotation={[0, z > 0 ? Math.PI : 0, 0]}
+            >
+              <Box args={[0.56, 0.12, 0.52]} position={[0, 0.46, 0]} castShadow>
+                <meshStandardMaterial color="#2f302e" roughness={0.82} />
+              </Box>
+              <Box args={[0.56, 0.72, 0.1]} position={[0, 0.76, 0.24]} castShadow>
+                <meshStandardMaterial color="#373632" roughness={0.8} />
+              </Box>
+            </group>
+          )),
+        )}
+      {!simplified &&
+        [-4.02, 4.02].flatMap((x) =>
+          [-1.35, 1.35].map((z) => (
+            <group key={`side-chair-${x}-${z}`} position={[x, 0, z]}>
+              <Box args={[0.52, 0.12, 0.56]} position={[0, 0.46, 0]} castShadow>
+                <meshStandardMaterial color="#2f302e" roughness={0.82} />
+              </Box>
+              <Box args={[0.1, 0.72, 0.56]} position={[x > 0 ? 0.24 : -0.24, 0.76, 0]} castShadow>
+                <meshStandardMaterial color="#373632" roughness={0.8} />
+              </Box>
+            </group>
+          )),
+        )}
+      {!simplified ? (
+        <Box args={[7.82, 0.06, 0.08]} position={[0, DESK_HEIGHT + 0.19, -2.49]}>
+          <meshStandardMaterial color="#91694b" emissive="#5c3524" emissiveIntensity={0.18} />
+        </Box>
+      ) : null}
+      {!simplified ? (
+        <Box args={[7.82, 0.06, 0.08]} position={[0, DESK_HEIGHT + 0.19, 2.49]}>
+          <meshStandardMaterial color="#91694b" emissive="#5c3524" emissiveIntensity={0.18} />
+        </Box>
+      ) : null}
     </group>
   );
 }

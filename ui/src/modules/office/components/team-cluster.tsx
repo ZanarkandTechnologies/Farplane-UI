@@ -22,10 +22,10 @@ import { COMPUTER_HEIGHT, DESK_HEIGHT } from "@/constants";
 import type { Id } from "@/lib/entity-types";
 import type { DeskLayoutData, TeamData } from "@/modules/office/lib/types";
 import {
-  MAX_GRID_DESKS_PER_TEAM,
   getClusterOccupancyFootprint,
   getDeskPosition,
   getDeskRotation,
+  MAX_GRID_DESKS_PER_TEAM,
   resolveTeamStationLayout,
   solveRoundTeamTableLayout,
 } from "@/modules/office/utils/layout";
@@ -38,7 +38,7 @@ import { getTeamLabelDistanceFactor, shouldShowTeamLabel } from "./team-label";
 // Constants
 const DEFAULT_OCCUPANCY_WIDTH = 9.2;
 const DEFAULT_OCCUPANCY_DEPTH = 7.4;
-const FLOATING_LABEL_HEIGHT = DESK_HEIGHT + COMPUTER_HEIGHT + 0.58;
+const FLOATING_LABEL_HEIGHT = (DESK_HEIGHT + COMPUTER_HEIGHT + 0.58) * 1.5;
 
 function getPositiveMetadataNumber(
   metadata: Record<string, unknown> | undefined,
@@ -106,6 +106,7 @@ export default function TeamCluster({
   const setActiveTeamForOptions = useAppStore((state) => state.setActiveTeamForOptions);
   const isDragging = useAppStore((state) => state.isDragging);
   const isCommandNeighborhood = metadata?.commandCommonsNeighborhood === true;
+  const isDepartmentIslandCluster = metadata?.departmentIslandCluster === true;
   const isExecutivePod = metadata?.executivePod === true;
 
   // Capacity tracking
@@ -231,7 +232,7 @@ export default function TeamCluster({
 
   // Render conditions
   const showCircle = isBuilderMode || placementMode.active;
-  const showFloatingLabel = shouldShowTeamLabel(team.name);
+  const showFloatingLabel = !isDepartmentIslandCluster && shouldShowTeamLabel(team.name);
   const showDeskPlacementDetail =
     placementMode.active && placementMode.type === "desk" && (isHovered || usesRoundTable);
   return (
@@ -271,7 +272,15 @@ export default function TeamCluster({
           )}
         </group>
 
-        <group scale={metadata?.commandCommonsNeighborhood === true ? 1.12 : 1}>
+        <group
+          scale={
+            isDepartmentIslandCluster
+              ? 0.72
+              : metadata?.commandCommonsNeighborhood === true
+                ? 1.12
+                : 1
+          }
+        >
           {usesRoundTable ? (
             <RoundTeamTable
               stationCount={stationCount}

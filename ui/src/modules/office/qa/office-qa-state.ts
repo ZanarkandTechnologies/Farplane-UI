@@ -1,7 +1,7 @@
 /** Module-owned DEV QA snapshot; OfficeMenu is the sole writer of the public window hook. */
 
-import type { OfficeLineageEdge } from "../scene/thread-lineage-effects";
 import type { RoomActivityGroup } from "../lib/room-activity-projection";
+import type { OfficeLineageEdge } from "../scene/thread-lineage-effects";
 
 export type OfficeQaSnapshot = {
   kit?: Record<string, unknown>;
@@ -14,6 +14,19 @@ export type OfficeQaSnapshot = {
   runStoryFixture?: (target: [number, number, number] | null) => void;
   applyBuilderFixture?: () => Promise<boolean>;
   quality?: Record<string, unknown>;
+  archipelago?: {
+    enabled: boolean;
+    islandCount: number;
+    bridgeCount: number;
+    roomCount: number;
+  };
+  projectCouncil?: {
+    enabled: boolean;
+    sectorCount: number;
+    visibleProjectIds: string[];
+    specialistStationCount: number;
+    activeDispatchCount: number;
+  };
   roomActivity?: {
     roomCount: number;
     visibleCount: number;

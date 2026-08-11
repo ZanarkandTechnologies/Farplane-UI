@@ -1,11 +1,13 @@
 /**
  * ROOM ACTIVITY PROJECTION
  * ========================
- * Ownership: Office3D presentation-only skill activity.
- * Inputs: recent skill telemetry, project tracking contexts, and the operating-room catalog.
- * Outputs: fresh, deduplicated, capped room activity cards; side effects: none.
- * Invariants: only curated activity skills render, private paths never become labels, and links are explicit.
+ * Ownership: Office3D presentation-only work activity.
+ * Inputs: in-progress tickets, recent skill telemetry, project tracking contexts, and the room catalog.
+ * Outputs: capped specialist workers plus ambient room signals; side effects: none.
+ * Invariants: tickets choose worker placement, telemetry only enriches it, private paths never become labels, and links are explicit.
  */
+
+import { resolveTicketSpecialist } from "@/lib/ticket-routing/specialist-registry";
 
 export const ROOM_ACTIVITY_PRESENTATION_FRESHNESS_MS = 5 * 60 * 1_000;
 export const ROOM_ACTIVITY_VISIBLE_LIMIT = 3;
@@ -43,12 +45,30 @@ export type RoomActivity = {
   startedAt: number;
   updatedAt: number;
   callerTarget?: RoomActivityCallerTarget;
+  source?: "telemetry" | "ticket";
+  ticketId?: string;
+  ticketTitle?: string;
+  specialistId?: string;
+  specialistLabel?: string;
+  activeSkillId?: string;
 };
 
 export type RoomActivityGroup = {
   roomId: string;
   activities: RoomActivity[];
   overflowCount: number;
+  ambientSkillIds?: string[];
+};
+
+export type RoomActivityTicket = {
+  id: string;
+  projectId: string;
+  title: string;
+  status: string;
+  specialist?: string;
+  threadId?: string;
+  frontMatter?: Record<string, string>;
+  updatedAt?: number;
 };
 
 type ProjectRoomActivitiesInput = {
@@ -57,6 +77,10 @@ type ProjectRoomActivitiesInput = {
   catalog: readonly RoomActivityCatalogEntry[];
   now: number;
   recognizedSessionKeys?: ReadonlySet<string>;
+};
+
+type ProjectTicketRoomActivitiesInput = ProjectRoomActivitiesInput & {
+  tickets: readonly RoomActivityTicket[];
 };
 
 function normalizePath(value: string | undefined): string {
@@ -166,6 +190,7 @@ export function projectRoomActivities(input: ProjectRoomActivitiesInput): RoomAc
         : project.id
           ? { kind: "project", projectId: project.id }
           : undefined,
+      source: "telemetry",
     });
   }
 
@@ -185,6 +210,119 @@ export function projectRoomActivities(input: ProjectRoomActivitiesInput): RoomAc
         roomId,
         activities: activities.slice(0, ROOM_ACTIVITY_VISIBLE_LIMIT),
         overflowCount: Math.max(0, activities.length - ROOM_ACTIVITY_VISIBLE_LIMIT),
+      };
+    })
+    .sort((left, right) => left.roomId.localeCompare(right.roomId));
+}
+
+function currentInvocationBySession(
+  invocations: readonly RoomActivityInvocation[],
+  now: number,
+): ReadonlyMap<string, RoomActivityInvocation> {
+  const newestBySession = new Map<string, RoomActivityInvocation>();
+  for (const event of invocations) {
+    const sessionId = event.sessionId?.trim();
+    if (
+      !sessionId ||
+      event.occurredAt > now ||
+      now - event.occurredAt >= ROOM_ACTIVITY_PRESENTATION_FRESHNESS_MS
+    ) {
+      continue;
+    }
+    const current = newestBySession.get(sessionId);
+    if (!current || event.occurredAt > current.occurredAt) {
+      newestBySession.set(sessionId, event);
+    }
+  }
+  return newestBySession;
+}
+
+/**
+ * Projects canonical in-progress tickets into their declared specialist facility.
+ * Telemetry only adds ambient room signals and the current action for an already
+ * placed ticket; it cannot create, route, or duplicate a worker.
+ */
+export function projectTicketRoomActivities(
+  input: ProjectTicketRoomActivitiesInput,
+): RoomActivityGroup[] {
+  const catalogRoomBySkillId = new Map<string, string>();
+  for (const room of input.catalog) {
+    for (const skillId of room.activitySkillIds) {
+      if (!catalogRoomBySkillId.has(skillId)) catalogRoomBySkillId.set(skillId, room.id);
+    }
+  }
+
+  const ambientSkillIdsByRoom = new Map<string, Set<string>>();
+  for (const event of input.invocations) {
+    const roomId = catalogRoomBySkillId.get(event.skillId);
+    if (
+      !roomId ||
+      event.occurredAt > input.now ||
+      input.now - event.occurredAt >= ROOM_ACTIVITY_PRESENTATION_FRESHNESS_MS
+    ) {
+      continue;
+    }
+    const skills = ambientSkillIdsByRoom.get(roomId) ?? new Set<string>();
+    skills.add(event.skillId);
+    ambientSkillIdsByRoom.set(roomId, skills);
+  }
+
+  const projectById = new Map(input.projects.map((project) => [project.id, project]));
+  const invocationBySession = currentInvocationBySession(input.invocations, input.now);
+  const activitiesByRoom = new Map<string, RoomActivity[]>();
+  for (const ticket of input.tickets) {
+    if (ticket.status !== "in_progress") continue;
+    const specialist = resolveTicketSpecialist(ticket.specialist ?? ticket.frontMatter?.specialist);
+    if (!specialist) continue;
+
+    const project = projectById.get(ticket.projectId);
+    const threadId = ticket.threadId?.trim() || undefined;
+    const invocation = threadId ? invocationBySession.get(threadId) : undefined;
+    const sessionKey = threadId ? `codex-thread:${threadId}` : undefined;
+    const recognizedSession =
+      sessionKey && input.recognizedSessionKeys?.has(sessionKey)
+        ? sessionKey
+        : undefined;
+    const startedAt = ticket.updatedAt ?? input.now;
+    const activity: RoomActivity = {
+      id: `${specialist.roomId}:${ticket.projectId}:${ticket.id}`,
+      roomId: specialist.roomId,
+      projectId: project?.id ?? ticket.projectId,
+      projectLabel: safeProjectLabel(project?.name ?? "Unknown project", project?.trackingContext),
+      sessionId: threadId,
+      skillId: invocation?.skillId ?? specialist.id,
+      activeSkillId: invocation?.skillId,
+      state: "active",
+      startedAt,
+      updatedAt: Math.max(startedAt, invocation?.occurredAt ?? 0),
+      callerTarget: recognizedSession
+        ? { kind: "session", sessionKey: recognizedSession }
+        : project
+          ? { kind: "project", projectId: project.id }
+          : undefined,
+      source: "ticket",
+      ticketId: ticket.id,
+      ticketTitle: ticket.title,
+      specialistId: specialist.id,
+      specialistLabel: specialist.displayName,
+    };
+    const roomActivities = activitiesByRoom.get(specialist.roomId) ?? [];
+    roomActivities.push(activity);
+    activitiesByRoom.set(specialist.roomId, roomActivities);
+  }
+
+  const roomIds = new Set([...activitiesByRoom.keys(), ...ambientSkillIdsByRoom.keys()]);
+  return [...roomIds]
+    .map((roomId) => {
+      const activities = activitiesByRoom.get(roomId) ?? [];
+      activities.sort(
+        (left, right) => right.updatedAt - left.updatedAt || left.id.localeCompare(right.id),
+      );
+      return {
+        roomId,
+        activities: activities.slice(0, ROOM_ACTIVITY_VISIBLE_LIMIT),
+        overflowCount: Math.max(0, activities.length - ROOM_ACTIVITY_VISIBLE_LIMIT),
+        ambientSkillIds: [...(ambientSkillIdsByRoom.get(roomId) ?? [])].sort(),
       };
     })
     .sort((left, right) => left.roomId.localeCompare(right.roomId));

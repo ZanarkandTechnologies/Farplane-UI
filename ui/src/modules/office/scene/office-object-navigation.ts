@@ -55,6 +55,9 @@ export function isNavigableRenderableOfficeObject(input: {
   // must never become one large scene-derived navigation obstacle.
   if (object.meshType === "activity-landmark") return false;
   if (!NAVIGABLE_RENDERED_MESH_TYPES.has(object.meshType)) return false;
+  // Department-island team decks are hidden by the automatic Project Council
+  // presentation, so navigation must not wait for a ref that will not mount.
+  if (object.metadata?.departmentIslandCluster === true) return false;
   if (object.meshType !== "team-cluster") return true;
   const teamId = metadataString(object.metadata, "teamId");
   return teamById.has(teamId);

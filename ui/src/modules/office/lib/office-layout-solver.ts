@@ -43,10 +43,12 @@ import {
   planActivityDestinationRails,
 } from "./activity-destination-ring";
 import { ACTIVITY_DESTINATION_ROOM_WIDTH } from "./activity-destination-room";
+import { type CentralCommandCommonsPlan } from "./central-command-commons";
 import {
-  type CentralCommandCommonsPlan,
-  planCentralCommandCommons,
-} from "./central-command-commons";
+  getDepartmentIslandBridgeAccessTile,
+  type DepartmentArchipelagoPlan,
+  planDepartmentArchipelago,
+} from "./department-island-layout";
 
 export interface OfficeLayoutSolverInput {
   sourceLayout: OfficeLayoutModel;
@@ -498,7 +500,7 @@ function getOrderedOptionalObjects(
 }
 
 function placeDecorObjectsInRingCore(input: {
-  railPlan: ActivityDestinationRailPlan | CentralCommandCommonsPlan;
+  railPlan: ActivityDestinationRailPlan | CentralCommandCommonsPlan | DepartmentArchipelagoPlan;
   requiredObjects: OfficeObject[];
   orderedObjects: OrderedOptionalPlacementObject[];
   reservedWalkTiles: Set<string>;
@@ -583,21 +585,24 @@ function placeOptionalObjects(input: {
     0,
   );
   const orderedObjects = getOrderedOptionalObjects(decorObjects, input.objectGapTiles);
-  const usesCentralCommandCommons = input.strategyId === "team_neighborhoods";
+  const usesDepartmentArchipelago = input.strategyId === "team_neighborhoods";
   const compositionInput = {
     requiredObjects: input.requiredObjects,
     // The command composition derives its compact shell from the authored
     // neighborhoods. Source-layout routes are rebuilt after placement and
     // must not inflate the room before the new anchors exist.
-    reservedWalkTiles: usesCentralCommandCommons ? new Set<string>() : input.reservedWalkTiles,
+    reservedWalkTiles: usesDepartmentArchipelago ? new Set<string>() : input.reservedWalkTiles,
     destinations: destinationObjects,
     paddingTiles: railGrowthSteps * ACTIVITY_DESTINATION_ROOM_WIDTH,
-    minimumCoreTileArea: usesCentralCommandCommons
+    minimumCoreTileArea: usesDepartmentArchipelago
       ? 0
       : Math.ceil((requiredAndRouteTileDemand.size + decorTileDemand) / 0.65),
   };
-  const railPlan = usesCentralCommandCommons
-    ? planCentralCommandCommons(compositionInput)
+  const railPlan = usesDepartmentArchipelago
+    ? planDepartmentArchipelago({
+        requiredObjects: input.requiredObjects,
+        destinations: destinationObjects,
+      })
     : planActivityDestinationRails(compositionInput);
   const coreDecorPlacement = railPlan
     ? placeDecorObjectsInRingCore({
@@ -650,23 +655,72 @@ function placeOptionalObjects(input: {
     ? Math.max(0, railPlan.floorTiles.size - input.layout.tiles.length)
     : 0;
   let unroutedDestinationCount = 0;
+  const unroutedDestinationIds: string[] = [];
+  const unroutedDestinationReasons: string[] = [];
 
   if (railPlan) {
     for (const destination of railPlan.placedDestinations) {
       reservation.objects.push(toPlacementObject(destination));
     }
-    const occupiedTiles = buildOccupiedTileSet(reservation.objects);
+    // Reserved walk cells protect the later furniture pass, but they are not
+    // physical obstacles. Routing through them is how each station joins the
+    // shared circulation graph; including their synthetic blocker objects here
+    // would make every room entrance look closed to the path search.
+    const occupiedObjects = [
+      ...input.requiredObjects.map((object) => ({
+        id: String(object._id),
+        // Department tables already sit on dedicated decks and render at a
+        // compact scale. Their true footprint is enough for room routing; the
+        // generic one-tile packing buffer would close the narrow bridge seams.
+        object: usesDepartmentArchipelago
+          ? toPlacementObject(object)
+          : withMinimumPlacementGap(toPlacementObject(object), input.objectGapTiles),
+      })),
+      ...(coreDecorPlacement?.placedObjects ?? []).map((object) => ({
+        id: String(object._id),
+        object: toPlacementObject(object),
+      })),
+      ...railPlan.placedDestinations.map((object) => ({
+        id: String(object._id),
+        object: toPlacementObject(object),
+      })),
+    ];
+    const occupiedTiles = buildOccupiedTileSet(occupiedObjects.map(({ object }) => object));
+    const occupancyOwnerByTile = new Map<string, string>();
+    for (const { id, object } of occupiedObjects) {
+      const cells = getObjectFootprintCells(object);
+      for (const cell of cells) {
+        occupancyOwnerByTile.set(cell.key, id);
+      }
+    }
+    // Each island owns a local bridge seam. Routing rooms to that seam preserves
+    // walkable circulation without requiring every station to path through the
+    // central nexus (where the shared Company World object may be placed).
     const routeNetwork = new Set(input.reservedWalkTiles);
-    for (const slot of railPlan.roomSlots) {
+    for (const [slotIndex, slot] of railPlan.roomSlots.entries()) {
+      const islandRouteTarget = usesDepartmentArchipelago
+        ? getDepartmentIslandBridgeAccessTile(slot.departmentId)
+        : null;
       const path = findWalkPathToNetwork({
         start: slot.accessTile,
         floorTiles: workingFloorTiles,
         occupiedTiles,
-        networkTiles: routeNetwork,
+        networkTiles: islandRouteTarget
+          ? new Set([officeLayoutTileKey(islandRouteTarget.x, islandRouteTarget.z)])
+          : routeNetwork,
         fallbackTarget: centroid,
       });
       if (!path) {
         unroutedDestinationCount += 1;
+        const destination = railPlan.placedDestinations[slotIndex];
+        if (destination) unroutedDestinationIds.push(String(destination._id));
+        const startKey = officeLayoutTileKey(slot.accessTile.x, slot.accessTile.z);
+        const reason = !workingFloorTiles.has(startKey)
+          ? "missing-floor"
+          : occupiedTiles.has(startKey)
+            ? `occupied:${occupancyOwnerByTile.get(startKey) ?? "unknown"}`
+            : "disconnected";
+        unroutedDestinationReasons.push(`${startKey}:${reason}`);
         continue;
       }
       const added = addDestinationRouteReservation({
@@ -747,7 +801,7 @@ function placeOptionalObjects(input: {
   }
   if (railPlan && unroutedDestinationCount > 0) {
     throw new Error(
-      `Activity destination rails have ${unroutedDestinationCount} room opening(s) without a route`,
+      `Activity destination rails have ${unroutedDestinationCount} room opening(s) without a route: ${unroutedDestinationIds.join(", ")} (${unroutedDestinationReasons.join(", ")})`,
     );
   }
   if (railPlan && unplacedObjectCount > 0) {

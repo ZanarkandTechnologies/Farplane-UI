@@ -7,66 +7,90 @@
  * monitor stations distributed evenly around the tabletop. This component has
  * no persistence side effects and depends on `utils/layout.ts` for slot math.
  */
-import { Box } from "@react-three/drei";
 import { useMemo } from "react";
-import { COMPUTER_HEIGHT, DESK_HEIGHT } from "@/constants";
-import { solveRoundTeamTableLayout } from "@/modules/office/utils/layout";
 import * as THREE from "three";
+import { DESK_HEIGHT } from "@/constants";
+import { solveRoundTeamTableLayout } from "@/modules/office/utils/layout";
+import { DeskMonitor } from "./desk-monitor";
 
 interface RoundTeamTableProps {
   stationCount: number;
   isHovered: boolean;
   variant?: "team" | "executive";
+  /**
+   * Keeps the normal team tables warm and timber-like while allowing the
+   * Company Council to read as one light, intentional shared surface.
+   */
+  finish?: "walnut" | "ivory";
+  /** The Council's World Nexus occupies the centre, so it owns that focal effect. */
+  showExecutiveNexus?: boolean;
+  /** Expands the tabletop footprint without stretching the monitors themselves. */
+  planarScale?: number;
 }
 
 const defaultTableColor = new THREE.Color("#4f3a2c");
 const hoveredTableColor = new THREE.Color("#6f543e");
 const tableEdgeColor = new THREE.Color("#8b684c");
-const hardwareColor = new THREE.Color("#0f172a");
 const standColor = new THREE.Color("#34383a");
 
 export default function RoundTeamTable({
   stationCount,
   isHovered,
   variant = "team",
+  finish = "walnut",
+  showExecutiveNexus = true,
+  planarScale = 1,
 }: RoundTeamTableProps) {
   const layout = useMemo(() => solveRoundTeamTableLayout(stationCount), [stationCount]);
   const isExecutive = variant === "executive";
-  const tableColor = isExecutive
+  const isIvory = finish === "ivory";
+  const safePlanarScale = Number.isFinite(planarScale) ? Math.max(0.2, planarScale) : 1;
+  const tabletopRadius = layout.radius * safePlanarScale;
+  const pedestalScale = Math.min(1.55, Math.sqrt(safePlanarScale));
+  const tableColor = isIvory
     ? isHovered
-      ? new THREE.Color("#765839")
-      : new THREE.Color("#5d432c")
-    : isHovered
-      ? hoveredTableColor
-      : defaultTableColor;
+      ? new THREE.Color("#ffffff")
+      : new THREE.Color("#fffbf2")
+    : isExecutive
+      ? isHovered
+        ? new THREE.Color("#765839")
+        : new THREE.Color("#5d432c")
+      : isHovered
+        ? hoveredTableColor
+        : defaultTableColor;
 
   return (
     <group name="round-team-table">
       <mesh position={[0, DESK_HEIGHT, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[layout.radius, layout.radius, 0.12, 64]} />
-        <meshStandardMaterial color={tableColor} roughness={0.72} />
+        <cylinderGeometry args={[tabletopRadius, tabletopRadius, 0.12, 64]} />
+        <meshStandardMaterial
+          color={tableColor}
+          emissive={isIvory ? "#fffaf0" : "#000000"}
+          emissiveIntensity={isIvory ? 0.18 : 0}
+          roughness={isIvory ? 0.34 : 0.72}
+        />
       </mesh>
 
       <mesh position={[0, DESK_HEIGHT + 0.075, 0]} receiveShadow>
-        <cylinderGeometry args={[layout.radius * 0.98, layout.radius * 0.98, 0.028, 64]} />
+        <cylinderGeometry args={[tabletopRadius * 0.98, tabletopRadius * 0.98, 0.028, 64]} />
         <meshStandardMaterial
-          color={isExecutive ? "#b88942" : tableEdgeColor}
-          roughness={isExecutive ? 0.55 : 0.86}
-          metalness={isExecutive ? 0.28 : 0}
+          color={isIvory ? "#e8e3d9" : isExecutive ? "#b88942" : tableEdgeColor}
+          roughness={isIvory ? 0.48 : isExecutive ? 0.55 : 0.86}
+          metalness={isIvory ? 0.08 : isExecutive ? 0.28 : 0}
         />
       </mesh>
 
       <mesh position={[0, DESK_HEIGHT / 2, 0]} castShadow>
-        <cylinderGeometry args={[0.14, 0.2, DESK_HEIGHT, 24]} />
+        <cylinderGeometry args={[0.14 * pedestalScale, 0.2 * pedestalScale, DESK_HEIGHT, 24]} />
         <meshStandardMaterial color={standColor} roughness={0.8} metalness={0.12} />
       </mesh>
 
       <mesh position={[0, 0.05, 0]} receiveShadow>
-        <cylinderGeometry args={[0.62, 0.72, 0.1, 32]} />
+        <cylinderGeometry args={[0.62 * pedestalScale, 0.72 * pedestalScale, 0.1, 32]} />
         <meshStandardMaterial color="#2f3030" roughness={0.82} />
       </mesh>
 
-      {isExecutive ? (
+      {isExecutive && showExecutiveNexus ? (
         <group name="executive-pod-decor">
           <mesh position={[0, DESK_HEIGHT + 0.102, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <ringGeometry args={[0.4, 0.56, 40]} />
@@ -98,31 +122,12 @@ export default function RoundTeamTable({
       ) : null}
 
       {layout.stations.map((station, index) => (
-        <group
+        <DeskMonitor
           key={station.stationId}
           name={`round-table-station-${index}`}
-          position={[station.x, DESK_HEIGHT + 0.13, station.z]}
+          position={[station.x * safePlanarScale, DESK_HEIGHT + 0.1, station.z * safePlanarScale]}
           rotation={[0, station.yaw, 0]}
-        >
-          <Box args={[0.52, COMPUTER_HEIGHT * 0.82, 0.055]} position={[0, COMPUTER_HEIGHT / 2, 0]}>
-            <meshStandardMaterial color="#111827" roughness={0.62} />
-          </Box>
-          <mesh position={[0, COMPUTER_HEIGHT / 2, 0.031]}>
-            <planeGeometry args={[0.44, COMPUTER_HEIGHT * 0.66]} />
-            <meshStandardMaterial
-              color={isExecutive && index > 0 ? "#172a31" : hardwareColor}
-              emissive={isExecutive && index > 0 ? "#0d5860" : "#000000"}
-              emissiveIntensity={isExecutive && index > 0 ? 0.18 : 0}
-              roughness={0.5}
-            />
-          </mesh>
-          <Box args={[0.16, 0.035, 0.16]} position={[0, 0.035, -0.12]}>
-            <meshStandardMaterial color={standColor} roughness={0.7} />
-          </Box>
-          <Box args={[0.035, 0.12, 0.035]} position={[0, 0.11, -0.07]}>
-            <meshStandardMaterial color={standColor} roughness={0.7} />
-          </Box>
-        </group>
+        />
       ))}
     </group>
   );

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   projectRoomActivities,
+  projectTicketRoomActivities,
   ROOM_ACTIVITY_PRESENTATION_FRESHNESS_MS,
 } from "./room-activity-projection";
 
@@ -9,6 +10,10 @@ const catalog = [
   {
     id: "production",
     activitySkillIds: ["landing-page", "storyboard"],
+  },
+  {
+    id: "research",
+    activitySkillIds: ["research"],
   },
   {
     id: "harness",
@@ -187,5 +192,101 @@ describe("room activity projection", () => {
         }),
       ]),
     );
+  });
+
+  it("projects concurrent specialist tickets once and keeps helper telemetry ambient", () => {
+    const groups = projectTicketRoomActivities({
+      catalog,
+      projects,
+      now: NOW,
+      recognizedSessionKeys: new Set(["codex-thread:session-acme", "codex-thread:session-nova"]),
+      tickets: [
+        {
+          id: "TASK-0042",
+          projectId: "acme",
+          title: "Build Acme landing page",
+          status: "in_progress",
+          specialist: "landing-page-specialist",
+          threadId: "session-acme",
+          updatedAt: NOW - 20,
+        },
+        {
+          id: "TASK-0043",
+          projectId: "nova",
+          title: "Build Nova landing page",
+          status: "in_progress",
+          specialist: "landing-page-specialist",
+          threadId: "session-nova",
+          updatedAt: NOW - 10,
+        },
+      ],
+      invocations: [
+        {
+          skillId: "landing-page",
+          sessionId: "session-acme",
+          projectPath: "/workspace/acme",
+          occurredAt: NOW - 2,
+        },
+        {
+          skillId: "research",
+          sessionId: "session-acme",
+          projectPath: "/workspace/acme",
+          occurredAt: NOW - 1,
+        },
+      ],
+    });
+
+    expect(groups).toEqual([
+      expect.objectContaining({
+        roomId: "production",
+        overflowCount: 0,
+        ambientSkillIds: ["landing-page"],
+        activities: expect.arrayContaining([
+          expect.objectContaining({
+            id: "production:acme:TASK-0042",
+            source: "ticket",
+            ticketTitle: "Build Acme landing page",
+            activeSkillId: "research",
+            callerTarget: { kind: "session", sessionKey: "codex-thread:session-acme" },
+          }),
+          expect.objectContaining({
+            id: "production:nova:TASK-0043",
+            source: "ticket",
+            specialistLabel: "Landing Page Specialist",
+          }),
+        ]),
+      }),
+      expect.objectContaining({
+        roomId: "research",
+        activities: [],
+        ambientSkillIds: ["research"],
+      }),
+    ]);
+  });
+
+  it("does not infer specialist placement for legacy or unknown tickets", () => {
+    expect(
+      projectTicketRoomActivities({
+        catalog,
+        projects,
+        now: NOW,
+        tickets: [
+          {
+            id: "TASK-0044",
+            projectId: "acme",
+            title: "Legacy task",
+            status: "in_progress",
+          },
+          {
+            id: "TASK-0045",
+            projectId: "nova",
+            title: "Unknown task",
+            status: "in_progress",
+            specialist: "paint-the-office-specialist",
+          },
+        ],
+        invocations: [],
+      }),
+    ).toEqual([]);
   });
 });

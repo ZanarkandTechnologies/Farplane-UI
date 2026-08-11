@@ -8,10 +8,10 @@ import {
   canPlaceOfficeObjectAtPosition,
   constrainOfficeObjectPositionForLayout,
 } from "@/modules/office/components/office-object-placement";
+import { persistOfficeKitCustomization } from "@/modules/office/lib/office-kit";
 import type { OfficeId } from "@/modules/office/lib/types";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { persistOfficeKitCustomization } from "@/modules/office/lib/office-kit";
 import { useAppStore } from "@/store";
 import { DraggableController } from "../controllers/draggable-controller";
 import { useDeleteOfficeObject } from "../hooks/use-delete-office-object";
@@ -31,6 +31,8 @@ import {
 } from "./interactive-object-vectors";
 import { resolvePersistedOfficeObjectId } from "./office-object-id";
 import { refreshOfficeDataSafely } from "./office-object-refresh";
+
+const HOVER_LABEL_Y_POSITION_MULTIPLIER = 1.5;
 
 interface InteractiveObjectProps {
   children: React.ReactNode;
@@ -568,7 +570,7 @@ export function InteractiveObject({
         <Html
           center
           distanceFactor={9}
-          position={[0, hoverLabelYOffset, 0]}
+          position={[0, hoverLabelYOffset * HOVER_LABEL_Y_POSITION_MULTIPLIER, 0]}
           sprite
           transform
           zIndexRange={[60, 0]}

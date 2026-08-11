@@ -7,6 +7,7 @@
  * Authored prop clusters and destination-room presentation live in focused sibling components.
  */
 
+import type { OfficeDioramaTheme } from "@/config/office-theme";
 import type { Id } from "@/lib/entity-types";
 import { getExecutiveSpecialist } from "@/lib/executive-specialists";
 import {
@@ -56,6 +57,7 @@ export default function ActivityLandmark({
   scale,
   companyId,
   metadata,
+  dioramaTheme,
 }: {
   objectId: Id<"officeObjects">;
   position?: [number, number, number];
@@ -63,6 +65,7 @@ export default function ActivityLandmark({
   scale?: [number, number, number];
   companyId?: Id<"companies">;
   metadata?: Record<string, unknown>;
+  dioramaTheme?: OfficeDioramaTheme;
 }) {
   const { officeSettings } = useOfficeDataContext();
   const kind = normalizeActivityLandmarkKind(metadata?.landmarkKind);
@@ -86,6 +89,7 @@ export default function ActivityLandmark({
     ? getOperatingRoomDefinition(metadata.operatingRoomId)
     : null;
   const roomHost = operatingRoom ? getExecutiveSpecialist(operatingRoom.hostAgentId) : null;
+  const useArchipelagoPresentation = officeSettings.layoutStrategy === "team_neighborhoods";
   return (
     <InteractiveObject
       objectType="activity-landmark"
@@ -111,8 +115,10 @@ export default function ActivityLandmark({
         roomFurnitureStyle={
           typeof metadata?.roomFurnitureStyle === "string" ? metadata.roomFurnitureStyle : undefined
         }
-        roomLabel={operatingRoom?.displayName}
-        hostLabel={roomHost?.name}
+        roomLabel={useArchipelagoPresentation ? undefined : operatingRoom?.displayName}
+        hostLabel={useArchipelagoPresentation ? undefined : roomHost?.name}
+        compactLabel={useArchipelagoPresentation}
+        dioramaTheme={dioramaTheme}
       />
     </InteractiveObject>
   );

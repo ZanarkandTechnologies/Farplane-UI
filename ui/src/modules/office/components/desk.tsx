@@ -31,9 +31,10 @@
  */
 import { Box } from "@react-three/drei";
 
-import { COMPUTER_HEIGHT, DESK_DEPTH, DESK_HEIGHT, DESK_WIDTH } from "@/constants";
 import type { JSX } from "react";
 import * as THREE from 'three';
+import { DESK_DEPTH, DESK_HEIGHT, DESK_WIDTH } from "@/constants";
+import { DeskMonitor } from "./desk-monitor";
 
 interface DeskCustomProps {
     deskId: string;
@@ -81,14 +82,7 @@ export default function Desk({ deskId, position, rotationY, isHovered, ...props 
             <Box args={[0.1, DESK_HEIGHT, 0.1]} position={[DESK_WIDTH / 2 - 0.1, DESK_HEIGHT / 2, -DESK_DEPTH / 2 + 0.1]} castShadow>
                 <meshStandardMaterial color="darkgrey" />
             </Box>
-            {/* Computer Monitor */}
-            <Box args={[0.5, COMPUTER_HEIGHT, 0.05]} position={[0, DESK_HEIGHT + 0.1 + COMPUTER_HEIGHT / 2, -DESK_DEPTH / 2 + 0.2]} castShadow>
-                <meshStandardMaterial color="black" />
-            </Box>
-            {/* Computer Base */}
-            <Box args={[0.2, 0.05, 0.2]} position={[0, DESK_HEIGHT + 0.1 + 0.025, -DESK_DEPTH / 2 + 0.2]} castShadow>
-                <meshStandardMaterial color="darkgrey" />
-            </Box>
+            <DeskMonitor position={[0, DESK_HEIGHT + 0.1, -DESK_DEPTH / 2 + 0.2]} />
         </group>
     );
 }

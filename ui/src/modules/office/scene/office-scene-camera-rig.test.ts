@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyOfficeSceneCameraConfig,
   applyOfficeSceneCameraViewport,
+  getOfficeViewportFitZoom,
   type OfficeSceneCameraConfig,
   selectOfficeSceneCamera,
 } from "./office-scene-camera-rig";
@@ -22,10 +23,12 @@ describe("office scene camera rig", () => {
     const perspective = new THREE.PerspectiveCamera();
     const orthographic = new THREE.OrthographicCamera();
 
-    expect(selectOfficeSceneCamera("perspective", { perspective, orthographic })).toBe(perspective);
-    expect(selectOfficeSceneCamera("orthographic", { perspective, orthographic })).toBe(
-      orthographic,
-    );
+    expect(
+      selectOfficeSceneCamera("perspective", { perspective, orthographic }),
+    ).toBe(perspective);
+    expect(
+      selectOfficeSceneCamera("orthographic", { perspective, orthographic }),
+    ).toBe(orthographic);
   });
 
   it("configures a destination camera before it becomes active", () => {
@@ -42,7 +45,9 @@ describe("office scene camera rig", () => {
       .sub(new THREE.Vector3(...perspectiveConfig.position))
       .normalize();
     expect(
-      camera.getWorldDirection(new THREE.Vector3()).distanceTo(expectedDirection),
+      camera
+        .getWorldDirection(new THREE.Vector3())
+        .distanceTo(expectedDirection),
     ).toBeLessThan(0.0001);
   });
 
@@ -61,7 +66,9 @@ describe("office scene camera rig", () => {
 
     expect(camera.isOrthographicCamera).toBe(true);
     expect(camera.zoom).toBe(28);
-    expect([camera.left, camera.right, camera.top, camera.bottom]).toEqual([-640, 640, 360, -360]);
+    expect([camera.left, camera.right, camera.top, camera.bottom]).toEqual([
+      -640, 640, 360, -360,
+    ]);
   });
 
   it("updates responsive projection bounds without resetting operator zoom", () => {
@@ -70,7 +77,32 @@ describe("office scene camera rig", () => {
 
     applyOfficeSceneCameraViewport(camera, { width: 900, height: 600 });
 
-    expect([camera.left, camera.right, camera.top, camera.bottom]).toEqual([-450, 450, 300, -300]);
+    expect([camera.left, camera.right, camera.top, camera.bottom]).toEqual([
+      -450, 450, 300, -300,
+    ]);
     expect(camera.zoom).toBe(32);
+  });
+
+  it("backs an automatic diorama out on a narrow viewport without changing normal offices", () => {
+    expect(getOfficeViewportFitZoom(23, { width: 1440, height: 900 })).toBe(23);
+    expect(
+      getOfficeViewportFitZoom(23, { width: 390, height: 844 }),
+    ).toBeLessThan(7);
+
+    const camera = new THREE.OrthographicCamera();
+    applyOfficeSceneCameraConfig(
+      camera,
+      {
+        ...perspectiveConfig,
+        projection: "orthographic",
+        zoom: 23,
+        fitToViewport: true,
+      },
+      { width: 390, height: 844 },
+    );
+
+    expect(camera.zoom).toBeCloseTo(
+      getOfficeViewportFitZoom(23, { width: 390, height: 844 }),
+    );
   });
 });

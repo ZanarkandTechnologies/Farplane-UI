@@ -25,6 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { PlacementHandler } from "@/components/placement-handler";
 import { extractAgentId } from "@/lib/entity-utils";
+import { TICKET_SPECIALIST_REGISTRY } from "@/lib/ticket-routing/specialist-registry";
 import { useChatStore } from "@/modules/chat/chat-store";
 import type { StatusType } from "@/modules/navigation/components/status-indicator";
 import { Employee } from "@/modules/office/components/employee";
@@ -32,14 +33,26 @@ import {
   getTeamCharacterPreviewForEmployee,
   useSyntheticTeamSkillDemo,
 } from "@/modules/office/components/employee/use-team-character-preview";
+import { ProjectCouncil } from "@/modules/office/components/project-council";
 import { RoomActivityLayer } from "@/modules/office/components/room-activity-layer";
+import { SpecialistStudioStations } from "@/modules/office/components/specialist-studio-stations";
+import {
+  getDepartmentIslandBridgePlan,
+  getDepartmentIslandGeometry,
+} from "@/modules/office/lib/department-island-layout";
 import { getOfficeLayoutBounds } from "@/modules/office/lib/office-layout";
 import { measureOfficeSceneQuality } from "@/modules/office/lib/office-scene-quality";
 import { OPERATING_ROOM_CATALOG } from "@/modules/office/lib/operating-room-catalog";
+import { buildProjectCouncilLayout } from "@/modules/office/lib/project-council-layout";
+import { resolveProjectCouncilPresences } from "@/modules/office/lib/project-council-presence";
 import {
-  projectRoomActivities,
+  projectTicketRoomActivities,
   type RoomActivityCallerTarget,
 } from "@/modules/office/lib/room-activity-projection";
+import {
+  type ProjectCouncilLeadPosition,
+  projectTicketDispatches,
+} from "@/modules/office/lib/ticket-dispatch-projection";
 import { updateOfficeQaState } from "@/modules/office/qa/office-qa-state";
 import { useOfficeWorldStore } from "@/modules/office/store";
 import { applySyntheticSkillDemo } from "@/modules/office/synthetic-skill-demo";
@@ -47,6 +60,7 @@ import type { SkillInvocationDashboard } from "@/modules/skill-invocations/skill
 import { isConvexEnabled } from "@/providers/convex-provider";
 import { useAppStore } from "@/store";
 import { api } from "../../../../../convex/_generated/api";
+import { DepartmentIslandLayer } from "./department-island-layer";
 import { getLiveEmployeePosition } from "./employee-position-registry";
 import { OfficeClickProbe } from "./office-click-probe";
 import { getOfficeDebugOverlayPlan, OfficeDebugOverlaySystem } from "./office-debug-overlay-system";
@@ -59,9 +73,14 @@ import {
 import { OfficeObjectRenderer } from "./office-object-renderer";
 import { getOrbitWallFadeMask, OfficeRoomShell, type WallFadeMask } from "./office-room-shell";
 import { ThreadLineageEffects } from "./thread-lineage-effects";
+import { TicketDispatchEffects } from "./ticket-dispatch-effects";
 import type { OfficeSceneProps } from "./types";
 import { useOfficeSceneBootstrap } from "./use-office-scene-bootstrap";
-import { useOfficeSceneCameraTransition, useOfficeSceneTheme } from "./use-office-scene-camera";
+import {
+  useOfficeSceneCameraTransition,
+  useOfficeSceneDioramaTheme,
+  useOfficeSceneTheme,
+} from "./use-office-scene-camera";
 import {
   applyLiveStatusToSceneEmployees,
   useOfficeSceneDerivedData,
@@ -97,7 +116,9 @@ function OfficeCameraQaProbe({
   useFrame((state) => {
     if (!import.meta.env.DEV || typeof window === "undefined") return;
     const camera = state.camera as THREE.OrthographicCamera | THREE.PerspectiveCamera;
-    const host = window as Window & { __FARPLANE_OFFICE_CAMERA__?: Record<string, unknown> };
+    const host = window as Window & {
+      __FARPLANE_OFFICE_CAMERA__?: Record<string, unknown>;
+    };
     host.__FARPLANE_OFFICE_CAMERA__ = {
       projection: camera.type,
       position: camera.position.toArray(),
@@ -182,6 +203,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
     officeAreas,
     officeFootprint,
     officeLayout,
+    officeLayoutStrategy,
     officeDecorSettings,
     officeViewSettings,
     companyId,
@@ -206,7 +228,10 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
   const isStoryMode = isChatOpen && presentationMode === "story";
 
   const officeTheme = useOfficeSceneTheme();
+  const dioramaTheme = useOfficeSceneDioramaTheme();
   const sceneBuilderMode = isAnimatingCamera ? false : isBuilderMode;
+  const isDepartmentArchipelago =
+    !sceneBuilderMode && officeLayoutStrategy === "team_neighborhoods";
   const forcePerspective = isStoryMode;
   const isLayoutEditing = sceneBuilderMode && activeBuilderTool !== null;
   const overlayPlan = useMemo(
@@ -223,7 +248,12 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
   const useCompactSceneOverlays = isStoryMode ? false : isFixedOfficeSceneView(officeViewSettings);
   const layoutCenter = useMemo(() => {
     const bounds = getOfficeLayoutBounds(officeLayout);
-    return { x: bounds.centerX, z: bounds.centerZ, width: bounds.width, depth: bounds.depth };
+    return {
+      x: bounds.centerX,
+      z: bounds.centerZ,
+      width: bounds.width,
+      depth: bounds.depth,
+    };
   }, [officeLayout]);
   const viewState = getOfficeSceneViewState({
     isBuilderMode: sceneBuilderMode,
@@ -233,7 +263,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
     layoutCenter,
   });
   const isFixed25 = isFixedOfficeSceneView(officeViewSettings) && !forcePerspective;
-  const minZoom = viewState.minZoom ?? 12;
+  const minZoom = isDepartmentArchipelago ? 5 : (viewState.minZoom ?? 12);
   const maxZoom = viewState.maxZoom ?? 55;
   const cameraZoom = useCameraZoomWhenFixed(minZoom, maxZoom, isFixed25);
   const orbitWallFadeMask = useOrbitWallFadeMask(
@@ -249,6 +279,19 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
   });
   const liveStatusByAgentId = useOfficeWorldStore((state) => state.liveStatusByAgentId);
   const projects = useOfficeWorldStore((state) => state.companyModel?.projects);
+  const tickets = useOfficeWorldStore((state) => state.companyModel?.tasks ?? []);
+  const visibleProjects = useMemo(() => {
+    const visibleTeamIds = new Set(teams.map((team) => String(team._id)));
+    return (projects ?? []).filter((project) => visibleTeamIds.has(`team-${project.id}`));
+  }, [projects, teams]);
+  const projectCouncilLayout = useMemo(
+    () =>
+      buildProjectCouncilLayout(
+        visibleProjects.map((project) => project.id),
+        TICKET_SPECIALIST_REGISTRY,
+      ),
+    [visibleProjects],
+  );
   const runtimeEmployeesForScene = useMemo(
     () =>
       applyLiveStatusToSceneEmployees({
@@ -258,16 +301,73 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
       }),
     [employeesForScene, liveStatusByAgentId, officeObjects],
   );
+  const projectCouncilPresences = useMemo(
+    () =>
+      resolveProjectCouncilPresences({
+        projects: visibleProjects,
+        employees: runtimeEmployeesForScene,
+      }),
+    [runtimeEmployeesForScene, visibleProjects],
+  );
+  const projectIdByCouncilLeadId = useMemo(
+    () =>
+      new Map(projectCouncilPresences.map((presence) => [presence.employeeId, presence.projectId])),
+    [projectCouncilPresences],
+  );
+  const councilLeadPositions = useMemo<readonly ProjectCouncilLeadPosition[]>(() => {
+    const sectorByProjectId = new Map(
+      projectCouncilLayout.sectors.map((sector) => [sector.projectId, sector]),
+    );
+    return projectCouncilPresences.flatMap((presence) => {
+      const sector = sectorByProjectId.get(presence.projectId);
+      return sector
+        ? [
+            {
+              projectId: presence.projectId,
+              employeeId: presence.employeeId,
+              position: sector.position,
+            },
+          ]
+        : [];
+    });
+  }, [projectCouncilLayout, projectCouncilPresences]);
+  const councilizedRuntimeEmployees = useMemo(() => {
+    if (!isDepartmentArchipelago) return runtimeEmployeesForScene;
+    const councilLeadByEmployeeId = new Map(
+      councilLeadPositions.map((lead) => [lead.employeeId, lead]),
+    );
+    return runtimeEmployeesForScene.map((employee) => {
+      const lead = councilLeadByEmployeeId.get(String(employee._id));
+      if (!lead) return employee;
+      return {
+        ...employee,
+        initialPosition: lead.position,
+        activityTargetPosition: undefined,
+        activityTargetObjectPosition: undefined,
+        activityTargetSkillId: undefined,
+        wantsToWander: false,
+      };
+    });
+  }, [councilLeadPositions, isDepartmentArchipelago, runtimeEmployeesForScene]);
   const syntheticSkillDemo = useSyntheticTeamSkillDemo();
-  const presentedEmployeesForScene = useMemo(
+  const allPresentationEmployees = useMemo(
     () =>
       applySyntheticSkillDemo({
-        employees: runtimeEmployeesForScene,
+        employees: councilizedRuntimeEmployees,
         officeObjects,
         demo: syntheticSkillDemo,
       }),
-    [officeObjects, runtimeEmployeesForScene, syntheticSkillDemo],
+    [councilizedRuntimeEmployees, officeObjects, syntheticSkillDemo],
   );
+  const presentedEmployeesForScene = useMemo(() => {
+    if (!isDepartmentArchipelago) return allPresentationEmployees;
+    const councilLeadIds = new Set(councilLeadPositions.map((lead) => lead.employeeId));
+    return allPresentationEmployees.filter(
+      (employee) =>
+        !String(employee.teamId ?? "").startsWith("team-") ||
+        councilLeadIds.has(String(employee._id)),
+    );
+  }, [allPresentationEmployees, councilLeadPositions, isDepartmentArchipelago]);
   const skillInvocationDashboard = useQuery(
     api.modules.skillInvocations.queries.getSkillInvocationDashboard,
     isConvexEnabled() ? { rangeDays: 1, limit: 200 } : "skip",
@@ -281,29 +381,52 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
   }, [skillInvocationDashboard?.recentEvents.length]);
   const recognizedSessionKeys = useMemo(() => {
     const keys = new Set<string>();
-    for (const employee of presentedEmployeesForScene) {
+    for (const employee of allPresentationEmployees) {
       const observed = employee.observedRuntime;
       if (!observed) continue;
       if (observed.sessionKey) keys.add(observed.sessionKey);
       if (observed.threadId) keys.add(observed.threadId);
     }
     return keys;
-  }, [presentedEmployeesForScene]);
+  }, [allPresentationEmployees]);
   const roomActivityGroups = useMemo(
     () =>
-      projectRoomActivities({
+      projectTicketRoomActivities({
         invocations: skillInvocationDashboard?.recentEvents ?? [],
-        projects: projects ?? [],
+        projects: visibleProjects,
         catalog: OPERATING_ROOM_CATALOG,
+        tickets,
         now: roomActivityNow,
         recognizedSessionKeys,
       }),
-    [projects, recognizedSessionKeys, roomActivityNow, skillInvocationDashboard?.recentEvents],
+    [
+      visibleProjects,
+      recognizedSessionKeys,
+      roomActivityNow,
+      skillInvocationDashboard?.recentEvents,
+      tickets,
+    ],
   );
   const [roomActivityFixture, setRoomActivityFixture] = useState<typeof roomActivityGroups | null>(
     null,
   );
   const presentedRoomActivityGroups = roomActivityFixture ?? roomActivityGroups;
+  const ticketDispatches = useMemo(
+    () =>
+      isDepartmentArchipelago
+        ? projectTicketDispatches({
+            activities: presentedRoomActivityGroups.flatMap((group) => group.activities),
+            layout: projectCouncilLayout,
+            councilLeads: councilLeadPositions,
+          })
+        : [],
+    [
+      councilLeadPositions,
+      isDepartmentArchipelago,
+      presentedRoomActivityGroups,
+      projectCouncilLayout,
+    ],
+  );
   const handleOpenRoomActivity = useCallback((target: RoomActivityCallerTarget): void => {
     const state = useAppStore.getState();
     if (target.kind === "session") {
@@ -314,7 +437,10 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
     state.setSelectedProjectId(target.projectId);
     state.setIsGlobalTeamPanelOpen(true);
   }, []);
-
+  const handleOpenCouncilProject = useCallback(
+    (projectId: string): void => handleOpenRoomActivity({ kind: "project", projectId }),
+    [handleOpenRoomActivity],
+  );
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     updateOfficeQaState({
@@ -336,8 +462,24 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
           overflowCount: group.overflowCount,
         })),
       },
+      projectCouncil: {
+        enabled: isDepartmentArchipelago,
+        sectorCount: isDepartmentArchipelago ? projectCouncilLayout.sectors.length : 0,
+        visibleProjectIds: isDepartmentArchipelago
+          ? projectCouncilLayout.sectors.map((sector) => sector.projectId)
+          : [],
+        specialistStationCount: isDepartmentArchipelago
+          ? projectCouncilLayout.specialistStations.length
+          : 0,
+        activeDispatchCount: ticketDispatches.length,
+      },
     });
-  }, [presentedRoomActivityGroups]);
+  }, [
+    isDepartmentArchipelago,
+    presentedRoomActivityGroups,
+    projectCouncilLayout,
+    ticketDispatches,
+  ]);
 
   useEffect(() => {
     if (!import.meta.env.DEV || typeof window === "undefined") return;
@@ -358,8 +500,12 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
   }, [officeObjects, teamById]);
   useEffect(() => {
     if (!import.meta.env.DEV || typeof window === "undefined") return;
-    updateOfficeQaState({ quality: measureOfficeSceneQuality(officeObjects, officeLayout) });
-  }, [officeLayout, officeObjects]);
+    updateOfficeQaState({
+      quality: measureOfficeSceneQuality(officeObjects, officeLayout, {
+        hasOfficeShell: !isDepartmentArchipelago,
+      }),
+    });
+  }, [isDepartmentArchipelago, officeLayout, officeObjects]);
   const navigableOfficeObjectIds = useMemo(
     () => navigableOfficeObjects.map((object) => String(object._id)),
     [navigableOfficeObjects],
@@ -484,6 +630,8 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
         teamById={teamById}
         desksByTeamId={desksByTeamId}
         officeFootprint={officeFootprint}
+        archipelagoMode={isDepartmentArchipelago}
+        dioramaTheme={dioramaTheme}
         handleTeamClick={handleTeamClick}
         handleManagementClick={handleCeoDeskClick}
         getObjectRef={getObjectRef}
@@ -498,16 +646,34 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
     handleCeoDeskClick,
     handleTeamClick,
     officeFootprint,
+    dioramaTheme,
+    isDepartmentArchipelago,
     officeObjects,
     teamById,
   ]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    updateOfficeQaState({
+      archipelago: {
+        enabled: isDepartmentArchipelago,
+        islandCount: isDepartmentArchipelago ? getDepartmentIslandGeometry().length : 0,
+        bridgeCount: isDepartmentArchipelago ? getDepartmentIslandBridgePlan().length : 0,
+        roomCount: officeObjects.filter((object) =>
+          OPERATING_ROOM_CATALOG.some((room) => object.metadata?.operatingRoomId === room.id),
+        ).length,
+      },
+    });
+  }, [isDepartmentArchipelago, officeObjects]);
 
   return (
     <>
       <OfficeLighting
         officeTheme={officeTheme}
+        dioramaTheme={dioramaTheme}
         officeLayout={officeLayout}
         officeViewSettings={officeViewSettings}
+        archipelagoMode={isDepartmentArchipelago}
       />
       <OfficeCameraQaProbe
         controlsRef={orbitControlsRef}
@@ -519,8 +685,8 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
         }}
       />
 
-      {isFixed25 && viewState.minZoom != null && viewState.maxZoom != null ? (
-        <ZoomClamp minZoom={viewState.minZoom} maxZoom={viewState.maxZoom} />
+      {isFixed25 && viewState.maxZoom != null ? (
+        <ZoomClamp minZoom={minZoom} maxZoom={viewState.maxZoom} />
       ) : null}
 
       <OrbitControls
@@ -545,6 +711,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
         floorRef={floorRef}
         officeFootprint={officeFootprint}
         officeLayout={officeLayout}
+        archipelagoMode={isDepartmentArchipelago}
         officeDecorSettings={officeDecorSettings}
         officeViewSettings={officeViewSettings}
         officeTheme={officeTheme}
@@ -555,6 +722,17 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
         zoomRange={isFixed25 ? { minZoom, maxZoom } : undefined}
         orbitWallFadeMask={orbitWallFadeMask}
       />
+      <DepartmentIslandLayer
+        enabled={isDepartmentArchipelago}
+        councilLayout={projectCouncilLayout}
+        dioramaTheme={dioramaTheme}
+      />
+      {isDepartmentArchipelago ? (
+        <>
+          <ProjectCouncil layout={projectCouncilLayout} />
+          <SpecialistStudioStations layout={projectCouncilLayout} />
+        </>
+      ) : null}
       <OfficeLayoutEditor showDebugLabels={overlayPlan.showLayoutDebugLabels} />
       {import.meta.env.DEV ? (
         <OfficeClickProbe
@@ -564,64 +742,74 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
         />
       ) : null}
       {!sceneBuilderMode &&
-        presentedEmployeesForScene.map((employee) => (
-          <Employee
-            key={employee._id}
-            _id={employee._id}
-            name={employee.name}
-            position={employee.initialPosition}
-            activityTargetPosition={employee.activityTargetPosition}
-            activityTargetObjectPosition={employee.activityTargetObjectPosition}
-            activityTargetSkillId={employee.activityTargetSkillId}
-            activityEffectVariant={employee.activityEffectVariant}
-            activityScenePresentation={employee.activityScenePresentation}
-            isBusy={employee.isBusy}
-            isCEO={employee.isCEO}
-            isSupervisor={employee.isSupervisor}
-            gender={employee.gender}
-            onClick={handleEmployeeClick}
-            debugMode={overlayPlan.showAgentPaths}
-            debugPathOverlay={overlayPlan.showAgentPaths}
-            status={(employee.status || "none") as StatusType}
-            statusMessage={employee.statusMessage}
-            wantsToWander={employee.wantsToWander}
-            jobTitle={employee.jobTitle}
-            team={employee.team}
-            teamId={employee.teamId}
-            notificationCount={employee.notificationCount}
-            notificationPriority={employee.notificationPriority}
-            activityState={employee.activityState}
-            activityLabel={employee.activityLabel}
-            activityDetail={employee.activityDetail}
-            activityUpdatedAt={employee.activityUpdatedAt}
-            bubbleMessages={employee.bubbleMessages}
-            heartbeatState={employee.heartbeatState}
-            heartbeatBubbles={employee.heartbeatBubbles}
-            idleInteractionTargets={employee.idleInteractionTargets}
-            presencePersistent={employee.presencePersistent}
-            persistenceTag={employee.persistenceTag}
-            presenceExpiresAt={employee.presenceExpiresAt}
-            observedRuntime={employee.observedRuntime}
-            teamCharacterPolicy={employee.teamCharacterPolicy}
-            teamCharacterPreview={getTeamCharacterPreviewForEmployee(syntheticSkillDemo, {
-              employeeId: String(employee._id),
-              teamId: employee.teamId ? String(employee.teamId) : undefined,
-              presencePersistent: employee.presencePersistent,
-            })}
-            profileImageUrl={employee.profileImageUrl}
-            useCompactOverlayMode={useCompactSceneOverlays}
-            appearance={employee.appearance}
-          />
-        ))}
+        presentedEmployeesForScene.map((employee) => {
+          const councilProjectId = isDepartmentArchipelago
+            ? projectIdByCouncilLeadId.get(String(employee._id))
+            : undefined;
+          return (
+            <Employee
+              key={employee._id}
+              _id={employee._id}
+              name={employee.name}
+              position={employee.initialPosition}
+              activityTargetPosition={employee.activityTargetPosition}
+              activityTargetObjectPosition={employee.activityTargetObjectPosition}
+              activityTargetSkillId={employee.activityTargetSkillId}
+              activityEffectVariant={employee.activityEffectVariant}
+              activityScenePresentation={employee.activityScenePresentation}
+              isBusy={employee.isBusy}
+              isCEO={employee.isCEO}
+              isSupervisor={employee.isSupervisor}
+              gender={employee.gender}
+              onClick={handleEmployeeClick}
+              onActivate={
+                councilProjectId ? () => handleOpenCouncilProject(councilProjectId) : undefined
+              }
+              debugMode={overlayPlan.showAgentPaths}
+              debugPathOverlay={overlayPlan.showAgentPaths}
+              status={(employee.status || "none") as StatusType}
+              statusMessage={employee.statusMessage}
+              wantsToWander={employee.wantsToWander}
+              jobTitle={employee.jobTitle}
+              team={employee.team}
+              teamId={employee.teamId}
+              notificationCount={employee.notificationCount}
+              notificationPriority={employee.notificationPriority}
+              activityState={employee.activityState}
+              activityLabel={employee.activityLabel}
+              activityDetail={employee.activityDetail}
+              activityUpdatedAt={employee.activityUpdatedAt}
+              bubbleMessages={employee.bubbleMessages}
+              heartbeatState={employee.heartbeatState}
+              heartbeatBubbles={employee.heartbeatBubbles}
+              idleInteractionTargets={employee.idleInteractionTargets}
+              presencePersistent={employee.presencePersistent}
+              persistenceTag={employee.persistenceTag}
+              presenceExpiresAt={employee.presenceExpiresAt}
+              observedRuntime={employee.observedRuntime}
+              teamCharacterPolicy={employee.teamCharacterPolicy}
+              teamCharacterPreview={getTeamCharacterPreviewForEmployee(syntheticSkillDemo, {
+                employeeId: String(employee._id),
+                teamId: employee.teamId ? String(employee.teamId) : undefined,
+                presencePersistent: employee.presencePersistent,
+              })}
+              profileImageUrl={employee.profileImageUrl}
+              useCompactOverlayMode={useCompactSceneOverlays}
+              appearance={employee.appearance}
+            />
+          );
+        })}
       {!sceneBuilderMode ? <ThreadLineageEffects employees={presentedEmployeesForScene} /> : null}
+      {!sceneBuilderMode ? (
+        <TicketDispatchEffects
+          dispatches={ticketDispatches}
+          onOpenCallerTarget={handleOpenRoomActivity}
+        />
+      ) : null}
 
       {officeObjectsRendered}
       {!sceneBuilderMode ? (
-        <RoomActivityLayer
-          groups={presentedRoomActivityGroups}
-          officeObjects={officeObjects}
-          onOpenCallerTarget={handleOpenRoomActivity}
-        />
+        <RoomActivityLayer groups={presentedRoomActivityGroups} officeObjects={officeObjects} />
       ) : null}
 
       <OfficeDebugOverlaySystem

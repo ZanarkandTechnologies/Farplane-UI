@@ -1,7 +1,7 @@
 # Office Module
 
 > **Feature Status**: Active
-> **Last Updated**: Dec 2025
+> **Last Updated**: Aug 2026
 
 ## Overview
 
@@ -14,8 +14,11 @@ The Office System provides the 3D office environment where employees, teams, and
 **Status**: Active (Aug 2026)
 
 The office has eleven fixed functional rooms, each with one deskless host, one
-registered operational panel, and optional short-lived worktables driven by
-curated skill telemetry. Hosts are stable chat entrypoints, not permanently
+registered operational panel, and optional temporary workers projected from
+active filesystem tickets. A ticket's optional `specialist` maps to one room;
+its `owner` remains accountable and its hook-bound `thread_id` opens the primary
+task thread. Curated skill telemetry only animates the assigned worker or the room;
+it never creates a worker. Hosts are stable chat entrypoints, not permanently
 running workers: office hosts reuse an office-scoped conversation, while
 Research, Production, and QA require the selected project and keep concurrent
 projects isolated.
@@ -30,15 +33,18 @@ the retired training modal.
 
 - `lib/operating-room-catalog.ts`: room inventory, hosts, scopes, panels, and curated skills
 - `lib/room-hosts.ts`: stable host projection and conversation keys
-- `lib/room-activity-projection.ts`: bounded transient worktable projection
-- `components/room-activity-layer.tsx`: restrained scene presentation
+- `lib/project-council-layout.ts`: deterministic Council sectors and studio station layout
+- `lib/project-council-presence.ts`: CEO / Project Pulse Council Lead selection
+- `lib/ticket-dispatch-projection.ts`: ticket-first ephemeral worker projection
+- `components/project-council.tsx`: central Council and project click targets
+- `components/specialist-studio-stations.tsx`: fixed, registry-mapped studio fixtures
 - `../../providers/office-project-visibility.ts`: Office3D-only stale-project policy
 - `../world-map/hooks/use-company-world-projection.ts`: aggregate company graph
 - `../self-improvement/`: ticket-backed self-improvement run surface
 
 ### Room Rendering And Placement ✅
 
-**Status**: Active (Jul 2026)
+**Status**: Active (Aug 2026)
 
 Native low-poly `activity-landmark` objects now render the fixed eleven-room
 operating catalog: Self-Improvement Lab, Research Library, Production Studio,
@@ -51,26 +57,29 @@ views, and leaf tabs stay launcher-only.
 Landmark panel routing and avatar activity targeting are independent metadata
 bindings. `uiBinding` opens one registered top-level panel, while `skillBinding`
 can bind one primary `skillId` plus aliases to the same transient avatar anchor.
-The operator's live sidecar owns destination identity and mapping. Automatic
-layouts treat landmarks as solver-owned edge rooms: required team areas and
-walk routes place first, ordinary decor packs into the smallest core that can
-preserve it, the core snaps to 5 x 5 modules, and destinations distribute
-uniformly across north, east, and west rails. The camera-facing south edge stays
-open. The preliminary source floor does not set the automatic building size. If
-the core is genuinely full, the solver retries by growing the whole core one
-module at a time. Manual layouts continue to honor saved transforms.
+The operator's live sidecar owns destination identity and mapping.
 
-The bay opening keeps that inward navigation rotation, while its permanent
-station contents counter-rotate toward the active fixed isometric camera.
-Every destination uses the same 5 x 5 tile-aligned room zone. The solver keeps
-one smooth rectangular floor spanning the north/east/west rails so the global
-office wall does not zig-zag around individual zones. Rooms still occupy only
-three sides. Each landmark keeps its authored prop scale and receives only a
-restrained colored floor zone—no enlarged bay walls, corner continuations,
-south room rail, or neutral perimeter band. Permanent landmarks share the
-Sandstone Atelier material system: dark metal, walnut, warm paper, stone, and
-inactive teal-grey screens. Five muted role colors identify room purpose while
-brighter accents remain exclusive to engaged employee animations and status.
+The automatic `team_neighborhoods` presentation is a light department
+archipelago, not an enclosed building. The pure layout owner groups the eleven
+existing rooms into Intelligence (Research, Skills, Self-Improvement),
+Operations (Harness, Organization, Finance), Production (Production, Comms),
+and Assurance (QA, Telemetry, Thread Data). Four raised, rounded islands join a
+central Project Council around the Company World nexus through four ordinary
+walkable bridges. Every Office-visible project receives one equal Council
+sector. Its existing project CEO is the Council Lead; Project Pulse fills an
+empty project seat. The company CEO stays outside the Council. The same
+tile layout remains the only navigation/click system; slabs are presentation
+geometry, not persisted collision state.
+
+Every room remains a 5 x 5 tile-aligned station with its existing host, panel,
+and activity target. The automatic presentation removes bay walls, the
+rectangular checkerboard shell, the Command Commons cage, and persistent room
+identity pills; room identity appears through ordinary hover and interaction.
+Warm light platform tops, darker neutral edges, contact shadows, a compact
+Council ring, and one table-free Company World nexus
+with a large, multi-path particle hive-mind swarm provide the hierarchy. `manual`, Builder,
+equipped-kit, and all other layout strategies continue to render their saved
+floors, walls, and transforms without archipelago reflow.
 
 The room envelope participates in placement collision so rooms cannot overlap
 tables or one another, but activity landmarks do not register as runtime
@@ -78,27 +87,28 @@ navigation obstacles. Employees walk through the open side to interior,
 occupant-spread activity spots instead of stopping outside the room.
 
 Each room remains one persisted object. Its renderer owns the floor zone,
-permanent equipment, and stable room/host plaque. Curated skill-invocation
-telemetry projects at most three transient project worktables plus an overflow
-count; generic execution and non-artifact ingest do not create room activity.
-The work projection expires after the existing five-minute telemetry freshness
-window and never creates a task, agent, or persistent furniture record.
+permanent equipment, and stable room/host plaque. Specialist stations are
+fixed registry-mapped service fixtures, not employees. An active ticket with a
+known `specialist` projects a short-lived clone of that ticket's project
+Council Lead at the matching station and a curved dispatch line from the
+Council. Skill helpers and generic telemetry only animate ambient room state;
+they do not create a worker, ticket, or persistent furniture record.
 
 **Key files**:
 
 - `components/activity-landmark.tsx`: persisted metadata, interaction, and camera-facing adapter
 - `components/activity-landmark-visuals.tsx`: authored landmark-kind procedural props
-- `components/activity-destination-room-visual.tsx`: room zone, bay shell, and executive furniture presentation
+- `components/activity-destination-room-visual.tsx`: room station presentation and contextual label treatment
 - `components/activity-landmark-destinations.tsx`: curated destination-specific procedural props
 - `prefabs/activity-landmark-prefab.tsx`: builder placement registration
 - `panels/internal-panel-catalog.ts`: canonical internal-panel identifiers
 - `panels/use-internal-panel-launcher.ts`: shared landmark/launcher panel routing
 - `skill-targeting.ts`: primary and alias skill lookup
 - `activity-scenes.ts`: landmark-to-scene catalog and renderer fallback
-- `../../../config/office-theme.ts`: scene-wide theme primitive, including permanent landmark materials and room-role colors
+- `../../../config/office-theme.ts`: scene-wide theme primitive, including the light diorama palette
 - `components/employee/activity-scene-props.tsx`: engaged-only shared props
-- `lib/activity-destination-ring.ts`: pure three-sided room-rail planner
-- `lib/office-layout-solver.ts`: tables → compact core/decor pack → destination rails
+- `lib/department-island-layout.ts`: canonical department, bridge, room-slot, and project-deck geometry
+- `lib/office-layout-solver.ts`: automatic layout selection and ordinary tile-backed reachability
 - `object-ui/metadata.ts`: backward-compatible multi-skill normalization
 
 ### Office World Store And Reconciliation ✅
@@ -151,7 +161,7 @@ component/provider heuristics.
 - Builder drag and exact transform validation
 - Debug grid occupancy overlays
 - CLI placement/shuffle parity checks
-- Future A* pathfinding integration through `buildOfficeWalkabilityGrid`
+- Future A\* pathfinding integration through `buildOfficeWalkabilityGrid`
 
 ---
 

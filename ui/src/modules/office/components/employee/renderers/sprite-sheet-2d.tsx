@@ -20,7 +20,6 @@ import {
   buildCodexPetAssetUrl,
   buildCodexPetManifestUrl,
   isCodexPetManifest,
-  isValidHatchPetAtlasSize,
   normalizeCodexPetManifest,
   type SpriteSheetCharacterManifest,
 } from "./codex-pet-package";
@@ -273,7 +272,8 @@ function LoadedSpriteBillboard(
   const hasValidAtlasSize =
     typeof image?.width === "number" &&
     typeof image?.height === "number" &&
-    isValidHatchPetAtlasSize(image.width, image.height);
+    image.width === manifest.dimensions.width &&
+    image.height === manifest.dimensions.height;
 
   useEffect(() => {
     recordDevCharacterRendererStatus({

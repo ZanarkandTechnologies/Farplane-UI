@@ -29,21 +29,21 @@ export const OFFICE_LANDMARK_THEME = {
     offsetZ: -0.1,
   },
   materials: {
-    darkMetal: "#34383a",
-    lightMetal: "#a9a096",
-    walnut: "#6f543e",
-    darkWalnut: "#4f3a2c",
-    warmPaper: "#d8cdba",
-    stone: "#81786e",
-    upholstery: "#746e67",
-    inactiveScreen: "#4e625f",
+    darkMetal: "#5d615c",
+    lightMetal: "#bcb4a4",
+    walnut: "#9a7c5c",
+    darkWalnut: "#7d6248",
+    warmPaper: "#e9e1cf",
+    stone: "#9c9485",
+    upholstery: "#99938b",
+    inactiveScreen: "#7e948f",
   },
   roles: {
-    knowledge: "#9a7b4f",
-    coordination: "#6f7c68",
-    systems: "#64727a",
-    communication: "#5e7772",
-    creative: "#93695c",
+    knowledge: "#cdb385",
+    coordination: "#a6b695",
+    systems: "#99b0ba",
+    communication: "#98beaf",
+    creative: "#cda188",
   },
   roleByKind: {
     gym: "creative",
@@ -67,6 +67,91 @@ export const OFFICE_LANDMARK_THEME = {
   roles: Readonly<Record<string, string>>;
   roleByKind: Readonly<Record<OfficeLandmarkKind, string>>;
 };
+
+/** Shared material roles for the light automatic department-island office. */
+export type OfficeDioramaTheme = {
+  mode: "day" | "night";
+  canvas: string;
+  islandTop: string;
+  islandEdge: string;
+  roomSurface: string;
+  nexusTop: string;
+  bridge: string;
+  text: string;
+  shadow: string;
+  nexusVortex: {
+    ink: string;
+    cool: string;
+    pale: string;
+    warm: string;
+    light: string;
+  };
+  lighting: {
+    ambientIntensity: number;
+    directionalIntensity: number;
+    workLight: string;
+    workLightIntensity: number;
+  };
+};
+
+/** Daytime miniature-office tokens. */
+export const OFFICE_DIORAMA_THEME: OfficeDioramaTheme = {
+  mode: "day",
+  canvas: "#f6f2e7",
+  islandTop: "#eae5d4",
+  islandEdge: "#b6ae9c",
+  roomSurface: "#d5d3c6",
+  nexusTop: "#e6dfc6",
+  nexusVortex: {
+    ink: "#18313e",
+    cool: "#74ced6",
+    pale: "#c8f3e6",
+    warm: "#e7c47c",
+    light: "#c6eee1",
+  },
+  bridge: "#e0dac7",
+  text: "#3c4038",
+  shadow: "#6b675c",
+  lighting: {
+    ambientIntensity: 0.62,
+    directionalIntensity: 1.65,
+    workLight: "#fff1cf",
+    workLightIntensity: 0.42,
+  },
+};
+
+/**
+ * A low-luminance after-hours treatment: neutral graphite surfaces leave the
+ * World Nexus and a few warm work pools as the only deliberate colour cues.
+ */
+export const OFFICE_DIORAMA_NIGHT_THEME: OfficeDioramaTheme = {
+  mode: "night",
+  canvas: "#151515",
+  islandTop: "#74746f",
+  islandEdge: "#3a3a38",
+  roomSurface: "#656560",
+  nexusTop: "#686864",
+  nexusVortex: {
+    ink: "#46504e",
+    cool: "#6f918f",
+    pale: "#b4bbb6",
+    warm: "#ad9f82",
+    light: "#aebcb5",
+  },
+  bridge: "#4d4d4b",
+  text: "#e2e2df",
+  shadow: "#050505",
+  lighting: {
+    ambientIntensity: 0.46,
+    directionalIntensity: 1.2,
+    workLight: "#b2a58c",
+    workLightIntensity: 0.18,
+  },
+};
+
+export function getOfficeDioramaTheme(isDarkMode: boolean): OfficeDioramaTheme {
+  return isDarkMode ? OFFICE_DIORAMA_NIGHT_THEME : OFFICE_DIORAMA_THEME;
+}
 
 export type OfficeLandmarkRole = keyof typeof OFFICE_LANDMARK_THEME.roles;
 
@@ -100,14 +185,14 @@ export interface OfficeTheme {
 export function getOfficeTheme(isDarkMode: boolean): OfficeTheme {
   return {
     scene: {
-      floor: isDarkMode ? "#30363d" : "#cbd3d8",
-      walls: isDarkMode ? "#313740" : "#d8dfe3",
-      background: isDarkMode ? "#0f1720" : "#e7edf1",
+      floor: isDarkMode ? "#363636" : "#cbd3d8",
+      walls: isDarkMode ? "#3c3c3a" : "#d8dfe3",
+      background: isDarkMode ? "#151515" : "#e7edf1",
     },
     lighting: {
-      ambient: isDarkMode ? "#d8e1e8" : "#fffaf2",
-      directional: isDarkMode ? "#f5f7fa" : "#ffffff",
-      point: isDarkMode ? "#a7bdd0" : "#d9e6ef",
+      ambient: isDarkMode ? "#c4c4c0" : "#fffaf2",
+      directional: isDarkMode ? "#d8d8d3" : "#ffffff",
+      point: isDarkMode ? "#d6c9ae" : "#d9e6ef",
     },
     interaction: {
       selectionEdge: "#00ff00",

@@ -31,7 +31,7 @@ const TITLE_TEXT_CLASS =
   "line-clamp-2 whitespace-normal break-keep leading-snug [hyphens:none] [overflow-wrap:normal] [word-break:keep-all]";
 const ACTIVITY_ROW_CLASS = "flex items-center justify-center gap-1.5";
 const ACTIVITY_SIGNAL_CARD_CLASS =
-  "relative w-[104px] max-w-[104px] translate-x-[7px] -translate-y-[8px] overflow-hidden rounded-sm border border-emerald-100/20 bg-emerald-950/45 px-2 py-1 text-emerald-50/85 shadow-[0_4px_10px_rgba(2,8,23,0.16)] backdrop-blur-[2px]";
+  "relative w-[104px] max-w-[104px] translate-x-[7px] -translate-y-[8px] overflow-hidden rounded-sm border border-emerald-900/15 bg-white/88 px-2 py-1 text-emerald-900/85 shadow-[0_4px_10px_rgba(60,64,56,0.14)] backdrop-blur-[2px]";
 const ACTIVITY_SIGNAL_TEXT_CLASS =
   "relative z-10 min-h-[11px] min-w-0 flex-1 text-left text-[7px] font-semibold leading-none tracking-[0.01em]";
 const ACTIVITY_SIGNAL_STACK_TEXT_CLASS =
@@ -61,9 +61,9 @@ type EmployeeStatusBubblesProps = {
 };
 
 const PERSISTENCE_TAG_STYLES: Record<EmployeePersistenceTag, string> = {
-  goal: "text-amber-200",
-  heartbeat: "text-cyan-200",
-  pinned: "text-slate-200",
+  goal: "text-amber-700",
+  heartbeat: "text-cyan-700",
+  pinned: "text-slate-600",
 };
 
 function EmployeePersistenceLabel({ tag }: { tag: EmployeePersistenceTag }) {
@@ -94,32 +94,32 @@ function getActivityBadgeStyle(state: EmployeeActivityState): ActivityBadgeStyle
     case "running":
       return {
         label: "Running",
-        className: "border-sky-300/70 bg-sky-950/90 text-sky-50 shadow-sky-950/30",
+        className: "border-sky-300/80 bg-white/92 text-sky-800 shadow-stone-900/10",
       };
     case "waiting":
       return {
         label: "Waiting",
-        className: "border-amber-300/70 bg-amber-950/90 text-amber-50 shadow-amber-950/30",
+        className: "border-amber-300/80 bg-white/92 text-amber-800 shadow-stone-900/10",
       };
     case "failed":
       return {
         label: "Failed",
-        className: "border-rose-300/70 bg-rose-950/90 text-rose-50 shadow-rose-950/30",
+        className: "border-rose-300/80 bg-white/92 text-rose-800 shadow-stone-900/10",
       };
     case "review":
       return {
         label: "Review",
-        className: "border-violet-300/70 bg-violet-950/90 text-violet-50 shadow-violet-950/30",
+        className: "border-violet-300/80 bg-white/92 text-violet-800 shadow-stone-900/10",
       };
     case "done":
       return {
         label: "Done",
-        className: "border-emerald-300/70 bg-emerald-950/90 text-emerald-50 shadow-emerald-950/30",
+        className: "border-emerald-300/80 bg-white/92 text-emerald-800 shadow-stone-900/10",
       };
     default:
       return {
         label: "Idle",
-        className: "border-slate-300/70 bg-slate-950/90 text-slate-50 shadow-slate-950/30",
+        className: "border-stone-300/80 bg-white/92 text-stone-600 shadow-stone-900/10",
       };
   }
 }
@@ -200,9 +200,9 @@ function ActivitySignalCard({
   return (
     <div className={ACTIVITY_SIGNAL_CARD_CLASS}>
       <span className="pointer-events-none absolute inset-0 bg-white/[0.04]" />
-      <span className="pointer-events-none absolute -left-[3px] top-[10px] h-1.5 w-1.5 rotate-45 border-b border-l border-emerald-100/20 bg-emerald-950/45" />
+      <span className="pointer-events-none absolute -left-[3px] top-[10px] h-1.5 w-1.5 rotate-45 border-b border-l border-emerald-900/15 bg-white/88" />
       <div className="relative z-10 flex items-start gap-1">
-        <span className="mt-[3px] h-1 w-1 shrink-0 rounded-full bg-emerald-100/70" />
+        <span className="mt-[3px] h-1 w-1 shrink-0 rounded-full bg-emerald-700/70" />
         <div className={stacked ? ACTIVITY_SIGNAL_STACK_TEXT_CLASS : ACTIVITY_SIGNAL_TEXT_CLASS}>
           {children}
         </div>
@@ -365,7 +365,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
               className={`px-3 py-1.5 rounded-md text-xs font-medium shadow-lg whitespace-nowrap ${
                 isHighlighted
                   ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2"
-                  : "bg-foreground text-background"
+                  : "border border-border bg-background/95 text-foreground"
               }`}
             >
               <div className="font-semibold">{name}</div>
@@ -401,7 +401,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
             userSelect: "none",
           }}
         >
-          <div className="rounded-sm border border-slate-300/45 bg-slate-950/90 px-2 py-1 shadow-md backdrop-blur-sm">
+          <div className="rounded-sm border border-stone-300/70 bg-white/92 px-2 py-1 shadow-md backdrop-blur-sm">
             <EmployeePersistenceLabel tag={persistenceTag} />
           </div>
         </Html>

@@ -4,6 +4,7 @@ import {
   buildCodexPetAssetUrl,
   buildCodexPetManifestUrl,
   HATCH_PET_ATLAS,
+  HATCH_PET_ATLAS_V2,
   isCodexPetManifest,
   isValidHatchPetAtlasSize,
   normalizeCodexPetManifest,
@@ -22,7 +23,10 @@ describe("codex pet package normalization", () => {
     );
 
     expect(manifest.atlasUrl).toBe("/codex/pets/mini-kenji/spritesheet.webp");
-    expect(manifest.dimensions).toEqual({ width: HATCH_PET_ATLAS.width, height: HATCH_PET_ATLAS.height });
+    expect(manifest.dimensions).toEqual({
+      width: HATCH_PET_ATLAS.width,
+      height: HATCH_PET_ATLAS.height,
+    });
     expect(manifest.cell).toEqual({ width: 192, height: 208 });
     expect(manifest.animations["running-right"]).toMatchObject({ row: 1, frames: 8, loop: true });
     expect(manifest.animations.review.durationsMs.at(-1)).toBe(280);
@@ -49,7 +53,28 @@ describe("codex pet package normalization", () => {
 
   it("validates the fixed hatch-pet atlas size", () => {
     expect(isValidHatchPetAtlasSize(1536, 1872)).toBe(true);
+    expect(isValidHatchPetAtlasSize(1536, 2288)).toBe(true);
     expect(isValidHatchPetAtlasSize(192, 208)).toBe(false);
     expect(isValidHatchPetAtlasSize(1536, 1536)).toBe(false);
+  });
+
+  it("uses the extended v2 grid while retaining standard animation rows", () => {
+    const manifest = normalizeCodexPetManifest(
+      {
+        id: "mini-kenji",
+        displayName: "Mini Kenji",
+        description: "Extended directional pet.",
+        spriteVersionNumber: 2,
+        spritesheetPath: "spritesheet.webp",
+      },
+      "/codex/pets/mini-kenji/spritesheet.webp",
+    );
+
+    expect(manifest.dimensions).toEqual({
+      width: HATCH_PET_ATLAS_V2.width,
+      height: HATCH_PET_ATLAS_V2.height,
+    });
+    expect(manifest.grid).toEqual({ columns: 8, rows: 11 });
+    expect(manifest.animations.review).toMatchObject({ row: 8, frames: 6 });
   });
 });

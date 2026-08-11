@@ -3,7 +3,11 @@
 /** Destination-room framing around an authored semantic landmark prop cluster. */
 
 import { Box, Cylinder, Html } from "@react-three/drei";
-import { getOfficeLandmarkTheme, OFFICE_LANDMARK_THEME } from "@/config/office-theme";
+import {
+  getOfficeLandmarkTheme,
+  OFFICE_LANDMARK_THEME,
+  type OfficeDioramaTheme,
+} from "@/config/office-theme";
 import { ACTIVITY_LANDMARK_KINDS, type ActivityLandmarkKind } from "../activity-scenes";
 import {
   ACTIVITY_DESTINATION_ROOM_DEPTH,
@@ -57,6 +61,8 @@ export function ActivityLandmarkVisual({
   roomFurnitureStyle,
   roomLabel,
   hostLabel,
+  compactLabel = false,
+  dioramaTheme,
 }: {
   kind: ActivityLandmarkKind;
   footprintWidth?: number;
@@ -67,8 +73,11 @@ export function ActivityLandmarkVisual({
   roomFurnitureStyle?: string;
   roomLabel?: string;
   hostLabel?: string;
+  compactLabel?: boolean;
+  dioramaTheme?: OfficeDioramaTheme;
 }) {
   const theme = getOfficeLandmarkTheme(kind);
+  const zoneColor = dioramaTheme?.mode === "night" ? dioramaTheme.roomSurface : theme.zoneColor;
   const zoneWidth = Math.max(2.4, footprintWidth);
   const zoneDepth = Math.max(2.2, footprintDepth);
 
@@ -80,7 +89,7 @@ export function ActivityLandmarkVisual({
         receiveShadow
       >
         <meshStandardMaterial
-          color={destinationBayZone ? "#d5d3c6" : theme.zoneColor}
+          color={destinationBayZone ? (dioramaTheme?.roomSurface ?? "#d5d3c6") : zoneColor}
           emissive="#000000"
           emissiveIntensity={0}
           roughness={0.94}
@@ -113,9 +122,9 @@ export function ActivityLandmarkVisual({
           </Box>
           <Box args={[zoneWidth - 0.35, 0.055, 0.12]} position={[0, 1.58, 0.17]}>
             <meshStandardMaterial
-              color={theme.zoneColor}
-              emissive={theme.zoneColor}
-              emissiveIntensity={0.22}
+              color={zoneColor}
+              emissive={zoneColor}
+              emissiveIntensity={dioramaTheme?.mode === "night" ? 0.05 : 0.22}
             />
           </Box>
         </group>
@@ -126,7 +135,7 @@ export function ActivityLandmarkVisual({
           position={[0, 0.052, 0.02]}
           receiveShadow
         >
-          <meshStandardMaterial color={theme.zoneColor} roughness={0.96} />
+          <meshStandardMaterial color={zoneColor} roughness={0.96} />
         </Box>
       ) : null}
       {destinationBayZone && roomFurnitureStyle === "executive-walnut-v1" ? (
@@ -139,16 +148,34 @@ export function ActivityLandmarkVisual({
           zIndexRange={[104, 0]}
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
-          <div className="w-[78px] rounded-sm border border-white/20 bg-stone-950/92 px-1.5 py-1 text-center shadow-[0_5px_18px_rgba(0,0,0,0.45)] backdrop-blur-sm">
+          <div
+            className={
+              compactLabel
+                ? "w-[96px] rounded-full border border-stone-300/80 bg-[#faf8f0]/95 px-2 py-1 text-center shadow-[0_4px_12px_rgba(83,78,66,0.18)]"
+                : "w-[78px] rounded-sm border border-white/20 bg-stone-950/92 px-1.5 py-1 text-center shadow-[0_5px_18px_rgba(0,0,0,0.45)] backdrop-blur-sm"
+            }
+          >
             <div
               className="mx-auto mb-1 h-0.5 w-6 rounded-full"
-              style={{ backgroundColor: theme.zoneColor }}
+              style={{ backgroundColor: zoneColor }}
             />
-            <div className="line-clamp-2 min-h-4 text-[7px] font-semibold uppercase leading-[1.15] tracking-[0.06em] text-stone-50">
+            <div
+              className={
+                compactLabel
+                  ? "line-clamp-2 min-h-3 text-[7px] font-semibold uppercase leading-[1.15] tracking-[0.06em] text-[#3c4038]"
+                  : "line-clamp-2 min-h-4 text-[7px] font-semibold uppercase leading-[1.15] tracking-[0.06em] text-stone-50"
+              }
+            >
               {roomLabel}
             </div>
             {hostLabel ? (
-              <div className="mt-1 truncate text-[7px] font-medium leading-none text-emerald-200/90">
+              <div
+                className={
+                  compactLabel
+                    ? "mt-0.5 truncate text-[7px] font-medium leading-none text-[#667161]"
+                    : "mt-1 truncate text-[7px] font-medium leading-none text-emerald-200/90"
+                }
+              >
                 {hostLabel} · host
               </div>
             ) : null}

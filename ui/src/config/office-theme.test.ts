@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getOfficeDioramaTheme,
   getOfficeLandmarkTheme,
   getOfficeTheme,
   OFFICE_LANDMARK_KINDS,
@@ -40,27 +41,46 @@ describe("office theme", () => {
 
   it("keeps shared permanent materials neutral and warm", () => {
     expect(OFFICE_LANDMARK_THEME.materials).toEqual({
-      darkMetal: "#34383a",
-      lightMetal: "#a9a096",
-      walnut: "#6f543e",
-      darkWalnut: "#4f3a2c",
-      warmPaper: "#d8cdba",
-      stone: "#81786e",
-      upholstery: "#746e67",
-      inactiveScreen: "#4e625f",
+      darkMetal: "#5d615c",
+      lightMetal: "#bcb4a4",
+      walnut: "#9a7c5c",
+      darkWalnut: "#7d6248",
+      warmPaper: "#e9e1cf",
+      stone: "#9c9485",
+      upholstery: "#99938b",
+      inactiveScreen: "#7e948f",
     });
   });
 
   it("uses a neutral control-room environment instead of a sepia scene wash", () => {
     expect(getOfficeTheme(true).scene).toEqual({
-      floor: "#30363d",
-      walls: "#313740",
-      background: "#0f1720",
+      floor: "#363636",
+      walls: "#3c3c3a",
+      background: "#151515",
     });
     expect(getOfficeTheme(true).lighting).toEqual({
-      ambient: "#d8e1e8",
-      directional: "#f5f7fa",
-      point: "#a7bdd0",
+      ambient: "#c4c4c0",
+      directional: "#d8d8d3",
+      point: "#d6c9ae",
+    });
+  });
+
+  it("uses a matte graphite diorama for the app's night theme", () => {
+    expect(getOfficeDioramaTheme(false)).toMatchObject({
+      mode: "day",
+      canvas: "#f6f2e7",
+    });
+    expect(getOfficeDioramaTheme(true)).toMatchObject({
+      mode: "night",
+      canvas: "#151515",
+      islandTop: "#74746f",
+      islandEdge: "#3a3a38",
+      roomSurface: "#656560",
+      lighting: {
+        ambientIntensity: 0.46,
+        directionalIntensity: 1.2,
+        workLightIntensity: 0.18,
+      },
     });
   });
 });

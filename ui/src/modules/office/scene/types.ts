@@ -14,6 +14,9 @@
  * - MEM-0143
  */
 
+import type { OfficeAreaNode } from "@/modules/office/lib/office-area-layout";
+import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
+import type { OfficeLayoutModel } from "@/modules/office/lib/office-layout";
 import type {
   DeskLayoutData,
   EmployeeData,
@@ -21,10 +24,8 @@ import type {
   OfficeObject,
   TeamData,
 } from "@/modules/office/lib/types";
-import type { OfficeLayoutModel } from "@/modules/office/lib/office-layout";
-import type { OfficeAreaNode } from "@/modules/office/lib/office-area-layout";
-import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
 import type { OfficeSettingsModel } from "@/modules/runtime";
+import type { CompanyWorldProjection } from "@/modules/world-map/types";
 
 export interface OfficeSceneProps {
   teams: TeamData[];
@@ -34,6 +35,8 @@ export interface OfficeSceneProps {
   officeAreas: OfficeAreaNode[];
   officeFootprint: OfficeFootprint;
   officeLayout: OfficeLayoutModel;
+  officeLayoutStrategy?: OfficeSettingsModel["layoutStrategy"];
+  worldNexusProjection?: CompanyWorldProjection;
   officeDecorSettings: OfficeSettingsModel["decor"];
   officeViewSettings: Pick<
     OfficeSettingsModel,

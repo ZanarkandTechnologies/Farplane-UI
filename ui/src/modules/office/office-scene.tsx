@@ -32,11 +32,19 @@ import type { OfficeSceneProps } from "@/modules/office/scene/types";
 import {
   getInitialOfficeCameraConfig,
   useOfficeSceneBackground,
+  useOfficeSceneDioramaTheme,
+  useOfficeSceneThemeMode,
 } from "@/modules/office/scene/use-office-scene-camera";
 import { useAppStore } from "@/store";
 
 const OfficeScene = memo((props: OfficeSceneProps) => {
-  const background = useOfficeSceneBackground(props.officeDecorSettings);
+  const isDarkMode = useOfficeSceneThemeMode();
+  const dioramaTheme = useOfficeSceneDioramaTheme();
+  const configuredBackground = useOfficeSceneBackground(props.officeDecorSettings, isDarkMode);
+  const background =
+    props.officeLayoutStrategy === "team_neighborhoods"
+      ? dioramaTheme.canvas
+      : configuredBackground;
   const isBuilderMode = useAppStore((state) => state.isBuilderMode);
   const blockingPanelOpen = useAppStore(hasBlockingOfficePanel);
   const isChatOpen = useChatStore((state) => state.isChatOpen);
@@ -49,12 +57,19 @@ const OfficeScene = memo((props: OfficeSceneProps) => {
   });
   const layoutCenter = useMemo(() => {
     const bounds = getOfficeLayoutBounds(props.officeLayout);
-    return { x: bounds.centerX, z: bounds.centerZ, width: bounds.width, depth: bounds.depth };
+    return {
+      x: bounds.centerX,
+      z: bounds.centerZ,
+      width: bounds.width,
+      depth: bounds.depth,
+    };
   }, [props.officeLayout]);
   const initialCameraConfig = getInitialOfficeCameraConfig(props.officeViewSettings, {
     forcePerspective,
     isBuilderMode,
     layoutCenter,
+    fitToViewport:
+      props.officeLayoutStrategy === "team_neighborhoods" && !isBuilderMode && !forcePerspective,
   });
 
   return (

@@ -19,6 +19,11 @@ export type OfficeSceneCameraConfig = {
   target: [number, number, number];
   fov: number;
   zoom: number;
+  /**
+   * Keep a presentation-only orthographic diorama fully framed on a narrow
+   * viewport. Manual offices retain their operator-controlled zoom on resize.
+   */
+  fitToViewport?: boolean;
 };
 
 type OfficeCameraPair = {
@@ -26,18 +31,32 @@ type OfficeCameraPair = {
   orthographic: THREE.OrthographicCamera | null;
 };
 
-type OfficeProjectionCamera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
+type OfficeProjectionCamera =
+  | THREE.PerspectiveCamera
+  | THREE.OrthographicCamera;
 
 export type OfficeSceneViewport = {
   width: number;
   height: number;
 };
 
+const DIORAMA_REFERENCE_ASPECT = 16 / 10;
+
+export function getOfficeViewportFitZoom(
+  zoom: number,
+  viewport: OfficeSceneViewport,
+): number {
+  const aspect = Math.max(1, viewport.width) / Math.max(1, viewport.height);
+  return zoom * Math.min(1, aspect / DIORAMA_REFERENCE_ASPECT);
+}
+
 export function selectOfficeSceneCamera(
   projection: OfficeSceneCameraConfig["projection"],
   cameras: OfficeCameraPair,
 ): OfficeProjectionCamera | null {
-  return projection === "orthographic" ? cameras.orthographic : cameras.perspective;
+  return projection === "orthographic"
+    ? cameras.orthographic
+    : cameras.perspective;
 }
 
 export function applyOfficeSceneCameraConfig(
@@ -52,7 +71,9 @@ export function applyOfficeSceneCameraConfig(
   if (camera instanceof THREE.PerspectiveCamera) {
     camera.fov = config.fov;
   } else if (camera instanceof THREE.OrthographicCamera) {
-    camera.zoom = config.zoom;
+    camera.zoom = config.fitToViewport
+      ? getOfficeViewportFitZoom(config.zoom, viewport)
+      : config.zoom;
   }
   applyOfficeSceneCameraViewport(camera, viewport);
 }
@@ -86,13 +107,17 @@ export function OfficeSceneCameraRig({
   const activeCamera = useThree((state) => state.camera);
   const perspectiveRef = useRef<THREE.PerspectiveCamera>(null);
   const orthographicRef = useRef<THREE.OrthographicCamera>(null);
-  const activeProjectionRef = useRef<OfficeSceneCameraConfig["projection"] | null>(null);
+  const activeProjectionRef = useRef<
+    OfficeSceneCameraConfig["projection"] | null
+  >(null);
   const initialCameraRef = useRef(initialCamera);
 
   useLayoutEffect(() => {
     if (import.meta.env.DEV && typeof window !== "undefined") {
       (
-        window as Window & { __FARPLANE_OFFICE_CAMERA_CONFIG__?: OfficeSceneCameraConfig }
+        window as Window & {
+          __FARPLANE_OFFICE_CAMERA_CONFIG__?: OfficeSceneCameraConfig;
+        }
       ).__FARPLANE_OFFICE_CAMERA_CONFIG__ = config;
     }
     const nextCamera = selectOfficeSceneCamera(config.projection, {
@@ -110,7 +135,14 @@ export function OfficeSceneCameraRig({
       set({ camera: nextCamera });
     } else {
       // Position, target, and zoom remain transition/control-owned when the projection is stable.
-      if (nextCamera instanceof THREE.PerspectiveCamera) nextCamera.fov = config.fov;
+      if (nextCamera instanceof THREE.PerspectiveCamera)
+        nextCamera.fov = config.fov;
+      if (
+        nextCamera instanceof THREE.OrthographicCamera &&
+        config.fitToViewport
+      ) {
+        nextCamera.zoom = getOfficeViewportFitZoom(config.zoom, viewport);
+      }
       applyOfficeSceneCameraViewport(nextCamera, viewport);
     }
   }, [activeCamera, config, set, viewportHeight, viewportWidth]);
