@@ -138,7 +138,8 @@ export function TeamPanel({
   const selectedProjectId = useAppStore((state) => state.selectedProjectId);
   const setSelectedProjectId = useAppStore((state) => state.setSelectedProjectId);
   const setIsAgentSessionPanelOpen = useAppStore((state) => state.setIsAgentSessionPanelOpen);
-  const setIsRawTelemetryPanelOpen = useAppStore((state) => state.setIsRawTelemetryPanelOpen);
+  const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
+  const setTelemetryPanelTab = useAppStore((state) => state.setTelemetryPanelTab);
   const setSelectedAgentId = useAppStore((state) => state.setSelectedAgentId);
   const setHighlightedEmployeeIds = useAppStore((state) => state.setHighlightedEmployeeIds);
   const highlightedEmployeeIds = useAppStore((state) => state.highlightedEmployeeIds);
@@ -405,7 +406,10 @@ export function TeamPanel({
                 setThreadDataTarget(target);
                 setActiveTab("thread-data");
               }}
-              onConfigureHooks={() => setIsRawTelemetryPanelOpen(true)}
+              onConfigureHooks={() => {
+                setTelemetryPanelTab("events");
+                setIsTelemetryPanelOpen(true);
+              }}
             />
           </TabsContent>
 

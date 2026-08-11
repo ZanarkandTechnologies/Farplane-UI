@@ -28,7 +28,11 @@ export type SkillStudioSurface =
   | "rollout"
   | "skill-rollout"
   | "skill-os"
+  | "self-improvement-runs"
   | "template-tracking";
+export type GlobalTeamPanelInitialTab = "overview" | "thread-data";
+export type TelemetryPanelTab = "usage" | "events";
+export type SettingsDialogTab = "general" | "office" | "runtime" | "communications";
 
 type ObjectPanelAspectRatio = "wide" | "square" | "tall";
 export type CeoWorkbenchView = "board" | "review";
@@ -97,8 +101,6 @@ function areActiveObjectPanelsEqual(
 interface AppState {
   isChatModalOpen: boolean;
   setIsChatModalOpen: (isOpen: boolean) => void;
-  isUserTasksModalOpen: boolean;
-  setIsUserTasksModalOpen: (isOpen: boolean) => void;
   isOrganizationPanelOpen: boolean;
   setIsOrganizationPanelOpen: (isOpen: boolean) => void;
   isCeoWorkbenchOpen: boolean;
@@ -156,6 +158,8 @@ interface AppState {
   setIsTeamPanelOpen: (isOpen: boolean) => void;
   isGlobalTeamPanelOpen: boolean;
   setIsGlobalTeamPanelOpen: (isOpen: boolean) => void;
+  globalTeamPanelInitialTab: GlobalTeamPanelInitialTab;
+  setGlobalTeamPanelInitialTab: (tab: GlobalTeamPanelInitialTab) => void;
   isAgentSessionPanelOpen: boolean;
   setIsAgentSessionPanelOpen: (isOpen: boolean) => void;
   isSkillsPanelOpen: boolean;
@@ -164,12 +168,10 @@ interface AppState {
   setSkillStudioSurface: (surface: SkillStudioSurface) => void;
   isTelemetryPanelOpen: boolean;
   setIsTelemetryPanelOpen: (isOpen: boolean) => void;
+  telemetryPanelTab: TelemetryPanelTab;
+  setTelemetryPanelTab: (tab: TelemetryPanelTab) => void;
   isFinancePanelOpen: boolean;
   setIsFinancePanelOpen: (isOpen: boolean) => void;
-  isRawTelemetryPanelOpen: boolean;
-  setIsRawTelemetryPanelOpen: (isOpen: boolean) => void;
-  isThreadDataPanelOpen: boolean;
-  setIsThreadDataPanelOpen: (isOpen: boolean) => void;
   isSkillInvocationsPanelOpen: boolean;
   setIsSkillInvocationsPanelOpen: (isOpen: boolean) => void;
   isResourceBankPanelOpen: boolean;
@@ -180,8 +182,6 @@ interface AppState {
   setIsWorldMapPanelOpen: (isOpen: boolean) => void;
   isDocumentLibraryPanelOpen: boolean;
   setIsDocumentLibraryPanelOpen: (isOpen: boolean) => void;
-  isSelfImprovementRunsPanelOpen: boolean;
-  setIsSelfImprovementRunsPanelOpen: (isOpen: boolean) => void;
   selectedSkillStudioSkillId: string | null;
   setSelectedSkillStudioSkillId: (skillId: string | null) => void;
   skillStudioFocusAgentId: string | null;
@@ -200,6 +200,8 @@ interface AppState {
   setSelectedSessionKey: (sessionKey: string | null) => void;
   isSettingsModalOpen: boolean;
   setIsSettingsModalOpen: (isOpen: boolean) => void;
+  settingsDialogTab: SettingsDialogTab;
+  setSettingsDialogTab: (tab: SettingsDialogTab) => void;
   isFurnitureShopOpen: boolean;
   setIsFurnitureShopOpen: (isOpen: boolean) => void;
   isOfficeOnboardingVisible: boolean;
@@ -212,8 +214,6 @@ export const useAppStore = create<AppState>()(
   subscribeWithSelector((set) => ({
     isChatModalOpen: false,
     setIsChatModalOpen: (isOpen) => set({ isChatModalOpen: isOpen }),
-    isUserTasksModalOpen: false,
-    setIsUserTasksModalOpen: (isOpen) => set({ isUserTasksModalOpen: isOpen }),
     isOrganizationPanelOpen: false,
     setIsOrganizationPanelOpen: (isOpen) => set({ isOrganizationPanelOpen: isOpen }),
     isCeoWorkbenchOpen: false,
@@ -314,6 +314,8 @@ export const useAppStore = create<AppState>()(
     setIsTeamPanelOpen: (isOpen) => set({ isTeamPanelOpen: isOpen }),
     isGlobalTeamPanelOpen: false,
     setIsGlobalTeamPanelOpen: (isOpen) => set({ isGlobalTeamPanelOpen: isOpen }),
+    globalTeamPanelInitialTab: "overview",
+    setGlobalTeamPanelInitialTab: (tab) => set({ globalTeamPanelInitialTab: tab }),
     isAgentSessionPanelOpen: false,
     setIsAgentSessionPanelOpen: (isOpen) => set({ isAgentSessionPanelOpen: isOpen }),
     isSkillsPanelOpen: false,
@@ -322,12 +324,10 @@ export const useAppStore = create<AppState>()(
     setSkillStudioSurface: (surface) => set({ skillStudioSurface: surface }),
     isTelemetryPanelOpen: false,
     setIsTelemetryPanelOpen: (isOpen) => set({ isTelemetryPanelOpen: isOpen }),
+    telemetryPanelTab: "usage",
+    setTelemetryPanelTab: (tab) => set({ telemetryPanelTab: tab }),
     isFinancePanelOpen: false,
     setIsFinancePanelOpen: (isOpen) => set({ isFinancePanelOpen: isOpen }),
-    isRawTelemetryPanelOpen: false,
-    setIsRawTelemetryPanelOpen: (isOpen) => set({ isRawTelemetryPanelOpen: isOpen }),
-    isThreadDataPanelOpen: false,
-    setIsThreadDataPanelOpen: (isOpen) => set({ isThreadDataPanelOpen: isOpen }),
     isSkillInvocationsPanelOpen: false,
     setIsSkillInvocationsPanelOpen: (isOpen) => set({ isSkillInvocationsPanelOpen: isOpen }),
     isResourceBankPanelOpen: false,
@@ -338,8 +338,6 @@ export const useAppStore = create<AppState>()(
     setIsWorldMapPanelOpen: (isOpen) => set({ isWorldMapPanelOpen: isOpen }),
     isDocumentLibraryPanelOpen: false,
     setIsDocumentLibraryPanelOpen: (isOpen) => set({ isDocumentLibraryPanelOpen: isOpen }),
-    isSelfImprovementRunsPanelOpen: false,
-    setIsSelfImprovementRunsPanelOpen: (isOpen) => set({ isSelfImprovementRunsPanelOpen: isOpen }),
     selectedSkillStudioSkillId: null,
     setSelectedSkillStudioSkillId: (skillId) => set({ selectedSkillStudioSkillId: skillId }),
     skillStudioFocusAgentId: null,
@@ -358,6 +356,8 @@ export const useAppStore = create<AppState>()(
     setSelectedSessionKey: (sessionKey) => set({ selectedSessionKey: sessionKey }),
     isSettingsModalOpen: false,
     setIsSettingsModalOpen: (isOpen) => set({ isSettingsModalOpen: isOpen }),
+    settingsDialogTab: "general",
+    setSettingsDialogTab: (tab) => set({ settingsDialogTab: tab }),
     isFurnitureShopOpen: false,
     setIsFurnitureShopOpen: (isOpen) => set({ isFurnitureShopOpen: isOpen }),
     isOfficeOnboardingVisible: false,

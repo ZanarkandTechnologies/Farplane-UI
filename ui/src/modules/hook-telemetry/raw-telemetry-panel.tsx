@@ -125,7 +125,7 @@ export function RawTelemetryRoute(): ReactElement {
   );
 }
 
-function RawTelemetryContent(): ReactElement {
+export function RawTelemetryContent(): ReactElement {
   const { isReadOnly } = useOfficeAccessMode();
   const convexEnabled = isConvexEnabled();
   const [rangeDays, setRangeDays] = useState(7);

@@ -48,12 +48,12 @@ export function OfficeMenu({ className }: SpeedDialProps) {
   const setBuilderMode = useAppStore((state) => state.setBuilderMode);
   const isAnimatingCamera = useAppStore((state) => state.isAnimatingCamera);
   const setIsGlobalTeamPanelOpen = useAppStore((state) => state.setIsGlobalTeamPanelOpen);
+  const setGlobalTeamPanelInitialTab = useAppStore((state) => state.setGlobalTeamPanelInitialTab);
   const setIsSkillsPanelOpen = useAppStore((state) => state.setIsSkillsPanelOpen);
   const setSkillStudioSurface = useAppStore((state) => state.setSkillStudioSurface);
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
+  const setTelemetryPanelTab = useAppStore((state) => state.setTelemetryPanelTab);
   const setIsFinancePanelOpen = useAppStore((state) => state.setIsFinancePanelOpen);
-  const setIsRawTelemetryPanelOpen = useAppStore((state) => state.setIsRawTelemetryPanelOpen);
-  const setIsThreadDataPanelOpen = useAppStore((state) => state.setIsThreadDataPanelOpen);
   const setIsSkillInvocationsPanelOpen = useAppStore(
     (state) => state.setIsSkillInvocationsPanelOpen,
   );
@@ -63,19 +63,16 @@ export function OfficeMenu({ className }: SpeedDialProps) {
   );
   const setIsWorldMapPanelOpen = useAppStore((state) => state.setIsWorldMapPanelOpen);
   const setIsDocumentLibraryPanelOpen = useAppStore((state) => state.setIsDocumentLibraryPanelOpen);
-  const setIsSelfImprovementRunsPanelOpen = useAppStore(
-    (state) => state.setIsSelfImprovementRunsPanelOpen,
-  );
   const setSelectedSkillStudioSkillId = useAppStore((state) => state.setSelectedSkillStudioSkillId);
   const setSkillStudioFocusAgentId = useAppStore((state) => state.setSkillStudioFocusAgentId);
   const setActiveTeamId = useAppStore((state) => state.setActiveTeamId);
   const setSelectedTeamId = useAppStore((state) => state.setSelectedTeamId);
   const setKanbanFocusAgentId = useAppStore((state) => state.setKanbanFocusAgentId);
   const setIsSettingsModalOpen = useAppStore((state) => state.setIsSettingsModalOpen);
+  const setSettingsDialogTab = useAppStore((state) => state.setSettingsDialogTab);
   const setIsCeoWorkbenchOpen = useAppStore((state) => state.setIsCeoWorkbenchOpen);
   const setCeoWorkbenchView = useAppStore((state) => state.setCeoWorkbenchView);
   const placementMode = useAppStore((state) => state.placementMode);
-  const setIsUserTasksModalOpen = useAppStore((state) => state.setIsUserTasksModalOpen);
   const isFurnitureShopOpen = useAppStore((state) => state.isFurnitureShopOpen);
   const setIsFurnitureShopOpen = useAppStore((state) => state.setIsFurnitureShopOpen);
   const isOrganizationPanelOpen = useAppStore((state) => state.isOrganizationPanelOpen);
@@ -100,19 +97,26 @@ export function OfficeMenu({ className }: SpeedDialProps) {
     setBuilderMode(!isBuilderMode); // This will trigger the animation in OfficeScene
   }, [isAnimatingCamera, isBuilderMode, setBuilderMode]);
 
-  const openGlobalTeamWorkspace = useCallback(() => {
+  const openGlobalTeamWorkspace = useCallback((initialTab: "overview" | "thread-data" = "overview") => {
     setActiveTeamId(null);
     setSelectedTeamId(null);
     setKanbanFocusAgentId(null);
+    setGlobalTeamPanelInitialTab(initialTab);
     setIsGlobalTeamPanelOpen(true);
-  }, [setActiveTeamId, setIsGlobalTeamPanelOpen, setKanbanFocusAgentId, setSelectedTeamId]);
+  }, [
+    setActiveTeamId,
+    setGlobalTeamPanelInitialTab,
+    setIsGlobalTeamPanelOpen,
+    setKanbanFocusAgentId,
+    setSelectedTeamId,
+  ]);
 
   const shouldGuideMenu =
     isOfficeOnboardingVisible &&
     (officeOnboardingStep === "open-shop" || officeOnboardingStep === "open-team");
   const highlightedMenuActionId =
     officeOnboardingStep === "open-shop"
-      ? "office-shop"
+      ? "builder-mode"
       : officeOnboardingStep === "open-team"
         ? "team-workspace"
         : null;
@@ -124,8 +128,14 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         highlightedMenuActionId,
         isAnimatingCamera,
         isBuilderMode,
-        openUserCommunications: () => setIsUserTasksModalOpen(true),
-        openDecoration: () => setIsFurnitureShopOpen(true),
+        openUserCommunications: () => {
+          setSettingsDialogTab("communications");
+          setIsSettingsModalOpen(true);
+        },
+        openDecoration: () => {
+          if (!isBuilderMode && !isAnimatingCamera) setBuilderMode(true);
+          setIsFurnitureShopOpen(true);
+        },
         openSkillOs: () => {
           setSelectedSkillStudioSkillId(null);
           setSkillStudioFocusAgentId(null);
@@ -166,25 +176,39 @@ export function OfficeMenu({ className }: SpeedDialProps) {
           setIsCeoWorkbenchOpen(true);
         },
         openOrganization: () => setIsOrganizationPanelOpen(true),
-        openSettings: () => setIsSettingsModalOpen(true),
+        openSettings: () => {
+          setSettingsDialogTab("general");
+          setIsSettingsModalOpen(true);
+        },
         openSkillInvocations: () => setIsSkillInvocationsPanelOpen(true),
         openResourceBank: () => setIsResourceBankPanelOpen(true),
         openVideoIntelligence: () => setIsVideoIntelligencePanelOpen(true),
         openWorld: () => setIsWorldMapPanelOpen(true),
         openDocumentLibrary: () => setIsDocumentLibraryPanelOpen(true),
-        openSelfImprovementRuns: () => setIsSelfImprovementRunsPanelOpen(true),
-        openTelemetry: () => setIsTelemetryPanelOpen(true),
+        openSelfImprovementRuns: () => {
+          setSelectedSkillStudioSkillId(null);
+          setSkillStudioFocusAgentId(null);
+          setSkillStudioSurface("self-improvement-runs");
+          setIsSkillsPanelOpen(true);
+        },
+        openTelemetry: () => {
+          setTelemetryPanelTab("usage");
+          setIsTelemetryPanelOpen(true);
+        },
         openFinance: () => setIsFinancePanelOpen(true),
-        openRawTelemetry: () => setIsRawTelemetryPanelOpen(true),
-        openThreadData: () => setIsThreadDataPanelOpen(true),
+        openRawTelemetry: () => {
+          setTelemetryPanelTab("events");
+          setIsTelemetryPanelOpen(true);
+        },
+        openThreadData: () => openGlobalTeamWorkspace("thread-data"),
         toggleBuilderMode: handleBuilderModeToggle,
       }),
     [
       highlightedMenuActionId,
       isAnimatingCamera,
       isBuilderMode,
-      setIsUserTasksModalOpen,
       setIsFurnitureShopOpen,
+      setBuilderMode,
       setSelectedSkillStudioSkillId,
       setSkillStudioFocusAgentId,
       setSkillStudioSurface,
@@ -193,17 +217,16 @@ export function OfficeMenu({ className }: SpeedDialProps) {
       setCeoWorkbenchView,
       setIsCeoWorkbenchOpen,
       setIsSettingsModalOpen,
+      setSettingsDialogTab,
       setIsOrganizationPanelOpen,
       setIsSkillInvocationsPanelOpen,
       setIsResourceBankPanelOpen,
       setIsVideoIntelligencePanelOpen,
       setIsWorldMapPanelOpen,
       setIsDocumentLibraryPanelOpen,
-      setIsSelfImprovementRunsPanelOpen,
       setIsTelemetryPanelOpen,
+      setTelemetryPanelTab,
       setIsFinancePanelOpen,
-      setIsRawTelemetryPanelOpen,
-      setIsThreadDataPanelOpen,
       handleBuilderModeToggle,
       isReadOnly,
     ],
@@ -282,6 +305,8 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         runStoryCameraFixture: (target: [number, number, number] | null) => boolean;
         applyBuilderCustomizationFixture: () => Promise<boolean>;
         getOfficeQualityReport: () => unknown;
+        getArchipelagoState: () => unknown;
+        getProjectCouncilState: () => unknown;
       };
     };
 
@@ -325,6 +350,8 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         return true;
       },
       getOfficeQualityReport: () => getOfficeQaState().quality ?? null,
+      getArchipelagoState: () => getOfficeQaState().archipelago ?? null,
+      getProjectCouncilState: () => getOfficeQaState().projectCouncil ?? null,
       seedLineageEvent: (edge) => {
         const seed = getOfficeQaState().seedLineage;
         if (!seed) return false;

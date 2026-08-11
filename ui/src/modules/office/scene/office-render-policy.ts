@@ -17,17 +17,13 @@ export type OfficeBlockingPanelState = {
   isAgentSessionPanelOpen: boolean;
   isGlobalTeamPanelOpen: boolean;
   isOrganizationPanelOpen: boolean;
-  isRawTelemetryPanelOpen: boolean;
   isResourceBankPanelOpen: boolean;
-  isSelfImprovementRunsPanelOpen: boolean;
   isVideoIntelligencePanelOpen: boolean;
   isSettingsModalOpen: boolean;
   isSkillInvocationsPanelOpen: boolean;
   isSkillsPanelOpen: boolean;
   isTeamPanelOpen: boolean;
   isTelemetryPanelOpen: boolean;
-  isThreadDataPanelOpen: boolean;
-  isUserTasksModalOpen: boolean;
   isWorldMapPanelOpen: boolean;
   manageAgentEmployeeId: unknown;
   memoryPanelEmployeeId: unknown;
@@ -45,17 +41,13 @@ export function hasBlockingOfficePanel(state: OfficeBlockingPanelState): boolean
       state.isAgentSessionPanelOpen ||
       state.isGlobalTeamPanelOpen ||
       state.isOrganizationPanelOpen ||
-      state.isRawTelemetryPanelOpen ||
       state.isResourceBankPanelOpen ||
-      state.isSelfImprovementRunsPanelOpen ||
       state.isVideoIntelligencePanelOpen ||
       state.isSettingsModalOpen ||
       state.isSkillInvocationsPanelOpen ||
       state.isSkillsPanelOpen ||
       state.isTeamPanelOpen ||
       state.isTelemetryPanelOpen ||
-      state.isThreadDataPanelOpen ||
-      state.isUserTasksModalOpen ||
       state.isWorldMapPanelOpen ||
       state.manageAgentEmployeeId ||
       state.memoryPanelEmployeeId ||

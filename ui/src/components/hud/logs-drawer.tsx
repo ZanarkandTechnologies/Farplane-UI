@@ -93,8 +93,8 @@ export function LogsDrawer({
 }: LogsDrawerProps): React.JSX.Element {
   const adapter = useOfficeRuntimeAdapter();
   const convexEnabled = isConvexEnabled();
-  const setIsRawTelemetryPanelOpen = useAppStore((state) => state.setIsRawTelemetryPanelOpen);
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
+  const setTelemetryPanelTab = useAppStore((state) => state.setTelemetryPanelTab);
   const [unified, setUnified] = useState<UnifiedOfficeModel | null>(null);
   const [sessions, setSessions] = useState<SessionRowModel[]>([]);
   const [timeline, setTimeline] = useState<SessionTimelineModel | null>(null);
@@ -454,8 +454,14 @@ export function LogsDrawer({
                 cards={healthCards}
                 findings={findings}
                 breadcrumbLines={breadcrumbLines}
-                onOpenRawTelemetry={() => setIsRawTelemetryPanelOpen(true)}
-                onOpenHarnessUsage={() => setIsTelemetryPanelOpen(true)}
+                onOpenRawTelemetry={() => {
+                  setTelemetryPanelTab("events");
+                  setIsTelemetryPanelOpen(true);
+                }}
+                onOpenHarnessUsage={() => {
+                  setTelemetryPanelTab("usage");
+                  setIsTelemetryPanelOpen(true);
+                }}
               />
             </TabsContent>
 

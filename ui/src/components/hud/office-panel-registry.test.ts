@@ -150,21 +150,14 @@ describe("office panel registry", () => {
     expect(launcherActions.map((action) => action.id)).toEqual([
       "organization",
       "ceo-workbench",
-      "user-communications",
-      "harness",
       "skill-os",
-      "evals",
       "resource-bank",
       "video-intelligence",
       "world",
       "document-library",
-      "self-improvement-runs",
       "telemetry",
       "finance",
-      "raw-telemetry",
-      "thread-data",
       "builder-mode",
-      "office-shop",
       "settings",
     ]);
     expect(paletteIds).toContain("settings");
@@ -185,13 +178,13 @@ describe("office panel registry", () => {
     expect(paletteIds).toContain("human-review");
   });
 
-  it("carries guided onboarding emphasis onto the launcher action", () => {
-    const { actions } = createPanelHarness({ highlightedMenuActionId: "office-shop" });
+  it("carries guided onboarding emphasis onto the Builder Mode launcher action", () => {
+    const { actions } = createPanelHarness({ highlightedMenuActionId: "builder-mode" });
 
     const launcherActions = createOfficeLauncherActions(actions);
-    const officeShopAction = launcherActions.find((action) => action.id === "office-shop");
+    const builderModeAction = launcherActions.find((action) => action.id === "builder-mode");
 
-    expect(officeShopAction?.buttonClassName).toContain("ring-2");
+    expect(builderModeAction?.buttonClassName).toContain("ring-2");
   });
 
   it("suppresses mutating office actions in read-only mode", () => {

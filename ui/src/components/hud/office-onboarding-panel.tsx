@@ -58,7 +58,7 @@ const STEP_COPY: Record<OfficeOnboardingStep, StepCopy> = {
   "open-shop": {
     eyebrow: "Step 3 of 4",
     title: "Decorate the office",
-    body: "Use the top-left menu and open Decoration. You can place furniture yourself or ask the agent to help decorate.",
+    body: "Open Builder Mode from the top-left menu, then choose Decorate. You can place furniture yourself or ask the agent to help decorate.",
     icon: ShoppingBag,
   },
   "open-team": {

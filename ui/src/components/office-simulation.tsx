@@ -3,7 +3,6 @@ import { useShallow } from "zustand/react/shallow";
 import { Badge } from "@/components/ui/badge";
 import ChatDialog from "@/modules/chat/components/chat-dialog";
 import { FinancePanel } from "@/modules/finance";
-import { RawTelemetryPanel } from "@/modules/hook-telemetry";
 import {
   AgentMemoryPanel,
   AgentSessionPanel,
@@ -22,13 +21,12 @@ import { ResourceBankPanel } from "@/modules/resource-bank";
 import { RealtimeCallDialog, RealtimeCallLauncher } from "@/modules/realtime-call";
 import { gatewayBase } from "@/modules/runtime";
 import { SettingsDialog } from "@/modules/settings";
-import { SelfImprovementRunsPanel } from "@/modules/self-improvement";
 import { SkillInvocationsPanel } from "@/modules/skill-invocations";
 import { TeamPanel } from "@/modules/team-workspace";
 import { TelemetryPanel } from "@/modules/telemetry";
-import { ThreadDataDialog } from "@/modules/thread-data";
 import { VideoIntelligencePanel } from "@/modules/video-intelligence";
 import { WorldMapPanel } from "@/modules/world-map";
+import { useCompanyWorldProjection } from "@/modules/world-map/hooks/use-company-world-projection";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import { OfficeDataProvider, useOptionalOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
@@ -41,7 +39,6 @@ import { LogsToggleButton } from "./hud/logs-toggle-button";
 import { OfficeMenu } from "./hud/office-menu";
 import { OfficeOnboardingPanel } from "./hud/office-onboarding-panel";
 import { OfficeStatsHud } from "./hud/office-stats-hud";
-import { UserTasksPanel } from "./hud/user-tasks-panel";
 import {
   buildOfficeBootstrapStages,
   getOfficeBootstrapState,
@@ -86,19 +83,19 @@ function OfficeSimulationContent() {
   const kanbanFocusAgentId = useAppStore((state) => state.kanbanFocusAgentId);
   const isGlobalTeamPanelOpen = useAppStore((state) => state.isGlobalTeamPanelOpen);
   const setIsGlobalTeamPanelOpen = useAppStore((state) => state.setIsGlobalTeamPanelOpen);
-  const isUserTasksModalOpen = useAppStore((state) => state.isUserTasksModalOpen);
-  const setIsUserTasksModalOpen = useAppStore((state) => state.setIsUserTasksModalOpen);
+  const globalTeamPanelInitialTab = useAppStore((state) => state.globalTeamPanelInitialTab);
+  const setGlobalTeamPanelInitialTab = useAppStore((state) => state.setGlobalTeamPanelInitialTab);
   const setKanbanFocusAgentId = useAppStore((state) => state.setKanbanFocusAgentId);
   const isSettingsModalOpen = useAppStore((state) => state.isSettingsModalOpen);
   const setIsSettingsModalOpen = useAppStore((state) => state.setIsSettingsModalOpen);
+  const settingsDialogTab = useAppStore((state) => state.settingsDialogTab);
+  const setSettingsDialogTab = useAppStore((state) => state.setSettingsDialogTab);
   const isTelemetryPanelOpen = useAppStore((state) => state.isTelemetryPanelOpen);
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
+  const telemetryPanelTab = useAppStore((state) => state.telemetryPanelTab);
+  const setTelemetryPanelTab = useAppStore((state) => state.setTelemetryPanelTab);
   const isFinancePanelOpen = useAppStore((state) => state.isFinancePanelOpen);
   const setIsFinancePanelOpen = useAppStore((state) => state.setIsFinancePanelOpen);
-  const isRawTelemetryPanelOpen = useAppStore((state) => state.isRawTelemetryPanelOpen);
-  const setIsRawTelemetryPanelOpen = useAppStore((state) => state.setIsRawTelemetryPanelOpen);
-  const isThreadDataPanelOpen = useAppStore((state) => state.isThreadDataPanelOpen);
-  const setIsThreadDataPanelOpen = useAppStore((state) => state.setIsThreadDataPanelOpen);
   const isSkillInvocationsPanelOpen = useAppStore((state) => state.isSkillInvocationsPanelOpen);
   const setIsSkillInvocationsPanelOpen = useAppStore(
     (state) => state.setIsSkillInvocationsPanelOpen,
@@ -111,12 +108,6 @@ function OfficeSimulationContent() {
   );
   const isWorldMapPanelOpen = useAppStore((state) => state.isWorldMapPanelOpen);
   const setIsWorldMapPanelOpen = useAppStore((state) => state.setIsWorldMapPanelOpen);
-  const isSelfImprovementRunsPanelOpen = useAppStore(
-    (state) => state.isSelfImprovementRunsPanelOpen,
-  );
-  const setIsSelfImprovementRunsPanelOpen = useAppStore(
-    (state) => state.setIsSelfImprovementRunsPanelOpen,
-  );
   const [isLogsDrawerOpen, setIsLogsDrawerOpen] = useState(false);
   const [navigationReady, setNavigationReady] = useState(false);
   const [hasNavigationReadyOnce, setHasNavigationReadyOnce] = useState(false);
@@ -142,6 +133,23 @@ function OfficeSimulationContent() {
   const [hasRenderedScene, setHasRenderedScene] = useState(false);
   const meshesReady = customMeshUrls.length === 0 || loadedMeshSignature === customMeshSignature;
   const dataReady = !isLoading;
+  const companyWorldProjectRefs = useMemo(
+    () =>
+      (companyModel?.projects ?? [])
+        .filter((project) => project.trackingContext?.trim().startsWith("/"))
+        .map((project) => ({
+          id: project.id,
+          name: project.name,
+          path: project.trackingContext as string,
+        })),
+    [companyModel?.projects],
+  );
+  const isWorldNexusEnabled = dataReady && officeSettings.layoutStrategy === "team_neighborhoods";
+  const companyWorldSource = useCompanyWorldProjection(
+    companyWorldProjectRefs,
+    isWorldNexusEnabled,
+  );
+  const sharedCompanyWorldSource = isWorldNexusEnabled ? companyWorldSource : undefined;
   const sceneShellReady = shouldRenderOfficeSceneShell({
     isLoading,
     meshesReady,
@@ -210,6 +218,8 @@ function OfficeSimulationContent() {
             officeAreas={officeAreas}
             officeFootprint={officeSettings.officeFootprint}
             officeLayout={officeSettings.officeLayout}
+            officeLayoutStrategy={officeSettings.layoutStrategy}
+            worldNexusProjection={sharedCompanyWorldSource?.projection}
             officeDecorSettings={officeSettings.decor}
             officeViewSettings={officeSettings}
             companyId={companyId}
@@ -242,8 +252,12 @@ function OfficeSimulationContent() {
                 isOpen={isGlobalTeamPanelOpen}
                 onOpenChange={(open) => {
                   setIsGlobalTeamPanelOpen(open);
-                  if (!open) setKanbanFocusAgentId(null);
+                  if (!open) {
+                    setKanbanFocusAgentId(null);
+                    setGlobalTeamPanelInitialTab("overview");
+                  }
                 }}
+                initialTab={globalTeamPanelInitialTab}
                 globalMode
               />
             ) : null}
@@ -258,28 +272,24 @@ function OfficeSimulationContent() {
             <ObjectInteractionPanel />
             {!isReadOnly ? <CeoWorkbenchPanel /> : null}
             {!isReadOnly ? (
-              <UserTasksPanel
-                isOpen={isUserTasksModalOpen}
-                onOpenChange={setIsUserTasksModalOpen}
+              <SettingsDialog
+                open={isSettingsModalOpen}
+                initialTab={settingsDialogTab}
+                onOpenChange={(open) => {
+                  setIsSettingsModalOpen(open);
+                  if (!open) setSettingsDialogTab("general");
+                }}
               />
             ) : null}
-            {!isReadOnly ? (
-              <SettingsDialog open={isSettingsModalOpen} onOpenChange={setIsSettingsModalOpen} />
-            ) : null}
-            <TelemetryPanel open={isTelemetryPanelOpen} onOpenChange={setIsTelemetryPanelOpen} />
+            <TelemetryPanel
+              open={isTelemetryPanelOpen}
+              initialTab={telemetryPanelTab}
+              onOpenChange={(open) => {
+                setIsTelemetryPanelOpen(open);
+                if (!open) setTelemetryPanelTab("usage");
+              }}
+            />
             <FinancePanel open={isFinancePanelOpen} onOpenChange={setIsFinancePanelOpen} />
-            {!isReadOnly ? (
-              <RawTelemetryPanel
-                open={isRawTelemetryPanelOpen}
-                onOpenChange={setIsRawTelemetryPanelOpen}
-              />
-            ) : null}
-            {!isReadOnly ? (
-              <ThreadDataDialog
-                open={isThreadDataPanelOpen}
-                onOpenChange={setIsThreadDataPanelOpen}
-              />
-            ) : null}
             <SkillInvocationsPanel
               open={isSkillInvocationsPanelOpen}
               onOpenChange={setIsSkillInvocationsPanelOpen}
@@ -292,13 +302,12 @@ function OfficeSimulationContent() {
               open={isVideoIntelligencePanelOpen}
               onOpenChange={setIsVideoIntelligencePanelOpen}
             />
-            <WorldMapPanel open={isWorldMapPanelOpen} onOpenChange={setIsWorldMapPanelOpen} />
-            <ProjectDocumentLibraryPanel />
-            <SelfImprovementRunsPanel
-              open={isSelfImprovementRunsPanelOpen}
-              onOpenChange={setIsSelfImprovementRunsPanelOpen}
-              projects={companyModel?.projects ?? []}
+            <WorldMapPanel
+              open={isWorldMapPanelOpen}
+              onOpenChange={setIsWorldMapPanelOpen}
+              companyWorldSource={sharedCompanyWorldSource}
             />
+            <ProjectDocumentLibraryPanel />
 
             <div className="pointer-events-none absolute top-4 left-4 z-[70]">
               <div className="pointer-events-auto">

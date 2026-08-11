@@ -139,21 +139,14 @@ export const OFFICE_COMMAND_PALETTE_SHORTCUT: OfficeShortcut = {
 const OFFICE_LAUNCHER_ACTION_ORDER: OfficePanelActionId[] = [
   "organization",
   "ceo-workbench",
-  "user-communications",
-  "harness",
   "skill-os",
-  "evals",
   "resource-bank",
   "video-intelligence",
   "world",
   "document-library",
-  "self-improvement-runs",
   "telemetry",
   "finance",
-  "raw-telemetry",
-  "thread-data",
   "builder-mode",
-  "office-shop",
   "settings",
 ];
 
@@ -300,7 +293,7 @@ export function createOfficePanelActions(
       color: SECONDARY_BUTTON_COLOR,
       perform: readOnly ? noop : deps.openRawTelemetry,
       disabled: readOnly,
-      showInMenu: !readOnly,
+      showInMenu: false,
       showInPalette: !readOnly,
     },
     {
@@ -314,7 +307,7 @@ export function createOfficePanelActions(
       color: SECONDARY_BUTTON_COLOR,
       perform: readOnly ? noop : deps.openThreadData,
       disabled: readOnly,
-      showInMenu: !readOnly,
+      showInMenu: false,
       showInPalette: !readOnly,
     },
     {
@@ -368,6 +361,7 @@ export function createOfficePanelActions(
       icon: TestTube2,
       keywords: [...selfImprovementPanel.keywords, "lab"],
       color: SECONDARY_BUTTON_COLOR,
+      showInMenu: false,
       perform: deps.openSelfImprovementRuns,
     },
     {
@@ -390,6 +384,7 @@ export function createOfficePanelActions(
       keywords: [...harnessPanel.keywords, "agents", "panel"],
       shortcut: { key: "h", label: "Alt+Shift+H", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
+      showInMenu: false,
       perform: deps.openHarness,
     },
     {
@@ -426,6 +421,7 @@ export function createOfficePanelActions(
       keywords: [...evalsPanel.keywords, "panel"],
       shortcut: { key: "e", label: "Alt+Shift+E", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
+      showInMenu: false,
       perform: deps.openEvals,
     },
     {
@@ -439,7 +435,7 @@ export function createOfficePanelActions(
       color: SECONDARY_BUTTON_COLOR,
       perform: readOnly ? noop : deps.openUserCommunications,
       disabled: readOnly,
-      showInMenu: !readOnly,
+      showInMenu: false,
       showInPalette: !readOnly,
     },
     {
@@ -478,6 +474,8 @@ export function createOfficePanelActions(
       keywords: ["builder", "layout", "decor", "placement", "mode"],
       shortcut: { key: "b", label: "Alt+Shift+B", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
+      buttonClassName:
+        deps.highlightedMenuActionId === "builder-mode" ? GUIDED_BUTTON_CLASS : undefined,
       disabled: deps.isAnimatingCamera || readOnly,
       showInMenu: !readOnly,
       showInPalette: !readOnly,
@@ -492,10 +490,8 @@ export function createOfficePanelActions(
       keywords: [...officeShopPanel.keywords, "panel"],
       shortcut: { key: "d", label: "Alt+Shift+D", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      buttonClassName:
-        deps.highlightedMenuActionId === "office-shop" ? GUIDED_BUTTON_CLASS : undefined,
       disabled: readOnly,
-      showInMenu: !readOnly,
+      showInMenu: false,
       showInPalette: !readOnly,
       perform: readOnly ? noop : deps.openDecoration,
     },

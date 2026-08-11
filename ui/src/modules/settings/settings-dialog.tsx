@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAppStore } from "@/store";
+import { type SettingsDialogTab, useAppStore } from "@/store";
 import { getGatewayUiConfig } from "@/modules/runtime";
 import { setOfficeOnboardingCompleted } from "@/modules/office/lib/office-onboarding";
 import type { OfficeSettingsModel } from "@/modules/runtime";
@@ -19,6 +19,7 @@ import { UI_Z } from "@/lib/z-index";
 import { useGateway } from "@/providers/gateway-provider";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
+import { UserCommunicationsTab } from "@/modules/user-communications";
 import {
   GeneralSettingsPanel,
   OfficeViewSettingsPanel,
@@ -41,16 +42,18 @@ type SettingsDialogProps = {
   trigger?: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  initialTab?: SettingsDialogTab;
 };
 
 export default function SettingsDialog(props: SettingsDialogProps) {
-  const { open, onOpenChange } = props;
+  const { open, onOpenChange, initialTab = "general" } = props;
   const adapter = useOfficeRuntimeAdapter();
   const { officeObjects, officeSettings, refresh, applyOfficeSettings } =
     useOfficeDataContext();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const dialogOpen = typeof open === "boolean" ? open : uncontrolledOpen;
   const setDialogOpen = onOpenChange ?? setUncontrolledOpen;
+  const [activeTab, setActiveTab] = useState<SettingsDialogTab>(initialTab);
   const debugMode = useAppStore((state) => state.debugMode);
   const setDebugMode = useAppStore((state) => state.setDebugMode);
   const officeOverlays = useAppStore((state) => state.officeOverlays);
@@ -112,6 +115,7 @@ export default function SettingsDialog(props: SettingsDialogProps) {
 
   useEffect(() => {
     if (!dialogOpen) return;
+    setActiveTab(initialTab);
     const next = getGatewayUiConfig();
     setGatewayBaseInput(next.gatewayBase);
     setStateBaseInput(next.stateBase);
@@ -137,6 +141,7 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     setCharacterGraphicsStatusText("");
   }, [
     dialogOpen,
+    initialTab,
     officeSettings.cameraOrientation,
     officeSettings.orbitControlsEnabled,
     officeSettings.viewProfile,
@@ -279,17 +284,30 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogContent
-        className="max-w-md max-h-[85vh] overflow-y-auto"
+        className={
+          activeTab === "communications"
+            ? "flex h-[min(92vh,860px)] max-w-[98vw] flex-col overflow-hidden p-0 sm:max-w-[1240px]"
+            : "max-h-[85vh] max-w-md overflow-y-auto"
+        }
         style={{ zIndex: UI_Z.panelBase }}
       >
-        <DialogHeader>
+        <DialogHeader className={activeTab === "communications" ? "border-b px-6 py-4" : undefined}>
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
-        <Tabs defaultValue="general" className="py-4">
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as SettingsDialogTab)}
+          className={
+            activeTab === "communications"
+              ? "flex min-h-0 flex-1 flex-col px-6 py-4"
+              : "py-4"
+          }
+        >
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="office">Office</TabsTrigger>
             <TabsTrigger value="runtime">Runtime</TabsTrigger>
+            <TabsTrigger value="communications">Comms</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="mt-4 space-y-4">
@@ -362,6 +380,10 @@ export default function SettingsDialog(props: SettingsDialogProps) {
             {runtimeKindInput === "openclaw" && statusText ? (
               <p className="text-xs text-muted-foreground">{statusText}</p>
             ) : null}
+          </TabsContent>
+
+          <TabsContent value="communications" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <UserCommunicationsTab />
           </TabsContent>
         </Tabs>
       </DialogContent>

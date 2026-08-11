@@ -67,20 +67,6 @@ export function SelfImprovementRunsPanel({
   onOpenChange: (open: boolean) => void;
   projects: readonly ProjectModel[];
 }): ReactElement {
-  const state = useSelfImprovementRuns(open, projects);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const setSelectedSkillStudioSkillId = useAppStore((store) => store.setSelectedSkillStudioSkillId);
-  const setSkillStudioSurface = useAppStore((store) => store.setSkillStudioSurface);
-  const setIsSkillsPanelOpen = useAppStore((store) => store.setIsSkillsPanelOpen);
-
-  function openSkillExperiment(skillId: string): void {
-    setSearchParams(buildSkillExperimentSearchParams(searchParams, skillId));
-    setSelectedSkillStudioSkillId(skillId);
-    setSkillStudioSurface("skill-os");
-    onOpenChange(false);
-    setIsSkillsPanelOpen(true);
-  }
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[min(82vh,52rem)] max-w-[min(94vw,72rem)] grid-rows-none flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(94vw,72rem)]">
@@ -93,16 +79,50 @@ export function SelfImprovementRunsPanel({
             Ticket-backed Goal campaigns across configured project folders.
           </DialogDescription>
         </DialogHeader>
+        <SelfImprovementRunsContent
+          enabled={open}
+          projects={projects}
+          onOpenSkillExperiment={() => onOpenChange(false)}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
 
-        {state.partial ? (
-          <div className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-5 py-2 text-xs text-amber-700 dark:text-amber-300">
-            <AlertTriangle className="size-3.5 shrink-0" />
-            Showing partial results{state.truncated ? " at the bounded scan limit" : ""};{" "}
-            {state.issues.length} project read issue{state.issues.length === 1 ? "" : "s"}.
-          </div>
-        ) : null}
+export function SelfImprovementRunsContent({
+  enabled,
+  projects,
+  onOpenSkillExperiment,
+}: {
+  enabled: boolean;
+  projects: readonly ProjectModel[];
+  onOpenSkillExperiment?: () => void;
+}): ReactElement {
+  const state = useSelfImprovementRuns(enabled, projects);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const setSelectedSkillStudioSkillId = useAppStore((store) => store.setSelectedSkillStudioSkillId);
+  const setSkillStudioSurface = useAppStore((store) => store.setSkillStudioSurface);
+  const setIsSkillsPanelOpen = useAppStore((store) => store.setIsSkillsPanelOpen);
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+  function openSkillExperiment(skillId: string): void {
+    setSearchParams(buildSkillExperimentSearchParams(searchParams, skillId));
+    setSelectedSkillStudioSkillId(skillId);
+    setSkillStudioSurface("skill-os");
+    onOpenSkillExperiment?.();
+    setIsSkillsPanelOpen(true);
+  }
+
+  return (
+    <>
+      {state.partial ? (
+        <div className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-5 py-2 text-xs text-amber-700 dark:text-amber-300">
+          <AlertTriangle className="size-3.5 shrink-0" />
+          Showing partial results{state.truncated ? " at the bounded scan limit" : ""};{" "}
+          {state.issues.length} project read issue{state.issues.length === 1 ? "" : "s"}.
+        </div>
+      ) : null}
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
           {state.status === "loading" ? (
             <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> Reading Goal Packets…
@@ -177,8 +197,7 @@ export function SelfImprovementRunsPanel({
               ))}
             </div>
           ) : null}
-        </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </>
   );
 }

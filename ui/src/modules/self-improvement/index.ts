@@ -1,4 +1,7 @@
-export { SelfImprovementRunsPanel } from "./components/self-improvement-runs-panel";
+export {
+  SelfImprovementRunsContent,
+  SelfImprovementRunsPanel,
+} from "./components/self-improvement-runs-panel";
 export {
   buildSelfImproveRunSummaries,
   parseSelfImproveRun,

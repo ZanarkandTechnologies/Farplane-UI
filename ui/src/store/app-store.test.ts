@@ -43,25 +43,24 @@ describe("app store perf guards", () => {
     expect(useAppStore.getState().skillStudioSurface).toBe("template-tracking");
   });
 
-  it("stores telemetry panel open state", () => {
+  it("stores merged workspace destinations", () => {
     useAppStore.getState().setIsTelemetryPanelOpen(true);
     useAppStore.getState().setIsFinancePanelOpen(true);
-    useAppStore.getState().setIsRawTelemetryPanelOpen(true);
-    useAppStore.getState().setIsThreadDataPanelOpen(true);
+    useAppStore.getState().setTelemetryPanelTab("events");
+    useAppStore.getState().setGlobalTeamPanelInitialTab("thread-data");
+    useAppStore.getState().setSettingsDialogTab("communications");
+    useAppStore.getState().setSkillStudioSurface("self-improvement-runs");
     expect(useAppStore.getState().isTelemetryPanelOpen).toBe(true);
     expect(useAppStore.getState().isFinancePanelOpen).toBe(true);
-    expect(useAppStore.getState().isRawTelemetryPanelOpen).toBe(true);
-    expect(useAppStore.getState().isThreadDataPanelOpen).toBe(true);
+    expect(useAppStore.getState().telemetryPanelTab).toBe("events");
+    expect(useAppStore.getState().globalTeamPanelInitialTab).toBe("thread-data");
+    expect(useAppStore.getState().settingsDialogTab).toBe("communications");
+    expect(useAppStore.getState().skillStudioSurface).toBe("self-improvement-runs");
   });
 
   it("stores Video Intelligence panel open state", () => {
     useAppStore.getState().setIsVideoIntelligencePanelOpen(true);
     expect(useAppStore.getState().isVideoIntelligencePanelOpen).toBe(true);
-  });
-
-  it("stores Self-Improvement Runs panel open state", () => {
-    useAppStore.getState().setIsSelfImprovementRunsPanelOpen(true);
-    expect(useAppStore.getState().isSelfImprovementRunsPanelOpen).toBe(true);
   });
 
   it("stores organization panel open state for shared launch surfaces", () => {

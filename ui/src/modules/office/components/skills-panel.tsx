@@ -21,15 +21,25 @@
 import type { ReactElement } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { UI_Z } from "@/lib/z-index";
 import { EvalOsPanel } from "@/modules/evals";
 import { HarnessOsPanel } from "@/modules/harness-os";
+import { SelfImprovementRunsContent } from "@/modules/self-improvement";
 import { SkillOsMiniApp } from "@/modules/skills-studio/components/skill-os";
+import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
 
 function panelTitle(
-  surface: "skill-os" | "template-tracking" | "evals" | "harness" | "rollout" | "skill-rollout",
+  surface:
+    | "skill-os"
+    | "template-tracking"
+    | "evals"
+    | "harness"
+    | "rollout"
+    | "skill-rollout"
+    | "self-improvement-runs",
   focusAgentId: string | null,
 ): string {
   if (focusAgentId) return "Agent Skills";
@@ -38,11 +48,19 @@ function panelTitle(
   if (surface === "evals") return "Evals";
   if (surface === "rollout") return "Harness OS";
   if (surface === "harness") return "Harness OS";
+  if (surface === "self-improvement-runs") return "Self-Improvement Runs";
   return "Skill OS";
 }
 
 function panelDescription(
-  surface: "skill-os" | "template-tracking" | "evals" | "harness" | "rollout" | "skill-rollout",
+  surface:
+    | "skill-os"
+    | "template-tracking"
+    | "evals"
+    | "harness"
+    | "rollout"
+    | "skill-rollout"
+    | "self-improvement-runs",
   focusAgentId: string | null,
 ): string {
   if (focusAgentId) {
@@ -61,15 +79,38 @@ function panelDescription(
   if (surface === "harness") {
     return "Semantic graph, lifecycle, and feature registry for the Farplane Harness OS.";
   }
+  if (surface === "self-improvement-runs") {
+    return "Ticket-backed Goal campaigns across configured project folders.";
+  }
   return "Find a skill in the graph, then inspect its runbook, experiments, and files.";
 }
 
+function studioTabFor(
+  surface:
+    | "skill-os"
+    | "template-tracking"
+    | "evals"
+    | "harness"
+    | "rollout"
+    | "skill-rollout"
+    | "self-improvement-runs",
+): "skill-os" | "evals" | "harness" | "self-improvement-runs" {
+  if (surface === "evals") return "evals";
+  if (surface === "self-improvement-runs") return "self-improvement-runs";
+  if (surface === "harness" || surface === "rollout" || surface === "template-tracking") {
+    return "harness";
+  }
+  return "skill-os";
+}
+
 export function SkillsPanel(): ReactElement {
-  const { focusAgentId, isOpen, setIsOpen, surface } = useAppStore(
+  const { companyModel } = useOfficeDataContext();
+  const { focusAgentId, isOpen, setIsOpen, setSurface, surface } = useAppStore(
     useShallow((state) => ({
       focusAgentId: state.skillStudioFocusAgentId,
       isOpen: state.isSkillsPanelOpen,
       setIsOpen: state.setIsSkillsPanelOpen,
+      setSurface: state.setSkillStudioSurface,
       surface: state.skillStudioSurface,
     })),
   );
@@ -83,6 +124,22 @@ export function SkillsPanel(): ReactElement {
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle>{panelTitle(surface, focusAgentId)}</DialogTitle>
           <p className="text-xs text-muted-foreground">{panelDescription(surface, focusAgentId)}</p>
+          {!focusAgentId ? (
+            <Tabs
+              value={studioTabFor(surface)}
+              onValueChange={(value) =>
+                setSurface(value as "skill-os" | "evals" | "harness" | "self-improvement-runs")
+              }
+              className="mt-3"
+            >
+              <TabsList>
+                <TabsTrigger value="skill-os">Skills</TabsTrigger>
+                <TabsTrigger value="evals">Evals</TabsTrigger>
+                <TabsTrigger value="harness">Harness</TabsTrigger>
+                <TabsTrigger value="self-improvement-runs">Runs</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          ) : null}
           {focusAgentId ? (
             <p className="text-xs text-muted-foreground">Focused agent: {focusAgentId}</p>
           ) : null}
@@ -99,6 +156,12 @@ export function SkillsPanel(): ReactElement {
           {surface === "skill-rollout" ? <SkillOsMiniApp initialFilter="needs-care" /> : null}
           {surface === "rollout" ? <HarnessOsPanel initialView="rollout" /> : null}
           {surface === "template-tracking" ? <HarnessOsPanel initialView="templates" /> : null}
+          {surface === "self-improvement-runs" ? (
+            <SelfImprovementRunsContent
+              enabled={isOpen}
+              projects={companyModel?.projects ?? []}
+            />
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

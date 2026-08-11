@@ -18,28 +18,26 @@ import type { OfficeInternalPanelId } from "./internal-panel-catalog";
 export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelId) => void {
   const setIsOrganizationPanelOpen = useAppStore((state) => state.setIsOrganizationPanelOpen);
   const setIsGlobalTeamPanelOpen = useAppStore((state) => state.setIsGlobalTeamPanelOpen);
+  const setGlobalTeamPanelInitialTab = useAppStore((state) => state.setGlobalTeamPanelInitialTab);
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
+  const setTelemetryPanelTab = useAppStore((state) => state.setTelemetryPanelTab);
   const setIsFinancePanelOpen = useAppStore((state) => state.setIsFinancePanelOpen);
-  const setIsRawTelemetryPanelOpen = useAppStore((state) => state.setIsRawTelemetryPanelOpen);
-  const setIsThreadDataPanelOpen = useAppStore((state) => state.setIsThreadDataPanelOpen);
   const setIsResourceBankPanelOpen = useAppStore((state) => state.setIsResourceBankPanelOpen);
   const setIsVideoIntelligencePanelOpen = useAppStore(
     (state) => state.setIsVideoIntelligencePanelOpen,
   );
   const setIsWorldMapPanelOpen = useAppStore((state) => state.setIsWorldMapPanelOpen);
   const setIsDocumentLibraryPanelOpen = useAppStore((state) => state.setIsDocumentLibraryPanelOpen);
-  const setIsSelfImprovementRunsPanelOpen = useAppStore(
-    (state) => state.setIsSelfImprovementRunsPanelOpen,
-  );
   const setIsSkillsPanelOpen = useAppStore((state) => state.setIsSkillsPanelOpen);
   const setSkillStudioSurface = useAppStore((state) => state.setSkillStudioSurface);
   const setSelectedSkillStudioSkillId = useAppStore((state) => state.setSelectedSkillStudioSkillId);
   const setSkillStudioFocusAgentId = useAppStore((state) => state.setSkillStudioFocusAgentId);
   const setIsCeoWorkbenchOpen = useAppStore((state) => state.setIsCeoWorkbenchOpen);
   const setCeoWorkbenchView = useAppStore((state) => state.setCeoWorkbenchView);
-  const setIsUserTasksModalOpen = useAppStore((state) => state.setIsUserTasksModalOpen);
   const setIsFurnitureShopOpen = useAppStore((state) => state.setIsFurnitureShopOpen);
+  const setBuilderMode = useAppStore((state) => state.setBuilderMode);
   const setIsSettingsModalOpen = useAppStore((state) => state.setIsSettingsModalOpen);
+  const setSettingsDialogTab = useAppStore((state) => state.setSettingsDialogTab);
   const setActiveTeamId = useAppStore((state) => state.setActiveTeamId);
   const setSelectedTeamId = useAppStore((state) => state.setSelectedTeamId);
   const setKanbanFocusAgentId = useAppStore((state) => state.setKanbanFocusAgentId);
@@ -54,19 +52,26 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
           setActiveTeamId(null);
           setSelectedTeamId(null);
           setKanbanFocusAgentId(null);
+          setGlobalTeamPanelInitialTab("overview");
           setIsGlobalTeamPanelOpen(true);
           break;
         case "telemetry":
+          setTelemetryPanelTab("usage");
           setIsTelemetryPanelOpen(true);
           break;
         case "finance":
           setIsFinancePanelOpen(true);
           break;
         case "raw-telemetry":
-          setIsRawTelemetryPanelOpen(true);
+          setTelemetryPanelTab("events");
+          setIsTelemetryPanelOpen(true);
           break;
         case "thread-data":
-          setIsThreadDataPanelOpen(true);
+          setActiveTeamId(null);
+          setSelectedTeamId(null);
+          setKanbanFocusAgentId(null);
+          setGlobalTeamPanelInitialTab("thread-data");
+          setIsGlobalTeamPanelOpen(true);
           break;
         case "resource-bank":
           setIsResourceBankPanelOpen(true);
@@ -81,7 +86,10 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
           setIsDocumentLibraryPanelOpen(true);
           break;
         case "self-improvement-runs":
-          setIsSelfImprovementRunsPanelOpen(true);
+          setSelectedSkillStudioSkillId(null);
+          setSkillStudioFocusAgentId(null);
+          setSkillStudioSurface("self-improvement-runs");
+          setIsSkillsPanelOpen(true);
           break;
         case "skill-os":
         case "evals":
@@ -121,12 +129,15 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
           setIsCeoWorkbenchOpen(true);
           break;
         case "user-communications":
-          setIsUserTasksModalOpen(true);
+          setSettingsDialogTab("communications");
+          setIsSettingsModalOpen(true);
           break;
         case "office-shop":
+          setBuilderMode(true);
           setIsFurnitureShopOpen(true);
           break;
         case "settings":
+          setSettingsDialogTab("general");
           setIsSettingsModalOpen(true);
           break;
       }
@@ -134,22 +145,22 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
     [
       setIsOrganizationPanelOpen,
       setActiveTeamId,
+      setGlobalTeamPanelInitialTab,
       setCeoWorkbenchView,
       setIsCeoWorkbenchOpen,
       setIsDocumentLibraryPanelOpen,
-      setIsSelfImprovementRunsPanelOpen,
       setIsFurnitureShopOpen,
+      setBuilderMode,
       setIsFinancePanelOpen,
       setIsGlobalTeamPanelOpen,
       setIsResourceBankPanelOpen,
       setIsVideoIntelligencePanelOpen,
       setIsWorldMapPanelOpen,
-      setIsRawTelemetryPanelOpen,
       setIsSettingsModalOpen,
+      setSettingsDialogTab,
       setIsSkillsPanelOpen,
       setIsTelemetryPanelOpen,
-      setIsThreadDataPanelOpen,
-      setIsUserTasksModalOpen,
+      setTelemetryPanelTab,
       setKanbanFocusAgentId,
       setSelectedSkillStudioSkillId,
       setSelectedTeamId,

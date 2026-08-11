@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type React from "react";
-import { DoorOpen, Eye, PackageCheck, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { DoorOpen, Eye, PackageCheck, Plus, RotateCcw, ShoppingBag, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
@@ -43,6 +43,7 @@ export function BuilderToolbar(): React.JSX.Element | null {
   const activeBuilderTool = useAppStore((state) => state.activeBuilderTool);
   const setActiveBuilderTool = useAppStore((state) => state.setActiveBuilderTool);
   const setBuilderMode = useAppStore((state) => state.setBuilderMode);
+  const setIsFurnitureShopOpen = useAppStore((state) => state.setIsFurnitureShopOpen);
   const layoutHud = useLayoutEditorHud();
   const previewRestoreRef = useRef<OfficeSettingsModel | null>(null);
   const [kitStatus, setKitStatus] = useState<
@@ -172,6 +173,15 @@ export function BuilderToolbar(): React.JSX.Element | null {
         </p>
       </div>
       <div className="grid grid-cols-1 gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-auto justify-start px-3 py-2.5 text-left"
+          onClick={() => setIsFurnitureShopOpen(true)}
+        >
+          <ShoppingBag className="size-4" />
+          Decorate
+        </Button>
         <div className="rounded-xl border border-border/70 bg-muted/25 p-2.5">
           <div className="flex items-start justify-between gap-2">
             <div>
