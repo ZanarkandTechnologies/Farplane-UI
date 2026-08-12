@@ -3,7 +3,7 @@ kind: feature-spec
 status: active
 project: Farplane UI
 created_at: 2026-07-20
-updated_at: 2026-08-12
+updated_at: 2026-08-13
 owner: finance
 related_systems:
   - ../systems/README.md
@@ -87,8 +87,6 @@ They never enter observation files or browser projections.
   launcher.
 - The office money HUD reads the same projection and displays company cash:
   negative red, positive green, zero neutral; it opens Leverage.
-- Desired-state automations run the read-only Slash backfill daily at 05:15 and
-  close the prior completed week on Monday at 05:20 in Asia/Kuala_Lumpur.
 
 ## Limits
 
