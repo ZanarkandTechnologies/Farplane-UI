@@ -1,6 +1,15 @@
 "use client";
 
+export type SkillMethod = {
+  class: "artifact" | "integration" | "internal" | string;
+  id: string;
+  output: string;
+};
+
 export type SkillGraphNode = {
+  area_id?: string;
+  color?: string;
+  department_id?: string;
   description?: string;
   eval?: string;
   group?: string;
@@ -22,10 +31,15 @@ export type SkillGraphNode = {
     window_days?: number;
   };
   id: string;
+  kind?: string;
   label?: string;
-  methods?: string[];
+  methods?: SkillMethod[];
+  method_id?: string;
+  output?: string;
+  parent_skill?: string;
   path?: string;
   source?: "external" | "local" | string;
+  skill_id?: string;
   tier?: number;
 };
 
@@ -42,12 +56,24 @@ export type SkillGraphPayload = {
   counts?: {
     edge_types?: Record<string, number>;
     edges?: number;
+    node_kinds?: Record<string, number>;
     nodes?: number;
     sources?: Record<string, number>;
     tiers?: Record<string, number>;
   };
   edges: SkillGraphEdge[];
   nodes: SkillGraphNode[];
+};
+
+export type SkillCapabilityGraphPayload = SkillGraphPayload & {
+  counts?: SkillGraphPayload["counts"] & {
+    capability_classes?: Record<"artifact" | "integration" | string, number>;
+  };
+  source?: {
+    contract?: string;
+    link_semantics?: string;
+    omits?: string;
+  };
 };
 
 export type SkillFrameworkCoreGraphNode = SkillGraphNode & {

@@ -4,11 +4,25 @@ Owns parsing and serialization helpers for file-backed skill metadata used by Sk
 
 ## Skill OS
 
-Skill OS has two mutually exclusive surfaces:
+Skill OS has two page-level homes plus the existing selected-skill workspace:
 
-- `Graph`: skill discovery, relationships, search, tier/edge controls, and actionable maintenance
-  filters such as Needs care and Evaluated.
-- `Skill workspace`: Overview, Runbook, conditional Experiments, and Files.
+- `Capability Map` is the default, full-screen radial map for discovering real
+  artifact-producing workflows. It starts with the seven declared operating
+  departments, opens their configured real Tier 3 workflow roots, then shows
+  each workflow's direct artifact specialists. Department membership comes from
+  skill `group`, while the Farplane-owned workflow-root projection selects the
+  map; links remain declared membership or artifact containment and never imply
+  process order or runtime scheduling. Account integrations and generic helpers
+  remain in Skill Library. An artifact inspector exposes its declared output,
+  method id, and owner skill.
+- `Skill Library` owns the technical graph, search, tier/source/edge controls,
+  and actionable maintenance filters such as Needs care and Evaluated.
+- `Skill workspace` opens an owner skill's Overview, Runbook, conditional
+  Experiments, and Files. Returning from a capability handoff restores its
+  focused Department or workflow.
+
+`/skills` defaults to Capability Map. Maintenance entries such as
+`/skill-rollout` use Skill Library through their non-default initial filter.
 
 The selected-skill workspace uses an Operations Dossier layout: one compact identity header, a
 responsive section rail, and one content scroll owner. Desktop keeps health and the latest
