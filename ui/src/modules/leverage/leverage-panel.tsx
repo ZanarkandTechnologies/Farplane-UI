@@ -1,11 +1,12 @@
 "use client";
 
-import { AlertTriangle, CircleDollarSign, Gauge, RefreshCw, Sparkles } from "lucide-react";
+import { AlertTriangle, Gauge, RefreshCw, Sparkles } from "lucide-react";
 import type { ReactElement } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FinanceCapitalDetails, useFinanceProjection } from "@/modules/finance";
 import { useLeverageProjection } from "./hooks/use-leverage-projection";
 import type {
   LeverageDistribution,
@@ -15,15 +16,6 @@ import type {
 } from "./lib/leverage-types";
 
 type LeveragePanelProps = { open: boolean; onOpenChange: (open: boolean) => void };
-
-function money(cents: number | null, currency: string | null): string {
-  if (cents === null || !currency) return "—";
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
-}
 
 function statusLabel(status: string): string {
   return status.replaceAll("_", " ");
@@ -142,146 +134,151 @@ function GapList({ gaps }: { gaps: LeverageSourceGap[] }): ReactElement | null {
 }
 
 export function LeveragePanel({ open, onOpenChange }: LeveragePanelProps): ReactElement {
-  const { projection, isLoading, isRefreshing, error, refresh } = useLeverageProjection(open);
+  const {
+    projection,
+    isLoading: isLeverageLoading,
+    isRefreshing: isLeverageRefreshing,
+    error: leverageError,
+    refresh: refreshLeverage,
+  } = useLeverageProjection(open);
+  const {
+    projection: financeProjection,
+    isLoading: isFinanceLoading,
+    isRefreshing: isFinanceRefreshing,
+    error: financeError,
+    refresh: refreshFinance,
+  } = useFinanceProjection(open);
+  const isRefreshing = isLeverageRefreshing || isFinanceRefreshing;
+  const refresh = (): void => {
+    void Promise.all([refreshLeverage(), refreshFinance()]);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         data-testid="leverage-panel"
         aria-busy={isRefreshing}
-        className="flex h-[92dvh] max-w-[88vw] flex-col gap-0 overflow-hidden rounded-md border-border/80 bg-background/98 p-0"
+        className="flex min-h-0 h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden overscroll-contain rounded-md border-border/80 bg-background/98 p-0 sm:h-[92dvh] sm:w-[88vw] sm:max-w-[88vw]"
       >
-      <DialogHeader className="flex-row items-center border-b border-border/80 px-6 py-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="grid size-9 place-items-center border border-border bg-card text-primary">
-            <Gauge className="size-5" aria-hidden="true" />
+        <DialogHeader className="flex-row items-center border-b border-border/80 px-6 py-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="grid size-9 place-items-center border border-border bg-card text-primary">
+              <Gauge className="size-5" aria-hidden="true" />
+            </div>
+            <div>
+              <DialogTitle>Leverage</DialogTitle>
+              <p aria-live="polite" className="mt-0.5 text-xs text-muted-foreground">
+                Read-only evidence across capital, distribution, and Edge.
+              </p>
+            </div>
           </div>
-          <div>
-            <DialogTitle>Leverage</DialogTitle>
-            <p aria-live="polite" className="mt-0.5 text-xs text-muted-foreground">
-              Read-only evidence across capital, distribution, and Edge.
-            </p>
-          </div>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="ml-auto mr-8 touch-manipulation"
-          onClick={() => void refresh()}
-          disabled={isRefreshing}
-          aria-label="Refresh leverage evidence"
-        >
-          <RefreshCw className={isRefreshing ? "animate-spin" : ""} aria-hidden="true" />
-          Refresh
-        </Button>
-      </DialogHeader>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="ml-auto mr-8 touch-manipulation"
+            onClick={() => void refresh()}
+            disabled={isRefreshing}
+            aria-label="Refresh leverage evidence"
+          >
+            <RefreshCw className={isRefreshing ? "animate-spin" : ""} aria-hidden="true" />
+            Refresh
+          </Button>
+        </DialogHeader>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-6">
-        {isLoading ? (
-          <div
-            role="status"
-            className="grid h-full place-items-center text-sm text-muted-foreground"
-          >
-            Loading leverage evidence…
-          </div>
-        ) : null}
-        {error ? (
-          <div
-            role="alert"
-            className="flex items-center gap-3 border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
-          >
-            <AlertTriangle className="size-5" aria-hidden="true" />
-            Leverage evidence is unavailable. Refresh to try again.
-          </div>
-        ) : null}
-        {projection ? (
+        <div className="min-h-0 flex-1 overflow-y-auto p-6">
+          {leverageError ? (
+            <div
+              role="alert"
+              className="flex items-center gap-3 border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive"
+            >
+              <AlertTriangle className="size-5" aria-hidden="true" />
+              Leverage evidence is unavailable. Refresh to try again.
+            </div>
+          ) : null}
           <div className="space-y-6">
             <section aria-labelledby="leverage-capital-heading">
-              <Card className="rounded-none border-border/80 py-0">
-                <CardHeader className="flex-row items-start px-5 pt-5">
-                  <div>
-                    <p
-                      id="leverage-capital-heading"
+              <div className="mb-3 flex items-center gap-2">
+                <h3
+                  id="leverage-capital-heading"
+                  className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground"
+                >
+                  Capital
+                </h3>
+              </div>
+              <FinanceCapitalDetails
+                error={financeError}
+                isLoading={isFinanceLoading}
+                projection={financeProjection}
+              />
+            </section>
+
+            {isLeverageLoading ? (
+              <div
+                role="status"
+                className="grid h-32 place-items-center border border-border/80 text-sm text-muted-foreground"
+              >
+                Loading distribution and Edge evidence…
+              </div>
+            ) : null}
+            {projection ? (
+              <div className="space-y-6">
+                <section
+                  data-testid="leverage-distribution"
+                  aria-labelledby="leverage-distribution-heading"
+                >
+                  <div className="mb-3 flex items-center gap-2">
+                    <h3
+                      id="leverage-distribution-heading"
                       className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground"
                     >
-                      Capital
-                    </p>
-                    <CardTitle
-                      data-testid="leverage-capital"
-                      className="mt-2 font-mono text-3xl font-semibold tracking-tight tabular-nums"
-                    >
-                      {money(projection.capital.balanceCents, projection.capital.currency)}
-                    </CardTitle>
+                      Distribution
+                    </h3>
+                    <Badge variant="outline" className="font-mono uppercase">
+                      {projection.distribution.length} account
+                      {projection.distribution.length === 1 ? "" : "s"}
+                    </Badge>
                   </div>
-                  <CircleDollarSign
-                    className="ml-auto size-5 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                </CardHeader>
-                <CardContent className="px-5 pb-5 text-xs text-muted-foreground">
-                  {projection.capital.status === "available"
-                    ? `${projection.capital.source ?? "Finance"} · ${observedLabel(projection.capital.observedAt)}`
-                    : "Finance has no recorded cash snapshot yet."}
-                </CardContent>
-              </Card>
-            </section>
+                  {projection.distribution.length ? (
+                    <div className="grid gap-4 xl:grid-cols-2">
+                      {projection.distribution.map((account) => (
+                        <DistributionAccount key={account.id} account={account} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid h-24 place-items-center border border-border/80 text-sm text-muted-foreground">
+                      No configured social distribution evidence.
+                    </div>
+                  )}
+                </section>
 
-            <section
-              data-testid="leverage-distribution"
-              aria-labelledby="leverage-distribution-heading"
-            >
-              <div className="mb-3 flex items-center gap-2">
-                <h3
-                  id="leverage-distribution-heading"
-                  className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground"
-                >
-                  Distribution
-                </h3>
-                <Badge variant="outline" className="font-mono uppercase">
-                  {projection.distribution.length} account
-                  {projection.distribution.length === 1 ? "" : "s"}
-                </Badge>
+                <section aria-labelledby="leverage-edge-heading">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Sparkles className="size-4 text-primary" aria-hidden="true" />
+                    <h3
+                      id="leverage-edge-heading"
+                      className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground"
+                    >
+                      Edge
+                    </h3>
+                    <Badge variant="outline" className="font-mono uppercase">
+                      {projection.edges.length} project{projection.edges.length === 1 ? "" : "s"}
+                    </Badge>
+                  </div>
+                  {projection.edges.length ? (
+                    <EdgeList edges={projection.edges} />
+                  ) : (
+                    <div className="grid h-24 place-items-center border border-border/80 text-sm text-muted-foreground">
+                      No registered projects are available for Edge coverage.
+                    </div>
+                  )}
+                </section>
+
+                <GapList gaps={projection.sourceGaps} />
               </div>
-              {projection.distribution.length ? (
-                <div className="grid gap-4 xl:grid-cols-2">
-                  {projection.distribution.map((account) => (
-                    <DistributionAccount key={account.id} account={account} />
-                  ))}
-                </div>
-              ) : (
-                <div className="grid h-24 place-items-center border border-border/80 text-sm text-muted-foreground">
-                  No configured social distribution evidence.
-                </div>
-              )}
-            </section>
-
-            <section aria-labelledby="leverage-edge-heading">
-              <div className="mb-3 flex items-center gap-2">
-                <Sparkles className="size-4 text-primary" aria-hidden="true" />
-                <h3
-                  id="leverage-edge-heading"
-                  className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground"
-                >
-                  Edge
-                </h3>
-                <Badge variant="outline" className="font-mono uppercase">
-                  {projection.edges.length} project{projection.edges.length === 1 ? "" : "s"}
-                </Badge>
-              </div>
-              {projection.edges.length ? (
-                <EdgeList edges={projection.edges} />
-              ) : (
-                <div className="grid h-24 place-items-center border border-border/80 text-sm text-muted-foreground">
-                  No registered projects are available for Edge coverage.
-                </div>
-              )}
-            </section>
-
-            <GapList gaps={projection.sourceGaps} />
+            ) : null}
           </div>
-        ) : null}
-      </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

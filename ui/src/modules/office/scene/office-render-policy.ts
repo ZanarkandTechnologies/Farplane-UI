@@ -13,7 +13,6 @@ export type OfficeBlockingPanelState = {
   isCeoWorkbenchOpen: boolean;
   isDocumentLibraryPanelOpen: boolean;
   isFurnitureShopOpen: boolean;
-  isFinancePanelOpen: boolean;
   isLeveragePanelOpen: boolean;
   isAgentSessionPanelOpen: boolean;
   isGlobalTeamPanelOpen: boolean;
@@ -37,7 +36,6 @@ export function hasBlockingOfficePanel(state: OfficeBlockingPanelState): boolean
       state.isCeoWorkbenchOpen ||
       state.isDocumentLibraryPanelOpen ||
       state.isFurnitureShopOpen ||
-      state.isFinancePanelOpen ||
       state.isLeveragePanelOpen ||
       state.isAgentSessionPanelOpen ||
       state.isGlobalTeamPanelOpen ||

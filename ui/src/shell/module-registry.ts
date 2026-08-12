@@ -19,17 +19,11 @@ export const moduleRegistry = {
     description: "Operator configuration for runtime, office, and local UI behavior.",
     surfaces: ["panel", "hud"],
   },
-  finance: {
-    id: "finance",
-    label: "Finance",
-    description: "Company cash balance, daily flow observations, and close history.",
-    surfaces: ["nav", "panel", "hud"],
-  },
   leverage: {
     id: "leverage",
     label: "Leverage",
-    description: "Read-only global capital, distribution, Edge, and evidence coverage.",
-    surfaces: ["nav", "panel"],
+    description: "Global capital, distribution, Edge, and evidence coverage in one workspace.",
+    surfaces: ["nav", "panel", "hud"],
   },
   "skills-studio": {
     id: "skills-studio",

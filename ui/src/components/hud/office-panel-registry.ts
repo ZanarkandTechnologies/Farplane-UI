@@ -22,7 +22,6 @@ import {
   BarChart3,
   BookOpen,
   Building2,
-  CircleDollarSign,
   Database,
   FileCode2,
   Gauge,
@@ -64,7 +63,6 @@ export type OfficePanelActionId =
   | "organization"
   | "team-workspace"
   | "telemetry"
-  | "finance"
   | "leverage"
   | "raw-telemetry"
   | "thread-data"
@@ -126,7 +124,6 @@ export type OfficePanelRegistryDependencies = {
   openCeoWorkbench: () => void;
   openHumanReview: () => void;
   openTelemetry: () => void;
-  openFinance: () => void;
   openLeverage: () => void;
   openRawTelemetry: () => void;
   openThreadData: () => void;
@@ -148,7 +145,6 @@ const OFFICE_LAUNCHER_ACTION_ORDER: OfficePanelActionId[] = [
   "world",
   "document-library",
   "telemetry",
-  "finance",
   "leverage",
   "builder-mode",
   "settings",
@@ -219,7 +215,6 @@ export function createOfficePanelActions(
   const readOnly = deps.accessPolicy === "read-only";
   const teamWorkspacePanel = getOfficeInternalPanelEntry("team-workspace");
   const telemetryPanel = getOfficeInternalPanelEntry("telemetry");
-  const financePanel = getOfficeInternalPanelEntry("finance");
   const leveragePanel = getOfficeInternalPanelEntry("leverage");
   const rawTelemetryPanel = getOfficeInternalPanelEntry("raw-telemetry");
   const threadDataPanel = getOfficeInternalPanelEntry("thread-data");
@@ -276,17 +271,6 @@ export function createOfficePanelActions(
       shortcut: { key: "m", label: "Alt+Shift+M", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
       perform: deps.openTelemetry,
-    },
-    {
-      id: "finance",
-      label: financePanel.label,
-      description: financePanel.description,
-      group: "panel",
-      icon: CircleDollarSign,
-      keywords: [...financePanel.keywords, "firm"],
-      shortcut: { key: "f", label: "Alt+Shift+F", altKey: true, shiftKey: true },
-      color: SECONDARY_BUTTON_COLOR,
-      perform: deps.openFinance,
     },
     {
       id: "leverage",

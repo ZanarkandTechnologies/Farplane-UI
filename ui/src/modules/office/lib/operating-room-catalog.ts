@@ -138,7 +138,7 @@ export const OPERATING_ROOM_CATALOG = [
   room({
     id: "finance",
     displayName: "Finance Office",
-    panelId: "finance",
+    panelId: "leverage",
     hostAgentId: "farplane-finance",
     hostScope: "office",
     advisorSkillIds: [],

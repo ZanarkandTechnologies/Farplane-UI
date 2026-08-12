@@ -171,8 +171,6 @@ interface AppState {
   setIsTelemetryPanelOpen: (isOpen: boolean) => void;
   telemetryPanelTab: TelemetryPanelTab;
   setTelemetryPanelTab: (tab: TelemetryPanelTab) => void;
-  isFinancePanelOpen: boolean;
-  setIsFinancePanelOpen: (isOpen: boolean) => void;
   isLeveragePanelOpen: boolean;
   setIsLeveragePanelOpen: (isOpen: boolean) => void;
   isSkillInvocationsPanelOpen: boolean;
@@ -329,8 +327,6 @@ export const useAppStore = create<AppState>()(
     setIsTelemetryPanelOpen: (isOpen) => set({ isTelemetryPanelOpen: isOpen }),
     telemetryPanelTab: "usage",
     setTelemetryPanelTab: (tab) => set({ telemetryPanelTab: tab }),
-    isFinancePanelOpen: false,
-    setIsFinancePanelOpen: (isOpen) => set({ isFinancePanelOpen: isOpen }),
     isLeveragePanelOpen: false,
     setIsLeveragePanelOpen: (isOpen) => set({ isLeveragePanelOpen: isOpen }),
     isSkillInvocationsPanelOpen: false,

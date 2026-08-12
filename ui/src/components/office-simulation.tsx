@@ -6,7 +6,6 @@ import {
   ContentIntelligenceDataController,
   ContentIntelligencePanel,
 } from "@/modules/content-intelligence";
-import { FinancePanel } from "@/modules/finance";
 import { LeveragePanel } from "@/modules/leverage";
 import {
   AgentMemoryPanel,
@@ -99,8 +98,6 @@ function OfficeSimulationContent() {
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
   const telemetryPanelTab = useAppStore((state) => state.telemetryPanelTab);
   const setTelemetryPanelTab = useAppStore((state) => state.setTelemetryPanelTab);
-  const isFinancePanelOpen = useAppStore((state) => state.isFinancePanelOpen);
-  const setIsFinancePanelOpen = useAppStore((state) => state.setIsFinancePanelOpen);
   const isLeveragePanelOpen = useAppStore((state) => state.isLeveragePanelOpen);
   const setIsLeveragePanelOpen = useAppStore((state) => state.setIsLeveragePanelOpen);
   const isSkillInvocationsPanelOpen = useAppStore((state) => state.isSkillInvocationsPanelOpen);
@@ -297,7 +294,6 @@ function OfficeSimulationContent() {
                 if (!open) setTelemetryPanelTab("usage");
               }}
             />
-            <FinancePanel open={isFinancePanelOpen} onOpenChange={setIsFinancePanelOpen} />
             <LeveragePanel open={isLeveragePanelOpen} onOpenChange={setIsLeveragePanelOpen} />
             <SkillInvocationsPanel
               open={isSkillInvocationsPanelOpen}
@@ -330,7 +326,7 @@ function OfficeSimulationContent() {
                 employees={employees}
                 officeObjects={officeObjects}
                 officeLayout={officeSettings.officeLayout}
-                onOpenFinance={() => setIsFinancePanelOpen(true)}
+                onOpenLeverage={() => setIsLeveragePanelOpen(true)}
               />
             </div>
             {isReadOnly ? (

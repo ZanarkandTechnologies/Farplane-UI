@@ -15,7 +15,6 @@ export type OfficeInternalPanelId =
   | "organization"
   | "team-workspace"
   | "telemetry"
-  | "finance"
   | "leverage"
   | "raw-telemetry"
   | "thread-data"
@@ -66,16 +65,23 @@ export const OFFICE_INTERNAL_PANEL_CATALOG: OfficeInternalPanelCatalogEntry[] = 
     keywords: ["harness", "usage", "agent hours", "runtime", "projects"],
   },
   {
-    id: "finance",
-    label: "Finance",
-    description: "Open company cash balance, daily flow observations, and close history.",
-    keywords: ["finance", "money", "cash flow", "income", "expenses", "weekly close"],
-  },
-  {
     id: "leverage",
     label: "Leverage",
-    description: "Inspect read-only capital, distribution, Edge, and evidence coverage.",
-    keywords: ["leverage", "capital", "distribution", "edge", "strengths", "evidence"],
+    description: "Inspect capital, distribution, Edge, and evidence coverage in one workspace.",
+    keywords: [
+      "leverage",
+      "capital",
+      "finance",
+      "money",
+      "cash flow",
+      "income",
+      "expenses",
+      "weekly close",
+      "distribution",
+      "edge",
+      "strengths",
+      "evidence",
+    ],
   },
   {
     id: "raw-telemetry",

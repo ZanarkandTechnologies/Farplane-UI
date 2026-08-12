@@ -45,14 +45,12 @@ describe("app store perf guards", () => {
 
   it("stores merged workspace destinations", () => {
     useAppStore.getState().setIsTelemetryPanelOpen(true);
-    useAppStore.getState().setIsFinancePanelOpen(true);
     useAppStore.getState().setIsLeveragePanelOpen(true);
     useAppStore.getState().setTelemetryPanelTab("events");
     useAppStore.getState().setGlobalTeamPanelInitialTab("thread-data");
     useAppStore.getState().setSettingsDialogTab("communications");
     useAppStore.getState().setSkillStudioSurface("self-improvement-runs");
     expect(useAppStore.getState().isTelemetryPanelOpen).toBe(true);
-    expect(useAppStore.getState().isFinancePanelOpen).toBe(true);
     expect(useAppStore.getState().isLeveragePanelOpen).toBe(true);
     expect(useAppStore.getState().telemetryPanelTab).toBe("events");
     expect(useAppStore.getState().globalTeamPanelInitialTab).toBe("thread-data");

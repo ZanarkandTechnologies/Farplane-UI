@@ -27,7 +27,6 @@ function createPanelHarness(
     openDocumentLibrary: vi.fn(),
     openSelfImprovementRuns: vi.fn(),
     openEvals: vi.fn(),
-    openFinance: vi.fn(),
     openLeverage: vi.fn(),
     openGlobalTeamWorkspace: vi.fn(),
     openHumanReview: vi.fn(),
@@ -114,7 +113,6 @@ describe("office panel registry", () => {
     actions.find((action) => action.id === "ceo-workbench")?.perform();
     actions.find((action) => action.id === "human-review")?.perform();
     actions.find((action) => action.id === "raw-telemetry")?.perform();
-    actions.find((action) => action.id === "finance")?.perform();
     actions.find((action) => action.id === "leverage")?.perform();
     actions.find((action) => action.id === "thread-data")?.perform();
     actions.find((action) => action.id === "builder-mode")?.perform();
@@ -136,7 +134,6 @@ describe("office panel registry", () => {
     expect(handlers.openCeoWorkbench).toHaveBeenCalledTimes(1);
     expect(handlers.openHumanReview).toHaveBeenCalledTimes(1);
     expect(handlers.openRawTelemetry).toHaveBeenCalledTimes(1);
-    expect(handlers.openFinance).toHaveBeenCalledTimes(1);
     expect(handlers.openLeverage).toHaveBeenCalledTimes(1);
     expect(handlers.openThreadData).toHaveBeenCalledTimes(1);
     expect(handlers.toggleBuilderMode).toHaveBeenCalledTimes(1);
@@ -159,15 +156,14 @@ describe("office panel registry", () => {
       "world",
       "document-library",
       "telemetry",
-      "finance",
       "leverage",
       "builder-mode",
       "settings",
     ]);
     expect(paletteIds).toContain("settings");
     expect(paletteIds).toContain("raw-telemetry");
-    expect(paletteIds).toContain("finance");
     expect(paletteIds).toContain("leverage");
+    expect(paletteIds).not.toContain("finance");
     expect(paletteIds).toContain("thread-data");
     expect(paletteIds).toContain("evals");
     expect(paletteIds).toContain("harness");

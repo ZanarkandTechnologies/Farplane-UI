@@ -1,8 +1,10 @@
 # Leverage Module
 
-This panel combines three existing owners without creating a personal resource ERP:
+This is the single visible resource workspace. It combines three existing owners without
+creating a personal resource ERP:
 
-- Capital comes from the global Finance projection.
+- Capital comes from the global Finance projection and includes cash flow, history, closes,
+  and source gaps. The cash HUD and the Finance Office room both open this workspace.
 - Distribution comes from project snapshot cards explicitly marked `leverage: distribution`.
   Each collector snapshot supplies its canonical `(platform, account_id)` identity;
   the panel groups those rows once per owned account and shows `Used by` for every

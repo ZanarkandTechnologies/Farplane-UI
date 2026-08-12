@@ -25,7 +25,7 @@ export function OfficeStatsHud(props: {
   employees: EmployeeData[];
   officeObjects: OfficeObject[];
   officeLayout: OfficeLayoutModel;
-  onOpenFinance: () => void;
+  onOpenLeverage: () => void;
 }) {
   const stats = useMemo(
     () =>
@@ -83,9 +83,9 @@ export function OfficeStatsHud(props: {
         <TooltipTrigger asChild>
           <button
             type="button"
-            onClick={props.onOpenFinance}
+            onClick={props.onOpenLeverage}
             aria-label={accessibleLabel}
-            data-testid="office-finance-hud-trigger"
+            data-testid="office-leverage-capital-hud-trigger"
             data-finance-state={financeState}
             className={`flex min-w-11 touch-manipulation items-center justify-center gap-2 px-3 transition-[background-color,color] hover:bg-accent focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${financeTone}`}
           >
@@ -97,7 +97,7 @@ export function OfficeStatsHud(props: {
           side="bottom"
           align="end"
           sideOffset={8}
-          data-testid="office-finance-hud-tooltip"
+          data-testid="office-leverage-capital-hud-tooltip"
           className="rounded-none border-border/80 bg-card/95 px-3 py-2 text-card-foreground shadow-lg backdrop-blur-md"
           arrowClassName="bg-card fill-card"
         >

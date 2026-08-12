@@ -14,6 +14,7 @@ describe("operating room catalog", () => {
     expect(rooms).toHaveLength(11);
     expect(new Set(OPERATING_ROOM_CATALOG.map((room) => room.panelId)).size).toBe(11);
     expect(new Set(OPERATING_ROOM_CATALOG.map((room) => room.hostAgentId)).size).toBe(11);
+    expect(OPERATING_ROOM_CATALOG.find((room) => room.id === "finance")?.panelId).toBe("leverage");
     expect(
       rooms.every(
         (room) =>

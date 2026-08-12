@@ -22,14 +22,10 @@ describe("Farplane shell config", () => {
     expect(DEFAULT_FARPLANE_UI_CONFIG.modules).toContain("soundtrack");
   });
 
-  it("registers Finance as shared panel and HUD chrome", () => {
-    expect(moduleRegistry.finance.surfaces).toEqual(["nav", "panel", "hud"]);
-    expect(DEFAULT_FARPLANE_UI_CONFIG.modules).toContain("finance");
-  });
-
-  it("registers Leverage as a read-only panel without HUD chrome", () => {
-    expect(moduleRegistry.leverage.surfaces).toEqual(["nav", "panel"]);
+  it("registers Leverage as the single resource workspace with HUD capital entry", () => {
+    expect(moduleRegistry.leverage.surfaces).toEqual(["nav", "panel", "hud"]);
     expect(DEFAULT_FARPLANE_UI_CONFIG.modules).toContain("leverage");
+    expect(DEFAULT_FARPLANE_UI_CONFIG.modules).not.toContain("finance");
   });
 
   it("registers Content Intelligence for panel, HUD, and office-object launch", () => {
