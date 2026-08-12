@@ -48,6 +48,7 @@ import {
   normalizeAgentPortraitRef,
 } from "./server/agent-profiles";
 import { createRealtimeCallSession } from "./server/realtime-call";
+import { readLeverageProjection } from "./server/leverage-projection";
 import { stripSecretConfigValues } from "./server/runtime-config-sanitizer";
 
 type JsonObject = Record<string, unknown>;
