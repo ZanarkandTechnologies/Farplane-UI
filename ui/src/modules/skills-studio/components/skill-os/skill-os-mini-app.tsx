@@ -1,16 +1,20 @@
 "use client";
 
 /**
- * SKILL OS MINI APP
- * =================
- * Graph-first Skill OS with a focused, mutually exclusive selected-skill workspace.
- * The graph owns discovery; skill details own maintenance, experiments, and files.
+ * Skills Studio's two intentional homes: a department capability constellation
+ * and the technical Skill Library. URL state preserves real graph drill-down
+ * without inventing process edges.
  */
 
 import { type ReactElement, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { CapabilityInspector } from "./capability-inspector";
+import { capabilityFocusContains, capabilityFocusId } from "./capability-map-model";
+import { buildCapabilityGraphLayout } from "./skill-capability-layout";
 import { SkillGraphCanvas } from "./skill-graph-canvas";
 import { buildForceGraphLayout } from "./skill-graph-layout";
+import { SkillOsNavigation } from "./skill-os-navigation";
+import { resolveSkillStudioSurface, type SkillStudioSurface } from "./skill-os-navigation-state";
 import type { SkillGraphFilter } from "./skill-sidebar";
 import { SkillSidebar } from "./skill-sidebar";
 import { SkillWorkbench, type SkillWorkspaceView } from "./skill-workbench";
@@ -23,7 +27,7 @@ export function SkillOsMiniApp({
 }: {
   initialFilter?: SkillGraphFilter;
 }): ReactElement {
-  const { docs, error, graph, templateIntelligence } = useSkillGraphData();
+  const { capabilityGraph, docs, error, graph, templateIntelligence } = useSkillGraphData();
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState("");
   const [showChains, setShowChains] = useState(true);
@@ -37,11 +41,18 @@ export function SkillOsMiniApp({
     filterParam === "needs-care" || filterParam === "evaluated" || filterParam === "all"
       ? filterParam
       : initialFilter;
+  const activeSurface = resolveSkillStudioSurface({
+    initialFilter,
+    surface: searchParams.get("surface"),
+  });
+  const capabilityFocusParam = searchParams.get("capability");
+  const capabilityNodeParam = searchParams.get("capabilityNode");
   const viewParam = searchParams.get("view");
   const workspaceView: SkillWorkspaceView =
     viewParam === "runbook" || viewParam === "experiments" || viewParam === "files"
       ? viewParam
       : "overview";
+  const isCapabilityMap = activeSurface === "capabilities";
 
   function updateSearchParams(update: (next: URLSearchParams) => void, replace = true): void {
     const next = new URLSearchParams(searchParams);
@@ -49,17 +60,108 @@ export function SkillOsMiniApp({
     setSearchParams(next, { replace });
   }
 
-  function selectSkill(skillId: string): void {
+  function changeSurface(surface: SkillStudioSurface): void {
     updateSearchParams((next) => {
+      next.set("surface", surface);
+      next.delete("skill");
+      next.delete("view");
+      next.delete("capabilityNode");
+      next.delete("returnSurface");
+      next.delete("returnCapability");
+      if (surface === "library") next.delete("capability");
+    }, false);
+  }
+
+  function selectLibrarySkill(skillId: string): void {
+    updateSearchParams((next) => {
+      next.set("surface", "library");
       next.set("skill", skillId);
       next.set("view", "overview");
+      next.delete("returnSurface");
+      next.delete("returnCapability");
     }, false);
+  }
+
+  function openOwnerSkill(skillId: string): void {
+    updateSearchParams((next) => {
+      next.set("surface", "library");
+      next.set("skill", skillId);
+      next.set("view", "overview");
+      next.set("returnSurface", "capabilities");
+      if (focusedCapabilityId) next.set("returnCapability", focusedCapabilityId);
+      next.delete("capabilityNode");
+    }, false);
+  }
+
+  function selectGraphNode(nodeId: string): void {
+    const node = activeGraph?.nodes.find((candidate) => candidate.id === nodeId);
+    if (!node) return;
+    if (!isCapabilityMap) {
+      selectLibrarySkill(node.id);
+      return;
+    }
+    if (node.kind === "department") {
+      if (focusedCapabilityId === node.id) return;
+      updateSearchParams((next) => {
+        next.set("capability", node.id);
+        next.delete("capabilityNode");
+        next.delete("skill");
+        next.delete("view");
+      }, false);
+      return;
+    }
+    if (node.kind === "workflow") {
+      const owningSkill = node.skill_id ?? node.id.replace(/^skill:/, "");
+      if (focusedCapabilityId !== node.id) {
+        updateSearchParams((next) => {
+          next.set("capability", node.id);
+          next.delete("capabilityNode");
+          next.delete("skill");
+          next.delete("view");
+        }, false);
+        return;
+      }
+      openOwnerSkill(owningSkill);
+      return;
+    }
+    const owningSkill = node.skill_id ?? node.parent_skill;
+    if (!owningSkill) return;
+    const workflowNodeId = `skill:${owningSkill}`;
+    if (focusedCapabilityId !== workflowNodeId) {
+      updateSearchParams((next) => {
+        next.set("capability", workflowNodeId);
+        next.delete("capabilityNode");
+        next.delete("skill");
+        next.delete("view");
+      }, false);
+      return;
+    }
+    updateSearchParams((next) => next.set("capabilityNode", node.id), false);
+  }
+
+  function clearCapabilityFocus(): void {
+    updateSearchParams((next) => {
+      next.delete("capability");
+      next.delete("capabilityNode");
+    }, false);
+  }
+
+  function closeCapabilityInspector(): void {
+    updateSearchParams((next) => next.delete("capabilityNode"));
   }
 
   function closeSkill(): void {
     updateSearchParams((next) => {
+      const returnsToCapability = next.get("returnSurface") === "capabilities";
+      const returnCapability = next.get("returnCapability");
       next.delete("skill");
       next.delete("view");
+      next.delete("returnSurface");
+      next.delete("returnCapability");
+      if (returnsToCapability) {
+        next.set("surface", "capabilities");
+        if (returnCapability) next.set("capability", returnCapability);
+      }
     });
   }
 
@@ -71,10 +173,31 @@ export function SkillOsMiniApp({
     () => new Map((templateIntelligence?.rollout ?? []).map((row) => [row.skill_id, row])),
     [templateIntelligence],
   );
+  const capabilityMap = capabilityGraph;
+  const activeGraph = isCapabilityMap ? capabilityMap : graph;
+  const focusedCapabilityId = isCapabilityMap
+    ? capabilityFocusId(capabilityMap ?? { edges: [], nodes: [] }, capabilityFocusParam)
+    : null;
+  const focusedCapabilityNode = focusedCapabilityId
+    ? capabilityMap?.nodes.find((node) => node.id === focusedCapabilityId)
+    : null;
+  const inspectedCapabilityNode =
+    isCapabilityMap &&
+    capabilityMap &&
+    focusedCapabilityId &&
+    focusedCapabilityNode?.kind === "workflow"
+      ? (capabilityMap.nodes.find(
+          (node) =>
+            node.id === capabilityNodeParam &&
+            capabilityFocusContains(capabilityMap, focusedCapabilityId, node.id) &&
+            node.kind === "artifact",
+        ) ?? null)
+      : null;
 
   const graphNodes = useMemo(() => {
-    if (!graph) return [];
-    return graph.nodes.filter((node) => {
+    if (!activeGraph) return [];
+    if (isCapabilityMap) return activeGraph.nodes;
+    return activeGraph.nodes.filter((node) => {
       const tier = node.tier ?? 3;
       if (!activeTiers.has(tier)) return false;
       if (!showExternal && node.source === "external") return false;
@@ -88,7 +211,15 @@ export function SkillOsMiniApp({
       }
       return true;
     });
-  }, [activeTiers, docs, graph, maintenanceFilter, rolloutBySkill, showExternal]);
+  }, [
+    activeGraph,
+    activeTiers,
+    docs,
+    isCapabilityMap,
+    maintenanceFilter,
+    rolloutBySkill,
+    showExternal,
+  ]);
 
   const queryMatches = useMemo(() => {
     const lowerQuery = query.trim().toLowerCase();
@@ -96,7 +227,18 @@ export function SkillOsMiniApp({
     return new Set(
       graphNodes
         .filter((node) =>
-          [node.id, node.label, node.group, node.path, node.description, ...(node.methods ?? [])]
+          [
+            node.id,
+            node.label,
+            node.group,
+            node.path,
+            node.description,
+            node.method_id,
+            node.output,
+            node.parent_skill,
+            node.skill_id,
+            ...(node.methods ?? []).flatMap((method) => [method.id, method.class, method.output]),
+          ]
             .join(" ")
             .toLowerCase()
             .includes(lowerQuery),
@@ -104,19 +246,20 @@ export function SkillOsMiniApp({
         .map((node) => node.id),
     );
   }, [graphNodes, query]);
-
   const sidebarNodes = useMemo(
     () =>
       graphNodes
         .filter((node) => queryMatches.has(node.id))
         .slice()
-        .sort((a, b) => a.id.localeCompare(b.id)),
+        .sort((left, right) => left.id.localeCompare(right.id)),
     [graphNodes, queryMatches],
   );
-  const baseLayout = useMemo(
-    () => (graph ? buildForceGraphLayout(graph, graphNodes) : null),
-    [graph, graphNodes],
-  );
+  const baseLayout = useMemo(() => {
+    if (!activeGraph) return null;
+    return isCapabilityMap
+      ? buildCapabilityGraphLayout(activeGraph, focusedCapabilityId)
+      : buildForceGraphLayout(activeGraph, graphNodes);
+  }, [activeGraph, focusedCapabilityId, graphNodes, isCapabilityMap]);
   const layout = useMemo(
     () =>
       baseLayout
@@ -142,84 +285,141 @@ export function SkillOsMiniApp({
     });
   }
 
-  if (error)
+  if (error) {
     return (
       <div className="flex h-full items-center justify-center rounded-md border border-dashed text-sm text-destructive">
         {error}
       </div>
     );
-  if (!graph)
+  }
+  if (!activeGraph || !layout) {
     return (
       <div className="flex h-full items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
-        Loading Skill OS graph…
+        Loading Skills Studio…
       </div>
-    );
-
-  if (selectedNode) {
-    return (
-      <SkillWorkbench
-        doc={selectedDoc}
-        edges={graph.edges}
-        invocationCount={getInvocationCount(selectedNode.id)}
-        node={selectedNode}
-        activeView={workspaceView}
-        onBack={closeSkill}
-        onSelectSkill={selectSkill}
-        onViewChange={(view) => updateSearchParams((next) => next.set("view", view))}
-        templateIntelligence={templateIntelligence}
-        evalPath={selectedDetail?.evalPath ?? selectedNode.eval}
-        evalSuite={selectedDetail?.evalSuite}
-        fileEntries={selectedDetail?.fileEntries}
-      />
     );
   }
 
-  if (!layout)
+  const navigation = (
+    <SkillOsNavigation
+      activeSurface={activeSurface}
+      mapMode={isCapabilityMap}
+      onSurfaceChange={changeSurface}
+    />
+  );
+  if (selectedNode) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Preparing graph…
-      </div>
+      <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border bg-background">
+        {navigation}
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <SkillWorkbench
+            doc={selectedDoc}
+            edges={graph?.edges ?? []}
+            invocationCount={getInvocationCount(selectedNode.id)}
+            node={selectedNode}
+            activeView={workspaceView}
+            onBack={closeSkill}
+            onSelectSkill={selectLibrarySkill}
+            onViewChange={(view) => updateSearchParams((next) => next.set("view", view))}
+            templateIntelligence={templateIntelligence}
+            evalPath={selectedDetail?.evalPath ?? selectedNode.eval}
+            evalSuite={selectedDetail?.evalSuite}
+            fileEntries={selectedDetail?.fileEntries}
+          />
+        </div>
+      </section>
     );
+  }
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-[19rem_minmax(0,1fr)] overflow-hidden rounded-md border bg-background">
-      <SkillSidebar
-        activeFilter={maintenanceFilter}
-        activeTiers={activeTiers}
-        edgeCount={layout.edges.length}
-        getInvocationCount={getInvocationCount}
-        graphNodeCount={graphNodes.length}
-        totalNodeCount={graph.nodes.length}
-        nodes={sidebarNodes}
-        onFilterChange={(filter) =>
-          updateSearchParams((next) => {
-            if (filter === initialFilter) next.delete("filter");
-            else next.set("filter", filter);
-          })
-        }
-        onQueryChange={setQuery}
-        onSelectSkill={selectSkill}
-        onShowChainsChange={setShowChains}
-        onShowExternalChange={setShowExternal}
-        onShowRefsChange={setShowRefs}
-        onToggleTier={toggleTier}
-        query={query}
-        selectedSkillId=""
-        showChains={showChains}
-        showExternal={showExternal}
-        showRefs={showRefs}
-      />
-      <main className="relative min-h-0 overflow-hidden bg-[radial-gradient(circle_at_center,hsl(var(--muted))_1px,transparent_1px)] [background-size:18px_18px]">
-        <SkillGraphCanvas
-          edgeCount={graph.counts?.edges ?? graph.edges.length}
-          graphNodeCount={graph.counts?.nodes ?? graph.nodes.length}
-          layout={layout}
-          onSelectSkill={selectSkill}
-          query={query}
-          queryMatches={queryMatches}
-          selectedSkillId=""
-        />
-      </main>
-    </div>
+    <section
+      className={
+        isCapabilityMap
+          ? "relative flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground"
+          : "flex h-full min-h-0 flex-col overflow-hidden rounded-md border bg-background"
+      }
+    >
+      {isCapabilityMap ? null : navigation}
+      {isCapabilityMap ? (
+        <main
+          className="relative min-h-0 flex-1 overflow-hidden"
+          style={{
+            backgroundImage:
+              "radial-gradient(ellipse at center, hsl(var(--muted) / 0.42), transparent 39%), linear-gradient(145deg, hsl(var(--background)), hsl(var(--sidebar)) 58%, hsl(var(--background)))",
+            backgroundSize: "auto, auto",
+          }}
+        >
+          {navigation}
+          {focusedCapabilityId ? (
+            <button
+              type="button"
+              className="absolute left-5 top-5 z-20 rounded-md border bg-background/90 px-3 py-2 font-mono text-[10px] tracking-[0.14em] text-muted-foreground shadow-sm transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              onClick={clearCapabilityFocus}
+            >
+              ← ALL DEPARTMENTS
+            </button>
+          ) : null}
+          <SkillGraphCanvas
+            edgeCount={activeGraph.counts?.edges ?? activeGraph.edges.length}
+            graphNodeCount={activeGraph.counts?.nodes ?? activeGraph.nodes.length}
+            graphTitle="CAPABILITY_MAP"
+            layout={layout}
+            onSelectSkill={selectGraphNode}
+            query={query}
+            queryMatches={queryMatches}
+            radialMode={focusedCapabilityId ? "focus" : "overview"}
+            selectedSkillId=""
+          />
+          {inspectedCapabilityNode ? (
+            <CapabilityInspector
+              node={inspectedCapabilityNode}
+              onClose={closeCapabilityInspector}
+              onOpenOwnerSkill={openOwnerSkill}
+            />
+          ) : null}
+        </main>
+      ) : (
+        <div className="grid min-h-0 flex-1 grid-cols-[19rem_minmax(0,1fr)] overflow-hidden">
+          <SkillSidebar
+            activeFilter={maintenanceFilter}
+            activeTiers={activeTiers}
+            edgeCount={layout.edges.length}
+            getInvocationCount={getInvocationCount}
+            graphNodeCount={graphNodes.length}
+            totalNodeCount={activeGraph.nodes.length}
+            nodes={sidebarNodes}
+            onFilterChange={(filter) =>
+              updateSearchParams((next) => {
+                if (filter === initialFilter) next.delete("filter");
+                else next.set("filter", filter);
+              })
+            }
+            onQueryChange={setQuery}
+            onSelectSkill={selectLibrarySkill}
+            onShowChainsChange={setShowChains}
+            onShowExternalChange={setShowExternal}
+            onShowRefsChange={setShowRefs}
+            onToggleTier={toggleTier}
+            query={query}
+            selectedSkillId=""
+            showChains={showChains}
+            showExternal={showExternal}
+            showRefs={showRefs}
+          />
+          <main className="relative min-h-0 overflow-hidden bg-background">
+            <SkillGraphCanvas
+              edgeCount={activeGraph.counts?.edges ?? activeGraph.edges.length}
+              graphNodeCount={activeGraph.counts?.nodes ?? activeGraph.nodes.length}
+              graphTitle="SKILL_LIBRARY"
+              layout={layout}
+              onSelectSkill={selectGraphNode}
+              query={query}
+              queryMatches={queryMatches}
+              selectedSkillId=""
+            />
+          </main>
+        </div>
+      )}
+    </section>
   );
 }

@@ -53,7 +53,10 @@ export function SkillSidebar({
     <aside className="flex min-h-0 flex-col border-r bg-muted/15">
       <div className="space-y-3 border-b p-4">
         <div className="flex items-center gap-2">
-          <Search className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <Search
+            className="h-4 w-4 text-muted-foreground"
+            aria-hidden="true"
+          />
           <input
             className="h-9 min-w-0 flex-1 rounded-md border bg-background px-3 font-mono text-sm outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring"
             value={query}
@@ -129,12 +132,16 @@ export function SkillSidebar({
               key={node.id}
               type="button"
               className={`grid w-full min-w-0 gap-1 rounded-md border px-3 py-2.5 text-left text-sm hover:bg-muted/40 ${
-                selectedSkillId === node.id ? "border-primary bg-primary/10" : "border-transparent"
+                selectedSkillId === node.id
+                  ? "border-primary bg-primary/10"
+                  : "border-transparent"
               }`}
               onClick={() => onSelectSkill(node.id)}
             >
               <span className="flex min-w-0 items-start justify-between gap-2">
-                <span className="min-w-0 break-words font-medium leading-5">{node.id}</span>
+                <span className="min-w-0 break-words font-medium leading-5">
+                  {node.label ?? node.id}
+                </span>
                 <span className="flex shrink-0 items-center gap-1">
                   {getInvocationCount(node.id) > 0 ? (
                     <span className="rounded border bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
@@ -166,7 +173,10 @@ export function SkillSidebar({
             <p className="uppercase text-muted-foreground">nodes</p>
             <p className="text-lg font-semibold">
               {graphNodeCount}
-              <span className="text-xs font-normal text-muted-foreground"> / {totalNodeCount}</span>
+              <span className="text-xs font-normal text-muted-foreground">
+                {" "}
+                / {totalNodeCount}
+              </span>
             </p>
           </div>
           <div className="rounded-md border p-2">

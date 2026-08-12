@@ -238,6 +238,25 @@
     }
   }
 
+  @keyframes capability-nexus-drift {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes capability-nexus-breathe {
+    0%,
+    100% {
+      opacity: calc(var(--capability-nexus-opacity) * 0.58);
+    }
+    50% {
+      opacity: var(--capability-nexus-opacity);
+    }
+  }
+
   .animate-progress {
     animation: progress linear forwards;
   }
@@ -253,6 +272,24 @@
   .farplane-team-label-bobble {
     animation: team-label-bobble 3.8s ease-in-out infinite;
     transform-origin: center bottom;
+  }
+
+  .capability-nexus__flow {
+    animation-name: capability-nexus-drift;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+    transform-box: view-box;
+  }
+
+  .capability-nexus__particle {
+    animation: capability-nexus-breathe 5.4s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .capability-nexus__flow,
+    .capability-nexus__particle {
+      animation: none;
+    }
   }
 
   /* Theme transition animation */
