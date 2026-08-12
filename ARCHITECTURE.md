@@ -73,8 +73,9 @@ OpenClaw adapter.
 Firm finance actuals live under `~/.farplane/finance` as normalized daily flow
 observations, immutable weekly/monthly close snapshots, sync receipts, and one
 browser-safe projection. The CLI and scheduled collectors own writes;
-`GET /farplane/finance`, the Finance panel, and the office HUD are read-only
-consumers. Provider credentials remain in private `~/.farplane/config.toml`.
+`GET /farplane/finance`, Finance-owned Capital detail inside the Leverage
+workspace, and the office HUD are read-only consumers. Provider credentials
+remain in private `~/.farplane/config.toml`.
 
 ## Read Order
 

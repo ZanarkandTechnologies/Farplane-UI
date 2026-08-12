@@ -1,7 +1,8 @@
 # Leverage Module Contract
 
 - Own the browser-safe, read-only global leverage panel and its query hook.
-- Read only `GET /farplane/leverage`; Finance remains the sole capital owner.
+- Read `GET /farplane/leverage` for Distribution/Edge evidence and the Finance-owned
+  `GET /farplane/finance` projection for Capital detail; Finance remains the sole capital owner.
 - Group Distribution by canonical observed social-account identity, showing each account once
   and the projects that use it; never expose raw provider account IDs to the browser.
 - Show one evidence-backed Edge paragraph per project, plus gaps.

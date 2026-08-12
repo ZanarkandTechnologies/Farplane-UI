@@ -3,7 +3,7 @@ kind: feature-spec
 status: active
 project: Farplane UI
 created_at: 2026-07-20
-updated_at: 2026-07-22
+updated_at: 2026-08-12
 owner: finance
 related_systems:
   - ../systems/README.md
@@ -29,7 +29,7 @@ project ledger, browser cache, or duplicate bank transaction ledger.
 ```text
 statement/provider observation -> dated signed company cash snapshot
 daily flow collector -> normalized non-negative income/expense observations
-both -> browser-safe finance projection -> Finance panel and office money HUD
+both -> browser-safe finance projection -> Leverage Capital section and office money HUD
 ```
 
 - Daily observations are idempotently replaceable by date, currency, and
@@ -81,10 +81,12 @@ They never enter observation files or browser projections.
 - `farplane-ui finance close-week` freezes the completed or selected office
   week and writes an audit receipt.
 - `GET /farplane/finance` returns only the browser-safe compiled projection.
-- The global Finance panel leads with latest company cash and balance history,
-  then shows current week/month flow, provider freshness, and source gaps.
+- `FinanceCapitalDetails` leads Leverage's Capital section with latest company
+  cash and balance history, then shows current week/month flow, provider
+  freshness, and source gaps. Finance has no independent visible panel or
+  launcher.
 - The office money HUD reads the same projection and displays company cash:
-  negative red, positive green, zero neutral.
+  negative red, positive green, zero neutral; it opens Leverage.
 - Desired-state automations run the read-only Slash backfill daily at 05:15 and
   close the prior completed week on Monday at 05:20 in Asia/Kuala_Lumpur.
 

@@ -1,5 +1,10 @@
 # Finance Module
 
+The Finance ownership contract is
+[`docs/features/FEAT-0116-global-finance-observations.md`](../../../../docs/features/FEAT-0116-global-finance-observations.md);
+the composed workspace contract is
+[`docs/features/FEAT-0120-leverage-resource-workspace.md`](../../../../docs/features/FEAT-0120-leverage-resource-workspace.md).
+
 Global company cash and cash-flow evidence. The module reads the browser-safe
 `GET /farplane/finance` projection; all durable writes remain in the
 CLI/automation-owned `~/.farplane/finance` sidecar. It has no independent
