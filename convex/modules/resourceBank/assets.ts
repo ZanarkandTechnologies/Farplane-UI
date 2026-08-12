@@ -12,6 +12,7 @@ import { action, mutation, query } from "../../_generated/server";
 import {
   getAssetOrThrow,
   getJobOrThrow,
+  isCuratedResourceAsset,
   matchesFilters,
   nowMs,
   rowProjectId,
@@ -122,8 +123,11 @@ export const searchGallery = query({
             .withIndex("by_createdAtMs")
             .order("desc")
             .take(limit * 3);
-    return rows
-      .filter((row) => matchesFilters(row, args))
+    const curatedRows = await Promise.all(
+      rows.map(async (row) => ((await isCuratedResourceAsset(ctx, row)) ? row : null)),
+    );
+    return curatedRows
+      .filter((row): row is (typeof rows)[number] => row !== null && matchesFilters(row, args))
       .slice(0, limit)
       .map(toAssetRow);
   },

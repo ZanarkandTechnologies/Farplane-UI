@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-08-13 | feature | TASK-0088 | content-intelligence,video-intelligence,feed-scout,news,ui | Consolidated external-source reading into the shared Content Intelligence dialog, added retained chronological Content/News feeds with end-of-feed date loading and exact stored-day display, and kept Video Intelligence as the cited dossier/reporting capability rather than a second public panel.
+
 2026-08-05 | feature | TASK-0081 | ui,office,rooms,agents,skills,world,projects | Replaced legacy activity landmarks with eleven hosted operating rooms, added office/project-scoped host conversations and transient skill worktables, introduced Office3D-only seven-day project visibility, made Command Commons open an aggregate Company World, and replaced the retired training modal with ticket-backed Self-Improvement Runs.
 
 2026-08-03 | bugfix | ui,office,threejs,vite,observability | Prevented R3F provider-context crashes during Vite dependency re-optimization by pre-bundling Fiber and Drei together, and added a Canvas error boundary with a focused console/QA diagnostic plus a recoverable reload state.

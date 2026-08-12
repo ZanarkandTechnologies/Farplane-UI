@@ -19,6 +19,8 @@ export const extractedEvidenceValidator = v.object({
   excerpt: v.string(),
   schemaVersion: v.literal(2),
   extractorVersion: v.string(),
+  /** Exact public reference used only when the source explicitly cites one. */
+  reference: v.optional(v.string()),
 });
 
 export const evidenceAnchorValidator = v.object({
@@ -30,6 +32,7 @@ export const evidenceAnchorValidator = v.object({
   excerpt: v.string(),
   schemaVersion: v.literal(2),
   extractorVersion: v.string(),
+  reference: v.optional(v.string()),
 });
 
 export const extractedClaimValidator = v.object({
@@ -52,6 +55,15 @@ export const extractedStoryValidator = v.object({
   tags: v.array(v.string()),
   frame: v.string(),
   claims: v.array(extractedClaimValidator),
+  /** An exact public identifier, never a title/tag similarity guess. */
+  eventKey: v.optional(v.union(v.string(), v.null())),
+  whyNow: v.optional(v.union(v.string(), v.null())),
+  whyItMatters: v.optional(v.union(v.string(), v.null())),
+});
+
+/** News is optional enrichment of the canonical analysis, never its alternative route. */
+export const newsEnrichmentValidator = v.object({
+  candidates: v.array(extractedStoryValidator),
 });
 
 export const projectRelevanceValidator = v.object({
@@ -88,13 +100,22 @@ export const recommendationValidator = v.object({
 });
 
 export const videoAnalysisValidator = v.object({
-  schemaVersion: v.literal(3),
+  schemaVersion: v.literal(4),
   sourceStatus: sourceStatusValidator,
   sourceNote: v.string(),
   summary: v.string(),
   publisher: v.union(v.string(), v.null()),
   publishedAt: v.union(v.string(), v.null()),
-  stories: v.array(extractedStoryValidator),
+  news: v.union(newsEnrichmentValidator, v.null()),
+  /** Recurring lenses exist even when no item deserves to become News. */
+  topics: v.array(
+    v.object({
+      title: v.string(),
+      tags: v.array(v.string()),
+      summary: v.string(),
+      frame: v.string(),
+    }),
+  ),
   projectRelevance: v.array(projectRelevanceValidator),
   clickbait: clickbaitValidator,
   keyPoints: v.array(keyPointValidator),

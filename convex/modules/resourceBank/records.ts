@@ -51,6 +51,20 @@ export function nowMs(): number {
   return Date.now();
 }
 
+/** Vidgard analysis rows were historically written as Resource Bank assets. Keep them out of curation. */
+export async function isCuratedResourceAsset(
+  ctx: ResourceBankDbCtx,
+  asset: ResourceBankAsset,
+): Promise<boolean> {
+  if (asset.contentJobId) {
+    const job = await ctx.db.get(asset.contentJobId);
+    return job?.kind === "save_reference";
+  }
+  if (!asset.ingestionJobId) return false;
+  const job = await ctx.db.get(asset.ingestionJobId);
+  return job?.requestedBy !== "farplane-youtube-shortcut";
+}
+
 export function rowProjectId(job: ResourceBankJob, fallback?: string): string | undefined {
   return cleanText(fallback, 120) ?? job.projectId;
 }

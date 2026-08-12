@@ -23,32 +23,42 @@ Object.assign(globalThis, {
 });
 
 const analysis = {
-  schemaVersion: 3 as const,
+  schemaVersion: 4 as const,
   sourceStatus: "TRANSCRIPT_USED" as const,
   sourceNote: "Transcript inspected.",
   summary: "The claim is qualified.",
   publisher: "Example Channel",
   publishedAt: "2026-07-20",
-  stories: [
-    {
-      title: "Example claim is qualified",
-      summary: "A constraint changes the headline claim.",
-      eventDate: "2026-07-20",
-      entities: ["Example"],
-      tags: ["Example", "Product Claim"],
-      frame: "Constraint-first reporting.",
-      claims: [
-        {
-          statement: "The claim has an important constraint.",
-          stance: "neutral" as const,
-          evidence: {
-            timestamp: "01:20",
-            excerpt: "The transcript adds a constraint.",
-            schemaVersion: 2 as const,
-            extractorVersion: "summarize-v3",
+  news: {
+    candidates: [
+      {
+        title: "Example claim is qualified",
+        summary: "A constraint changes the headline claim.",
+        eventDate: "2026-07-20",
+        entities: ["Example"],
+        tags: ["Example", "Product Claim"],
+        frame: "Constraint-first reporting.",
+        claims: [
+          {
+            statement: "The claim has an important constraint.",
+            stance: "neutral" as const,
+            evidence: {
+              timestamp: "01:20",
+              excerpt: "The transcript adds a constraint.",
+              schemaVersion: 2 as const,
+              extractorVersion: "summarize-v3",
+            },
           },
-        },
-      ],
+        ],
+      },
+    ],
+  },
+  topics: [
+    {
+      title: "Example product coverage",
+      tags: ["Example", "Product Claim"],
+      summary: "Creators cover the product claim and its practical constraint.",
+      frame: "Practical assessment.",
     },
   ],
   projectRelevance: [],
@@ -102,8 +112,8 @@ test("job list is fetched from the local bridge", async () => {
 test("cache hit reuses analysis and thread id without a local-agent call", async () => {
   storage.clear();
   fetchCalls = 0;
-  storage.set("farplane-youtube-analysis-v3:dQw4w9WgXcQ", {
-    schemaVersion: 3,
+  storage.set("farplane-youtube-analysis-v4:dQw4w9WgXcQ", {
+    schemaVersion: 4,
     analysis,
     threadId: "thread-cached",
   });
@@ -143,18 +153,44 @@ test("cache miss stores the validated analysis and persistent thread id", async 
     cached: false,
   });
   assert.equal(fetchCalls, 1);
-  assert.deepEqual(storage.get("farplane-youtube-analysis-v3:dQw4w9WgXcQ"), {
-    schemaVersion: 3,
+  assert.deepEqual(storage.get("farplane-youtube-analysis-v4:dQw4w9WgXcQ"), {
+    schemaVersion: 4,
     analysis,
     threadId: "thread-new",
   });
 });
 
+test("a remote ready dossier is reused without requiring a local analysis payload", async () => {
+  storage.clear();
+  fetchCalls = 0;
+  globalThis.fetch = async () => {
+    fetchCalls += 1;
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        reused: true,
+        disposition: "reused_ready",
+        dossierId: "dossier-existing",
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+
+  assert.deepEqual(await analyze("dQw4w9WgXcQ", "Claim?"), {
+    ok: true,
+    reused: true,
+    dossierId: "dossier-existing",
+    threadId: undefined,
+    cached: false,
+  });
+  assert.equal(fetchCalls, 1);
+});
+
 test("transcript-unavailable cache entries are not shown as answers", async () => {
   storage.clear();
   fetchCalls = 0;
-  storage.set("farplane-youtube-analysis-v3:dQw4w9WgXcQ", {
-    schemaVersion: 3,
+  storage.set("farplane-youtube-analysis-v4:dQw4w9WgXcQ", {
+    schemaVersion: 4,
     analysis: {
       ...analysis,
       sourceStatus: "TRANSCRIPT_UNAVAILABLE",
@@ -186,12 +222,35 @@ test("transcript-unavailable cache entries are not shown as answers", async () =
   assert.equal(fetchCalls, 1);
 });
 
-test("stale v2 cache entries are ignored and replaced by v3 analysis", async () => {
+test("pre-News-enrichment cache entries are invalidated before they can reach the cloud writer", async () => {
   storage.clear();
   fetchCalls = 0;
-  storage.set("farplane-youtube-analysis-v2:dQw4w9WgXcQ", {
-    schemaVersion: 2,
-    analysis: { ...analysis, schemaVersion: 2 },
+  const { news: _news, ...preNewsAnalysis } = analysis;
+  storage.set("farplane-youtube-analysis-v4:dQw4w9WgXcQ", {
+    schemaVersion: 4,
+    analysis: preNewsAnalysis,
+    threadId: "thread-pre-news",
+  });
+  globalThis.fetch = async () => {
+    fetchCalls += 1;
+    return new Response(JSON.stringify({ ok: true, analysis, threadId: "thread-fresh" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  const result = await analyze("dQw4w9WgXcQ", "Claim?");
+  assert.equal(result.cached, false);
+  assert.equal(result.threadId, "thread-fresh");
+  assert.equal(fetchCalls, 1);
+});
+
+test("stale v3 cache entries are ignored and replaced by v4 analysis", async () => {
+  storage.clear();
+  fetchCalls = 0;
+  storage.set("farplane-youtube-analysis-v3:dQw4w9WgXcQ", {
+    schemaVersion: 3,
+    analysis: { ...analysis, schemaVersion: 3 },
     threadId: "thread-stale",
   });
   globalThis.fetch = async () => {
@@ -206,5 +265,5 @@ test("stale v2 cache entries are ignored and replaced by v3 analysis", async () 
   assert.equal(result.cached, false);
   assert.equal(result.threadId, "thread-v3");
   assert.equal(fetchCalls, 1);
-  assert.ok(storage.has("farplane-youtube-analysis-v3:dQw4w9WgXcQ"));
+  assert.ok(storage.has("farplane-youtube-analysis-v4:dQw4w9WgXcQ"));
 });

@@ -3,11 +3,14 @@
  * aggregate rebuilding, and relation derivation. It performs no database writes.
  */
 import type { Infer } from "convex/values";
+import { extractYouTubeVideoId } from "../content/identifiers";
 import type {
   extractedStoryValidator,
   reportingClaimValidator,
   videoAnalysisValidator,
 } from "./validators";
+
+export { extractYouTubeVideoId } from "../content/identifiers";
 
 export type ExtractedStory = Infer<typeof extractedStoryValidator>;
 export type ReportingClaim = Infer<typeof reportingClaimValidator> & { id: string };
@@ -116,10 +119,7 @@ function datesConflict(left: string | null, right?: string): boolean {
   return Math.abs(leftMs - rightMs) > 7 * 86_400_000;
 }
 
-export function matchStory<T extends StoryShape>(
-  input: ExtractedStory,
-  stories: T[],
-): T | null {
+export function matchStory<T extends StoryShape>(input: ExtractedStory, stories: T[]): T | null {
   let match: { story: T; score: number } | null = null;
   for (const story of stories) {
     if (datesConflict(input.eventDate, story.eventDate)) continue;
@@ -243,26 +243,9 @@ export function rebuildStoryRelations(
 function orderStories<T extends StoryShape>(left: T, right: T): [T, T] {
   const leftTime = Date.parse(left.eventDate ?? left.createdAt);
   const rightTime = Date.parse(right.eventDate ?? right.createdAt);
-  if (leftTime === rightTime) return left.id.localeCompare(right.id) <= 0 ? [left, right] : [right, left];
+  if (leftTime === rightTime)
+    return left.id.localeCompare(right.id) <= 0 ? [left, right] : [right, left];
   return leftTime <= rightTime ? [left, right] : [right, left];
-}
-
-export function extractYouTubeVideoId(value?: string): string | null {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    if (url.hostname === "youtu.be") {
-      const id = url.pathname.slice(1).split("/")[0];
-      return /^[A-Za-z0-9_-]{11}$/.test(id ?? "") ? id ?? null : null;
-    }
-    if (url.hostname.endsWith("youtube.com")) {
-      const id = url.searchParams.get("v") ?? url.pathname.match(/^\/shorts\/([^/]+)/)?.[1];
-      return /^[A-Za-z0-9_-]{11}$/.test(id ?? "") ? id ?? null : null;
-    }
-  } catch {
-    return /^[A-Za-z0-9_-]{11}$/.test(value) ? value : null;
-  }
-  return null;
 }
 
 export function youtubeUrlVariants(videoId: string): string[] {
@@ -274,25 +257,25 @@ export function youtubeUrlVariants(videoId: string): string[] {
   ];
 }
 
-export function filterYouTubeAssets<
-  T extends { canonicalUrl?: string; sourceUrl?: string },
->(assets: T[]): T[] {
+export function filterYouTubeAssets<T extends { canonicalUrl?: string; sourceUrl?: string }>(
+  assets: T[],
+): T[] {
   return assets.filter((asset) =>
     Boolean(extractYouTubeVideoId(asset.canonicalUrl ?? asset.sourceUrl)),
   );
 }
 
-export function findYouTubeAssetByVideoId<
-  T extends { canonicalUrl?: string; sourceUrl?: string },
->(assets: T[], videoId: string): T | undefined {
+export function findYouTubeAssetByVideoId<T extends { canonicalUrl?: string; sourceUrl?: string }>(
+  assets: T[],
+  videoId: string,
+): T | undefined {
   return assets.find(
-    (asset) =>
-      extractYouTubeVideoId(asset.canonicalUrl ?? asset.sourceUrl) === videoId,
+    (asset) => extractYouTubeVideoId(asset.canonicalUrl ?? asset.sourceUrl) === videoId,
   );
 }
 
 export function analysisMarkdown(analysis: VideoAnalysis): string {
-  const storySections = analysis.stories.map((story) => {
+  const storySections = (analysis.news?.candidates ?? []).map((story) => {
     const claims = story.claims.map((claim) => `- ${claim.statement}`).join("\n");
     return `## ${story.title}\n\n${story.summary}\n\n${claims}`;
   });

@@ -2,29 +2,41 @@
 
 const LOCAL_AGENT = "http://127.0.0.1:47893";
 type Analysis = {
-  schemaVersion: 3;
+  schemaVersion: 4;
   sourceStatus: "TRANSCRIPT_USED" | "TRANSCRIPT_UNAVAILABLE" | "SUMMARY_ONLY";
   sourceNote: string;
   summary: string;
   publisher: string | null;
   publishedAt: string | null;
-  stories: {
-    title: string;
-    summary: string;
-    eventDate: string | null;
-    entities: string[];
-    tags: string[];
-    frame: string;
-    claims: {
-      statement: string;
-      stance: "supports" | "opposes" | "neutral" | "unclear";
-      evidence: {
-        timestamp: string | null;
-        excerpt: string;
-        schemaVersion: 2;
-        extractorVersion: string;
-      };
+  news: {
+    candidates: {
+      title: string;
+      summary: string;
+      eventDate: string | null;
+      entities: string[];
+      tags: string[];
+      frame: string;
+      claims: {
+        statement: string;
+        stance: "supports" | "opposes" | "neutral" | "unclear";
+        evidence: {
+          timestamp: string | null;
+          excerpt: string;
+          schemaVersion: 2;
+          extractorVersion: string;
+          reference?: string | null;
+        };
+      }[];
+      eventKey?: string | null;
+      whyNow?: string | null;
+      whyItMatters?: string | null;
     }[];
+  } | null;
+  topics: {
+    title: string;
+    tags: string[];
+    summary: string;
+    frame: string;
   }[];
   projectRelevance: {
     project: string;
@@ -72,7 +84,7 @@ function oneOf<T extends string>(value: unknown, options: readonly T[]): value i
 }
 
 function parseAnalysis(value: unknown): Analysis {
-  if (!isRecord(value) || value.schemaVersion !== 3) throw new Error("Invalid analysis");
+  if (!isRecord(value) || value.schemaVersion !== 4) throw new Error("Invalid analysis");
   const clickbait = value.clickbait;
   const recommendation = value.recommendation;
   if (
@@ -85,8 +97,17 @@ function parseAnalysis(value: unknown): Analysis {
     typeof value.summary !== "string" ||
     (value.publisher !== null && typeof value.publisher !== "string") ||
     (value.publishedAt !== null && typeof value.publishedAt !== "string") ||
-    !Array.isArray(value.stories) ||
-    !value.stories.every(isStory) ||
+    !isNewsEnrichment(value.news) ||
+    !Array.isArray(value.topics) ||
+    !value.topics.every(
+      (topic) =>
+        isRecord(topic) &&
+        typeof topic.title === "string" &&
+        strings(topic.tags) &&
+        topic.tags.length >= 1 &&
+        typeof topic.summary === "string" &&
+        typeof topic.frame === "string",
+    ) ||
     !Array.isArray(value.projectRelevance) ||
     !value.projectRelevance.every(
       (relevance) =>
@@ -129,6 +150,13 @@ function parseAnalysis(value: unknown): Analysis {
   return value as Analysis;
 }
 
+function isNewsEnrichment(value: unknown): boolean {
+  return (
+    value === null ||
+    (isRecord(value) && Array.isArray(value.candidates) && value.candidates.every(isStory))
+  );
+}
+
 function isStory(value: unknown): boolean {
   if (
     !isRecord(value) ||
@@ -139,6 +167,9 @@ function isStory(value: unknown): boolean {
     !strings(value.tags) ||
     value.tags.length < 1 ||
     typeof value.frame !== "string" ||
+    (value.eventKey !== undefined && value.eventKey !== null && typeof value.eventKey !== "string") ||
+    (value.whyNow !== undefined && value.whyNow !== null && typeof value.whyNow !== "string") ||
+    (value.whyItMatters !== undefined && value.whyItMatters !== null && typeof value.whyItMatters !== "string") ||
     !Array.isArray(value.claims)
   ) {
     return false;
@@ -157,7 +188,10 @@ function isStory(value: unknown): boolean {
         typeof claim.evidence.timestamp === "string") &&
       typeof claim.evidence.excerpt === "string" &&
       claim.evidence.schemaVersion === 2 &&
-      typeof claim.evidence.extractorVersion === "string"
+      typeof claim.evidence.extractorVersion === "string" &&
+      (claim.evidence.reference === undefined ||
+        claim.evidence.reference === null ||
+        typeof claim.evidence.reference === "string")
     );
   });
 }
@@ -165,7 +199,7 @@ function isStory(value: unknown): boolean {
 function parseCacheEntry(value: unknown) {
   if (
     !isRecord(value) ||
-    value.schemaVersion !== 3 ||
+    value.schemaVersion !== 4 ||
     typeof value.threadId !== "string" ||
     !value.threadId
   ) {
@@ -204,8 +238,8 @@ async function fetchJson(path: string, init: RequestInit, timeoutMs: number) {
   }
 }
 
-export async function analyze(videoId: string, title: string) {
-  const cacheKey = `farplane-youtube-analysis-v3:${videoId}`;
+export async function analyze(videoId: string, title: string, channelId?: string) {
+  const cacheKey = `farplane-youtube-analysis-v4:${videoId}`;
   const cached = (await chrome.storage.local.get(cacheKey))[cacheKey];
   const parsed = parseCacheEntry(cached);
   if (parsed) {
@@ -217,6 +251,7 @@ export async function analyze(videoId: string, title: string) {
         body: JSON.stringify({
           videoId,
           title,
+          channelId,
           analysis: parsed.analysis,
           threadId: parsed.threadId,
         }),
@@ -236,17 +271,26 @@ export async function analyze(videoId: string, title: string) {
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ videoId, title }),
+        body: JSON.stringify({ videoId, title, channelId }),
     },
     185_000,
   );
+  if (payload.reused) {
+    return {
+      ok: true,
+      reused: true,
+      dossierId: typeof payload.dossierId === "string" ? payload.dossierId : undefined,
+      threadId: typeof payload.threadId === "string" ? payload.threadId : undefined,
+      cached: false,
+    };
+  }
   const analysis = parseAnalysis(payload.analysis);
   if (typeof payload.threadId !== "string" || !payload.threadId) {
     throw new Error("Invalid analysis thread");
   }
   const threadId = payload.threadId;
   await chrome.storage.local.set({
-    [cacheKey]: { schemaVersion: 3, analysis, threadId },
+    [cacheKey]: { schemaVersion: 4, analysis, threadId },
   });
   return { ok: true, analysis, threadId, cached: false };
 }
@@ -260,7 +304,7 @@ export async function getJobs(): Promise<{ ok: true; jobs: AnalysisJob[] }> {
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   const run =
     request?.type === "ANALYZE_YOUTUBE"
-      ? () => analyze(request.videoId, request.title)
+      ? () => analyze(request.videoId, request.title, request.channelId)
       : request?.type === "GET_LOCAL_HEALTH"
         ? () => fetchJson("/health", { method: "POST" }, 6_000)
         : request?.type === "GET_YOUTUBE_JOBS"

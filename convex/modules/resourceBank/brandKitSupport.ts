@@ -158,6 +158,7 @@ export async function promoteResourceElementIds(
     const element = await ctx.db.get(elementId);
     if (!element) throw new Error("brand_kit_resource_element_not_found");
     const asset = await getAssetOrThrow(ctx, element.goldenExample.assetId);
+    if (!element.ingestionJobId) throw new Error("brand_kit_legacy_job_missing");
     await getJobOrThrow(ctx, element.ingestionJobId);
     if (asset.ingestionJobId !== element.ingestionJobId) {
       throw new Error("brand_kit_golden_example_asset_job_mismatch");

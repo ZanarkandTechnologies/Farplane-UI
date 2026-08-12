@@ -22,11 +22,11 @@ const evidence = {
 };
 
 it("extracts canonical and short YouTube ids", () => {
-  expect(extractYouTubeVideoId("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe(
-    "dQw4w9WgXcQ",
-  );
+  expect(extractYouTubeVideoId("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
   expect(extractYouTubeVideoId("https://youtu.be/dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
   expect(extractYouTubeVideoId("https://example.com/video")).toBeNull();
+  expect(extractYouTubeVideoId("https://notyoutube.com/watch?v=dQw4w9WgXcQ")).toBeNull();
+  expect(extractYouTubeVideoId("https://www.youtube.com/embed/dQw4w9WgXcQ")).toBeNull();
 });
 
 it("keeps historical YouTube assets behind more than 250 newer non-YouTube videos", () => {
@@ -34,15 +34,11 @@ it("keeps historical YouTube assets behind more than 250 newer non-YouTube video
     sourceUrl: `https://www.instagram.com/reel/${index}`,
   }));
   const historicalYouTube = { sourceUrl: "https://youtu.be/dQw4w9WgXcQ" };
-  expect(filterYouTubeAssets([...newerInstagram, historicalYouTube])).toEqual([
-    historicalYouTube,
-  ]);
+  expect(filterYouTubeAssets([...newerInstagram, historicalYouTube])).toEqual([historicalYouTube]);
 });
 
 it("includes short URLs when upgrading a legacy Resource Bank asset", () => {
-  expect(youtubeUrlVariants("dQw4w9WgXcQ")).toContain(
-    "https://youtu.be/dQw4w9WgXcQ",
-  );
+  expect(youtubeUrlVariants("dQw4w9WgXcQ")).toContain("https://youtu.be/dQw4w9WgXcQ");
 });
 
 it("finds a sourceUrl-only legacy asset through normalized YouTube identity", () => {
@@ -125,13 +121,12 @@ describe("reporting projections", () => {
       createdAt: "2026-07-20T00:00:00.000Z",
       updatedAt: "2026-07-20T00:00:00.000Z",
     });
-    const tags = [{ id: "tag-1", canonicalName: "Product Launch", normalizedKey: "product launch" }];
+    const tags = [
+      { id: "tag-1", canonicalName: "Product Launch", normalizedKey: "product launch" },
+    ];
     expect(
       rebuildStoryRelations(
-        [
-          makeStory("one", ["Example"], ["tag-1"]),
-          makeStory("two", ["Example"], ["tag-1"]),
-        ],
+        [makeStory("one", ["Example"], ["tag-1"]), makeStory("two", ["Example"], ["tag-1"])],
         tags,
       ),
     ).toHaveLength(1);

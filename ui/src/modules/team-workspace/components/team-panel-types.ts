@@ -26,7 +26,6 @@ export type TabKey =
   | "members"
   | "characters"
   | "distribution"
-  | "news"
   | "skills"
   | "cadence"
   | "thread-data"

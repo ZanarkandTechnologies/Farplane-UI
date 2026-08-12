@@ -1,48 +1,152 @@
 /**
- * Cloud projection for AI Office. It merges existing Resource Bank YouTube assets
- * with structured Video Intelligence records so historical ingestions appear immediately.
+ * Cloud projection for AI Office. Video Intelligence starts from analyze jobs and
+ * their content sources; Resource Bank is consulted only for the temporary legacy fallback.
  */
 import { query } from "../../_generated/server";
 import {
+  type ContributionShape,
   extractYouTubeVideoId,
-  filterYouTubeAssets,
   rebuildStoryAggregate,
   rebuildStoryRelations,
-  type ContributionShape,
   type StoryShape,
 } from "./domain";
+
+type ProjectionSource = {
+  id: string;
+  title: string;
+  canonicalUrl: string;
+  author?: string;
+  projectId?: string;
+  createdAtMs: number;
+  updatedAtMs: number;
+  job: {
+    id: string;
+    status: string;
+    error?: string;
+    externalTaskRef?: string;
+    projectId?: string;
+    createdAtMs: number;
+    updatedAtMs: number;
+  };
+  legacy?: boolean;
+  summary?: string;
+};
 
 export const getVideoIntelligenceProjection = query({
   args: {},
   handler: async (ctx) => {
-    const videoAssets = filterYouTubeAssets(
-      await ctx.db
-        .query("resourceBankAssets")
-        .withIndex("by_assetKind_assetRole_createdAtMs", (q) =>
-          q.eq("assetKind", "video").eq("assetRole", "primary"),
-        )
-        .order("desc")
-        .collect(),
-    );
-    const [structuredDossiers, storyRows, tagRows, contributionRows] = await Promise.all([
-      ctx.db.query("videoIntelligenceDossiers").withIndex("by_updatedAtMs").order("desc").take(250),
-      ctx.db.query("videoIntelligenceStories").withIndex("by_updatedAtMs").order("desc").take(500),
-      ctx.db.query("videoIntelligenceTags").take(500),
-      ctx.db.query("videoIntelligenceContributions").take(1_500),
-    ]);
-    const structuredByAsset = new Map(
-      structuredDossiers.map((dossier) => [String(dossier.resourceAssetId), dossier]),
-    );
-    const jobAndAnalysis = await Promise.all(
-      videoAssets.map(async (asset) => ({
-        asset,
-        job: await ctx.db.get(asset.ingestionJobId),
-        analyses: await ctx.db
-          .query("resourceBankAnalyses")
-          .withIndex("by_asset", (q) => q.eq("assetId", asset._id))
+    const [contentJobs, legacyJobs, structuredDossiers, storyRows, tagRows, contributionRows] =
+      await Promise.all([
+        ctx.db
+          .query("contentJobs")
+          .withIndex("by_kind_createdAtMs", (q) => q.eq("kind", "analyze_youtube"))
           .order("desc")
-          .take(10),
-      })),
+          .take(250),
+        // Transitional only: old Vidgard jobs are identified by bridge provenance, never tags.
+        ctx.db.query("resourceBankIngestionJobs").take(250),
+        ctx.db
+          .query("videoIntelligenceDossiers")
+          .withIndex("by_updatedAtMs")
+          .order("desc")
+          .take(250),
+        ctx.db
+          .query("videoIntelligenceStories")
+          .withIndex("by_updatedAtMs")
+          .order("desc")
+          .take(500),
+        ctx.db.query("videoIntelligenceTags").take(500),
+        ctx.db.query("videoIntelligenceContributions").take(1_500),
+      ]);
+
+    const genericSources = (
+      await Promise.all(
+        contentJobs.map(async (job): Promise<ProjectionSource | null> => {
+          const source = await ctx.db.get(job.sourceId);
+          if (!source) return null;
+          const videoId = extractYouTubeVideoId(source.canonicalRef);
+          if (!videoId) return null;
+          return {
+            id: String(source._id),
+            title: source.title ?? videoId,
+            canonicalUrl: source.canonicalRef,
+            projectId: job.projectId,
+            createdAtMs: source.createdAtMs,
+            updatedAtMs: Math.max(source.updatedAtMs, job.updatedAtMs),
+            job: {
+              id: String(job._id),
+              status: job.status,
+              error: job.error,
+              externalTaskRef: job.externalTaskRef,
+              projectId: job.projectId,
+              createdAtMs: job.createdAtMs,
+              updatedAtMs: job.updatedAtMs,
+            },
+          };
+        }),
+      )
+    ).filter((value): value is ProjectionSource => value !== null);
+
+    const legacySources = (
+      await Promise.all(
+        legacyJobs
+          .filter((job) => job.requestedBy === "farplane-youtube-shortcut" && !job.contentJobId)
+          .map(async (job): Promise<ProjectionSource | null> => {
+            const videoId = extractYouTubeVideoId(job.sourceRef);
+            if (!videoId) return null;
+            const asset = await ctx.db
+              .query("resourceBankAssets")
+              .withIndex("by_job", (q) => q.eq("ingestionJobId", job._id))
+              .filter((q) => q.eq(q.field("assetRole"), "primary"))
+              .first();
+            if (!asset) return null;
+            const analysis = await ctx.db
+              .query("resourceBankAnalyses")
+              .withIndex("by_asset", (q) => q.eq("assetId", asset._id))
+              .order("desc")
+              .first();
+            return {
+              id: String(asset._id),
+              title: asset.title,
+              canonicalUrl: asset.canonicalUrl ?? asset.sourceUrl ?? job.sourceRef,
+              author: asset.author,
+              projectId: asset.projectId ?? job.projectId,
+              createdAtMs: asset.createdAtMs,
+              updatedAtMs: Math.max(asset.updatedAtMs, job.updatedAtMs),
+              job: {
+                id: String(job._id),
+                status: job.status,
+                error: job.error,
+                externalTaskRef: job.externalTaskRef,
+                projectId: job.projectId,
+                createdAtMs: job.createdAtMs,
+                updatedAtMs: job.updatedAtMs,
+              },
+              legacy: true,
+              summary: readableSummary(
+                analysis?.analysisMarkdown ?? analysis?.embeddingText ?? asset.searchableText,
+              ),
+            };
+          }),
+      )
+    ).filter((value): value is ProjectionSource => value !== null);
+
+    const sourcesById = new Map<string, ProjectionSource>();
+    for (const source of [...genericSources, ...legacySources]) {
+      const existing = sourcesById.get(source.id);
+      if (!existing || source.job.updatedAtMs > existing.job.updatedAtMs) {
+        sourcesById.set(source.id, source);
+      }
+    }
+    const sources = [...sourcesById.values()];
+    const structuredByContentSource = new Map(
+      structuredDossiers
+        .filter((dossier) => dossier.contentSourceId)
+        .map((dossier) => [String(dossier.contentSourceId), dossier]),
+    );
+    const structuredByLegacyAsset = new Map(
+      structuredDossiers
+        .filter((dossier) => dossier.resourceAssetId)
+        .map((dossier) => [String(dossier.resourceAssetId), dossier]),
     );
     const activeDossierIds = new Set(structuredDossiers.map((dossier) => String(dossier._id)));
     const contributions: ContributionShape[] = contributionRows
@@ -53,10 +157,7 @@ export const getVideoIntelligenceProjection = query({
         dossierId: String(row.dossierId),
         frame: row.frame,
         summary: row.summary,
-        claims: row.claims.map((claim, index) => ({
-          id: `${row._id}:claim:${index}`,
-          ...claim,
-        })),
+        claims: row.claims.map((claim, index) => ({ id: `${row._id}:claim:${index}`, ...claim })),
       }));
     const usedStoryIds = new Set(contributions.map((item) => item.storyId));
     const stories: StoryShape[] = storyRows
@@ -87,29 +188,23 @@ export const getVideoIntelligenceProjection = query({
         createdAt: iso(row.createdAtMs),
         updatedAt: iso(row.updatedAtMs),
       }));
-    const dossiers = jobAndAnalysis.map(({ asset, analyses }) => {
-      const videoId = extractYouTubeVideoId(asset.canonicalUrl ?? asset.sourceUrl);
+    const dossiers = sources.map((source) => {
+      const videoId = extractYouTubeVideoId(source.canonicalUrl);
       if (!videoId) throw new Error("video_intelligence_youtube_id_missing");
-      const structured = structuredByAsset.get(String(asset._id));
-      if (!structured) return legacyDossier(asset, analyses[0], videoId);
+      const structured = source.legacy
+        ? structuredByLegacyAsset.get(source.id)
+        : structuredByContentSource.get(source.id);
+      if (!structured) return legacyDossier(source, videoId);
       const dossierId = String(structured._id);
       const storyIds = contributions
         .filter((item) => item.dossierId === dossierId)
         .map((item) => item.storyId);
-      const relatedStoryIds = [...new Set(
-        contributions
-          .filter(
-            (item) =>
-              item.dossierId !== dossierId && storyIds.includes(item.storyId),
-          )
-          .map((item) => item.storyId),
-      )];
       return {
         id: dossierId,
         videoId,
-        canonicalUrl: asset.canonicalUrl ?? asset.sourceUrl ?? youtubeUrl(videoId),
-        title: asset.title,
-        publisher: structured.publisher ?? asset.author ?? null,
+        canonicalUrl: source.canonicalUrl,
+        title: source.title,
+        publisher: structured.publisher ?? source.author ?? null,
         publishedAt: structured.publishedAt ?? null,
         summary: structured.summary,
         sourceStatus: structured.sourceStatus,
@@ -117,7 +212,13 @@ export const getVideoIntelligenceProjection = query({
         threadId: structured.threadId,
         storyIds: [...new Set(storyIds)],
         duplicateIngestCount: structured.duplicateIngestCount,
-        relatedStoryIds,
+        relatedStoryIds: [
+          ...new Set(
+            contributions
+              .filter((item) => item.dossierId !== dossierId && storyIds.includes(item.storyId))
+              .map((item) => item.storyId),
+          ),
+        ],
         projectRelevance: structured.projectRelevance,
         clickbait: structured.clickbait,
         keyPoints: structured.keyPoints,
@@ -127,28 +228,30 @@ export const getVideoIntelligenceProjection = query({
         updatedAt: iso(structured.updatedAtMs),
       };
     });
-    const dossierByAssetId = new Map(
-      jobAndAnalysis.map(({ asset }, index) => [String(asset._id), dossiers[index]]),
-    );
-    const jobs = jobAndAnalysis.flatMap(({ asset, job }) => {
-      const dossier = dossierByAssetId.get(String(asset._id));
-      const videoId = extractYouTubeVideoId(asset.canonicalUrl ?? asset.sourceUrl);
-      if (!job || !dossier || !videoId) return [];
-      return [{
-        id: String(job._id),
-        videoId,
-        title: asset.title,
-        status: mapJobStatus(job.status),
-        threadId: threadIdFromRef(job.externalTaskRef),
-        dossierId: dossier.id,
-        error: job.error,
-        createdAt: iso(job.createdAtMs),
-        updatedAt: iso(job.updatedAtMs),
-      }];
+    const dossierBySourceId = new Map(sources.map((source, index) => [source.id, dossiers[index]]));
+    const jobs = sources.flatMap((source) => {
+      const dossier = dossierBySourceId.get(source.id);
+      const videoId = extractYouTubeVideoId(source.canonicalUrl);
+      if (!dossier || !videoId) return [];
+      return [
+        {
+          id: source.job.id,
+          sourceId: source.id,
+          videoId,
+          title: source.title,
+          projectId: source.projectId ?? source.job.projectId,
+          status: mapJobStatus(source.job.status),
+          threadId: threadIdFromRef(source.job.externalTaskRef),
+          dossierId: dossier.id,
+          error: source.job.error,
+          createdAt: iso(source.job.createdAtMs),
+          updatedAt: iso(source.job.updatedAtMs),
+        },
+      ];
     });
     const updatedAtMs = Math.max(
       0,
-      ...videoAssets.map((asset) => asset.updatedAtMs),
+      ...sources.map((source) => source.updatedAtMs),
       ...structuredDossiers.map((dossier) => dossier.updatedAtMs),
     );
     return {
@@ -168,76 +271,59 @@ export const getVideoIntelligenceProjection = query({
   },
 });
 
-type AssetRow = {
-  _id: string;
-  title: string;
-  author?: string;
-  canonicalUrl?: string;
-  sourceUrl?: string;
-  searchableText: string;
-  projectId?: string;
-  createdAtMs: number;
-  updatedAtMs: number;
-};
-
-type AnalysisRow = { analysisMarkdown?: string; embeddingText?: string; transcriptText?: string };
-
-function legacyDossier(asset: AssetRow, analysis: AnalysisRow | undefined, videoId: string) {
-  const summary = readableSummary(
-    analysis?.analysisMarkdown ?? analysis?.embeddingText ?? asset.searchableText,
-  );
+function legacyDossier(source: ProjectionSource, videoId: string) {
   return {
-    id: String(asset._id),
+    id: source.id,
     videoId,
-    canonicalUrl: asset.canonicalUrl ?? asset.sourceUrl ?? youtubeUrl(videoId),
-    title: asset.title,
-    publisher: asset.author ?? null,
+    canonicalUrl: source.canonicalUrl,
+    title: source.title,
+    publisher: source.author ?? null,
     publishedAt: null,
-    summary,
+    summary: source.summary ?? "This video is retained for analysis.",
     sourceStatus: "RESOURCE_BANK" as const,
-    sourceNote:
-      "Imported from the existing Convex Resource Bank. Story claims will be added when this source is re-analyzed for Video Intelligence.",
+    sourceNote: "Legacy Vidgard record awaiting generic content-job migration.",
     threadId: "",
     storyIds: [],
     duplicateIngestCount: 1,
     relatedStoryIds: [],
-    projectRelevance: asset.projectId
-      ? [{ project: asset.projectId, reason: "Linked by the original Resource Bank ingestion.", confidence: 1 }]
+    projectRelevance: source.projectId
+      ? [
+          {
+            project: source.projectId,
+            reason: "Linked by the original Vidgard analysis job.",
+            confidence: 1,
+          },
+        ]
       : [],
     clickbait: null,
     keyPoints: [],
     recommendation: null,
     legacy: true,
-    createdAt: iso(asset.createdAtMs),
-    updatedAt: iso(asset.updatedAtMs),
+    createdAt: iso(source.createdAtMs),
+    updatedAt: iso(source.updatedAtMs),
   };
 }
 
 function readableSummary(value: string): string {
-  const plain = value
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/[*_`>-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return plain.slice(0, 3_000) || "This video is retained in the Convex Resource Bank.";
+  return (
+    value
+      .replace(/^#{1,6}\s+/gm, "")
+      .replace(/[*_`>-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 3_000) || "This video is retained for analysis."
+  );
 }
-
 function mapJobStatus(status: string): "queued" | "running" | "succeeded" | "failed" {
   if (status === "queued") return "queued";
   if (status === "analyzing") return "running";
   if (status === "failed") return "failed";
   return "succeeded";
 }
-
 function threadIdFromRef(value?: string): string | undefined {
   const prefix = "codex-thread:";
   return value?.startsWith(prefix) ? value.slice(prefix.length) || undefined : undefined;
 }
-
-function youtubeUrl(videoId: string): string {
-  return `https://www.youtube.com/watch?v=${videoId}`;
-}
-
 function iso(value: number): string {
   return new Date(value).toISOString();
 }

@@ -13,9 +13,14 @@ import {
 
 export const videoIntelligenceTables = {
   videoIntelligenceDossiers: defineTable({
-    resourceAssetId: v.id("resourceBankAssets"),
-    resourceJobId: v.id("resourceBankIngestionJobs"),
+    // Legacy Resource Bank links are retained only while the bounded cutover runs.
+    resourceAssetId: v.optional(v.id("resourceBankAssets")),
+    resourceJobId: v.optional(v.id("resourceBankIngestionJobs")),
+    contentSourceId: v.optional(v.id("contentSources")),
+    contentJobId: v.optional(v.id("contentJobs")),
     videoId: v.string(),
+    /** Page-provenance only; reporting authority is immutable on a revision. */
+    youtubeChannelId: v.optional(v.string()),
     threadId: v.string(),
     publisher: v.optional(v.string()),
     publishedAt: v.optional(v.string()),
@@ -27,23 +32,63 @@ export const videoIntelligenceTables = {
     keyPoints: v.array(keyPointValidator),
     recommendation: recommendationValidator,
     duplicateIngestCount: v.number(),
+    /** UTC activity day; this is the Video Intelligence day-pager key. */
+    timelineDay: v.optional(v.string()),
     createdAtMs: v.number(),
     updatedAtMs: v.number(),
   })
     .index("by_resourceAssetId", ["resourceAssetId"])
+    .index("by_resourceJobId", ["resourceJobId"])
+    .index("by_contentSourceId", ["contentSourceId"])
+    .index("by_contentJobId", ["contentJobId"])
     .index("by_videoId", ["videoId"])
-    .index("by_updatedAtMs", ["updatedAtMs"]),
+    .index("by_updatedAtMs", ["updatedAtMs"])
+    .index("by_timelineDay_updatedAtMs", ["timelineDay", "updatedAtMs"]),
 
   videoIntelligenceStories: defineTable({
     title: v.string(),
     summary: v.string(),
     eventDate: v.optional(v.string()),
+    eventKey: v.optional(v.string()),
+    whyNow: v.optional(v.string()),
+    whyItMatters: v.optional(v.string()),
     entities: v.array(v.string()),
     tagIds: v.array(v.id("videoIntelligenceTags")),
     status: v.literal("provisional"),
+    classification: v.optional(
+      v.union(v.literal("dossier_only"), v.literal("topic_coverage"), v.literal("news")),
+    ),
+    editorialStatus: v.optional(
+      v.union(v.literal("legacy_unreviewed"), v.literal("developing"), v.literal("aggregated")),
+    ),
+    /** Materialized current-revision predicate for paged News reads. */
+    visibleInNews: v.optional(v.boolean()),
+    /** Exact event day when present, otherwise the writer's UTC activity day. */
+    timelineDay: v.optional(v.string()),
     createdAtMs: v.number(),
     updatedAtMs: v.number(),
-  }).index("by_updatedAtMs", ["updatedAtMs"]),
+  })
+    .index("by_updatedAtMs", ["updatedAtMs"])
+    .index("by_timelineDay_updatedAtMs", ["timelineDay", "updatedAtMs"])
+    .index("by_classification_timelineDay_updatedAtMs", [
+      "classification",
+      "timelineDay",
+      "updatedAtMs",
+    ])
+    .index("by_eventKey_eventDate", ["eventKey", "eventDate"]),
+
+  /** Immutable reporting runs. A dossier can have exactly one current revision. */
+  videoIntelligenceAnalysisRevisions: defineTable({
+    dossierId: v.id("videoIntelligenceDossiers"),
+    revisionNumber: v.number(),
+    lifecycle: v.union(v.literal("current"), v.literal("superseded")),
+    sourceAuthorityKey: v.optional(v.string()),
+    createdAtMs: v.number(),
+    supersededAtMs: v.optional(v.number()),
+  })
+    .index("by_dossier_revisionNumber", ["dossierId", "revisionNumber"])
+    .index("by_dossier_lifecycle", ["dossierId", "lifecycle"])
+    .index("by_lifecycle_createdAtMs", ["lifecycle", "createdAtMs"]),
 
   videoIntelligenceTags: defineTable({
     canonicalName: v.string(),
@@ -57,6 +102,8 @@ export const videoIntelligenceTables = {
   videoIntelligenceContributions: defineTable({
     storyId: v.id("videoIntelligenceStories"),
     dossierId: v.id("videoIntelligenceDossiers"),
+    revisionId: v.optional(v.id("videoIntelligenceAnalysisRevisions")),
+    sourceAuthorityKey: v.optional(v.string()),
     frame: v.string(),
     summary: v.string(),
     claims: v.array(reportingClaimValidator),
@@ -64,5 +111,35 @@ export const videoIntelligenceTables = {
     updatedAtMs: v.number(),
   })
     .index("by_storyId", ["storyId"])
-    .index("by_dossierId", ["dossierId"]),
+    .index("by_dossierId", ["dossierId"])
+    .index("by_revisionId", ["revisionId"]),
+
+  /** Recurring coverage is month-bounded and intentionally separate from News. */
+  videoIntelligenceTopics: defineTable({
+    normalizedKey: v.string(),
+    title: v.string(),
+    month: v.string(),
+    curatedWorldMarkdown: v.optional(v.string()),
+    /** Materialized current-revision predicate for paged Topic reads. */
+    visibleInTopics: v.optional(v.boolean()),
+    createdAtMs: v.number(),
+    updatedAtMs: v.number(),
+  })
+    .index("by_month_updatedAtMs", ["month", "updatedAtMs"])
+    .index("by_month_normalizedKey", ["month", "normalizedKey"]),
+
+  videoIntelligenceTopicCoverage: defineTable({
+    topicId: v.id("videoIntelligenceTopics"),
+    dossierId: v.id("videoIntelligenceDossiers"),
+    revisionId: v.optional(v.id("videoIntelligenceAnalysisRevisions")),
+    contributionId: v.optional(v.id("videoIntelligenceContributions")),
+    sourceAuthorityKey: v.optional(v.string()),
+    summary: v.string(),
+    frame: v.string(),
+    timelineDay: v.string(),
+    createdAtMs: v.number(),
+  })
+    .index("by_topicId_createdAtMs", ["topicId", "createdAtMs"])
+    .index("by_dossierId_createdAtMs", ["dossierId", "createdAtMs"])
+    .index("by_revisionId", ["revisionId"]),
 };

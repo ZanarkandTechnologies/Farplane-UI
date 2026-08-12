@@ -22,11 +22,11 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { OfficeWorkspaceDialog } from "@/components/office-workspace-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UI_Z } from "@/lib/z-index";
 import { useChatActions } from "@/modules/chat/chat-store";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { findMetricsSnapshot } from "@/modules/team-workspace/lib/dashboard-projections/goal-kpi-model";
@@ -37,7 +37,6 @@ import { useAppStore } from "@/store";
 import { KanbanTab } from "./kanban-tab";
 import { DistributionTab } from "./tabs/distribution";
 import { HighlightsGalleryTab } from "./tabs/highlights";
-import { NewsTab } from "./tabs/news";
 import { SkillsReadinessTab } from "./tabs/operator-intelligence";
 import { OverviewTab } from "./tabs/overview";
 import { TeamMembersSection } from "./tabs/overview/team-members-section";
@@ -67,7 +66,7 @@ interface TeamPanelProps {
   globalMode?: boolean;
 }
 
-type TabGroupId = "overview" | "work" | "team" | "history" | "intel";
+type TabGroupId = "overview" | "work" | "team" | "history";
 
 type TabGroup = {
   children: { label: string; value: TabKey }[];
@@ -115,7 +114,6 @@ const TAB_GROUPS: TabGroup[] = [
       { label: "Telemetry", value: "telemetry" },
     ],
   },
-  { id: "intel", label: "Intel", children: [{ label: "News", value: "news" }] },
 ];
 
 function tabGroupFor(tab: TabKey): TabGroup {
@@ -275,223 +273,209 @@ export function TeamPanel({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="min-w-[70vw] max-w-none h-[90vh] overflow-hidden p-0 flex flex-col"
-        style={{ zIndex: UI_Z.panelElevated }}
-      >
-        <DialogHeader className="border-b px-6 py-4">
-          <DialogTitle className="flex items-center gap-2">
-            <span>{panelTitle}</span>
-            {project ? <Badge variant="secondary">{project.status}</Badge> : null}
-            {project?.businessConfig ? (
-              <Badge variant="outline">{project.businessConfig.type}</Badge>
-            ) : null}
-          </DialogTitle>
-        </DialogHeader>
-
-        <Tabs
-          value={activeTab}
-          onValueChange={(v) => setActiveTab(v as TabKey)}
-          className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6"
-        >
-          <div className="mt-4 max-w-full overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex w-max flex-col items-start gap-2 sm:flex-row sm:items-center">
-              <div className="flex items-center gap-1 rounded-md border bg-muted/20 p-1">
-                {TAB_GROUPS.map((group) => {
-                  const active = group.id === activeTabGroup.id;
-                  return (
-                    <button
-                      key={group.id}
-                      type="button"
-                      className={`h-8 rounded px-3 text-sm font-medium transition-colors ${
-                        active
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:bg-background/60"
-                      }`}
-                      onClick={() => setActiveTab(group.children[0].value)}
-                    >
-                      {group.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <TabsList className="flex h-9 w-max flex-nowrap justify-start gap-4 rounded-none border-0 border-b bg-transparent p-0">
-                {activeTabGroup.children.map((child) => (
-                  <TabsTrigger
-                    className="h-9 flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 shadow-none data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                    key={child.value}
-                    value={child.value}
-                  >
-                    {child.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </div>
-          </div>
-
-          <TabsContent value="overview" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <OverviewTab
-              team={team}
-              panelTitle={panelTitle}
-              project={project}
-              companyModel={companyModel}
-              setSelectedProjectId={setSelectedProjectId}
-              globalMode={globalMode}
-              hasBusinessConfig={hasBusinessConfig}
-              aiBurn24hUsd={teamAiUsageSummary.cost24hUsd}
-              aiUsageUnavailableText={teamUsageError}
-              projectConfig={projectConfigState.config}
-              projectConfigState={projectConfigState.state}
-              projectConfigError={projectConfigState.error}
-              projectTasks={projectTasks}
-            />
-          </TabsContent>
-
-          <TabsContent value="wins" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <HighlightsGalleryTab
-              kind="wins"
-              projectConfig={projectConfigState.config}
-              projectConfigState={projectConfigState.state}
-              teamScope={team?._id ?? project?.id}
-            />
-          </TabsContent>
-
-          <TabsContent value="failures" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <HighlightsGalleryTab
-              kind="failures"
-              projectConfig={projectConfigState.config}
-              projectConfigState={projectConfigState.state}
-              teamScope={team?._id ?? project?.id}
-            />
-          </TabsContent>
-
-          <TabsContent value="charter" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ProjectCharterTab
-              config={projectConfigState.config}
-              state={projectConfigState.state}
-              error={projectConfigState.error}
-            />
-          </TabsContent>
-
-          <TabsContent value="objectives" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ProjectObjectivesTab
-              config={projectConfigState.config}
-              state={projectConfigState.state}
-              error={projectConfigState.error}
-            />
-          </TabsContent>
-
-          <TabsContent value="kanban" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <KanbanTab
-              projectTasks={projectTasks}
-              focusAgentId={focusAgentId}
-              ownerLabelById={ownerLabelById}
-              kanbanSnapshot={projectKanban.snapshot}
-              kanbanState={projectKanban.state}
-              kanbanError={projectKanban.error}
-              onRefreshKanban={projectKanban.refresh}
-            />
-          </TabsContent>
-
-          <TabsContent value="timeline" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <TimelineTab
-              convexEnabled={convexEnabled}
-              projectId={project?.id ?? null}
-              projectPath={activeProjectPath ?? null}
-              teamScopeId={teamScopeId}
-              memoryRows={memoryRows}
-              communicationRows={communicationRows}
-              onOpenMineRun={(target) => {
-                setThreadDataTarget(target);
-                setActiveTab("thread-data");
-              }}
-              onConfigureHooks={() => {
-                setTelemetryPanelTab("events");
-                setIsTelemetryPanelOpen(true);
-              }}
-            />
-          </TabsContent>
-
-          <TabsContent value="reports" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ReportsTab
-              projectConfig={projectConfigState.config}
-              projectConfigState={projectConfigState.state}
-              projectConfigError={projectConfigState.error}
-            />
-          </TabsContent>
-
-          <TabsContent value="members" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ScrollArea className="h-full pr-3">
-              <TeamMembersSection
-                highlightedEmployeeIds={highlightedEmployeeIds}
-                onMessageAgent={handleOpenDirectChat}
-                onOpenAgentSession={handleOpenAgentSession}
-                presenceRows={presenceRows}
-                setHighlightedEmployeeIds={setHighlightedEmployeeIds}
-              />
-            </ScrollArea>
-          </TabsContent>
-
-          {project && companyModel && teamScopeId ? (
-            <TabsContent value="characters" className="mt-4 min-h-0 flex-1 overflow-hidden">
-              <TeamCharactersTab
-                adapter={adapter}
-                company={companyModel}
-                project={project}
-                officeObjects={officeObjects}
-                teamId={teamScopeId}
-                targetEmployeeId={teamDemoEmployeeId}
-                onDemo={() => onOpenChange(false)}
-                onSaved={refresh}
-              />
-            </TabsContent>
+    <OfficeWorkspaceDialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogHeader className="border-b px-6 py-4">
+        <DialogTitle className="flex items-center gap-2">
+          <span>{panelTitle}</span>
+          {project ? <Badge variant="secondary">{project.status}</Badge> : null}
+          {project?.businessConfig ? (
+            <Badge variant="outline">{project.businessConfig.type}</Badge>
           ) : null}
+        </DialogTitle>
+      </DialogHeader>
 
-          <TabsContent value="distribution" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <DistributionTab snapshot={metricsSnapshot} socialContent={socialContent} />
-          </TabsContent>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as TabKey)}
+        className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6"
+      >
+        <div className="mt-4 max-w-full overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex w-max flex-col items-start gap-2 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-1 rounded-md border bg-muted/20 p-1">
+              {TAB_GROUPS.map((group) => {
+                const active = group.id === activeTabGroup.id;
+                return (
+                  <button
+                    key={group.id}
+                    type="button"
+                    className={`h-8 rounded px-3 text-sm font-medium transition-colors ${
+                      active
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-background/60"
+                    }`}
+                    onClick={() => setActiveTab(group.children[0].value)}
+                  >
+                    {group.label}
+                  </button>
+                );
+              })}
+            </div>
+            <TabsList className="flex h-9 w-max flex-nowrap justify-start gap-4 rounded-none border-0 border-b bg-transparent p-0">
+              {activeTabGroup.children.map((child) => (
+                <TabsTrigger
+                  className="h-9 flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-0 shadow-none data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                  key={child.value}
+                  value={child.value}
+                >
+                  {child.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+        </div>
 
-          <TabsContent value="news" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <NewsTab
-              enabled={isOpen && activeTab === "news"}
-              projectId={project?.id ?? null}
-              projectName={project?.name ?? null}
-              projectPath={activeProjectPath ?? null}
+        <TabsContent value="overview" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <OverviewTab
+            team={team}
+            panelTitle={panelTitle}
+            project={project}
+            companyModel={companyModel}
+            setSelectedProjectId={setSelectedProjectId}
+            globalMode={globalMode}
+            hasBusinessConfig={hasBusinessConfig}
+            aiBurn24hUsd={teamAiUsageSummary.cost24hUsd}
+            aiUsageUnavailableText={teamUsageError}
+            projectConfig={projectConfigState.config}
+            projectConfigState={projectConfigState.state}
+            projectConfigError={projectConfigState.error}
+            projectTasks={projectTasks}
+          />
+        </TabsContent>
+
+        <TabsContent value="wins" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <HighlightsGalleryTab
+            kind="wins"
+            projectConfig={projectConfigState.config}
+            projectConfigState={projectConfigState.state}
+            teamScope={team?._id ?? project?.id}
+          />
+        </TabsContent>
+
+        <TabsContent value="failures" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <HighlightsGalleryTab
+            kind="failures"
+            projectConfig={projectConfigState.config}
+            projectConfigState={projectConfigState.state}
+            teamScope={team?._id ?? project?.id}
+          />
+        </TabsContent>
+
+        <TabsContent value="charter" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <ProjectCharterTab
+            config={projectConfigState.config}
+            state={projectConfigState.state}
+            error={projectConfigState.error}
+          />
+        </TabsContent>
+
+        <TabsContent value="objectives" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <ProjectObjectivesTab
+            config={projectConfigState.config}
+            state={projectConfigState.state}
+            error={projectConfigState.error}
+          />
+        </TabsContent>
+
+        <TabsContent value="kanban" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <KanbanTab
+            projectTasks={projectTasks}
+            focusAgentId={focusAgentId}
+            ownerLabelById={ownerLabelById}
+            kanbanSnapshot={projectKanban.snapshot}
+            kanbanState={projectKanban.state}
+            kanbanError={projectKanban.error}
+            onRefreshKanban={projectKanban.refresh}
+          />
+        </TabsContent>
+
+        <TabsContent value="timeline" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <TimelineTab
+            convexEnabled={convexEnabled}
+            projectId={project?.id ?? null}
+            projectPath={activeProjectPath ?? null}
+            teamScopeId={teamScopeId}
+            memoryRows={memoryRows}
+            communicationRows={communicationRows}
+            onOpenMineRun={(target) => {
+              setThreadDataTarget(target);
+              setActiveTab("thread-data");
+            }}
+            onConfigureHooks={() => {
+              setTelemetryPanelTab("events");
+              setIsTelemetryPanelOpen(true);
+            }}
+          />
+        </TabsContent>
+
+        <TabsContent value="reports" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <ReportsTab
+            projectConfig={projectConfigState.config}
+            projectConfigState={projectConfigState.state}
+            projectConfigError={projectConfigState.error}
+          />
+        </TabsContent>
+
+        <TabsContent value="members" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <ScrollArea className="h-full pr-3">
+            <TeamMembersSection
+              highlightedEmployeeIds={highlightedEmployeeIds}
+              onMessageAgent={handleOpenDirectChat}
+              onOpenAgentSession={handleOpenAgentSession}
+              presenceRows={presenceRows}
+              setHighlightedEmployeeIds={setHighlightedEmployeeIds}
             />
-          </TabsContent>
+          </ScrollArea>
+        </TabsContent>
 
-          <TabsContent value="skills" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <SkillsReadinessTab
+        {project && companyModel && teamScopeId ? (
+          <TabsContent value="characters" className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <TeamCharactersTab
+              adapter={adapter}
+              company={companyModel}
               project={project}
-              companyModel={companyModel}
-              projectTasks={projectTasks}
-              memoryRows={memoryRows}
-              globalMode={globalMode}
-            />
-          </TabsContent>
-
-          <TabsContent value="cadence" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ProjectAutomationsTab config={projectConfigState.config} />
-          </TabsContent>
-
-          <TabsContent value="thread-data" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <ThreadDataPanel
-              initialRunId={threadDataTarget?.runId ?? null}
-              initialOutputId={threadDataTarget?.outputId ?? null}
-              projectPath={threadDataTarget?.projectPath ?? activeProjectPath ?? null}
-            />
-          </TabsContent>
-
-          <TabsContent value="telemetry" className="mt-4 min-h-0 flex-1 overflow-hidden">
-            <TelemetryTab
-              projectId={project?.id ?? null}
+              officeObjects={officeObjects}
               teamId={teamScopeId}
-              title={project?.name ?? panelTitle}
+              targetEmployeeId={teamDemoEmployeeId}
+              onDemo={() => onOpenChange(false)}
+              onSaved={refresh}
             />
           </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+        ) : null}
+
+        <TabsContent value="distribution" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <DistributionTab snapshot={metricsSnapshot} socialContent={socialContent} />
+        </TabsContent>
+
+        <TabsContent value="skills" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <SkillsReadinessTab
+            project={project}
+            companyModel={companyModel}
+            projectTasks={projectTasks}
+            memoryRows={memoryRows}
+            globalMode={globalMode}
+          />
+        </TabsContent>
+
+        <TabsContent value="cadence" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <ProjectAutomationsTab config={projectConfigState.config} />
+        </TabsContent>
+
+        <TabsContent value="thread-data" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <ThreadDataPanel
+            initialRunId={threadDataTarget?.runId ?? null}
+            initialOutputId={threadDataTarget?.outputId ?? null}
+            projectPath={threadDataTarget?.projectPath ?? activeProjectPath ?? null}
+          />
+        </TabsContent>
+
+        <TabsContent value="telemetry" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <TelemetryTab
+            projectId={project?.id ?? null}
+            teamId={teamScopeId}
+            title={project?.name ?? panelTitle}
+          />
+        </TabsContent>
+      </Tabs>
+    </OfficeWorkspaceDialog>
   );
 }

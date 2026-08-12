@@ -68,6 +68,20 @@ both show negative `$400` in the destructive tone, while the panel retains
 separate weekly/monthly flow cards. Capture a screenshot plus browser console
 and page errors.
 
+### Content Intelligence Read-Surface Proof
+
+Open Office → command palette → **Content Intelligence** (or `Alt+Shift+V`).
+Confirm the shared dialog shows exactly Content, News, Concepts, and World.
+
+For Content, capture the first date divider with its cards and scroll the one
+body to the end. The panel must append more of the active day and then the next
+older populated day without a manual Older/Newer control or a sticky divider
+covering a thumbnail. Exact stored ISO days must not shift with the local
+browser timezone. Open an analysed source to its dossier and Back to prove the
+library context survives. In News, verify the filter state, terminal empty
+state, and end-of-feed behavior when eligible records exist. Capture desktop and
+375px screenshots plus console/page errors.
+
 ## Playwright Path
 
 Target stable regression coverage for:

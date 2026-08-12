@@ -14,8 +14,10 @@ export type EvidenceAnchor = {
 
 export type VideoIngestJob = {
   id: string;
+  sourceId?: string;
   videoId: string;
   title: string;
+  projectId?: string;
   status: VideoJobStatus;
   threadId?: string;
   dossierId?: string;

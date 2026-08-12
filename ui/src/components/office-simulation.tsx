@@ -28,7 +28,6 @@ import { SettingsDialog } from "@/modules/settings";
 import { SkillInvocationsPanel } from "@/modules/skill-invocations";
 import { TeamPanel } from "@/modules/team-workspace";
 import { TelemetryPanel } from "@/modules/telemetry";
-import { VideoIntelligencePanel } from "@/modules/video-intelligence";
 import { WorldMapPanel } from "@/modules/world-map";
 import { useCompanyWorldProjection } from "@/modules/world-map/hooks/use-company-world-projection";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";

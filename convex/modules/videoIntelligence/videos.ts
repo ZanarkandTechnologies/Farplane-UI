@@ -1,118 +1,170 @@
 /**
  * Video Intelligence cloud writes. The YouTube loopback bridge calls these mutations;
- * Resource Bank remains the source owner while this module adds reporting structure.
+ * Content owns source identity and job lifecycle; this module owns reporting structure.
  */
-import { type Infer, v } from "convex/values";
+import { v } from "convex/values";
 import type { Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
 import { mutation } from "../../_generated/server";
+import { canonicalYouTubeUrl } from "../content/identifiers";
+import { ensureContentSource, getContentJobOrThrow } from "../content/records";
+import { timelineDayFromMs, timelineDayFromValue } from "../content/timeline";
+import { normalizeTagKey } from "./domain";
 import {
-  analysisMarkdown,
-  findYouTubeAssetByVideoId,
-  matchStory,
-  normalizeTagKey,
-  youtubeUrlVariants,
-} from "./domain";
-import {
-  extractedStoryValidator,
-  videoAnalysisValidator,
-} from "./validators";
+  authorityFromYouTubeChannel,
+  candidatesForNewsEnrichment,
+  evaluateNewsCandidate,
+  hasCurrentRevision,
+  isYouTubeChannelId,
+  topicMonth,
+  topicNamesForCoverage,
+} from "./editorial";
+import { videoAnalysisValidator } from "./validators";
 
-type ExtractedStory = Infer<typeof extractedStoryValidator>;
+const contentJobStatusValidator = v.union(
+  v.literal("queued"),
+  v.literal("analyzing"),
+  v.literal("ready"),
+  v.literal("failed"),
+  v.literal("needs_review"),
+);
 
 const queueResultValidator = v.object({
-  jobId: v.id("resourceBankIngestionJobs"),
-  assetId: v.id("resourceBankAssets"),
+  jobId: v.id("contentJobs"),
+  sourceId: v.id("contentSources"),
   videoId: v.string(),
   title: v.string(),
+  projectId: v.optional(v.string()),
+  disposition: v.union(v.literal("created"), v.literal("reused_active"), v.literal("reused_ready")),
+  jobStatus: contentJobStatusValidator,
+  dossierId: v.optional(v.id("videoIntelligenceDossiers")),
   createdAtMs: v.number(),
   updatedAtMs: v.number(),
 });
 
 export const queueVideo = mutation({
-  args: { videoId: v.string(), title: v.string() },
+  args: {
+    videoId: v.string(),
+    title: v.string(),
+    projectId: v.optional(v.string()),
+    channelId: v.optional(v.string()),
+    reAnalyze: v.optional(v.boolean()),
+  },
   returns: queueResultValidator,
   handler: async (ctx, args) => {
-    const canonicalUrl = canonicalVideoUrl(args.videoId);
-    const title = clean(args.title, 300) || args.videoId;
-    const now = Date.now();
-    const existingAsset =
-      (await ctx.db
-        .query("resourceBankAssets")
-        .withIndex("by_canonicalUrl", (q) => q.eq("canonicalUrl", canonicalUrl))
-        .first()) ??
-      (await firstAssetBySourceUrl(ctx, args.videoId)) ??
-      findYouTubeAssetByVideoId(
-        await ctx.db
-          .query("resourceBankAssets")
-          .withIndex("by_assetKind_assetRole_createdAtMs", (q) =>
-            q.eq("assetKind", "video").eq("assetRole", "primary"),
-          )
-          .collect(),
-        args.videoId,
-      );
-    if (existingAsset) {
-      const job = await ctx.db.get(existingAsset.ingestionJobId);
-      if (!job) throw new Error("video_intelligence_resource_job_missing");
-      await ctx.db.patch(job._id, {
-        status: "analyzing",
-        error: undefined,
-        updatedAtMs: now,
-      });
-      await ctx.db.patch(existingAsset._id, { title, updatedAtMs: now });
-      return {
-        jobId: job._id,
-        assetId: existingAsset._id,
-        videoId: args.videoId,
-        title,
-        createdAtMs: job.createdAtMs,
-        updatedAtMs: now,
-      };
+    if (args.channelId && !isYouTubeChannelId(args.channelId)) {
+      throw new Error("video_intelligence_channel_id_invalid");
     }
-    const jobId = await ctx.db.insert("resourceBankIngestionJobs", {
+    const canonicalUrl = canonicalYouTubeUrl(args.videoId);
+    const title = clean(args.title, 300) || args.videoId;
+    const projectId = clean(args.projectId ?? "", 120) || undefined;
+    const now = Date.now();
+    const sourceId = await ensureContentSource(ctx, {
       sourceKind: "video",
       sourceRef: canonicalUrl,
+      canonicalRef: canonicalUrl,
+      title,
+      platform: "YouTube",
+      youtubeChannelId: args.channelId,
+      sourcePrivacy: "public",
+      now,
+    });
+    const activeJobs = (
+      await Promise.all(
+        (["queued", "analyzing"] as const).map((status) =>
+          ctx.db
+            .query("contentJobs")
+            .withIndex("by_source_kind_status", (q) =>
+              q.eq("sourceId", sourceId).eq("kind", "analyze_youtube").eq("status", status),
+            )
+            .take(1),
+        ),
+      )
+    ).flat();
+    const existing = activeJobs.sort((left, right) => right.updatedAtMs - left.updatedAtMs)[0];
+    if (existing) {
+      return {
+        jobId: existing._id,
+        sourceId,
+        videoId: args.videoId,
+        title,
+        projectId: existing.projectId,
+        disposition: "reused_active" as const,
+        jobStatus: existing.status,
+        createdAtMs: existing.createdAtMs,
+        updatedAtMs: existing.updatedAtMs,
+      };
+    }
+    const readyJob = await ctx.db
+      .query("contentJobs")
+      .withIndex("by_source_kind_status", (q) =>
+        q.eq("sourceId", sourceId).eq("kind", "analyze_youtube").eq("status", "ready"),
+      )
+      .first();
+    if (readyJob && !args.reAnalyze) {
+      const dossier = await ctx.db
+        .query("videoIntelligenceDossiers")
+        .withIndex("by_contentSourceId", (q) => q.eq("contentSourceId", sourceId))
+        .first();
+      return {
+        jobId: readyJob._id,
+        sourceId,
+        videoId: args.videoId,
+        title,
+        projectId: readyJob.projectId,
+        disposition: "reused_ready" as const,
+        jobStatus: readyJob.status,
+        dossierId: dossier?._id,
+        createdAtMs: readyJob.createdAtMs,
+        updatedAtMs: readyJob.updatedAtMs,
+      };
+    }
+    const terminalJob = await ctx.db
+      .query("contentJobs")
+      .withIndex("by_source_kind_createdAtMs", (q) =>
+        q.eq("sourceId", sourceId).eq("kind", "analyze_youtube"),
+      )
+      .order("desc")
+      .first();
+    if (terminalJob && !args.reAnalyze) {
+      throw new Error("video_intelligence_reanalysis_required");
+    }
+    const jobId = await ctx.db.insert("contentJobs", {
+      sourceId,
+      kind: "analyze_youtube",
       originalInstruction: "Analyze this YouTube video for reporting claims and stories.",
       requestedFocus: "Video Intelligence",
       tags: ["youtube", "video-intelligence"],
+      projectId,
       requestedBy: "farplane-youtube-shortcut",
-      status: "analyzing",
-      sourcePrivacy: "public",
+      status: "queued",
       createdAtMs: now,
       updatedAtMs: now,
     });
-    const assetId = await ctx.db.insert("resourceBankAssets", {
-      ingestionJobId: jobId,
-      assetRole: "primary",
-      assetKind: "video",
+    return {
+      jobId,
+      sourceId,
+      videoId: args.videoId,
       title,
-      sourceUrl: canonicalUrl,
-      canonicalUrl,
-      platform: "YouTube",
-      attributionStatus: "unknown",
-      outputTypes: [],
-      audiences: [],
-      ageRanges: [],
-      industries: [],
-      customerRoles: [],
-      tags: ["youtube", "video-intelligence"],
-      searchableText: `${title}\n${canonicalUrl}\nyoutube\nvideo-intelligence`,
-      retentionNote: "Canonical public URL and cloud analysis retained; raw video is not stored.",
+      projectId,
+      disposition: "created" as const,
+      jobStatus: "queued" as const,
       createdAtMs: now,
       updatedAtMs: now,
-    });
-    return { jobId, assetId, videoId: args.videoId, title, createdAtMs: now, updatedAtMs: now };
+    };
   },
 });
 
 export const attachThread = mutation({
   args: {
-    jobId: v.id("resourceBankIngestionJobs"),
+    jobId: v.id("contentJobs"),
     threadId: v.string(),
   },
   returns: v.object({ ok: v.boolean() }),
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.jobId, {
+    const job = await getVideoJobOrThrow(ctx, args.jobId);
+    await ctx.db.patch(job._id, {
+      status: job.status === "queued" ? "analyzing" : job.status,
       externalTaskRef: `codex-thread:${clean(args.threadId, 180)}`,
       updatedAtMs: Date.now(),
     });
@@ -120,20 +172,35 @@ export const attachThread = mutation({
   },
 });
 
+export const startVideo = mutation({
+  args: { jobId: v.id("contentJobs") },
+  returns: v.object({ ok: v.boolean() }),
+  handler: async (ctx, args) => {
+    const job = await getVideoJobOrThrow(ctx, args.jobId);
+    if (job.status === "queued") {
+      await ctx.db.patch(job._id, {
+        status: "analyzing",
+        error: undefined,
+        updatedAtMs: Date.now(),
+      });
+    }
+    return { ok: true };
+  },
+});
+
 export const failVideo = mutation({
   args: {
-    jobId: v.id("resourceBankIngestionJobs"),
+    jobId: v.id("contentJobs"),
     error: v.string(),
     threadId: v.optional(v.string()),
   },
   returns: v.object({ ok: v.boolean() }),
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.jobId, {
+    const job = await getVideoJobOrThrow(ctx, args.jobId);
+    await ctx.db.patch(job._id, {
       status: "failed",
       error: clean(args.error, 2_000),
-      externalTaskRef: args.threadId
-        ? `codex-thread:${clean(args.threadId, 180)}`
-        : undefined,
+      externalTaskRef: args.threadId ? `codex-thread:${clean(args.threadId, 180)}` : undefined,
       updatedAtMs: Date.now(),
     });
     return { ok: true };
@@ -142,28 +209,30 @@ export const failVideo = mutation({
 
 export const completeVideo = mutation({
   args: {
-    jobId: v.id("resourceBankIngestionJobs"),
-    assetId: v.id("resourceBankAssets"),
+    jobId: v.id("contentJobs"),
     videoId: v.string(),
     threadId: v.string(),
     analysis: videoAnalysisValidator,
   },
   returns: v.object({ dossierId: v.id("videoIntelligenceDossiers") }),
   handler: async (ctx, args) => {
-    const [job, asset] = await Promise.all([ctx.db.get(args.jobId), ctx.db.get(args.assetId)]);
-    if (!job || !asset || asset.ingestionJobId !== args.jobId) {
-      throw new Error("video_intelligence_resource_binding_invalid");
+    const job = await getVideoJobOrThrow(ctx, args.jobId);
+    if (job.status === "ready") throw new Error("video_intelligence_job_already_completed");
+    const source = await ctx.db.get(job.sourceId);
+    if (!source) throw new Error("video_intelligence_source_missing");
+    if (source.canonicalRef !== canonicalYouTubeUrl(args.videoId)) {
+      throw new Error("video_intelligence_source_video_mismatch");
     }
     const now = Date.now();
-    await retainResourceAnalysis(ctx, args.jobId, args.assetId, args.analysis, now);
     const existingDossier = await ctx.db
       .query("videoIntelligenceDossiers")
-      .withIndex("by_resourceAssetId", (q) => q.eq("resourceAssetId", args.assetId))
+      .withIndex("by_contentSourceId", (q) => q.eq("contentSourceId", job.sourceId))
       .first();
     const dossierFields = {
-      resourceAssetId: args.assetId,
-      resourceJobId: args.jobId,
+      contentSourceId: job.sourceId,
+      contentJobId: args.jobId,
       videoId: args.videoId,
+      youtubeChannelId: source.youtubeChannelId,
       threadId: clean(args.threadId, 200),
       publisher: nullableText(args.analysis.publisher, 300),
       publishedAt: nullableText(args.analysis.publishedAt, 40),
@@ -175,90 +244,174 @@ export const completeVideo = mutation({
       keyPoints: args.analysis.keyPoints,
       recommendation: args.analysis.recommendation,
       duplicateIngestCount: (existingDossier?.duplicateIngestCount ?? 0) + 1,
+      timelineDay: timelineDayFromMs(now),
       createdAtMs: existingDossier?.createdAtMs ?? now,
       updatedAtMs: now,
     };
-    const dossierId = existingDossier
-      ? (await ctx.db.patch(existingDossier._id, dossierFields), existingDossier._id)
-      : await ctx.db.insert("videoIntelligenceDossiers", dossierFields);
+    let dossierId: Id<"videoIntelligenceDossiers">;
+    if (existingDossier) {
+      await ctx.db.patch(existingDossier._id, dossierFields);
+      dossierId = existingDossier._id;
+    } else {
+      dossierId = await ctx.db.insert("videoIntelligenceDossiers", dossierFields);
+    }
 
-    const previousContributions = await ctx.db
-      .query("videoIntelligenceContributions")
-      .withIndex("by_dossierId", (q) => q.eq("dossierId", dossierId))
-      .collect();
-    const previousStoryIds = previousContributions.map((item) => item.storyId);
-    for (const contribution of previousContributions) await ctx.db.delete(contribution._id);
-
-    const storyRows = await ctx.db.query("videoIntelligenceStories").take(500);
-    const storyShapes = storyRows.map(toStoryShape);
-    for (const extractedStory of args.analysis.stories) {
+    const previousRevision = await ctx.db
+      .query("videoIntelligenceAnalysisRevisions")
+      .withIndex("by_dossier_lifecycle", (q) =>
+        q.eq("dossierId", dossierId).eq("lifecycle", "current"),
+      )
+      .first();
+    const previousContributions = previousRevision
+      ? await ctx.db
+          .query("videoIntelligenceContributions")
+          .withIndex("by_revisionId", (q) => q.eq("revisionId", previousRevision._id))
+          .collect()
+      : [];
+    const previousTopicCoverage = previousRevision
+      ? await ctx.db
+          .query("videoIntelligenceTopicCoverage")
+          .withIndex("by_revisionId", (q) => q.eq("revisionId", previousRevision._id))
+          .collect()
+      : [];
+    const latestRevision = await ctx.db
+      .query("videoIntelligenceAnalysisRevisions")
+      .withIndex("by_dossier_revisionNumber", (q) => q.eq("dossierId", dossierId))
+      .order("desc")
+      .first();
+    const sourceAuthorityKey = authorityFromYouTubeChannel(source.youtubeChannelId);
+    const revisionId = await ctx.db.insert("videoIntelligenceAnalysisRevisions", {
+      dossierId,
+      revisionNumber: (latestRevision?.revisionNumber ?? 0) + 1,
+      lifecycle: "current",
+      sourceAuthorityKey,
+      createdAtMs: now,
+    });
+    const eventKeysToRefresh = new Set<string>();
+    for (const contribution of previousContributions) {
+      const previousStory = await ctx.db.get(contribution.storyId);
+      if (
+        previousStory?.classification === "news" &&
+        previousStory.eventKey &&
+        previousStory.eventDate
+      ) {
+        eventKeysToRefresh.add(`${previousStory.eventKey}\u0000${previousStory.eventDate}`);
+      }
+    }
+    const coveredTopicKeys = new Set<string>();
+    const topicIdsToRefresh = new Set<Id<"videoIntelligenceTopics">>();
+    for (const extractedTopic of args.analysis.topics) {
+      const tagIds = await resolveTags(ctx, topicNamesForCoverage(extractedTopic), dossierId, now);
+      const topicIds = await addTopicCoverage(ctx, {
+        tagIds,
+        dossierId,
+        revisionId,
+        sourceAuthorityKey,
+        timelineDay: timelineDayFromMs(now),
+        summary: clean(extractedTopic.summary, 1_500),
+        frame: clean(extractedTopic.frame, 1_000),
+        now,
+        coveredTopicKeys,
+      });
+      for (const topicId of topicIds) topicIdsToRefresh.add(topicId);
+    }
+    for (const extractedStory of candidatesForNewsEnrichment(args.analysis.news)) {
       const tagIds = await resolveTags(ctx, extractedStory.tags, dossierId, now);
-      const matched = matchStory(extractedStory, storyShapes);
-      let storyId: Id<"videoIntelligenceStories">;
-      if (matched) {
-        storyId = matched.rawId;
-        const entities = [...new Set([...matched.entities, ...extractedStory.entities])];
-        const mergedTagIds = [
-          ...new Set([...matched.tagIds, ...tagIds.map(String)]),
-        ] as Id<"videoIntelligenceTags">[];
-        await ctx.db.patch(storyId, { entities, tagIds: mergedTagIds, updatedAtMs: now });
-        matched.entities = entities;
-        matched.tagIds = mergedTagIds.map(String);
-        matched.updatedAt = new Date(now).toISOString();
-      } else {
-        storyId = await ctx.db.insert("videoIntelligenceStories", {
-          title: clean(extractedStory.title, 300),
+      const editorial = evaluateNewsCandidate(extractedStory, now);
+      let contributionId: Id<"videoIntelligenceContributions"> | undefined;
+      if (editorial.eligible) {
+        const matchingStory = await ctx.db
+          .query("videoIntelligenceStories")
+          .withIndex("by_eventKey_eventDate", (q) =>
+            q.eq("eventKey", editorial.eventKey).eq("eventDate", editorial.eventDay),
+          )
+          .first();
+        const storyId =
+          matchingStory?._id ??
+          (await ctx.db.insert("videoIntelligenceStories", {
+            title: clean(extractedStory.title, 300),
+            summary: clean(extractedStory.summary, 1_500),
+            eventDate: editorial.eventDay,
+            eventKey: editorial.eventKey,
+            whyNow: clean(editorial.whyNow, 500),
+            whyItMatters: clean(editorial.whyItMatters, 800),
+            entities: extractedStory.entities.map((item) => clean(item, 160)).filter(Boolean),
+            tagIds,
+            status: "provisional",
+            classification: "news",
+            editorialStatus: "developing",
+            timelineDay: editorial.eventDay,
+            createdAtMs: now,
+            updatedAtMs: now,
+          }));
+        if (matchingStory) {
+          await ctx.db.patch(storyId, {
+            title: clean(extractedStory.title, 300),
+            summary: clean(extractedStory.summary, 1_500),
+            whyNow: clean(editorial.whyNow, 500),
+            whyItMatters: clean(editorial.whyItMatters, 800),
+            entities: [...new Set([...matchingStory.entities, ...extractedStory.entities])],
+            tagIds: [...new Set([...matchingStory.tagIds, ...tagIds])],
+            classification: "news",
+            editorialStatus: "developing",
+            visibleInNews: false,
+            updatedAtMs: now,
+          });
+        }
+        contributionId = await ctx.db.insert("videoIntelligenceContributions", {
+          storyId,
+          dossierId,
+          revisionId,
+          sourceAuthorityKey,
+          frame: clean(extractedStory.frame, 1_000),
           summary: clean(extractedStory.summary, 1_500),
-          eventDate: nullableText(extractedStory.eventDate, 40),
-          entities: extractedStory.entities.map((item) => clean(item, 160)).filter(Boolean),
-          tagIds,
-          status: "provisional",
+          claims: extractedStory.claims.map((claim) => ({
+            statement: clean(claim.statement, 800),
+            stance: claim.stance,
+            evidence: {
+              videoId: args.videoId,
+              sourceUrl: canonicalYouTubeUrl(args.videoId),
+              sourceStatus: args.analysis.sourceStatus,
+              sourceKind:
+                args.analysis.sourceStatus === "TRANSCRIPT_USED" ? "transcript" : "page-owned",
+              timestamp: claim.evidence.timestamp,
+              excerpt: clean(claim.evidence.excerpt, 500),
+              schemaVersion: 2,
+              extractorVersion: clean(claim.evidence.extractorVersion, 120),
+              ...(claim.evidence.reference
+                ? { reference: clean(claim.evidence.reference, 2_000) }
+                : {}),
+            },
+          })),
           createdAtMs: now,
           updatedAtMs: now,
         });
-        storyShapes.push({
-          id: String(storyId),
-          rawId: storyId,
-          title: extractedStory.title,
-          summary: extractedStory.summary,
-          eventDate: extractedStory.eventDate ?? undefined,
-          entities: extractedStory.entities,
-          tagIds: tagIds.map(String),
-          createdAt: new Date(now).toISOString(),
-          updatedAt: new Date(now).toISOString(),
-        });
+        eventKeysToRefresh.add(`${editorial.eventKey}\u0000${editorial.eventDay}`);
       }
-      await ctx.db.insert("videoIntelligenceContributions", {
-        storyId,
+      const topicIds = await addTopicCoverage(ctx, {
+        tagIds,
         dossierId,
-        frame: clean(extractedStory.frame, 1_000),
+        revisionId,
+        contributionId,
+        sourceAuthorityKey,
+        timelineDay: timelineDayFromValue(extractedStory.eventDate ?? undefined, now),
         summary: clean(extractedStory.summary, 1_500),
-        claims: extractedStory.claims.map((claim) => ({
-          statement: clean(claim.statement, 800),
-          stance: claim.stance,
-          evidence: {
-            videoId: args.videoId,
-            sourceUrl: canonicalVideoUrl(args.videoId),
-            sourceStatus: args.analysis.sourceStatus,
-            sourceKind:
-              args.analysis.sourceStatus === "TRANSCRIPT_USED" ? "transcript" : "page-owned",
-            timestamp: claim.evidence.timestamp,
-            excerpt: clean(claim.evidence.excerpt, 500),
-            schemaVersion: 2,
-            extractorVersion: clean(claim.evidence.extractorVersion, 120),
-          },
-        })),
-        createdAtMs: now,
-        updatedAtMs: now,
+        frame: clean(extractedStory.frame, 1_000),
+        now,
+        coveredTopicKeys,
       });
+      for (const topicId of topicIds) topicIdsToRefresh.add(topicId);
     }
-
-    for (const storyId of new Set(previousStoryIds)) {
-      const remaining = await ctx.db
-        .query("videoIntelligenceContributions")
-        .withIndex("by_storyId", (q) => q.eq("storyId", storyId))
-        .first();
-      if (!remaining) await ctx.db.delete(storyId);
+    if (previousRevision) {
+      await ctx.db.patch(previousRevision._id, { lifecycle: "superseded", supersededAtMs: now });
+    }
+    for (const coverage of previousTopicCoverage) topicIdsToRefresh.add(coverage.topicId);
+    for (const topicId of topicIdsToRefresh) {
+      await refreshTopicVisibility(ctx, topicId, now);
+    }
+    for (const composite of eventKeysToRefresh) {
+      const [eventKey, eventDay] = composite.split("\u0000");
+      await refreshEditorialStatus(ctx, eventKey, eventDay, now);
     }
     await ctx.db.patch(args.jobId, {
       status: "ready",
@@ -312,70 +465,127 @@ async function resolveTags(
   return [...new Set(ids)];
 }
 
-async function retainResourceAnalysis(
+async function addTopicCoverage(
   ctx: MutationCtx,
-  jobId: Id<"resourceBankIngestionJobs">,
-  assetId: Id<"resourceBankAssets">,
-  analysis: Infer<typeof videoAnalysisValidator>,
-  now: number,
-): Promise<void> {
-  const markdown = analysisMarkdown(analysis);
-  const existing = await ctx.db
-    .query("resourceBankAnalyses")
-    .withIndex("by_asset", (q) => q.eq("assetId", assetId))
-    .take(20);
-  if (existing.some((item) => item.analysisMarkdown === markdown)) return;
-  const tags = [...new Set(analysis.stories.flatMap((story) => story.tags.map(normalizeTagKey)))];
-  await ctx.db.insert("resourceBankAnalyses", {
-    ingestionJobId: jobId,
-    assetId,
-    sourceSkill: "summarize",
-    analysisMarkdown: markdown,
-    confidence: analysis.sourceStatus === "TRANSCRIPT_USED" ? "high" : "medium",
-    embeddingTarget: "analysis_search",
-    embeddingText: `${analysis.summary}\n${analysis.stories.map((story) => story.summary).join("\n")}`,
-    tags,
-    createdAtMs: now,
-  });
-}
-
-function toStoryShape(row: {
-  _id: Id<"videoIntelligenceStories">;
-  title: string;
-  summary: string;
-  eventDate?: string;
-  entities: string[];
-  tagIds: Id<"videoIntelligenceTags">[];
-  createdAtMs: number;
-  updatedAtMs: number;
-}) {
-  return {
-    id: String(row._id),
-    rawId: row._id,
-    title: row.title,
-    summary: row.summary,
-    eventDate: row.eventDate,
-    entities: row.entities,
-    tagIds: row.tagIds.map(String),
-    createdAt: new Date(row.createdAtMs).toISOString(),
-    updatedAt: new Date(row.updatedAtMs).toISOString(),
-  };
-}
-
-function canonicalVideoUrl(videoId: string): string {
-  if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) throw new Error("video_id_invalid");
-  return `https://www.youtube.com/watch?v=${videoId}`;
-}
-
-async function firstAssetBySourceUrl(ctx: MutationCtx, videoId: string) {
-  for (const sourceUrl of youtubeUrlVariants(videoId)) {
-    const asset = await ctx.db
-      .query("resourceBankAssets")
-      .withIndex("by_sourceUrl", (q) => q.eq("sourceUrl", sourceUrl))
+  input: {
+    tagIds: Id<"videoIntelligenceTags">[];
+    dossierId: Id<"videoIntelligenceDossiers">;
+    revisionId: Id<"videoIntelligenceAnalysisRevisions">;
+    contributionId?: Id<"videoIntelligenceContributions">;
+    sourceAuthorityKey?: string;
+    timelineDay: string;
+    summary: string;
+    frame: string;
+    now: number;
+    coveredTopicKeys: Set<string>;
+  },
+): Promise<Id<"videoIntelligenceTopics">[]> {
+  const month = topicMonth(input.timelineDay);
+  if (!month) return [];
+  const topicIds: Id<"videoIntelligenceTopics">[] = [];
+  for (const tagId of input.tagIds) {
+    const tag = await ctx.db.get(tagId);
+    if (!tag) continue;
+    const coverageKey = `${month}\u0000${tag.normalizedKey}`;
+    if (input.coveredTopicKeys.has(coverageKey)) continue;
+    input.coveredTopicKeys.add(coverageKey);
+    const existing = await ctx.db
+      .query("videoIntelligenceTopics")
+      .withIndex("by_month_normalizedKey", (q) =>
+        q.eq("month", month).eq("normalizedKey", tag.normalizedKey),
+      )
       .first();
-    if (asset) return asset;
+    const topicId =
+      existing?._id ??
+      (await ctx.db.insert("videoIntelligenceTopics", {
+        month,
+        normalizedKey: tag.normalizedKey,
+        title: tag.canonicalName,
+        visibleInTopics: false,
+        createdAtMs: input.now,
+        updatedAtMs: input.now,
+      }));
+    if (existing) await ctx.db.patch(topicId, { updatedAtMs: input.now });
+    topicIds.push(topicId);
+    await ctx.db.insert("videoIntelligenceTopicCoverage", {
+      topicId,
+      dossierId: input.dossierId,
+      revisionId: input.revisionId,
+      contributionId: input.contributionId,
+      sourceAuthorityKey: input.sourceAuthorityKey,
+      summary: input.summary,
+      frame: input.frame,
+      timelineDay: input.timelineDay,
+      createdAtMs: input.now,
+    });
   }
-  return null;
+  return topicIds;
+}
+
+async function refreshEditorialStatus(
+  ctx: MutationCtx,
+  eventKey: string,
+  eventDay: string,
+  now: number,
+) {
+  const stories = await ctx.db
+    .query("videoIntelligenceStories")
+    .withIndex("by_eventKey_eventDate", (q) => q.eq("eventKey", eventKey).eq("eventDate", eventDay))
+    .collect();
+  for (const story of stories) {
+    if (story.classification !== "news") continue;
+    const contributions = await ctx.db
+      .query("videoIntelligenceContributions")
+      .withIndex("by_storyId", (q) => q.eq("storyId", story._id))
+      .collect();
+    const authorities = new Set<string>();
+    for (const contribution of contributions) {
+      if (!contribution.revisionId || !contribution.sourceAuthorityKey) continue;
+      const revision = await ctx.db.get(contribution.revisionId);
+      if (revision?.lifecycle === "current") authorities.add(contribution.sourceAuthorityKey);
+    }
+    await ctx.db.patch(
+      story._id,
+      authorities.size === 0
+        ? {
+            classification: "dossier_only",
+            editorialStatus: "developing",
+            visibleInNews: false,
+            updatedAtMs: now,
+          }
+        : {
+            editorialStatus: authorities.size >= 2 ? "aggregated" : "developing",
+            visibleInNews: true,
+            updatedAtMs: now,
+          },
+    );
+  }
+}
+
+async function refreshTopicVisibility(
+  ctx: MutationCtx,
+  topicId: Id<"videoIntelligenceTopics">,
+  now: number,
+) {
+  const coverage = await ctx.db
+    .query("videoIntelligenceTopicCoverage")
+    .withIndex("by_topicId_createdAtMs", (q) => q.eq("topicId", topicId))
+    .collect();
+  for (const item of coverage) {
+    if (!item.revisionId) continue;
+    const revision = await ctx.db.get(item.revisionId);
+    if (hasCurrentRevision(revision ? [revision.lifecycle] : [])) {
+      await ctx.db.patch(topicId, { visibleInTopics: true, updatedAtMs: now });
+      return;
+    }
+  }
+  await ctx.db.patch(topicId, { visibleInTopics: false, updatedAtMs: now });
+}
+
+async function getVideoJobOrThrow(ctx: MutationCtx, jobId: Id<"contentJobs">) {
+  const job = await getContentJobOrThrow(ctx, jobId);
+  if (job.kind !== "analyze_youtube") throw new Error("video_intelligence_job_kind_invalid");
+  return job;
 }
 
 function nullableText(value: string | null, max: number): string | undefined {

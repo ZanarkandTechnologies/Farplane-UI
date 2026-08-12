@@ -3,6 +3,7 @@ import type { Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
 import { query } from "../../_generated/server";
 import {
+  isCuratedResourceAsset,
   matchesFilters,
   toAnalysisRow,
   toAssetRow,
@@ -35,8 +36,14 @@ export const getResourceBankDashboard = query({
       .withIndex("by_createdAtMs")
       .order("desc")
       .take(limit * 3);
-    const filteredAssets = assets
-      .filter((row) => row.assetRole === "primary" && matchesFilters(row, args))
+    const curatedAssets = await Promise.all(
+      assets.map(async (row) => ((await isCuratedResourceAsset(ctx, row)) ? row : null)),
+    );
+    const filteredAssets = curatedAssets
+      .filter(
+        (row): row is (typeof assets)[number] =>
+          row !== null && row.assetRole === "primary" && matchesFilters(row, args),
+      )
       .slice(0, limit);
     const derivedAssets = await Promise.all(
       filteredAssets.map((asset) =>
@@ -114,8 +121,14 @@ export const retrieveForCreation = query({
       .query("resourceBankAssets")
       .withSearchIndex("search_assets", (q) => q.search("searchableText", queryText))
       .take(count * 4);
-    const filteredAssets = assets
-      .filter((row) => matchesFilters(row, { ...args, tags: tagPlan.filterTags }))
+    const curatedAssets = await Promise.all(
+      assets.map(async (row) => ((await isCuratedResourceAsset(ctx, row)) ? row : null)),
+    );
+    const filteredAssets = curatedAssets
+      .filter(
+        (row): row is (typeof assets)[number] =>
+          row !== null && matchesFilters(row, { ...args, tags: tagPlan.filterTags }),
+      )
       .slice(0, count);
     const packets = [];
     for (const asset of filteredAssets) {
@@ -181,7 +194,11 @@ export const createTastyPack = query({
           .order("desc")
           .take(limit * 8);
 
-    const assets = rawAssets
+    const curatedAssets = await Promise.all(
+      rawAssets.map(async (row) => ((await isCuratedResourceAsset(ctx, row)) ? row : null)),
+    );
+    const assets = curatedAssets
+      .filter((row): row is (typeof rawAssets)[number] => row !== null)
       .map(toAssetRow)
       .filter((asset) => matchesTastyPackFilters(asset, filters));
     const selectedAssets = assets

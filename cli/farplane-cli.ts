@@ -24,6 +24,7 @@ import { registerGatewayCommands } from "./gateway-commands.js";
 import { registerFinanceCommands } from "./finance-commands.js";
 import { registerOnboardingCommands } from "./onboarding-commands.js";
 import { registerResourceBankCommands } from "./resource-bank-commands.js";
+import { registerContentIntelligenceCommands } from "./content-intelligence-commands.js";
 import { registerDoctorCommands, registerTeamCommands } from "./team-commands/index.js";
 import { registerThreadCommands } from "./thread-commands.js";
 import { registerUiCommands } from "./ui-commands.js";
@@ -46,6 +47,7 @@ async function main(): Promise<void> {
   registerFinanceCommands(program);
   registerTeamCommands(program);
   registerResourceBankCommands(program);
+  registerContentIntelligenceCommands(program);
   registerThreadCommands(program);
   registerAgentCommands(program);
   registerDoctorCommands(program);

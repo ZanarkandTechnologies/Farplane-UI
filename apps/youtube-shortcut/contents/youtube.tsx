@@ -83,6 +83,13 @@ function videoData(card: Element) {
   return title ? { id, title } : null;
 }
 
+function currentChannelId(): string | undefined {
+  const channelId = document
+    .querySelector<HTMLMetaElement>('meta[itemprop="channelId"]')
+    ?.content?.trim();
+  return channelId && /^UC[A-Za-z0-9_-]{22}$/.test(channelId) ? channelId : undefined;
+}
+
 function thumbnailLink(card: Element) {
   return card.querySelector<HTMLAnchorElement>(
     'ytd-thumbnail a[href*="/watch?v="], a#thumbnail[href*="/watch?v="], a.ytLockupViewModelContentImage[href*="/watch?v="], a.yt-lockup-view-model__content-image[href*="/watch?v="], a[href*="/watch?v="]',
@@ -355,6 +362,7 @@ function Overlay({
   const [page, setPage] = useState(0);
   const [cached, setCached] = useState(false);
   const [threadId, setThreadId] = useState("");
+  const [reusedDossierId, setReusedDossierId] = useState("");
   const [panelOpen, setPanelOpen] = useState(false);
 
   useEffect(() => {
@@ -368,6 +376,7 @@ function Overlay({
       setPage(0);
       setCached(false);
       setThreadId("");
+      setReusedDossierId("");
       setPanelOpen(false);
     };
     const observer = new MutationObserver(sync);
@@ -405,15 +414,25 @@ function Overlay({
     setPanelOpen(false);
     setError("");
     setThreadId("");
+    setReusedDossierId("");
     try {
       const response = await chrome.runtime.sendMessage({
         type: "ANALYZE_YOUTUBE",
         videoId: video.id,
         title: video.title,
+        channelId: currentChannelId(),
       });
       if (!response?.ok) {
         setThreadId(response?.threadId || "");
         throw new Error(response?.error || "Analysis failed");
+      }
+      if (response.reused && !response.analysis) {
+        setThreadId(response.threadId || "");
+        setReusedDossierId(response.dossierId || "ready");
+        setPage(0);
+        setStatus("success");
+        setPanelOpen(true);
+        return;
       }
       setAnalysis(response.analysis);
       setThreadId(response.threadId);
@@ -457,6 +476,34 @@ function Overlay({
             </strong>
             <p style={copyStyle}>{error}</p>
             <p style={copyStyle}>Click Analyze to try again.</p>
+            <ThreadLink threadId={threadId} />
+          </div>
+        )}
+      </div>
+    );
+  if (reusedDossierId)
+    return (
+      <div style={stackStyle} onClick={(event) => event.stopPropagation()}>
+        <ControlButton
+          status="success"
+          panelId={panelId}
+          panelOpen={panelOpen}
+          onClick={() => setPanelOpen((open) => !open)}
+        />
+        {panelOpen && (
+          <div role="status" style={panelStyle}>
+            <button
+              className="farplane-control"
+              aria-label="Close analysis status"
+              style={closeStyle}
+              onClick={() => setPanelOpen(false)}
+            >
+              <X aria-hidden="true" size={15} />
+            </button>
+            <strong>Already analyzed</strong>
+            <p style={copyStyle}>
+              This video is ready in Farplane Content Intelligence. Open that workspace to review its dossier and any reportable News coverage.
+            </p>
             <ThreadLink threadId={threadId} />
           </div>
         )}

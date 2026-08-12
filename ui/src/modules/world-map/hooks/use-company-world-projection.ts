@@ -10,10 +10,20 @@ import {
   mergeCompanyWorld,
   normalizeCompanyWorldProjectRefs,
 } from "../lib/company-world-projection";
-import type { CompanyWorldProjectRef } from "../types";
+import type { CompanyWorldProjection, CompanyWorldProjectRef } from "../types";
 import { worldProjectionQuery } from "./use-world-projection";
 
-export function useCompanyWorldProjection(projectRefs: CompanyWorldProjectRef[], enabled: boolean) {
+export type CompanyWorldProjectionSource = {
+  projection: CompanyWorldProjection;
+  isLoading: boolean;
+  isFetching: boolean;
+  refetch: () => Promise<unknown>;
+};
+
+export function useCompanyWorldProjection(
+  projectRefs: CompanyWorldProjectRef[],
+  enabled: boolean,
+): CompanyWorldProjectionSource {
   const normalized = useMemo(() => normalizeCompanyWorldProjectRefs(projectRefs), [projectRefs]);
   const queries = useQueries({
     queries: normalized.refs.map((ref) => ({

@@ -51,13 +51,19 @@ export const resourceBankTables = {
     createdAtMs: v.number(),
     updatedAtMs: v.number(),
     completedAtMs: v.optional(v.number()),
+    // Temporary migration markers. New cross-domain work belongs to contentJobs.
+    contentSourceId: v.optional(v.id("contentSources")),
+    contentJobId: v.optional(v.id("contentJobs")),
   })
     .index("by_status_createdAtMs", ["status", "createdAtMs"])
     .index("by_project_createdAtMs", ["projectId", "createdAtMs"])
-    .index("by_task_createdAtMs", ["taskId", "createdAtMs"]),
+    .index("by_task_createdAtMs", ["taskId", "createdAtMs"])
+    .index("by_contentJobId", ["contentJobId"]),
 
   resourceBankAssets: defineTable({
-    ingestionJobId: v.id("resourceBankIngestionJobs"),
+    ingestionJobId: v.optional(v.id("resourceBankIngestionJobs")),
+    contentSourceId: v.optional(v.id("contentSources")),
+    contentJobId: v.optional(v.id("contentJobs")),
     parentAssetId: v.optional(v.id("resourceBankAssets")),
     assetRole: v.union(
       v.literal("primary"),
@@ -110,6 +116,7 @@ export const resourceBankTables = {
     .index("by_assetKind_assetRole_createdAtMs", ["assetKind", "assetRole", "createdAtMs"])
     .index("by_canonicalUrl", ["canonicalUrl"])
     .index("by_job", ["ingestionJobId"])
+    .index("by_contentJobId", ["contentJobId"])
     .index("by_project_createdAtMs", ["projectId", "createdAtMs"])
     .index("by_task_createdAtMs", ["taskId", "createdAtMs"])
     .index("by_sourceUrl", ["sourceUrl"])
@@ -119,7 +126,8 @@ export const resourceBankTables = {
     }),
 
   resourceBankAnalyses: defineTable({
-    ingestionJobId: v.id("resourceBankIngestionJobs"),
+    ingestionJobId: v.optional(v.id("resourceBankIngestionJobs")),
+    contentJobId: v.optional(v.id("contentJobs")),
     assetId: v.id("resourceBankAssets"),
     sourceSkill: v.string(),
     analysisType: v.optional(v.string()),
@@ -145,6 +153,7 @@ export const resourceBankTables = {
   })
     .index("by_asset", ["assetId"])
     .index("by_job", ["ingestionJobId"])
+    .index("by_contentJobId", ["contentJobId"])
     .index("by_project_createdAtMs", ["projectId", "createdAtMs"])
     .searchIndex("search_analysis", {
       searchField: "embeddingText",
@@ -157,7 +166,8 @@ export const resourceBankTables = {
     }),
 
   resourceBankSkillFindings: defineTable({
-    ingestionJobId: v.id("resourceBankIngestionJobs"),
+    ingestionJobId: v.optional(v.id("resourceBankIngestionJobs")),
+    contentJobId: v.optional(v.id("contentJobs")),
     assetId: v.id("resourceBankAssets"),
     analysisId: v.id("resourceBankAnalyses"),
     findingKind: v.union(
@@ -186,6 +196,7 @@ export const resourceBankTables = {
     .index("by_asset", ["assetId"])
     .index("by_analysis", ["analysisId"])
     .index("by_job", ["ingestionJobId"])
+    .index("by_contentJobId", ["contentJobId"])
     .index("by_skillId_createdAtMs", ["skillId", "createdAtMs"])
     .index("by_project_createdAtMs", ["projectId", "createdAtMs"])
     .searchIndex("search_skill_findings", {
@@ -249,6 +260,7 @@ export const resourceBankTables = {
         provenance: v.object({
           resourceElementId: v.optional(v.id("resourceBankCreativeElements")),
           ingestionJobId: v.optional(v.id("resourceBankIngestionJobs")),
+          contentJobId: v.optional(v.id("contentJobs")),
           assetId: v.optional(v.id("resourceBankAssets")),
           analysisId: v.optional(v.id("resourceBankAnalyses")),
           promotedFrom: v.union(v.literal("resource_bank"), v.literal("manual")),
@@ -276,7 +288,8 @@ export const resourceBankTables = {
     .index("by_status_updatedAtMs", ["status", "updatedAtMs"]),
 
   resourceBankCreativeElements: defineTable({
-    ingestionJobId: v.id("resourceBankIngestionJobs"),
+    ingestionJobId: v.optional(v.id("resourceBankIngestionJobs")),
+    contentJobId: v.optional(v.id("contentJobs")),
     assetId: v.id("resourceBankAssets"),
     analysisId: v.optional(v.id("resourceBankAnalyses")),
     kind: v.union(
@@ -308,6 +321,7 @@ export const resourceBankTables = {
     .index("by_createdAtMs", ["createdAtMs"])
     .index("by_asset", ["assetId"])
     .index("by_job", ["ingestionJobId"])
+    .index("by_contentJobId", ["contentJobId"])
     .index("by_kind_createdAtMs", ["kind", "createdAtMs"])
     .index("by_project_createdAtMs", ["projectId", "createdAtMs"])
     .index("by_task_createdAtMs", ["taskId", "createdAtMs"])

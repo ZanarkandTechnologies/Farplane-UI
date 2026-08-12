@@ -54,6 +54,35 @@ Intelligence database. It uses the same direct Convex function pattern as
 Resource Bank and Tasty Packs; the loopback bridge remains restricted to the
 Farplane browser-extension origins.
 
+## Resume a channel manifest
+
+The channel runner reuses the same origin-restricted `POST /analyze-youtube`
+route as the browser button. It runs at a maximum of five active sources,
+waits on an already-running canonical job instead of duplicating it, skips a
+succeeded source already assigned to the requested project, retries transient
+timeout/transport errors once, stops on authentication invalidation, and
+preserves source-unavailable results as honest terminal failures.
+
+The analysis turn is explicit: `gpt-5.6-luna` with reasoning effort `max`.
+Useful progress refreshes a 180-second idle timeout; a 15-minute absolute cap
+still bounds a wedged turn. The canonical Resource Bank job and asset receive
+the supplied project association.
+
+From the Farplane UI root, run a staged manifest import:
+
+```bash
+corepack pnpm youtube:ingest-manifest -- --max-sources 1
+corepack pnpm youtube:ingest-manifest -- --max-sources 5 --concurrency 5
+corepack pnpm youtube:ingest-manifest
+```
+
+The default source is the frozen 2026 manifest at
+`tickets/TASK-0080/artifacts/2026-channel-manifest.json`; the default report is
+`tickets/TASK-0080/artifacts/qa/manifest-report.json`. Re-running the command
+is safe for succeeded Vidgard sources and preserves per-source attempts,
+canonical IDs, terminal status, and error classification in the report. The
+`--concurrency` value is bounded to 1–5 and defaults to 5.
+
 ## Interaction
 
 - The Analyze action occupies the thumbnail corner and suppresses YouTube's

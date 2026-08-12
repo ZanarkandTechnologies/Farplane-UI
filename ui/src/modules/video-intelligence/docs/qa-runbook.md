@@ -1,24 +1,30 @@
 ---
 feature_refs: [FEAT-0117]
 module: video-intelligence
-updated_at: 2026-07-31
+updated_at: 2026-08-13
 ---
 
 # QA Runbook
 
-Seed an isolated Farplane state root with multiple dated videos, two completed
-dossiers on one story, two related event-level stories, one running job, and
-one failed job.
+Video Intelligence is exercised through Content Intelligence. Before browser
+proof, run the configured deployment's read-only dossier/news reads, save a
+compact date-group summary in the active ticket's `artifacts/qa/`, and record
+the exact dates being inspected. Do not use `FARPLANE_STATE_DIR`: it is not a
+fixture route for this module.
 
-1. Start the UI with `FARPLANE_STATE_DIR` pointing at the seed.
-2. Open `/office` and launch **Video Intelligence** from the shared office menu.
-3. Confirm Videos groups by ingest timeline and exposes pending/failed/completed
-   status without a separate Queue screen.
-4. Open a dossier, open its linked story, then Back twice. Confirm Videos,
-   search, and scroll context are unchanged.
-5. Open Stories, filter by a tag, and confirm event-date grouping, source
-   counts, and perspectives.
-6. Open a story and verify reporting chronology, shared/distinct claims,
+1. Require Content records on at least two observed dates. If a day contains
+   more than 24 records, include that too; block pagination proof instead of
+   fabricating records.
+2. Start the UI and open `/office`, then launch **Content Intelligence**.
+3. Confirm the shared dialog's Content tab has an in-flow date divider. Scroll
+   to exhaust the active date and append an older day; there must be no date
+   Previous/Next controls or sticky header overlapping cards.
+4. Open a dossier, then Back. Confirm Content and its scroll context remain
+   intact.
+5. Open News, filter it, and confirm only eligible reports, source counts, and
+   perspectives appear. When older matching News exists, prove it appends from
+   the same end-of-feed interaction.
+6. Open a report and verify reporting chronology, shared/distinct claims,
    frames, related events, timestamp links, and information-flow labels.
 7. Confirm `contributes` maps to a StoryContribution and `related` maps to a
    persisted StoryRelation; neither is labeled citation or causality.

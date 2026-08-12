@@ -12,11 +12,14 @@ export type { VideoIntelligenceAnalysis };
 
 export type VideoIngestJob = {
   id: string;
+  sourceId?: string;
   videoId: string;
   title: string;
+  projectId?: string;
   status: "queued" | "running" | "succeeded" | "failed";
   threadId?: string;
   dossierId?: string;
+  disposition?: "created" | "reused_active" | "reused_ready";
   error?: string;
   createdAt: string;
   updatedAt: string;
@@ -24,16 +27,26 @@ export type VideoIngestJob = {
 
 type JobBinding = {
   jobId: string;
-  assetId: string;
+  sourceId: string;
   videoId: string;
   title: string;
+  projectId?: string;
+  disposition: "created" | "reused_active" | "reused_ready";
+  jobStatus: "queued" | "analyzing" | "ready" | "failed" | "needs_review";
+  dossierId?: string;
   createdAtMs: number;
   updatedAtMs: number;
 };
 
 export type VideoIntelligenceStore = {
   readProjection(): Promise<{ jobs: VideoIngestJob[] }>;
-  enqueue(input: { videoId: string; title: string }): Promise<VideoIngestJob>;
+  enqueue(input: {
+    videoId: string;
+    title: string;
+    projectId?: string;
+    channelId?: string;
+    reAnalyze?: boolean;
+  }): Promise<VideoIngestJob>;
   updateJob(
     jobId: string,
     update: Partial<
@@ -72,10 +85,10 @@ export function createVideoIntelligenceCloudStore(
       const normalized: JobBinding = {
         ...binding,
         jobId: String(binding.jobId),
-        assetId: String(binding.assetId),
+        sourceId: String(binding.sourceId),
       };
       bindings.set(normalized.jobId, normalized);
-      const job = toJob(normalized, "queued");
+      const job = toJob(normalized, localJobStatus(normalized.jobStatus));
       jobs.set(job.id, job);
       return job;
     },
@@ -83,6 +96,12 @@ export function createVideoIntelligenceCloudStore(
     async updateJob(jobId, update) {
       const binding = requireBinding(bindings, jobId);
       const current = jobs.get(jobId) ?? toJob(binding, "queued");
+      if (update.status === "running") {
+        const client = await clientPromise;
+        await client.mutation(api.modules.videoIntelligence.videos.startVideo, {
+          jobId: binding.jobId as never,
+        });
+      }
       if (update.threadId) {
         const client = await clientPromise;
         await client.mutation(api.modules.videoIntelligence.videos.attachThread, {
@@ -106,7 +125,6 @@ export function createVideoIntelligenceCloudStore(
         api.modules.videoIntelligence.videos.completeVideo,
         {
           jobId: binding.jobId as never,
-          assetId: binding.assetId as never,
           videoId: binding.videoId,
           threadId,
           // The payload was already parsed by local-agent's strict Zod schema. Convex's
@@ -183,10 +201,21 @@ function requireBinding(bindings: Map<string, JobBinding>, jobId: string): JobBi
 function toJob(binding: JobBinding, status: VideoIngestJob["status"]): VideoIngestJob {
   return {
     id: binding.jobId,
+    sourceId: binding.sourceId,
     videoId: binding.videoId,
     title: binding.title,
+    projectId: binding.projectId,
+    disposition: binding.disposition,
+    dossierId: binding.dossierId,
     status,
     createdAt: new Date(binding.createdAtMs).toISOString(),
     updatedAt: new Date(binding.updatedAtMs).toISOString(),
   };
+}
+
+function localJobStatus(status: JobBinding["jobStatus"]): VideoIngestJob["status"] {
+  if (status === "ready") return "succeeded";
+  if (status === "analyzing") return "running";
+  if (status === "queued") return "queued";
+  return "failed";
 }

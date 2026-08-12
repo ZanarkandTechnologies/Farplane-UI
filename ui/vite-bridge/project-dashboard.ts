@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 type JsonObject = Record<string, unknown>;
@@ -152,88 +152,4 @@ export async function readOverviewSurfaceBridge({
       },
     };
   }
-}
-
-export async function readFeedScoutBridge({
-  codexGlobalStatePath,
-  date,
-  frameworkRoot,
-  projectPath,
-  repoRoot,
-}: {
-  codexGlobalStatePath: string;
-  date: string | null | undefined;
-  frameworkRoot: string;
-  projectPath: string | null | undefined;
-  repoRoot: string;
-}): Promise<{ status: number; payload: JsonObject }> {
-  const requestedProjectPath = projectPath?.trim() || frameworkRoot;
-  const preferredRootPath = await resolveKnownProjectPath({
-    codexGlobalStatePath,
-    extraKnownProjectPaths: [frameworkRoot],
-    projectPath: requestedProjectPath,
-    repoRoot,
-  });
-  if (!preferredRootPath) {
-    return { status: 400, payload: { ok: false, error: "project_path_required" } };
-  }
-
-  const rootPath = preferredRootPath;
-  const feedRoot = path.join(rootPath, ".farplane", "feed-scout", "daily");
-  const availableDates = await listFeedScoutDates(feedRoot);
-  const requestedDate = date?.trim() ?? "latest";
-  const selectedDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : "latest";
-  const feedPath = path.join(
-    feedRoot,
-    selectedDate === "latest" ? "latest.json" : `feed-${selectedDate}.json`,
-  );
-  const relativeFeedPath = path.relative(rootPath, feedPath);
-  const fileStat = await stat(feedPath).catch(() => null);
-  if (!fileStat?.isFile()) {
-    return {
-      status: 200,
-      payload: {
-        ok: true,
-        exists: false,
-        availableDates,
-        path: relativeFeedPath,
-        projectPath: rootPath,
-        feed: null,
-      },
-    };
-  }
-
-  try {
-    const feed = await readJsonFile(feedPath);
-    return {
-      status: 200,
-      payload: {
-        ok: true,
-        exists: true,
-        availableDates,
-        path: relativeFeedPath,
-        projectPath: rootPath,
-        updatedAtMs: fileStat.mtimeMs,
-        feed,
-      },
-    };
-  } catch {
-    return {
-      status: 500,
-      payload: {
-        ok: false,
-        exists: true,
-        path: relativeFeedPath,
-        error: "feed_scout_read_or_parse_failed",
-      },
-    };
-  }
-}
-
-async function listFeedScoutDates(feedRoot: string): Promise<string[]> {
-  const entries = await readdir(feedRoot).catch(() => []);
-  return entries
-    .map((entry) => entry.match(/^feed-(\d{4}-\d{2}-\d{2})\.json$/)?.[1] ?? "")
-    .filter(Boolean)
-    .sort((left, right) => right.localeCompare(left));
 }

@@ -5,11 +5,14 @@ import { resolve } from "node:path";
 import { test } from "node:test";
 import {
   ANALYST_PROJECT_PATH,
+  analysisSchema,
   buildPrompt,
   canonicalVideoUrl,
   createLocalAgentServer,
   FARPLANE_EXTENSION_ORIGIN,
   runCodexAnalysis,
+  utcNewsAsOfDay,
+  waitForTurnCompletion,
   SUMMARIZE_STATE_PATH,
   type Analysis,
   type RpcClient,
@@ -20,34 +23,37 @@ import type {
 } from "./video-intelligence-cloud.js";
 
 const result: Analysis = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   sourceStatus: "TRANSCRIPT_USED",
   sourceNote: "Transcript inspected.",
   summary: "The title's claim is directionally correct but constrained.",
   publisher: "Example Channel",
   publishedAt: "2026-07-20",
-  stories: [
-    {
-      title: "Example product launches with a constraint",
-      summary: "The product launched, although one advertised capability is limited.",
-      eventDate: "2026-07-20",
-      entities: ["Example product"],
-      tags: ["Example Product", "Product Launch"],
-      frame: "A practical assessment of the launch claim.",
-      claims: [
-        {
-          statement: "The product launched with a limited capability.",
-          stance: "neutral",
-          evidence: {
-            timestamp: "01:20",
-            excerpt: "The capability is available, with this important limit.",
-            schemaVersion: 2,
-            extractorVersion: "summarize-v3",
+  news: {
+    candidates: [
+      {
+        title: "Example product launches with a constraint",
+        summary: "The product launched, although one advertised capability is limited.",
+        eventDate: "2026-07-20",
+        entities: ["Example product"],
+        tags: ["Example Product", "Product Launch"],
+        frame: "A practical assessment of the launch claim.",
+        claims: [
+          {
+            statement: "The product launched with a limited capability.",
+            stance: "neutral",
+            evidence: {
+              timestamp: "01:20",
+              excerpt: "The capability is available, with this important limit.",
+              schemaVersion: 2,
+              extractorVersion: "summarize-v3",
+            },
           },
-        },
-      ],
-    },
-  ],
+        ],
+      },
+    ],
+  },
+  topics: [],
   projectRelevance: [],
   clickbait: {
     answer: "Yes, with limits.",
@@ -127,6 +133,7 @@ test("prompt invokes the full skill and stays honest without a profile", () => {
   const prompt = buildPrompt(
     { videoId: "dQw4w9WgXcQ", title: "You will not believe this" },
     { available: false, value: "" },
+    Date.parse("2026-08-12T12:00:00.000Z"),
   );
   assert.match(prompt, /^\$summarize/);
   assert.match(prompt, /complete installed summarize skill/);
@@ -135,6 +142,34 @@ test("prompt invokes the full skill and stays honest without a profile", () => {
   assert.match(prompt, /https:\/\/www\.youtube\.com\/watch\?v=dQw4w9WgXcQ/);
   assert.match(prompt, /PROFILE_UNAVAILABLE/);
   assert.match(prompt, /untrusted data/);
+  assert.match(prompt, /News as-of \(server-generated UTC day\): 2026-08-12/);
+  assert.match(prompt, /set news to null/);
+  assert.match(prompt, /channel branding, title clickbait, or Feed Scout discovery/);
+});
+
+test("UTC news date is derived by the local bridge, not supplied by a model", () => {
+  assert.equal(utcNewsAsOfDay(Date.parse("2026-08-12T23:59:59.000Z")), "2026-08-12");
+});
+
+test("evergreen analyses keep topical coverage with null News enrichment", () => {
+  const evergreen = analysisSchema.parse({
+    ...result,
+    news: null,
+    topics: [
+      {
+        title: "AI-assisted income",
+        tags: ["Artificial Intelligence", "Creator Economy"],
+        summary: "Monthly tactics for earning with AI tools.",
+        frame: "Practical creator advice.",
+      },
+    ],
+  });
+  assert.equal(evergreen.news, null);
+  assert.equal(evergreen.topics[0]?.title, "AI-assisted income");
+});
+
+test("schema v4 rejects the retired top-level stories transport", () => {
+  assert.throws(() => analysisSchema.parse({ ...result, stories: [] }));
 });
 
 test("Codex run is persistent, writable, skill-bound, and schema-constrained", async () => {
@@ -202,7 +237,13 @@ test("Codex run is persistent, writable, skill-bound, and schema-constrained", a
     calls.find((call) => call.method === "thread/start")?.params.cwd,
     ANALYST_PROJECT_PATH,
   );
+  assert.equal(
+    calls.find((call) => call.method === "thread/start")?.params.model,
+    "gpt-5.6-luna",
+  );
   const turn = calls.find((call) => call.method === "turn/start")!.params;
+  assert.equal(turn.model, "gpt-5.6-luna");
+  assert.equal(turn.effort, "max");
   assert.deepEqual(turn.sandboxPolicy, {
     type: "workspaceWrite",
     writableRoots: [SUMMARIZE_STATE_PATH],
@@ -211,6 +252,7 @@ test("Codex run is persistent, writable, skill-bound, and schema-constrained", a
   assert.equal(turn.input[1].type, "skill");
   assert.equal(turn.input[1].name, "summarize");
   assert.ok(turn.outputSchema.properties.clickbait);
+  assert.ok(turn.outputSchema.properties.news);
 });
 
 test("transcript extraction failure is surfaced as a failure, not an answer", async () => {
@@ -295,6 +337,43 @@ test("transcript extraction failure is surfaced as a failure, not an answer", as
   assert.deepEqual(interrupted, [
     { threadId: "thread-failed", turnId: "turn-failed" },
   ]);
+});
+
+test("Codex idle timeout refreshes on progress while an absolute cap remains", async () => {
+  let listener: (message: any) => void = () => undefined;
+  const rpc: RpcClient = {
+    notify() {},
+    close() {},
+    onNotification(next) {
+      listener = next;
+      return () => undefined;
+    },
+    request: async <T>() => ({} as T),
+  };
+  const completion = waitForTurnCompletion(rpc, "thread-timeout", {
+    idleTimeoutMs: 60,
+    absoluteTimeoutMs: 200,
+  });
+  setTimeout(() => {
+    listener({
+      method: "item/updated",
+      params: { threadId: "thread-timeout", item: { type: "commandExecution" } },
+    });
+  }, 10);
+  setTimeout(() => {
+    listener({
+      method: "turn/completed",
+      params: { threadId: "thread-timeout", turn: { status: "completed", items: [] } },
+    });
+  }, 45);
+  const completed = await completion;
+  assert.equal(completed.turn.status, "completed");
+
+  const capped = waitForTurnCompletion(rpc, "thread-cap", {
+    idleTimeoutMs: 200,
+    absoluteTimeoutMs: 40,
+  });
+  await assert.rejects(capped, /absolute timeout/);
 });
 
 test("HTTP bridge denies foreign origins and exposes only the analysis contract", async (t) => {
@@ -385,7 +464,7 @@ test("HTTP bridge preserves the persistent thread id when analysis fails", async
         origin: FARPLANE_EXTENSION_ORIGIN,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ videoId: "dQw4w9WgXcQ", title: "Claim?" }),
+      body: JSON.stringify({ videoId: "dQw4w9WgXcQ", title: "Claim?", projectId: "Vidgard" }),
     },
   );
   assert.equal(response.status, 502);
@@ -410,6 +489,7 @@ test("HTTP bridge preserves the persistent thread id when analysis fails", async
       videoId: jobsPayload.jobs[0].videoId,
       title: jobsPayload.jobs[0].title,
       status: jobsPayload.jobs[0].status,
+      projectId: jobsPayload.jobs[0].projectId,
       threadId: jobsPayload.jobs[0].threadId,
       error: jobsPayload.jobs[0].error,
     },
@@ -417,8 +497,168 @@ test("HTTP bridge preserves the persistent thread id when analysis fails", async
       videoId: "dQw4w9WgXcQ",
       title: "Claim?",
       status: "failed",
+      projectId: "Vidgard",
       threadId: "thread-failed",
       error: "Structured result rejected",
     },
   );
+});
+
+test("HTTP bridge returns ready reuse without launching or completing analysis", async (t) => {
+  let analyzeCalls = 0;
+  let updateCalls = 0;
+  let completeCalls = 0;
+  const now = "2026-08-12T00:00:00.000Z";
+  const store: VideoIntelligenceStore = {
+    async readProjection() {
+      return { jobs: [] };
+    },
+    async enqueue(input) {
+      return {
+        id: "ready-job",
+        sourceId: "source-1",
+        videoId: input.videoId,
+        title: input.title,
+        status: "succeeded",
+        disposition: "reused_ready",
+        dossierId: "dossier-1",
+        createdAt: now,
+        updatedAt: now,
+      };
+    },
+    async updateJob() {
+      updateCalls += 1;
+      throw new Error("ready jobs must not update");
+    },
+    async complete() {
+      completeCalls += 1;
+      throw new Error("ready jobs must not complete");
+    },
+    async fail() {
+      throw new Error("ready jobs must not fail");
+    },
+  };
+  const server = createLocalAgentServer(async () => {
+    analyzeCalls += 1;
+    return { analysis: result, threadId: "thread-new" };
+  }, store);
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => server.close());
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const response = await fetch(`http://127.0.0.1:${address.port}/analyze-youtube`, {
+    method: "POST",
+    headers: {
+      origin: FARPLANE_EXTENSION_ORIGIN,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ videoId: "dQw4w9WgXcQ", title: "Claim?" }),
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    ok: true,
+    reused: true,
+    disposition: "reused_ready",
+    jobId: "ready-job",
+    sourceId: "source-1",
+    dossierId: "dossier-1",
+  });
+  assert.equal(analyzeCalls, 0);
+  assert.equal(updateCalls, 0);
+  assert.equal(completeCalls, 0);
+});
+
+test("HTTP bridge forwards an explicit re-analysis request as a new analysis run", async (t) => {
+  const store = isolatedStore();
+  const enqueue = store.enqueue;
+  let requestedReanalysis = false;
+  let analyzeCalls = 0;
+  store.enqueue = async (input) => {
+    requestedReanalysis = input.reAnalyze === true;
+    return enqueue(input);
+  };
+  const server = createLocalAgentServer(async () => {
+    analyzeCalls += 1;
+    return { analysis: result, threadId: "thread-reanalysis" };
+  }, store);
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => server.close());
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const response = await fetch(`http://127.0.0.1:${address.port}/analyze-youtube`, {
+    method: "POST",
+    headers: {
+      origin: FARPLANE_EXTENSION_ORIGIN,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ videoId: "dQw4w9WgXcQ", title: "Claim?", reAnalyze: true }),
+  });
+  assert.equal(response.status, 200);
+  assert.equal(requestedReanalysis, true);
+  assert.equal(analyzeCalls, 1);
+});
+
+test("cached bridge reuse keeps the local answer without completing a ready job", async (t) => {
+  let updateCalls = 0;
+  let completeCalls = 0;
+  const now = "2026-08-12T00:00:00.000Z";
+  const store: VideoIntelligenceStore = {
+    async readProjection() {
+      return { jobs: [] };
+    },
+    async enqueue(input) {
+      return {
+        id: "ready-job",
+        sourceId: "source-1",
+        videoId: input.videoId,
+        title: input.title,
+        status: "succeeded",
+        disposition: "reused_ready",
+        dossierId: "dossier-1",
+        createdAt: now,
+        updatedAt: now,
+      };
+    },
+    async updateJob() {
+      updateCalls += 1;
+      throw new Error("ready jobs must not update");
+    },
+    async complete() {
+      completeCalls += 1;
+      throw new Error("ready jobs must not complete");
+    },
+    async fail() {
+      throw new Error("ready jobs must not fail");
+    },
+  };
+  const server = createLocalAgentServer(async () => {
+    throw new Error("cached reuse must not analyze");
+  }, store);
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => server.close());
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const response = await fetch(`http://127.0.0.1:${address.port}/ingest-cached`, {
+    method: "POST",
+    headers: {
+      origin: FARPLANE_EXTENSION_ORIGIN,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      videoId: "dQw4w9WgXcQ",
+      title: "Claim?",
+      analysis: result,
+      threadId: "thread-cached",
+    }),
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.reused, true);
+  assert.equal(payload.dossierId, "dossier-1");
+  assert.deepEqual(payload.analysis, result);
+  assert.equal(updateCalls, 0);
+  assert.equal(completeCalls, 0);
 });
