@@ -54,14 +54,17 @@ export function OfficeMenu({ className }: SpeedDialProps) {
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
   const setTelemetryPanelTab = useAppStore((state) => state.setTelemetryPanelTab);
   const setIsFinancePanelOpen = useAppStore((state) => state.setIsFinancePanelOpen);
+  const setIsLeveragePanelOpen = useAppStore((state) => state.setIsLeveragePanelOpen);
   const setIsSkillInvocationsPanelOpen = useAppStore(
     (state) => state.setIsSkillInvocationsPanelOpen,
   );
   const setIsResourceBankPanelOpen = useAppStore((state) => state.setIsResourceBankPanelOpen);
-  const setIsVideoIntelligencePanelOpen = useAppStore(
-    (state) => state.setIsVideoIntelligencePanelOpen,
+  const setIsContentIntelligencePanelOpen = useAppStore(
+    (state) => state.setIsContentIntelligencePanelOpen,
   );
-  const setIsWorldMapPanelOpen = useAppStore((state) => state.setIsWorldMapPanelOpen);
+  const setContentIntelligenceInitialTab = useAppStore(
+    (state) => state.setContentIntelligenceInitialTab,
+  );
   const setIsDocumentLibraryPanelOpen = useAppStore((state) => state.setIsDocumentLibraryPanelOpen);
   const setSelectedSkillStudioSkillId = useAppStore((state) => state.setSelectedSkillStudioSkillId);
   const setSkillStudioFocusAgentId = useAppStore((state) => state.setSkillStudioFocusAgentId);
@@ -97,19 +100,22 @@ export function OfficeMenu({ className }: SpeedDialProps) {
     setBuilderMode(!isBuilderMode); // This will trigger the animation in OfficeScene
   }, [isAnimatingCamera, isBuilderMode, setBuilderMode]);
 
-  const openGlobalTeamWorkspace = useCallback((initialTab: "overview" | "thread-data" = "overview") => {
-    setActiveTeamId(null);
-    setSelectedTeamId(null);
-    setKanbanFocusAgentId(null);
-    setGlobalTeamPanelInitialTab(initialTab);
-    setIsGlobalTeamPanelOpen(true);
-  }, [
-    setActiveTeamId,
-    setGlobalTeamPanelInitialTab,
-    setIsGlobalTeamPanelOpen,
-    setKanbanFocusAgentId,
-    setSelectedTeamId,
-  ]);
+  const openGlobalTeamWorkspace = useCallback(
+    (initialTab: "overview" | "thread-data" = "overview") => {
+      setActiveTeamId(null);
+      setSelectedTeamId(null);
+      setKanbanFocusAgentId(null);
+      setGlobalTeamPanelInitialTab(initialTab);
+      setIsGlobalTeamPanelOpen(true);
+    },
+    [
+      setActiveTeamId,
+      setGlobalTeamPanelInitialTab,
+      setIsGlobalTeamPanelOpen,
+      setKanbanFocusAgentId,
+      setSelectedTeamId,
+    ],
+  );
 
   const shouldGuideMenu =
     isOfficeOnboardingVisible &&
@@ -182,8 +188,14 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         },
         openSkillInvocations: () => setIsSkillInvocationsPanelOpen(true),
         openResourceBank: () => setIsResourceBankPanelOpen(true),
-        openVideoIntelligence: () => setIsVideoIntelligencePanelOpen(true),
-        openWorld: () => setIsWorldMapPanelOpen(true),
+        openContentIntelligence: () => {
+          setContentIntelligenceInitialTab("content");
+          setIsContentIntelligencePanelOpen(true);
+        },
+        openWorld: () => {
+          setContentIntelligenceInitialTab("world");
+          setIsContentIntelligencePanelOpen(true);
+        },
         openDocumentLibrary: () => setIsDocumentLibraryPanelOpen(true),
         openSelfImprovementRuns: () => {
           setSelectedSkillStudioSkillId(null);
@@ -196,6 +208,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
           setIsTelemetryPanelOpen(true);
         },
         openFinance: () => setIsFinancePanelOpen(true),
+        openLeverage: () => setIsLeveragePanelOpen(true),
         openRawTelemetry: () => {
           setTelemetryPanelTab("events");
           setIsTelemetryPanelOpen(true);
@@ -221,12 +234,13 @@ export function OfficeMenu({ className }: SpeedDialProps) {
       setIsOrganizationPanelOpen,
       setIsSkillInvocationsPanelOpen,
       setIsResourceBankPanelOpen,
-      setIsVideoIntelligencePanelOpen,
-      setIsWorldMapPanelOpen,
+      setContentIntelligenceInitialTab,
+      setIsContentIntelligencePanelOpen,
       setIsDocumentLibraryPanelOpen,
       setIsTelemetryPanelOpen,
       setTelemetryPanelTab,
       setIsFinancePanelOpen,
+      setIsLeveragePanelOpen,
       handleBuilderModeToggle,
       isReadOnly,
     ],

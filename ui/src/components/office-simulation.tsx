@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Badge } from "@/components/ui/badge";
 import ChatDialog from "@/modules/chat/components/chat-dialog";
+import {
+  ContentIntelligenceDataController,
+  ContentIntelligencePanel,
+} from "@/modules/content-intelligence";
 import { FinancePanel } from "@/modules/finance";
+import { LeveragePanel } from "@/modules/leverage";
 import {
   AgentMemoryPanel,
   AgentSessionPanel,
@@ -17,8 +22,8 @@ import {
 } from "@/modules/office";
 import { ProjectDocumentLibraryPanel } from "@/modules/office/components/project-document-library-panel";
 import { selectOfficeWorldContextData, useOfficeWorldStore } from "@/modules/office/store";
-import { ResourceBankPanel } from "@/modules/resource-bank";
 import { RealtimeCallDialog, RealtimeCallLauncher } from "@/modules/realtime-call";
+import { ResourceBankPanel } from "@/modules/resource-bank";
 import { gatewayBase } from "@/modules/runtime";
 import { SettingsDialog } from "@/modules/settings";
 import { SkillInvocationsPanel } from "@/modules/skill-invocations";
@@ -96,18 +101,21 @@ function OfficeSimulationContent() {
   const setTelemetryPanelTab = useAppStore((state) => state.setTelemetryPanelTab);
   const isFinancePanelOpen = useAppStore((state) => state.isFinancePanelOpen);
   const setIsFinancePanelOpen = useAppStore((state) => state.setIsFinancePanelOpen);
+  const isLeveragePanelOpen = useAppStore((state) => state.isLeveragePanelOpen);
+  const setIsLeveragePanelOpen = useAppStore((state) => state.setIsLeveragePanelOpen);
   const isSkillInvocationsPanelOpen = useAppStore((state) => state.isSkillInvocationsPanelOpen);
   const setIsSkillInvocationsPanelOpen = useAppStore(
     (state) => state.setIsSkillInvocationsPanelOpen,
   );
   const isResourceBankPanelOpen = useAppStore((state) => state.isResourceBankPanelOpen);
   const setIsResourceBankPanelOpen = useAppStore((state) => state.setIsResourceBankPanelOpen);
-  const isVideoIntelligencePanelOpen = useAppStore((state) => state.isVideoIntelligencePanelOpen);
-  const setIsVideoIntelligencePanelOpen = useAppStore(
-    (state) => state.setIsVideoIntelligencePanelOpen,
+  const isContentIntelligencePanelOpen = useAppStore(
+    (state) => state.isContentIntelligencePanelOpen,
   );
-  const isWorldMapPanelOpen = useAppStore((state) => state.isWorldMapPanelOpen);
-  const setIsWorldMapPanelOpen = useAppStore((state) => state.setIsWorldMapPanelOpen);
+  const setIsContentIntelligencePanelOpen = useAppStore(
+    (state) => state.setIsContentIntelligencePanelOpen,
+  );
+  const contentIntelligenceInitialTab = useAppStore((state) => state.contentIntelligenceInitialTab);
   const [isLogsDrawerOpen, setIsLogsDrawerOpen] = useState(false);
   const [navigationReady, setNavigationReady] = useState(false);
   const [hasNavigationReadyOnce, setHasNavigationReadyOnce] = useState(false);
@@ -290,6 +298,7 @@ function OfficeSimulationContent() {
               }}
             />
             <FinancePanel open={isFinancePanelOpen} onOpenChange={setIsFinancePanelOpen} />
+            <LeveragePanel open={isLeveragePanelOpen} onOpenChange={setIsLeveragePanelOpen} />
             <SkillInvocationsPanel
               open={isSkillInvocationsPanelOpen}
               onOpenChange={setIsSkillInvocationsPanelOpen}
@@ -298,15 +307,17 @@ function OfficeSimulationContent() {
               open={isResourceBankPanelOpen}
               onOpenChange={setIsResourceBankPanelOpen}
             />
-            <VideoIntelligencePanel
-              open={isVideoIntelligencePanelOpen}
-              onOpenChange={setIsVideoIntelligencePanelOpen}
-            />
-            <WorldMapPanel
-              open={isWorldMapPanelOpen}
-              onOpenChange={setIsWorldMapPanelOpen}
-              companyWorldSource={sharedCompanyWorldSource}
-            />
+            <ContentIntelligenceDataController open={isContentIntelligencePanelOpen}>
+              {(runtime) => (
+                <ContentIntelligencePanel
+                  open={isContentIntelligencePanelOpen}
+                  onOpenChange={setIsContentIntelligencePanelOpen}
+                  initialTab={contentIntelligenceInitialTab}
+                  companyWorldSource={sharedCompanyWorldSource}
+                  runtime={runtime}
+                />
+              )}
+            </ContentIntelligenceDataController>
             <ProjectDocumentLibraryPanel />
 
             <div className="pointer-events-none absolute top-4 left-4 z-[70]">

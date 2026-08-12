@@ -16,10 +16,11 @@ export type OfficeInternalPanelId =
   | "team-workspace"
   | "telemetry"
   | "finance"
+  | "leverage"
   | "raw-telemetry"
   | "thread-data"
   | "resource-bank"
-  | "video-intelligence"
+  | "content-intelligence"
   | "world"
   | "document-library"
   | "self-improvement-runs"
@@ -71,6 +72,12 @@ export const OFFICE_INTERNAL_PANEL_CATALOG: OfficeInternalPanelCatalogEntry[] = 
     keywords: ["finance", "money", "cash flow", "income", "expenses", "weekly close"],
   },
   {
+    id: "leverage",
+    label: "Leverage",
+    description: "Inspect read-only capital, distribution, Edge, and evidence coverage.",
+    keywords: ["leverage", "capital", "distribution", "edge", "strengths", "evidence"],
+  },
+  {
     id: "raw-telemetry",
     label: "Raw Telemetry",
     description: "Inspect hook events, distributions, and hook setup.",
@@ -89,16 +96,16 @@ export const OFFICE_INTERNAL_PANEL_CATALOG: OfficeInternalPanelCatalogEntry[] = 
     keywords: ["resource", "bank", "assets", "references", "ingestion"],
   },
   {
-    id: "video-intelligence",
-    label: "Video Intelligence",
-    description: "Open the durable video queue, dossiers, and story perspectives.",
-    keywords: ["video", "intelligence", "stories", "claims", "perspectives", "youtube"],
+    id: "content-intelligence",
+    label: "Content Intelligence",
+    description: "Open external content, cited stories, connected concepts, and the World tab.",
+    keywords: ["content", "video", "intelligence", "stories", "concepts", "youtube"],
   },
   {
     id: "world",
     label: "World",
-    description: "Inspect project entities, locations, and explicit associations on a map.",
-    keywords: ["world", "map", "knowledge graph", "crm", "supply chain", "entities"],
+    description: "Open the World tab for project entities, locations, and explicit associations.",
+    keywords: ["world", "map", "knowledge graph", "crm", "supply chain", "entities", "content"],
   },
   {
     id: "document-library",

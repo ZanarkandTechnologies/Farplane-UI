@@ -25,6 +25,7 @@ import {
   CircleDollarSign,
   Database,
   FileCode2,
+  Gauge,
   GitPullRequestArrow,
   Globe2,
   Hammer,
@@ -64,10 +65,11 @@ export type OfficePanelActionId =
   | "team-workspace"
   | "telemetry"
   | "finance"
+  | "leverage"
   | "raw-telemetry"
   | "thread-data"
   | "resource-bank"
-  | "video-intelligence"
+  | "content-intelligence"
   | "world"
   | "document-library"
   | "self-improvement-runs"
@@ -117,7 +119,7 @@ export type OfficePanelRegistryDependencies = {
   openSettings: () => void;
   openSkillInvocations: () => void;
   openResourceBank: () => void;
-  openVideoIntelligence: () => void;
+  openContentIntelligence: () => void;
   openWorld: () => void;
   openDocumentLibrary: () => void;
   openSelfImprovementRuns: () => void;
@@ -125,6 +127,7 @@ export type OfficePanelRegistryDependencies = {
   openHumanReview: () => void;
   openTelemetry: () => void;
   openFinance: () => void;
+  openLeverage: () => void;
   openRawTelemetry: () => void;
   openThreadData: () => void;
   toggleBuilderMode: () => void;
@@ -141,11 +144,12 @@ const OFFICE_LAUNCHER_ACTION_ORDER: OfficePanelActionId[] = [
   "ceo-workbench",
   "skill-os",
   "resource-bank",
-  "video-intelligence",
+  "content-intelligence",
   "world",
   "document-library",
   "telemetry",
   "finance",
+  "leverage",
   "builder-mode",
   "settings",
 ];
@@ -216,10 +220,11 @@ export function createOfficePanelActions(
   const teamWorkspacePanel = getOfficeInternalPanelEntry("team-workspace");
   const telemetryPanel = getOfficeInternalPanelEntry("telemetry");
   const financePanel = getOfficeInternalPanelEntry("finance");
+  const leveragePanel = getOfficeInternalPanelEntry("leverage");
   const rawTelemetryPanel = getOfficeInternalPanelEntry("raw-telemetry");
   const threadDataPanel = getOfficeInternalPanelEntry("thread-data");
   const resourceBankPanel = getOfficeInternalPanelEntry("resource-bank");
-  const videoIntelligencePanel = getOfficeInternalPanelEntry("video-intelligence");
+  const contentIntelligencePanel = getOfficeInternalPanelEntry("content-intelligence");
   const worldPanel = getOfficeInternalPanelEntry("world");
   const documentLibraryPanel = getOfficeInternalPanelEntry("document-library");
   const selfImprovementPanel = getOfficeInternalPanelEntry("self-improvement-runs");
@@ -284,6 +289,17 @@ export function createOfficePanelActions(
       perform: deps.openFinance,
     },
     {
+      id: "leverage",
+      label: leveragePanel.label,
+      description: leveragePanel.description,
+      group: "panel",
+      icon: Gauge,
+      keywords: [...leveragePanel.keywords, "panel"],
+      shortcut: { key: "g", label: "Alt+Shift+G", altKey: true, shiftKey: true },
+      color: SECONDARY_BUTTON_COLOR,
+      perform: deps.openLeverage,
+    },
+    {
       id: "raw-telemetry",
       label: rawTelemetryPanel.label,
       description: rawTelemetryPanel.description,
@@ -322,15 +338,15 @@ export function createOfficePanelActions(
       perform: deps.openResourceBank,
     },
     {
-      id: "video-intelligence",
-      label: videoIntelligencePanel.label,
-      description: videoIntelligencePanel.description,
+      id: "content-intelligence",
+      label: contentIntelligencePanel.label,
+      description: contentIntelligencePanel.description,
       group: "panel",
       icon: ScanSearch,
-      keywords: [...videoIntelligencePanel.keywords, "video", "stories", "perspectives"],
+      keywords: [...contentIntelligencePanel.keywords, "stories", "perspectives"],
       shortcut: { key: "v", label: "Alt+Shift+V", altKey: true, shiftKey: true },
       color: SECONDARY_BUTTON_COLOR,
-      perform: deps.openVideoIntelligence,
+      perform: deps.openContentIntelligence,
     },
     {
       id: "world",

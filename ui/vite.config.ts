@@ -30,10 +30,7 @@ import {
   readFilesystemObservedCodexThreads,
 } from "./codex-thread-summaries";
 import { createMiningLocalApi } from "./server/mining-local-api";
-import {
-  readFeedScoutBridge,
-  readDashboardRuntimeSourceCandidates,
-} from "./vite-bridge/project-dashboard";
+import { readDashboardRuntimeSourceCandidates } from "./vite-bridge/project-dashboard";
 import { projectFileContentType, readProjectFile } from "./vite-bridge/project-file";
 import { normalizeBridgeOfficeSettings, type BridgeOfficeSettings as OfficeSettings } from "./office-settings-bridge";
 import {
@@ -87,6 +84,12 @@ const FARPLANE_FRAMEWORK_GRAPH_ROOT = path.join(
   "skills",
   "skill-maintenance",
   "graph",
+);
+const FARPLANE_FRAMEWORK_GRAPH_DATA_ROOT = path.join(
+  FARPLANE_FRAMEWORK_ROOT,
+  ".farplane",
+  "generated",
+  "graphs",
 );
 const COMPANY_MODEL_PATH = path.join(FARPLANE_HOME, "company.json");
 const LOCAL_HOOK_EVENTS_DIR = path.join(FARPLANE_HOME, "events");
@@ -2869,10 +2872,11 @@ async function readProjectTicketTasks(project: {
           artefactPath: ticket.artefactPath,
           syncState: "healthy",
           frontMatter: ticket.frontMatter,
+          specialist: ticket.specialist,
           ...(project.includeMarkdown ? { markdown: ticket.markdown } : {}),
           notes: ticket.notes || undefined,
           approvalState: ticket.approvalState,
-          linkedSessionKey: ticket.linkedSessionKey,
+          threadId: ticket.threadId,
           createdAt: ticket.createdAt,
           dueAt: ticket.dueAt,
           updatedAt: ticket.updatedAt,
@@ -4468,7 +4472,7 @@ function farplaneStateBridge() {
               setHeader: (k: string, v: string) => void;
               end: (body: Buffer) => void;
             },
-            FARPLANE_FRAMEWORK_GRAPH_ROOT,
+            FARPLANE_FRAMEWORK_GRAPH_DATA_ROOT,
             requestedGraphPath,
           );
           if (!served) {
@@ -4558,6 +4562,25 @@ function farplaneStateBridge() {
             writeJson(res, 422, {
               ok: false,
               error: error instanceof Error ? error.message : "finance_projection_unavailable",
+            });
+          }
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/leverage") {
+          try {
+            const financeProjection = await GLOBAL_FINANCE_STORE.readProjection();
+            writeJson(res, 200, {
+              ok: true,
+              projection: await readLeverageProjection({
+                companyPath: COMPANY_MODEL_PATH,
+                financeProjection,
+              }),
+            });
+          } catch (error) {
+            writeJson(res, 422, {
+              ok: false,
+              error: error instanceof Error ? error.message : "leverage_projection_unavailable",
             });
           }
           return;
@@ -4871,18 +4894,6 @@ function farplaneStateBridge() {
           res.setHeader("content-disposition", "inline");
           res.statusCode = 200;
           res.end(result.bytes);
-          return;
-        }
-
-        if (method === "GET" && pathname === "/farplane/feed-scout") {
-          const result = await readFeedScoutBridge({
-            codexGlobalStatePath: CODEX_GLOBAL_STATE_PATH,
-            date: url.searchParams.get("date"),
-            frameworkRoot: FARPLANE_FRAMEWORK_ROOT,
-            projectPath: url.searchParams.get("projectPath"),
-            repoRoot: REPO_ROOT,
-          });
-          writeJson(res, result.status, result.payload);
           return;
         }
 

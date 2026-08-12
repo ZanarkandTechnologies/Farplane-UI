@@ -13,8 +13,8 @@ describe("Farplane shell config", () => {
     });
   });
 
-  it("exposes World through office-object entry surfaces", () => {
-    expect(moduleRegistry.world.surfaces).toContain("office-object");
+  it("exposes Content Intelligence through office-object entry surfaces", () => {
+    expect(moduleRegistry["content-intelligence"].surfaces).toContain("office-object");
   });
 
   it("registers Farplane Radio as shared HUD chrome", () => {
@@ -27,13 +27,19 @@ describe("Farplane shell config", () => {
     expect(DEFAULT_FARPLANE_UI_CONFIG.modules).toContain("finance");
   });
 
-  it("registers Video Intelligence for panel, HUD, and office-object launch", () => {
-    expect(moduleRegistry["video-intelligence"].surfaces).toEqual([
+  it("registers Leverage as a read-only panel without HUD chrome", () => {
+    expect(moduleRegistry.leverage.surfaces).toEqual(["nav", "panel"]);
+    expect(DEFAULT_FARPLANE_UI_CONFIG.modules).toContain("leverage");
+  });
+
+  it("registers Content Intelligence for panel, HUD, and office-object launch", () => {
+    expect(moduleRegistry["content-intelligence"].surfaces).toEqual([
+      "nav",
       "panel",
       "hud",
       "office-object",
     ]);
-    expect(DEFAULT_FARPLANE_UI_CONFIG.modules).toContain("video-intelligence");
+    expect(DEFAULT_FARPLANE_UI_CONFIG.modules).toContain("content-intelligence");
   });
 
   it("registers Realtime Call for its roster HUD and employee actions", () => {

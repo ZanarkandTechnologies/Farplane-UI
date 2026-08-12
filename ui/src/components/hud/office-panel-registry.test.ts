@@ -28,13 +28,14 @@ function createPanelHarness(
     openSelfImprovementRuns: vi.fn(),
     openEvals: vi.fn(),
     openFinance: vi.fn(),
+    openLeverage: vi.fn(),
     openGlobalTeamWorkspace: vi.fn(),
     openHumanReview: vi.fn(),
     openHarness: vi.fn(),
     openOrganization: vi.fn(),
     openRawTelemetry: vi.fn(),
     openResourceBank: vi.fn(),
-    openVideoIntelligence: vi.fn(),
+    openContentIntelligence: vi.fn(),
     openRollout: vi.fn(),
     openSettings: vi.fn(),
     openSkillInvocations: vi.fn(),
@@ -102,7 +103,7 @@ describe("office panel registry", () => {
     actions.find((action) => action.id === "organization")?.perform();
     actions.find((action) => action.id === "document-library")?.perform();
     actions.find((action) => action.id === "resource-bank")?.perform();
-    actions.find((action) => action.id === "video-intelligence")?.perform();
+    actions.find((action) => action.id === "content-intelligence")?.perform();
     actions.find((action) => action.id === "world")?.perform();
     actions.find((action) => action.id === "skill-os")?.perform();
     actions.find((action) => action.id === "template-tracking")?.perform();
@@ -114,6 +115,7 @@ describe("office panel registry", () => {
     actions.find((action) => action.id === "human-review")?.perform();
     actions.find((action) => action.id === "raw-telemetry")?.perform();
     actions.find((action) => action.id === "finance")?.perform();
+    actions.find((action) => action.id === "leverage")?.perform();
     actions.find((action) => action.id === "thread-data")?.perform();
     actions.find((action) => action.id === "builder-mode")?.perform();
 
@@ -121,7 +123,7 @@ describe("office panel registry", () => {
     expect(handlers.openOrganization).toHaveBeenCalledTimes(1);
     expect(handlers.openDocumentLibrary).toHaveBeenCalledTimes(1);
     expect(handlers.openResourceBank).toHaveBeenCalledTimes(1);
-    expect(handlers.openVideoIntelligence).toHaveBeenCalledTimes(1);
+    expect(handlers.openContentIntelligence).toHaveBeenCalledTimes(1);
     expect(handlers.openWorld).toHaveBeenCalledTimes(1);
     expect(actions.some((action) => String(action.id) === "skill-invocations")).toBe(false);
     expect(handlers.openSkillInvocations).not.toHaveBeenCalled();
@@ -135,6 +137,7 @@ describe("office panel registry", () => {
     expect(handlers.openHumanReview).toHaveBeenCalledTimes(1);
     expect(handlers.openRawTelemetry).toHaveBeenCalledTimes(1);
     expect(handlers.openFinance).toHaveBeenCalledTimes(1);
+    expect(handlers.openLeverage).toHaveBeenCalledTimes(1);
     expect(handlers.openThreadData).toHaveBeenCalledTimes(1);
     expect(handlers.toggleBuilderMode).toHaveBeenCalledTimes(1);
   });
@@ -152,17 +155,19 @@ describe("office panel registry", () => {
       "ceo-workbench",
       "skill-os",
       "resource-bank",
-      "video-intelligence",
+      "content-intelligence",
       "world",
       "document-library",
       "telemetry",
       "finance",
+      "leverage",
       "builder-mode",
       "settings",
     ]);
     expect(paletteIds).toContain("settings");
     expect(paletteIds).toContain("raw-telemetry");
     expect(paletteIds).toContain("finance");
+    expect(paletteIds).toContain("leverage");
     expect(paletteIds).toContain("thread-data");
     expect(paletteIds).toContain("evals");
     expect(paletteIds).toContain("harness");

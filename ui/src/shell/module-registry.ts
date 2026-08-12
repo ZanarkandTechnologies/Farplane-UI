@@ -25,6 +25,12 @@ export const moduleRegistry = {
     description: "Company cash balance, daily flow observations, and close history.",
     surfaces: ["nav", "panel", "hud"],
   },
+  leverage: {
+    id: "leverage",
+    label: "Leverage",
+    description: "Read-only global capital, distribution, Edge, and evidence coverage.",
+    surfaces: ["nav", "panel"],
+  },
   "skills-studio": {
     id: "skills-studio",
     label: "Skills Studio",
@@ -44,16 +50,10 @@ export const moduleRegistry = {
       "Saved media references, analysis, extracted skill findings, and retrieval handles.",
     surfaces: ["nav", "panel", "hud", "office-object"],
   },
-  "video-intelligence": {
-    id: "video-intelligence",
-    label: "Video Intelligence",
-    description: "Durable video queue, cited dossiers, and cross-source story perspectives.",
-    surfaces: ["panel", "hud", "office-object"],
-  },
-  world: {
-    id: "world",
-    label: "World",
-    description: "Project CRM entities, locations, and sentence-backed associations on a map.",
+  "content-intelligence": {
+    id: "content-intelligence",
+    label: "Content Intelligence",
+    description: "External sources, cited stories, concepts, and the read-only World projection.",
     surfaces: ["nav", "panel", "hud", "office-object"],
   },
   "thread-data": {

@@ -22,11 +22,14 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
   const setIsTelemetryPanelOpen = useAppStore((state) => state.setIsTelemetryPanelOpen);
   const setTelemetryPanelTab = useAppStore((state) => state.setTelemetryPanelTab);
   const setIsFinancePanelOpen = useAppStore((state) => state.setIsFinancePanelOpen);
+  const setIsLeveragePanelOpen = useAppStore((state) => state.setIsLeveragePanelOpen);
   const setIsResourceBankPanelOpen = useAppStore((state) => state.setIsResourceBankPanelOpen);
-  const setIsVideoIntelligencePanelOpen = useAppStore(
-    (state) => state.setIsVideoIntelligencePanelOpen,
+  const setIsContentIntelligencePanelOpen = useAppStore(
+    (state) => state.setIsContentIntelligencePanelOpen,
   );
-  const setIsWorldMapPanelOpen = useAppStore((state) => state.setIsWorldMapPanelOpen);
+  const setContentIntelligenceInitialTab = useAppStore(
+    (state) => state.setContentIntelligenceInitialTab,
+  );
   const setIsDocumentLibraryPanelOpen = useAppStore((state) => state.setIsDocumentLibraryPanelOpen);
   const setIsSkillsPanelOpen = useAppStore((state) => state.setIsSkillsPanelOpen);
   const setSkillStudioSurface = useAppStore((state) => state.setSkillStudioSurface);
@@ -62,6 +65,9 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
         case "finance":
           setIsFinancePanelOpen(true);
           break;
+        case "leverage":
+          setIsLeveragePanelOpen(true);
+          break;
         case "raw-telemetry":
           setTelemetryPanelTab("events");
           setIsTelemetryPanelOpen(true);
@@ -76,11 +82,13 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
         case "resource-bank":
           setIsResourceBankPanelOpen(true);
           break;
-        case "video-intelligence":
-          setIsVideoIntelligencePanelOpen(true);
+        case "content-intelligence":
+          setContentIntelligenceInitialTab("content");
+          setIsContentIntelligencePanelOpen(true);
           break;
         case "world":
-          setIsWorldMapPanelOpen(true);
+          setContentIntelligenceInitialTab("world");
+          setIsContentIntelligencePanelOpen(true);
           break;
         case "document-library":
           setIsDocumentLibraryPanelOpen(true);
@@ -152,10 +160,11 @@ export function useOfficeInternalPanelLauncher(): (panelId: OfficeInternalPanelI
       setIsFurnitureShopOpen,
       setBuilderMode,
       setIsFinancePanelOpen,
+      setIsLeveragePanelOpen,
       setIsGlobalTeamPanelOpen,
       setIsResourceBankPanelOpen,
-      setIsVideoIntelligencePanelOpen,
-      setIsWorldMapPanelOpen,
+      setContentIntelligenceInitialTab,
+      setIsContentIntelligencePanelOpen,
       setIsSettingsModalOpen,
       setSettingsDialogTab,
       setIsSkillsPanelOpen,

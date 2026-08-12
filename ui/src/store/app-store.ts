@@ -33,6 +33,7 @@ export type SkillStudioSurface =
 export type GlobalTeamPanelInitialTab = "overview" | "thread-data";
 export type TelemetryPanelTab = "usage" | "events";
 export type SettingsDialogTab = "general" | "office" | "runtime" | "communications";
+export type ContentIntelligenceInitialTab = "content" | "world";
 
 type ObjectPanelAspectRatio = "wide" | "square" | "tall";
 export type CeoWorkbenchView = "board" | "review";
@@ -172,14 +173,16 @@ interface AppState {
   setTelemetryPanelTab: (tab: TelemetryPanelTab) => void;
   isFinancePanelOpen: boolean;
   setIsFinancePanelOpen: (isOpen: boolean) => void;
+  isLeveragePanelOpen: boolean;
+  setIsLeveragePanelOpen: (isOpen: boolean) => void;
   isSkillInvocationsPanelOpen: boolean;
   setIsSkillInvocationsPanelOpen: (isOpen: boolean) => void;
   isResourceBankPanelOpen: boolean;
   setIsResourceBankPanelOpen: (isOpen: boolean) => void;
-  isVideoIntelligencePanelOpen: boolean;
-  setIsVideoIntelligencePanelOpen: (isOpen: boolean) => void;
-  isWorldMapPanelOpen: boolean;
-  setIsWorldMapPanelOpen: (isOpen: boolean) => void;
+  isContentIntelligencePanelOpen: boolean;
+  setIsContentIntelligencePanelOpen: (isOpen: boolean) => void;
+  contentIntelligenceInitialTab: ContentIntelligenceInitialTab;
+  setContentIntelligenceInitialTab: (tab: ContentIntelligenceInitialTab) => void;
   isDocumentLibraryPanelOpen: boolean;
   setIsDocumentLibraryPanelOpen: (isOpen: boolean) => void;
   selectedSkillStudioSkillId: string | null;
@@ -328,14 +331,16 @@ export const useAppStore = create<AppState>()(
     setTelemetryPanelTab: (tab) => set({ telemetryPanelTab: tab }),
     isFinancePanelOpen: false,
     setIsFinancePanelOpen: (isOpen) => set({ isFinancePanelOpen: isOpen }),
+    isLeveragePanelOpen: false,
+    setIsLeveragePanelOpen: (isOpen) => set({ isLeveragePanelOpen: isOpen }),
     isSkillInvocationsPanelOpen: false,
     setIsSkillInvocationsPanelOpen: (isOpen) => set({ isSkillInvocationsPanelOpen: isOpen }),
     isResourceBankPanelOpen: false,
     setIsResourceBankPanelOpen: (isOpen) => set({ isResourceBankPanelOpen: isOpen }),
-    isVideoIntelligencePanelOpen: false,
-    setIsVideoIntelligencePanelOpen: (isOpen) => set({ isVideoIntelligencePanelOpen: isOpen }),
-    isWorldMapPanelOpen: false,
-    setIsWorldMapPanelOpen: (isOpen) => set({ isWorldMapPanelOpen: isOpen }),
+    isContentIntelligencePanelOpen: false,
+    setIsContentIntelligencePanelOpen: (isOpen) => set({ isContentIntelligencePanelOpen: isOpen }),
+    contentIntelligenceInitialTab: "content",
+    setContentIntelligenceInitialTab: (tab) => set({ contentIntelligenceInitialTab: tab }),
     isDocumentLibraryPanelOpen: false,
     setIsDocumentLibraryPanelOpen: (isOpen) => set({ isDocumentLibraryPanelOpen: isOpen }),
     selectedSkillStudioSkillId: null,
