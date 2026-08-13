@@ -44,6 +44,7 @@ type DispatchMetadata = {
   groupSize: number;
   isPrimary: boolean;
   aliases: string[];
+  openingPrompt?: string;
 };
 
 function parseDispatchMetadata(value: string): DispatchMetadata {
@@ -60,6 +61,10 @@ function parseDispatchMetadata(value: string): DispatchMetadata {
     aliases: Array.isArray(parsed.aliases)
       ? parsed.aliases.map(String).map((entry) => entry.trim()).filter(Boolean)
       : [agent.name],
+    openingPrompt:
+      typeof parsed.openingPrompt === "string" && parsed.openingPrompt.trim()
+        ? parsed.openingPrompt.trim().slice(0, 800)
+        : undefined,
   };
 }
 
@@ -156,6 +161,7 @@ const agent = defineAgent({
     if (metadata.isPrimary && metadata.groupSize === 1) {
       await session.generateReply({
         instructions:
+          metadata.openingPrompt ??
           "Greet the operator briefly using your configured identity and ask what they want to work through.",
       });
     }

@@ -58,6 +58,9 @@ company lifecycle model.
 - The server reloads selected profiles from the tracked project file before
   dispatch, so browser-supplied persona or voice configuration is not trusted.
 - One explicit dispatch creates one named LiveKit participant per agent.
+- A trusted session creator may supply one bounded, dispatch-scoped opening
+  prompt. It controls only the first greeting; it does not modify the tracked
+  agent profile or bypass the worker's profile and media safeguards.
 - In group calls, an agent responds only when its configured name appears in
   the completed user turn. General `team` or `everyone` prompts stay silent.
 - The call dialog uses a near-full-screen stage; multi-agent tiles expand across
