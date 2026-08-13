@@ -33,6 +33,7 @@ import { useCompanyWorldProjection } from "@/modules/world-map/hooks/use-company
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import { OfficeDataProvider, useOptionalOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
+import { UI_Z } from "@/lib/z-index";
 import { TeamOptionsDialog } from "./dialogs/team-options-dialog";
 import { BuilderToolbar } from "./hud/builder-toolbar";
 import { CeoWorkbenchPanel } from "./hud/ceo-workbench-panel";
@@ -269,7 +270,10 @@ function OfficeSimulationContent() {
             <SkillsPanel />
             {!isReadOnly ? <ObjectConfigPanel /> : null}
             {!isReadOnly ? (
-              <div className="pointer-events-none absolute inset-0 z-[69]">
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{ zIndex: UI_Z.sceneHudElevated }}
+              >
                 <ObjectTransformPanel />
               </div>
             ) : null}
@@ -315,12 +319,18 @@ function OfficeSimulationContent() {
             </ContentIntelligenceDataController>
             <ProjectDocumentLibraryPanel />
 
-            <div className="pointer-events-none absolute top-4 left-4 z-[70]">
+            <div
+              className="pointer-events-none absolute top-4 left-4"
+              style={{ zIndex: UI_Z.sceneHud }}
+            >
               <div className="pointer-events-auto">
                 <OfficeMenu />
               </div>
             </div>
-            <div className="pointer-events-none absolute top-4 right-4 z-[64]">
+            <div
+              className="pointer-events-none absolute top-4 right-4"
+              style={{ zIndex: UI_Z.sceneHud }}
+            >
               <OfficeStatsHud
                 employees={employees}
                 officeObjects={officeObjects}
@@ -329,7 +339,10 @@ function OfficeSimulationContent() {
               />
             </div>
             {isReadOnly ? (
-              <div className="pointer-events-none absolute top-32 right-4 z-[70]">
+              <div
+                className="pointer-events-none absolute top-32 right-4"
+                style={{ zIndex: UI_Z.sceneHud }}
+              >
                 <Badge
                   variant="secondary"
                   className="border border-emerald-400/40 bg-emerald-500/15 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-100 shadow-lg backdrop-blur"
@@ -340,19 +353,28 @@ function OfficeSimulationContent() {
             ) : (
               <>
                 <OfficeOnboardingPanel />
-                <div className="pointer-events-none absolute top-24 right-4 z-[69]">
+                <div
+                  className="pointer-events-none absolute top-24 right-4"
+                  style={{ zIndex: UI_Z.sceneHudElevated }}
+                >
                   <BuilderToolbar />
                 </div>
               </>
             )}
 
-            <div className="pointer-events-none absolute bottom-4 right-4 z-[65]">
+            <div
+              className="pointer-events-none absolute bottom-4 right-4"
+              style={{ zIndex: UI_Z.sceneHud }}
+            >
               <LogsToggleButton
                 isOpen={isLogsDrawerOpen}
                 onToggle={() => setIsLogsDrawerOpen((prev) => !prev)}
               />
             </div>
-            <div className="pointer-events-none absolute bottom-4 left-4 z-[65]">
+            <div
+              className="pointer-events-none absolute bottom-4 left-4"
+              style={{ zIndex: UI_Z.sceneHud }}
+            >
               <GatewayStatusPill />
             </div>
 

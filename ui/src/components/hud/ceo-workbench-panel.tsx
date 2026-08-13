@@ -26,9 +26,8 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { OfficeWorkspaceDialog } from "@/components/office-workspace-dialog";
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -149,15 +148,15 @@ export function CeoWorkbenchPanel(): JSX.Element {
     view === "review" ? lanes.filter((lane) => lane.key === "awaiting_review") : lanes;
 
   return (
-    <Dialog
+    <OfficeWorkspaceDialog
+      className="border-border bg-background text-foreground shadow-2xl"
       open={isOpen}
       onOpenChange={(nextOpen) => {
         setIsOpen(nextOpen);
         if (!nextOpen) setSelectedTaskKey(null);
       }}
     >
-      <DialogContent className="z-[1000] flex h-[min(92vh,920px)] max-w-[96vw] flex-col overflow-hidden border border-border bg-background p-0 text-foreground shadow-2xl sm:max-w-[1520px]">
-        <DialogHeader className="border-b border-border bg-card px-8 py-6">
+      <DialogHeader className="border-b border-border bg-card px-8 py-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-3">
               <DialogTitle className="flex items-center gap-3 text-3xl font-semibold tracking-tight text-foreground">
@@ -219,7 +218,7 @@ export function CeoWorkbenchPanel(): JSX.Element {
               ) : null}
             </div>
           </div>
-        </DialogHeader>
+      </DialogHeader>
 
         <ScrollArea className="min-h-0 flex-1">
           {isLoading ? (
@@ -329,7 +328,6 @@ export function CeoWorkbenchPanel(): JSX.Element {
             if (!nextOpen) setSelectedTaskKey(null);
           }}
         />
-      </DialogContent>
-    </Dialog>
+    </OfficeWorkspaceDialog>
   );
 }

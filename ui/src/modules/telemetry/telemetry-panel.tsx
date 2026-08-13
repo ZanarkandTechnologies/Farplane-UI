@@ -1,9 +1,9 @@
 "use client";
 
 import { type ReactElement, useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { OfficeWorkspaceDialog } from "@/components/office-workspace-dialog";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UI_Z } from "@/lib/z-index";
 import { RawTelemetryContent } from "@/modules/hook-telemetry";
 import type { TelemetryPanelTab } from "@/store";
 import { TelemetryDashboardContent } from "./telemetry-dashboard-content";
@@ -27,11 +27,7 @@ export function TelemetryPanel({
   }, [initialTab, open]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="flex h-[88vh] min-w-[82vw] max-w-none flex-col overflow-hidden p-0"
-        style={{ zIndex: UI_Z.panelElevated }}
-      >
+    <OfficeWorkspaceDialog open={open} onOpenChange={onOpenChange}>
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle>Harness Usage</DialogTitle>
         </DialogHeader>
@@ -51,7 +47,6 @@ export function TelemetryPanel({
             <RawTelemetryContent />
           </TabsContent>
         </Tabs>
-      </DialogContent>
-    </Dialog>
+    </OfficeWorkspaceDialog>
   );
 }

@@ -39,9 +39,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { OfficeWorkspaceDialog } from "@/components/office-workspace-dialog";
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -1016,8 +1015,7 @@ export function FurnitureShop({ isOpen, onOpenChange }: FurnitureShopProps) {
   );
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[85vw] max-w-[85vw] h-[85vh] sm:max-w-[85vw] flex flex-col p-0 overflow-hidden gap-0">
+    <OfficeWorkspaceDialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogHeader className="px-6 py-4 border-b shrink-0">
           <DialogTitle>Decoration</DialogTitle>
           <DialogDescription className="sr-only">
@@ -1072,7 +1070,6 @@ export function FurnitureShop({ isOpen, onOpenChange }: FurnitureShopProps) {
             </div>
           </ScrollArea>
         </div>
-      </DialogContent>
-    </Dialog>
+    </OfficeWorkspaceDialog>
   );
 }

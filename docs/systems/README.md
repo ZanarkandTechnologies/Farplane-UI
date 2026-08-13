@@ -3,7 +3,7 @@ kind: systems-index
 status: active
 project: Farplane UI
 created_at: 2026-06-28
-updated_at: 2026-08-08
+updated_at: 2026-08-12
 framework_template_version: "1.6.4"
 owner: harness
 feature_index: ../features/README.md
@@ -25,6 +25,8 @@ The following system contract has a stable cross-feature owner:
 - [Content Capture And Analysis](content-capture-and-analysis.md) — shared
   source/job identity, Resource Bank Save, Vidgard Analyze, Convex migration,
   and involved skill/caller boundaries.
+- [Z-Index System](z-index-system.md) — bounded Office3D HTML overlays,
+  isolated canvas containment, and the application layer contract.
 
 For other product areas that have not yet split into stable system owner docs,
 use:

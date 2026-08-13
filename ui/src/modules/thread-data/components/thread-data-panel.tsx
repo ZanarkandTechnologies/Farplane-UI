@@ -25,7 +25,8 @@ import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { OfficeWorkspaceDialog } from "@/components/office-workspace-dialog";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -41,7 +42,6 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { UI_Z } from "@/lib/z-index";
 import type {
   GraphWorkbenchEdge,
   GraphWorkbenchKind,
@@ -607,19 +607,14 @@ export function ThreadDataPanel({
 
 export function ThreadDataDialog({ open, onOpenChange }: ThreadDataDialogProps): ReactElement {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="flex h-[90vh] min-w-[92vw] max-w-none flex-col overflow-hidden p-0"
-        style={{ zIndex: UI_Z.panelElevated }}
-      >
+    <OfficeWorkspaceDialog open={open} onOpenChange={onOpenChange}>
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle>Thread Data</DialogTitle>
         </DialogHeader>
         <div className="min-h-0 flex-1 p-4">
           <ThreadDataPanel />
         </div>
-      </DialogContent>
-    </Dialog>
+    </OfficeWorkspaceDialog>
   );
 }
 

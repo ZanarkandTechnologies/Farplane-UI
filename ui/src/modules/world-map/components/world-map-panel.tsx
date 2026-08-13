@@ -127,7 +127,10 @@ export function WorldMapBody({
   const plottedCount = filteredNodes.filter(hasCoordinates).length;
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden" data-testid="world-map-panel">
+    <div
+      className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden"
+      data-testid="world-map-panel"
+    >
       <DialogHeader className="border-b px-4 py-3 pr-12">
         <div className="flex flex-wrap items-center gap-3">
           <DialogTitle className="flex items-center gap-2 text-base">

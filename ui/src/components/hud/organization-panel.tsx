@@ -16,9 +16,8 @@ import { CreateTeamForm } from "@/components/hud/create-team-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { OfficeWorkspaceDialog } from "@/components/office-workspace-dialog";
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -993,20 +992,21 @@ export function OrganizationPanel({
   const gridCols = isReadOnly ? "grid-cols-2" : "grid-cols-5";
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="flex h-[min(88vh,840px)] w-[94vw] max-w-[1360px] flex-col overflow-hidden sm:max-w-[1360px]"
-        style={{ zIndex: UI_Z.panelBase }}
-      >
-        <DialogHeader className="shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            Organization
-          </DialogTitle>
-          <DialogDescription>Team and people operations in one panel.</DialogDescription>
-        </DialogHeader>
+    <OfficeWorkspaceDialog
+      className="p-6"
+      open={isOpen}
+      onOpenChange={onOpenChange}
+      style={{ zIndex: UI_Z.panelBase }}
+    >
+      <DialogHeader className="shrink-0">
+        <DialogTitle className="flex items-center gap-2">
+          <Building2 className="h-5 w-5" />
+          Organization
+        </DialogTitle>
+        <DialogDescription>Team and people operations in one panel.</DialogDescription>
+      </DialogHeader>
 
-        <Tabs defaultValue="org-chart" className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+      <Tabs defaultValue="org-chart" className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
           <TabsList className={`grid w-full min-w-0 shrink-0 overflow-hidden ${gridCols}`}>
             <TabsTrigger value="org-chart">Org Chart</TabsTrigger>
             {!isReadOnly ? <TabsTrigger value="create-team">Create Team</TabsTrigger> : null}
@@ -1040,8 +1040,7 @@ export function OrganizationPanel({
           <TabsContent value="directory" className="mt-4 min-h-0 flex-1 overflow-auto">
             <DirectoryTabContent />
           </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+      </Tabs>
+    </OfficeWorkspaceDialog>
   );
 }

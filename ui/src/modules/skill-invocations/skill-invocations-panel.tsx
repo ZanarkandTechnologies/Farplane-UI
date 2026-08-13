@@ -14,7 +14,8 @@ import { useQuery } from "convex/react";
 import { Activity, BookOpen, Clock, Terminal } from "lucide-react";
 import { type ReactElement, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { OfficeWorkspaceDialog } from "@/components/office-workspace-dialog";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -22,7 +23,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { UI_Z } from "@/lib/z-index";
 import { isConvexEnabled } from "@/providers/convex-provider";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import { api } from "../../../../convex/_generated/api";
@@ -192,11 +192,7 @@ export function SkillInvocationsPanel({
   })();
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="flex h-[88vh] min-w-[82vw] max-w-none flex-col overflow-hidden p-0"
-        style={{ zIndex: UI_Z.panelElevated }}
-      >
+    <OfficeWorkspaceDialog open={open} onOpenChange={onOpenChange}>
         <DialogHeader className="border-b px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <DialogTitle>Skill Invocations</DialogTitle>
@@ -218,7 +214,6 @@ export function SkillInvocationsPanel({
           </div>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-hidden px-6 py-4">{content}</div>
-      </DialogContent>
-    </Dialog>
+    </OfficeWorkspaceDialog>
   );
 }
