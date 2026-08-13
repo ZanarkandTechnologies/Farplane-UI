@@ -11,7 +11,7 @@ describe("ticket specialist registry", () => {
       TICKET_SPECIALIST_REGISTRY.every(
         (specialist) =>
           departments.has(specialist.departmentId) &&
-          (specialist.roomId === undefined || rooms.has(specialist.roomId)),
+          (!("roomId" in specialist) || rooms.has(specialist.roomId)),
       ),
     ).toBe(true);
     expect(resolveTicketSpecialist("lead-scout-specialist")?.departmentId).toBe("sales");
