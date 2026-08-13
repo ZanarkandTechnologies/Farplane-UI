@@ -71,6 +71,7 @@ export type ResourceBankCreativeElement = {
   previewAsset?: ResourceBankAssetPreview;
   projectId?: string;
   taskId?: string;
+  createdAtMs: number;
 };
 
 export type BrandKitPromotionTarget = {

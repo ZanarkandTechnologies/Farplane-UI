@@ -8,33 +8,51 @@ import {
   WandSparkles,
   X,
 } from "lucide-react";
-import { type ReactElement, useState } from "react";
+import { Fragment, type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CREATIVE_ELEMENT_KINDS, groupCreativeElementsByRecency } from "./elements-workspace-model";
 import { MediaPreview } from "./media-preview";
 import { displayableMediaUrl, formatKind, formatTag } from "./resource-bank-utils";
 import type { CreativeElementKind, ResourceBankCreativeElement } from "./types";
 
-export const CREATIVE_ELEMENT_KINDS: CreativeElementKind[] = [
-  "all",
-  "format",
-  "storyboard",
-  "visual",
-  "character",
-  "audio",
-  "editing",
-];
-
 export function ElementsWorkspace(props: {
   creativeElements: ResourceBankCreativeElement[] | undefined;
   elementKind: CreativeElementKind;
+  selectedElementId: string | null;
   onKindChange: (kind: CreativeElementKind) => void;
+  onSelectElement: (elementId: string) => void;
+  onCloseElement: () => void;
   onRequestAddToKit: (element: ResourceBankCreativeElement) => void;
   onSelectAsset: (assetId: string) => void;
 }): ReactElement {
-  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [showEarlier, setShowEarlier] = useState(false);
+  const cardRefs = useRef(new Map<string, HTMLElement>());
   const selectedElement =
-    props.creativeElements?.find((element) => elementKey(element) === selectedElementId) ?? null;
+    props.creativeElements?.find((element) => elementKey(element) === props.selectedElementId) ??
+    null;
+  const dateGroups = useMemo(
+    () => groupCreativeElementsByRecency(props.creativeElements ?? []),
+    [props.creativeElements],
+  );
+  const earlierGroup = dateGroups.find((group) => group.key === "earlier");
+  const selectedElementIsEarlier = Boolean(
+    props.selectedElementId &&
+      earlierGroup?.elements.some((element) => elementKey(element) === props.selectedElementId),
+  );
+  const hasRecentElements = dateGroups.some((group) => group.key !== "earlier");
+  const visibleDateGroups = dateGroups.filter(
+    (group) => group.key !== "earlier" || showEarlier || !hasRecentElements,
+  );
+
+  useEffect(() => {
+    if (!props.selectedElementId) return;
+    if (selectedElementIsEarlier && !showEarlier) {
+      setShowEarlier(true);
+      return;
+    }
+    cardRefs.current.get(props.selectedElementId)?.scrollIntoView({ block: "nearest" });
+  }, [props.selectedElementId, selectedElementIsEarlier, showEarlier]);
 
   return (
     <section className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-hidden border bg-card">
@@ -51,6 +69,9 @@ export function ElementsWorkspace(props: {
             {formatKind(kind)}
           </Button>
         ))}
+        <span className="ml-auto hidden shrink-0 self-center text-[10px] font-medium text-muted-foreground sm:inline">
+          Newest first
+        </span>
       </div>
 
       <div
@@ -58,34 +79,70 @@ export function ElementsWorkspace(props: {
           selectedElement ? "xl:grid-cols-[minmax(0,1fr)_420px]" : "grid-cols-1"
         }`}
       >
-        <div
-          className={`${selectedElement ? "hidden xl:grid" : "grid"} min-h-0 min-w-0 content-start gap-3 overflow-x-hidden overflow-y-auto p-2 sm:grid-cols-2 sm:p-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5`}
-        >
-          {props.creativeElements === undefined ? (
-            <div className="col-span-full bg-muted px-3 py-2 text-xs text-muted-foreground">
-              Loading creative elements.
+        {props.creativeElements === undefined ? (
+          <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center p-4">
+            <div
+              aria-live="polite"
+              className="border bg-muted px-4 py-3 text-center text-xs text-muted-foreground"
+            >
+              Loading creative elements…
             </div>
-          ) : props.creativeElements.length > 0 ? (
-            props.creativeElements.map((element) => (
-              <CreativeElementCard
-                key={elementKey(element)}
-                element={element}
-                selected={elementKey(element) === selectedElementId}
-                onOpen={() => setSelectedElementId(elementKey(element))}
-                onRequestAddToKit={() => props.onRequestAddToKit(element)}
-              />
-            ))
-          ) : (
-            <div className="col-span-full flex min-h-60 items-center justify-center border bg-muted px-4 py-6 text-center text-xs text-muted-foreground">
-              No creative elements match this search.
-            </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div
+            className={`${selectedElement ? "hidden xl:grid" : "grid"} min-h-0 min-w-0 content-start gap-3 overflow-x-hidden overflow-y-auto overscroll-contain p-2 sm:grid-cols-2 sm:p-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5`}
+          >
+            {props.creativeElements.length > 0 ? (
+              <>
+                {visibleDateGroups.map((group) => (
+                  <Fragment key={group.key}>
+                    <div className="col-span-full flex items-center gap-2 pt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <span>{group.label}</span>
+                      <span className="h-px flex-1 bg-border" />
+                      <span className="tabular-nums">{group.elements.length}</span>
+                    </div>
+                    {group.elements.map((element) => (
+                      <CreativeElementCard
+                        key={elementKey(element)}
+                        element={element}
+                        selected={elementKey(element) === props.selectedElementId}
+                        onCardRef={(node) => {
+                          const key = elementKey(element);
+                          if (node) cardRefs.current.set(key, node);
+                          else cardRefs.current.delete(key);
+                        }}
+                        onOpen={() => props.onSelectElement(elementKey(element))}
+                        onRequestAddToKit={() => props.onRequestAddToKit(element)}
+                      />
+                    ))}
+                  </Fragment>
+                ))}
+                {!showEarlier && hasRecentElements && earlierGroup ? (
+                  <div className="col-span-full flex justify-center border border-dashed bg-muted/30 p-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-[11px]"
+                      onClick={() => setShowEarlier(true)}
+                    >
+                      Show {earlierGroup.elements.length} earlier elements
+                    </Button>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="col-span-full flex min-h-60 items-center justify-center border bg-muted px-4 py-6 text-center text-xs text-muted-foreground">
+                No creative elements match this search.
+              </div>
+            )}
+          </div>
+        )}
 
         {selectedElement ? (
           <CreativeElementInspector
             element={selectedElement}
-            onClose={() => setSelectedElementId(null)}
+            onClose={props.onCloseElement}
             onRequestAddToKit={() => props.onRequestAddToKit(selectedElement)}
             onSelectAsset={() => props.onSelectAsset(selectedElement.assetId)}
           />
@@ -98,12 +155,14 @@ export function ElementsWorkspace(props: {
 function CreativeElementCard(props: {
   element: ResourceBankCreativeElement;
   selected: boolean;
+  onCardRef: (node: HTMLElement | null) => void;
   onOpen: () => void;
   onRequestAddToKit: () => void;
 }): ReactElement {
   return (
     <article
-      className={`group relative min-h-[390px] min-w-0 w-full max-w-full overflow-hidden border bg-background p-3 text-left transition duration-150 hover:border-primary/60 hover:bg-accent ${
+      ref={props.onCardRef}
+      className={`group relative min-h-[292px] min-w-0 w-full max-w-full touch-manipulation overflow-hidden border bg-background p-2 text-left transition duration-150 hover:border-primary/60 hover:bg-accent ${
         props.selected ? "border-primary bg-primary/10" : ""
       }`}
       data-testid={`creative-element-card-${String(props.element._id ?? props.element.title)}`}
@@ -114,13 +173,12 @@ function CreativeElementCard(props: {
         onClick={props.onOpen}
         className="absolute inset-0 z-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       />
-      <div className="pointer-events-none relative z-10 flex min-h-[364px] flex-col">
+      <div className="pointer-events-none relative z-10 flex min-h-[276px] flex-col">
         <MediaPreview
           asset={elementPreview(props.element)}
           fallbackKind={props.element.assetKind ?? props.element.kind}
           title={props.element.assetTitle ?? props.element.title}
           compact
-          tall
         />
         <div className="mt-3 flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -135,10 +193,10 @@ function CreativeElementCard(props: {
             {formatKind(props.element.kind)}
           </Badge>
         </div>
-        <div className="mt-3 line-clamp-4 text-xs leading-5 text-muted-foreground">
+        <div className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">
           {props.element.description}
         </div>
-        <div className="mt-auto flex items-center justify-between gap-2 pt-4">
+        <div className="mt-auto flex items-center justify-between gap-2 pt-3">
           <div className="flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
             {props.element.pinned ? <Pin className="size-3 fill-current" /> : null}
             <span className="truncate">
@@ -204,7 +262,7 @@ function CreativeElementInspector(props: {
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
         <MediaPreview
           asset={elementPreview(props.element)}
           fallbackKind={props.element.assetKind ?? props.element.kind}

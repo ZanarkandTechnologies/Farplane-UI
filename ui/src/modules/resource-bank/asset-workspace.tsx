@@ -15,6 +15,8 @@ export function AssetWorkspace(props: {
   selectedAsset: ResourceBankAsset | null;
   onSeedDemo: () => void;
   onSelectAsset: (assetId: string | null) => void;
+  onOpenElements: () => void;
+  onOpenElement: (elementId: string) => void;
   onRequestAddToKit: (element: AssetElement) => void;
 }): ReactElement {
   const selected = props.selectedAsset;
@@ -69,7 +71,12 @@ export function AssetWorkspace(props: {
           )}
         </div>
       </section>
-      <AssetInspector asset={selected} onRequestAddToKit={props.onRequestAddToKit} />
+      <AssetInspector
+        asset={selected}
+        onOpenElements={props.onOpenElements}
+        onOpenElement={props.onOpenElement}
+        onRequestAddToKit={props.onRequestAddToKit}
+      />
     </div>
   );
 }
@@ -98,6 +105,8 @@ function EmptyAssetState(props: {
 
 function AssetInspector(props: {
   asset: ResourceBankAsset | null;
+  onOpenElements: () => void;
+  onOpenElement: (elementId: string) => void;
   onRequestAddToKit: (element: AssetElement) => void;
 }): ReactElement {
   const asset = props.asset;
@@ -137,11 +146,15 @@ function AssetInspector(props: {
           title="Pinned taste"
           elements={pinned}
           active
+          onOpenElements={props.onOpenElements}
+          onOpenElement={props.onOpenElement}
           onRequestAddToKit={props.onRequestAddToKit}
         />
         <ElementGroup
           title="Creative elements"
           elements={supporting}
+          onOpenElements={props.onOpenElements}
+          onOpenElement={props.onOpenElement}
           onRequestAddToKit={props.onRequestAddToKit}
         />
         <Breakdown asset={asset} />
@@ -154,20 +167,46 @@ function ElementGroup(props: {
   title: string;
   elements: NonNullable<ResourceBankAsset["creativeElements"]>;
   active?: boolean;
+  onOpenElements: () => void;
+  onOpenElement: (elementId: string) => void;
   onRequestAddToKit: (element: AssetElement) => void;
 }): ReactElement {
+  const visibleElements = props.elements.slice(0, 4);
+  const hiddenElementCount = props.elements.length - visibleElements.length;
   return (
     <div className="mt-4">
       <div className="text-xs font-semibold uppercase text-muted-foreground">{props.title}</div>
       <div className="mt-2 space-y-2">
         {props.elements.length > 0 ? (
-          props.elements.map((element) => (
+          visibleElements.map((element) => (
             <div
               key={element._id ?? `${element.kind}:${element.title}`}
-              className={`min-w-0 overflow-hidden border p-3 ${props.active ? "border-primary/40 bg-primary/5" : ""}`}
+              className={`min-w-0 overflow-hidden border p-2 ${props.active ? "border-primary/40 bg-primary/5" : ""}`}
             >
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0 truncate text-xs font-semibold">{element.title}</div>
+              <div className="flex min-w-0 items-center gap-2">
+                <button
+                  type="button"
+                  disabled={!element._id}
+                  onClick={() => element._id && props.onOpenElement(String(element._id))}
+                  className="min-w-0 flex-1 touch-manipulation text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="min-w-0 flex-1 truncate text-xs font-semibold">
+                      {element.title}
+                    </div>
+                    <Badge
+                      variant={props.active ? "default" : "secondary"}
+                      className="shrink-0 text-[10px]"
+                    >
+                      {formatKind(element.kind)}
+                    </Badge>
+                  </div>
+                  <div className="mt-1 truncate text-[10px] text-muted-foreground">
+                    {element.anchor ||
+                      element.tags.slice(0, 2).map(formatTag).join(" · ") ||
+                      "Open element"}
+                  </div>
+                </button>
                 <div className="flex shrink-0 items-center gap-1">
                   <Button
                     type="button"
@@ -179,25 +218,25 @@ function ElementGroup(props: {
                     <PackageCheck className="size-3.5" />
                     Add
                   </Button>
-                  <Badge variant={props.active ? "default" : "secondary"}>
-                    {formatKind(element.kind)}
-                  </Badge>
                 </div>
               </div>
-              <div className="mt-2 text-xs leading-5 text-muted-foreground">
-                {element.description}
-              </div>
-              {element.anchor ? (
-                <div className="mt-2 truncate text-[11px] font-medium text-muted-foreground">
-                  {element.anchor}
-                </div>
-              ) : null}
             </div>
           ))
         ) : (
           <div className="bg-muted px-3 py-2 text-xs text-muted-foreground">None saved here.</div>
         )}
       </div>
+      {hiddenElementCount > 0 ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-2 h-7 w-full text-[11px]"
+          onClick={props.onOpenElements}
+        >
+          View all {props.elements.length} elements
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -212,7 +251,9 @@ function Breakdown(props: { asset: ResourceBankAsset }): ReactElement {
           className="border p-3"
         >
           <div className="flex flex-wrap gap-1">
-            {analysis.sourceSkill ? <Badge variant="secondary">{analysis.sourceSkill}</Badge> : null}
+            {analysis.sourceSkill ? (
+              <Badge variant="secondary">{analysis.sourceSkill}</Badge>
+            ) : null}
             {analysis.confidence ? <Badge variant="outline">{analysis.confidence}</Badge> : null}
           </div>
           <div className="mt-3 whitespace-pre-wrap text-xs leading-5">

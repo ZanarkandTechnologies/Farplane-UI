@@ -13,10 +13,10 @@ import { useMutation, useQuery } from "convex/react";
 import { Database, Search, Sparkles } from "lucide-react";
 import { type ReactElement, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { OfficeWorkspaceDialog } from "@/components/office-workspace-dialog";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UI_Z } from "@/lib/z-index";
 import { isConvexEnabled } from "@/providers/convex-provider";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -44,6 +44,7 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
   const [elementKind, setElementKind] = useState<CreativeElementKind>("all");
   const [query, setQuery] = useState("");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [selectedBrandKitId, setSelectedBrandKitId] = useState<Id<"brandKits"> | null>(null);
   const [defaultBrandKitId, setDefaultBrandKitId] = useState("");
   const [brandConfigState, setBrandConfigState] = useState<"idle" | "loading" | "saving">("idle");
@@ -128,7 +129,7 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
       return (
         <StatePanel
           icon={<Sparkles className="size-5" />}
-          title="Loading Resource Bank"
+          title="Loading Resource Bank…"
           detail="Reading saved assets, analyses, creative elements, Brand Kits, and previews."
         />
       );
@@ -154,6 +155,8 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <Search className="size-4 shrink-0 text-muted-foreground" />
             <Input
+              name="resource-bank-search"
+              autoComplete="off"
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);
@@ -176,6 +179,14 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
             selectedAsset={selectedAsset}
             onSeedDemo={() => void seedDemo({ confirm: "seed-resource-bank-demo" })}
             onSelectAsset={setSelectedAssetId}
+            onOpenElements={() => {
+              setSelectedElementId(null);
+              setActiveTab("elements");
+            }}
+            onOpenElement={(elementId) => {
+              setSelectedElementId(elementId);
+              setActiveTab("elements");
+            }}
             onRequestAddToKit={openKitPicker}
           />
         </TabsContent>
@@ -187,7 +198,10 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
           <ElementsWorkspace
             creativeElements={creativeElements}
             elementKind={elementKind}
+            selectedElementId={selectedElementId}
             onKindChange={setElementKind}
+            onSelectElement={setSelectedElementId}
+            onCloseElement={() => setSelectedElementId(null)}
             onRequestAddToKit={openKitPicker}
             onSelectAsset={(assetId) => {
               setSelectedAssetId(assetId);
@@ -221,17 +235,12 @@ export function ResourceBankPanel({ open, onOpenChange }: ResourceBankPanelProps
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent
-          className="flex h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-md p-0 sm:h-[94dvh] sm:w-[96vw] sm:max-w-[96vw]"
-          style={{ zIndex: UI_Z.panelElevated }}
-        >
+      <OfficeWorkspaceDialog open={open} onOpenChange={onOpenChange}>
           <DialogHeader className="shrink-0 border-b px-3 py-3 sm:px-4">
             <DialogTitle className="text-base">Resource Bank</DialogTitle>
           </DialogHeader>
           <div className="flex min-h-0 min-w-0 flex-1 px-2 py-2 sm:px-4 sm:py-3">{content}</div>
-        </DialogContent>
-      </Dialog>
+      </OfficeWorkspaceDialog>
       <AddToBrandKitDialog
         element={promotionTarget}
         brandKits={activeBrandKits}
@@ -346,7 +355,7 @@ function filterBrandKits(rows: BrandKit[], query: string): BrandKit[] {
 }
 
 function placeholderFor(tab: ResourceBankTab): string {
-  if (tab === "elements") return "Search elements, why they work, prompts, and tags";
-  if (tab === "brand-kits") return "Search kits, prompts, creative elements, and tags";
-  return "Search assets, notes, tags, and extracted techniques";
+  if (tab === "elements") return "Search elements, why they work, prompts, and tags…";
+  if (tab === "brand-kits") return "Search kits, prompts, creative elements, and tags…";
+  return "Search assets, notes, tags, and extracted techniques…";
 }
