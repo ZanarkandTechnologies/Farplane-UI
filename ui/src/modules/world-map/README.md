@@ -53,12 +53,15 @@ domain semantics to view-specific signals, metrics, resources, or weights;
 specialized consumers read `.farplane/views/<view-id>.json` instead.
 
 Open **Company World** from Command Commons, the office launcher, or command
-palette. **All projects** is the default; selecting one project reuses its
-existing cached query and restores project-local named views. Command Commons
-currently uses a static illuminated click cue rather than graph geometry. The
-aggregate is panel-owned, so mounting a scene preview today would start up to 24
-reads during office launch and couple the 3D render tree to projection refreshes.
-A future preview should consume a shared already-loaded aggregate snapshot, not
-create a second scene data owner or per-frame fetch path.
+palette; each route opens the **World** tab in Content Intelligence. **All projects** is the default; selecting one project reuses its
+existing cached query and restores project-local named views. In the automatic
+Office archipelago, the Office shell owns one bounded Company World source and
+passes that snapshot to both the World panel and the central Nexus preview. The
+preview is a deterministic, read-only 42-node/80-association mesh with a
+motion-reduced static mode; it renders configured project sources when no
+entities have compiled yet, then replaces them with canonical entities and
+associations. It never fetches in the Three render loop. Manual office layouts
+retain the static illuminated cue, and the panel owns its query only when no
+shared preview source is active.
 
 See [feature registry](docs/feature-registry.md) and [QA runbook](docs/qa-runbook.md).

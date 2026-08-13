@@ -48,8 +48,13 @@ launcher or `Ctrl/Cmd+K` command palette.
    remains dashed but static.
 12. Verify the unlocated-only state leaves the basemap fully legible and uses a
    compact bottom notice rather than a full-canvas scrim.
-13. Click Command Commons and verify it opens the registered World panel; confirm
-   the center cue is static, restrained, and does not trigger repeated network reads.
+13. In the automatic archipelago, wait for the center Nexus to resolve and verify
+    its bounded entity points and association lines appear above Command Commons;
+    when no entities have compiled, it must show only configured project sources.
+    Open Company World and confirm it reuses that shared snapshot without a second
+    bridge-read burst; reduced motion leaves the mesh static. In manual layouts,
+    confirm the center remains the restrained static cue. Click Command Commons
+    and verify it opens the registered World panel.
 14. Select an entity with metadata-bearing timeline rows and verify generic
     key/value badges, date, and newest-first evidence. Confirm World does not
     assign risk, feasibility, or resource semantics. Select a linked target

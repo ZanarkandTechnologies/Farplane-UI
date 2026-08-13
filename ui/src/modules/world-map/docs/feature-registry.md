@@ -9,7 +9,7 @@
 | Metadata discovery | `WorldMapPanel` | Search by name, ID, alias, kind, and location; unlocated entities remain visible |
 | Geographic rendering | `WorldMapCanvas` | Lazy Mapbox GL vector renderer promoted only after idle paint; loading and actionable retry states cover provider/WebGL startup while preserving paired-coordinate requirements and source-to-link mention flow |
 | Map provider config | Vite state bridge + injected environment | `VITE_MAPBOX_ACCESS_TOKEN` enters the UI process through `farplane run -- …`; `GET /farplane/map-config` exposes only the bounded browser-safe renderer payload and never reads the token from `~/.farplane/config.toml` |
-| Office entry | Command Commons `uiBinding` | The central table launches the registered `world` internal panel in default All-projects mode; its bounded static cue avoids a second scene data owner |
+| Office entry | Command Commons + Office shell | The central table launches the registered `world` panel in default All-projects mode. Automatic archipelago mode owns one shared aggregate source, which feeds both the panel and a bounded read-only Nexus mesh; configured project sources appear until canonical entities are available, and no data read occurs in the Three render loop. |
 | Evidence detail | `WorldMapPanel` | Entity source path and exact Markdown-derived association context |
 | Entity timeline | Core projection + `WorldEntityDetail` | Dated `Timeline` bullets render on every linked entity with inline tags shown as neutral badges; domain interpretation belongs to specialized view consumers and no additional graph nodes are introduced |
 
