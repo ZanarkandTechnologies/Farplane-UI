@@ -209,7 +209,7 @@ function NewsListRow({
       type="button"
       onClick={() => onOpenNews(story.id)}
       data-testid="news-list-row"
-      className="group grid w-full grid-cols-[5.625rem_minmax(0,1fr)] gap-3 border-b border-border/80 px-0 py-3 text-left last:border-b-0 hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[5.625rem_minmax(0,1fr)_5.5rem_1rem] sm:items-center sm:gap-4"
+      className="group grid w-full grid-cols-[7.03125rem_minmax(0,1fr)] gap-3 border-b border-border/80 px-0 py-3 text-left last:border-b-0 hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[7.03125rem_minmax(0,1fr)_5.5rem_1rem] sm:items-center sm:gap-4"
     >
       <NewsVisual story={story} priority={priority} />
       <div className="min-w-0">
@@ -274,7 +274,7 @@ function NewsVisual({ story, priority }: { story: NewsItem; priority: boolean })
     ? contentThumbnailUrl({ canonicalRef: story.featuredSource.canonicalUrl, sourceKind: "video" })
     : undefined;
   return (
-    <div className="relative size-[5.625rem] overflow-hidden border border-border/80 bg-muted">
+    <div className="relative size-[7.03125rem] overflow-hidden border border-border/80 bg-muted">
       {thumbnailUrl ? (
         <img
           src={thumbnailUrl}

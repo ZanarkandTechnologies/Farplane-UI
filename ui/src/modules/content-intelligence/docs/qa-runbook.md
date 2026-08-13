@@ -25,7 +25,7 @@ to make a browser assertion pass.
    button or a sticky divider covering cards.
 4. Open an analysed card. Its dossier shell must appear immediately; use Back
    to restore the originating tab, date groups, and scroll position.
-5. In News, confirm every report is an in-flow 90px-thumbnail evidence row
+5. In News, confirm every report is an in-flow 112.5px-thumbnail evidence row
    inside its stored-date group: status/source, two-line title, two-line Why
    now, and desktop source/claim counts. Exercise a status/source/project/topic
    filter and repeat the end-of-feed assertion when older eligible News exists.

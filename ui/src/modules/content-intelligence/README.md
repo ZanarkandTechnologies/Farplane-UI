@@ -60,7 +60,7 @@ margin; there are no older/newer-day controls.
 ## News and navigation contract
 
 News is a compact, chronological evidence list—not a generic card library or a
-hero-led dashboard. In-flow date groups contain 90px square cited-source
+hero-led dashboard. In-flow date groups contain 112.5px square cited-source
 thumbnails, an editorial status and source, a two-line title, two-line `Why
 now`, and a compact source/claim count. Opening a row reveals its fuller
 explanation and related coverage. A thumbnail may use only the already-known
