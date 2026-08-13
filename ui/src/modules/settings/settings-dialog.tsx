@@ -1,11 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
 import { type SettingsDialogTab, useAppStore } from "@/store";
 import { getGatewayUiConfig } from "@/modules/runtime";
 import { setOfficeOnboardingCompleted } from "@/modules/office/lib/office-onboarding";
@@ -22,6 +18,7 @@ import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { UserCommunicationsTab } from "@/modules/user-communications";
 import {
   GeneralSettingsPanel,
+  FeatureConfigurationPanel,
   OfficeViewSettingsPanel,
   RuntimeSettingsPanel,
 } from "./settings-dialog-panels";
@@ -48,8 +45,7 @@ type SettingsDialogProps = {
 export default function SettingsDialog(props: SettingsDialogProps) {
   const { open, onOpenChange, initialTab = "general" } = props;
   const adapter = useOfficeRuntimeAdapter();
-  const { officeObjects, officeSettings, refresh, applyOfficeSettings } =
-    useOfficeDataContext();
+  const { officeObjects, officeSettings, refresh, applyOfficeSettings } = useOfficeDataContext();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const dialogOpen = typeof open === "boolean" ? open : uncontrolledOpen;
   const setDialogOpen = onOpenChange ?? setUncontrolledOpen;
@@ -60,35 +56,28 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   const setOfficeOverlay = useAppStore((state) => state.setOfficeOverlay);
   const isBuilderMode = useAppStore((state) => state.isBuilderMode);
   const setBuilderMode = useAppStore((state) => state.setBuilderMode);
-  const setIsOfficeOnboardingVisible = useAppStore(
-    (state) => state.setIsOfficeOnboardingVisible,
-  );
-  const setOfficeOnboardingStep = useAppStore(
-    (state) => state.setOfficeOnboardingStep,
-  );
+  const setIsOfficeOnboardingVisible = useAppStore((state) => state.setIsOfficeOnboardingVisible);
+  const setOfficeOnboardingStep = useAppStore((state) => state.setOfficeOnboardingStep);
   const { connected, updateConfig } = useGateway();
   const gatewayConfig = useMemo(() => getGatewayUiConfig(), []);
-  const [gatewayBaseInput, setGatewayBaseInput] = useState(
-    gatewayConfig.gatewayBase,
-  );
+  const [gatewayBaseInput, setGatewayBaseInput] = useState(gatewayConfig.gatewayBase);
   const [stateBaseInput, setStateBaseInput] = useState(gatewayConfig.stateBase);
   const [defaultSessionKeyInput, setDefaultSessionKeyInput] = useState(
     gatewayConfig.defaultSessionKey,
   );
   const [languageInput, setLanguageInput] = useState(gatewayConfig.language);
   const [statusText, setStatusText] = useState("");
-  const [runtimeKindInput, setRuntimeKindInput] = useState<RuntimeAdapterKind>(
-    () => getRuntimeAdapterKind(import.meta.env.VITE_FARPLANE_RUNTIME_ADAPTER),
+  const [runtimeKindInput, setRuntimeKindInput] = useState<RuntimeAdapterKind>(() =>
+    getRuntimeAdapterKind(import.meta.env.VITE_FARPLANE_RUNTIME_ADAPTER),
   );
   const [runtimeStatusText, setRuntimeStatusText] = useState("");
-  const [runtimeConfigForm, setRuntimeConfigForm] = useState<RuntimeConfigForm>(
-    EMPTY_RUNTIME_CONFIG_FORM,
-  );
+  const [runtimeConfigForm, setRuntimeConfigForm] =
+    useState<RuntimeConfigForm>(EMPTY_RUNTIME_CONFIG_FORM);
   const [runtimeConfigStatusText, setRuntimeConfigStatusText] = useState("");
   const [isSavingRuntimeConfig, setIsSavingRuntimeConfig] = useState(false);
-  const [viewProfileInput, setViewProfileInput] = useState<
-    OfficeSettingsModel["viewProfile"]
-  >(officeSettings.viewProfile);
+  const [viewProfileInput, setViewProfileInput] = useState<OfficeSettingsModel["viewProfile"]>(
+    officeSettings.viewProfile,
+  );
   const [cameraOrientationInput, setCameraOrientationInput] = useState<
     OfficeSettingsModel["cameraOrientation"]
   >(officeSettings.cameraOrientation);
@@ -101,12 +90,9 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   const [isShufflingOffice, setIsShufflingOffice] = useState(false);
   const [characterRendererIdInput, setCharacterRendererIdInput] =
     useState<CharacterRendererId>("three-human");
-  const [characterSpritePetIdInput, setCharacterSpritePetIdInput] =
-    useState("");
-  const [characterSpriteEmployeeIdInput, setCharacterSpriteEmployeeIdInput] =
-    useState("");
-  const [characterGraphicsStatusText, setCharacterGraphicsStatusText] =
-    useState("");
+  const [characterSpritePetIdInput, setCharacterSpritePetIdInput] = useState("");
+  const [characterSpriteEmployeeIdInput, setCharacterSpriteEmployeeIdInput] = useState("");
+  const [characterGraphicsStatusText, setCharacterGraphicsStatusText] = useState("");
   const codexOfficeVisibility = useCodexOfficeVisibilitySettings({
     dialogOpen,
     stateBaseInput,
@@ -122,9 +108,7 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     setDefaultSessionKeyInput(next.defaultSessionKey);
     setLanguageInput(next.language);
     setStatusText("");
-    setRuntimeKindInput(
-      getRuntimeAdapterKind(import.meta.env.VITE_FARPLANE_RUNTIME_ADAPTER),
-    );
+    setRuntimeKindInput(getRuntimeAdapterKind(import.meta.env.VITE_FARPLANE_RUNTIME_ADAPTER));
     setRuntimeStatusText("");
     setRuntimeConfigStatusText("");
     setViewProfileInput(officeSettings.viewProfile);
@@ -133,9 +117,7 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     setViewStatusText("");
     setShuffleStatusText("");
     const characterSettings = readOfficeCharacterRendererSettings();
-    setCharacterRendererIdInput(
-      characterSettings.petId ? "sprite-sheet-2d" : "three-human",
-    );
+    setCharacterRendererIdInput(characterSettings.petId ? "sprite-sheet-2d" : "three-human");
     setCharacterSpritePetIdInput(characterSettings.petId);
     setCharacterSpriteEmployeeIdInput(characterSettings.employeeId);
     setCharacterGraphicsStatusText("");
@@ -202,7 +184,9 @@ export default function SettingsDialog(props: SettingsDialogProps) {
       setRuntimeConfigForm(result.form);
       setRuntimeConfigStatusText("Runtime config saved.");
     } catch {
-      setRuntimeConfigStatusText("Failed to save runtime config.");
+      setRuntimeConfigStatusText(
+        "Could not save configuration. Check the local state bridge and try again.",
+      );
     } finally {
       setIsSavingRuntimeConfig(false);
     }
@@ -242,9 +226,7 @@ export default function SettingsDialog(props: SettingsDialogProps) {
     });
     setIsShufflingOffice(false);
     if (!result.ok) {
-      setShuffleStatusText(
-        result.error ?? "Failed to shuffle office furniture.",
-      );
+      setShuffleStatusText(result.error ?? "Failed to shuffle office furniture.");
       return;
     }
     await refresh();
@@ -287,7 +269,9 @@ export default function SettingsDialog(props: SettingsDialogProps) {
         className={
           activeTab === "communications"
             ? "flex h-[min(92vh,860px)] max-w-[98vw] flex-col overflow-hidden p-0 sm:max-w-[1240px]"
-            : "max-h-[85vh] max-w-md overflow-y-auto"
+            : activeTab === "configurations"
+              ? "max-h-[85vh] max-w-2xl overflow-y-auto"
+              : "max-h-[85vh] max-w-md overflow-y-auto"
         }
         style={{ zIndex: UI_Z.panelBase }}
       >
@@ -298,15 +282,13 @@ export default function SettingsDialog(props: SettingsDialogProps) {
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as SettingsDialogTab)}
           className={
-            activeTab === "communications"
-              ? "flex min-h-0 flex-1 flex-col px-6 py-4"
-              : "py-4"
+            activeTab === "communications" ? "flex min-h-0 flex-1 flex-col px-6 py-4" : "py-4"
           }
         >
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="office">Office</TabsTrigger>
-            <TabsTrigger value="runtime">Runtime</TabsTrigger>
+            <TabsTrigger value="configurations">Configs</TabsTrigger>
             <TabsTrigger value="communications">Comms</TabsTrigger>
           </TabsList>
 
@@ -342,41 +324,55 @@ export default function SettingsDialog(props: SettingsDialogProps) {
               onShuffle={() => void handleShuffleOffice()}
               onCharacterRendererIdChange={setCharacterRendererIdInput}
               onCharacterSpritePetIdChange={setCharacterSpritePetIdInput}
-              onCharacterSpriteEmployeeIdChange={
-                setCharacterSpriteEmployeeIdInput
-              }
+              onCharacterSpriteEmployeeIdChange={setCharacterSpriteEmployeeIdInput}
               onApplyCharacterGraphics={handleApplyCharacterGraphics}
             />
           </TabsContent>
 
-          <TabsContent value="runtime" className="mt-4 space-y-4">
-            <RuntimeSettingsPanel
-              runtimeKind={runtimeKindInput}
-              runtimeStatusText={runtimeStatusText}
-              connected={connected}
-              gatewayBase={gatewayBaseInput}
-              stateBase={stateBaseInput}
-              defaultSessionKey={defaultSessionKeyInput}
-              language={languageInput}
-              codexForm={codexOfficeVisibility.form}
-              codexStatusText={codexOfficeVisibility.statusText}
-              isSavingCodexSettings={codexOfficeVisibility.isSaving}
-              runtimeConfigForm={runtimeConfigForm}
-              runtimeConfigStatusText={runtimeConfigStatusText}
-              isSavingRuntimeConfig={isSavingRuntimeConfig}
-              onRuntimeKindChange={setRuntimeKindInput}
-              onApplyRuntimeMode={handleApplyRuntimeMode}
-              onGatewayBaseChange={setGatewayBaseInput}
-              onStateBaseChange={setStateBaseInput}
-              onDefaultSessionKeyChange={setDefaultSessionKeyInput}
-              onLanguageChange={setLanguageInput}
-              onConnectGateway={handleConnectGateway}
-              onRefreshGatewayConfig={handleRefreshGatewayConfig}
-              onCodexFormChange={codexOfficeVisibility.setForm}
-              onSaveCodexSettings={() => void codexOfficeVisibility.save()}
-              onRuntimeConfigFormChange={setRuntimeConfigForm}
-              onSaveRuntimeConfig={() => void handleSaveRuntimeConfig()}
+          <TabsContent value="configurations" className="mt-4 space-y-5">
+            <FeatureConfigurationPanel
+              form={runtimeConfigForm}
+              statusText={runtimeConfigStatusText}
+              isSaving={isSavingRuntimeConfig}
+              onFormChange={setRuntimeConfigForm}
+              onSave={() => void handleSaveRuntimeConfig()}
             />
+
+            <section className="space-y-3 border-t pt-5">
+              <div className="space-y-1">
+                <Label>Runtime</Label>
+                <p className="text-xs text-muted-foreground">
+                  Local adapter behavior, visibility, automation, and connection readiness.
+                </p>
+              </div>
+              <RuntimeSettingsPanel
+                runtimeKind={runtimeKindInput}
+                runtimeStatusText={runtimeStatusText}
+                connected={connected}
+                gatewayBase={gatewayBaseInput}
+                stateBase={stateBaseInput}
+                defaultSessionKey={defaultSessionKeyInput}
+                language={languageInput}
+                codexForm={codexOfficeVisibility.form}
+                codexStatusText={codexOfficeVisibility.statusText}
+                isSavingCodexSettings={codexOfficeVisibility.isSaving}
+                runtimeConfigForm={runtimeConfigForm}
+                runtimeConfigStatusText={runtimeConfigStatusText}
+                isSavingRuntimeConfig={isSavingRuntimeConfig}
+                onRuntimeKindChange={setRuntimeKindInput}
+                onApplyRuntimeMode={handleApplyRuntimeMode}
+                onGatewayBaseChange={setGatewayBaseInput}
+                onStateBaseChange={setStateBaseInput}
+                onDefaultSessionKeyChange={setDefaultSessionKeyInput}
+                onLanguageChange={setLanguageInput}
+                onConnectGateway={handleConnectGateway}
+                onRefreshGatewayConfig={handleRefreshGatewayConfig}
+                onCodexFormChange={codexOfficeVisibility.setForm}
+                onSaveCodexSettings={() => void codexOfficeVisibility.save()}
+                onRuntimeConfigFormChange={setRuntimeConfigForm}
+                onSaveRuntimeConfig={() => void handleSaveRuntimeConfig()}
+              />
+            </section>
             {runtimeKindInput === "openclaw" && statusText ? (
               <p className="text-xs text-muted-foreground">{statusText}</p>
             ) : null}

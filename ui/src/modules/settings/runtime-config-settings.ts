@@ -31,6 +31,10 @@ export type RuntimeConfigForm = {
   stateBase: string;
   convexSiteUrl: string;
   convexClientUrl: string;
+  videoIntelligenceAnalysis: {
+    model: string;
+    reasoningEffort: string;
+  };
   env: RuntimeEnvEntry[];
 };
 
@@ -50,6 +54,11 @@ type RuntimeConfigPayload = {
   config?: Partial<
     Pick<RuntimeConfigForm, "codexAppServerUrl" | "stateBase" | "convexSiteUrl" | "convexClientUrl">
   >;
+  features?: {
+    videoIntelligence?: {
+      analysis?: Partial<RuntimeConfigForm["videoIntelligenceAnalysis"]>;
+    };
+  };
   env?: unknown[];
 };
 
@@ -64,6 +73,10 @@ export const EMPTY_RUNTIME_CONFIG_FORM: RuntimeConfigForm = {
   stateBase: "",
   convexSiteUrl: "",
   convexClientUrl: "",
+  videoIntelligenceAnalysis: {
+    model: "gpt-5.6-terra",
+    reasoningEffort: "xhigh",
+  },
   env: [],
 };
 
@@ -113,6 +126,10 @@ function formFromPayload(payload: RuntimeConfigPayload | undefined): {
       stateBase: config.stateBase ?? "",
       convexSiteUrl: config.convexSiteUrl ?? "",
       convexClientUrl: config.convexClientUrl ?? "",
+      videoIntelligenceAnalysis: {
+        model: payload?.features?.videoIntelligence?.analysis?.model ?? "gpt-5.6-terra",
+        reasoningEffort: payload?.features?.videoIntelligence?.analysis?.reasoningEffort ?? "xhigh",
+      },
       env,
     },
   };
@@ -152,6 +169,11 @@ export async function saveRuntimeConfigSettings(
         stateBase: form.stateBase,
         convexSiteUrl: form.convexSiteUrl,
         convexClientUrl: form.convexClientUrl,
+      },
+      features: {
+        videoIntelligence: {
+          analysis: form.videoIntelligenceAnalysis,
+        },
       },
       env: Object.fromEntries(
         form.env

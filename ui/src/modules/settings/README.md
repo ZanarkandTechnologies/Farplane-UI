@@ -3,7 +3,7 @@
 ## Purpose
 
 Operator settings for Farplane UI. This module owns the settings dialog shell,
-settings panels, and runtime-specific settings helpers.
+feature-default panels, and runtime-specific settings helpers.
 
 ## Public API
 
@@ -20,6 +20,8 @@ Import from `@/modules/settings`.
 - Persist only non-secret operator settings in `~/.farplane/config.toml`.
   Credential rows consume environment-injected values and, when missing, show
   the exact value-free Doppler setup and relaunch commands.
+- Put new cross-feature settings in `cli/operator-settings.ts` before adding a
+  UI control, so CLI callers and the state bridge resolve the same contract.
 - Do not add unrelated HUD or launcher behavior here.
 
 ## Test

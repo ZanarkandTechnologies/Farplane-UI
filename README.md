@@ -251,8 +251,8 @@ configurable `miscProjectName` table. `miscPathIncludes` can force scratch
 folders such as `Documents/Codex` into that table even when Codex has
 registered them as project paths.
 
-Local runtime settings are configured in the app under Settings -> Runtime ->
-Project Config. Non-secret URLs, policies, hook flags, and operator preferences
+Local runtime settings are configured in the app under Settings -> Configs.
+Non-secret feature defaults, URLs, policies, hook flags, and operator preferences
 are saved to `~/.farplane/config.toml`. API keys, tokens, passwords, and OAuth
 credentials are injected into each credentialed process; this checkout uses
 `farplane run -- <command>` with Doppler. The UI reports credential readiness
@@ -340,7 +340,7 @@ Notes:
 - `corepack pnpm run build` currently preserves the narrower root-owned build gate; use `corepack pnpm run ui:build` for the Vite bundle.
 - The UI reads Farplane-owned office sidecars from `~/.farplane`; Codex is the default runtime adapter, Codex app-server is reached only through the local state bridge, and OpenClaw runtime state remains adapter-owned when explicitly enabled.
 - Optional Codex app-server smoke: run `codex app-server --listen ws://127.0.0.1:47891`, then launch the UI with `CODEX_APP_SERVER_URL=ws://127.0.0.1:47891 corepack pnpm run ui -- --host 127.0.0.1`.
-- Use Settings -> Runtime -> Project Config for non-secret runtime URLs, hook/debug flags, and review settings. `~/.farplane/config.toml` is a non-secret operator-settings file.
+- Use Settings -> Configs for non-secret feature defaults, runtime URLs, hook/debug flags, and review settings. `~/.farplane/config.toml` is a non-secret operator-settings file; see [Configuration System](docs/systems/configuration-system.md) for ownership boundaries.
 - Launch credentialed processes with `farplane run -- <command>` so Doppler injects their required environment variables.
 - Optional: inject `FARPLANE_MESHY_API_KEY` or `MESHY_API_KEY` when launching the UI to enable **Generate with AI** in Decoration -> Import; generated GLB furniture is saved to Custom Library.
 - The global `farplane` alias comes from Farplane Core. This repo exposes only the module-local `farplane-ui` package bin for direct checkout development.

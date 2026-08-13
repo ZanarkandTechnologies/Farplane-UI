@@ -50,6 +50,15 @@ import {
 import { createRealtimeCallSession } from "./server/realtime-call";
 import { readLeverageProjection } from "./server/leverage-projection";
 import { stripSecretConfigValues } from "./server/runtime-config-sanitizer";
+import {
+  operatorSettingsAt,
+  patchOperatorSettingsToml,
+  parseOperatorSettingsToml,
+  resolveVideoIntelligenceAnalysisProfile,
+  setOperatorSettingsValue,
+  stripSecretsFromOperatorSettingsToml,
+  type OperatorSettingsTomlUpdate,
+} from "../cli/operator-settings";
 
 type JsonObject = Record<string, unknown>;
 type MemoryEntryType = "discovery" | "decision" | "problem" | "solution" | "pattern" | "warning" | "success" | "refactor" | "bugfix" | "feature";
@@ -343,154 +352,12 @@ const SKILL_PACKAGE_FILE_NAMES = ["SKILL.md", "skill.md"] as const;
 const MESHY_API_BASE = "https://api.meshy.ai/openapi/v2";
 const execFileAsync = promisify(execFile);
 
-function stripTomlComment(line: string): string {
-  let quoted = false;
-  let escaped = false;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (char === "\\" && quoted) {
-      escaped = true;
-      continue;
-    }
-    if (char === "\"") {
-      quoted = !quoted;
-      continue;
-    }
-    if (char === "#" && !quoted) return line.slice(0, index).trimEnd();
-  }
-  return line.trimEnd();
-}
-
-function parseTomlValue(rawValue: string): unknown {
-  const value = rawValue.trim();
-  if (!value) return "";
-  if (value === "true") return true;
-  if (value === "false") return false;
-  if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
-  if (value.startsWith("[") && value.endsWith("]")) {
-    try {
-      const parsed = JSON.parse(value) as unknown;
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-  if (value.startsWith("\"") && value.endsWith("\"")) {
-    try {
-      const parsed = JSON.parse(value) as unknown;
-      return typeof parsed === "string" ? parsed.trim() : "";
-    } catch {
-      return value.slice(1, -1).trim();
-    }
-  }
-  return value.trim();
-}
-
 function readLocalTomlObjectSync(filePath: string): JsonObject {
-  let current: JsonObject | null = null;
-  const root: JsonObject = {};
   try {
-    const lines = readFileSync(filePath, "utf-8").split(/\r?\n/);
-    for (const rawLine of lines) {
-      const line = stripTomlComment(rawLine).trim();
-      if (!line) continue;
-      const sectionMatch = line.match(/^\[([A-Za-z0-9_.-]+)\]$/);
-      if (sectionMatch) {
-        current = root;
-        for (const part of sectionMatch[1].split(".")) {
-          const child = current[part];
-          if (!child || typeof child !== "object" || Array.isArray(child)) {
-            current[part] = {};
-          }
-          current = current[part] as JsonObject;
-        }
-        continue;
-      }
-      const assignmentMatch = line.match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*(.*)$/);
-      if (!assignmentMatch || !current) continue;
-      current[assignmentMatch[1]] = parseTomlValue(assignmentMatch[2]);
-    }
+    return parseOperatorSettingsToml(readFileSync(filePath, "utf-8"));
   } catch {
     return {};
   }
-  return root;
-}
-
-function tomlString(value: unknown): string {
-  if (typeof value === "boolean") return value ? "true" : "false";
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  if (Array.isArray(value)) {
-    return JSON.stringify(value.filter((entry) => typeof entry === "string"));
-  }
-  return JSON.stringify(typeof value === "string" ? value : String(value ?? ""));
-}
-
-function serializeTomlSection(name: string, row: unknown): string[] {
-  if (!row || typeof row !== "object" || Array.isArray(row)) return [];
-  const entries = Object.entries(row as JsonObject)
-    .filter(([, value]) => {
-      if (typeof value === "string") return value.trim();
-      if (typeof value === "boolean") return true;
-      if (typeof value === "number") return Number.isFinite(value);
-      if (Array.isArray(value)) return value.length > 0;
-      return false;
-    })
-    .sort(([left], [right]) => left.localeCompare(right));
-  if (!entries.length) return [];
-  return [`[${name}]`, ...entries.map(([key, value]) => `${key} = ${tomlString(value)}`), ""];
-}
-
-function serializeFarplaneConfigToml(row: JsonObject): string {
-  const lines = [
-    "# Managed by Farplane UI Settings. This file contains non-secret operator settings only.",
-    "# Inject credentials into processes with `farplane run -- <command>`.",
-    "",
-    ...serializeTomlSection("runtime", row.runtime),
-    ...serializeTomlSection("convex", row.convex),
-    ...serializeTomlSection("integrations", row.integrations),
-    ...serializeTomlSection("telegram", row.telegram),
-    ...serializeTomlSection(
-      "telegram.streaming",
-      row.telegram &&
-        typeof row.telegram === "object" &&
-        !Array.isArray(row.telegram) &&
-        (row.telegram as JsonObject).streaming,
-    ),
-    ...serializeTomlSection(
-      "hooks.file_change",
-      row.hooks &&
-        typeof row.hooks === "object" &&
-        !Array.isArray(row.hooks) &&
-        (row.hooks as JsonObject).file_change,
-    ),
-    ...serializeTomlSection(
-      "social.x",
-      row.social &&
-        typeof row.social === "object" &&
-        !Array.isArray(row.social) &&
-        (row.social as JsonObject).x,
-    ),
-    ...serializeTomlSection(
-      "social.instagram",
-      row.social &&
-        typeof row.social === "object" &&
-        !Array.isArray(row.social) &&
-        (row.social as JsonObject).instagram,
-    ),
-    ...serializeTomlSection(
-      "social.meta",
-      row.social &&
-        typeof row.social === "object" &&
-        !Array.isArray(row.social) &&
-        (row.social as JsonObject).meta,
-    ),
-    ...serializeTomlSection("env", row.env),
-  ];
-  return `${lines.join("\n").trimEnd()}\n`;
 }
 
 function objectStringAt(row: JsonObject, pathParts: string[]): string {
@@ -627,39 +494,11 @@ async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
 }
 
 function setNestedString(row: JsonObject, pathParts: string[], value: string): void {
-  let current = row;
-  for (let index = 0; index < pathParts.length - 1; index += 1) {
-    const key = pathParts[index];
-    const child = current[key];
-    if (!child || typeof child !== "object" || Array.isArray(child)) {
-      current[key] = {};
-    }
-    current = current[key] as JsonObject;
-  }
-  const leaf = pathParts[pathParts.length - 1];
-  if (value.trim()) {
-    current[leaf] = value.trim();
-  } else {
-    delete current[leaf];
-  }
+  setOperatorSettingsValue(row, pathParts, value.trim() || undefined);
 }
 
 function setNestedValue(row: JsonObject, pathParts: string[], value: JsonValue | undefined): void {
-  let current = row;
-  for (let index = 0; index < pathParts.length - 1; index += 1) {
-    const key = pathParts[index];
-    const child = current[key];
-    if (!child || typeof child !== "object" || Array.isArray(child)) {
-      current[key] = {};
-    }
-    current = current[key] as JsonObject;
-  }
-  const leaf = pathParts[pathParts.length - 1];
-  if (value === undefined || value === null || value === "") {
-    delete current[leaf];
-  } else {
-    current[leaf] = value;
-  }
+  setOperatorSettingsValue(row, pathParts, value);
 }
 
 function setNestedStringIfPresent(
@@ -670,6 +509,23 @@ function setNestedStringIfPresent(
 ): void {
   if (!Object.prototype.hasOwnProperty.call(source, sourceKey)) return;
   setNestedString(row, pathParts, String(source[sourceKey] ?? ""));
+}
+
+function operatorSettingsUpdates(
+  row: JsonObject,
+  paths: readonly (readonly string[])[],
+): OperatorSettingsTomlUpdate[] {
+  return paths.map((pathParts) => ({
+    path: pathParts,
+    value: operatorSettingsAt(row, [...pathParts]),
+  }));
+}
+
+function writePatchedOperatorSettings(
+  source: string,
+  updates: readonly OperatorSettingsTomlUpdate[],
+): string {
+  return stripSecretsFromOperatorSettingsToml(patchOperatorSettingsToml(source, updates));
 }
 
 function runtimeSecretStatus(envNames: string[]): JsonObject {
@@ -912,6 +768,9 @@ function runtimeEnvValue(config: RuntimeEnvConfig): string {
 
 function readRuntimeConfigForUi(): JsonObject {
   const telegram = localConfigObject(["telegram"]);
+  const videoIntelligenceAnalysis = resolveVideoIntelligenceAnalysisProfile(
+    readLocalTomlObjectSync(FARPLANE_CONFIG_TOML_PATH),
+  );
   const telegramStreaming =
     telegram.streaming && typeof telegram.streaming === "object" && !Array.isArray(telegram.streaming)
       ? telegram.streaming as JsonObject
@@ -981,6 +840,14 @@ function readRuntimeConfigForUi(): JsonObject {
       streamingMode: typeof telegramStreaming.mode === "string" ? telegramStreaming.mode : "",
       botToken: runtimeSecretStatus(["TELEGRAM_BOT_TOKEN"]),
     },
+    features: {
+      videoIntelligence: {
+        analysis: {
+          model: videoIntelligenceAnalysis.model,
+          reasoningEffort: videoIntelligenceAnalysis.reasoningEffort,
+        },
+      },
+    },
     env: RUNTIME_ENV_CATALOG.map((config) => ({
       ...config,
       status: runtimeEnvStatus(config),
@@ -1012,7 +879,12 @@ async function saveRuntimeConfigFromUi(input: unknown): Promise<JsonObject> {
     body.telegram && typeof body.telegram === "object" && !Array.isArray(body.telegram)
       ? (body.telegram as JsonObject)
       : {};
-  const config = readLocalTomlObjectSync(FARPLANE_CONFIG_TOML_PATH);
+  const featuresInput =
+    body.features && typeof body.features === "object" && !Array.isArray(body.features)
+      ? (body.features as JsonObject)
+      : {};
+  const source = await readFile(FARPLANE_CONFIG_TOML_PATH, "utf-8").catch(() => "");
+  const config = parseOperatorSettingsToml(source);
 
   setNestedStringIfPresent(config, configInput, "codexAppServerUrl", [
     "runtime",
@@ -1031,6 +903,45 @@ async function saveRuntimeConfigFromUi(input: unknown): Promise<JsonObject> {
     "FARPLANE_CONVEX_SITE_URL",
   ]);
   setNestedStringIfPresent(config, configInput, "convexClientUrl", ["env", "VITE_CONVEX_URL"]);
+
+  const videoIntelligenceInput =
+    featuresInput.videoIntelligence &&
+    typeof featuresInput.videoIntelligence === "object" &&
+    !Array.isArray(featuresInput.videoIntelligence)
+      ? (featuresInput.videoIntelligence as JsonObject)
+      : {};
+  const videoAnalysisInput =
+    videoIntelligenceInput.analysis &&
+    typeof videoIntelligenceInput.analysis === "object" &&
+    !Array.isArray(videoIntelligenceInput.analysis)
+      ? (videoIntelligenceInput.analysis as JsonObject)
+      : null;
+  if (videoAnalysisInput) {
+    const current = resolveVideoIntelligenceAnalysisProfile(config);
+    setNestedString(
+      config,
+      ["features", "video_intelligence", "analysis", "model"],
+      typeof videoAnalysisInput.model === "string" ? videoAnalysisInput.model : current.model,
+    );
+    setNestedString(
+      config,
+      ["features", "video_intelligence", "analysis", "reasoning_effort"],
+      typeof videoAnalysisInput.reasoningEffort === "string"
+        ? videoAnalysisInput.reasoningEffort
+        : current.reasoningEffort,
+    );
+    const normalized = resolveVideoIntelligenceAnalysisProfile(config);
+    setNestedString(
+      config,
+      ["features", "video_intelligence", "analysis", "model"],
+      normalized.model,
+    );
+    setNestedString(
+      config,
+      ["features", "video_intelligence", "analysis", "reasoning_effort"],
+      normalized.reasoningEffort,
+    );
+  }
 
   const envInput =
     body.env && typeof body.env === "object" && !Array.isArray(body.env)
@@ -1087,8 +998,47 @@ async function saveRuntimeConfigFromUi(input: unknown): Promise<JsonObject> {
   }
   stripSecretConfigValues(config);
 
+  const managedPaths: string[][] = [
+    ["runtime", "codex_app_server_url"],
+    ["runtime", "state_base"],
+    ["convex", "site_url"],
+    ["convex", "client_url"],
+    ["env", "CODEX_APP_SERVER_URL"],
+    ["env", "FARPLANE_STATE_BASE"],
+    ["env", "FARPLANE_CONVEX_SITE_URL"],
+    ["env", "VITE_CONVEX_URL"],
+    ["features", "video_intelligence", "analysis", "model"],
+    ["features", "video_intelligence", "analysis", "reasoning_effort"],
+    ["telegram", "enabled"],
+    ["telegram", "main_thread_id"],
+    ["telegram", "dm_policy"],
+    ["telegram", "group_policy"],
+    ["telegram", "allow_from"],
+    ["telegram", "streaming", "mode"],
+    ["integrations", "meshy_api_key"],
+    ["integrations", "meshyApiKey"],
+    ["integrations", "notion_api_key"],
+    ["integrations", "notionApiKey"],
+    ["integrations", "slash", "api_key"],
+    ["integrations", "slash", "apiKey"],
+    ["convex", "telemetry_token"],
+    ["convex", "telemetryToken"],
+    ["telegram", "bot_token"],
+    ["telegram", "botToken"],
+    ["maps", "mapbox_public_token"],
+    ["maps", "mapboxPublicToken"],
+    ...RUNTIME_ENV_CATALOG.map((entry) => ["env", entry.name]),
+    ...["NOTION_API_KEY", "NOTION_TOKEN", "TELEGRAM_BOT_TOKEN", "MAPBOX_ACCESS_TOKEN", "SLASH_API_KEY"].map(
+      (name) => ["env", name],
+    ),
+  ];
+
   await mkdir(FARPLANE_HOME, { recursive: true });
-  await writeFile(FARPLANE_CONFIG_TOML_PATH, serializeFarplaneConfigToml(config), "utf-8");
+  await writeFile(
+    FARPLANE_CONFIG_TOML_PATH,
+    writePatchedOperatorSettings(source, operatorSettingsUpdates(config, managedPaths)),
+    "utf-8",
+  );
   await chmod(FARPLANE_CONFIG_TOML_PATH, 0o600).catch(() => undefined);
   return readRuntimeConfigForUi();
 }
@@ -1198,7 +1148,8 @@ async function saveProjectHookConfig(projectPath: string, input: unknown): Promi
   const manifest = await readJsonFile<JsonObject>(path.join(root, "farplane", "manifest.json"), {});
   const config = normalizeHookConfig(input, readManifestTrackedPaths(manifest));
   const filePath = hookConfigPath(root);
-  const existing = readLocalTomlObjectSync(filePath);
+  const source = await readFile(filePath, "utf8").catch(() => "");
+  const existing = parseOperatorSettingsToml(source);
   setNestedValue(existing, ["hooks", "file_change", "enabled"], config.enabled);
   setNestedValue(existing, ["hooks", "file_change", "summaryEnabled"], config.summaryEnabled);
   setNestedValue(existing, ["hooks", "file_change", "summaryDebounceMs"], config.summaryDebounceMs);
@@ -1206,7 +1157,21 @@ async function saveProjectHookConfig(projectPath: string, input: unknown): Promi
   setNestedValue(existing, ["hooks", "file_change", "selectedManifestPaths"], config.selectedManifestPaths);
   setNestedValue(existing, ["hooks", "file_change", "customPatterns"], config.customPatterns);
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, serializeFarplaneConfigToml(existing), "utf8");
+  await writeFile(
+    filePath,
+    writePatchedOperatorSettings(
+      source,
+      operatorSettingsUpdates(existing, [
+        ["hooks", "file_change", "enabled"],
+        ["hooks", "file_change", "summaryEnabled"],
+        ["hooks", "file_change", "summaryDebounceMs"],
+        ["hooks", "file_change", "includeManifestTracked"],
+        ["hooks", "file_change", "selectedManifestPaths"],
+        ["hooks", "file_change", "customPatterns"],
+      ]),
+    ),
+    "utf8",
+  );
   await chmod(filePath, 0o600).catch(() => undefined);
   return readProjectHookConfig(root);
 }

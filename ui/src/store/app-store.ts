@@ -32,7 +32,7 @@ export type SkillStudioSurface =
   | "template-tracking";
 export type GlobalTeamPanelInitialTab = "overview" | "thread-data";
 export type TelemetryPanelTab = "usage" | "events";
-export type SettingsDialogTab = "general" | "office" | "runtime" | "communications";
+export type SettingsDialogTab = "general" | "office" | "configurations" | "communications";
 export type ContentIntelligenceInitialTab = "content" | "world";
 
 type ObjectPanelAspectRatio = "wide" | "square" | "tall";

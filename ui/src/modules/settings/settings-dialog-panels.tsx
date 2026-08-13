@@ -128,6 +128,88 @@ export function GeneralSettingsPanel(props: GeneralSettingsPanelProps) {
   );
 }
 
+type FeatureConfigurationPanelProps = {
+  form: RuntimeConfigForm;
+  statusText: string;
+  isSaving: boolean;
+  onFormChange: (value: RuntimeConfigForm) => void;
+  onSave: () => void;
+};
+
+/** Non-secret feature defaults live in one typed operator-settings surface. */
+export function FeatureConfigurationPanel(props: FeatureConfigurationPanelProps) {
+  const { form, statusText, isSaving, onFormChange, onSave } = props;
+  const analysis = form.videoIntelligenceAnalysis;
+  const updateAnalysis = (next: Partial<typeof analysis>) =>
+    onFormChange({
+      ...form,
+      videoIntelligenceAnalysis: { ...analysis, ...next },
+    });
+
+  return (
+    <section className="space-y-3">
+      <div className="space-y-1">
+        <Label>Feature defaults</Label>
+        <p className="text-xs text-muted-foreground">
+          These non-secret defaults apply to future work on this Mac.
+        </p>
+      </div>
+
+      <div className="space-y-3 rounded-md border border-border/70 p-4">
+        <div className="space-y-1">
+          <Label>Video Intelligence</Label>
+          <p className="text-xs text-muted-foreground">
+            Every new video analysis snapshots this profile before it starts.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground" htmlFor="video-intelligence-model">
+              Analysis model
+            </Label>
+            <Input
+              id="video-intelligence-model"
+              name="video-intelligence-model"
+              autoComplete="off"
+              spellCheck={false}
+              value={analysis.model}
+              onChange={(event) => updateAnalysis({ model: event.target.value })}
+              placeholder="gpt-5.6-terra"
+            />
+          </div>
+          <SelectField
+            id="video-intelligence-reasoning-effort"
+            label="Reasoning effort"
+            value={analysis.reasoningEffort}
+            onChange={(reasoningEffort) => updateAnalysis({ reasoningEffort })}
+            options={[
+              ["none", "None"],
+              ["low", "Low"],
+              ["medium", "Medium"],
+              ["high", "High"],
+              ["xhigh", "Extra high"],
+              ["max", "Max"],
+            ]}
+          />
+        </div>
+        <p className="text-xs leading-snug text-muted-foreground">
+          Saved to <code>~/.farplane/config.toml</code>. Farplane checks this profile against Codex
+          before analysis begins.
+        </p>
+      </div>
+
+      <Button size="sm" onClick={onSave} disabled={isSaving}>
+        {isSaving ? "Saving…" : "Save Configuration"}
+      </Button>
+      {statusText ? (
+        <p className="text-xs text-muted-foreground" aria-live="polite">
+          {statusText}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function OverlayToggle(props: {
   label: string;
   description: string;
@@ -457,7 +539,7 @@ function RuntimeProjectConfigSettings(props: {
   return (
     <div className="space-y-3 border-t pt-4">
       <div className="flex flex-col gap-1">
-        <Label>Project Config</Label>
+        <Label>Runtime & automation</Label>
         <span className="text-xs text-muted-foreground">
           Non-secret settings save locally. Credential rows report the injected process environment.
         </span>
@@ -483,7 +565,7 @@ function RuntimeProjectConfigSettings(props: {
       ))}
 
       <Button size="sm" onClick={onSave} disabled={isSaving}>
-        {isSaving ? "Saving..." : "Save Project Config"}
+        {isSaving ? "Saving…" : "Save Runtime Settings"}
       </Button>
       {statusText ? <p className="text-xs text-muted-foreground">{statusText}</p> : null}
     </div>
@@ -773,17 +855,21 @@ function TextareaField(props: {
 }
 
 function SelectField(props: {
+  id?: string;
   label: string;
   value: string;
   options: Array<[value: string, label: string]>;
   onChange: (value: string) => void;
 }) {
-  const { label, value, options, onChange } = props;
+  const { id, label, value, options, onChange } = props;
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label className="text-xs text-muted-foreground" htmlFor={id}>
+        {label}
+      </Label>
       <select
-        className="w-full rounded-md border bg-background px-2 py-2 text-sm"
+        id={id}
+        className="w-full rounded-md border bg-background px-2 py-2 text-sm text-foreground"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >

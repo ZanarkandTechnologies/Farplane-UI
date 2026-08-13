@@ -43,8 +43,8 @@ Onboarding now handles:
 
 ## UI Environment
 
-For day-to-day local projects, use Settings -> Runtime -> Project Config for
-non-secret runtime URLs, hook/debug flags, and review settings. Farplane stores
+For day-to-day local projects, use Settings -> Configs for non-secret feature
+defaults, runtime URLs, hook/debug flags, and review settings. Farplane stores
 those operator values in `~/.farplane/config.toml`. Credentials are supplied
 only through the launched process environment; use `farplane run -- <command>`
 in this checkout so Doppler injects the project-bound secrets.
@@ -83,7 +83,7 @@ in shell history. Configure only the features you use:
 | Realtime employee calls | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` |
 | Optional model/media tools | `OPENAI_API_KEY` or `CODEX_API_KEY`; `ELEVENLABS_API_KEY` for ElevenLabs audio |
 
-Settings -> Runtime -> Project Config shows whether each listed credential or
+Settings -> Configs shows whether each listed credential or
 supported alias is present in the launched process and prints the preferred
 Doppler variable command when it is missing. It never accepts or saves the
 value.

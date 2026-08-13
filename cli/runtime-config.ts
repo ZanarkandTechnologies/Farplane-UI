@@ -6,11 +6,15 @@
  * Side effects: read-only filesystem access.
  */
 
-import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {
+  operatorSettingsAt,
+  readOperatorSettingsTomlFile,
+  type OperatorSettingsObject,
+} from "./operator-settings.js";
 
-type JsonObject = Record<string, unknown>;
+type JsonObject = OperatorSettingsObject;
 
 export function resolveFarplaneHome(env: NodeJS.ProcessEnv = process.env): string {
   return (
@@ -20,79 +24,8 @@ export function resolveFarplaneHome(env: NodeJS.ProcessEnv = process.env): strin
   );
 }
 
-function stripTomlComment(line: string): string {
-  let quoted = false;
-  let escaped = false;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (char === "\\" && quoted) {
-      escaped = true;
-      continue;
-    }
-    if (char === '"') {
-      quoted = !quoted;
-      continue;
-    }
-    if (char === "#" && !quoted) return line.slice(0, index).trimEnd();
-  }
-  return line.trimEnd();
-}
-
-function parseTomlValue(rawValue: string): unknown {
-  const value = rawValue.trim();
-  if (!value) return "";
-  if (value === "true") return true;
-  if (value === "false") return false;
-  if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
-  if (value.startsWith("[") && value.endsWith("]")) {
-    try {
-      const parsed = JSON.parse(value) as unknown;
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-  if (value.startsWith('"') && value.endsWith('"')) {
-    try {
-      const parsed = JSON.parse(value) as unknown;
-      return typeof parsed === "string" ? parsed.trim() : "";
-    } catch {
-      return value.slice(1, -1).trim();
-    }
-  }
-  return value.trim();
-}
-
 function readTomlObject(filePath: string): JsonObject {
-  let current: JsonObject | null = null;
-  const root: JsonObject = {};
-  try {
-    const lines = readFileSync(filePath, "utf8").split(/\r?\n/);
-    for (const rawLine of lines) {
-      const line = stripTomlComment(rawLine).trim();
-      if (!line) continue;
-      const sectionMatch = line.match(/^\[([A-Za-z0-9_.-]+)\]$/);
-      if (sectionMatch) {
-        current = root;
-        for (const part of sectionMatch[1].split(".")) {
-          const child = current[part];
-          if (!child || typeof child !== "object" || Array.isArray(child)) current[part] = {};
-          current = current[part] as JsonObject;
-        }
-        continue;
-      }
-      const assignmentMatch = line.match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*(.*)$/);
-      if (!assignmentMatch || !current) continue;
-      current[assignmentMatch[1]] = parseTomlValue(assignmentMatch[2]);
-    }
-  } catch {
-    return {};
-  }
-  return root;
+  return readOperatorSettingsTomlFile(filePath);
 }
 
 function objectStringAt(row: JsonObject, pathParts: string[]): string {
@@ -105,12 +38,7 @@ function objectStringAt(row: JsonObject, pathParts: string[]): string {
 }
 
 function objectValueAt(row: JsonObject, pathParts: string[]): unknown {
-  let current: unknown = row;
-  for (const part of pathParts) {
-    if (!current || typeof current !== "object" || Array.isArray(current)) return undefined;
-    current = (current as JsonObject)[part];
-  }
-  return current;
+  return operatorSettingsAt(row, pathParts);
 }
 
 export function readFarplaneConfigValue(
