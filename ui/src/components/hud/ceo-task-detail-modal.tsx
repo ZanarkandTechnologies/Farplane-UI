@@ -105,7 +105,7 @@ export function CeoTaskDetailModal({
             <span>{task.id}</span>
             <span className="inline-flex items-center gap-2">
               <Clock3 className="h-4 w-4" />
-              Linked session: {task.linkedSessionKey ?? "none"}
+              Task thread: {task.threadId ?? "not yet bound"}
             </span>
             {task.createdTeamId ? (
               <span className="inline-flex items-center gap-2">
