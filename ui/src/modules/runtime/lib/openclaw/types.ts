@@ -621,6 +621,7 @@ export interface TaskModel {
   ownerAgentId?: string;
   priority: "low" | "medium" | "high";
   artefactPath?: string;
+  specialist?: string;
 }
 
 export interface FederatedTaskModel extends TaskModel {
@@ -639,7 +640,7 @@ export interface FederatedTaskModel extends TaskModel {
     | "rejected"
     | "changes_requested"
     | "executed";
-  linkedSessionKey?: string;
+  threadId?: string;
   createdAt?: number;
   dueAt?: number;
   updatedAt: number;

@@ -56,6 +56,7 @@ export function registerTeamTicket(team: Command, store: SidecarStore): void {
     .option("--ticket-id <ticketId>", "Canonical TASK-* id override")
     .option("--owner <owner>", "Ticket owner", "unassigned")
     .option("--claimed-by <actor>", "Active session/agent alias")
+    .option("--specialist <specialist>", "Artifact specialist routing id")
     .option("--priority <priority>", "low|medium|high", "medium")
     .option("--status <status>", "todo|in_progress|review|blocked", "todo")
     .option("--notes <notes>", "Initial Notes memory")
@@ -67,6 +68,7 @@ export function registerTeamTicket(team: Command, store: SidecarStore): void {
         ticketId?: string;
         owner: string;
         claimedBy?: string;
+        specialist?: string;
         priority: string;
         status: string;
         notes?: string;
@@ -81,6 +83,7 @@ export function registerTeamTicket(team: Command, store: SidecarStore): void {
           ticketId: opts.ticketId,
           owner: opts.owner,
           claimedBy: opts.claimedBy,
+          specialist: opts.specialist,
           priority: parseTicketPriority(opts.priority) as ProjectTicketPriority,
           status: parseTicketStatus(opts.status) as WritableProjectTicketStatus,
           notes: opts.notes,
@@ -143,6 +146,7 @@ export function registerTeamTicket(team: Command, store: SidecarStore): void {
     .option("--status <status>", "todo|in_progress|review|blocked")
     .option("--owner <owner>", "Updated owner")
     .option("--claimed-by <actor>", "Updated claimed_by; empty string clears it")
+    .option("--specialist <specialist>", "Updated artifact specialist routing id; empty clears it")
     .option("--priority <priority>", "low|medium|high")
     .option("--json", "Output JSON", false)
     .action(
@@ -153,6 +157,7 @@ export function registerTeamTicket(team: Command, store: SidecarStore): void {
         status?: string;
         owner?: string;
         claimedBy?: string;
+        specialist?: string;
         priority?: string;
         json?: boolean;
       }) => {
@@ -162,6 +167,7 @@ export function registerTeamTicket(team: Command, store: SidecarStore): void {
           opts.status === undefined &&
           opts.owner === undefined &&
           opts.claimedBy === undefined &&
+          opts.specialist === undefined &&
           opts.priority === undefined
         ) {
           fail("ticket_update_requires_change");
@@ -178,6 +184,7 @@ export function registerTeamTicket(team: Command, store: SidecarStore): void {
               : {}),
             ...(opts.owner !== undefined ? { owner: opts.owner } : {}),
             ...(opts.claimedBy !== undefined ? { claimedBy: opts.claimedBy } : {}),
+            ...(opts.specialist !== undefined ? { specialist: opts.specialist } : {}),
             ...(opts.priority !== undefined
               ? { priority: parseTicketPriority(opts.priority) as ProjectTicketPriority }
               : {}),

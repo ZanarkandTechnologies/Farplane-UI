@@ -5,7 +5,7 @@
  * are projections derived from ticket.md files. Writes preserve unknown YAML
  * and unrelated Markdown, and never expose delete or close operations.
  */
-import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export type ProjectTicketStatus = "todo" | "in_progress" | "review" | "blocked" | "done";
@@ -21,11 +21,12 @@ export type ProjectTicket = {
   ownerAgentId: string;
   claimedBy: string;
   priority: string;
+  specialist?: string;
   notes: string;
   markdown: string;
   frontMatter: Record<string, string>;
   approvalState?: string;
-  linkedSessionKey?: string;
+  threadId?: string;
   createdAt?: number;
   dueAt?: number;
   phase?: string;
@@ -44,6 +45,7 @@ export type ProjectTicketPatch = {
   owner?: string;
   claimedBy?: string;
   priority?: ProjectTicketPriority;
+  specialist?: string;
 };
 
 export type ProjectTicketReadIssue = {
@@ -78,6 +80,48 @@ const FOUNDATION_SEQUENCE_BY_STEP: Record<FoundationStep, number> = {
   deliver_value: 2,
   collect_revenue: 3,
 };
+const TICKET_THREAD_LOCK_WAIT_MS = 4_000;
+const TICKET_THREAD_LOCK_STALE_MS = 60_000;
+
+function waitForTicketThreadLock(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withTicketThreadLock<T>(
+  projectPath: string,
+  ticketId: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const lockPath = path.join(
+    projectPath,
+    ".farplane",
+    "state",
+    "ticket-thread-locks",
+    `${ticketId}.lock`,
+  );
+  await mkdir(path.dirname(lockPath), { recursive: true });
+  const deadline = Date.now() + TICKET_THREAD_LOCK_WAIT_MS;
+  for (;;) {
+    try {
+      await mkdir(lockPath);
+      break;
+    } catch (error) {
+      if ((error as { code?: string }).code !== "EEXIST") throw error;
+      const lockStat = await stat(lockPath).catch(() => null);
+      if (lockStat && Date.now() - lockStat.mtimeMs > TICKET_THREAD_LOCK_STALE_MS) {
+        await rm(lockPath, { recursive: true, force: true });
+        continue;
+      }
+      if (Date.now() >= deadline) throw new Error(`ticket_thread_lock_timeout:${ticketId}`);
+      await waitForTicketThreadLock(25);
+    }
+  }
+  try {
+    return await operation();
+  } finally {
+    await rm(lockPath, { recursive: true, force: true });
+  }
+}
 
 function foundationStep(ticket: ProjectTicket): FoundationStep | null {
   const value = ticket.frontMatter.foundation_step?.trim();
@@ -314,17 +358,14 @@ async function projectTicketFromRaw(
     ownerAgentId: claimedBy || owner,
     claimedBy,
     priority: readScalar(frontmatterLines, "priority") || "medium",
+    specialist: readScalar(frontmatterLines, "specialist") || undefined,
     notes: readNotes(body),
     markdown: raw,
     frontMatter,
     approvalState:
       readScalar(frontmatterLines, "approval_state") ||
       (status === "review" ? "pending_review" : status === "done" ? "executed" : undefined),
-    linkedSessionKey:
-      readScalar(frontmatterLines, "linked_session_key") ||
-      readScalar(frontmatterLines, "session_key") ||
-      readScalar(frontmatterLines, "thread_id") ||
-      undefined,
+    threadId: readScalar(frontmatterLines, "thread_id") || undefined,
     createdAt: ticketTimestamp(readScalar(frontmatterLines, "created_at")),
     dueAt: ticketTimestamp(readScalar(frontmatterLines, "due_at")),
     phase: readScalar(frontmatterLines, "phase") || undefined,
@@ -419,6 +460,7 @@ function initialTicketDocument(input: {
   owner: string;
   claimedBy: string;
   priority: ProjectTicketPriority;
+  specialist?: string;
   notes: string;
   now: string;
 }): string {
@@ -434,6 +476,7 @@ function initialTicketDocument(input: {
     `owner: ${encodeScalar(input.owner)}`,
     `claimed_by: ${encodeScalar(input.claimedBy)}`,
     `priority: ${input.priority}`,
+    ...(input.specialist?.trim() ? [`specialist: ${encodeScalar(input.specialist)}`] : []),
     "depends_on: []",
     "blocked_by: []",
     "ready: true",
@@ -465,6 +508,7 @@ export async function createProjectTicket(input: {
   owner?: string;
   claimedBy?: string;
   priority?: ProjectTicketPriority;
+  specialist?: string;
   notes?: string;
   ticketId?: string;
 }): Promise<ProjectTicket> {
@@ -500,6 +544,7 @@ export async function createProjectTicket(input: {
           owner: input.owner?.trim() || "unassigned",
           claimedBy: input.claimedBy?.trim() || "",
           priority: input.priority ?? "medium",
+          specialist: input.specialist,
           notes: input.notes?.trim() || "",
           now,
         }),
@@ -518,38 +563,53 @@ export async function updateProjectTicket(
   ticketId: string,
   patch: ProjectTicketPatch,
 ): Promise<ProjectTicket> {
-  const existing = await readProjectTicket(projectPath, ticketId);
-  const before = await stat(existing.filePath);
-  const raw = await readFile(existing.filePath, "utf-8");
-  const { frontmatterLines, body } = splitTicketDocument(raw);
-  let lines = frontmatterLines;
-  if (patch.title !== undefined) {
-    if (!patch.title.trim()) throw new Error("invalid_ticket_title");
-    lines = patchScalar(lines, "title", patch.title);
-  }
-  if (patch.status !== undefined) {
-    const lifecycle = lifecycleFields(patch.status);
-    lines = patchScalar(lines, "status", lifecycle.status);
-    if (lifecycle.phase) lines = patchScalar(lines, "phase", lifecycle.phase);
-  }
-  if (patch.owner !== undefined) lines = patchScalar(lines, "owner", patch.owner);
-  if (patch.claimedBy !== undefined) lines = patchScalar(lines, "claimed_by", patch.claimedBy);
-  if (patch.priority !== undefined) lines = patchScalar(lines, "priority", patch.priority);
-  lines = patchScalar(lines, "updated_at", new Date().toISOString());
-  let nextBody = body;
-  if (patch.title !== undefined) {
-    const heading = new RegExp(`^# ${existing.ticketId.replace("-", "\\-")}:.*$`, "m");
-    nextBody = nextBody.replace(heading, `# ${existing.ticketId}: ${patch.title.trim()}`);
-  }
-  const afterRead = await stat(existing.filePath);
-  if (afterRead.mtimeMs !== before.mtimeMs || afterRead.size !== before.size) {
-    throw new Error(`ticket_changed_during_update:${existing.ticketId}`);
-  }
-  await atomicReplace(existing.filePath, `---\n${lines.join("\n")}\n---\n${nextBody}`);
-  return readProjectTicket(projectPath, existing.ticketId);
+  const normalizedTicketId = normalizeTicketId(ticketId);
+  return withTicketThreadLock(projectPath, normalizedTicketId, async () => {
+    const existing = await readProjectTicket(projectPath, normalizedTicketId);
+    const before = await stat(existing.filePath);
+    const raw = await readFile(existing.filePath, "utf-8");
+    const { frontmatterLines, body } = splitTicketDocument(raw);
+    let lines = frontmatterLines;
+    if (patch.title !== undefined) {
+      if (!patch.title.trim()) throw new Error("invalid_ticket_title");
+      lines = patchScalar(lines, "title", patch.title);
+    }
+    if (patch.status !== undefined) {
+      const lifecycle = lifecycleFields(patch.status);
+      lines = patchScalar(lines, "status", lifecycle.status);
+      if (lifecycle.phase) lines = patchScalar(lines, "phase", lifecycle.phase);
+    }
+    if (patch.owner !== undefined) lines = patchScalar(lines, "owner", patch.owner);
+    if (patch.claimedBy !== undefined) lines = patchScalar(lines, "claimed_by", patch.claimedBy);
+    if (patch.priority !== undefined) lines = patchScalar(lines, "priority", patch.priority);
+    if (patch.specialist !== undefined) lines = patchScalar(lines, "specialist", patch.specialist);
+    lines = patchScalar(lines, "updated_at", new Date().toISOString());
+    let nextBody = body;
+    if (patch.title !== undefined) {
+      const heading = new RegExp(`^# ${existing.ticketId.replace("-", "\\-")}:.*$`, "m");
+      nextBody = nextBody.replace(heading, `# ${existing.ticketId}: ${patch.title.trim()}`);
+    }
+    const afterRead = await stat(existing.filePath);
+    if (afterRead.mtimeMs !== before.mtimeMs || afterRead.size !== before.size) {
+      throw new Error(`ticket_changed_during_update:${existing.ticketId}`);
+    }
+    await atomicReplace(existing.filePath, `---\n${lines.join("\n")}\n---\n${nextBody}`);
+    return readProjectTicket(projectPath, existing.ticketId);
+  });
 }
 
 export async function setProjectTicketNotes(
+  projectPath: string,
+  ticketId: string,
+  notes: string,
+): Promise<ProjectTicket> {
+  const normalizedTicketId = normalizeTicketId(ticketId);
+  return withTicketThreadLock(projectPath, normalizedTicketId, () =>
+    setProjectTicketNotesUnlocked(projectPath, normalizedTicketId, notes),
+  );
+}
+
+async function setProjectTicketNotesUnlocked(
   projectPath: string,
   ticketId: string,
   notes: string,
@@ -591,7 +651,10 @@ export async function appendProjectTicketNotes(
 ): Promise<ProjectTicket> {
   const chunk = notes.trim();
   if (!chunk) throw new Error("invalid_memory_text");
-  const existing = await readProjectTicket(projectPath, ticketId);
-  const combined = existing.notes.trim() ? `${existing.notes.trim()}\n\n${chunk}` : chunk;
-  return setProjectTicketNotes(projectPath, existing.ticketId, combined);
+  const normalizedTicketId = normalizeTicketId(ticketId);
+  return withTicketThreadLock(projectPath, normalizedTicketId, async () => {
+    const existing = await readProjectTicket(projectPath, normalizedTicketId);
+    const combined = existing.notes.trim() ? `${existing.notes.trim()}\n\n${chunk}` : chunk;
+    return setProjectTicketNotesUnlocked(projectPath, existing.ticketId, combined);
+  });
 }

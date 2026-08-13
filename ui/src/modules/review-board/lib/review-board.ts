@@ -28,7 +28,7 @@ export type CompanyFilesystemTaskRow = {
   markdown?: string;
   notes?: string;
   approvalState?: string;
-  linkedSessionKey?: string;
+  threadId?: string;
   createdTeamId?: string;
   createdProjectId?: string;
   createdAt?: number;
@@ -88,7 +88,7 @@ export function normalizeReviewBoardTasks(
           task.approvalState === "executed"
             ? task.approvalState
             : "draft",
-        linkedSessionKey: task.linkedSessionKey,
+        threadId: task.threadId,
         createdTeamId: task.createdTeamId,
         createdProjectId: task.createdProjectId,
         createdAt: task.createdAt,

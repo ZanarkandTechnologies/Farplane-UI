@@ -36,7 +36,7 @@ Structured ticket frontmatter stays thin:
 - `status`
 - `priority`
 - `ownerAgentId`
-- `linkedSessionKey` when needed
+- `threadId` when the canonical ticket has been hook-bound to its task thread
 - timestamps
 - optional generic review metadata like `approvalState`
 

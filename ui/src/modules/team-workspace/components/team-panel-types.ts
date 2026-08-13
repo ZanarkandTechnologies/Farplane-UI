@@ -73,8 +73,9 @@ export type PanelTask = {
   markdown?: string;
   notes?: string;
   taskType?: string;
+  specialist?: string;
   approvalState?: TaskApprovalState;
-  linkedSessionKey?: string;
+  threadId?: string;
   createdTeamId?: string;
   createdProjectId?: string;
   createdAt?: number;
@@ -104,8 +105,7 @@ function foundationSequence(task: PanelTask): number {
 
 function hasFoundationMarker(task: PanelTask): boolean {
   return Boolean(
-    task.frontMatter?.foundation_step?.trim() ||
-      task.frontMatter?.foundation_sequence?.trim(),
+    task.frontMatter?.foundation_step?.trim() || task.frontMatter?.foundation_sequence?.trim(),
   );
 }
 

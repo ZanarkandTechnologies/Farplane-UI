@@ -139,6 +139,8 @@ describe("team ticket CLI", () => {
       "team-proj-alpha",
       "--title",
       "Plan launch",
+      "--specialist",
+      "landing-page-specialist",
       "--priority",
       "high",
       "--notes",
@@ -169,6 +171,8 @@ describe("team ticket CLI", () => {
       "TASK-0001",
       "--status",
       "review",
+      "--specialist",
+      "video-specialist",
       "--json",
     ]);
     await run([
@@ -202,6 +206,8 @@ describe("team ticket CLI", () => {
     expect(raw).toContain("phase: review");
     expect(raw).toContain("status: review");
     expect(raw).toContain("claimed_by: codex-123");
+    expect(raw).toContain("specialist: video-specialist");
+    expect(raw).not.toContain("linked_session_key:");
     expect(raw).toContain("Initial context\n\nClaimed safely\n\nReady for review");
     const output = JSON.parse(String(log.mock.calls.at(-1)?.[0])) as {
       tickets: Array<{ ticketId: string }>;

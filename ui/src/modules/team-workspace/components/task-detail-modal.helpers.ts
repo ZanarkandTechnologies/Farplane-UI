@@ -5,11 +5,10 @@ export function formatDate(ts: number | undefined): string {
   return new Date(ts).toLocaleString();
 }
 
-export function parseAgentIdFromSessionKey(sessionKey: string | undefined): string | null {
-  const value = sessionKey?.trim() ?? "";
+export function agentIdFromThreadId(threadId: string | undefined): string | null {
+  const value = threadId?.trim() ?? "";
   if (!value) return null;
-  const parts = value.split(":");
-  return parts[1]?.trim() || null;
+  return `codex-thread:${value}`;
 }
 
 export function frontMatterEntries(task: PanelTask): Array<{ label: string; value: string }> {

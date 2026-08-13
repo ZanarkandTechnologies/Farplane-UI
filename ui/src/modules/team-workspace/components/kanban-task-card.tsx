@@ -15,6 +15,8 @@
  */
 
 import { Badge } from "@/components/ui/badge";
+import { resolveTicketSpecialist } from "@/lib/ticket-routing/specialist-registry";
+import { getOperatingRoomDefinition } from "@/modules/office/lib/operating-room-catalog";
 import { type PanelTask, PRIORITY_COLORS } from "./team-panel-types";
 
 interface KanbanTaskCardProps {
@@ -23,7 +25,14 @@ interface KanbanTaskCardProps {
   onOpen: (task: PanelTask) => void;
 }
 
-const FRONTMATTER_FIELDS = ["ticket_id", "phase", "status", "owner", "priority"] as const;
+const FRONTMATTER_FIELDS = [
+  "ticket_id",
+  "phase",
+  "status",
+  "owner",
+  "priority",
+  "specialist",
+] as const;
 
 function frontMatterRows(task: PanelTask): Array<{ label: string; value: string }> {
   const frontMatter = task.frontMatter ?? {};
@@ -36,6 +45,8 @@ function frontMatterRows(task: PanelTask): Array<{ label: string; value: string 
 }
 
 export function KanbanTaskCard({ task, ownerLabel, onOpen }: KanbanTaskCardProps): JSX.Element {
+  const specialist = resolveTicketSpecialist(task.specialist ?? task.frontMatter?.specialist);
+  const facility = specialist ? getOperatingRoomDefinition(specialist.roomId).displayName : null;
   const approvalTone =
     task.approvalState === "approved" || task.approvalState === "executed"
       ? "border-emerald-500/30 bg-emerald-500/10 text-foreground"
@@ -110,6 +121,11 @@ export function KanbanTaskCard({ task, ownerLabel, onOpen }: KanbanTaskCardProps
           >
             {task.syncState}
           </Badge>
+        ) : null}
+        {specialist && facility ? (
+          <span className="border border-emerald-700/20 bg-emerald-700/5 px-2 py-1 text-[10px] font-medium text-emerald-900">
+            {specialist.displayName} · {facility}
+          </span>
         ) : null}
       </div>
     </button>

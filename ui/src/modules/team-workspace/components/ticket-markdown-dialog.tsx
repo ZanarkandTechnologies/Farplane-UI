@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { UI_Z } from "@/lib/z-index";
@@ -12,6 +13,7 @@ type TicketMarkdownDialogProps = {
   ticketBodyMarkdown: string;
   ticketFrontMatterEntries: Array<{ label: string; value: string }>;
   ticketMarkdown: string;
+  onOpenTaskThread: () => void;
 };
 
 export function TicketMarkdownDialog({
@@ -21,6 +23,7 @@ export function TicketMarkdownDialog({
   ticketBodyMarkdown,
   ticketFrontMatterEntries,
   ticketMarkdown,
+  onOpenTaskThread,
 }: TicketMarkdownDialogProps): ReactElement {
   return (
     <Dialog
@@ -50,6 +53,11 @@ export function TicketMarkdownDialog({
             </Badge>
             {task.artefactPath ? (
               <span className="break-words [overflow-wrap:anywhere]">{task.artefactPath}</span>
+            ) : null}
+            {task.threadId ? (
+              <Button size="sm" variant="outline" onClick={onOpenTaskThread}>
+                Open task thread
+              </Button>
             ) : null}
           </div>
         </DialogHeader>

@@ -16,7 +16,7 @@ import { useAppStore } from "@/store";
 import {
   formatDate,
   frontMatterEntries,
-  parseAgentIdFromSessionKey,
+  agentIdFromThreadId,
   stripYamlFrontMatter,
 } from "./task-detail-modal.helpers";
 import { TaskLinkedContextPanel } from "./task-detail-sections";
@@ -46,7 +46,7 @@ export function TaskDetailModal({
   const currentOwnerLabel = task.ownerAgentId
     ? (ownerLabelById.get(task.ownerAgentId) ?? task.ownerAgentId)
     : "unassigned";
-  const linkedAgentId = parseAgentIdFromSessionKey(task.linkedSessionKey);
+  const linkedAgentId = agentIdFromThreadId(task.threadId);
   const ticketMarkdown = task.markdown?.trim();
   const ticketFrontMatterEntries = frontMatterEntries(task);
   const ticketBodyMarkdown = ticketMarkdown ? stripYamlFrontMatter(ticketMarkdown) : "";
@@ -60,6 +60,12 @@ export function TaskDetailModal({
         ticketBodyMarkdown={ticketBodyMarkdown}
         ticketFrontMatterEntries={ticketFrontMatterEntries}
         ticketMarkdown={ticketMarkdown}
+        onOpenTaskThread={() => {
+          if (!linkedAgentId) return;
+          setSelectedAgentId(linkedAgentId);
+          setSelectedSessionKey(linkedAgentId);
+          setIsAgentSessionPanelOpen(true);
+        }}
       />
     );
   }
@@ -126,7 +132,7 @@ export function TaskDetailModal({
             onOpenLinkedSession={() => {
               if (!linkedAgentId) return;
               setSelectedAgentId(linkedAgentId);
-              setSelectedSessionKey(task.linkedSessionKey ?? null);
+              setSelectedSessionKey(linkedAgentId);
               setIsAgentSessionPanelOpen(true);
             }}
             task={task}

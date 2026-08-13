@@ -121,6 +121,7 @@ export type CodexProjectReadModelTask = {
   syncState?: "healthy" | "pending" | "conflict" | "error";
   syncError?: string;
   frontMatter?: Record<string, string>;
+  specialist?: string;
   markdown?: string;
   notes?: string;
   approvalState?:
@@ -130,7 +131,7 @@ export type CodexProjectReadModelTask = {
     | "rejected"
     | "changes_requested"
     | "executed";
-  linkedSessionKey?: string;
+  threadId?: string;
   createdAt?: number;
   dueAt?: number;
   updatedAt?: number;

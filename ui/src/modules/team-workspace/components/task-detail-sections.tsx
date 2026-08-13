@@ -13,18 +13,17 @@ export function TaskLinkedContextPanel({
   onOpenLinkedSession,
   task,
 }: TaskLinkedContextPanelProps): ReactElement | null {
-  if (!task.linkedSessionKey && !task.createdTeamId && !task.createdProjectId) return null;
+  if (!task.threadId && !task.createdTeamId && !task.createdProjectId) return null;
   return (
     <div className="space-y-2 rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
-      {task.linkedSessionKey ? (
+      {task.threadId ? (
         <div className="space-y-2">
           <p>
-            <span className="font-medium text-foreground">Linked session:</span>{" "}
-            {task.linkedSessionKey}
+            <span className="font-medium text-foreground">Task thread:</span> {task.threadId}
           </p>
           {linkedAgentId ? (
             <Button size="sm" variant="outline" onClick={onOpenLinkedSession}>
-              Open linked session
+              Open task thread
             </Button>
           ) : null}
         </div>

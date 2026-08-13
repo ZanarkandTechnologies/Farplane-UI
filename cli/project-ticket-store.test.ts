@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -136,6 +136,72 @@ describe("project ticket store", () => {
     expect(blocked.status).toBe("blocked");
     expect(blocked.frontMatter.status).toBe("blocked");
     expect(blocked.frontMatter.phase).toBe("review");
+  });
+
+  it("reads hook-bound task threads while ticket edits leave them untouched", async () => {
+    const projectPath = await temporaryProject();
+    const created = await createProjectTicket({
+      projectPath,
+      title: "Build landing page",
+      specialist: "landing-page-specialist",
+    });
+    expect(created.specialist).toBe("landing-page-specialist");
+    expect(created.frontMatter.specialist).toBe("landing-page-specialist");
+    expect(created.threadId).toBeUndefined();
+
+    const ticketPath = path.join(projectPath, "tickets", created.ticketId, "ticket.md");
+    const raw = await readFile(ticketPath, "utf-8");
+    await writeFile(
+      ticketPath,
+      raw.replace("ticket_id: TASK-0001", 'ticket_id: TASK-0001\nthread_id: "task-thread-1"'),
+    );
+    const bound = await readProjectTicket(projectPath, created.ticketId);
+    expect(bound.threadId).toBe("task-thread-1");
+
+    const updated = await updateProjectTicket(projectPath, created.ticketId, {
+      specialist: "video-specialist",
+    });
+    expect(updated.specialist).toBe("video-specialist");
+    expect(updated.threadId).toBe("task-thread-1");
+
+    const cleared = await updateProjectTicket(projectPath, created.ticketId, {
+      specialist: "",
+    });
+    expect(cleared.specialist).toBeUndefined();
+    expect(cleared.frontMatter.specialist).toBe("");
+    expect(cleared.threadId).toBe("task-thread-1");
+  });
+
+  it("recovers a stale hook/UI ticket-thread lock before every ticket writer", async () => {
+    const projectPath = await temporaryProject();
+    const created = await createProjectTicket({ projectPath, title: "Locked update" });
+    const lockPath = path.join(
+      projectPath,
+      ".farplane",
+      "state",
+      "ticket-thread-locks",
+      `${created.ticketId}.lock`,
+    );
+    await mkdir(lockPath, { recursive: true });
+    await utimes(lockPath, new Date(0), new Date(0));
+
+    const updated = await updateProjectTicket(projectPath, created.ticketId, {
+      specialist: "landing-page-specialist",
+    });
+
+    expect(updated.specialist).toBe("landing-page-specialist");
+    await expect(readFile(lockPath, "utf-8")).rejects.toMatchObject({ code: "ENOENT" });
+
+    await mkdir(lockPath, { recursive: true });
+    await utimes(lockPath, new Date(0), new Date(0));
+    await setProjectTicketNotes(projectPath, created.ticketId, "First locked note.");
+    await expect(readFile(lockPath, "utf-8")).rejects.toMatchObject({ code: "ENOENT" });
+
+    await mkdir(lockPath, { recursive: true });
+    await utimes(lockPath, new Date(0), new Date(0));
+    const noted = await appendProjectTicketNotes(projectPath, created.ticketId, "Second locked note.");
+    expect(noted.notes).toContain("First locked note.\n\nSecond locked note.");
+    await expect(readFile(lockPath, "utf-8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("preserves unknown YAML and unrelated Markdown while owning scalar fields and Notes", async () => {
