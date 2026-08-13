@@ -15,6 +15,7 @@ import type {
   TelegramApiResponse,
   TelegramDocumentResult,
   TelegramGatewayState,
+  TelegramPhotoResult,
   TelegramSendMessageResult,
   TelegramSourceContext,
   TelegramUpdate,
@@ -24,6 +25,12 @@ const TELEGRAM_MESSAGE_LIMIT = 4096;
 const TELEGRAM_SAFE_MESSAGE_LIMIT = 3900;
 const TELEGRAM_CAPTION_LIMIT = 1024;
 const TELEGRAM_DOCUMENT_LIMIT_BYTES = 50 * 1024 * 1024;
+const TELEGRAM_PHOTO_LIMIT_BYTES = 10 * 1024 * 1024;
+const TELEGRAM_PHOTO_MIME_TYPES = new Map([
+  [".jpg", "image/jpeg"],
+  [".jpeg", "image/jpeg"],
+  [".png", "image/png"],
+]);
 
 export async function sendTelegramNotification(input: {
   token: string;
@@ -194,6 +201,70 @@ export async function sendTelegramDocument(input: {
   }
 }
 
+export async function sendTelegramPhoto(input: {
+  token: string;
+  chatId: string;
+  filePath: string;
+  state: TelegramGatewayState;
+  threadId: string;
+  sessionId?: string;
+  title?: string;
+  caption?: string;
+  parseMode?: "Markdown" | "MarkdownV2" | "HTML" | "none";
+  replyToMessageId?: number;
+  statePath?: string;
+  allowedRoots?: string[];
+  fetchImpl?: typeof fetch;
+}): Promise<{ ok: boolean; state: TelegramGatewayState; messageId?: number; error?: string }> {
+  try {
+    const photo = await validateTelegramPhotoPath(input.filePath, input.allowedRoots);
+    const caption = formatTelegramGatewayCaption({
+      text: input.caption ?? photo.fileName,
+      threadId: input.threadId,
+      sessionId: input.sessionId,
+      title: input.title,
+    });
+    const body = new FormData();
+    body.set("chat_id", input.chatId);
+    body.set("caption", caption);
+    if (input.parseMode && input.parseMode !== "none") body.set("parse_mode", input.parseMode);
+    if (input.replyToMessageId) {
+      body.set("reply_parameters", JSON.stringify({ message_id: input.replyToMessageId }));
+    }
+    body.set("photo", new Blob([await readFile(photo.filePath)], { type: photo.mimeType }), photo.fileName);
+
+    const response = await (input.fetchImpl ?? fetch)(`https://api.telegram.org/bot${input.token}/sendPhoto`, {
+      method: "POST",
+      body,
+    });
+    const resultBody = (await response.json()) as TelegramApiResponse<TelegramPhotoResult>;
+    if (!response.ok || !resultBody.ok || resultBody.result === undefined) {
+      throw new Error(resultBody.description ?? `telegram_sendPhoto_failed:${response.status}`);
+    }
+    const messageId = resultBody.result.message_id;
+    const baseState = input.statePath ? mergeGatewayState(input.state, await loadGatewayState(input.statePath)) : input.state;
+    let nextState = recordOutboundMapping(baseState, {
+      telegramMessageId: messageId,
+      chatId: input.chatId,
+      threadId: input.threadId,
+      sessionId: input.sessionId,
+      title: input.title,
+    });
+    nextState = appendHistory(nextState, {
+      telegramMessageId: messageId,
+      chatId: input.chatId,
+      direction: "outbound",
+      text: caption,
+      route: "source_thread",
+      threadId: input.threadId,
+    });
+    if (input.statePath) await saveGatewayState(nextState, input.statePath);
+    return { ok: true, state: nextState, messageId };
+  } catch (error) {
+    return { ok: false, state: input.state, error: error instanceof Error ? error.message : "telegram_photo_failed" };
+  }
+}
+
 export async function telegramApi<T>(
   token: string,
   method: string,
@@ -239,8 +310,27 @@ export async function validateTelegramArtifactPath(
   return { filePath: resolvedPath, fileName: path.basename(resolvedPath), size: info.size };
 }
 
+export async function validateTelegramPhotoPath(
+  filePath: string,
+  allowedRoots = defaultTelegramArtifactRoots(),
+): Promise<{ filePath: string; fileName: string; size: number; mimeType: string }> {
+  const artifact = await validateTelegramArtifactPath(filePath, allowedRoots);
+  const extension = path.extname(artifact.fileName).toLowerCase();
+  const mimeType = TELEGRAM_PHOTO_MIME_TYPES.get(extension);
+  if (!mimeType) throw new Error(`telegram_photo_unsupported_type:${extension || "none"}`);
+  if (artifact.size > TELEGRAM_PHOTO_LIMIT_BYTES) {
+    throw new Error(`telegram_photo_too_large:${artifact.size}`);
+  }
+  return { ...artifact, mimeType };
+}
+
 function defaultTelegramArtifactRoots(): string[] {
-  return [process.cwd(), path.join(os.homedir(), ".farplane")];
+  const configuredProjectsRoot = process.env.FARPLANE_PROJECTS_ROOT?.trim();
+  return [
+    process.cwd(),
+    path.join(os.homedir(), ".farplane"),
+    configuredProjectsRoot || path.join(os.homedir(), "Zanarkand Technologies", "projects"),
+  ];
 }
 
 function isPathInsideRoot(filePath: string, root: string): boolean {

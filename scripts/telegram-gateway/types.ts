@@ -149,6 +149,10 @@ export type TelegramDocumentResult = TelegramSendMessageResult & {
   document?: { file_id?: string; file_name?: string };
 };
 
+export type TelegramPhotoResult = TelegramSendMessageResult & {
+  photo?: Array<{ file_id?: string; width?: number; height?: number }>;
+};
+
 export type TelegramSourceContext = {
   threadId: string;
   sessionId?: string;

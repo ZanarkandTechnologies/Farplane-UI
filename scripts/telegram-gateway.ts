@@ -49,9 +49,11 @@ export {
   formatTelegramGatewayMessage,
   sendTelegramDocument,
   sendTelegramNotification,
+  sendTelegramPhoto,
   sendTelegramReply,
   telegramApi,
   validateTelegramArtifactPath,
+  validateTelegramPhotoPath,
 } from "./telegram-gateway/telegram-api";
 export type {
   CodexTurnItem,
@@ -68,6 +70,7 @@ export type {
   TelegramGatewayState,
   TelegramRouteDecision,
   TelegramSendMessageResult,
+  TelegramPhotoResult,
   TelegramUpdate,
 } from "./telegram-gateway/types";
 

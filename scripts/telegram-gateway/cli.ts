@@ -19,7 +19,7 @@ import {
   mergeGatewayState,
   saveGatewayState,
 } from "./state";
-import { fetchTelegramUpdates, sendTelegramDocument, sendTelegramNotification } from "./telegram-api";
+import { fetchTelegramUpdates, sendTelegramDocument, sendTelegramNotification, sendTelegramPhoto } from "./telegram-api";
 import type { TelegramUpdate } from "./types";
 
 function sleep(ms: number): Promise<void> {
@@ -102,6 +102,7 @@ export async function runTelegramGatewayCli(rawArgs = process.argv.slice(2)): Pr
     console.log("Usage: npm run cli -- gateway telegram [--once] [--dry-run] [--check-config]");
     console.log("       npm run cli -- gateway telegram send --thread-id <id> --text <message>");
     console.log("       npm run cli -- gateway telegram send --thread-id <id> --document <path> [--text <caption>]");
+    console.log("       npm run cli -- gateway telegram send --thread-id <id> --photo <path> [--text <caption>]");
     console.log("       npm run cli -- gateway telegram review-bind --thread-id <id> [--title <title>]");
     console.log("       npm run cli -- gateway telegram review-relay [--port <port>]");
     return;
@@ -195,8 +196,11 @@ export async function runTelegramGatewayCli(rawArgs = process.argv.slice(2)): Pr
     try {
       const threadId = required(argValue(rawArgs, "--thread-id") ?? argValue(rawArgs, "--session-id"), "thread_id");
       const documentPath = argValue(rawArgs, "--document") ?? argValue(rawArgs, "--artifact");
-      const body = (await (documentPath ? readOptionalSendBody(rawArgs) : readSendBody(rawArgs)))?.trim();
-      if (!documentPath && !body) throw new Error("empty_telegram_message_body");
+      const photoPath = argValue(rawArgs, "--photo");
+      if (documentPath && photoPath) throw new Error("telegram_send_use_document_or_photo");
+      const attachmentPath = documentPath ?? photoPath;
+      const body = (await (attachmentPath ? readOptionalSendBody(rawArgs) : readSendBody(rawArgs)))?.trim();
+      if (!attachmentPath && !body) throw new Error("empty_telegram_message_body");
       const common = {
         token: required(config.botToken, "telegram_bot_token"),
         chatId: required(config.allowedChatIds[0], "telegram_chat_id"),
@@ -206,7 +210,14 @@ export async function runTelegramGatewayCli(rawArgs = process.argv.slice(2)): Pr
         statePath,
         title: argValue(rawArgs, "--title"),
       };
-      const result = documentPath
+      const result = photoPath
+        ? await sendTelegramPhoto({
+            ...common,
+            filePath: photoPath,
+            caption: body,
+            parseMode: parseMode(argValue(rawArgs, "--parse-mode")),
+          })
+        : documentPath
         ? await sendTelegramDocument({
             ...common,
             filePath: documentPath,
@@ -223,7 +234,7 @@ export async function runTelegramGatewayCli(rawArgs = process.argv.slice(2)): Pr
           ok: true,
           messageId: result.messageId,
           threadId,
-          sent: documentPath ? "document" : "message",
+          sent: photoPath ? "photo" : documentPath ? "document" : "message",
           statePath,
         }),
       );

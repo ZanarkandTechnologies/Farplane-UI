@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
 import os from "node:os";
 import path from "node:path";
@@ -20,6 +20,7 @@ import {
   sendCodexMessage,
   sendTelegramDocument,
   sendTelegramNotification,
+  sendTelegramPhoto,
   isRetryableCodexDeliveryError,
   isTerminalCodexDeliveryError,
   processPendingMessages,
@@ -27,6 +28,7 @@ import {
   submitReviewRelayResponse,
   telegramGatewayCodexExecTestInternals,
   validateTelegramArtifactPath,
+  validateTelegramPhotoPath,
 } from "./telegram-gateway";
 import { runTelegramGatewayCli } from "./telegram-gateway/cli";
 
@@ -454,10 +456,69 @@ describe("telegram gateway routing", () => {
     );
   });
 
+  it("sends local approval images as reply-routed Telegram photos", async () => {
+    const stateDir = await mkdtemp(path.join(os.tmpdir(), "telegram-photo-"));
+    const filePath = path.join(stateDir, "approval.png");
+    await writeFile(filePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    const fetchImpl = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: { message_id: 89, photo: [{ file_id: "photo-1", width: 1080, height: 1920 }] },
+        }),
+      ),
+    );
+
+    const result = await sendTelegramPhoto({
+      token: "token",
+      chatId: "100",
+      filePath,
+      caption: "Choose A, B, or C",
+      threadId: "thread-source",
+      title: "Visual approval",
+      state: emptyGatewayState(),
+      allowedRoots: [stateDir],
+      fetchImpl,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.messageId).toBe(89);
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe("https://api.telegram.org/bottoken/sendPhoto");
+    const body = fetchImpl.mock.calls[0]?.[1]?.body as FormData;
+    expect(body.get("chat_id")).toBe("100");
+    expect(body.get("caption")).toContain("Thread: thread-source");
+    expect(body.get("photo")).toBeInstanceOf(Blob);
+    expect(result.state.mappings[0]).toEqual(
+      expect.objectContaining({ telegramMessageId: 89, threadId: "thread-source" }),
+    );
+  });
+
+  it("rejects unsupported Telegram photo types", async () => {
+    const stateDir = await mkdtemp(path.join(os.tmpdir(), "telegram-photo-type-"));
+    const filePath = path.join(stateDir, "approval.webp");
+    await writeFile(filePath, "not a supported photo");
+
+    await expect(validateTelegramPhotoPath(filePath, [stateDir])).rejects.toThrow(
+      /telegram_photo_unsupported_type/,
+    );
+  });
+
   it("rejects Telegram artifact paths outside allowed roots", async () => {
     await expect(validateTelegramArtifactPath("/tmp/outside.txt", ["/definitely/not/tmp"])).rejects.toThrow(
       /telegram_artifact_outside_allowed_roots/,
     );
+  });
+
+  it("allows ticket artifacts under the configured projects root", async () => {
+    const projectRoot = await mkdtemp(path.join(os.tmpdir(), "telegram-project-root-"));
+    const photoPath = path.join(projectRoot, "Gagazet", "tickets", "TASK-0019", "approval.png");
+    await mkdir(path.dirname(photoPath), { recursive: true });
+    await writeFile(photoPath, "png");
+
+    await expect(validateTelegramPhotoPath(photoPath, [projectRoot])).resolves.toMatchObject({
+      filePath: photoPath,
+      mimeType: "image/png",
+    });
   });
 
   it("merges gateway state without dropping mappings added while the listener is running", () => {

@@ -93,6 +93,32 @@ const gatewayForwardingCases = [
     ],
   },
   {
+    name: "passes reply-routed Telegram photo sends through the gateway script entrypoint",
+    cliArgs: [
+      "gateway",
+      "telegram",
+      "send",
+      "--thread-id",
+      "thread-source",
+      "--photo",
+      "/tmp/approval.png",
+      "--text",
+      "Choose A, B, or C",
+    ],
+    scriptArgs: [
+      "scripts/telegram-gateway.ts",
+      "--send",
+      "--thread-id",
+      "thread-source",
+      "--text",
+      "Choose A, B, or C",
+      "--parse-mode",
+      "none",
+      "--photo",
+      "/tmp/approval.png",
+    ],
+  },
+  {
     name: "runs Phone Chaser review binding through the gateway script entrypoint",
     cliArgs: [
       "gateway",

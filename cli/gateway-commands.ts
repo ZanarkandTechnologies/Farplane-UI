@@ -37,6 +37,7 @@ export type StartTelegramGatewayOptions = {
     document?: string;
     file?: string;
     parseMode?: string;
+    photo?: string;
     sessionId?: string;
     text?: string;
     threadId?: string;
@@ -261,6 +262,7 @@ export async function startTelegramGateway(
     if (options.send.artifact) args.push("--artifact", options.send.artifact);
     if (options.send.title) args.push("--title", options.send.title);
     if (options.send.parseMode) args.push("--parse-mode", options.send.parseMode);
+    if (options.send.photo) args.push("--photo", options.send.photo);
   }
   if (options.reviewBind) {
     args.push("review-bind");
@@ -335,6 +337,7 @@ export function registerGatewayCommands(program: Command): void {
     .option("--file <path>", "Path to a file containing Telegram message text")
     .option("--document <path>", "Path to a local file to send as a Telegram document")
     .option("--artifact <path>", "Alias for --document")
+    .option("--photo <path>", "Path to a local JPEG or PNG to send as an inline Telegram photo")
     .option("--title <title>", "Short local mapping title")
     .option(
       "--parse-mode <mode>",
