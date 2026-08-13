@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { usePollWithInterval } from "@/hooks/use-poll-with-interval";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { OfficeWorkspaceDialog } from "@/components/office-workspace-dialog";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppStore } from "@/store";
 import type { AgentCardModel, HeartbeatWindow, SessionRowModel, SessionTimelineModel } from "@/modules/runtime";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
-import { UI_Z } from "@/lib/z-index";
 import { formatTimestamp as fmtTs } from "@/lib/format-utils";
 
 export function AgentSessionPanel() {
@@ -132,8 +132,7 @@ export function AgentSessionPanel() {
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="min-w-[70vw] max-w-none h-[90vh] overflow-hidden p-0" style={{ zIndex: UI_Z.panelElevated }}>
+    <OfficeWorkspaceDialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle>Agent Session Panel</DialogTitle>
           {errorText ? <p className="text-xs text-destructive">{errorText}</p> : null}
@@ -302,7 +301,6 @@ export function AgentSessionPanel() {
             </Card>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+    </OfficeWorkspaceDialog>
   );
 }

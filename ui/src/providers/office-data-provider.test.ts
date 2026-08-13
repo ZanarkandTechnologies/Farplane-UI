@@ -1330,11 +1330,16 @@ describe("office-data-provider team synthesis", () => {
     const operatingRooms = result.officeObjects.filter(
       (object) => getOperatingRoomId(object) !== null,
     );
+    const graph = evaluateOfficePoiGraph({
+      layout: result.officeSettings.officeLayout,
+      objects: result.officeObjects,
+    });
     const roomHosts = result.employees.filter((employee) =>
       String(employee._id).startsWith("employee-farplane-"),
     );
 
     expect(operatingRooms).toHaveLength(11);
+    expect(graph.disconnectedCount).toBe(0);
     expect(roomHosts).toHaveLength(11);
     expect(roomHosts.every((employee) => employee.deskId === undefined)).toBe(true);
     expect(result.employees.some((employee) => employee.name === "Steward")).toBe(false);
@@ -3160,7 +3165,7 @@ describe("office-data-provider team synthesis", () => {
     );
   });
 
-  it("keeps uniform command-office slots in project source order", () => {
+  it("places automatic project tables on distinct stable department decks", () => {
     const smallProject = {
       id: "proj-small-team",
       departmentId: "dept-codex-projects",
@@ -3244,7 +3249,15 @@ describe("office-data-provider team synthesis", () => {
     ]);
     expect(smallTeam?.clusterPosition).toBeDefined();
     expect(largeTeam?.clusterPosition).toBeDefined();
-    expect(smallTeam!.clusterPosition![0]).toBeLessThan(largeTeam!.clusterPosition![0]);
+    expect(smallTeam!.clusterPosition).not.toEqual(largeTeam!.clusterPosition);
+    const smallCluster = result.officeObjects.find(
+      (object) => object.metadata?.teamId === `team-${smallProject.id}`,
+    );
+    const largeCluster = result.officeObjects.find(
+      (object) => object.metadata?.teamId === `team-${largeProject.id}`,
+    );
+    expect(smallCluster?.metadata?.departmentIslandCluster).toBe(true);
+    expect(largeCluster?.metadata?.departmentIslandCluster).toBe(true);
   });
 
   it("keeps projects beyond command-office capacity visibly unseated without furniture", () => {

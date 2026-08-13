@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { UI_Z } from "@/lib/z-index";
+import { OFFICE_HTML_Z, UI_Z } from "@/lib/z-index";
 import { endObjectInteractionTrace } from "../utils/object-interaction-perf";
 
 export interface MenuAction {
@@ -173,7 +173,7 @@ export function ContextMenu({
       <Html
         position={[0, 1.0, 0]}
         center
-        zIndexRange={[UI_Z.sceneContextMenu, 0]}
+        zIndexRange={OFFICE_HTML_Z.control}
         style={{ pointerEvents: "none" }}
       >
         <div className="pointer-events-auto relative flex justify-center items-center w-0 h-0">
@@ -220,7 +220,11 @@ export function ContextMenu({
       </Html>
 
       {/* Dialog in separate Html wrapper - Radix UI will portal it to body automatically */}
-      <Html position={[0, 0, 0]} style={{ display: "none", pointerEvents: "none" }}>
+      <Html
+        position={[0, 0, 0]}
+        zIndexRange={OFFICE_HTML_Z.debug}
+        style={{ display: "none", pointerEvents: "none" }}
+      >
         <Dialog open={deleteConfirmationOpen} onOpenChange={setDeleteConfirmationOpen}>
           <DialogContent className="sm:max-w-[425px]" style={{ zIndex: UI_Z.critical }}>
             <DialogHeader>

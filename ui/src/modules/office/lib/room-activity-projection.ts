@@ -274,19 +274,21 @@ export function projectTicketRoomActivities(
     if (ticket.status !== "in_progress") continue;
     const specialist = resolveTicketSpecialist(ticket.specialist ?? ticket.frontMatter?.specialist);
     if (!specialist) continue;
+    // Room-backed specialists pulse their activity landmark. Department service
+    // bays (Sales/Deals) still reach the Council dispatch projection, but have
+    // no duplicate operating-room object to pulse.
+    const facilityId = specialist.roomId ?? specialist.departmentId;
 
     const project = projectById.get(ticket.projectId);
     const threadId = ticket.threadId?.trim() || undefined;
     const invocation = threadId ? invocationBySession.get(threadId) : undefined;
     const sessionKey = threadId ? `codex-thread:${threadId}` : undefined;
     const recognizedSession =
-      sessionKey && input.recognizedSessionKeys?.has(sessionKey)
-        ? sessionKey
-        : undefined;
+      sessionKey && input.recognizedSessionKeys?.has(sessionKey) ? sessionKey : undefined;
     const startedAt = ticket.updatedAt ?? input.now;
     const activity: RoomActivity = {
-      id: `${specialist.roomId}:${ticket.projectId}:${ticket.id}`,
-      roomId: specialist.roomId,
+      id: `${facilityId}:${ticket.projectId}:${ticket.id}`,
+      roomId: facilityId,
       projectId: project?.id ?? ticket.projectId,
       projectLabel: safeProjectLabel(project?.name ?? "Unknown project", project?.trackingContext),
       sessionId: threadId,
@@ -306,9 +308,9 @@ export function projectTicketRoomActivities(
       specialistId: specialist.id,
       specialistLabel: specialist.displayName,
     };
-    const roomActivities = activitiesByRoom.get(specialist.roomId) ?? [];
+    const roomActivities = activitiesByRoom.get(facilityId) ?? [];
     roomActivities.push(activity);
-    activitiesByRoom.set(specialist.roomId, roomActivities);
+    activitiesByRoom.set(facilityId, roomActivities);
   }
 
   const roomIds = new Set([...activitiesByRoom.keys(), ...ambientSkillIdsByRoom.keys()]);

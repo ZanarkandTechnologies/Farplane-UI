@@ -8,6 +8,7 @@ import {
   OFFICE_LANDMARK_THEME,
   type OfficeDioramaTheme,
 } from "@/config/office-theme";
+import { OFFICE_HTML_Z } from "@/lib/z-index";
 import { ACTIVITY_LANDMARK_KINDS, type ActivityLandmarkKind } from "../activity-scenes";
 import {
   ACTIVITY_DESTINATION_ROOM_DEPTH,
@@ -145,7 +146,7 @@ export function ActivityLandmarkVisual({
         <Html
           center
           position={[0, 2.58, 0]}
-          zIndexRange={[104, 0]}
+          zIndexRange={OFFICE_HTML_Z.label}
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
           <div

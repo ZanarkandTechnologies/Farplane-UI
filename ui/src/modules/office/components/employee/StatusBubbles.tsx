@@ -3,6 +3,7 @@
 import { Html } from "@react-three/drei";
 import { memo, type ReactNode, useEffect, useState } from "react";
 
+import { OFFICE_HTML_Z } from "@/lib/z-index";
 import type { EmployeeActivityState, EmployeePersistenceTag } from "@/modules/office/lib/types";
 
 /**
@@ -160,7 +161,7 @@ function EmployeeActivityBadge({
       transform={fixedBannerSize}
       sprite={fixedBannerSize}
       distanceFactor={fixedBannerSize ? 4.8 : undefined}
-      zIndexRange={[110, 0]}
+      zIndexRange={OFFICE_HTML_Z.status}
       style={{
         backfaceVisibility: fixedBannerSize ? "hidden" : undefined,
         WebkitBackfaceVisibility: fixedBannerSize ? "hidden" : undefined,
@@ -293,7 +294,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
           transform
           sprite
           distanceFactor={4.8}
-          zIndexRange={[115, 0]}
+          zIndexRange={OFFICE_HTML_Z.status}
           style={{
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden",
@@ -316,7 +317,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
           transform
           sprite
           distanceFactor={4.8}
-          zIndexRange={[112, 0]}
+          zIndexRange={OFFICE_HTML_Z.status}
           style={{
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden",
@@ -357,7 +358,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
         <Html
           position={[0, totalHeight + richLabelOffset, 0]}
           center
-          zIndexRange={[100, 0]}
+          zIndexRange={OFFICE_HTML_Z.label}
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
           <div className="animate-in fade-in zoom-in-95 duration-200">
@@ -393,7 +394,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
           transform
           sprite
           distanceFactor={4.8}
-          zIndexRange={[108, 0]}
+          zIndexRange={OFFICE_HTML_Z.status}
           style={{
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden",
@@ -411,7 +412,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
         <Html
           position={[0, totalHeight + onboardingOffset, 0]}
           center
-          zIndexRange={[100, 0]}
+          zIndexRange={OFFICE_HTML_Z.label}
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
           <div className="animate-in fade-in zoom-in-95 duration-200">
@@ -426,7 +427,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
         <Html
           position={[0, totalHeight + 0.28, 0]}
           center
-          zIndexRange={[100, 0]}
+          zIndexRange={OFFICE_HTML_Z.debug}
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
           <div className="rounded bg-black/75 px-2 py-1 text-[10px] text-white shadow">

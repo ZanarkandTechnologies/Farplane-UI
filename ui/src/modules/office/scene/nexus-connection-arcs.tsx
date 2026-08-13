@@ -14,7 +14,7 @@
  *
  * INPUTS / OUTPUTS:
  * - Input: department island geometry + accent colors from the layout module.
- * - Output: four dashed curves and twelve animated packet meshes; no side
+ * - Output: seven dashed curves and twenty-one animated packet meshes; no side
  *   effects beyond per-frame position updates.
  *
  * INVARIANTS:

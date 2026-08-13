@@ -48,6 +48,28 @@ const BUILDER_CAMERA_POSITION: [number, number, number] = [0, 50, 0];
 const BUILDER_CAMERA_TARGET: [number, number, number] = [0, 0, 0];
 const FIXED_VIEW_MAX_ZOOM_MULTIPLIER = 3;
 
+function getFreeOrbitCameraForLayout(layout?: OfficeLayoutCenter): {
+  position: [number, number, number];
+  target: [number, number, number];
+} {
+  if (!layout) {
+    return { position: FREE_ORBIT_CAMERA_POSITION, target: FREE_ORBIT_CAMERA_TARGET };
+  }
+  // The automatic Office is a fixed district ring, not a user-sized floor.
+  // Scale free-orbit distance with that ring so changing from four clusters to
+  // seven cannot leave half of the office beyond the camera's first framing.
+  const span = Math.max(layout.width ?? 0, layout.depth ?? 0);
+  const scale = Math.max(1, span / 31);
+  return {
+    position: [
+      layout.x + FREE_ORBIT_CAMERA_POSITION[0] * scale,
+      FREE_ORBIT_CAMERA_POSITION[1] * scale,
+      layout.z + FREE_ORBIT_CAMERA_POSITION[2] * scale,
+    ],
+    target: [layout.x, 0, layout.z],
+  };
+}
+
 function getFixedViewCameraPosition(
   orientation: OfficeSceneViewSettings["cameraOrientation"],
 ): [number, number, number] {
@@ -149,10 +171,11 @@ export function getOfficeSceneViewState(params: {
   }
 
   const controlsEnabled = settings.orbitControlsEnabled && !isDragging;
+  const freeOrbitCamera = getFreeOrbitCameraForLayout(layoutCenter);
   return {
     cameraProjection: "perspective",
-    cameraPosition: FREE_ORBIT_CAMERA_POSITION,
-    cameraTarget: FREE_ORBIT_CAMERA_TARGET,
+    cameraPosition: freeOrbitCamera.position,
+    cameraTarget: freeOrbitCamera.target,
     cameraFov: 50,
     cameraZoom: 1,
     controlsEnabled,

@@ -18,15 +18,13 @@ import { useMemo, useState } from "react";
 import { Response } from "@/components/ai-elements/response";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { OfficeWorkspaceDialog } from "@/components/office-workspace-dialog";
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { UI_Z } from "@/lib/z-index";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
 import { type ProjectDocumentRow, useProjectDocumentLibrary } from "./use-project-document-library";
@@ -218,11 +216,7 @@ export function ProjectDocumentLibraryPanel() {
   const setIsOpen = useAppStore((state) => state.setIsDocumentLibraryPanelOpen);
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent
-        className="flex h-[min(92vh,900px)] min-w-[78vw] max-w-[96vw] flex-col gap-0 overflow-hidden p-0"
-        style={{ zIndex: UI_Z.panelElevated }}
-      >
+    <OfficeWorkspaceDialog open={isOpen} onOpenChange={setIsOpen}>
         <div className="border-b px-5 py-3">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -236,7 +230,6 @@ export function ProjectDocumentLibraryPanel() {
         </div>
 
         <ProjectDocumentLibraryContent isOpen={isOpen} />
-      </DialogContent>
-    </Dialog>
+    </OfficeWorkspaceDialog>
   );
 }

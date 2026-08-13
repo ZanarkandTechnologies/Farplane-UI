@@ -21,6 +21,7 @@ import { Html, Plane } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { OFFICE_HTML_Z } from "@/lib/z-index";
 import { useAppStore } from "@/store";
 import {
   applyOfficeLayoutPaint,
@@ -489,6 +490,7 @@ export function OfficeLayoutEditor({
               position={[cell.x, 0.22, cell.z]}
               center
               distanceFactor={18}
+              zIndexRange={OFFICE_HTML_Z.debug}
             >
               <div className="rounded border border-border/70 bg-background/92 px-1.5 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
                 {cell.x}:{cell.z}
@@ -510,6 +512,7 @@ export function OfficeLayoutEditor({
             position={[managementAnchor[0], 0.42, managementAnchor[2]]}
             center
             distanceFactor={16}
+            zIndexRange={OFFICE_HTML_Z.debug}
           >
             <div className="rounded border border-red-500/60 bg-background/92 px-2 py-1 text-[10px] font-medium text-foreground shadow-sm">
               {showDebugLabels
@@ -531,6 +534,7 @@ export function OfficeLayoutEditor({
                 position={[overlay.position[0], 0.38, overlay.position[2]]}
                 center
                 distanceFactor={16}
+                zIndexRange={OFFICE_HTML_Z.debug}
               >
                 <div className="rounded border border-sky-500/60 bg-background/92 px-2 py-1 text-[10px] font-medium text-foreground shadow-sm">
                   {showDebugLabels ? overlay.label : overlay.name}

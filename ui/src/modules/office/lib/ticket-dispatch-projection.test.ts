@@ -71,6 +71,34 @@ describe("ticket dispatch projection", () => {
     expect(dispatches[0]?.destination).not.toEqual(dispatches[1]?.destination);
   });
 
+  it("dispatches a Sales ticket to its department service bay without a duplicate room", () => {
+    const dispatches = projectTicketDispatches({
+      layout,
+      councilLeads,
+      activities: [
+        {
+          id: "sales:acme:TASK-3",
+          roomId: "sales",
+          projectId: "acme",
+          projectLabel: "Acme",
+          skillId: "lead-scout-specialist",
+          state: "active",
+          startedAt: 1,
+          updatedAt: 1,
+          source: "ticket",
+          specialistId: "lead-scout-specialist",
+        },
+      ],
+    });
+
+    expect(dispatches).toEqual([
+      expect.objectContaining({
+        specialistId: "lead-scout-specialist",
+        projectId: "acme",
+      }),
+    ]);
+  });
+
   it("does not invent work from telemetry, unknown specialists, or missing Council Leads", () => {
     expect(
       projectTicketDispatches({

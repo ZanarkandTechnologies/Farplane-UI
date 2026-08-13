@@ -26,14 +26,14 @@ import { type ReactElement, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { OfficeWorkspaceDialog } from "@/components/office-workspace-dialog";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore } from "@/store";
 import { extractAgentId } from "@/lib/entity-utils";
 import { formatTimestamp } from "@/lib/format-utils";
 import type { AgentMemoryEntry, AgentsFilesListResult } from "@/modules/runtime";
-import { UI_Z } from "@/lib/z-index";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import {
@@ -291,7 +291,7 @@ export function AgentMemoryPanel(): ReactElement | null {
   if (!memoryPanelEmployeeId) return null;
 
   return (
-    <Dialog
+    <OfficeWorkspaceDialog
       open={Boolean(memoryPanelEmployeeId)}
       onOpenChange={(open) => {
         if (!open) {
@@ -299,10 +299,6 @@ export function AgentMemoryPanel(): ReactElement | null {
         }
       }}
     >
-      <DialogContent
-        className="flex min-w-[78vw] max-w-none h-[88vh] flex-col overflow-hidden p-0"
-        style={{ zIndex: UI_Z.panelElevated }}
-      >
         <DialogHeader className="border-b px-6 py-4">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-2">
@@ -495,7 +491,6 @@ export function AgentMemoryPanel(): ReactElement | null {
             />
           </TabsContent>
         </Tabs>
-      </DialogContent>
-    </Dialog>
+    </OfficeWorkspaceDialog>
   );
 }

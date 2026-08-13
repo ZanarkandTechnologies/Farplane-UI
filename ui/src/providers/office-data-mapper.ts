@@ -33,6 +33,7 @@ import {
   type ProjectActivitySummary,
 } from "@/modules/office/lib/office-area-layout";
 import { DEFAULT_OFFICE_DECOR } from "@/modules/office/lib/office-decor";
+import { getDepartmentIslandTeamDeck } from "@/modules/office/lib/department-island-layout";
 import { DEFAULT_OFFICE_FOOTPRINT } from "@/modules/office/lib/office-footprint";
 import {
   buildDefaultFurnitureObjects,
@@ -70,6 +71,7 @@ import {
   sortOfficeLayoutTiles as sortLayoutTiles,
 } from "@/modules/office/lib/office-layout-topology";
 import {
+  getOperatingRoomId,
   hasOperatingRoomSeed,
   hydrateOperatingRooms,
   restoreMissingManualFinanceOffice,
@@ -251,12 +253,25 @@ function getTeamClusterPlacementMetadata(
 ): Record<string, unknown> {
   const footprint = getClusterOccupancyFootprint(deskCount);
   const commandCommonsNeighborhood = metadata?.commandCommonsNeighborhood === true;
+  const departmentIslandCluster = metadata?.departmentIslandCluster === true;
   return {
     ...(metadata ?? {}),
     deskCount,
-    footprintWidth: commandCommonsNeighborhood ? 6.25 : footprint.width,
-    footprintDepth: commandCommonsNeighborhood ? 4.75 : footprint.depth,
-    footprintClearance: commandCommonsNeighborhood ? 0.65 : footprint.clearance,
+    footprintWidth: departmentIslandCluster
+      ? 2.4
+      : commandCommonsNeighborhood
+        ? 6.25
+        : footprint.width,
+    footprintDepth: departmentIslandCluster
+      ? 2.4
+      : commandCommonsNeighborhood
+        ? 4.75
+        : footprint.depth,
+    footprintClearance: departmentIslandCluster
+      ? 0.2
+      : commandCommonsNeighborhood
+        ? 0.65
+        : footprint.clearance,
   };
 }
 
@@ -835,10 +850,19 @@ function isTeamClusterPlacementLocked(
 }
 
 function isSolverOwnedActivityDestination(
-  object: { meshType?: string },
+  object: Pick<OfficeObject, "meshType" | "metadata">,
   isManualLayout: boolean,
+  layoutStrategy: OfficeSettingsModel["layoutStrategy"],
 ): boolean {
-  return !isManualLayout && object.meshType === "activity-landmark";
+  if (isManualLayout || object.meshType !== "activity-landmark") return false;
+  // The department archipelago owns only its canonical hosted rooms. A
+  // user-created landmark keeps its independent placement instead of being
+  // silently reassigned to a department just because it shares the mesh type.
+  return layoutStrategy !== "team_neighborhoods" || getOperatingRoomId(object) !== null;
+}
+
+function isIndependentActivityLandmark(object: OfficeObject): boolean {
+  return object.meshType === "activity-landmark" && getOperatingRoomId(object) === null;
 }
 
 interface TeamAreaPlanningEntry {
@@ -1605,10 +1629,10 @@ export function toOfficeData(
   const sourceOfficeLayout = officeSettings.officeLayout;
   const layoutStrategy = officeSettings.layoutStrategy ?? "team_neighborhoods";
   const isManualLayout = layoutStrategy === "manual";
+  const usesDepartmentArchipelago = !isManualLayout && layoutStrategy === "team_neighborhoods";
   const usesCanonicalAutoLayoutSolver = !isManualLayout;
   const usesCentralCommandCommons =
-    (!isManualLayout && layoutStrategy === "team_neighborhoods") ||
-    officeSettings.officeKit?.kitId === "command-office";
+    usesDepartmentArchipelago || officeSettings.officeKit?.kitId === "command-office";
   const usesProjectDistricts =
     layoutStrategy === "team_neighborhoods" ||
     layoutStrategy === "activity_treemap" ||
@@ -1692,7 +1716,7 @@ export function toOfficeData(
   );
   const lockedSidecarFurnitureEntries = sidecarFurnitureEntries.filter(
     (entry) =>
-      !isSolverOwnedActivityDestination(entry, isManualLayout) &&
+      !isSolverOwnedActivityDestination(entry, isManualLayout, layoutStrategy) &&
       (isOfficeObjectPlacementLocked(entry) ||
         (!usesCanonicalAutoLayoutSolver && !isAutoPackableStarterObject(entry))),
   );
@@ -1846,26 +1870,28 @@ export function toOfficeData(
     const shouldPreservePersistedCluster =
       (isManualLayout && Boolean(persistedClusterPosition)) ||
       isTeamClusterPlacementLocked(persistedCluster);
-    const compactAnchor = usesCentralCommandCommons
-      ? getCentralCommandTeamAnchor({
-          index: placementIndex,
-          total: planningTeams.length,
-          origin: teamAnchorOrigin,
-        })
-      : getCompactTeamAnchor({
-          index: placementIndex,
-          total: planningTeams.length,
-          origin: teamAnchorOrigin,
-          largestFootprint: largestTeamFootprint,
-          footprint: usesCanonicalAutoLayoutSolver
-            ? {
-                width:
-                  getClusterOccupancyFootprint(deskCount).width * TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
-                depth:
-                  getClusterOccupancyFootprint(deskCount).depth * TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
-              }
-            : undefined,
-        });
+    const compactAnchor = usesDepartmentArchipelago
+      ? getDepartmentIslandTeamDeck(placementIndex).position
+      : usesCentralCommandCommons
+        ? getCentralCommandTeamAnchor({
+            index: placementIndex,
+            total: planningTeams.length,
+            origin: teamAnchorOrigin,
+          })
+        : getCompactTeamAnchor({
+            index: placementIndex,
+            total: planningTeams.length,
+            origin: teamAnchorOrigin,
+            largestFootprint: largestTeamFootprint,
+            footprint: usesCanonicalAutoLayoutSolver
+              ? {
+                  width:
+                    getClusterOccupancyFootprint(deskCount).width * TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
+                  depth:
+                    getClusterOccupancyFootprint(deskCount).depth * TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
+                }
+              : undefined,
+          });
     if (usesCentralCommandCommons && !seatedCommandProjectIds.has(project.id)) {
       teamClusterPositionsByTeamId.set(teamId, compactAnchor);
       continue;
@@ -1879,60 +1905,72 @@ export function toOfficeData(
       : usesProjectDistricts
         ? (areaAnchor ?? compactAnchor)
         : compactAnchor;
-    const clusterPosition = resolveTeamClusterScenePosition({
-      position:
-        (shouldPreservePersistedCluster ? persistedClusterPosition : undefined) ?? generatedAnchor,
-      deskCount,
-      officeLayout,
-      reservation: scenePlacementReservation,
-      area:
-        usesProjectDistricts && !usesCentralCommandCommons && !shouldPreservePersistedCluster
-          ? projectArea?.rect
-          : undefined,
-      metadata: { ...(persistedCluster?.metadata ?? {}), teamId },
-      rotation: persistedCluster?.rotation,
-      allowCollisionFallback: isManualLayout && persistedClusterPosition ? false : undefined,
-    });
+    const clusterPosition =
+      usesDepartmentArchipelago && !shouldPreservePersistedCluster
+        ? generatedAnchor
+        : resolveTeamClusterScenePosition({
+            position:
+              (shouldPreservePersistedCluster ? persistedClusterPosition : undefined) ??
+              generatedAnchor,
+            deskCount,
+            officeLayout,
+            reservation: scenePlacementReservation,
+            area:
+              usesProjectDistricts && !usesCentralCommandCommons && !shouldPreservePersistedCluster
+                ? projectArea?.rect
+                : undefined,
+            metadata: { ...(persistedCluster?.metadata ?? {}), teamId },
+            rotation: persistedCluster?.rotation,
+            allowCollisionFallback: isManualLayout && persistedClusterPosition ? false : undefined,
+          });
     teamClusterPositionsByTeamId.set(teamId, clusterPosition);
   }
 
   if (!hasPinnedCeoThread) {
-    const managementCompactAnchor = usesCentralCommandCommons
-      ? getCentralCommandTeamAnchor({
-          index: Math.min(projectPlacementEntries.length, COMMAND_OFFICE_PROJECT_CAPACITY),
-          total: planningTeams.length,
-          origin: teamAnchorOrigin,
-        })
-      : getCompactTeamAnchor({
-          index: projectPlacementEntries.length,
-          total: planningTeams.length,
-          origin: teamAnchorOrigin,
-          largestFootprint: largestTeamFootprint,
-          footprint: usesCanonicalAutoLayoutSolver
-            ? {
-                width:
-                  getClusterOccupancyFootprint(executiveSeatCount).width *
-                  TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
-                depth:
-                  getClusterOccupancyFootprint(executiveSeatCount).depth *
-                  TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
-              }
-            : undefined,
-        });
-    managementClusterPosition = resolveTeamClusterScenePosition({
-      position:
-        isManualLayout ||
-        isTeamClusterPlacementLocked(persistedTeamClusterByTeamId.get("team-management"))
-          ? (teamClusterAnchorsByTeamId.get("team-management") ?? ceoAnchor)
-          : managementCompactAnchor,
-      deskCount: executiveSeatCount,
-      officeLayout,
-      reservation: scenePlacementReservation,
-      metadata: { teamId: "team-management" },
-      rotation: persistedTeamClusterByTeamId.get("team-management")?.rotation,
-      allowCollisionFallback:
-        isManualLayout && teamClusterAnchorsByTeamId.has("team-management") ? false : undefined,
-    });
+    const managementCompactAnchor = usesDepartmentArchipelago
+      ? getDepartmentIslandTeamDeck(projectPlacementEntries.length).position
+      : usesCentralCommandCommons
+        ? getCentralCommandTeamAnchor({
+            index: Math.min(projectPlacementEntries.length, COMMAND_OFFICE_PROJECT_CAPACITY),
+            total: planningTeams.length,
+            origin: teamAnchorOrigin,
+          })
+        : getCompactTeamAnchor({
+            index: projectPlacementEntries.length,
+            total: planningTeams.length,
+            origin: teamAnchorOrigin,
+            largestFootprint: largestTeamFootprint,
+            footprint: usesCanonicalAutoLayoutSolver
+              ? {
+                  width:
+                    getClusterOccupancyFootprint(executiveSeatCount).width *
+                    TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
+                  depth:
+                    getClusterOccupancyFootprint(executiveSeatCount).depth *
+                    TEAM_NEIGHBORHOOD_ANCHOR_SCALE,
+                }
+              : undefined,
+          });
+    const persistedManagementCluster = persistedTeamClusterByTeamId.get("team-management");
+    const shouldPreserveManagementCluster =
+      isManualLayout || isTeamClusterPlacementLocked(persistedManagementCluster);
+    managementClusterPosition =
+      usesDepartmentArchipelago && !shouldPreserveManagementCluster
+        ? managementCompactAnchor
+        : resolveTeamClusterScenePosition({
+            position: shouldPreserveManagementCluster
+              ? (teamClusterAnchorsByTeamId.get("team-management") ?? ceoAnchor)
+              : managementCompactAnchor,
+            deskCount: executiveSeatCount,
+            officeLayout,
+            reservation: scenePlacementReservation,
+            metadata: { teamId: "team-management" },
+            rotation: persistedManagementCluster?.rotation,
+            allowCollisionFallback:
+              isManualLayout && teamClusterAnchorsByTeamId.has("team-management")
+                ? false
+                : undefined,
+          });
     teamClusterPositionsByTeamId.set("team-management", managementClusterPosition);
 
     teams.push({
@@ -2107,6 +2145,13 @@ export function toOfficeData(
     .map((team, index) => {
       const persistedCluster = persistedTeamClusterByTeamId.get(team._id);
       const deskCount = Math.max(team.deskCount ?? 1, 1);
+      const clusterPlacementMetadata = usesDepartmentArchipelago
+        ? {
+            ...(persistedCluster?.metadata ?? {}),
+            commandCommonsNeighborhood: false,
+            departmentIslandCluster: true,
+          }
+        : persistedCluster?.metadata;
       return {
         _id: persistedCluster?.id ?? `team-cluster-${team._id}`,
         companyId,
@@ -2115,11 +2160,21 @@ export function toOfficeData(
         rotation: persistedCluster?.rotation ?? [0, 0, 0],
         scale: persistedCluster?.scale,
         metadata: {
-          ...getTeamClusterPlacementMetadata(persistedCluster?.metadata, deskCount),
+          ...getTeamClusterPlacementMetadata(clusterPlacementMetadata, deskCount),
           teamId: team._id,
           executivePod: team._id === executiveHostTeamId,
-          commandCommonsNeighborhood: usesCentralCommandCommons,
-          ...(usesCentralCommandCommons
+          commandCommonsNeighborhood: usesCentralCommandCommons && !usesDepartmentArchipelago,
+          departmentIslandCluster: usesDepartmentArchipelago,
+          ...(usesDepartmentArchipelago
+            ? {
+                footprintWidth: 2.4,
+                footprintDepth: 2.4,
+                footprintClearance: 0.2,
+                visualFootprintWidth: 2.4,
+                visualFootprintDepth: 2.4,
+              }
+            : {}),
+          ...(usesCentralCommandCommons && !usesDepartmentArchipelago
             ? {
                 footprintWidth: 6.25,
                 footprintDepth: 4.75,
@@ -2135,7 +2190,7 @@ export function toOfficeData(
     ...(commandCommonsObject ? [commandCommonsObject] : []),
     ...clusterObjects,
     ...sidecarFurniture.filter(
-      (object) => !isSolverOwnedActivityDestination(object, isManualLayout),
+      (object) => !isSolverOwnedActivityDestination(object, isManualLayout, layoutStrategy),
     ),
   ];
   let preliminaryOfficeLayout = usesProjectDistricts
@@ -2203,7 +2258,7 @@ export function toOfficeData(
       objects: [
         ...clusterObjects,
         ...furnitureCandidates.filter(
-          (object) => !isSolverOwnedActivityDestination(object, isManualLayout),
+          (object) => !isSolverOwnedActivityDestination(object, isManualLayout, layoutStrategy),
         ),
       ],
     });
@@ -2211,13 +2266,15 @@ export function toOfficeData(
   const preservedSidecarFurniture = sidecarFurnitureCandidates.filter(
     (object) =>
       isManualLayout ||
-      (!isSolverOwnedActivityDestination(object, isManualLayout) &&
+      (usesDepartmentArchipelago && isIndependentActivityLandmark(object)) ||
+      (!isSolverOwnedActivityDestination(object, isManualLayout, layoutStrategy) &&
         isPreservedOfficeObjectPlacement(object)),
   );
   const movableSidecarFurniture = sidecarFurnitureCandidates.filter(
     (object) =>
       !isManualLayout &&
-      (isSolverOwnedActivityDestination(object, isManualLayout) ||
+      !(usesDepartmentArchipelago && isIndependentActivityLandmark(object)) &&
+      (isSolverOwnedActivityDestination(object, isManualLayout, layoutStrategy) ||
         !isPreservedOfficeObjectPlacement(object)),
   );
   const solverCandidateFurniture =

@@ -15,6 +15,7 @@ import {
   type OfficeDioramaTheme,
 } from "@/config/office-theme";
 import { COMPUTER_HEIGHT, DESK_HEIGHT } from "@/constants";
+import { OFFICE_HTML_Z } from "@/lib/z-index";
 import {
   COMMAND_COMMONS_FRAME,
   COMMAND_COMMONS_SCALE,
@@ -84,7 +85,7 @@ export default function CommandCommons({
         setIsHovered(false);
         document.body.style.cursor = "auto";
       }}
-      userData={{ panelId: "world", interactionLabel: "Open Company World" }}
+      userData={{ panelId: "world", interactionLabel: "Open Company Nexus" }}
     >
       <pointLight
         position={[0, 4.2, 0]}
@@ -191,10 +192,10 @@ export default function CommandCommons({
                   position={[0, 6.9, 0]}
                   sprite
                   transform
-                  zIndexRange={[60, 0]}
+                  zIndexRange={OFFICE_HTML_Z.label}
                 >
                   <div className="pointer-events-none max-w-[220px] rounded-md border border-border/70 bg-background/95 px-2.5 py-1.5 text-center text-xs font-medium text-foreground shadow-lg backdrop-blur">
-                    <span className="block truncate">Company World</span>
+                    <span className="block truncate">Company Nexus</span>
                   </div>
                 </Html>
               </>

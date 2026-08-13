@@ -4,7 +4,7 @@ title: Durable office kits, stable presence, and camera recovery
 status: proposed
 owner: office3d
 created_at: 2026-07-15
-updated_at: 2026-07-15
+updated_at: 2026-08-06
 ticket: tickets/TASK-0053/ticket.md
 depends_on:
   - FEAT-0004
@@ -142,6 +142,31 @@ floor, walls, furniture, screens, practical lights, employee contrast, lineage
 effects, and selection states. A theme change must not rewrite kit geometry or
 office-object transforms.
 
+### Automatic hosted rooms use a department archipelago
+
+`team_neighborhoods` is an automatic presentation, not a second durable office
+schema. It maps the fixed hosted-room catalog into four light, raised islands:
+Intelligence (Research, Skills, Self-Improvement), Operations (Harness,
+Organization, Finance), Production (Production, Comms), and Assurance (QA,
+Telemetry, Thread Data). Four ordinary walkable bridges join those islands to a
+central Project Council around the Company World nexus. Each Office-visible
+project receives one equal Council sector and contributes its existing
+project-scoped CEO, or its existing Project Pulse as the fallback Council
+Lead. The company CEO is never a project seat.
+
+The archipelago is derived from one shared pure geometry owner and renders over
+the existing tile-backed floor/click/navigation layout. It never persists
+islands, changes room/host/panel identity, creates agents from transient skill
+events, or changes a project’s company-model state. Specialist stations are
+fixed service fixtures mapped from the registry to their existing rooms; only
+an active ticket with a registered `specialist` projects an ephemeral,
+project-derived worker and a Council-to-station dispatch line. Permanent room billboards,
+the rectangular shell, and the dark Command Commons cage are absent from this
+automatic presentation; room identity remains available through interaction and
+active work. The Company World landmark is a table-free, multi-path particle
+hive-mind swarm, not a static ring cue. Manual/Builder and equipped office-kit layouts retain their
+authored floor, wall, and object transforms unchanged.
+
 ## Diagram summary
 
 ### Before
@@ -202,6 +227,13 @@ durable behavior, gray = retained input.
 11. At the default camera, employee world height is 1.8-2.4 times desk-worktop
     height and the invisible employee hit capsule is at least 0.45 world units
     wide.
+12. Automatic `team_neighborhoods` renders exactly four department islands, one
+    central Project Council around the Company World nexus, four bridges, and
+    the eleven fixed rooms without an enclosing shell; manual/Builder layouts
+    never enter that reflow path.
+13. Council sectors are deterministic and equal for the visible project IDs.
+    A ticket clone appears only for an active ticket with a known specialist;
+    skill helpers and generic telemetry do not create a clone.
 
 ## Non-goals
 

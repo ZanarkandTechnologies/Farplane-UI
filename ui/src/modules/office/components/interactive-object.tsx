@@ -4,6 +4,7 @@ import { Move, Settings, SlidersVertical, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OFFICE_INTERACTION_COLORS } from "@/config/office-theme";
+import { OFFICE_HTML_Z } from "@/lib/z-index";
 import {
   canPlaceOfficeObjectAtPosition,
   constrainOfficeObjectPositionForLayout,
@@ -573,7 +574,7 @@ export function InteractiveObject({
           position={[0, hoverLabelYOffset * HOVER_LABEL_Y_POSITION_MULTIPLIER, 0]}
           sprite
           transform
-          zIndexRange={[60, 0]}
+          zIndexRange={OFFICE_HTML_Z.label}
         >
           <div className="pointer-events-none max-w-[220px] rounded-md border border-border/70 bg-background/95 px-2.5 py-1.5 text-center text-xs font-medium text-foreground shadow-lg backdrop-blur">
             <span className="block truncate">{runtimeHoverLabel}</span>

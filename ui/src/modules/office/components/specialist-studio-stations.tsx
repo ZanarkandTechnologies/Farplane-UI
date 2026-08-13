@@ -2,6 +2,8 @@
 
 import { Html } from "@react-three/drei";
 import type React from "react";
+import { OFFICE_HTML_Z } from "@/lib/z-index";
+import { getOfficeCapabilityDepartmentForSpecialist } from "../lib/office-capability-projection";
 import type { ProjectCouncilLayout } from "../lib/project-council-layout";
 
 const DEPARTMENT_COLORS = {
@@ -20,7 +22,8 @@ function SpecialistStation({
 }: {
   station: ProjectCouncilLayout["specialistStations"][number];
 }): React.JSX.Element {
-  const color = DEPARTMENT_COLORS[station.departmentId];
+  const capability = getOfficeCapabilityDepartmentForSpecialist(station.specialistId);
+  const color = capability?.accentColor ?? DEPARTMENT_COLORS[station.departmentId];
   return (
     <group
       name={`specialist-station-${station.specialistId}`}
@@ -59,11 +62,18 @@ function SpecialistStation({
         position={[0, 0.72, 0]}
         sprite
         transform
-        zIndexRange={[100, 0]}
+        zIndexRange={OFFICE_HTML_Z.label}
         style={{ pointerEvents: "none", userSelect: "none" }}
       >
-        <span className="block max-w-[76px] truncate rounded-full border border-stone-300/75 bg-stone-50/88 px-1.5 py-0.5 text-center text-[7px] font-semibold uppercase tracking-[0.04em] text-stone-600 shadow-[0_3px_10px_rgba(74,67,55,0.16)]">
-          {conciseLabel(station.displayName)}
+        <span className="block max-w-[88px] rounded-full border border-stone-300/75 bg-stone-50/88 px-1.5 py-0.5 text-center shadow-[0_3px_10px_rgba(74,67,55,0.16)]">
+          {capability ? (
+            <span className="block truncate text-[6px] font-bold uppercase leading-[1.05] tracking-[0.1em] text-stone-400">
+              {capability.displayName}
+            </span>
+          ) : null}
+          <span className="block truncate text-[7px] font-semibold uppercase leading-[1.1] tracking-[0.04em] text-stone-600">
+            {conciseLabel(station.displayName)}
+          </span>
         </span>
       </Html>
     </group>

@@ -17,6 +17,7 @@
 import { memo, useState } from "react";
 import { Box, Html } from "@react-three/drei";
 import { HEAD_HEIGHT, HEAD_WIDTH, HAIR_HEIGHT } from "@/constants";
+import { OFFICE_HTML_Z } from "@/lib/z-index";
 
 export const ProfileHead = memo(function ProfileHead({
   imageUrl,
@@ -58,7 +59,7 @@ export const ProfileHead = memo(function ProfileHead({
           transform
           scale={0.3}
           occlude="blending"
-          zIndexRange={[10, 0]}
+          zIndexRange={OFFICE_HTML_Z.label}
           style={{
             pointerEvents: "none",
             backfaceVisibility: "hidden",

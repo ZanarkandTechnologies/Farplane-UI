@@ -3,7 +3,7 @@
  * ======================
  * Owns the deterministic presentation geometry for the automatic Project
  * Council. Inputs are visible project ids plus the ticket-specialist registry;
- * outputs are equal council sectors, fixed room-internal specialist stations,
+ * outputs are equal council sectors, fixed room or department-bay specialist stations,
  * and camera-ready bounds. It only reads the existing archipelago plan and
  * never persists office objects, agents, or another layout model.
  */
@@ -17,7 +17,6 @@ import {
 import {
   type DepartmentIslandId,
   getDepartmentIslandGeometry,
-  getDepartmentIslandId,
   planDepartmentArchipelago,
 } from "./department-island-layout";
 import {
@@ -65,7 +64,8 @@ export interface ProjectCouncilSector {
 export interface ProjectCouncilSpecialistStation {
   specialistId: string;
   displayName: string;
-  roomId: OperatingRoomId;
+  /** Undefined for a department-level service bay with no duplicate room UI. */
+  roomId?: OperatingRoomId;
   departmentId: DepartmentIslandId;
   position: ProjectCouncilPosition;
   rotationY: number;
@@ -130,11 +130,15 @@ function getRoomCenters(): Map<OperatingRoomId, ProjectCouncilPosition> {
   return centers;
 }
 
-function stationOffsets(count: number): Array<{ x: number; z: number }> {
+function stationOffsets(
+  count: number,
+  width = ACTIVITY_DESTINATION_ROOM_WIDTH,
+  depth = ACTIVITY_DESTINATION_ROOM_DEPTH,
+): Array<{ x: number; z: number }> {
   const columns = Math.ceil(Math.sqrt(count));
   const rows = Math.ceil(count / columns);
-  const xLimit = ACTIVITY_DESTINATION_ROOM_WIDTH / 2 - ACTIVITY_DESTINATION_INTERIOR_INSET;
-  const zLimit = ACTIVITY_DESTINATION_ROOM_DEPTH / 2 - ACTIVITY_DESTINATION_INTERIOR_INSET;
+  const xLimit = Math.max(0.7, width / 2 - ACTIVITY_DESTINATION_INTERIOR_INSET);
+  const zLimit = Math.max(0.7, depth / 2 - ACTIVITY_DESTINATION_INTERIOR_INSET);
 
   return Array.from({ length: count }, (_, index) => {
     const column = index % columns;
@@ -150,25 +154,51 @@ function stationRotation(center: ProjectCouncilPosition, position: ProjectCounci
   return Math.atan2(center[0] - position[0], center[2] - position[2]);
 }
 
+function departmentServiceBayCenter(
+  island: NonNullable<ReturnType<typeof getDepartmentIslandGeometry>[number]>,
+): ProjectCouncilPosition {
+  // Keep a ticket-only bay distinct from a room that happens to occupy the
+  // island centre. This is dormant for Sales/Deals today, but lets Customer
+  // Research have a visible station beside the Comms host without duplicating
+  // either one.
+  const bayOffset = Math.min(2, Math.max(1.25, island.depth / 2 - 1.6));
+  return [island.center[0], 0, island.center[1] + bayOffset];
+}
+
 function buildSpecialistStations(
   specialistRegistry: readonly TicketSpecialistDefinition[],
 ): ProjectCouncilSpecialistStation[] {
   const roomCenters = getRoomCenters();
-  const specialistsByRoom = new Map<OperatingRoomId, TicketSpecialistDefinition[]>();
+  const islandById = new Map(getDepartmentIslandGeometry().map((island) => [island.id, island]));
+  const specialistsByFacility = new Map<string, TicketSpecialistDefinition[]>();
   for (const specialist of [...specialistRegistry].sort((left, right) =>
     compareText(left.id, right.id),
   )) {
-    if (!roomCenters.has(specialist.roomId)) continue;
-    const roomSpecialists = specialistsByRoom.get(specialist.roomId) ?? [];
-    roomSpecialists.push(specialist);
-    specialistsByRoom.set(specialist.roomId, roomSpecialists);
+    const facilityKey = specialist.roomId
+      ? `room:${specialist.roomId}`
+      : `bay:${specialist.departmentId}`;
+    const facilitySpecialists = specialistsByFacility.get(facilityKey) ?? [];
+    facilitySpecialists.push(specialist);
+    specialistsByFacility.set(facilityKey, facilitySpecialists);
   }
 
   const stations: ProjectCouncilSpecialistStation[] = [];
-  for (const [roomId, specialists] of specialistsByRoom) {
-    const center = roomCenters.get(roomId);
+  for (const [, specialists] of specialistsByFacility) {
+    const firstSpecialist = specialists[0];
+    if (!firstSpecialist) continue;
+    const roomId = firstSpecialist.roomId;
+    const island = islandById.get(firstSpecialist.departmentId);
+    const center: ProjectCouncilPosition | undefined = roomId
+      ? roomCenters.get(roomId)
+      : island
+        ? departmentServiceBayCenter(island)
+        : undefined;
     if (!center) continue;
-    const offsets = stationOffsets(specialists.length);
+    const offsets = stationOffsets(
+      specialists.length,
+      roomId ? ACTIVITY_DESTINATION_ROOM_WIDTH : Math.min(5, island?.width ?? 5),
+      roomId ? ACTIVITY_DESTINATION_ROOM_DEPTH : Math.min(5, island?.depth ?? 5),
+    );
     specialists.forEach((specialist, index) => {
       const offset = offsets[index];
       if (!offset) return;
@@ -181,7 +211,7 @@ function buildSpecialistStations(
         specialistId: specialist.id,
         displayName: specialist.displayName,
         roomId,
-        departmentId: getDepartmentIslandId(roomId),
+        departmentId: specialist.departmentId,
         position,
         rotationY: stationRotation(center, position),
       });

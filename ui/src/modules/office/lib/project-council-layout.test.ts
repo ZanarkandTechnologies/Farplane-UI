@@ -59,7 +59,9 @@ describe("project council layout", () => {
 
     for (const station of layout.specialistStations) {
       const district = districtsById.get(station.departmentId);
-      expect(station.departmentId).toBe(getDepartmentIslandId(station.roomId));
+      if (station.roomId) {
+        expect(station.departmentId).toBe(getDepartmentIslandId(station.roomId));
+      }
       expect(district).toBeDefined();
       if (!district) throw new Error(`Missing district bounds for ${station.departmentId}`);
       expect(station.position[0]).toBeGreaterThanOrEqual(district.minX);
@@ -67,5 +69,21 @@ describe("project council layout", () => {
       expect(station.position[2]).toBeGreaterThanOrEqual(district.minZ);
       expect(station.position[2]).toBeLessThanOrEqual(district.maxZ);
     }
+  });
+
+  it("anchors Sales and Deals services directly inside their department bays", () => {
+    const layout = buildProjectCouncilLayout(["project-alpha"], TICKET_SPECIALIST_REGISTRY);
+    const byId = new Map(
+      layout.specialistStations.map((station) => [station.specialistId, station]),
+    );
+
+    expect(byId.get("lead-scout-specialist")).toMatchObject({
+      departmentId: "sales",
+      roomId: undefined,
+    });
+    expect(byId.get("personalized-offer-specialist")).toMatchObject({
+      departmentId: "deals",
+      roomId: undefined,
+    });
   });
 });

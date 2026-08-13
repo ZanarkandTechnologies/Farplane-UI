@@ -8,20 +8,23 @@
  * layout or collision model.
  */
 
+import { getObjectFootprintCells } from "../systems/occupancy-system";
 import {
   ACTIVITY_DESTINATION_ROOM_DEPTH,
   ACTIVITY_DESTINATION_ROOM_WIDTH,
 } from "./activity-destination-room";
-import { getOperatingRoomId, type OperatingRoomId } from "./operating-room-catalog";
 import { officeLayoutTileKey } from "./office-layout";
-import { getObjectFootprintCells } from "../systems/occupancy-system";
+import { getOperatingRoomId, type OperatingRoomId } from "./operating-room-catalog";
 import type { OfficeObject } from "./types";
 
 export const DEPARTMENT_ISLAND_IDS = [
-  "intelligence",
+  "back-office",
+  "sales",
+  "deals",
+  "marketing",
   "operations",
-  "production",
-  "assurance",
+  "intelligence",
+  "customer",
 ] as const;
 
 export type DepartmentIslandId = (typeof DEPARTMENT_ISLAND_IDS)[number];
@@ -34,6 +37,8 @@ export interface DepartmentIslandDefinition {
   depth: number;
   accentColor: string;
   roomIds: readonly OperatingRoomId[];
+  /** A semantic workflow entry point when the department has no owned room yet. */
+  entryLabel?: string;
 }
 
 export interface DepartmentIslandBounds {
@@ -85,40 +90,69 @@ const NEXUS_BOUNDS = bounds(-6, 6, -5, 5);
 
 export const DEPARTMENT_ISLAND_DEFINITIONS: readonly DepartmentIslandDefinition[] = [
   {
-    id: "intelligence",
-    label: "Intelligence",
-    center: [-17, -11],
-    width: 15,
-    depth: 13,
-    accentColor: "#A59664",
-    roomIds: ["research", "skills", "self-improvement"],
+    id: "back-office",
+    label: "Back Office",
+    center: [-16, -12],
+    width: 13,
+    depth: 9,
+    accentColor: "#a8ad76",
+    roomIds: ["organization", "finance"],
+  },
+  {
+    id: "sales",
+    label: "Sales",
+    center: [0, -17],
+    width: 13,
+    depth: 9,
+    accentColor: "#bf8aa8",
+    roomIds: [],
+    entryLabel: "Lead & Outreach",
+  },
+  {
+    id: "deals",
+    label: "Deals",
+    center: [17, -12],
+    width: 13,
+    depth: 9,
+    accentColor: "#c9826b",
+    roomIds: [],
+    entryLabel: "Solution & Pricing",
+  },
+  {
+    id: "marketing",
+    label: "Marketing",
+    center: [18, 3],
+    width: 13,
+    depth: 7,
+    accentColor: "#c8ad72",
+    roomIds: ["production"],
   },
   {
     id: "operations",
     label: "Operations",
-    center: [-17, 11],
-    width: 15,
-    depth: 13,
-    accentColor: "#798E77",
-    roomIds: ["harness", "organization", "finance"],
+    center: [12, 16],
+    width: 19,
+    depth: 15,
+    accentColor: "#9b8bc5",
+    roomIds: ["self-improvement", "qa", "harness", "skills", "telemetry"],
   },
   {
-    id: "production",
-    label: "Production",
-    center: [17, -10],
+    id: "intelligence",
+    label: "Intelligence",
+    center: [-10, 16],
     width: 15,
-    depth: 7,
-    accentColor: "#A87869",
-    roomIds: ["production", "comms"],
+    depth: 11,
+    accentColor: "#7fa9c0",
+    roomIds: ["research", "thread-data"],
   },
   {
-    id: "assurance",
-    label: "Assurance",
-    center: [17, 11],
-    width: 15,
-    depth: 13,
-    accentColor: "#72889A",
-    roomIds: ["qa", "telemetry", "thread-data"],
+    id: "customer",
+    label: "Customer",
+    center: [-18, 3],
+    width: 11,
+    depth: 9,
+    accentColor: "#79b8a2",
+    roomIds: ["comms"],
   },
 ] as const;
 
@@ -170,17 +204,24 @@ function roomSlotsForDefinition(
   definition: DepartmentIslandDefinition,
 ): DepartmentIslandRoomSlot[] {
   const [centerX, centerZ] = definition.center;
-  const positions: Array<{ position: [number, number, number]; rotationY: number }> =
-    definition.roomIds.length === 2
-      ? [
-          { position: [centerX - 3, 0, centerZ], rotationY: 0 },
-          { position: [centerX + 3, 0, centerZ], rotationY: 0 },
-        ]
-      : [
-          { position: [centerX - 3, 0, centerZ - 3], rotationY: 0 },
-          { position: [centerX + 3, 0, centerZ - 3], rotationY: 0 },
-          { position: [centerX, 0, centerZ + 3], rotationY: Math.PI },
-        ];
+  const roomCount = definition.roomIds.length;
+  if (roomCount === 0) return [];
+  const columns = roomCount <= 2 ? roomCount : Math.min(3, Math.ceil(Math.sqrt(roomCount)));
+  const rows = Math.ceil(roomCount / columns);
+  const xSpacing = columns === 1 ? 0 : Math.min(5, (definition.width - 6) / (columns - 1));
+  const zSpacing = rows === 1 ? 0 : Math.min(6, (definition.depth - 6) / (rows - 1));
+  const positions = Array.from({ length: roomCount }, (_, index) => {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    return {
+      position: [
+        centerX + (column - (columns - 1) / 2) * xSpacing,
+        0,
+        centerZ + (row - (rows - 1) / 2) * zSpacing,
+      ] as [number, number, number],
+      rotationY: row === rows - 1 && rows > 1 ? Math.PI : 0,
+    };
+  });
 
   return positions.map(({ position, rotationY }) => ({
     departmentId: definition.id,
@@ -220,15 +261,39 @@ export function getDepartmentIslandGeometry(): DepartmentIslandGeometry[] {
   }));
 }
 
+/**
+ * The camera-facing bounds of the fixed seven-district office. This is derived
+ * from the same islands as the floor and never from persisted object positions,
+ * so automatic rooms cannot shift the visual centre away from the World Nexus.
+ */
+export function getDepartmentArchipelagoPresentationBounds(): DepartmentIslandBounds {
+  return getArchipelagoBounds(getDepartmentIslandGeometry(), NEXUS_BOUNDS);
+}
+
+export function getDepartmentArchipelagoLayoutCenter(): {
+  x: number;
+  z: number;
+  width: number;
+  depth: number;
+} {
+  const presentationBounds = getDepartmentArchipelagoPresentationBounds();
+  return {
+    x: (presentationBounds.minX + presentationBounds.maxX) / 2,
+    z: (presentationBounds.minZ + presentationBounds.maxZ) / 2,
+    width: presentationBounds.width,
+    depth: presentationBounds.depth,
+  };
+}
+
 export function getDepartmentIslandBridgePlan(): DepartmentIslandBridge[] {
   return [
-    { id: "intelligence", minX: -9, maxX: -7, minZ: -5, maxZ: -5 },
-    { id: "operations", minX: -9, maxX: -7, minZ: 5, maxZ: 5 },
-    // The Production island meets the south-east bridge at z=-7. Keeping this
-    // one tile deeper avoids a diagonal-only contact, which tile navigation
-    // correctly treats as disconnected.
-    { id: "production", minX: 7, maxX: 9, minZ: -7, maxZ: -5 },
-    { id: "assurance", minX: 7, maxX: 9, minZ: 5, maxZ: 5 },
+    { id: "back-office", minX: -10, maxX: -7, minZ: -8, maxZ: -5 },
+    { id: "sales", minX: -1, maxX: 1, minZ: -13, maxZ: -6 },
+    { id: "deals", minX: 7, maxX: 11, minZ: -8, maxZ: -5 },
+    { id: "marketing", minX: 7, maxX: 12, minZ: 0, maxZ: 2 },
+    { id: "operations", minX: 4, maxX: 6, minZ: 6, maxZ: 9 },
+    { id: "intelligence", minX: -4, maxX: -2, minZ: 6, maxZ: 11 },
+    { id: "customer", minX: -13, maxX: -7, minZ: 0, maxZ: 2 },
   ];
 }
 
@@ -243,27 +308,40 @@ export function getDepartmentIslandBridgeAccessTile(departmentId: DepartmentIsla
 } {
   const bridge = getDepartmentIslandBridgePlan().find((candidate) => candidate.id === departmentId);
   if (!bridge) throw new Error(`No bridge configured for department ${departmentId}`);
+  const definition = DEPARTMENT_ISLAND_DEFINITIONS.find(
+    (candidate) => candidate.id === departmentId,
+  );
+  if (!definition) throw new Error(`No department configured for bridge ${departmentId}`);
+  const [centerX, centerZ] = definition.center;
+  const bridgeCenterX = (bridge.minX + bridge.maxX) / 2;
+  const bridgeCenterZ = (bridge.minZ + bridge.maxZ) / 2;
+  const horizontal = Math.abs(centerX - bridgeCenterX) > Math.abs(centerZ - bridgeCenterZ);
   return {
-    x: departmentId === "intelligence" || departmentId === "operations" ? bridge.minX : bridge.maxX,
-    z: bridge.minZ,
+    x: horizontal
+      ? centerX < bridgeCenterX
+        ? bridge.minX
+        : bridge.maxX
+      : Math.round(bridgeCenterX),
+    z: horizontal ? Math.round(bridgeCenterZ) : centerZ < bridgeCenterZ ? bridge.minZ : bridge.maxZ,
   };
 }
 
 const TEAM_DECKS: readonly DepartmentIslandTeamDeck[] = [
-  { departmentId: "intelligence", position: [-22, 0, -6] },
-  { departmentId: "operations", position: [-22, 0, 15] },
-  { departmentId: "production", position: [12, 0, -6] },
-  { departmentId: "assurance", position: [12, 0, 15] },
-  { departmentId: "production", position: [22, 0, -6] },
-  { departmentId: "assurance", position: [22, 0, 15] },
-  { departmentId: "intelligence", position: [-12, 0, -6] },
-  { departmentId: "operations", position: [-12, 0, 15] },
+  { departmentId: "back-office", position: [-20, 0, -12] },
+  { departmentId: "sales", position: [0, 0, -20] },
+  { departmentId: "deals", position: [20, 0, -12] },
+  { departmentId: "marketing", position: [21, 0, 3] },
+  { departmentId: "operations", position: [17, 0, 18] },
+  { departmentId: "intelligence", position: [-10, 0, 18] },
+  { departmentId: "customer", position: [-20, 0, 3] },
 ] as const;
 
 /** Stable automatic project-table decks; overflow wraps by capacity without persistence. */
 export function getDepartmentIslandTeamDeck(index: number): DepartmentIslandTeamDeck {
   const safeIndex = Math.max(0, Math.floor(index));
-  return TEAM_DECKS[safeIndex % TEAM_DECKS.length] ?? TEAM_DECKS[0]!;
+  const fallback = TEAM_DECKS[0];
+  if (!fallback) throw new Error("Department islands require at least one project-table deck");
+  return TEAM_DECKS[safeIndex % TEAM_DECKS.length] ?? fallback;
 }
 
 export function isDepartmentArchipelagoRoom(object: OfficeObject): boolean {

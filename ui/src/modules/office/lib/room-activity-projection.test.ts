@@ -289,4 +289,36 @@ describe("room activity projection", () => {
       }),
     ).toEqual([]);
   });
+
+  it("keeps a department service-bay ticket available for Council dispatch", () => {
+    const groups = projectTicketRoomActivities({
+      catalog,
+      projects,
+      now: NOW,
+      tickets: [
+        {
+          id: "TASK-0046",
+          projectId: "acme",
+          title: "Find construction leads",
+          status: "in_progress",
+          specialist: "lead-scout-specialist",
+          updatedAt: NOW - 10,
+        },
+      ],
+      invocations: [],
+    });
+
+    expect(groups).toEqual([
+      expect.objectContaining({
+        roomId: "sales",
+        activities: [
+          expect.objectContaining({
+            source: "ticket",
+            specialistId: "lead-scout-specialist",
+            ticketTitle: "Find construction leads",
+          }),
+        ],
+      }),
+    ]);
+  });
 });

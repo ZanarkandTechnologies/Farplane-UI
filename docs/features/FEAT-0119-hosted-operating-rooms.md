@@ -46,16 +46,21 @@ than new task owners or continuously running agents.
 
 ## Activity Contract
 
-- Existing skill-invocation telemetry is read once at scene level and projected
-  only through each room's curated `activitySkillIds`.
-- One active session/project pair produces one worktable marker in its owning
-  room. The room shows at most three markers plus an overflow count.
-- Markers are re-evaluated every ten seconds and expire after the existing
-  five-minute telemetry freshness window. They are presentation-only: they do
-  not spawn agents, create tasks, move persistent furniture, or expose absolute
-  paths.
-- Advisor and entrypoint skills are separate from activity skills; non-artifact
-  ingest and generic execution calls do not automatically produce worktables.
+- An `in_progress` filesystem ticket with a known `specialist` produces one
+  temporary worker in the specialist's mapped room. Its identity is ticket,
+  project, and room, so concurrent projects can use the same specialist without
+  collision. The room shows at most three workers plus an overflow count.
+- Existing skill-invocation telemetry is read once at scene level. A fresh event
+  whose raw thread id matches that ticket's `thread_id` enriches the worker's
+  displayed action; telemetry without a matching ticket is ambient facility
+  activity, never a worktable or worker.
+- Workers disappear when the ticket leaves `in_progress`; five-minute telemetry
+  freshness only governs ambient/action effects. The projection is
+  presentation-only: it does not spawn agents, create tasks, move persistent
+  furniture, or expose absolute paths.
+- Advisor and entrypoint skills remain separate from artifact specialists;
+  non-artifact ingest, generic execution, and phase helpers do not create
+  workers.
 
 ## Project Visibility Contract
 

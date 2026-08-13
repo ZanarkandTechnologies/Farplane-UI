@@ -68,6 +68,23 @@ both show negative `$400` in the destructive tone, while the panel retains
 separate weekly/monthly flow cards. Capture a screenshot plus browser console
 and page errors.
 
+### Leverage Evidence Proof
+
+Use an isolated state root with a `company.json` that registers at least one
+project path. Each project snapshot lives at
+`<trackingContext>/.farplane/project/ui/latest.json`; Leverage reads only cards
+explicitly marked `leverage: distribution` or `leverage: edge`.
+
+Open Office → command palette → **Leverage** (or `Alt+Shift+G`). Confirm the
+panel shows the Finance capital snapshot, fresh distribution cards, one current
+Edge paragraph, and project provenance. Seed two project snapshots with the same
+social `(platform, account_id)` and confirm they render as one account card with
+both names in `Used by`; the provider account ID must not appear in the browser.
+Also seed a stale, unreadable, or
+unconfigured project and confirm it remains a named evidence gap rather than
+appearing as a zero or silently disappearing. Capture `leverage-panel`, browser
+console errors, and page errors. The endpoint and panel must make no writes.
+
 ### Content Intelligence Read-Surface Proof
 
 Open Office → command palette → **Content Intelligence** (or `Alt+Shift+V`).
@@ -137,9 +154,9 @@ The script:
 Useful live probes:
 
 ```js
-window.__farplaneOfficeCharacterRenderers
-window.__farplaneOfficeClickProbe?.targets
-window.__farplaneOfficeLiveEmployeePositions
+window.__farplaneOfficeCharacterRenderers;
+window.__farplaneOfficeClickProbe?.targets;
+window.__farplaneOfficeLiveEmployeePositions;
 ```
 
 ### Legacy Activity Destination Proof
@@ -183,16 +200,19 @@ For `TASK-0081` and later hosted-room composition, prove the office as one
 operating system rather than eleven unrelated landmarks:
 
 1. Capture the default office overview and confirm exactly eleven distinct
-   rooms, one fixed host per room, a readable center Command Commons, and no
-   duplicated specialist desks.
+   rooms, one fixed host per room, a readable center Company World nexus, and
+   no duplicated specialist desks.
 2. Click one office-scoped host twice and confirm the same logical chat is
    reused. Select project A then project B and confirm a Research/Production/QA
    host opens isolated project conversations. With no selected project, confirm
    the host asks for selection instead of opening the wrong scope.
-3. Emit or seed a curated room skill event and confirm one transient worktable
-   appears in the owning room, remains bounded to three visible tables plus
-   overflow, exposes no absolute path, and disappears after expiry without
-   changing persisted office objects.
+3. Seed two `in_progress` tickets with
+   `specialist: landing-page-specialist` and distinct projects/session links.
+   Confirm two temporary workers appear in Production Studio, remain bounded to
+   three visible workers plus overflow, open their linked thread when available,
+   and disappear when the ticket is no longer in progress. Seed a research
+   helper event under one linked session and confirm it enriches the existing
+   worker without creating a Research worker or persistent office object.
 4. Open every room's registered panel. Confirm QA is labeled QA Lab, no Planning
    Room remains, the legacy Resource Archive has migrated to Finance Office,
    and Self-Improvement Lab shows real Goal
@@ -207,6 +227,37 @@ operating system rather than eleven unrelated landmarks:
 7. Record default-camera desktop and narrow-viewport screenshots, browser
    console, page errors, and the room/host/project counts exposed by the QA
    bridge.
+
+### Department Archipelago Proof
+
+For `TASK-0082` and later automatic `team_neighborhoods` work, capture the
+default isometric office after the office loader clears. This is a presentation
+test over the existing hosted-room contract above, not a new persistent office
+type.
+
+1. Read `window.__FARPLANE_QA__.getArchipelagoState()` and confirm
+   `{ enabled: true, islandCount: 4, bridgeCount: 4, roomCount: 11 }`.
+2. Read `window.__FARPLANE_QA__.getOfficeQualityReport()` and confirm zero
+   reported unreachable/leaking room or wall intersections. Capture the same
+   state in the screenshot.
+3. In the desktop overview, confirm four separated, light raised islands and a
+   central Company World nexus connected by narrow bridges. There must be no
+   enclosing wall, full rectangular/checkerboard floor, permanent black
+   room/host billboards, tall bay backboards, or dark Command Commons cage.
+4. Read `window.__FARPLANE_QA__.getProjectCouncilState()` and confirm the
+   visible-project IDs have one equal Council sector each, the station count
+   matches the specialist registry, and only active specialist tickets increase
+   `activeDispatchCount`.
+5. Confirm all existing room panel routes, host scopes, Company World click,
+   and Council-seat project routing still work. Seed an active specialist ticket
+   and verify its clone and curved dispatch line route back to the original
+   task/thread target; generic telemetry and helper skills create no clone.
+6. Open Builder/manual mode from a saved fixture and confirm its authored
+   floor, walls, and object transforms return unchanged; it must not render or
+   persist automatic island geometry.
+7. Capture a narrow viewport in addition to desktop. The full archipelago must
+   remain legible with no canvas error, horizontal page overflow, or obstructed
+   room interaction.
 
 ## Agent-Browser Path
 
@@ -248,10 +299,10 @@ of checking persistence and visuals separately:
    capacity; confirm the live office does not reflow and a larger-kit preview is
    offered.
 10. Seed 0, 1, and 20 ephemeral workers and confirm identical persisted layout,
-   object, and collision signatures. Probe leaf furniture/wall intersections,
-   circulation clearance, and employee-to-desk scale.
+    object, and collision signatures. Probe leaf furniture/wall intersections,
+    circulation clearance, and employee-to-desk scale.
 11. Capture light and dark screenshots from the same equipped kit with no
-   transform or layout changes.
+    transform or layout changes.
 
 Required probes should be exposed through `window.__FARPLANE_QA__` rather than
 inferred from pixels: kit/source/customization state, semantic object count,

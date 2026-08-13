@@ -20,6 +20,7 @@ import type { ThreeEvent } from "@react-three/fiber";
 import { useMemo, useState } from "react";
 import { COMPUTER_HEIGHT, DESK_HEIGHT } from "@/constants";
 import type { Id } from "@/lib/entity-types";
+import { OFFICE_HTML_Z } from "@/lib/z-index";
 import type { DeskLayoutData, TeamData } from "@/modules/office/lib/types";
 import {
   getClusterOccupancyFootprint,
@@ -307,7 +308,7 @@ export default function TeamCluster({
             distanceFactor={getTeamLabelDistanceFactor(isCommandNeighborhood)}
             sprite
             transform
-            zIndexRange={[112, 0]}
+            zIndexRange={OFFICE_HTML_Z.label}
             style={{
               backfaceVisibility: "hidden",
               WebkitBackfaceVisibility: "hidden",

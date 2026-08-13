@@ -90,4 +90,21 @@ describe("office scene view profile", () => {
     expect(getFixedOfficeCameraZoom({ x: 0, z: 0, width: 24, depth: 18 })).toBe(23);
     expect(getFixedOfficeCameraZoom({ x: 0, z: 0, width: 52, depth: 40 })).toBeLessThan(18);
   });
+
+  it("frames a wide automatic district ring in free orbit instead of keeping the compact-office lens", () => {
+    const state = getOfficeSceneViewState({
+      isBuilderMode: false,
+      isDragging: false,
+      settings: {
+        viewProfile: "free_orbit_3d",
+        orbitControlsEnabled: true,
+        cameraOrientation: "south_east",
+      },
+      layoutCenter: { x: 0.5, z: 1, width: 48, depth: 45 },
+    });
+
+    expect(state.cameraTarget).toEqual([0.5, 0, 1]);
+    expect(state.cameraPosition[1]).toBeGreaterThan(25);
+    expect(state.cameraPosition[2]).toBeGreaterThan(30);
+  });
 });

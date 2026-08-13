@@ -37,6 +37,7 @@ import { ProjectCouncil } from "@/modules/office/components/project-council";
 import { RoomActivityLayer } from "@/modules/office/components/room-activity-layer";
 import { SpecialistStudioStations } from "@/modules/office/components/specialist-studio-stations";
 import {
+  getDepartmentArchipelagoLayoutCenter,
   getDepartmentIslandBridgePlan,
   getDepartmentIslandGeometry,
 } from "@/modules/office/lib/department-island-layout";
@@ -247,6 +248,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
   // MEM-0170 decision: fixed 2.5D uses compact scene overlays so Html cards cannot occlude the office.
   const useCompactSceneOverlays = isStoryMode ? false : isFixedOfficeSceneView(officeViewSettings);
   const layoutCenter = useMemo(() => {
+    if (isDepartmentArchipelago) return getDepartmentArchipelagoLayoutCenter();
     const bounds = getOfficeLayoutBounds(officeLayout);
     return {
       x: bounds.centerX,
@@ -254,7 +256,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
       width: bounds.width,
       depth: bounds.depth,
     };
-  }, [officeLayout]);
+  }, [isDepartmentArchipelago, officeLayout]);
   const viewState = getOfficeSceneViewState({
     isBuilderMode: sceneBuilderMode,
     isDragging,

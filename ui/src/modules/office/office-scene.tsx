@@ -19,7 +19,9 @@
 
 import { Canvas } from "@react-three/fiber";
 import { memo, useMemo } from "react";
+import { UI_Z } from "@/lib/z-index";
 import { useChatStore } from "@/modules/chat/chat-store";
+import { getDepartmentArchipelagoLayoutCenter } from "@/modules/office/lib/department-island-layout";
 import { getOfficeLayoutBounds } from "@/modules/office/lib/office-layout";
 import {
   getOfficeFrameloop,
@@ -56,6 +58,9 @@ const OfficeScene = memo((props: OfficeSceneProps) => {
     presentationMode,
   });
   const layoutCenter = useMemo(() => {
+    if (props.officeLayoutStrategy === "team_neighborhoods") {
+      return getDepartmentArchipelagoLayoutCenter();
+    }
     const bounds = getOfficeLayoutBounds(props.officeLayout);
     return {
       x: bounds.centerX,
@@ -63,7 +68,7 @@ const OfficeScene = memo((props: OfficeSceneProps) => {
       width: bounds.width,
       depth: bounds.depth,
     };
-  }, [props.officeLayout]);
+  }, [props.officeLayout, props.officeLayoutStrategy]);
   const initialCameraConfig = getInitialOfficeCameraConfig(props.officeViewSettings, {
     forcePerspective,
     isBuilderMode,
@@ -88,7 +93,13 @@ const OfficeScene = memo((props: OfficeSceneProps) => {
           near: 0.1,
           far: 1000,
         }}
-        style={{ background, transition: "background 0.3s ease" }}
+        style={{
+          background,
+          isolation: "isolate",
+          position: "relative",
+          transition: "background 0.3s ease",
+          zIndex: UI_Z.sceneCanvas,
+        }}
       >
         <color attach="background" args={[background]} />
         <OfficeSceneCameraRig config={initialCameraConfig} />

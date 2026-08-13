@@ -20,10 +20,10 @@
 
 import type { ReactElement } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { OfficeWorkspaceDialog } from "@/components/office-workspace-dialog";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { UI_Z } from "@/lib/z-index";
 import { EvalOsPanel } from "@/modules/evals";
 import { HarnessOsPanel } from "@/modules/harness-os";
 import { SelfImprovementRunsContent } from "@/modules/self-improvement";
@@ -116,11 +116,7 @@ export function SkillsPanel(): ReactElement {
   );
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent
-        className="flex h-[92vh] min-w-[88vw] max-w-none flex-col gap-0 overflow-hidden p-0"
-        style={{ zIndex: UI_Z.panelElevated }}
-      >
+    <OfficeWorkspaceDialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle>{panelTitle(surface, focusAgentId)}</DialogTitle>
           <p className="text-xs text-muted-foreground">{panelDescription(surface, focusAgentId)}</p>
@@ -163,7 +159,6 @@ export function SkillsPanel(): ReactElement {
             />
           ) : null}
         </div>
-      </DialogContent>
-    </Dialog>
+    </OfficeWorkspaceDialog>
   );
 }

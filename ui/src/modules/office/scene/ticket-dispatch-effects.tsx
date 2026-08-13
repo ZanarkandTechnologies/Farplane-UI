@@ -11,6 +11,7 @@ import type { ThreeEvent } from "@react-three/fiber";
 import type React from "react";
 import { useState } from "react";
 import * as THREE from "three";
+import { OFFICE_HTML_Z } from "@/lib/z-index";
 import type { RoomActivityCallerTarget } from "../lib/room-activity-projection";
 import type { TicketDispatch } from "../lib/ticket-dispatch-projection";
 
@@ -81,7 +82,7 @@ function DispatchClone({
           position={[0, 1.08, 0]}
           sprite
           transform
-          zIndexRange={[114, 0]}
+          zIndexRange={OFFICE_HTML_Z.status}
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
           <div className="w-32 rounded-md border border-stone-300/85 bg-stone-50/95 px-2 py-1 text-center text-[9px] font-medium text-stone-800 shadow-[0_6px_18px_rgba(74,67,55,0.18)] backdrop-blur-sm">

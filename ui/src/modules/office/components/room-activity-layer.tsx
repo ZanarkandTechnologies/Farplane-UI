@@ -7,6 +7,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type * as THREE from "three";
 import { OFFICE_LANDMARK_THEME } from "@/config/office-theme";
+import { OFFICE_HTML_Z } from "@/lib/z-index";
 import { getOperatingRoomId } from "../lib/operating-room-catalog";
 import type { RoomActivityGroup } from "../lib/room-activity-projection";
 import type { OfficeObject } from "../lib/types";
@@ -60,6 +61,7 @@ function OverflowBadge({ count }: { count: number }): React.JSX.Element | null {
         center
         distanceFactor={5.5}
         position={[0, 0.34, 0]}
+        zIndexRange={OFFICE_HTML_Z.status}
         style={{ pointerEvents: "none" }}
       >
         <span className="whitespace-nowrap rounded-full border border-white/15 bg-stone-950/85 px-1.5 py-0.5 text-[8px] font-semibold text-stone-100">
