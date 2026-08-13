@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Label } from "@/components/ui/label";
 import { type SettingsDialogTab, useAppStore } from "@/store";
 import { getGatewayUiConfig } from "@/modules/runtime";
 import { setOfficeOnboardingCompleted } from "@/modules/office/lib/office-onboarding";
@@ -22,6 +21,7 @@ import {
   OfficeViewSettingsPanel,
   RuntimeSettingsPanel,
 } from "./settings-dialog-panels";
+import { ConfigurationOverviewPanel } from "./configuration-overview-panel";
 import {
   EMPTY_RUNTIME_CONFIG_FORM,
   loadRuntimeConfigSettings,
@@ -29,6 +29,7 @@ import {
   type RuntimeConfigForm,
 } from "./runtime-config-settings";
 import { useCodexOfficeVisibilitySettings } from "./use-codex-office-visibility-settings";
+import { useConfigurationCatalog } from "./use-configuration-catalog";
 import {
   readOfficeCharacterRendererSettings,
   saveOfficeCharacterRendererSettings,
@@ -41,6 +42,9 @@ type SettingsDialogProps = {
   onOpenChange?: (open: boolean) => void;
   initialTab?: SettingsDialogTab;
 };
+
+const SETTINGS_DIALOG_CLASSNAME =
+  "flex h-[min(88dvh,760px)] w-[calc(100vw-2rem)] max-w-[1120px] flex-col gap-0 overflow-hidden overscroll-contain p-0 sm:max-w-[1120px]";
 
 export default function SettingsDialog(props: SettingsDialogProps) {
   const { open, onOpenChange, initialTab = "general" } = props;
@@ -93,6 +97,7 @@ export default function SettingsDialog(props: SettingsDialogProps) {
   const [characterSpritePetIdInput, setCharacterSpritePetIdInput] = useState("");
   const [characterSpriteEmployeeIdInput, setCharacterSpriteEmployeeIdInput] = useState("");
   const [characterGraphicsStatusText, setCharacterGraphicsStatusText] = useState("");
+  const configurationCatalog = useConfigurationCatalog(dialogOpen);
   const codexOfficeVisibility = useCodexOfficeVisibilitySettings({
     dialogOpen,
     stateBaseInput,
@@ -265,34 +270,26 @@ export default function SettingsDialog(props: SettingsDialogProps) {
 
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-      <DialogContent
-        className={
-          activeTab === "communications"
-            ? "flex h-[min(92vh,860px)] max-w-[98vw] flex-col overflow-hidden p-0 sm:max-w-[1240px]"
-            : activeTab === "configurations"
-              ? "max-h-[85vh] max-w-2xl overflow-y-auto"
-              : "max-h-[85vh] max-w-md overflow-y-auto"
-        }
-        style={{ zIndex: UI_Z.panelBase }}
-      >
-        <DialogHeader className={activeTab === "communications" ? "border-b px-6 py-4" : undefined}>
+      <DialogContent className={SETTINGS_DIALOG_CLASSNAME} style={{ zIndex: UI_Z.panelBase }}>
+        <DialogHeader className="shrink-0 border-b px-5 py-4 pr-12 sm:px-6">
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
         <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as SettingsDialogTab)}
-          className={
-            activeTab === "communications" ? "flex min-h-0 flex-1 flex-col px-6 py-4" : "py-4"
-          }
+          className="flex min-h-0 min-w-0 flex-1 flex-col gap-0 px-5 py-4 sm:px-6"
         >
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full shrink-0 grid-cols-4">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="office">Office</TabsTrigger>
             <TabsTrigger value="configurations">Configs</TabsTrigger>
             <TabsTrigger value="communications">Comms</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="general" className="mt-4 space-y-4">
+          <TabsContent
+            value="general"
+            className="mt-4 min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain pr-1"
+          >
             <GeneralSettingsPanel
               debugMode={debugMode}
               officeOverlays={officeOverlays}
@@ -304,7 +301,10 @@ export default function SettingsDialog(props: SettingsDialogProps) {
             />
           </TabsContent>
 
-          <TabsContent value="office" className="mt-4 space-y-3">
+          <TabsContent
+            value="office"
+            className="mt-4 min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain pr-1"
+          >
             <OfficeViewSettingsPanel
               viewProfile={viewProfileInput}
               cameraOrientation={cameraOrientationInput}
@@ -329,56 +329,101 @@ export default function SettingsDialog(props: SettingsDialogProps) {
             />
           </TabsContent>
 
-          <TabsContent value="configurations" className="mt-4 space-y-5">
-            <FeatureConfigurationPanel
+          <TabsContent
+            value="configurations"
+            className="mt-4 min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain pr-1"
+          >
+            <ConfigurationOverviewPanel
               form={runtimeConfigForm}
-              statusText={runtimeConfigStatusText}
-              isSaving={isSavingRuntimeConfig}
-              onFormChange={setRuntimeConfigForm}
-              onSave={() => void handleSaveRuntimeConfig()}
+              projectFiles={configurationCatalog.files}
+              projectState={configurationCatalog.state}
+              projectError={configurationCatalog.error}
+              videoAnalysis={
+                <FeatureConfigurationPanel
+                  form={runtimeConfigForm}
+                  statusText={runtimeConfigStatusText}
+                  isSaving={isSavingRuntimeConfig}
+                  onFormChange={setRuntimeConfigForm}
+                  onSave={() => void handleSaveRuntimeConfig()}
+                />
+              }
+              telegram={<UserCommunicationsTab settingsOnly />}
+              runtimeAutomation={
+                <div className="space-y-3">
+                  <RuntimeSettingsPanel
+                    runtimeKind={runtimeKindInput}
+                    runtimeStatusText={runtimeStatusText}
+                    connected={connected}
+                    gatewayBase={gatewayBaseInput}
+                    stateBase={stateBaseInput}
+                    defaultSessionKey={defaultSessionKeyInput}
+                    language={languageInput}
+                    codexForm={codexOfficeVisibility.form}
+                    codexStatusText={codexOfficeVisibility.statusText}
+                    isSavingCodexSettings={codexOfficeVisibility.isSaving}
+                    runtimeConfigForm={runtimeConfigForm}
+                    runtimeConfigStatusText={runtimeConfigStatusText}
+                    isSavingRuntimeConfig={isSavingRuntimeConfig}
+                    onRuntimeKindChange={setRuntimeKindInput}
+                    onApplyRuntimeMode={handleApplyRuntimeMode}
+                    onGatewayBaseChange={setGatewayBaseInput}
+                    onStateBaseChange={setStateBaseInput}
+                    onDefaultSessionKeyChange={setDefaultSessionKeyInput}
+                    onLanguageChange={setLanguageInput}
+                    onConnectGateway={handleConnectGateway}
+                    onRefreshGatewayConfig={handleRefreshGatewayConfig}
+                    onCodexFormChange={codexOfficeVisibility.setForm}
+                    onSaveCodexSettings={() => void codexOfficeVisibility.save()}
+                    onRuntimeConfigFormChange={setRuntimeConfigForm}
+                    onSaveRuntimeConfig={() => void handleSaveRuntimeConfig()}
+                  />
+                  {runtimeKindInput === "openclaw" && statusText ? (
+                    <p className="text-xs text-muted-foreground">{statusText}</p>
+                  ) : null}
+                </div>
+              }
+              officeAndAppearance={
+                <div className="grid gap-6 xl:grid-cols-2">
+                  <GeneralSettingsPanel
+                    debugMode={debugMode}
+                    officeOverlays={officeOverlays}
+                    isBuilderMode={isBuilderMode}
+                    onDebugModeChange={setDebugMode}
+                    onOfficeOverlayChange={setOfficeOverlay}
+                    onBuilderModeChange={setBuilderMode}
+                    onReplayOnboarding={handleReplayOnboarding}
+                  />
+                  <OfficeViewSettingsPanel
+                    viewProfile={viewProfileInput}
+                    cameraOrientation={cameraOrientationInput}
+                    orbitControlsEnabled={orbitControlsEnabled}
+                    statusText={viewStatusText}
+                    shuffleStatusText={shuffleStatusText}
+                    isSaving={isSavingViewSettings}
+                    isShuffling={isShufflingOffice}
+                    characterRendererId={characterRendererIdInput}
+                    characterSpritePetId={characterSpritePetIdInput}
+                    characterSpriteEmployeeId={characterSpriteEmployeeIdInput}
+                    characterGraphicsStatusText={characterGraphicsStatusText}
+                    onViewProfileChange={setViewProfileInput}
+                    onCameraOrientationChange={setCameraOrientationInput}
+                    onOrbitControlsEnabledChange={setOrbitControlsEnabled}
+                    onSave={() => void handleSaveViewSettings()}
+                    onShuffle={() => void handleShuffleOffice()}
+                    onCharacterRendererIdChange={setCharacterRendererIdInput}
+                    onCharacterSpritePetIdChange={setCharacterSpritePetIdInput}
+                    onCharacterSpriteEmployeeIdChange={setCharacterSpriteEmployeeIdInput}
+                    onApplyCharacterGraphics={handleApplyCharacterGraphics}
+                  />
+                </div>
+              }
             />
-
-            <section className="space-y-3 border-t pt-5">
-              <div className="space-y-1">
-                <Label>Runtime</Label>
-                <p className="text-xs text-muted-foreground">
-                  Local adapter behavior, visibility, automation, and connection readiness.
-                </p>
-              </div>
-              <RuntimeSettingsPanel
-                runtimeKind={runtimeKindInput}
-                runtimeStatusText={runtimeStatusText}
-                connected={connected}
-                gatewayBase={gatewayBaseInput}
-                stateBase={stateBaseInput}
-                defaultSessionKey={defaultSessionKeyInput}
-                language={languageInput}
-                codexForm={codexOfficeVisibility.form}
-                codexStatusText={codexOfficeVisibility.statusText}
-                isSavingCodexSettings={codexOfficeVisibility.isSaving}
-                runtimeConfigForm={runtimeConfigForm}
-                runtimeConfigStatusText={runtimeConfigStatusText}
-                isSavingRuntimeConfig={isSavingRuntimeConfig}
-                onRuntimeKindChange={setRuntimeKindInput}
-                onApplyRuntimeMode={handleApplyRuntimeMode}
-                onGatewayBaseChange={setGatewayBaseInput}
-                onStateBaseChange={setStateBaseInput}
-                onDefaultSessionKeyChange={setDefaultSessionKeyInput}
-                onLanguageChange={setLanguageInput}
-                onConnectGateway={handleConnectGateway}
-                onRefreshGatewayConfig={handleRefreshGatewayConfig}
-                onCodexFormChange={codexOfficeVisibility.setForm}
-                onSaveCodexSettings={() => void codexOfficeVisibility.save()}
-                onRuntimeConfigFormChange={setRuntimeConfigForm}
-                onSaveRuntimeConfig={() => void handleSaveRuntimeConfig()}
-              />
-            </section>
-            {runtimeKindInput === "openclaw" && statusText ? (
-              <p className="text-xs text-muted-foreground">{statusText}</p>
-            ) : null}
           </TabsContent>
 
-          <TabsContent value="communications" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <TabsContent
+            value="communications"
+            className="mt-4 min-h-0 min-w-0 flex-1 overflow-hidden"
+          >
             <UserCommunicationsTab />
           </TabsContent>
         </Tabs>

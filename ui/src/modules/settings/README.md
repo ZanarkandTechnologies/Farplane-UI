@@ -3,7 +3,8 @@
 ## Purpose
 
 Operator settings for Farplane UI. This module owns the settings dialog shell,
-feature-default panels, and runtime-specific settings helpers.
+configuration catalog, feature-default panels, and runtime-specific settings
+helpers.
 
 ## Public API
 
@@ -22,6 +23,9 @@ Import from `@/modules/settings`.
   the exact value-free Doppler setup and relaunch commands.
 - Put new cross-feature settings in `cli/operator-settings.ts` before adding a
   UI control, so CLI callers and the state bridge resolve the same contract.
+- Keep `configuration-catalog.ts` exhaustive for supported configuration
+  contracts. The catalog is discovery and routing, not permission for a raw
+  editor; retain each contract's feature or runtime owner.
 - Do not add unrelated HUD or launcher behavior here.
 
 ## Test
