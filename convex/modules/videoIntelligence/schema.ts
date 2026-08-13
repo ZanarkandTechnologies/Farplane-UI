@@ -11,6 +11,12 @@ import {
   tagProvenanceValidator,
 } from "./validators";
 
+const videoIntelligenceExecutionProfile = v.object({
+  definition: v.literal("video_intelligence.analysis.v1"),
+  model: v.string(),
+  reasoningEffort: v.string(),
+});
+
 export const videoIntelligenceTables = {
   videoIntelligenceDossiers: defineTable({
     // Legacy Resource Bank links are retained only while the bounded cutover runs.
@@ -80,6 +86,8 @@ export const videoIntelligenceTables = {
   /** Immutable reporting runs. A dossier can have exactly one current revision. */
   videoIntelligenceAnalysisRevisions: defineTable({
     dossierId: v.id("videoIntelligenceDossiers"),
+    contentJobId: v.optional(v.id("contentJobs")),
+    analysisExecutionProfile: v.optional(videoIntelligenceExecutionProfile),
     revisionNumber: v.number(),
     lifecycle: v.union(v.literal("current"), v.literal("superseded")),
     sourceAuthorityKey: v.optional(v.string()),

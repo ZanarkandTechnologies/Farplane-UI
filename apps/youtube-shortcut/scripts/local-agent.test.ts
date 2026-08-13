@@ -184,6 +184,16 @@ test("Codex run is persistent, writable, skill-bound, and schema-constrained", a
     },
     async request(method, params): Promise<any> {
       calls.push({ method, params });
+      if (method === "model/list") {
+        return {
+          data: [
+            {
+              model: "gpt-5.6-terra",
+              supportedReasoningEfforts: [{ reasoningEffort: "xhigh" }],
+            },
+          ],
+        };
+      }
       if (method === "skills/list")
         return {
           data: [
@@ -226,6 +236,14 @@ test("Codex run is persistent, writable, skill-bound, and schema-constrained", a
       { videoId: "dQw4w9WgXcQ", title: "Claim?" },
       { available: false, value: "" },
       rpc,
+      ANALYST_PROJECT_PATH,
+      undefined,
+      Date.now(),
+      {
+        definition: "video_intelligence.analysis.v1",
+        model: "gpt-5.6-terra",
+        reasoningEffort: "xhigh",
+      },
     ),
     { analysis: result, threadId: "thread-1" },
   );
@@ -239,11 +257,11 @@ test("Codex run is persistent, writable, skill-bound, and schema-constrained", a
   );
   assert.equal(
     calls.find((call) => call.method === "thread/start")?.params.model,
-    "gpt-5.6-luna",
+    "gpt-5.6-terra",
   );
   const turn = calls.find((call) => call.method === "turn/start")!.params;
-  assert.equal(turn.model, "gpt-5.6-luna");
-  assert.equal(turn.effort, "max");
+  assert.equal(turn.model, "gpt-5.6-terra");
+  assert.equal(turn.effort, "xhigh");
   assert.deepEqual(turn.sandboxPolicy, {
     type: "workspaceWrite",
     writableRoots: [SUMMARIZE_STATE_PATH],
@@ -278,6 +296,16 @@ test("transcript extraction failure is surfaced as a failure, not an answer", as
       return () => undefined;
     },
     async request(method, params): Promise<any> {
+      if (method === "model/list") {
+        return {
+          data: [
+            {
+              model: "gpt-5.6-terra",
+              supportedReasoningEfforts: [{ reasoningEffort: "xhigh" }],
+            },
+          ],
+        };
+      }
       if (method === "skills/list") {
         return {
           data: [
@@ -327,6 +355,13 @@ test("transcript extraction failure is surfaced as a failure, not an answer", as
       { available: false, value: "" },
       rpc,
       "/tmp/farplane-youtube-shortcut",
+      undefined,
+      Date.now(),
+      {
+        definition: "video_intelligence.analysis.v1",
+        model: "gpt-5.6-terra",
+        reasoningEffort: "xhigh",
+      },
     ),
     (error: Error & { threadId?: string }) => {
       assert.match(error.message, /^Summarize failed:/);
@@ -603,12 +638,14 @@ test("HTTP bridge forwards an explicit re-analysis request as a new analysis run
 test("cached bridge reuse keeps the local answer without completing a ready job", async (t) => {
   let updateCalls = 0;
   let completeCalls = 0;
+  let enqueuedInput: unknown;
   const now = "2026-08-12T00:00:00.000Z";
   const store: VideoIntelligenceStore = {
     async readProjection() {
       return { jobs: [] };
     },
     async enqueue(input) {
+      enqueuedInput = input;
       return {
         id: "ready-job",
         sourceId: "source-1",
@@ -659,6 +696,10 @@ test("cached bridge reuse keeps the local answer without completing a ready job"
   assert.equal(payload.reused, true);
   assert.equal(payload.dossierId, "dossier-1");
   assert.deepEqual(payload.analysis, result);
+  assert.deepEqual(enqueuedInput, {
+    videoId: "dQw4w9WgXcQ",
+    title: "Claim?",
+  });
   assert.equal(updateCalls, 0);
   assert.equal(completeCalls, 0);
 });

@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../convex/_generated/api.js";
+import type { VideoIntelligenceExecutionProfile } from "../../../cli/operator-settings.js";
+import { firstFarplaneConfigValue } from "../../../cli/runtime-config.js";
 import type { Analysis as VideoIntelligenceAnalysis } from "./local-agent.js";
 
 const FARPLANE_UI_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -18,6 +20,7 @@ export type VideoIngestJob = {
   projectId?: string;
   status: "queued" | "running" | "succeeded" | "failed";
   threadId?: string;
+  executionProfile?: VideoIntelligenceExecutionProfile;
   dossierId?: string;
   disposition?: "created" | "reused_active" | "reused_ready";
   error?: string;
@@ -50,7 +53,10 @@ export type VideoIntelligenceStore = {
   updateJob(
     jobId: string,
     update: Partial<
-      Pick<VideoIngestJob, "status" | "threadId" | "dossierId" | "error">
+      Pick<
+        VideoIngestJob,
+        "status" | "threadId" | "dossierId" | "error" | "executionProfile"
+      >
     >,
   ): Promise<VideoIngestJob>;
   complete(
@@ -100,6 +106,9 @@ export function createVideoIntelligenceCloudStore(
         const client = await clientPromise;
         await client.mutation(api.modules.videoIntelligence.videos.startVideo, {
           jobId: binding.jobId as never,
+          ...(update.executionProfile
+            ? { executionProfile: update.executionProfile }
+            : {}),
         });
       }
       if (update.threadId) {
@@ -164,7 +173,7 @@ export async function resolveConvexUrl(
   env: Record<string, string | undefined> = process.env,
   envPath = resolve(FARPLANE_UI_ROOT, ".env.local"),
 ): Promise<string> {
-  const direct = env.CONVEX_URL ?? env.VITE_CONVEX_URL;
+  const direct = firstFarplaneConfigValue(["CONVEX_URL", "VITE_CONVEX_URL"], { env });
   if (direct) return validateConvexUrl(direct);
   const contents = await readFile(envPath, "utf8").catch((error) => {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
@@ -177,7 +186,7 @@ export async function resolveConvexUrl(
     if (value) return validateConvexUrl(value);
   }
   throw new Error(
-    "Convex cloud URL is missing. Set CONVEX_URL or VITE_CONVEX_URL in the environment or repo .env.local.",
+    "Convex cloud URL is missing. Set VITE_CONVEX_URL in Farplane Configurations, the environment, or repo .env.local.",
   );
 }
 

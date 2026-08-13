@@ -8,10 +8,14 @@
 import { AlertTriangle, Cloud, FileVideo2, GitCompareArrows, Loader2 } from "lucide-react";
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { UI_Z } from "@/lib/z-index";
+import { OfficeWorkspaceDialog } from "@/components/office-workspace-dialog";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useVideoIntelligence } from "../hooks/use-video-intelligence";
-import { groupStoriesByTimeline, groupVideosByTimeline } from "../lib/video-intelligence-model";
+import {
+  groupStoriesByTimeline,
+  groupVideosByTimeline,
+  resolveTimelineDatePage,
+} from "../lib/video-intelligence-model";
 import type { VideoIntelligencePanelProps } from "../types";
 import { StoryIntelligenceView } from "./story-intelligence-view";
 import { VideoDossierView } from "./video-dossier-view";
@@ -36,6 +40,8 @@ export function VideoIntelligencePanel({
   const [activeTab, setActiveTab] = useState<LibraryTab>("videos");
   const [query, setQuery] = useState("");
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
+  const [videoDateKey, setVideoDateKey] = useState<string | null>(null);
+  const [storyDateKey, setStoryDateKey] = useState<string | null>(null);
   const [view, setView] = useState<ViewState>({ kind: "library" });
   const libraryScrollRef = useRef<HTMLDivElement>(null);
   const projection = loadState.data;
@@ -54,13 +60,30 @@ export function VideoIntelligencePanel({
     () => (projection ? groupStoriesByTimeline(projection, query, selectedTagId) : []),
     [projection, query, selectedTagId],
   );
+  const videoDatePage = useMemo(
+    () => resolveTimelineDatePage(videoGroups, videoDateKey),
+    [videoDateKey, videoGroups],
+  );
+  const storyDatePage = useMemo(
+    () => resolveTimelineDatePage(storyGroups, storyDateKey),
+    [storyDateKey, storyGroups],
+  );
+
+  function selectVideoDate(dateKey: string): void {
+    setVideoDateKey(dateKey);
+    libraryScrollRef.current?.scrollTo({ top: 0 });
+  }
+
+  function selectStoryDate(dateKey: string): void {
+    setStoryDateKey(dateKey);
+    libraryScrollRef.current?.scrollTo({ top: 0 });
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
+    <OfficeWorkspaceDialog
         data-testid="video-intelligence-panel"
-        className="flex h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-md p-0 sm:h-[94dvh] sm:w-[94vw] sm:max-w-6xl"
-        style={{ zIndex: UI_Z.panelElevated }}
+        open={open}
+        onOpenChange={onOpenChange}
       >
         <DialogHeader className="shrink-0 border-b px-3 py-3 sm:px-5">
           <div className="flex items-center justify-between gap-3 pr-8">
@@ -112,7 +135,12 @@ export function VideoIntelligencePanel({
                   setActiveTab(tab);
                   setSelectedTagId(null);
                 }}
-                onQueryChange={setQuery}
+                onQueryChange={(nextQuery) => {
+                  setQuery(nextQuery);
+                  setVideoDateKey(null);
+                  setStoryDateKey(null);
+                  libraryScrollRef.current?.scrollTo({ top: 0 });
+                }}
               />
               <div
                 ref={libraryScrollRef}
@@ -121,15 +149,35 @@ export function VideoIntelligencePanel({
               >
                 {activeTab === "videos" ? (
                   <VideoLibrary
-                    groups={videoGroups}
+                    page={videoDatePage}
+                    onPreviousDate={() => {
+                      const previousDate = videoGroups[videoDatePage.index + 1];
+                      if (previousDate) selectVideoDate(previousDate.key);
+                    }}
+                    onNextDate={() => {
+                      const nextDate = videoGroups[videoDatePage.index - 1];
+                      if (nextDate) selectVideoDate(nextDate.key);
+                    }}
                     onOpen={(job) => setView({ kind: "dossier", jobId: job.id })}
                   />
                 ) : (
                   <StoryLibrary
                     projection={projection}
-                    groups={storyGroups}
+                    page={storyDatePage}
                     selectedTagId={selectedTagId}
-                    onTagChange={setSelectedTagId}
+                    onTagChange={(tagId) => {
+                      setSelectedTagId(tagId);
+                      setStoryDateKey(null);
+                      libraryScrollRef.current?.scrollTo({ top: 0 });
+                    }}
+                    onPreviousDate={() => {
+                      const previousDate = storyGroups[storyDatePage.index + 1];
+                      if (previousDate) selectStoryDate(previousDate.key);
+                    }}
+                    onNextDate={() => {
+                      const nextDate = storyGroups[storyDatePage.index - 1];
+                      if (nextDate) selectStoryDate(nextDate.key);
+                    }}
                     onOpen={(storyId) => setView({ kind: "story", storyId })}
                   />
                 )}
@@ -194,8 +242,7 @@ export function VideoIntelligencePanel({
             ) : null}
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+    </OfficeWorkspaceDialog>
   );
 }
 

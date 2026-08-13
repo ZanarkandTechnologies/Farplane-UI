@@ -82,6 +82,13 @@ YouTube request
 - Selecting Content, News, or related coverage replaces the panel body with a
   dossier or story-intelligence view. Back preserves the active tab, filters,
   loaded chronological groups, and scroll context.
+- Selecting any primary tab is an explicit navigation action: it clears a
+  currently open detail overlay and reveals that tab's retained library state.
+- News is a compact evidence list rather than a card grid or hero-led
+  dashboard. Every date-grouped row has a square known cited-contributor
+  thumbnail, status/source, bounded title, two-line `Why now`, and source/claim
+  counts; the opened report owns the fuller explanation and related coverage.
+  A visual never alters source attribution or report status.
 - Story intelligence shows reporting chronology, perspectives, shared and
   source-specific claims, related events, and a read-only information-flow
   projection.

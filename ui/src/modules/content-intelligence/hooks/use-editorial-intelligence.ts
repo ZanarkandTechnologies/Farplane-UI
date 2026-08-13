@@ -20,11 +20,17 @@ export type NewsItem = {
   title: string;
   summary: string;
   eventDate: string | null;
+  timelineDay: string | null;
   editorialStatus: "developing" | "aggregated";
   tags: string[];
   sourceCount: number;
   claimCount: number;
   whyItMatters: string | null;
+  featuredSource: {
+    title: string;
+    publisher: string | null;
+    canonicalUrl: string;
+  } | null;
 };
 
 export type NewsFilters = {

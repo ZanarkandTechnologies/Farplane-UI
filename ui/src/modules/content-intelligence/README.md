@@ -57,6 +57,22 @@ browser timezone cannot move a card across a visible day boundary. The
 `TimelineEndSentinel` observes the one tab body scroll root with a 180px bottom
 margin; there are no older/newer-day controls.
 
+## News and navigation contract
+
+News is a compact, chronological evidence list—not a generic card library or a
+hero-led dashboard. In-flow date groups contain 90px square cited-source
+thumbnails, an editorial status and source, a two-line title, two-line `Why
+now`, and a compact source/claim count. Opening a row reveals its fuller
+explanation and related coverage. A thumbnail may use only the already-known
+YouTube image of one cited contributor; it never changes the report's source
+count or evidentiary attribution. The reading list uses the existing Inter
+font only for report titles; it does not ship or imitate a third-party typeface.
+
+Primary tabs are exits from a detail view. Selecting Content, News, Concepts,
+or World clears the active detail overlay immediately and reveals that tab's
+retained library state. Back remains the way to return to the originating
+library/detail context.
+
 ## Ownership map
 
 - `components/content-intelligence-data-controller.tsx`: warm subscription

@@ -48,11 +48,12 @@ most recent Convex-backed jobs; runtime health and setup live under **Status**.
 Running, completed, and failed jobs link directly to their persistent Codex
 task as soon as Codex assigns its task ID.
 
-The bridge reads `CONVEX_URL` or `VITE_CONVEX_URL` from the environment, falling
-back to the Farplane UI root `.env.local`. It does not create a local Video
-Intelligence database. It uses the same direct Convex function pattern as
-Resource Bank and Tasty Packs; the loopback bridge remains restricted to the
-Farplane browser-extension origins.
+The bridge reads the non-secret `VITE_CONVEX_URL` setting from Farplane
+Configurations, then the environment, and finally the Farplane UI root
+`.env.local` bootstrap file. It does not create a local Video Intelligence
+database. It uses the same direct Convex function pattern as Resource Bank and
+Tasty Packs; the loopback bridge remains restricted to the Farplane
+browser-extension origins.
 
 ## Resume a channel manifest
 
@@ -63,10 +64,12 @@ succeeded source already assigned to the requested project, retries transient
 timeout/transport errors once, stops on authentication invalidation, and
 preserves source-unavailable results as honest terminal failures.
 
-The analysis turn is explicit: `gpt-5.6-luna` with reasoning effort `max`.
-Useful progress refreshes a 180-second idle timeout; a 15-minute absolute cap
-still bounds a wedged turn. The canonical Resource Bank job and asset receive
-the supplied project association.
+The default analysis turn is `gpt-5.6-terra` with reasoning effort `xhigh`.
+Change it in **Settings → Configs → Video Intelligence**; the bridge snapshots
+the selected profile to each new job and verifies it against the connected
+Codex app-server before beginning. Useful progress refreshes a 180-second idle
+timeout; a 15-minute absolute cap still bounds a wedged turn. The canonical
+Resource Bank job and asset receive the supplied project association.
 
 From the Farplane UI root, run a staged manifest import:
 

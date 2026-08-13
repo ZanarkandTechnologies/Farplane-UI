@@ -29,6 +29,12 @@ const contentJobStatusValidator = v.union(
   v.literal("needs_review"),
 );
 
+const videoIntelligenceExecutionProfileValidator = v.object({
+  definition: v.literal("video_intelligence.analysis.v1"),
+  model: v.string(),
+  reasoningEffort: v.string(),
+});
+
 const queueResultValidator = v.object({
   jobId: v.id("contentJobs"),
   sourceId: v.id("contentSources"),
@@ -173,14 +179,29 @@ export const attachThread = mutation({
 });
 
 export const startVideo = mutation({
-  args: { jobId: v.id("contentJobs") },
+  args: {
+    jobId: v.id("contentJobs"),
+    executionProfile: v.optional(videoIntelligenceExecutionProfileValidator),
+  },
   returns: v.object({ ok: v.boolean() }),
   handler: async (ctx, args) => {
     const job = await getVideoJobOrThrow(ctx, args.jobId);
-    if (job.status === "queued") {
+    if (
+      job.analysisExecutionProfile &&
+      args.executionProfile &&
+      (job.analysisExecutionProfile.model !== args.executionProfile.model ||
+        job.analysisExecutionProfile.reasoningEffort !== args.executionProfile.reasoningEffort ||
+        job.analysisExecutionProfile.definition !== args.executionProfile.definition)
+    ) {
+      throw new Error("video_intelligence_execution_profile_mismatch");
+    }
+    if (job.status === "queued" || (!job.analysisExecutionProfile && args.executionProfile)) {
       await ctx.db.patch(job._id, {
         status: "analyzing",
         error: undefined,
+        ...(job.analysisExecutionProfile || !args.executionProfile
+          ? {}
+          : { analysisExecutionProfile: args.executionProfile }),
         updatedAtMs: Date.now(),
       });
     }
@@ -282,6 +303,10 @@ export const completeVideo = mutation({
     const sourceAuthorityKey = authorityFromYouTubeChannel(source.youtubeChannelId);
     const revisionId = await ctx.db.insert("videoIntelligenceAnalysisRevisions", {
       dossierId,
+      contentJobId: args.jobId,
+      ...(job.analysisExecutionProfile
+        ? { analysisExecutionProfile: job.analysisExecutionProfile }
+        : {}),
       revisionNumber: (latestRevision?.revisionNumber ?? 0) + 1,
       lifecycle: "current",
       sourceAuthorityKey,

@@ -14,6 +14,12 @@ export type TimelineGroup<T> = {
   items: T[];
 };
 
+export type TimelineDatePage<T> = {
+  group: TimelineGroup<T> | null;
+  index: number;
+  pageCount: number;
+};
+
 export type VideoLibraryItem = {
   job: VideoIngestJob;
   dossier: VideoDossier | null;
@@ -58,42 +64,59 @@ export function sortedJobs(jobs: VideoIngestJob[], query = ""): VideoIngestJob[]
     .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
 }
 
-function timelineLabel(value: string, now: Date): { key: string; label: string } {
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) {
-    return { key: "unknown", label: "Date unknown" };
-  }
-  const key = date.toISOString().slice(0, 10);
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const candidate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const dayDelta = Math.round((today.getTime() - candidate.getTime()) / 86_400_000);
-  if (dayDelta === 0) return { key, label: "Today" };
-  if (dayDelta === 1) return { key, label: "Yesterday" };
+function dateKey(date: Date): string {
+  return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+    .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, "0")))
+    .join("-");
+}
+
+function dateDescriptor(date: Date): { key: string; label: string } {
   return {
-    key,
-    label: date.toLocaleDateString("en-US", {
+    key: dateKey(date),
+    label: new Intl.DateTimeFormat(undefined, {
+      weekday: "short",
       month: "long",
       day: "numeric",
       year: "numeric",
-    }),
+    }).format(date),
   };
 }
 
-export function formatCalendarDate(value?: string | null): string {
-  if (!value) return "Date unknown";
-  const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date);
+function parseTimelineDate(value: string): Date | null {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateOnly) {
+    const [, rawYear, rawMonth, rawDay] = dateOnly;
+    const date = new Date(Number(rawYear), Number(rawMonth) - 1, Number(rawDay));
+    return date.getFullYear() === Number(rawYear) &&
+      date.getMonth() === Number(rawMonth) - 1 &&
+      date.getDate() === Number(rawDay)
+      ? date
+      : null;
+  }
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date : null;
 }
 
-function groupByTimeline<T>(
-  items: T[],
-  getDate: (item: T) => string,
-  now: Date,
-): TimelineGroup<T>[] {
+/**
+ * Produces a grouping key without letting date-only event dates cross timezone
+ * boundaries. Timestamped values intentionally use the operator's local day.
+ */
+export function timelineDateDescriptor(value: string): { key: string; label: string } {
+  const date = parseTimelineDate(value);
+  return date ? dateDescriptor(date) : { key: "unknown", label: "Date unknown" };
+}
+
+export function formatCalendarDate(value?: string | null): string {
+  const date = value ? parseTimelineDate(value) : null;
+  return date
+    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date)
+    : "Date unknown";
+}
+
+function groupByTimeline<T>(items: T[], getDate: (item: T) => string): TimelineGroup<T>[] {
   const groups = new Map<string, TimelineGroup<T>>();
   for (const item of items) {
-    const { key, label } = timelineLabel(getDate(item), now);
+    const { key, label } = timelineDateDescriptor(getDate(item));
     const group = groups.get(key) ?? { key, label, items: [] };
     group.items.push(item);
     groups.set(key, group);
@@ -108,7 +131,6 @@ function groupByTimeline<T>(
 export function groupVideosByTimeline(
   projection: VideoIntelligenceProjection,
   query = "",
-  now = new Date(),
 ): TimelineGroup<VideoLibraryItem>[] {
   const latestByVideo = new Map<string, VideoIngestJob>();
   for (const job of sortedJobs(projection.jobs, query)) {
@@ -121,14 +143,13 @@ export function groupVideosByTimeline(
         (dossier) => dossier.id === job.dossierId || dossier.videoId === job.videoId,
       ) ?? null,
   }));
-  return groupByTimeline(items, (item) => item.job.updatedAt, now);
+  return groupByTimeline(items, (item) => item.job.updatedAt);
 }
 
 export function groupStoriesByTimeline(
   projection: VideoIntelligenceProjection,
   query = "",
   tagId: string | null = null,
-  now = new Date(),
 ): TimelineGroup<StoryLibraryItem>[] {
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const tagById = new Map(projection.tags.map((tag) => [tag.id, tag]));
@@ -157,7 +178,19 @@ export function groupStoriesByTimeline(
         Date.parse(right.story.eventDate ?? right.story.updatedAt) -
         Date.parse(left.story.eventDate ?? left.story.updatedAt),
     );
-  return groupByTimeline(items, (item) => item.story.eventDate ?? item.story.updatedAt, now);
+  return groupByTimeline(items, (item) => item.story.eventDate ?? item.story.updatedAt);
+}
+
+export function resolveTimelineDatePage<T>(
+  groups: TimelineGroup<T>[],
+  selectedDateKey: string | null,
+): TimelineDatePage<T> {
+  if (groups.length === 0) return { group: null, index: 0, pageCount: 0 };
+  const selectedIndex = selectedDateKey
+    ? groups.findIndex((group) => group.key === selectedDateKey)
+    : -1;
+  const index = selectedIndex >= 0 ? selectedIndex : 0;
+  return { group: groups[index] ?? null, index, pageCount: groups.length };
 }
 
 export function deriveInformationFlow(

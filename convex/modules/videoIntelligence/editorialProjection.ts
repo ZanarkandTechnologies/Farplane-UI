@@ -240,11 +240,13 @@ async function toNewsItem(
   });
   if (!matchesTopic || ((filter.projectId || filter.source) && matchingContributors.length === 0))
     return null;
+  const featuredContributor = matchingContributors[0];
   return {
     id: String(story._id),
     title: story.title,
     summary: story.summary,
     eventDate: story.eventDate ?? null,
+    timelineDay: story.timelineDay ?? null,
     editorialStatus: story.editorialStatus ?? "developing",
     tags: tagNames,
     sourceCount: new Set(
@@ -252,6 +254,13 @@ async function toNewsItem(
     ).size,
     claimCount: matchingContributors.reduce((total, item) => total + item.claimCount, 0),
     whyItMatters: story.whyItMatters ?? null,
+    featuredSource: featuredContributor
+      ? {
+          title: featuredContributor.sourceTitle,
+          publisher: featuredContributor.publisher,
+          canonicalUrl: featuredContributor.canonicalUrl,
+        }
+      : null,
   };
 }
 

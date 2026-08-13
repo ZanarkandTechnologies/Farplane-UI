@@ -9,6 +9,13 @@ import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { z } from "zod";
 import {
+  DEFAULT_VIDEO_INTELLIGENCE_ANALYSIS,
+  readOperatorSettingsTomlFile,
+  resolveVideoIntelligenceAnalysisProfile,
+  type VideoIntelligenceExecutionProfile,
+} from "../../../cli/operator-settings.js";
+import { resolveFarplaneHome } from "../../../cli/runtime-config.js";
+import {
   createVideoIntelligenceCloudStore,
   type VideoIngestJob,
   type VideoIntelligenceAnalysis,
@@ -20,15 +27,15 @@ export const LOCAL_PORT = 47893;
 export const CODEX_URL = "ws://127.0.0.1:47892";
 export const FARPLANE_EXTENSION_ORIGIN =
   "chrome-extension://dcnlnbfngboijmegldkmlopidmibiaoo";
-export const USER_PROFILE_PATH = resolve(homedir(), ".farplane", "USER.md");
+export const USER_PROFILE_PATH = resolve(resolveFarplaneHome(), "USER.md");
 export const SUMMARIZE_STATE_PATH = resolve(homedir(), ".summarize");
 export const ANALYST_PROJECT_PATH = resolve(
   homedir(),
   "Zanarkand Technologies",
   "Analyst",
 );
-export const CODEX_ANALYSIS_MODEL = "gpt-5.6-luna" as const;
-export const CODEX_ANALYSIS_EFFORT = "max" as const;
+export const CODEX_ANALYSIS_MODEL = DEFAULT_VIDEO_INTELLIGENCE_ANALYSIS.model;
+export const CODEX_ANALYSIS_EFFORT = DEFAULT_VIDEO_INTELLIGENCE_ANALYSIS.reasoningEffort;
 export const CODEX_ANALYSIS_IDLE_TIMEOUT_MS = 180_000;
 export const CODEX_ANALYSIS_ABSOLUTE_TIMEOUT_MS = 900_000;
 
@@ -171,6 +178,14 @@ export type Analysis = z.infer<typeof analysisSchema>;
 export type AnalyzeRequest = z.infer<typeof requestSchema>;
 export type AnalysisRun = { analysis: Analysis; threadId: string };
 export type AnalysisJob = VideoIngestJob;
+
+export function configuredVideoIntelligenceProfile(
+  configPath = resolve(resolveFarplaneHome(), "config.toml"),
+): VideoIntelligenceExecutionProfile {
+  return resolveVideoIntelligenceAnalysisProfile(
+    readOperatorSettingsTomlFile(configPath),
+  );
+}
 
 function trace(event: string, detail: Record<string, unknown> = {}) {
   console.log(
@@ -445,6 +460,54 @@ async function findSummarizeSkill(rpc: RpcClient, cwd: string) {
   return skill as { name: string; path: string };
 }
 
+type CodexModelCatalogEntry = {
+  model?: unknown;
+  supportedReasoningEfforts?: unknown;
+};
+
+/**
+ * Keep configuration human-editable while treating the live Codex catalog as
+ * the authority for what the running app-server can execute.
+ */
+export async function verifyCodexAnalysisProfile(
+  rpc: RpcClient,
+  profile: VideoIntelligenceExecutionProfile,
+): Promise<void> {
+  trace("model.list.request", {
+    model: profile.model,
+    reasoningEffort: profile.reasoningEffort,
+  });
+  const response = await rpc.request<{ data?: CodexModelCatalogEntry[] }>(
+    "model/list",
+    {},
+  );
+  const models = Array.isArray(response?.data) ? response.data : [];
+  const selected = models.find((entry) => entry.model === profile.model);
+  if (!selected) {
+    throw new Error(
+      `Configured Video Intelligence model ${profile.model} is unavailable in this Codex app-server.`,
+    );
+  }
+  const efforts = Array.isArray(selected.supportedReasoningEfforts)
+    ? selected.supportedReasoningEfforts
+        .map((entry) =>
+          entry && typeof entry === "object" && "reasoningEffort" in entry
+            ? (entry as { reasoningEffort?: unknown }).reasoningEffort
+            : undefined,
+        )
+        .filter((effort): effort is string => typeof effort === "string")
+    : [];
+  if (!efforts.includes(profile.reasoningEffort)) {
+    throw new Error(
+      `Configured Video Intelligence reasoning effort ${profile.reasoningEffort} is unavailable for ${profile.model}.`,
+    );
+  }
+  trace("model.list.complete", {
+    model: profile.model,
+    reasoningEffort: profile.reasoningEffort,
+  });
+}
+
 export async function runCodexAnalysis(
   input: AnalyzeRequest,
   profile: Awaited<ReturnType<typeof loadUserProfile>>,
@@ -452,18 +515,20 @@ export async function runCodexAnalysis(
   cwd = ANALYST_PROJECT_PATH,
   onThreadStarted?: (threadId: string) => void,
   nowMs = Date.now(),
+  analysisProfile: VideoIntelligenceExecutionProfile = configuredVideoIntelligenceProfile(),
 ): Promise<AnalysisRun> {
   let threadId: string | undefined;
   let turnId: string | undefined;
   let completion: TurnCompletionPromise | undefined;
   try {
+    await verifyCodexAnalysisProfile(rpc, analysisProfile);
     const skill = await findSummarizeSkill(rpc, cwd);
     trace("thread.start.request", { ephemeral: false });
     const thread = await rpc.request<any>("thread/start", {
       cwd,
       approvalPolicy: "never",
       ephemeral: false,
-      model: CODEX_ANALYSIS_MODEL,
+      model: analysisProfile.model,
     });
     threadId = thread.thread.id;
     onThreadStarted?.(threadId);
@@ -474,13 +539,13 @@ export async function runCodexAnalysis(
       explicitSkill: true,
       outputSchema: true,
       sandbox: "workspaceWrite",
-      model: CODEX_ANALYSIS_MODEL,
-      effort: CODEX_ANALYSIS_EFFORT,
+      model: analysisProfile.model,
+      effort: analysisProfile.reasoningEffort,
     });
     const turn = await rpc.request<any>("turn/start", {
       threadId,
-      model: CODEX_ANALYSIS_MODEL,
-      effort: CODEX_ANALYSIS_EFFORT,
+      model: analysisProfile.model,
+      effort: analysisProfile.reasoningEffort,
       input: [
         { type: "text", text: buildPrompt(input, profile, nowMs), text_elements: [] },
         { type: "skill", name: skill.name, path: skill.path },
@@ -535,6 +600,7 @@ export async function runCodexAnalysis(
 export async function analyzeYouTube(
   raw: unknown,
   onThreadStarted?: (threadId: string) => void,
+  analysisProfile = configuredVideoIntelligenceProfile(),
 ): Promise<AnalysisRun> {
   const input = requestSchema.parse(raw);
   const profile = await loadUserProfile();
@@ -545,6 +611,8 @@ export async function analyzeYouTube(
     rpc,
     ANALYST_PROJECT_PATH,
     onThreadStarted,
+    Date.now(),
+    analysisProfile,
   );
 }
 
@@ -588,6 +656,7 @@ export function createLocalAgentServer(
   analyze: (
     input: unknown,
     onThreadStarted?: (threadId: string) => void,
+    analysisProfile?: VideoIntelligenceExecutionProfile,
   ) => Promise<AnalysisRun> = analyzeYouTube,
   intelligenceStore: VideoIntelligenceStore = createVideoIntelligenceCloudStore(),
 ) {
@@ -667,12 +736,16 @@ export function createLocalAgentServer(
           );
         }
         await Promise.resolve();
-        await intelligenceStore.updateJob(job.id, { status: "running" });
+        const analysisProfile = configuredVideoIntelligenceProfile();
+        await intelligenceStore.updateJob(job.id, {
+          status: "running",
+          executionProfile: analysisProfile,
+        });
         trace("analysis.request.started", { jobId: job.id, videoId: input.videoId });
         try {
           const result = await analyze(input, (threadId) => {
             void intelligenceStore.updateJob(job.id, { threadId });
-          });
+          }, analysisProfile);
           trace("analysis.result.ready", { jobId: job.id, videoId: input.videoId });
           await intelligenceStore.complete(
             job.id,
@@ -704,13 +777,15 @@ export function createLocalAgentServer(
         }
       }
       if (req.method === "POST" && req.url === "/ingest-cached") {
-        const input = cachedIngestSchema.parse(await readJson(req));
-        const job = await intelligenceStore.enqueue(input);
+        const { analysis, threadId, ...request } = cachedIngestSchema.parse(
+          await readJson(req),
+        );
+        const job = await intelligenceStore.enqueue(request);
         if (job.disposition && job.disposition !== "created") {
           trace("analysis.cache.reused", {
             disposition: job.disposition,
             jobId: job.id,
-            videoId: input.videoId,
+            videoId: request.videoId,
           });
           return send(
             res,
@@ -722,28 +797,28 @@ export function createLocalAgentServer(
               jobId: job.id,
               sourceId: job.sourceId,
               dossierId: job.dossierId,
-              analysis: input.analysis,
-              threadId: input.threadId,
+              analysis,
+              threadId,
             },
             origin,
           );
         }
         await intelligenceStore.updateJob(job.id, {
           status: "running",
-          threadId: input.threadId,
+          threadId,
         });
         const dossier = await intelligenceStore.complete(
           job.id,
-          input.analysis as VideoIntelligenceAnalysis,
-          input.threadId,
+          analysis as VideoIntelligenceAnalysis,
+          threadId,
         );
         return send(
           res,
           200,
           {
             ok: true,
-            analysis: input.analysis,
-            threadId: input.threadId,
+            analysis,
+            threadId,
             dossierId: dossier.id,
           },
           origin,

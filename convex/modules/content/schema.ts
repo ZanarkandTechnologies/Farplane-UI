@@ -31,6 +31,12 @@ const jobStatus = v.union(
   v.literal("needs_review"),
 );
 
+const videoIntelligenceExecutionProfile = v.object({
+  definition: v.literal("video_intelligence.analysis.v1"),
+  model: v.string(),
+  reasoningEffort: v.string(),
+});
+
 export const contentTables = {
   contentSources: defineTable({
     sourceKind,
@@ -75,6 +81,8 @@ export const contentTables = {
     taskId: v.optional(v.string()),
     externalTaskRef: v.optional(v.string()),
     requestedBy: v.optional(v.string()),
+    /** Immutable non-secret Codex profile captured before a video run begins. */
+    analysisExecutionProfile: v.optional(videoIntelligenceExecutionProfile),
     status: jobStatus,
     error: v.optional(v.string()),
     createdAtMs: v.number(),

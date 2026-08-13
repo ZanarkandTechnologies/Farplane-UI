@@ -2,7 +2,7 @@
 
 /** Unified, read-only external-data workspace for Content, News, Concepts, and World. */
 import { BookOpenText, Globe2, Network, Newspaper, PanelTopOpen } from "lucide-react";
-import { Component, type ErrorInfo, type ReactNode, useState } from "react";
+import { Component, type ErrorInfo, type ReactNode, useEffect, useState } from "react";
 import { OfficeWorkspaceDialog } from "@/components/office-workspace-dialog";
 import { Badge } from "@/components/ui/badge";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -101,6 +101,10 @@ export function ContentIntelligencePanel({
   }, [initialTab, open]);
 
   const returnToLibrary = () => setDetail(null);
+  const openLibraryTab = (nextTab: ContentTab) => {
+    setTab(nextTab);
+    returnToLibrary();
+  };
   const openDossier = (
     dossierId: string,
     preview?: ContentIntelligenceItem,
@@ -121,10 +125,7 @@ export function ContentIntelligencePanel({
   const openStory = (storyId: string, fromDossierId?: string) =>
     setDetail({ kind: "story", storyId, fromDossierId });
   const openNews = (storyId: string) => setDetail({ kind: "news", storyId });
-  const openWorld = () => {
-    setTab("world");
-    returnToLibrary();
-  };
+  const openWorld = () => openLibraryTab("world");
 
   return (
     <OfficeWorkspaceDialog
@@ -150,7 +151,7 @@ export function ContentIntelligencePanel({
       </DialogHeader>
       <Tabs
         value={tab}
-        onValueChange={(value) => setTab(value as ContentTab)}
+        onValueChange={(value) => openLibraryTab(value as ContentTab)}
         className="min-h-0 flex flex-1 flex-col"
       >
         <div className="relative shrink-0 border-b">
@@ -159,7 +160,12 @@ export function ContentIntelligencePanel({
             className="h-auto w-full justify-start overflow-x-auto rounded-none bg-transparent px-3 py-2 sm:px-5"
           >
             {contentIntelligencePrimaryTabs.map((primaryTab) => (
-              <TabsTrigger key={primaryTab} value={primaryTab} className="shrink-0 gap-1.5">
+              <TabsTrigger
+                key={primaryTab}
+                value={primaryTab}
+                onClick={returnToLibrary}
+                className="shrink-0 gap-1.5"
+              >
                 {primaryTab === "content" ? <BookOpenText className="size-3.5" /> : null}
                 {primaryTab === "news" ? <Newspaper className="size-3.5" /> : null}
                 {primaryTab === "concepts" ? <Network className="size-3.5" /> : null}
@@ -195,8 +201,7 @@ export function ContentIntelligencePanel({
                 returnToLibrary();
               }}
               onAllStories={() => {
-                setTab("news");
-                returnToLibrary();
+                openLibraryTab("news");
               }}
               onOpenDossier={openDossier}
               onOpenStory={openStory}

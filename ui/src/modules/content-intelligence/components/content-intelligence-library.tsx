@@ -7,6 +7,7 @@ import { contentThumbnailUrl, groupContentByObservedDate } from "../lib/content-
 import type { ContentIntelligenceItem } from "../types";
 import type { ContentIntelligenceRuntime } from "./content-intelligence-data-controller";
 import { displayDate, State, TimelineEndSentinel } from "./content-intelligence-view-primitives";
+import { EditorialNewsBriefing } from "./editorial-news-briefing";
 
 export function LibraryLayer({ hidden, children }: { hidden: boolean; children: ReactNode }) {
   return (
@@ -47,7 +48,7 @@ export function NewsWorkspace({
   news: ContentIntelligenceRuntime["news"];
   onOpenNews: (storyId: string) => void;
 }) {
-  return <NewsTabView timeline={news} onOpenNews={onOpenNews} />;
+  return <EditorialNewsBriefing timeline={news} onOpenNews={onOpenNews} />;
 }
 
 export function ConceptsWorkspace({ content }: { content: ContentIntelligenceRuntime["content"] }) {
@@ -249,117 +250,6 @@ function ContentFallbackVisual({ item }: { item: ContentIntelligenceItem }) {
       <p className="line-clamp-2 max-w-[20rem] text-xs font-medium text-foreground/75">
         {item.title}
       </p>
-    </div>
-  );
-}
-
-function NewsTabView({
-  timeline,
-  onOpenNews,
-}: {
-  timeline: ContentIntelligenceRuntime["news"];
-  onOpenNews: (storyId: string) => void;
-}) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  if (timeline.status === "loading") return <State label="Loading editorial News…" />;
-  if (timeline.status === "error")
-    return <State label={timeline.error ?? "News is temporarily unavailable."} />;
-  return (
-    <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-5">
-      <div className="mx-auto max-w-[1600px] space-y-4">
-        <div className="grid gap-2 rounded-md border bg-muted/20 p-2 sm:grid-cols-4">
-          <select
-            aria-label="News status"
-            value={timeline.filters.status}
-            onChange={(event) =>
-              timeline.setFilters({
-                ...timeline.filters,
-                status: event.target.value as typeof timeline.filters.status,
-              })
-            }
-            className="h-8 rounded border bg-background px-2 text-xs"
-          >
-            <option value="all">All statuses</option>
-            <option value="aggregated">Aggregated</option>
-            <option value="developing">Developing</option>
-          </select>
-          <input
-            aria-label="Filter News by project"
-            value={timeline.filters.projectId}
-            onChange={(event) =>
-              timeline.setFilters({ ...timeline.filters, projectId: event.target.value })
-            }
-            placeholder="Project"
-            className="h-8 rounded border bg-background px-2 text-xs"
-          />
-          <input
-            aria-label="Filter News by source"
-            value={timeline.filters.source}
-            onChange={(event) =>
-              timeline.setFilters({ ...timeline.filters, source: event.target.value })
-            }
-            placeholder="Creator or source"
-            className="h-8 rounded border bg-background px-2 text-xs"
-          />
-          <input
-            aria-label="Filter News by topic"
-            value={timeline.filters.topic}
-            onChange={(event) =>
-              timeline.setFilters({ ...timeline.filters, topic: event.target.value })
-            }
-            placeholder="Topic"
-            className="h-8 rounded border bg-background px-2 text-xs"
-          />
-        </div>
-        {!timeline.items.length ? (
-          <State
-            label={
-              timeline.hasMore
-                ? "No matching News is in this range yet. Keep scrolling to check earlier coverage."
-                : "No current, reportable News is available for this date."
-            }
-          />
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {timeline.items.map((story) => (
-              <button
-                key={story.id}
-                type="button"
-                onClick={() => onOpenNews(story.id)}
-                className="rounded-md border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  <span>{story.eventDate ?? "Current development"}</span>
-                  <Badge
-                    variant={story.editorialStatus === "aggregated" ? "default" : "outline"}
-                    className="text-[9px]"
-                  >
-                    {story.editorialStatus === "aggregated" ? "Aggregated" : "Developing"}
-                  </Badge>
-                </div>
-                <h3 className="mt-1 text-sm font-semibold">{story.title}</h3>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">{story.summary}</p>
-                <p className="mt-3 line-clamp-1 text-[11px] text-muted-foreground">
-                  {story.sourceCount} creator{story.sourceCount === 1 ? "" : "s"} ·{" "}
-                  {story.claimCount} claims
-                </p>
-                {story.whyItMatters ? (
-                  <p className="mt-2 line-clamp-2 text-xs text-primary/80">
-                    Why it matters: {story.whyItMatters}
-                  </p>
-                ) : null}
-              </button>
-            ))}
-          </div>
-        )}
-        <TimelineEndSentinel
-          scrollRoot={scrollRef}
-          canLoadMore={timeline.hasMore}
-          isLoading={timeline.isLoadingMore}
-          onLoadMore={timeline.loadMore}
-          label="Loading earlier News…"
-        />
-      </div>
     </div>
   );
 }

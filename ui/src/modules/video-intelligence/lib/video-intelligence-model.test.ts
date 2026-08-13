@@ -7,7 +7,9 @@ import {
   evidenceUrl,
   groupStoriesByTimeline,
   groupVideosByTimeline,
+  resolveTimelineDatePage,
   sortedJobs,
+  timelineDateDescriptor,
   timestampSeconds,
 } from "./video-intelligence-model";
 
@@ -136,12 +138,48 @@ describe("video intelligence model", () => {
     expect(evidenceUrl({ ...source, timestamp: null })).toBe(source.sourceUrl);
   });
 
-  it("groups the latest video per id and stories by their event timeline", () => {
-    const now = new Date("2026-07-30T12:00:00.000Z");
-    expect(groupVideosByTimeline(projection, "", now)[0]?.label).toBe("Today");
-    const storyGroup = groupStoriesByTimeline(projection, "device", "tag-device", now)[0];
-    expect(storyGroup?.label).toBe("Today");
+  it("groups the latest video per id and stories by their explicit event timeline", () => {
+    expect(groupVideosByTimeline(projection)[0]?.key).toBe("2026-07-30");
+    const storyGroup = groupStoriesByTimeline(projection, "device", "tag-device")[0];
+    expect(storyGroup?.key).toBe("2026-07-30");
     expect(storyGroup?.items[0]?.story.id).toBe("story-launch");
+  });
+
+  it("resolves date pages by key and falls back to the newest remaining date", () => {
+    const groups = [
+      { key: "2026-08-11", label: "Mon, August 11, 2026", items: ["new"] },
+      { key: "2026-08-08", label: "Fri, August 8, 2026", items: ["old"] },
+    ];
+    expect(resolveTimelineDatePage(groups, "2026-08-08")).toMatchObject({
+      index: 1,
+      pageCount: 2,
+      group: groups[1],
+    });
+    expect(resolveTimelineDatePage(groups, "2026-07-01")).toMatchObject({
+      index: 0,
+      pageCount: 2,
+      group: groups[0],
+    });
+    expect(resolveTimelineDatePage([], "2026-08-11")).toEqual({
+      group: null,
+      index: 0,
+      pageCount: 0,
+    });
+  });
+
+  it("keeps literal event dates stable and handles local timestamp and unknown dates", () => {
+    expect(timelineDateDescriptor("2026-07-30").key).toBe("2026-07-30");
+    const nearMidnight = new Date("2026-07-30T23:30:00.000Z");
+    const expectedLocalKey = [
+      nearMidnight.getFullYear(),
+      String(nearMidnight.getMonth() + 1).padStart(2, "0"),
+      String(nearMidnight.getDate()).padStart(2, "0"),
+    ].join("-");
+    expect(timelineDateDescriptor(nearMidnight.toISOString()).key).toBe(expectedLocalKey);
+    expect(timelineDateDescriptor("not-a-date")).toEqual({
+      key: "unknown",
+      label: "Date unknown",
+    });
   });
 
   it("derives only contribution and persisted related edges for information flow", () => {
