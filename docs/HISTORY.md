@@ -2,7 +2,15 @@
 
 2026-08-13 | feature | TASK-0088 | content-intelligence,video-intelligence,feed-scout,news,ui | Consolidated external-source reading into the shared Content Intelligence dialog, added retained chronological Content/News feeds with end-of-feed date loading and exact stored-day display, and kept Video Intelligence as the cited dossier/reporting capability rather than a second public panel.
 
+2026-08-12 | fix | TASK-0432 | ui,leverage,distribution | Group Distribution by collector-observed social-account identity, show one account card with all `Used by` projects, and keep raw provider IDs server-only.
+
+2026-08-12 | feature | TASK-0432 | ui,leverage,metrics,office,finance | Added a read-only global Leverage panel that joins Finance cash with explicit project distribution and one Markdown Edge card, while retaining named evidence gaps and the numeric Team Workspace parser boundary.
+
+2026-08-08 | feature | TASK-0084 | ui,office,kanban,tickets,cli | Added optional ticket specialists and linked-session bindings, routed active specialist tickets into existing Office3D facilities, and made skill telemetry enrich ticket workers or rooms rather than invent worktables or employees.
+
 2026-08-05 | feature | TASK-0081 | ui,office,rooms,agents,skills,world,projects | Replaced legacy activity landmarks with eleven hosted operating rooms, added office/project-scoped host conversations and transient skill worktables, introduced Office3D-only seven-day project visibility, made Command Commons open an aggregate Company World, and replaced the retired training modal with ticket-backed Self-Improvement Runs.
+
+2026-08-05 | feature | realtime-call,livekit,voice | Realtime employee calls now accept a bounded, trusted dispatch-scoped opening prompt so a public voice surface can set a natural first turn without mutating canonical Farplane agent profiles.
 
 2026-08-03 | bugfix | ui,office,threejs,vite,observability | Prevented R3F provider-context crashes during Vite dependency re-optimization by pre-bundling Fiber and Drei together, and added a Canvas error boundary with a focused console/QA diagnostic plus a recoverable reload state.
 
@@ -293,3 +301,5 @@
 2026-07-24 21:53 +08 | migration | TASK-0070 | tickets,convex,cli,ui,qa | Made filesystem `ticket.md` files the sole task/review/memory source, migrated Team Workspace, CEO, CLI, and activity consumers, removed the Convex teamBoard schema/module/routes/generated API without compatibility shims, and passed browser, visual, drift, and completion proof.
 2026-07-31 | feature | TASK-0074 | youtube,video-intelligence,convex,resource-bank,ui,office | Added a Convex-backed YouTube ingest queue, cited video dossiers, deterministic story linking and rebuilt cross-source aggregates, legacy projection of existing Resource Bank videos, plus a registry-driven Video Intelligence entrypoint in AI Office.
 2026-07-31 | feature | TASK-0075 | video-intelligence,library,stories,tags,information-flow | Replaced the three-column Video Intelligence surface with Videos/Stories timelines and in-panel drill-down, added stable story tags and conservative related-event edges, and exposed chronological source flow without implying citation or causality.
+2026-08-05 | hardening | TASK-0080 | youtube,codex,video-intelligence,vidgard,qa | Added Luna Max analysis selection, resumable manifest ingestion, canonical-job reconciliation, and bounded five-at-a-time rollout for the frozen 2026 David Filterbuy channel set; the terminal audit covers all 46 manifest IDs and records explicit auth/profile exceptions, with completion still blocked pending recovery.
+2026-08-06 | feature | TASK-0082 | ui,office,layout,scene,qa | Replaced the automatic rectangular office shell with a light four-island department archipelago around the Company World nexus, preserving the eleven hosted rooms, existing host/activity contracts, and manual/Builder layouts while removing permanent billboards, bay walls, and the Command Commons cage.
