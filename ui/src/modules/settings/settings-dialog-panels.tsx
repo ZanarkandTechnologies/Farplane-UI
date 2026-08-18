@@ -1,4 +1,5 @@
-import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { useId } from "react";
+import { ThemeSelector } from "@/components/theme/theme-selector";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -73,9 +74,14 @@ export function GeneralSettingsPanel(props: GeneralSettingsPanelProps) {
   } = props;
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Label>Theme</Label>
-        <ThemeToggle />
+      <div className="flex flex-col gap-3 border border-border/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium leading-none">Appearance</span>
+          <span className="text-xs text-muted-foreground">
+            One theme controls panels and the Office world.
+          </span>
+        </div>
+        <ThemeSelector />
       </div>
 
       <ToggleRow
@@ -218,13 +224,16 @@ function OverlayToggle(props: {
   onToggle: (value: boolean) => void;
 }) {
   const { label, description, enabled, disabled, onToggle } = props;
+  const checkboxId = useId();
   return (
     <label
+      htmlFor={checkboxId}
       className={`grid grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-md px-2 py-2 text-sm transition-colors ${
         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-muted"
       }`}
     >
       <Checkbox
+        id={checkboxId}
         checked={enabled}
         disabled={disabled}
         onCheckedChange={(value) => onToggle(value === true)}

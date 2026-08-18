@@ -142,6 +142,14 @@ floor, walls, furniture, screens, practical lights, employee contrast, lineage
 effects, and selection states. A theme change must not rewrite kit geometry or
 office-object transforms.
 
+The browser exposes these modes as **Nexus Graphite**, **Nexus Daylight**, and
+**Follow System**. `next-themes` persists the choice at `farplane.theme` and
+resolves the root light/dark mode. The same resolved mode selects both CSS
+semantic panel tokens and the Three.js Office palette; there is no separate
+Office theme store. Company Nexus cool/pale roles own general selection and
+focus emphasis, while warm, destructive, project, and department colors remain
+meaningful data signals rather than application-wide chrome.
+
 ### Automatic hosted rooms use a department archipelago
 
 `team_neighborhoods` is an automatic presentation, not a second durable office

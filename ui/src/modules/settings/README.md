@@ -18,6 +18,9 @@ Import from `@/modules/settings`.
   adapter capabilities.
 - Keep settings persistence helpers in their owning domain library until a
   setting becomes module-private.
+- Browser appearance is the intentional exception to config-file persistence:
+  `next-themes` owns `localStorage: farplane.theme`, and the General panel only
+  selects among the typed presets in `ui/src/config/theme-system.ts`.
 - Persist only non-secret operator settings in `~/.farplane/config.toml`.
   Credential rows consume environment-injected values and, when missing, show
   the exact value-free Doppler setup and relaunch commands.

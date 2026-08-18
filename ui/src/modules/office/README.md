@@ -105,7 +105,8 @@ they do not create a worker, ticket, or persistent furniture record.
 - `panels/use-internal-panel-launcher.ts`: shared landmark/launcher panel routing
 - `skill-targeting.ts`: primary and alias skill lookup
 - `activity-scenes.ts`: landmark-to-scene catalog and renderer fallback
-- `../../../config/office-theme.ts`: scene-wide theme primitive, including the light diorama palette
+- `../../../config/theme-system.ts`: shared appearance names, persistence key, and Company Nexus primitives
+- `../../../config/office-theme.ts`: scene-wide day/night role mapping resolved from the shared appearance mode
 - `components/employee/activity-scene-props.tsx`: engaged-only shared props
 - `lib/department-island-layout.ts`: canonical department, bridge, room-slot, and project-deck geometry
 - `lib/office-layout-solver.ts`: automatic layout selection and ordinary tile-backed reachability

@@ -1,3 +1,5 @@
+import { FARPLANE_THEME_STORAGE_KEY } from "@/config/theme-system";
+
 export type ConfigurationAccess =
   | "Edit in this section"
   | "Feature-owned editor"
@@ -127,9 +129,9 @@ export const LOCAL_CONFIGURATION_ITEMS: readonly ConfigurationCatalogItem[] = [
   {
     id: "general-preferences",
     label: "Theme, debug, builder, and onboarding",
-    description: "Browser-local operating preferences; theme storage is owned by next-themes.",
+    description: "Browser-local operating preferences; themes drive panels and the Office scene.",
     scope: "This browser",
-    location: "browser storage + app store",
+    location: `localStorage ${FARPLANE_THEME_STORAGE_KEY} + app store`,
     owner: "General settings",
     access: "Edit in this section",
   },

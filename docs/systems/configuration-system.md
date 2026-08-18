@@ -95,7 +95,7 @@ Doppler: `FARPLANE_TELEMETRY_TOKEN`, `FARPLANE_STATE_BRIDGE_TOKEN`,
 | Codex office visibility | `~/.farplane/office.json.codex`; legacy `~/.farplane/codex-office.json` | Codex runtime | Expand **Runtime & automation**. |
 | Runtime adapter | `localStorage: farplane.runtime-adapter.v1` | Runtime | Expand **Runtime & automation**. |
 | OpenClaw gateway UI | `localStorage: farplane.gateway-config.v1` | OpenClaw runtime | Expand **Runtime & automation**; token remains environment-only. |
-| General settings | Theme storage and app session state | General settings | Expand **Office & appearance** for theme, debug, builder mode, and onboarding. |
+| General settings | `localStorage: farplane.theme` plus app session state | General settings | Expand **Office & appearance** for theme, debug, builder mode, and onboarding. |
 | Office character graphics | `localStorage: farplane.office.characterSprite*` | Office View | Expand **Office & appearance**. |
 | Video Intelligence operator profile | `~/.farplane/USER.md` | Local video agent | File or CLI only. |
 | Team resources | `~/.farplane/projects/<projectId>/RESOURCES.md` | Team CLI | File or CLI only. |
@@ -104,6 +104,30 @@ Doppler: `FARPLANE_TELEMETRY_TOKEN`, `FARPLANE_STATE_BRIDGE_TOKEN`,
 | Office onboarding completion | `localStorage: farplane.office-onboarding.completed` | General settings | Replayed from **Office & appearance**. |
 | Chat presentation preferences | `localStorage: farplane-chat-store` | Chat | Feature-owned editor. |
 | Developer diagnostic overrides | `localStorage: farplane.debug.pathfinding`, `farplane.debug.gateway`, `farplane.debug.officeRefresh` | Developer diagnostics | Browser-console / developer only. |
+
+### Appearance resolution
+
+The browser stores one appearance preference: `dark`, `light`, or `system`.
+`next-themes` owns persistence, system-preference observation, cross-tab sync,
+and the root `light` / `dark` class. That resolved mode fans out to the two
+rendering contracts instead of creating a second Office setting:
+
+```mermaid
+flowchart LR
+  settings["Settings → Appearance"] --> provider["next-themes"]
+  provider --> storage["localStorage: farplane.theme"]
+  provider --> mode["resolved light / dark mode"]
+  mode --> css["CSS semantic panel tokens"]
+  mode --> scene["Three.js Office theme resolver"]
+  css --> ui["One coherent application theme"]
+  scene --> ui
+```
+
+`ui/src/config/theme-system.ts` owns the visible preset names, storage key, and
+Company Nexus primitives. `ui/src/styles.css` maps those primitives to panel
+roles; `ui/src/config/office-theme.ts` maps them to scene roles. Project,
+department, warning, and destructive colors remain semantic data signals and
+do not become general interface chrome.
 
 ### Versioned project configuration
 

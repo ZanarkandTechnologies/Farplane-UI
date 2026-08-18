@@ -4,6 +4,8 @@
  * Centralized visual tokens for office scene styling, landmarks, and interactions.
  */
 
+import { NEXUS_THEME_PALETTES } from "@/config/theme-system";
+
 export const OFFICE_LANDMARK_KINDS = [
   "gym",
   "library",
@@ -102,13 +104,7 @@ export const OFFICE_DIORAMA_THEME: OfficeDioramaTheme = {
   islandEdge: "#b6ae9c",
   roomSurface: "#d5d3c6",
   nexusTop: "#e6dfc6",
-  nexusVortex: {
-    ink: "#18313e",
-    cool: "#74ced6",
-    pale: "#c8f3e6",
-    warm: "#e7c47c",
-    light: "#c6eee1",
-  },
+  nexusVortex: NEXUS_THEME_PALETTES.light,
   bridge: "#e0dac7",
   text: "#3c4038",
   shadow: "#6b675c",
@@ -131,13 +127,7 @@ export const OFFICE_DIORAMA_NIGHT_THEME: OfficeDioramaTheme = {
   islandEdge: "#3a3a38",
   roomSurface: "#656560",
   nexusTop: "#686864",
-  nexusVortex: {
-    ink: "#46504e",
-    cool: "#6f918f",
-    pale: "#b4bbb6",
-    warm: "#ad9f82",
-    light: "#aebcb5",
-  },
+  nexusVortex: NEXUS_THEME_PALETTES.dark,
   bridge: "#4d4d4b",
   text: "#e2e2df",
   shadow: "#050505",
