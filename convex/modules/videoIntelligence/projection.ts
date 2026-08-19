@@ -25,6 +25,18 @@ type ProjectionSource = {
     error?: string;
     externalTaskRef?: string;
     projectId?: string;
+    progress?: {
+      stage:
+        | "queued"
+        | "preparing"
+        | "analyzing"
+        | "persistence"
+        | "complete"
+        | "failed"
+        | "needs_review";
+      message: string;
+      updatedAtMs: number;
+    };
     createdAtMs: number;
     updatedAtMs: number;
   };
@@ -78,6 +90,7 @@ export const getVideoIntelligenceProjection = query({
               error: job.error,
               externalTaskRef: job.externalTaskRef,
               projectId: job.projectId,
+              progress: job.progress,
               createdAtMs: job.createdAtMs,
               updatedAtMs: job.updatedAtMs,
             },
@@ -223,6 +236,7 @@ export const getVideoIntelligenceProjection = query({
         clickbait: structured.clickbait,
         keyPoints: structured.keyPoints,
         recommendation: structured.recommendation,
+        concepts: structured.concepts ?? [],
         legacy: false,
         createdAt: iso(structured.createdAtMs),
         updatedAt: iso(structured.updatedAtMs),
@@ -244,6 +258,13 @@ export const getVideoIntelligenceProjection = query({
           threadId: threadIdFromRef(source.job.externalTaskRef),
           dossierId: dossier.id,
           error: source.job.error,
+          progress: source.job.progress
+            ? {
+                stage: source.job.progress.stage,
+                message: source.job.progress.message,
+                updatedAt: iso(source.job.progress.updatedAtMs),
+              }
+            : null,
           createdAt: iso(source.job.createdAtMs),
           updatedAt: iso(source.job.updatedAtMs),
         },
@@ -298,6 +319,7 @@ function legacyDossier(source: ProjectionSource, videoId: string) {
     clickbait: null,
     keyPoints: [],
     recommendation: null,
+    concepts: [],
     legacy: true,
     createdAt: iso(source.createdAtMs),
     updatedAt: iso(source.updatedAtMs),

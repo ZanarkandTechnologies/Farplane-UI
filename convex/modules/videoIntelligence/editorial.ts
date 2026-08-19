@@ -3,14 +3,14 @@ import { isTimelineDay, timelineDayFromMs } from "../content/timeline";
 
 export const NEWS_WINDOW_DAYS = 30;
 const YOUTUBE_CHANNEL_ID = /^UC[A-Za-z0-9_-]{22}$/;
-const PUBLIC_REFERENCE = /^(https:\/\/[^\s]+|[A-Za-z][A-Za-z0-9._:/-]{5,199})$/;
+const PUBLIC_REFERENCE = /^https:\/\/[^\s]+$/;
 
 export type EditorialCandidate = {
   eventDate?: string | null;
   eventKey?: string | null;
   whyNow?: string | null;
   whyItMatters?: string | null;
-  claims: { evidence: { reference?: string } }[];
+  claims: { evidence: { reference?: string | null } }[];
 };
 
 export type EditorialGate =
@@ -18,9 +18,7 @@ export type EditorialGate =
   | { eligible: false; reason: string };
 
 /** The writer consumes News only as additive analysis enrichment. */
-export function candidatesForNewsEnrichment<T>(
-  enrichment: { candidates: T[] } | null,
-): T[] {
+export function candidatesForNewsEnrichment<T>(enrichment: { candidates: T[] } | null): T[] {
   return enrichment?.candidates ?? [];
 }
 
@@ -38,6 +36,15 @@ export function evaluateNewsCandidate(candidate: EditorialCandidate, nowMs: numb
   const age = calendarDayDifference(timelineDayFromMs(nowMs), eventDay);
   if (age < 0 || age > NEWS_WINDOW_DAYS) return { eligible: false, reason: "event_outside_window" };
   return { eligible: true, eventDay, eventKey, whyNow, whyItMatters };
+}
+
+export function resolveNewsReferenceUrl(
+  eventKey: string | undefined,
+  claims: Array<{ evidence: { reference?: string | null } }>,
+): string | null {
+  const candidate = eventKey?.trim() ?? "";
+  if (!PUBLIC_REFERENCE.test(candidate)) return null;
+  return claims.some((claim) => claim.evidence.reference?.trim() === candidate) ? candidate : null;
 }
 
 export function calendarDayDifference(laterDay: string, earlierDay: string): number {

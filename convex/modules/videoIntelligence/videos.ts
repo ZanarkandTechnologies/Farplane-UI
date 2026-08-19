@@ -8,7 +8,10 @@ import type { MutationCtx } from "../../_generated/server";
 import { mutation } from "../../_generated/server";
 import { canonicalYouTubeUrl } from "../content/identifiers";
 import { ensureContentSource, getContentJobOrThrow } from "../content/records";
+import { contentJobProgressStageValidator, contentJobProgressValidator } from "../content/schema";
 import { timelineDayFromMs, timelineDayFromValue } from "../content/timeline";
+import { MAX_RELATED_COVERAGE_EDGES } from "./comparisonRules";
+import { normalizeComparisonIds, upsertComparisonDecision } from "./comparisons";
 import { normalizeTagKey } from "./domain";
 import {
   authorityFromYouTubeChannel,
@@ -17,8 +20,9 @@ import {
   hasCurrentRevision,
   isYouTubeChannelId,
   topicMonth,
-  topicNamesForCoverage,
 } from "./editorial";
+import { canAdvanceVideoProgress } from "./progressModel";
+import { terminalQueueDisposition } from "./queueModel";
 import { videoAnalysisValidator } from "./validators";
 
 const contentJobStatusValidator = v.union(
@@ -101,40 +105,41 @@ export const queueVideo = mutation({
         updatedAtMs: existing.updatedAtMs,
       };
     }
-    const readyJob = await ctx.db
-      .query("contentJobs")
-      .withIndex("by_source_kind_status", (q) =>
-        q.eq("sourceId", sourceId).eq("kind", "analyze_youtube").eq("status", "ready"),
-      )
-      .first();
-    if (readyJob && !args.reAnalyze) {
-      const dossier = await ctx.db
-        .query("videoIntelligenceDossiers")
-        .withIndex("by_contentSourceId", (q) => q.eq("contentSourceId", sourceId))
-        .first();
-      return {
-        jobId: readyJob._id,
-        sourceId,
-        videoId: args.videoId,
-        title,
-        projectId: readyJob.projectId,
-        disposition: "reused_ready" as const,
-        jobStatus: readyJob.status,
-        dossierId: dossier?._id,
-        createdAtMs: readyJob.createdAtMs,
-        updatedAtMs: readyJob.updatedAtMs,
-      };
-    }
-    const terminalJob = await ctx.db
+    const latestTerminalJob = await ctx.db
       .query("contentJobs")
       .withIndex("by_source_kind_createdAtMs", (q) =>
         q.eq("sourceId", sourceId).eq("kind", "analyze_youtube"),
       )
       .order("desc")
       .first();
-    if (terminalJob && !args.reAnalyze) {
-      throw new Error("video_intelligence_reanalysis_required");
+    if (
+      latestTerminalJob?.status === "ready" &&
+      terminalQueueDisposition("ready", Boolean(args.reAnalyze)) === "reuse_ready"
+    ) {
+      const dossier = await ctx.db
+        .query("videoIntelligenceDossiers")
+        .withIndex("by_contentSourceId", (q) => q.eq("contentSourceId", sourceId))
+        .first();
+      return {
+        jobId: latestTerminalJob._id,
+        sourceId,
+        videoId: args.videoId,
+        title,
+        projectId: latestTerminalJob.projectId,
+        disposition: "reused_ready" as const,
+        jobStatus: latestTerminalJob.status,
+        dossierId: dossier?._id,
+        createdAtMs: latestTerminalJob.createdAtMs,
+        updatedAtMs: latestTerminalJob.updatedAtMs,
+      };
     }
+    // Re-observing a source is a timeline event only when a new analysis run is
+    // actually created. Active/ready dedupe returns above deliberately leave the
+    // source on its prior observation day.
+    await ctx.db.patch(sourceId, {
+      timelineDay: timelineDayFromMs(now),
+      updatedAtMs: now,
+    });
     const jobId = await ctx.db.insert("contentJobs", {
       sourceId,
       kind: "analyze_youtube",
@@ -144,6 +149,7 @@ export const queueVideo = mutation({
       projectId,
       requestedBy: "farplane-youtube-shortcut",
       status: "queued",
+      progress: { stage: "queued", message: "Analysis is queued.", updatedAtMs: now },
       createdAtMs: now,
       updatedAtMs: now,
     });
@@ -171,6 +177,15 @@ export const attachThread = mutation({
     const job = await getVideoJobOrThrow(ctx, args.jobId);
     await ctx.db.patch(job._id, {
       status: job.status === "queued" ? "analyzing" : job.status,
+      ...(job.progress && canAdvanceVideoProgress(job.progress.stage, "preparing")
+        ? {
+            progress: {
+              stage: "preparing" as const,
+              message: "Analysis runtime is preparing.",
+              updatedAtMs: Date.now(),
+            },
+          }
+        : {}),
       externalTaskRef: `codex-thread:${clean(args.threadId, 180)}`,
       updatedAtMs: Date.now(),
     });
@@ -199,6 +214,15 @@ export const startVideo = mutation({
       await ctx.db.patch(job._id, {
         status: "analyzing",
         error: undefined,
+        ...(job.progress && canAdvanceVideoProgress(job.progress.stage, "analyzing")
+          ? {
+              progress: {
+                stage: "analyzing" as const,
+                message: "Analysis is combining extraction, comparison, and synthesis.",
+                updatedAtMs: Date.now(),
+              },
+            }
+          : {}),
         ...(job.analysisExecutionProfile || !args.executionProfile
           ? {}
           : { analysisExecutionProfile: args.executionProfile }),
@@ -206,6 +230,26 @@ export const startVideo = mutation({
       });
     }
     return { ok: true };
+  },
+});
+
+export const updateProgress = mutation({
+  args: {
+    jobId: v.id("contentJobs"),
+    stage: contentJobProgressStageValidator,
+    message: v.string(),
+  },
+  returns: contentJobProgressValidator,
+  handler: async (ctx, args) => {
+    const job = await getVideoJobOrThrow(ctx, args.jobId);
+    if (job.progress && !canAdvanceVideoProgress(job.progress.stage, args.stage)) {
+      throw new Error("video_intelligence_progress_regression");
+    }
+    const message = clean(args.message, 500);
+    if (!message) throw new Error("video_intelligence_progress_message_missing");
+    const progress = { stage: args.stage, message, updatedAtMs: Date.now() };
+    await ctx.db.patch(job._id, { progress, updatedAtMs: progress.updatedAtMs });
+    return progress;
   },
 });
 
@@ -220,6 +264,11 @@ export const failVideo = mutation({
     const job = await getVideoJobOrThrow(ctx, args.jobId);
     await ctx.db.patch(job._id, {
       status: "failed",
+      progress: {
+        stage: "failed",
+        message: clean(args.error, 500) || "Analysis failed.",
+        updatedAtMs: Date.now(),
+      },
       error: clean(args.error, 2_000),
       externalTaskRef: args.threadId ? `codex-thread:${clean(args.threadId, 180)}` : undefined,
       updatedAtMs: Date.now(),
@@ -237,6 +286,12 @@ export const completeVideo = mutation({
   },
   returns: v.object({ dossierId: v.id("videoIntelligenceDossiers") }),
   handler: async (ctx, args) => {
+    if (args.analysis.concepts.length > 12) {
+      throw new Error("video_intelligence_concepts_limit_exceeded");
+    }
+    if (args.analysis.relatedCoverage.length > MAX_RELATED_COVERAGE_EDGES) {
+      throw new Error("video_intelligence_related_coverage_limit_exceeded");
+    }
     const job = await getVideoJobOrThrow(ctx, args.jobId);
     if (job.status === "ready") throw new Error("video_intelligence_job_already_completed");
     const source = await ctx.db.get(job.sourceId);
@@ -264,6 +319,7 @@ export const completeVideo = mutation({
       clickbait: args.analysis.clickbait,
       keyPoints: args.analysis.keyPoints,
       recommendation: args.analysis.recommendation,
+      concepts: normalizeConcepts(args.analysis.concepts),
       duplicateIngestCount: (existingDossier?.duplicateIngestCount ?? 0) + 1,
       timelineDay: timelineDayFromMs(now),
       createdAtMs: existingDossier?.createdAtMs ?? now,
@@ -325,16 +381,16 @@ export const completeVideo = mutation({
     }
     const coveredTopicKeys = new Set<string>();
     const topicIdsToRefresh = new Set<Id<"videoIntelligenceTopics">>();
-    for (const extractedTopic of args.analysis.topics) {
-      const tagIds = await resolveTags(ctx, topicNamesForCoverage(extractedTopic), dossierId, now);
+    for (const concept of normalizeConcepts(args.analysis.concepts)) {
+      const tagIds = await resolveTags(ctx, [concept], dossierId, now);
       const topicIds = await addTopicCoverage(ctx, {
         tagIds,
         dossierId,
         revisionId,
         sourceAuthorityKey,
         timelineDay: timelineDayFromMs(now),
-        summary: clean(extractedTopic.summary, 1_500),
-        frame: clean(extractedTopic.frame, 1_000),
+        summary: clean(args.analysis.summary, 1_500),
+        frame: "Bounded concept retained from the current analysis.",
         now,
         coveredTopicKeys,
       });
@@ -430,6 +486,21 @@ export const completeVideo = mutation({
     if (previousRevision) {
       await ctx.db.patch(previousRevision._id, { lifecycle: "superseded", supersededAtMs: now });
     }
+    for (const decision of args.analysis.relatedCoverage) {
+      const ids = normalizeComparisonIds(
+        ctx,
+        decision.candidateSourceId,
+        decision.candidateRevisionId,
+      );
+      await upsertComparisonDecision(ctx, {
+        originRevisionId: revisionId,
+        ...ids,
+        relationship: decision.relationship,
+        rationale: decision.rationale,
+        asOfDay: timelineDayFromMs(now),
+        now,
+      });
+    }
     for (const coverage of previousTopicCoverage) topicIdsToRefresh.add(coverage.topicId);
     for (const topicId of topicIdsToRefresh) {
       await refreshTopicVisibility(ctx, topicId, now);
@@ -440,6 +511,7 @@ export const completeVideo = mutation({
     }
     await ctx.db.patch(args.jobId, {
       status: "ready",
+      progress: { stage: "complete", message: "Analysis is ready.", updatedAtMs: now },
       error: undefined,
       externalTaskRef: `codex-thread:${clean(args.threadId, 180)}`,
       completedAtMs: now,
@@ -619,4 +691,14 @@ function nullableText(value: string | null, max: number): string | undefined {
 
 function clean(value: string, max: number): string {
   return value.trim().replace(/\s+/g, " ").slice(0, max);
+}
+
+function normalizeConcepts(values: string[]): string[] {
+  const concepts = new Map<string, string>();
+  for (const value of values) {
+    const display = clean(value, 80);
+    const key = normalizeTagKey(display);
+    if (key && !concepts.has(key)) concepts.set(key, display);
+  }
+  return [...concepts.values()].slice(0, 12);
 }

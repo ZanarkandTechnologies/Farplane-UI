@@ -23,7 +23,7 @@ Object.assign(globalThis, {
 });
 
 const analysis = {
-  schemaVersion: 4 as const,
+  schemaVersion: 5 as const,
   sourceStatus: "TRANSCRIPT_USED" as const,
   sourceNote: "Transcript inspected.",
   summary: "The claim is qualified.",
@@ -46,21 +46,19 @@ const analysis = {
               timestamp: "01:20",
               excerpt: "The transcript adds a constraint.",
               schemaVersion: 2 as const,
-              extractorVersion: "summarize-v3",
+              extractorVersion: "intelligest-v1",
+              reference: null,
             },
           },
         ],
+        eventKey: null,
+        whyNow: null,
+        whyItMatters: null,
       },
     ],
   },
-  topics: [
-    {
-      title: "Example product coverage",
-      tags: ["Example", "Product Claim"],
-      summary: "Creators cover the product claim and its practical constraint.",
-      frame: "Practical assessment.",
-    },
-  ],
+  concepts: ["Example", "Product Claim"],
+  relatedCoverage: [],
   projectRelevance: [],
   clickbait: {
     answer: "The claim is qualified.",
@@ -98,6 +96,11 @@ test("job list is fetched from the local bridge", async () => {
             title: "Claim?",
             status: "running",
             threadId: "thread-running",
+            progress: {
+              stage: "analyzing",
+              message: "Analyzing source evidence and recent comparisons.",
+              updatedAt: "2026-07-22T00:00:01.000Z",
+            },
             createdAt: "2026-07-22T00:00:00.000Z",
             updatedAt: "2026-07-22T00:00:01.000Z",
           },
@@ -106,14 +109,20 @@ test("job list is fetched from the local bridge", async () => {
       { status: 200, headers: { "content-type": "application/json" } },
     );
 
-  assert.equal((await getJobs()).jobs[0]?.threadId, "thread-running");
+  const job = (await getJobs()).jobs[0];
+  assert.equal(job?.threadId, "thread-running");
+  assert.deepEqual(job?.progress, {
+    stage: "analyzing",
+    message: "Analyzing source evidence and recent comparisons.",
+    updatedAt: "2026-07-22T00:00:01.000Z",
+  });
 });
 
 test("cache hit reuses analysis and thread id without a local-agent call", async () => {
   storage.clear();
   fetchCalls = 0;
-  storage.set("farplane-youtube-analysis-v4:dQw4w9WgXcQ", {
-    schemaVersion: 4,
+  storage.set("farplane-youtube-analysis-v5:dQw4w9WgXcQ", {
+    schemaVersion: 5,
     analysis,
     threadId: "thread-cached",
   });
@@ -153,8 +162,8 @@ test("cache miss stores the validated analysis and persistent thread id", async 
     cached: false,
   });
   assert.equal(fetchCalls, 1);
-  assert.deepEqual(storage.get("farplane-youtube-analysis-v4:dQw4w9WgXcQ"), {
-    schemaVersion: 4,
+  assert.deepEqual(storage.get("farplane-youtube-analysis-v5:dQw4w9WgXcQ"), {
+    schemaVersion: 5,
     analysis,
     threadId: "thread-new",
   });
@@ -189,8 +198,8 @@ test("a remote ready dossier is reused without requiring a local analysis payloa
 test("transcript-unavailable cache entries are not shown as answers", async () => {
   storage.clear();
   fetchCalls = 0;
-  storage.set("farplane-youtube-analysis-v4:dQw4w9WgXcQ", {
-    schemaVersion: 4,
+  storage.set("farplane-youtube-analysis-v5:dQw4w9WgXcQ", {
+    schemaVersion: 5,
     analysis: {
       ...analysis,
       sourceStatus: "TRANSCRIPT_UNAVAILABLE",
@@ -226,8 +235,8 @@ test("pre-News-enrichment cache entries are invalidated before they can reach th
   storage.clear();
   fetchCalls = 0;
   const { news: _news, ...preNewsAnalysis } = analysis;
-  storage.set("farplane-youtube-analysis-v4:dQw4w9WgXcQ", {
-    schemaVersion: 4,
+  storage.set("farplane-youtube-analysis-v5:dQw4w9WgXcQ", {
+    schemaVersion: 5,
     analysis: preNewsAnalysis,
     threadId: "thread-pre-news",
   });
@@ -245,25 +254,43 @@ test("pre-News-enrichment cache entries are invalidated before they can reach th
   assert.equal(fetchCalls, 1);
 });
 
-test("stale v3 cache entries are ignored and replaced by v4 analysis", async () => {
+test("stale v4 cache entries are ignored and replaced by v5 analysis", async () => {
   storage.clear();
   fetchCalls = 0;
-  storage.set("farplane-youtube-analysis-v3:dQw4w9WgXcQ", {
-    schemaVersion: 3,
-    analysis: { ...analysis, schemaVersion: 3 },
+  storage.set("farplane-youtube-analysis-v4:dQw4w9WgXcQ", {
+    schemaVersion: 4,
+    analysis: { ...analysis, schemaVersion: 4 },
     threadId: "thread-stale",
   });
   globalThis.fetch = async () => {
     fetchCalls += 1;
     return new Response(
-      JSON.stringify({ ok: true, analysis, threadId: "thread-v3" }),
+      JSON.stringify({ ok: true, analysis, threadId: "thread-v5" }),
       { status: 200, headers: { "content-type": "application/json" } },
     );
   };
 
   const result = await analyze("dQw4w9WgXcQ", "Claim?");
   assert.equal(result.cached, false);
-  assert.equal(result.threadId, "thread-v3");
+  assert.equal(result.threadId, "thread-v5");
   assert.equal(fetchCalls, 1);
-  assert.ok(storage.has("farplane-youtube-analysis-v4:dQw4w9WgXcQ"));
+  assert.ok(storage.has("farplane-youtube-analysis-v5:dQw4w9WgXcQ"));
+});
+
+test("invalid analysis reports the failing strict field path", async () => {
+  storage.clear();
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        ok: true,
+        analysis: { ...analysis, concepts: undefined },
+        threadId: "thread-invalid",
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+
+  await assert.rejects(
+    analyze("dQw4w9WgXcQ", "Claim?"),
+    /Invalid analysis payload.*concepts/,
+  );
 });

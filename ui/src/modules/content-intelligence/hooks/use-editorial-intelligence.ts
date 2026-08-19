@@ -1,4 +1,4 @@
-/** Retained chronological reads for strictly gated News and dossier-scoped Topic coverage. */
+/** Retained chronological reads for strictly gated News and revision-backed comparable takes. */
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { useCallback, useEffect, useState } from "react";
 import { isConvexEnabled } from "@/providers/convex-provider";
@@ -26,6 +26,8 @@ export type NewsItem = {
   sourceCount: number;
   claimCount: number;
   whyItMatters: string | null;
+  /** Direct original/official/reference evidence; never the featured YouTube URL. */
+  referenceUrl: string;
   featuredSource: {
     title: string;
     publisher: string | null;
@@ -40,22 +42,36 @@ export type NewsFilters = {
   topic: string;
 };
 
-export type RelatedCoverageTopic = {
+export type RelatedCoverageItem = {
+  id: string;
+  dossierId: string;
+  sourceId: string;
+  title: string;
+  publisher: string | null;
+  canonicalUrl: string;
+  summary: string;
+  relationship: "same_development" | "same_active_discussion";
+  rationale: string;
+  timelineDay: string;
+};
+
+export type NewsDetail = {
   id: string;
   title: string;
-  month: string;
-  curatedWorldMarkdown: string | null;
-  coverageCount: number;
-  creatorCount: number;
-  coverage: {
+  summary: string;
+  eventDate: string | null;
+  referenceUrl: string;
+  editorialStatus: "developing" | "aggregated";
+  whyNow: string | null;
+  whyItMatters: string | null;
+  contributors: {
     id: string;
     dossierId: string;
-    title: string;
+    sourceTitle: string;
     publisher: string | null;
-    canonicalUrl: string | null;
-    summary: string;
     frame: string;
-    timelineDay: string;
+    summary: string;
+    claimCount: number;
   }[];
 };
 
@@ -143,7 +159,7 @@ export function useNewsDetail(storyId: string | null) {
   return useQuery(
     api.modules.videoIntelligence.editorialProjection.getNewsDetail,
     enabled && storyId ? { storyId: storyId as Id<"videoIntelligenceStories"> } : "skip",
-  );
+  ) as NewsDetail | null | undefined;
 }
 
 export function useDossierRelatedCoverage(dossierId: string | null) {
@@ -151,7 +167,7 @@ export function useDossierRelatedCoverage(dossierId: string | null) {
   return useQuery(
     api.modules.videoIntelligence.editorialProjection.getDossierRelatedCoverage,
     enabled && dossierId ? { dossierId: dossierId as Id<"videoIntelligenceDossiers"> } : "skip",
-  ) as RelatedCoverageTopic[] | undefined;
+  ) as RelatedCoverageItem[] | undefined;
 }
 
 function buildTimeline<T extends { id: string }>(

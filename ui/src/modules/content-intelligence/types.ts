@@ -4,6 +4,18 @@ export type ContentJob = {
   id: string;
   kind: "save_reference" | "analyze_youtube" | "ingest_feed_scout";
   status: "queued" | "analyzing" | "ready" | "failed" | "needs_review";
+  progress: {
+    stage:
+      | "queued"
+      | "preparing"
+      | "analyzing"
+      | "persistence"
+      | "complete"
+      | "failed"
+      | "needs_review";
+    message: string;
+    updatedAt: string;
+  } | null;
   projectId?: string;
   updatedAt: string;
   error?: string;
@@ -29,6 +41,8 @@ export type ContentIntelligenceItem = {
     tags: string[];
   } | null;
   jobs: ContentJob[];
+  /** Bounded dossier/tag concepts; comparison edges never enter this lens. */
+  concepts?: string[];
   projectIds: string[];
   summary?: string;
   summarySource: "dossier" | "resource_bank" | "feed_scout" | null;

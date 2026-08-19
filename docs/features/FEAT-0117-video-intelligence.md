@@ -3,7 +3,7 @@ kind: feature-spec
 status: active
 project: Farplane UI
 created_at: 2026-07-31
-updated_at: 2026-08-13
+updated_at: 2026-08-19
 owner: video-intelligence
 related_systems:
   - ../systems/content-capture-and-analysis.md
@@ -27,28 +27,33 @@ Video Intelligence is the YouTube-analysis branch inside Content Intelligence.
 It turns Farplane's YouTube shortcut into durable,
 evidence-backed viewing memory. It stores the ingest lifecycle before analysis
 finishes, creates one dossier per YouTube video, links reported events and
-claims to provisional stories, and regenerates each story comparison from all
-current source contributions. AI Office presents timeline-grouped Videos and
-Stories libraries before drilling into a dossier or story-intelligence view.
+claims to provisional stories, and persists revision-backed comparisons between
+recent creator takes. Content Intelligence presents the source timeline, News,
+Concepts, and drill-down dossier/story views.
 
 ## Behavior Contract
 
 ```text
 YouTube request
-  -> persisted queue item
-  -> structured analysis
+  -> canonical source + persisted queue item
+  -> queued -> preparing -> analyzing -> persistence progress
+  -> bounded 14-day comparison packet
+  -> schema-v5 structured analysis
   -> cited video dossier
-  -> one or more story contributions
-  -> existing or provisional story
-  -> regenerated story aggregate
+  -> optional revision-backed comparison edges
+  -> optional directly sourced News contributions
   -> read-only AI Office projection
 ```
 
-- A queue item is written before the long-running Codex analysis begins.
+- A queue item is written before the long-running Codex analysis begins and
+  exposes its persisted named stage, message, freshness, and terminal action.
 - Browser-cache hits still enter the durable queue through `/ingest-cached`;
   they do not launch another Codex analysis task.
 - One dossier, keyed to the canonical shared content source, owns repeated ingests of the same YouTube video.
   The dossier records its repeat count rather than duplicating story evidence.
+- A failed or needs-review run may be retried without a caller-only flag. Active
+  work and ready results remain deduped; explicit reanalysis of a ready result
+  creates a new immutable analysis revision.
 - A video may contribute to up to three reportable stories.
 - A story is one time-bounded event. Stable tag records group longer-running
   themes without changing story identity.
@@ -65,6 +70,11 @@ YouTube request
 - Conservative `related` edges require either one shared non-generic tag plus
   one shared entity, or two shared entities. They never imply citation,
   causality, correction, or derivation.
+- Dossier **Related coverage** is a different relation: it reads only persisted
+  comparison edges between current immutable revisions. The analyzer chooses
+  `same_development` or `same_active_discussion` from a server-owned 14-day
+  packet; the server rejects same-source, same-creator, stale, superseded, or
+  invented candidates before writing an edge.
 
 ## Library and navigation contract
 
@@ -89,31 +99,40 @@ YouTube request
   thumbnail, status/source, bounded title, two-line `Why now`, and source/claim
   counts; the opened report owns the fuller explanation and related coverage.
   A visual never alters source attribution or report status.
+- Every visible News row and detail includes an independently openable original
+  source link. It must be the exact cited HTTPS official/original/reference URL,
+  never the creator video URL or a generated summary.
 - Story intelligence shows reporting chronology, perspectives, shared and
   source-specific claims, related events, and a read-only information-flow
   projection.
 - In the flow projection, `contributes` means a video supplied a persisted
   StoryContribution and `related` means only the conservative tag/entity rule.
 
-## Editorial News and recurring Topics
+## Editorial News and recent comparable coverage
 
 Every successful analysis creates a dossier. It always returns the base dossier
-and recurring Topic coverage; `news` is nullable additive enrichment rather
-than a source type or alternative route. The local bridge passes its current
-UTC `newsAsOf` day into analysis. A tutorial, opinion, forecast, history, or
-commentary returns `news: null`; a source that reports a current public,
-material development may include zero to three News candidates. The server
-publishes a candidate only when it contains an exact current event day, a claim
-citing the same verbatim public `eventKey`, and short `whyNow` and
+and may return recent comparable coverage; `news` is nullable additive
+enrichment rather than a source type or alternative route. The local bridge
+passes its current UTC `newsAsOf` day into analysis. A tutorial, opinion,
+forecast, history, or commentary returns `news: null`; a source that reports a
+current public, material development may include zero to three News candidates.
+The server publishes a candidate only when it contains an exact current event
+day, a claim citing the same verbatim public `eventKey`, and short `whyNow` and
 `whyItMatters` explanations. Channel branding and Feed Scout discovery never
 decide News eligibility.
 
-Recurring coverage is stored as a month-bounded Topic independent of News.
-The analysis returns a named Topic plus supporting tags even when `news` is
-null, so recurring coverage such as AI-assisted income can group creator
-perspectives without pretending to report a new event. An authored Topic may
-carry one constrained `[[world/entity-id]]` reference; that reference is
-validated by Video Intelligence and never writes World state.
+Before analysis, the server returns a bounded packet of current dossiers
+published in the preceding 14 calendar days. `$intelligest` may select only
+packet-supplied source/revision pairs and must classify each as the same concrete
+development or the same active discussion with a source-grounded rationale.
+Shared industries, broad tags, evergreen themes, and the same creator are
+insufficient. Accepted pairs are revalidated and stored symmetrically against
+immutable revisions. If no candidate qualifies, Related coverage is empty.
+
+Concepts are a separate bounded list of descriptive dossier lenses. They may be
+displayed and counted, but they never create a comparison edge. Legacy Topic
+rows remain retained for old records and story/detail compatibility; Related
+coverage no longer reads them.
 
 News comparisons use only contributions belonging to a dossier's current,
 immutable analysis revision. A single verified source authority is labelled
@@ -162,6 +181,7 @@ contentSources -> contentJobs(kind: analyze_youtube) -> videoIntelligenceDossier
                                                     -> videoIntelligenceContributions
                                                     -> videoIntelligenceStories
                                                     -> videoIntelligenceTags
+                                                    -> videoIntelligenceComparisonEdges
 ```
 
 Video Intelligence owns analysis jobs; it must not create Resource Bank assets,
@@ -184,10 +204,10 @@ including migration and skill boundaries, lives in
 - AI Office launches one **Content Intelligence** dialog through the shared
   registry, command palette, keyboard shortcut, and office-object binding.
   Content is the all-source paginated entrypoint; News preserves this feature's
-  cited reporting boundary; recurring Topic coverage appears only as
-  dossier-scoped **Related coverage** when another current source shares the
-  lens; Concepts is a bounded tag adapter; World remains the Entity Markdown
-  projection.
+  cited reporting boundary; revision-backed comparison edges appear only as
+  dossier-scoped **Related coverage** when another recent creator covers the
+  same development or active discussion; Concepts is a bounded tag adapter;
+  World remains the Entity Markdown projection.
 - The workspace is read-only. YouTube analysis still exposes its dossiers,
   project-relevance hints, story perspectives, and honest information flow;
   it has no write path and does not turn viewing into a Resource Bank Save.
@@ -217,6 +237,15 @@ including migration and skill boundaries, lives in
 
 - Story matching is deterministic and intentionally conservative, not a truth
   or editorial-bias score.
+- Candidate retrieval is an indexed, bounded 14-day scan followed by agent
+  judgment; vector infrastructure is intentionally absent at the current corpus
+  size. Legacy Topic rows are retained but never projected as Related coverage.
+- Stored-data replay is cursor-bounded, preview-first, confirmation-gated, and
+  no-delete. It may repair missing trusted date/publisher metadata, legacy
+  revision creator authority, and progress, then upsert only explicitly reviewed
+  comparison decisions. A separate indexed job page repairs missing progress on
+  Analyze jobs that never produced dossiers. Missing evidence is reported as an
+  explicit retry backlog instead of silently refetching media.
 - Project relevance is an analysis hint grounded only in explicitly named work
   from the operator profile. It does not mutate project memory.
 - Publisher reputation, editable graph visualization, tag/topic merge/split
@@ -231,6 +260,12 @@ including migration and skill boundaries, lives in
   story with two perspectives and shared cited reporting.
 - Re-ingesting one video preserves one dossier and increments its repeat count.
 - A failed analysis remains visible in Convex after bridge restart.
+- A failed/needs-review job can be retried from the public Analyze action without
+  an internal reanalysis flag, while duplicate active clicks reuse the same job.
+- Broad-topic, same-source, same-creator, stale, and superseded comparison
+  candidates are rejected; a recent distinct-creator same-development fixture is
+  accepted and projected bidirectionally.
+- Every visible News result opens the exact HTTPS reference cited by a claim.
 - Existing Resource Bank YouTube assets appear as legacy dossiers before any
   Video Intelligence-specific backfill.
 - AI Office can open the same persisted queue, dossier, and story comparison

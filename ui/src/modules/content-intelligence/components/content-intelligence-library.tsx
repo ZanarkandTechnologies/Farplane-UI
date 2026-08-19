@@ -3,10 +3,15 @@ import { type ReactNode, useMemo, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store";
-import { contentThumbnailUrl, groupContentByObservedDate } from "../lib/content-intelligence-model";
+import {
+  contentThumbnailUrl,
+  groupContentByObservedDate,
+  projectContentConcepts,
+} from "../lib/content-intelligence-model";
 import type { ContentIntelligenceItem } from "../types";
 import type { ContentIntelligenceRuntime } from "./content-intelligence-data-controller";
 import { displayDate, State, TimelineEndSentinel } from "./content-intelligence-view-primitives";
+import { ContentJobProgress } from "./content-job-progress";
 import { EditorialNewsBriefing } from "./editorial-news-briefing";
 
 export function LibraryLayer({ hidden, children }: { hidden: boolean; children: ReactNode }) {
@@ -52,17 +57,7 @@ export function NewsWorkspace({
 }
 
 export function ConceptsWorkspace({ content }: { content: ContentIntelligenceRuntime["content"] }) {
-  const concepts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const item of content.items) {
-      for (const tag of item.latestDiscovery?.tags ?? []) {
-        counts.set(tag, (counts.get(tag) ?? 0) + 1);
-      }
-    }
-    return [...counts.entries()]
-      .map(([name, sources]) => ({ name, sources }))
-      .sort((left, right) => right.sources - left.sources || left.name.localeCompare(right.name));
-  }, [content.items]);
+  const concepts = useMemo(() => projectContentConcepts(content.items), [content.items]);
 
   if (!concepts.length)
     return <State label="Concepts will appear as external-content tags accumulate." />;
@@ -170,14 +165,6 @@ function ContentCard({
             <span className="truncate text-[10px] font-medium text-white/85">
               {item.platform ?? item.sourceKind}
             </span>
-            {item.jobs[0] ? (
-              <Badge
-                variant="secondary"
-                className="bg-black/45 text-[9px] text-white hover:bg-black/45"
-              >
-                {item.jobs[0].status}
-              </Badge>
-            ) : null}
           </div>
         </div>
         <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
@@ -194,7 +181,8 @@ function ContentCard({
             </p>
           ) : (
             <p className="mt-2 line-clamp-3 text-xs leading-5 text-muted-foreground">
-              {item.jobs[0]?.kind.replaceAll("_", " ") ?? "External source"}
+              {item.jobs.find((job) => job.kind === "analyze_youtube")?.kind.replaceAll("_", " ") ??
+                "External source"}
             </p>
           )}
           <div className="mt-3 flex flex-wrap gap-1">
@@ -211,6 +199,7 @@ function ContentCard({
           </div>
         </div>
       </button>
+      <ContentJobProgress item={item} compact />
       <div className="flex items-center gap-2 px-3 pt-1 pb-3 sm:px-4 sm:pb-4">
         <a
           href={item.canonicalRef}

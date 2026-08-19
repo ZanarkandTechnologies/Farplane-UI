@@ -31,6 +31,22 @@ const jobStatus = v.union(
   v.literal("needs_review"),
 );
 
+export const contentJobProgressStageValidator = v.union(
+  v.literal("queued"),
+  v.literal("preparing"),
+  v.literal("analyzing"),
+  v.literal("persistence"),
+  v.literal("complete"),
+  v.literal("failed"),
+  v.literal("needs_review"),
+);
+
+export const contentJobProgressValidator = v.object({
+  stage: contentJobProgressStageValidator,
+  message: v.string(),
+  updatedAtMs: v.number(),
+});
+
 const videoIntelligenceExecutionProfile = v.object({
   definition: v.literal("video_intelligence.analysis.v1"),
   model: v.string(),
@@ -84,6 +100,8 @@ export const contentTables = {
     /** Immutable non-secret Codex profile captured before a video run begins. */
     analysisExecutionProfile: v.optional(videoIntelligenceExecutionProfile),
     status: jobStatus,
+    /** Optional only so legacy rows remain readable; every new Analyze job writes it. */
+    progress: v.optional(contentJobProgressValidator),
     error: v.optional(v.string()),
     createdAtMs: v.number(),
     updatedAtMs: v.number(),

@@ -15,7 +15,7 @@ import {
 type Health = {
   service: boolean;
   appServer: boolean;
-  summarizeSkill: boolean;
+  intelligestSkill: boolean;
   userProfile: boolean;
   userProfilePath: string;
 };
@@ -27,6 +27,18 @@ type AnalysisJob = {
   status: "queued" | "running" | "succeeded" | "failed";
   threadId?: string;
   error?: string;
+  progress?: {
+    stage:
+      | "queued"
+      | "preparing"
+      | "analyzing"
+      | "persistence"
+      | "complete"
+      | "failed"
+      | "needs_review";
+    message: string;
+    updatedAt: string;
+  } | null;
   updatedAt: string;
 };
 type PopupTab = "jobs" | "status";
@@ -91,7 +103,7 @@ export default function Popup() {
   }, []);
 
   const ready = Boolean(
-    health?.service && health.appServer && health.summarizeSkill,
+    health?.service && health.appServer && health.intelligestSkill,
   );
 
   function handleTabKeyDown(event: React.KeyboardEvent, tab: PopupTab) {
@@ -345,9 +357,9 @@ export default function Popup() {
                     ok={health.appServer}
                   />
                   <StatusRow
-                    label="Summarize skill"
-                    detail={health.summarizeSkill ? "Available" : "Unavailable"}
-                    ok={health.summarizeSkill}
+                    label="Intelligest skill"
+                    detail={health.intelligestSkill ? "Available" : "Unavailable"}
+                    ok={health.intelligestSkill}
                   />
                   <StatusRow
                     label="Personal profile"
@@ -416,6 +428,7 @@ export default function Popup() {
 
 function JobRow({ job }: { job: AnalysisJob }) {
   const running = job.status === "queued" || job.status === "running";
+  const progressMessage = job.progress?.message;
   const content = (
     <>
       <span style={jobIconStyle}>
@@ -430,7 +443,7 @@ function JobRow({ job }: { job: AnalysisJob }) {
       <span style={jobCopyStyle}>
         <span style={jobTitleStyle}>{job.title}</span>
         <span
-          title={job.error}
+          title={job.error || progressMessage}
           style={{
             ...jobMetaStyle,
             color:
@@ -439,13 +452,14 @@ function JobRow({ job }: { job: AnalysisJob }) {
                 : "var(--muted-foreground)",
           }}
         >
-          {job.status === "queued"
-            ? "Waiting to start"
-            : job.status === "running"
-              ? "Codex is analyzing"
-              : job.status === "succeeded"
-                ? "Answer ready"
-                : job.error || "Analysis failed"}
+          {job.status === "failed"
+            ? job.error || progressMessage || "Analysis failed"
+            : progressMessage ||
+              (job.status === "queued"
+                ? "Waiting to start"
+                : job.status === "running"
+                  ? "Codex is analyzing"
+                  : "Answer ready")}
         </span>
       </span>
       {job.threadId && (

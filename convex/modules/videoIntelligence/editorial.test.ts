@@ -6,6 +6,7 @@ import {
   hasCurrentRevision,
   hasOtherSourceCoverage,
   isCuratedWorldMarkdown,
+  resolveNewsReferenceUrl,
   topicNamesForCoverage,
 } from "./editorial";
 
@@ -20,9 +21,7 @@ const citedCandidate = {
 describe("editorial News gate", () => {
   it("keeps a dossier-only analysis out of the News writer", () => {
     expect(candidatesForNewsEnrichment(null)).toEqual([]);
-    expect(candidatesForNewsEnrichment({ candidates: [citedCandidate] })).toEqual([
-      citedCandidate,
-    ]);
+    expect(candidatesForNewsEnrichment({ candidates: [citedCandidate] })).toEqual([citedCandidate]);
   });
 
   it("accepts a current, exact-dated, cited candidate", () => {
@@ -45,7 +44,31 @@ describe("editorial News gate", () => {
     expect(
       evaluateNewsCandidate({ ...citedCandidate, claims: [{ evidence: {} }] }, now),
     ).toMatchObject({ eligible: false, reason: "event_key_not_cited" });
+    expect(
+      evaluateNewsCandidate(
+        {
+          ...citedCandidate,
+          eventKey: "release:immutable-id",
+          claims: [{ evidence: { reference: "release:immutable-id" } }],
+        },
+        now,
+      ),
+    ).toMatchObject({ eligible: false, reason: "event_key_invalid" });
   });
+});
+
+it("projects only an exact cited HTTPS reference", () => {
+  expect(resolveNewsReferenceUrl(citedCandidate.eventKey, citedCandidate.claims)).toBe(
+    citedCandidate.eventKey,
+  );
+  expect(
+    resolveNewsReferenceUrl(citedCandidate.eventKey, [{ evidence: { reference: null } }]),
+  ).toBe(null);
+  expect(
+    resolveNewsReferenceUrl("http://example.gov/release", [
+      { evidence: { reference: "http://example.gov/release" } },
+    ]),
+  ).toBe(null);
 });
 
 it("only builds an authority from exact YouTube channel metadata", () => {

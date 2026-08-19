@@ -2,8 +2,9 @@
 
 A Plasmo extension that puts an **Analyze** action in the top-right
 corner of YouTube video thumbnails. A cache miss creates a persistent Codex
-task and runs the installed `summarize` skill; a cache hit reopens the stored
-answer and task. Ingest jobs, source assets, dossiers, stories, and reporting
+task and runs the installed `intelligest` skill; an active or ready canonical
+job is reused, while a terminal failure can start a clean retry. Ingest jobs,
+dossiers, stories, and reporting
 claims are retained in the project's Convex cloud deployment.
 
 New summary tasks use `/Users/kenjipcx/Zanarkand Technologies/Analyst` as their
@@ -46,7 +47,8 @@ That starts the Codex app-server on `127.0.0.1:47892` and the extension bridge
 on `127.0.0.1:47893`. The extension popup opens on a **Jobs** tab with the 20
 most recent Convex-backed jobs; runtime health and setup live under **Status**.
 Running, completed, and failed jobs link directly to their persistent Codex
-task as soon as Codex assigns its task ID.
+task as soon as Codex assigns its task ID. Jobs expose persisted named progress
+stages and messages rather than an invented percentage.
 
 The bridge reads the non-secret `VITE_CONVEX_URL` setting from Farplane
 Configurations, then the environment, and finally the Farplane UI root
@@ -97,10 +99,17 @@ canonical IDs, terminal status, and error classification in the report. The
 - **Open Codex Task** opens the persistent task using its `codex://` link.
 - New thumbnails inserted while scrolling are scanned and receive one control.
 
-Transcript-backed results use `TRANSCRIPT_USED`. When captions are unavailable
-but the skill extracts a substantive video description, chapters, or other
-page-owned material, the result uses `SUMMARY_ONLY` and labels that limitation.
+Transcript-backed results use `TRANSCRIPT_USED`. Intelligest calls `summarize`
+first; when captions are unavailable but it extracts a substantive video
+description, chapters, or other page-owned material, the result uses
+`SUMMARY_ONLY` and labels that limitation.
 When neither source is usable, the job remains a visible failure.
+
+Before analysis, the bridge requests a bounded recent-comparison packet from
+Convex. The strict schema-v5 result may reference only those source/revision
+pairs and the bridge rejects invented or duplicate candidates. News is nullable
+and survives only when one claim exactly cites a direct HTTPS
+official/original/reference URL. Analyze never saves to Resource Bank.
 
 Optional personalization lives only at `~/.farplane/USER.md`. When that file is
 absent, the result explicitly reports that personal relevance is unavailable.

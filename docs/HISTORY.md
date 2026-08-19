@@ -1,5 +1,11 @@
 # HISTORY
 
+2026-08-19 | feature | TASK-0091 | content-intelligence,video-intelligence,skills,youtube | Routed YouTube Analyze through the installed `intelligest` skill; added canonical retry/dedupe and persisted progress; replaced Topic-derived Related coverage with independently reviewed 14-day current-revision comparison edges; required exact HTTPS News references; and safely replayed all 46 stored dossiers without media reanalysis.
+
+2026-08-14 | feature | TASK-0089 | ui,office,tickets,qa | Classified Office work surfaces explicitly: only artifact-producing specialists keep permanent studio stations and project-job chats; QA now uses Proof's selected-project ticket queue, while advisors, integration work, telemetry, finance, hiring, and phase work remain in their room-host or channel surfaces instead of creating fictional artifact workers.
+
+2026-08-13 | feature | TASK-0084 | ui,office,tickets,codex | Made permanent specialist facilities actionable: an operator now selects a project and outcome at a station, creating one canonical specialist ticket and its one bound Codex task thread before the Office renders the project-worker dispatch.
+
 2026-08-13 | feature | TASK-0088 | content-intelligence,video-intelligence,feed-scout,news,ui | Consolidated external-source reading into the shared Content Intelligence dialog, added retained chronological Content/News feeds with end-of-feed date loading and exact stored-day display, and kept Video Intelligence as the cited dossier/reporting capability rather than a second public panel.
 
 2026-08-12 | fix | TASK-0432 | ui,leverage,distribution | Group Distribution by collector-observed social-account identity, show one account card with all `Used by` projects, and keep raw provider IDs server-only.

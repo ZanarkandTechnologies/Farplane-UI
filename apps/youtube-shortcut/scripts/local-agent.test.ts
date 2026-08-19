@@ -3,6 +3,7 @@ import { once } from "node:events";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { test } from "node:test";
+import { z } from "zod";
 import {
   ANALYST_PROJECT_PATH,
   analysisSchema,
@@ -10,6 +11,7 @@ import {
   canonicalVideoUrl,
   createLocalAgentServer,
   FARPLANE_EXTENSION_ORIGIN,
+  parseCodexAnalysis,
   runCodexAnalysis,
   utcNewsAsOfDay,
   waitForTurnCompletion,
@@ -22,8 +24,32 @@ import type {
   VideoIntelligenceStore,
 } from "./video-intelligence-cloud.js";
 
+const comparisonPacket = {
+  asOfDay: "2026-08-12",
+  windowStartDay: "2026-07-29",
+  candidates: [
+    {
+      sourceId: "source-related",
+      dossierId: "dossier-related",
+      revisionId: "revision-related",
+      canonicalUrl: "https://www.youtube.com/watch?v=AAAAAAAAAAA",
+      title: "A second take on the Example product launch",
+      publisher: "Other Creator",
+      publishedAt: "2026-08-10",
+      summary: "The creator evaluates the same launch from a deployment angle.",
+      keyPoints: [
+        {
+          finding: "The deployment constraint changes the launch claim.",
+          detail: null,
+          timestamp: "02:10",
+        },
+      ],
+    },
+  ],
+};
+
 const result: Analysis = {
-  schemaVersion: 4,
+  schemaVersion: 5,
   sourceStatus: "TRANSCRIPT_USED",
   sourceNote: "Transcript inspected.",
   summary: "The title's claim is directionally correct but constrained.",
@@ -46,14 +72,19 @@ const result: Analysis = {
               timestamp: "01:20",
               excerpt: "The capability is available, with this important limit.",
               schemaVersion: 2,
-              extractorVersion: "summarize-v3",
+              extractorVersion: "intelligest-v1",
+              reference: null,
             },
           },
         ],
+        eventKey: null,
+        whyNow: null,
+        whyItMatters: null,
       },
     ],
   },
-  topics: [],
+  concepts: ["Example product", "Product launch"],
+  relatedCoverage: [],
   projectRelevance: [],
   clickbait: {
     answer: "Yes, with limits.",
@@ -102,6 +133,17 @@ function isolatedStore(): VideoIntelligenceStore {
       jobs.unshift(job);
       return job;
     },
+    async getComparisonCandidates() {
+      return comparisonPacket;
+    },
+    async updateProgress(jobId, update) {
+      const job = jobs.find((candidate) => candidate.id === jobId);
+      if (!job) throw new Error(`Unknown test job: ${jobId}`);
+      const updatedAt = new Date().toISOString();
+      job.progress = { ...update, updatedAt };
+      job.updatedAt = updatedAt;
+      return job;
+    },
     updateJob,
     async complete(jobId, _analysis, threadId) {
       const dossierId = `test-dossier-${jobId}`;
@@ -129,47 +171,175 @@ test("new shortcut tasks default to the registered Analyst workspace", () => {
   );
 });
 
+test("Codex output schema recursively resolves references and requires every object property", () => {
+  const failures: Array<{ path: string; missing: string[] }> = [];
+  const root = z.toJSONSchema(analysisSchema) as Record<string, unknown>;
+  const visited = new Set<unknown>();
+  const resolveReference = (reference: string): unknown => {
+    if (reference === "#") return root;
+    if (!reference.startsWith("#/")) return undefined;
+    return reference
+      .slice(2)
+      .split("/")
+      .reduce<unknown>((value, segment) => {
+        if (!value || typeof value !== "object") return undefined;
+        const key = segment.replaceAll("~1", "/").replaceAll("~0", "~");
+        return (value as Record<string, unknown>)[key];
+      }, root);
+  };
+  const visit = (node: unknown, path: string): void => {
+    if (Array.isArray(node)) {
+      node.forEach((value, index) => visit(value, `${path}[${index}]`));
+      return;
+    }
+    if (!node || typeof node !== "object") return;
+    if (visited.has(node)) return;
+    visited.add(node);
+    const schema = node as Record<string, unknown>;
+    if (typeof schema.$ref === "string") {
+      const referenced = resolveReference(schema.$ref);
+      if (!referenced) failures.push({ path, missing: [`unresolved ${schema.$ref}`] });
+      else visit(referenced, `${path}->${schema.$ref}`);
+    }
+    if (schema.type === "object" && schema.properties) {
+      const properties = schema.properties as Record<string, unknown>;
+      const required = Array.isArray(schema.required)
+        ? schema.required.filter((value): value is string => typeof value === "string")
+        : [];
+      const missing = Object.keys(properties).filter((key) => !required.includes(key));
+      if (schema.additionalProperties !== false) missing.push("additionalProperties:false");
+      if (missing.length > 0) failures.push({ path, missing });
+    }
+    for (const [key, value] of Object.entries(schema)) {
+      visit(value, `${path}.${key}`);
+    }
+  };
+
+  visit(root, "$schema");
+  assert.deepEqual(failures, []);
+});
+
 test("prompt invokes the full skill and stays honest without a profile", () => {
   const prompt = buildPrompt(
     { videoId: "dQw4w9WgXcQ", title: "You will not believe this" },
     { available: false, value: "" },
     Date.parse("2026-08-12T12:00:00.000Z"),
+    comparisonPacket,
   );
-  assert.match(prompt, /^\$summarize/);
-  assert.match(prompt, /complete installed summarize skill/);
-  assert.match(prompt, /substantive video description/);
+  assert.match(prompt, /^\$intelligest/);
+  assert.match(prompt, /complete installed skill/);
+  assert.match(prompt, /substantive reliable page-owned material/);
   assert.match(prompt, /use SUMMARY_ONLY/);
   assert.match(prompt, /https:\/\/www\.youtube\.com\/watch\?v=dQw4w9WgXcQ/);
   assert.match(prompt, /PROFILE_UNAVAILABLE/);
   assert.match(prompt, /untrusted data/);
   assert.match(prompt, /News as-of \(server-generated UTC day\): 2026-08-12/);
+  assert.match(prompt, /News is nullable enrichment/);
+  assert.match(prompt, /broad tag or industry overlap/);
+  assert.match(prompt, /No Resource Bank reuse intent was supplied/);
+  assert.match(prompt, /"sourceId": "source-related"/);
+  assert.match(prompt, /"revisionId": "revision-related"/);
+  assert.match(prompt, /copy candidateSourceId from sourceId/);
+  assert.match(prompt, /Concepts are descriptive lenses only/);
+  assert.match(prompt, /eventKey must be the direct HTTPS URL/);
+  assert.match(prompt, /never be an immutable ID/);
+  assert.match(prompt, /evidence\.reference must exactly equal/);
   assert.match(prompt, /set news to null/);
-  assert.match(prompt, /channel branding, title clickbait, or Feed Scout discovery/);
+  assert.doesNotMatch(prompt, /or immutable public ID/);
+});
+
+test("News references accept only direct HTTPS URLs", () => {
+  const officialUrl = "https://example.gov/releases/example-product";
+  const newsCandidate = result.news?.candidates[0];
+  assert.ok(newsCandidate);
+  const newsWithReference = {
+    ...result,
+    news: {
+      candidates: [
+        {
+          ...newsCandidate,
+          eventKey: officialUrl,
+          claims: newsCandidate.claims.map((claim) => ({
+            ...claim,
+            evidence: { ...claim.evidence, reference: officialUrl },
+          })),
+        },
+      ],
+    },
+  };
+
+  assert.equal(
+    analysisSchema.parse(newsWithReference).news?.candidates[0]?.eventKey,
+    officialUrl,
+  );
+  for (const rejectedReference of [
+    "release:immutable-id",
+    "http://example.gov/releases/example-product",
+  ]) {
+    assert.throws(() =>
+      analysisSchema.parse({
+        ...newsWithReference,
+        news: {
+          candidates: [
+            {
+              ...newsWithReference.news.candidates[0],
+              eventKey: rejectedReference,
+              claims: newsWithReference.news.candidates[0].claims.map((claim) => ({
+                ...claim,
+                evidence: { ...claim.evidence, reference: rejectedReference },
+              })),
+            },
+          ],
+        },
+      }),
+    );
+  }
 });
 
 test("UTC news date is derived by the local bridge, not supplied by a model", () => {
   assert.equal(utcNewsAsOfDay(Date.parse("2026-08-12T23:59:59.000Z")), "2026-08-12");
 });
 
-test("evergreen analyses keep topical coverage with null News enrichment", () => {
-  const evergreen = analysisSchema.parse({
+test("related coverage accepts only server-owned same-development decisions", () => {
+  const comparison = analysisSchema.parse({
     ...result,
     news: null,
-    topics: [
+    relatedCoverage: [
       {
-        title: "AI-assisted income",
-        tags: ["Artificial Intelligence", "Creator Economy"],
-        summary: "Monthly tactics for earning with AI tools.",
-        frame: "Practical creator advice.",
+        candidateSourceId: "source-related",
+        candidateRevisionId: "revision-related",
+        relationship: "same_development",
+        rationale: "Both videos evaluate the same Example product launch.",
       },
     ],
   });
-  assert.equal(evergreen.news, null);
-  assert.equal(evergreen.topics[0]?.title, "AI-assisted income");
+  assert.equal(comparison.news, null);
+  assert.equal(
+    parseCodexAnalysis(JSON.stringify(comparison), comparisonPacket)
+      .relatedCoverage[0]?.candidateSourceId,
+    "source-related",
+  );
+  assert.throws(
+    () =>
+      parseCodexAnalysis(
+        JSON.stringify({
+          ...comparison,
+          relatedCoverage: [
+            {
+              ...comparison.relatedCoverage[0],
+              candidateSourceId: "invented-broad-topic-source",
+            },
+          ],
+        }),
+        comparisonPacket,
+      ),
+    /not supplied by the server/,
+  );
 });
 
-test("schema v4 rejects the retired top-level stories transport", () => {
+test("schema v5 rejects the retired top-level stories and topics transports", () => {
   assert.throws(() => analysisSchema.parse({ ...result, stories: [] }));
+  assert.throws(() => analysisSchema.parse({ ...result, topics: [] }));
 });
 
 test("Codex run is persistent, writable, skill-bound, and schema-constrained", async () => {
@@ -200,8 +370,8 @@ test("Codex run is persistent, writable, skill-bound, and schema-constrained", a
             {
               skills: [
                 {
-                  name: "summarize",
-                  path: "/skills/summarize/SKILL.md",
+                  name: "intelligest",
+                  path: "/skills/intelligest/SKILL.md",
                   enabled: true,
                 },
               ],
@@ -244,6 +414,7 @@ test("Codex run is persistent, writable, skill-bound, and schema-constrained", a
         model: "gpt-5.6-terra",
         reasoningEffort: "xhigh",
       },
+      comparisonPacket,
     ),
     { analysis: result, threadId: "thread-1" },
   );
@@ -268,9 +439,12 @@ test("Codex run is persistent, writable, skill-bound, and schema-constrained", a
     networkAccess: true,
   });
   assert.equal(turn.input[1].type, "skill");
-  assert.equal(turn.input[1].name, "summarize");
+  assert.equal(turn.input[1].name, "intelligest");
   assert.ok(turn.outputSchema.properties.clickbait);
   assert.ok(turn.outputSchema.properties.news);
+  assert.ok(turn.outputSchema.properties.concepts);
+  assert.ok(turn.outputSchema.properties.relatedCoverage);
+  assert.match(turn.input[0].text, /source-related/);
 });
 
 test("transcript extraction failure is surfaced as a failure, not an answer", async () => {
@@ -312,8 +486,8 @@ test("transcript extraction failure is surfaced as a failure, not an answer", as
             {
               skills: [
                 {
-                  name: "summarize",
-                  path: "/skills/summarize/SKILL.md",
+                  name: "intelligest",
+                  path: "/skills/intelligest/SKILL.md",
                   enabled: true,
                 },
               ],
@@ -362,9 +536,10 @@ test("transcript extraction failure is surfaced as a failure, not an answer", as
         model: "gpt-5.6-terra",
         reasoningEffort: "xhigh",
       },
+      comparisonPacket,
     ),
     (error: Error & { threadId?: string }) => {
-      assert.match(error.message, /^Summarize failed:/);
+      assert.match(error.message, /^Intelligest failed:/);
       assert.equal(error.threadId, "thread-failed");
       return true;
     },
@@ -413,10 +588,23 @@ test("Codex idle timeout refreshes on progress while an absolute cap remains", a
 
 test("HTTP bridge denies foreign origins and exposes only the analysis contract", async (t) => {
   const store = isolatedStore();
-  const server = createLocalAgentServer(async () => ({
-    analysis: result,
-    threadId: "thread-1",
-  }), store);
+  const progressStages: string[] = [];
+  const updateProgress = store.updateProgress;
+  store.updateProgress = async (jobId, update) => {
+    progressStages.push(update.stage);
+    return updateProgress(jobId, update);
+  };
+  const receivedPackets: unknown[] = [];
+  const server = createLocalAgentServer(
+    async (_input, _onThreadStarted, _analysisProfile, packet) => {
+      receivedPackets.push(packet);
+      return {
+        analysis: result,
+        threadId: "thread-1",
+      };
+    },
+    store,
+  );
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   t.after(() => server.close());
@@ -464,6 +652,28 @@ test("HTTP bridge denies foreign origins and exposes only the analysis contract"
   const response = await allowed.json();
   assert.deepEqual(response.analysis, result);
   assert.equal(response.threadId, "thread-1");
+  assert.equal(
+    (receivedPackets[0] as typeof comparisonPacket).candidates[0]?.sourceId,
+    "source-related",
+  );
+  assert.deepEqual(progressStages.slice(0, 3), [
+    "preparing",
+    "analyzing",
+    "persistence",
+  ]);
+  const injectedComparison = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      origin: FARPLANE_EXTENSION_ORIGIN,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      videoId: "dQw4w9WgXcQ",
+      title: "Claim?",
+      comparisonPacket: { candidates: [] },
+    }),
+  });
+  assert.equal(injectedComparison.status, 400);
   const invalidVideo = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -561,6 +771,12 @@ test("HTTP bridge returns ready reuse without launching or completing analysis",
         updatedAt: now,
       };
     },
+    async getComparisonCandidates() {
+      throw new Error("ready jobs must not fetch comparisons");
+    },
+    async updateProgress() {
+      throw new Error("ready jobs must not update progress");
+    },
     async updateJob() {
       updateCalls += 1;
       throw new Error("ready jobs must not update");
@@ -657,6 +873,12 @@ test("cached bridge reuse keeps the local answer without completing a ready job"
         createdAt: now,
         updatedAt: now,
       };
+    },
+    async getComparisonCandidates() {
+      throw new Error("ready jobs must not fetch comparisons");
+    },
+    async updateProgress() {
+      throw new Error("ready jobs must not update progress");
     },
     async updateJob() {
       updateCalls += 1;

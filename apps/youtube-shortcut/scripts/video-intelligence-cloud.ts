@@ -3,14 +3,67 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { ConvexHttpClient } from "convex/browser";
+import type { FunctionReference } from "convex/server";
 import { api } from "../../../convex/_generated/api.js";
 import type { VideoIntelligenceExecutionProfile } from "../../../cli/operator-settings.js";
 import { firstFarplaneConfigValue } from "../../../cli/runtime-config.js";
-import type { Analysis as VideoIntelligenceAnalysis } from "./local-agent.js";
+import type { Analysis as VideoIntelligenceAnalysis } from "../analysis-contract.js";
 
 const FARPLANE_UI_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 export type { VideoIntelligenceAnalysis };
+
+export type VideoAnalysisProgressStage =
+  | "queued"
+  | "preparing"
+  | "analyzing"
+  | "persistence"
+  | "complete"
+  | "failed"
+  | "needs_review";
+
+export type VideoAnalysisProgress = {
+  stage: VideoAnalysisProgressStage;
+  message: string;
+  updatedAt: string;
+};
+
+export type ComparisonCandidatePacket = {
+  asOfDay: string;
+  windowStartDay: string;
+  candidates: Array<{
+    sourceId: string;
+    dossierId: string;
+    revisionId: string;
+    canonicalUrl: string;
+    title: string;
+    publisher: string | null;
+    publishedAt: string;
+    summary: string;
+    keyPoints: Array<{
+      finding: string;
+      detail: string | null;
+      timestamp: string | null;
+    }>;
+  }>;
+};
+
+type GetComparisonCandidatesQuery = FunctionReference<
+  "query",
+  "public",
+  { jobId: string; limit?: number },
+  ComparisonCandidatePacket
+>;
+
+// Keep the canonical backend-owned module binding while generated Convex types
+// catch up with the newly added comparisons module.
+const comparisonsApi = (
+  api.modules.videoIntelligence as typeof api.modules.videoIntelligence & {
+    comparisons: {
+      getComparisonCandidates: GetComparisonCandidatesQuery;
+    };
+  }
+).comparisons;
 
 export type VideoIngestJob = {
   id: string;
@@ -19,6 +72,7 @@ export type VideoIngestJob = {
   title: string;
   projectId?: string;
   status: "queued" | "running" | "succeeded" | "failed";
+  progress?: VideoAnalysisProgress | null;
   threadId?: string;
   executionProfile?: VideoIntelligenceExecutionProfile;
   dossierId?: string;
@@ -39,6 +93,7 @@ type JobBinding = {
   dossierId?: string;
   createdAtMs: number;
   updatedAtMs: number;
+  progress?: VideoAnalysisProgress | null;
 };
 
 export type VideoIntelligenceStore = {
@@ -50,6 +105,11 @@ export type VideoIntelligenceStore = {
     channelId?: string;
     reAnalyze?: boolean;
   }): Promise<VideoIngestJob>;
+  getComparisonCandidates(jobId: string): Promise<ComparisonCandidatePacket>;
+  updateProgress(
+    jobId: string,
+    update: { stage: VideoAnalysisProgressStage; message: string },
+  ): Promise<VideoIngestJob>;
   updateJob(
     jobId: string,
     update: Partial<
@@ -96,6 +156,33 @@ export function createVideoIntelligenceCloudStore(
       bindings.set(normalized.jobId, normalized);
       const job = toJob(normalized, localJobStatus(normalized.jobStatus));
       jobs.set(job.id, job);
+      return job;
+    },
+
+    async getComparisonCandidates(jobId) {
+      const binding = requireBinding(bindings, jobId);
+      const client = await clientPromise;
+      return client.query(
+        comparisonsApi.getComparisonCandidates,
+        { jobId: binding.jobId as never, limit: 8 },
+      );
+    },
+
+    async updateProgress(jobId, update) {
+      const binding = requireBinding(bindings, jobId);
+      const client = await clientPromise;
+      await client.mutation(api.modules.videoIntelligence.videos.updateProgress, {
+        jobId: binding.jobId as never,
+        ...update,
+      });
+      const current = jobs.get(jobId) ?? toJob(binding, localJobStatus(binding.jobStatus));
+      const updatedAt = new Date().toISOString();
+      const job = {
+        ...current,
+        progress: { ...update, updatedAt },
+        updatedAt,
+      };
+      jobs.set(jobId, job);
       return job;
     },
 
@@ -173,7 +260,11 @@ export async function resolveConvexUrl(
   env: Record<string, string | undefined> = process.env,
   envPath = resolve(FARPLANE_UI_ROOT, ".env.local"),
 ): Promise<string> {
-  const direct = firstFarplaneConfigValue(["CONVEX_URL", "VITE_CONVEX_URL"], { env });
+  const direct = firstFarplaneConfigValue(["CONVEX_URL", "VITE_CONVEX_URL"], {
+    // The resolver only performs string-key lookups; Plasmo's ProcessEnv adds a
+    // required NODE_ENV field that isolated tests intentionally omit.
+    env: env as NodeJS.ProcessEnv,
+  });
   if (direct) return validateConvexUrl(direct);
   const contents = await readFile(envPath, "utf8").catch((error) => {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
@@ -217,6 +308,15 @@ function toJob(binding: JobBinding, status: VideoIngestJob["status"]): VideoInge
     disposition: binding.disposition,
     dossierId: binding.dossierId,
     status,
+    progress:
+      binding.progress ??
+      (status === "queued"
+        ? {
+            stage: "queued",
+            message: "Queued for analysis.",
+            updatedAt: new Date(binding.updatedAtMs).toISOString(),
+          }
+        : undefined),
     createdAt: new Date(binding.createdAtMs).toISOString(),
     updatedAt: new Date(binding.updatedAtMs).toISOString(),
   };

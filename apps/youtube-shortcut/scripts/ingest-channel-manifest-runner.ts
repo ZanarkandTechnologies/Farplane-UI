@@ -69,14 +69,14 @@ export async function runManifestIngest(
     ok?: unknown;
     service?: unknown;
     appServer?: unknown;
-    summarizeSkill?: unknown;
+    intelligestSkill?: unknown;
   };
   if (
     health.status !== 200 ||
     healthBody.ok !== true ||
     healthBody.service !== true ||
     healthBody.appServer !== true ||
-    healthBody.summarizeSkill !== true
+    healthBody.intelligestSkill !== true
   )
     throw new Error(`YouTube bridge health check failed: ${JSON.stringify(health.body)}`);
 

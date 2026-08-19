@@ -234,6 +234,7 @@ async function toDossierDetail(ctx: QueryCtx, dossier: Doc<"videoIntelligenceDos
     sourceNote: dossier.sourceNote,
     timelineDay: dossier.timelineDay ?? null,
     summary: dossier.summary,
+    concepts: dossier.concepts ?? [],
     keyPoints: dossier.keyPoints,
     stories: stories.filter(Boolean),
   };

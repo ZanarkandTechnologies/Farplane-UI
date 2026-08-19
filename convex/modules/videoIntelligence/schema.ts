@@ -3,6 +3,7 @@ import { defineTable } from "convex/server";
 import { v } from "convex/values";
 import {
   clickbaitValidator,
+  comparisonRelationshipValidator,
   keyPointValidator,
   projectRelevanceValidator,
   recommendationValidator,
@@ -37,6 +38,8 @@ export const videoIntelligenceTables = {
     clickbait: clickbaitValidator,
     keyPoints: v.array(keyPointValidator),
     recommendation: recommendationValidator,
+    /** Optional only for retained schema-v4 dossiers. */
+    concepts: v.optional(v.array(v.string())),
     duplicateIngestCount: v.number(),
     /** UTC activity day; this is the Video Intelligence day-pager key. */
     timelineDay: v.optional(v.string()),
@@ -48,6 +51,7 @@ export const videoIntelligenceTables = {
     .index("by_contentSourceId", ["contentSourceId"])
     .index("by_contentJobId", ["contentJobId"])
     .index("by_videoId", ["videoId"])
+    .index("by_publishedAt", ["publishedAt"])
     .index("by_updatedAtMs", ["updatedAtMs"])
     .index("by_timelineDay_updatedAtMs", ["timelineDay", "updatedAtMs"]),
 
@@ -150,4 +154,24 @@ export const videoIntelligenceTables = {
     .index("by_topicId_createdAtMs", ["topicId", "createdAtMs"])
     .index("by_dossierId_createdAtMs", ["dossierId", "createdAtMs"])
     .index("by_revisionId", ["revisionId"]),
+
+  /** Symmetric, agent-vetted comparisons backed by immutable current revisions. */
+  videoIntelligenceComparisonEdges: defineTable({
+    pairKey: v.string(),
+    sourceAId: v.id("contentSources"),
+    dossierAId: v.id("videoIntelligenceDossiers"),
+    revisionAId: v.id("videoIntelligenceAnalysisRevisions"),
+    sourceBId: v.id("contentSources"),
+    dossierBId: v.id("videoIntelligenceDossiers"),
+    revisionBId: v.id("videoIntelligenceAnalysisRevisions"),
+    relationship: comparisonRelationshipValidator,
+    rationale: v.string(),
+    createdAtMs: v.number(),
+    updatedAtMs: v.number(),
+  })
+    .index("by_pairKey", ["pairKey"])
+    .index("by_dossierA_createdAtMs", ["dossierAId", "createdAtMs"])
+    .index("by_dossierB_createdAtMs", ["dossierBId", "createdAtMs"])
+    .index("by_revisionA", ["revisionAId"])
+    .index("by_revisionB", ["revisionBId"]),
 };

@@ -5,7 +5,8 @@ import type { Doc, Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
 import { query } from "../../_generated/server";
 import { isTimelineDay } from "../content/timeline";
-import { hasOtherSourceCoverage } from "./editorial";
+import { publicationDay } from "./comparisonRules";
+import { resolveNewsReferenceUrl } from "./editorial";
 
 const direction = v.union(v.literal("latest"), v.literal("older"), v.literal("newer"));
 const editorialStatus = v.union(v.literal("developing"), v.literal("aggregated"));
@@ -102,12 +103,18 @@ export const getNewsDetail = query({
     if (!story || !isPublishedNews(story)) return null;
     const contributors = await currentContributors(ctx, story._id);
     if (contributors.length === 0) return null;
+    const referenceUrl = resolveNewsReferenceUrl(
+      story.eventKey,
+      contributors.flatMap((contributor) => contributor.claims),
+    );
+    if (!referenceUrl) return null;
     return {
       id: String(story._id),
       title: story.title,
       summary: story.summary,
       eventDate: story.eventDate ?? null,
       eventKey: story.eventKey ?? null,
+      referenceUrl,
       editorialStatus: story.editorialStatus ?? "developing",
       whyNow: story.whyNow ?? null,
       whyItMatters: story.whyItMatters ?? null,
@@ -183,36 +190,31 @@ export const getTopicDetail = query({
   },
 });
 
-/**
- * Topics are infrastructure, not a library: expose them only when the open
- * dossier has current coverage from another dossier under the same lens.
- */
+/** Related coverage reads only persisted, current-revision comparison edges. */
 export const getDossierRelatedCoverage = query({
   args: { dossierId: v.id("videoIntelligenceDossiers") },
   handler: async (ctx, args) => {
-    const coverageRows = await ctx.db
-      .query("videoIntelligenceTopicCoverage")
-      .withIndex("by_dossierId_createdAtMs", (q) => q.eq("dossierId", args.dossierId))
-      .order("desc")
-      .take(100);
-    const topicIds = new Set<Id<"videoIntelligenceTopics">>();
-    for (const row of coverageRows) {
-      if (!row.revisionId) continue;
-      const revision = await ctx.db.get(row.revisionId);
-      if (revision?.lifecycle === "current") topicIds.add(row.topicId);
-    }
-    const topics = await Promise.all(
-      [...topicIds].map(async (topicId) => {
-        const topic = await ctx.db.get(topicId);
-        return topic ? await toRelatedCoverageTopic(ctx, topic, args.dossierId) : null;
-      }),
+    const [asSideA, asSideB] = await Promise.all([
+      ctx.db
+        .query("videoIntelligenceComparisonEdges")
+        .withIndex("by_dossierA_createdAtMs", (q) => q.eq("dossierAId", args.dossierId))
+        .order("desc")
+        .take(100),
+      ctx.db
+        .query("videoIntelligenceComparisonEdges")
+        .withIndex("by_dossierB_createdAtMs", (q) => q.eq("dossierBId", args.dossierId))
+        .order("desc")
+        .take(100),
+    ]);
+    const edges = [
+      ...new Map([...asSideA, ...asSideB].map((edge) => [String(edge._id), edge])).values(),
+    ];
+    const related = await Promise.all(
+      edges.map((edge) => toRelatedCoverageEdge(ctx, edge, args.dossierId)),
     );
-    return topics
-      .filter((topic): topic is NonNullable<typeof topic> => Boolean(topic))
-      .sort(
-        (left, right) =>
-          right.coverageCount - left.coverageCount || left.title.localeCompare(right.title),
-      );
+    return related
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      .sort((left, right) => right.timelineDay.localeCompare(left.timelineDay));
   },
 });
 
@@ -240,6 +242,11 @@ async function toNewsItem(
   });
   if (!matchesTopic || ((filter.projectId || filter.source) && matchingContributors.length === 0))
     return null;
+  const referenceUrl = resolveNewsReferenceUrl(
+    story.eventKey,
+    contributors.flatMap((contributor) => contributor.claims),
+  );
+  if (!referenceUrl) return null;
   const featuredContributor = matchingContributors[0];
   return {
     id: String(story._id),
@@ -254,6 +261,7 @@ async function toNewsItem(
     ).size,
     claimCount: matchingContributors.reduce((total, item) => total + item.claimCount, 0),
     whyItMatters: story.whyItMatters ?? null,
+    referenceUrl,
     featuredSource: featuredContributor
       ? {
           title: featuredContributor.sourceTitle,
@@ -283,61 +291,52 @@ async function toTopicItem(ctx: QueryCtx, topic: Doc<"videoIntelligenceTopics">)
   };
 }
 
-async function toRelatedCoverageTopic(
+async function toRelatedCoverageEdge(
   ctx: QueryCtx,
-  topic: Doc<"videoIntelligenceTopics">,
+  edge: Doc<"videoIntelligenceComparisonEdges">,
   dossierId: Id<"videoIntelligenceDossiers">,
 ) {
-  const coverage = await currentTopicCoverage(ctx, topic._id);
-  const origin = await ctx.db.get(dossierId);
-  if (!origin) return null;
-  const originRevision = await ctx.db
-    .query("videoIntelligenceAnalysisRevisions")
-    .withIndex("by_dossier_lifecycle", (q) =>
-      q.eq("dossierId", dossierId).eq("lifecycle", "current"),
-    )
-    .first();
-  const coverageWithDossiers: Array<{
-    item: Doc<"videoIntelligenceTopicCoverage">;
-    dossier: Doc<"videoIntelligenceDossiers"> | null;
-  }> = await Promise.all(
-    coverage.map(async (item) => ({
-      item,
-      // item.dossierId is the table-specific source identity boundary.
-      dossier: await ctx.db.get(item.dossierId as Id<"videoIntelligenceDossiers">),
-    })),
-  );
-  const relatedCoverage = coverageWithDossiers.filter(
-    ({ item, dossier }) =>
-      dossier &&
-      hasOtherSourceCoverage(
-        {
-          contentSourceId: origin.contentSourceId ? String(origin.contentSourceId) : null,
-          sourceAuthorityKey: originRevision?.sourceAuthorityKey ?? null,
-        },
-        [
-          {
-            contentSourceId: dossier.contentSourceId ? String(dossier.contentSourceId) : null,
-            sourceAuthorityKey: item.sourceAuthorityKey ?? null,
-          },
-        ],
-      ),
-  );
-  if (!relatedCoverage.length) {
+  const originIsA = edge.dossierAId === dossierId;
+  if (!originIsA && edge.dossierBId !== dossierId) return null;
+  const originRevisionId = originIsA ? edge.revisionAId : edge.revisionBId;
+  const originSourceId = originIsA ? edge.sourceAId : edge.sourceBId;
+  const relatedRevisionId = originIsA ? edge.revisionBId : edge.revisionAId;
+  const relatedDossierId = originIsA ? edge.dossierBId : edge.dossierAId;
+  const relatedSourceId = originIsA ? edge.sourceBId : edge.sourceAId;
+  const [originRevision, originDossier, relatedRevision, relatedDossier, relatedSource] =
+    await Promise.all([
+      ctx.db.get(originRevisionId),
+      ctx.db.get(dossierId),
+      ctx.db.get(relatedRevisionId),
+      ctx.db.get(relatedDossierId),
+      ctx.db.get(relatedSourceId),
+    ]);
+  if (
+    originRevision?.lifecycle !== "current" ||
+    originRevision.dossierId !== dossierId ||
+    originDossier?.contentSourceId !== originSourceId ||
+    relatedRevision?.lifecycle !== "current" ||
+    relatedRevision.dossierId !== relatedDossierId ||
+    !relatedDossier ||
+    relatedDossier.contentSourceId !== relatedSourceId ||
+    !relatedSource
+  ) {
     return null;
   }
-  const creators = new Set<string>();
-  for (const { item, dossier } of relatedCoverage) {
-    creators.add(dossier?.publisher ?? item.sourceAuthorityKey ?? String(item.dossierId));
-  }
   return {
-    id: String(topic._id),
-    title: topic.title,
-    month: topic.month,
-    curatedWorldMarkdown: topic.curatedWorldMarkdown ?? null,
-    coverageCount: relatedCoverage.length,
-    creatorCount: creators.size,
-    coverage: await Promise.all(relatedCoverage.map(({ item }) => toCoverageItem(ctx, item))),
+    id: String(edge._id),
+    dossierId: String(relatedDossier._id),
+    sourceId: String(relatedSource._id),
+    title: relatedSource.title ?? relatedDossier.videoId,
+    publisher: relatedDossier.publisher ?? null,
+    canonicalUrl: relatedSource.canonicalRef,
+    summary: relatedDossier.summary,
+    relationship: edge.relationship,
+    rationale: edge.rationale,
+    timelineDay:
+      publicationDay(relatedDossier.publishedAt) ??
+      relatedDossier.timelineDay ??
+      new Date(relatedDossier.updatedAtMs).toISOString().slice(0, 10),
   };
 }
 

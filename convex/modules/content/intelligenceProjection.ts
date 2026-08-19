@@ -96,12 +96,20 @@ export async function hydrateContentSource(ctx: QueryCtx, source: Doc<"contentSo
       kind: job.kind,
       status: job.status,
       projectId: job.projectId,
+      progress: job.progress
+        ? {
+            stage: job.progress.stage,
+            message: job.progress.message,
+            updatedAt: new Date(job.progress.updatedAtMs).toISOString(),
+          }
+        : null,
       updatedAt: new Date(job.updatedAtMs).toISOString(),
       error: job.error,
     })),
     projectIds,
     summary: summary.summary,
     summarySource: summary.source,
+    concepts: dossier?.concepts ?? [],
     dossierId: dossier ? String(dossier._id) : undefined,
     resourceAssetId: asset ? String(asset._id) : undefined,
   };

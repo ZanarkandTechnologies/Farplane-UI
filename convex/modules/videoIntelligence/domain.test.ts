@@ -81,6 +81,9 @@ it("matches the same dated event and rejects conflicting dates", () => {
     tags: ["Product Launch"],
     frame: "Constraint first",
     claims: [],
+    eventKey: null,
+    whyNow: null,
+    whyItMatters: null,
   };
   expect(matchStory(input, [story])?.id).toBe("story-1");
   expect(matchStory({ ...input, eventDate: "2026-08-20" }, [story])).toBeNull();

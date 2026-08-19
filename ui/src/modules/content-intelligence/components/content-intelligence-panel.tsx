@@ -16,6 +16,7 @@ import { useNewsDetail } from "../hooks/use-editorial-intelligence";
 import {
   type ContentIntelligencePrimaryTab,
   contentIntelligencePrimaryTabs,
+  dossierBackLabel,
 } from "../lib/content-intelligence-model";
 import type { ContentIntelligenceItem, ContentIntelligencePanelProps } from "../types";
 import type { ContentIntelligenceRuntime } from "./content-intelligence-data-controller";
@@ -33,11 +34,12 @@ import {
   NewsWorkspace,
 } from "./content-intelligence-library";
 import { displayDate, State } from "./content-intelligence-view-primitives";
+import { OriginalSourceLink } from "./editorial-news-briefing";
 
 type ContentTab = ContentIntelligencePrimaryTab;
 
 type DetailView =
-  | { kind: "source"; item: ContentIntelligenceItem }
+  | { kind: "source"; sourceId: string; preview: ContentIntelligenceItem }
   | {
       kind: "dossier";
       dossierId: string;
@@ -125,8 +127,6 @@ export function ContentIntelligencePanel({
   const openStory = (storyId: string, fromDossierId?: string) =>
     setDetail({ kind: "story", storyId, fromDossierId });
   const openNews = (storyId: string) => setDetail({ kind: "news", storyId });
-  const openWorld = () => openLibraryTab("world");
-
   return (
     <OfficeWorkspaceDialog
       data-testid="content-intelligence-panel"
@@ -185,6 +185,7 @@ export function ContentIntelligencePanel({
           {detail ? (
             <ContentIntelligenceDetail
               detail={detail}
+              contentItems={runtime.content.items}
               onBack={() => {
                 if (detail.kind === "story" && detail.fromDossierId) {
                   openDossier(detail.fromDossierId);
@@ -205,7 +206,6 @@ export function ContentIntelligencePanel({
               }}
               onOpenDossier={openDossier}
               onOpenStory={openStory}
-              onOpenWorld={openWorld}
             />
           ) : null}
           {tab === "content" ? (
@@ -213,7 +213,9 @@ export function ContentIntelligencePanel({
               <ContentProjectionBoundary resetKey={tab}>
                 <ContentWorkspace
                   content={runtime.content}
-                  onOpenSource={(item) => setDetail({ kind: "source", item })}
+                  onOpenSource={(item) =>
+                    setDetail({ kind: "source", sourceId: item.id, preview: item })
+                  }
                   onOpenDossier={(dossierId, preview) =>
                     openDossier(dossierId, preview, undefined, "content")
                   }
@@ -249,13 +251,14 @@ export function ContentIntelligencePanel({
 
 function ContentIntelligenceDetail({
   detail,
+  contentItems,
   onBack,
   onAllStories,
   onOpenDossier,
   onOpenStory,
-  onOpenWorld,
 }: {
   detail: DetailView;
+  contentItems: ContentIntelligenceItem[];
   onBack: () => void;
   onAllStories: () => void;
   onOpenDossier: (
@@ -267,15 +270,16 @@ function ContentIntelligenceDetail({
     fromDossierTitle?: string,
   ) => void;
   onOpenStory: (storyId: string, fromDossierId?: string) => void;
-  onOpenWorld: () => void;
 }) {
   if (detail.kind === "source") {
-    const dossierId = detail.item.dossierId;
+    const item =
+      contentItems.find((candidate) => candidate.id === detail.sourceId) ?? detail.preview;
+    const dossierId = item.dossierId;
     return (
       <ContentSourceDetailView
-        item={detail.item}
+        item={item}
         onBack={onBack}
-        onOpenDossier={dossierId ? () => onOpenDossier(dossierId, detail.item) : undefined}
+        onOpenDossier={dossierId ? () => onOpenDossier(dossierId, item) : undefined}
       />
     );
   }
@@ -302,15 +306,7 @@ function ContentIntelligenceDetail({
     <VideoDossierDetailView
       dossierId={detail.dossierId}
       preview={detail.preview}
-      backLabel={
-        detail.fromStoryId
-          ? "Back to story"
-          : detail.fromDossierId
-            ? `Back to ${detail.fromDossierTitle ?? "related dossier"}`
-            : detail.fromTab === "news"
-              ? "Back to News"
-              : "Back to content"
-      }
+      backLabel={dossierBackLabel(detail)}
       onBack={onBack}
       onOpenStory={(storyId) => onOpenStory(storyId, detail.dossierId)}
       onOpenDossier={(dossierId, fromDossierTitle) =>
@@ -323,7 +319,6 @@ function ContentIntelligenceDetail({
           fromDossierTitle,
         )
       }
-      onOpenWorld={onOpenWorld}
     />
   );
 }
@@ -357,6 +352,7 @@ function EditorialNewsDetailView({
             </Badge>
             {news.eventDate ? <Badge variant="outline">{displayDate(news.eventDate)}</Badge> : null}
           </div>
+          <OriginalSourceLink referenceUrl={news.referenceUrl} />
           <section className="space-y-2">
             <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               What changed
@@ -406,7 +402,6 @@ function VideoDossierDetailView({
   onBack,
   onOpenStory,
   onOpenDossier,
-  onOpenWorld,
 }: {
   dossierId: string;
   preview?: ContentIntelligenceItem;
@@ -414,7 +409,6 @@ function VideoDossierDetailView({
   onBack: () => void;
   onOpenStory: (storyId: string) => void;
   onOpenDossier: (dossierId: string, fromDossierTitle?: string) => void;
-  onOpenWorld: () => void;
 }) {
   const dossier = useVideoDossierDetail(dossierId);
   const title = dossier?.title ?? preview?.title ?? "Opening dossier";
@@ -431,12 +425,7 @@ function VideoDossierDetailView({
       ) : dossier === null ? (
         <State label="The source dossier is no longer available." />
       ) : (
-        <DossierBody
-          dossier={dossier}
-          onOpenStory={onOpenStory}
-          onOpenDossier={onOpenDossier}
-          onOpenWorld={onOpenWorld}
-        />
+        <DossierBody dossier={dossier} onOpenStory={onOpenStory} onOpenDossier={onOpenDossier} />
       )}
     </DossierShell>
   );

@@ -3,7 +3,7 @@ kind: system-spec
 status: active
 project: Farplane UI
 created_at: 2026-08-08
-updated_at: 2026-08-13
+updated_at: 2026-08-19
 owner: content-platform
 feature_refs:
   - ../features/FEAT-0003-taste-bank-and-tasty-packs.md
@@ -29,7 +29,7 @@ This system separates three intentional outcomes for one canonical source:
 
 ```ts
 saveReference(source, note?, context?) -> contentJob(save_reference) + ResourceBankAsset
-analyzeYouTube(video, projectId?) -> contentJob(analyze_youtube) + VideoDossier
+analyzeYouTube(video, projectId?) -> contentJob(progress) + VideoDossier + optional comparison edges + optional News
 importFeedScout(item, scope, observedDate?) -> contentJob(ingest_feed_scout) + contentDiscovery
 ```
 
@@ -44,8 +44,9 @@ product records specific to their respective outcomes.
   `save_reference` job, a reusable Resource Bank asset, optional analysis, and
   note-grounded pinned elements.
 - **Analyze** is Vidgard's YouTube analysis decision. The shortcut invokes the
-  installed `$summarize` skill, then writes an `analyze_youtube` job, dossier,
-  story contributions, and tags. It never creates a Resource Bank asset.
+  installed `$intelligest` skill, then writes an `analyze_youtube` job, dossier,
+  concepts, optional recent-comparison edges, and optional directly sourced News.
+  It never creates a Resource Bank asset.
 - A shared URL can have both job kinds, but Analyze never implies Save. A future
   Save action may reuse its `contentSource` and create a separate save job.
 - **Discover** is a Feed Scout import. `farplane-ui content sync-feed-scout`
@@ -80,7 +81,7 @@ flowchart LR
   rb["Resource Bank\nasset + analysis + pinned elements"]
   vi["Video Intelligence\ndossier + contributions + stories"]
   ingest["$ingest-content\nexplicit Save"] --> save
-  shortcut["YouTube shortcut\nAnalyze → $summarize"] --> analyze
+  shortcut["YouTube shortcut\nAnalyze → $intelligest"] --> analyze
   scout["Feed Scout daily JSON\nexplicit CLI sync"] --> discover
   save --> source
   analyze --> source
@@ -105,11 +106,13 @@ new boundary; gray = existing caller.
 | --- | --- | --- | --- |
 | Shared content | `contentSources`, `contentJobs`, `contentDiscoveries` | `saveReference`; `queueVideo`; `importFeedScoutItem` | source/job identity, lifecycle, and dated discovery provenance |
 | Resource Bank | `resourceBankAssets`, `resourceBankAnalyses`, `resourceBankCreativeElements`, findings, Brand Kits | `saveReference`, `addPinnedElement` | only `save_reference` assets are curated/retrievable |
-| Video Intelligence | dossiers, contributions, stories, tags | `queueVideo`, `attachThread`, `completeVideo`, `failVideo` | `getVideoIntelligenceProjection` starts from analyze jobs/sources |
+| Video Intelligence | dossiers, revisions, contributions, stories, tags, comparison edges | `queueVideo`, `attachThread`, `updateProgress`, `completeVideo`, `failVideo`, guarded replay | Content Intelligence starts from analyze jobs/sources; Related coverage reads current revision edges |
 
-`queueVideo` reuses active or ready `sourceId + analyze_youtube` work. Only an
-explicit `reAnalyze: true` creates a new terminal analysis run; the projection
-presents the latest state per source while a dossier retains its repeat count.
+`queueVideo` reuses active or ready `sourceId + analyze_youtube` work. A failed
+or needs-review terminal run creates a valid new run without caller-only retry
+knowledge; only explicit reanalysis replaces a ready analysis with a new
+immutable revision. The projection presents the latest state per source while a
+dossier retains its repeat count.
 Feed Scout re-sightings add receipts rather than new jobs.
 
 ## Operational Flow
@@ -117,10 +120,14 @@ Feed Scout re-sightings add receipts rather than new jobs.
 1. A caller normalizes a canonical source reference and reuses or creates a
    `contentSource`.
 2. The caller writes one typed source-level job for Save, Analyze, or Feed Scout
-   intake. Feed Scout's repeatable date metadata lives in `contentDiscoveries`.
-3. Save creates Resource Bank product records. Analyze creates or updates the
-   Video Intelligence dossier and reporting graph. Import creates neither.
-4. Content Intelligence reads every source through one chronological feed:
+   intake. Analyze writes named monotonic progress stages; Feed Scout's
+   repeatable date metadata lives in `contentDiscoveries`.
+3. Analyze retrieves a bounded 14-day packet from current dossiers. The model may
+   select only source/revision identities from that packet; Convex revalidates
+   currentness, recency, distinct source/creator, and writes symmetric edges.
+4. Save creates Resource Bank product records. Analyze creates or updates the
+   Video Intelligence dossier/reporting graph. Import creates neither.
+5. Content Intelligence reads every source through one chronological feed:
    exhaust a date page, then append the next older populated date in the same
    scroll body. Resource Bank readers accept only `save_reference`; Story
    readers start with `analyze_youtube`.
@@ -141,12 +148,16 @@ remain as migration-compatibility records.
 | Caller | Owns | Must not do |
 | --- | --- | --- |
 | `$ingest-content` | explicit reusable Save; note-bound pinned elements | turn passive analysis into a saved asset |
-| YouTube shortcut / Vidgard | analyze YouTube; invoke `$summarize`; persist evidence-backed dossier state | invoke `$ingest-content` or write Resource Bank assets |
+| YouTube shortcut / Vidgard | queue/dedupe YouTube and invoke `$intelligest`; persist evidence-backed dossier state | invoke `$ingest-content` or write Resource Bank assets |
 | Feed Scout sync | import selected daily URL rows as source/job/receipt provenance | infer project membership, trigger analysis, or pin an asset |
-| `$summarize` | source reading and structured analysis evidence | decide that a source belongs in Resource Bank |
+| `$intelligest` | dossier judgment, recent comparable takes, nullable News, and guarded enrichment receipts | treat broad topic overlap as Related coverage or imply Analyze means Save |
+| `$summarize` / `$media-ingest` | transcript/text first, then bounded direct-media evidence only when needed | decide that a source belongs in Resource Bank |
+| `$manage-wiki` | durable sourced Wiki facts selected by `$intelligest` | mine every mentioned entity or edit generated projections |
 
-The source material passed into `$summarize` is untrusted. Its output is
-validated by the bridge before `completeVideo` persists a dossier.
+The source material passed into `$intelligest` and its extraction routes is
+untrusted. Its strict schema-v5 output is validated by the bridge; Related
+coverage IDs are checked against the server packet, and News requires an exact
+cited HTTPS original/official/reference URL before `completeVideo` persists it.
 
 ## Proof And Maintenance
 
@@ -161,6 +172,14 @@ validated by the bridge before `completeVideo` persists a dossier.
   a reason to move the item into Video Intelligence.
 - Use **Content Intelligence** for external-data reading: Content lists every
   source in a continuous observed-date feed, News stays evidence-backed, and a dossier shows
-  **Related coverage** only when another current source shares its recurring
-  lens. Concepts combines bounded tags, and World remains the read-only Entity
-  Markdown projection.
+  **Related coverage** only when `$intelligest` inspected another recent source
+  covering the same development or active discussion. Broad recurring-lens
+  overlap is not enough. Concepts combines bounded tags, and World remains the
+  read-only Entity Markdown projection.
+- Reuse stored dossier summaries/key points before media reanalysis. Run the
+  cursor-bounded replay in preview mode, repair only missing trusted
+  date/publisher/creator-authority metadata and progress, then separately repair
+  missing lifecycle progress on Analyze jobs without dossiers. Confirm each
+  bounded page explicitly, reconcile counts plus an idempotent rerun, and record
+  evidence-missing rows as a retry backlog. Replay never deletes evidence,
+  fetches media in bulk, or invents semantic comparison decisions.

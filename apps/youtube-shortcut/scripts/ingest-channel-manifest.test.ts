@@ -47,7 +47,7 @@ test("manifest runner resumes, skips a reconciled Vidgard success, and retries a
     const url = String(input);
     assert.equal((init?.headers as Record<string, string>).origin, origin);
     if (url.endsWith("/health"))
-      return response({ ok: true, service: true, appServer: true, summarizeSkill: true });
+      return response({ ok: true, service: true, appServer: true, intelligestSkill: true });
     if (url.endsWith("/jobs")) return response({ jobs });
     if (url.endsWith("/analyze-youtube")) {
       const body = JSON.parse(String(init?.body));
@@ -107,10 +107,10 @@ test("manifest runner preserves source-unavailable as a terminal failure", async
   globalThis.fetch = async (input, init) => {
     const url = String(input);
     if (url.endsWith("/health"))
-      return response({ ok: true, service: true, appServer: true, summarizeSkill: true });
+      return response({ ok: true, service: true, appServer: true, intelligestSkill: true });
     if (url.endsWith("/jobs")) return response({ jobs: [] });
     if (url.endsWith("/analyze-youtube"))
-      return response({ ok: false, error: "Summarize failed: no usable transcript or source material was returned" }, 502);
+      return response({ ok: false, error: "Intelligest failed: no usable transcript or source material was returned" }, 502);
     throw new Error(`Unexpected fetch URL: ${url}`);
   };
   t.after(() => {
@@ -149,7 +149,7 @@ test("manifest runner waits for an active canonical job instead of duplicating i
   globalThis.fetch = async (input) => {
     const url = String(input);
     if (url.endsWith("/health"))
-      return response({ ok: true, service: true, appServer: true, summarizeSkill: true });
+      return response({ ok: true, service: true, appServer: true, intelligestSkill: true });
     if (url.endsWith("/jobs")) {
       jobsReads += 1;
       if (jobsReads > 1) jobs[0].status = "succeeded";
@@ -188,7 +188,7 @@ test("manifest runner caps source analysis at the requested concurrency", async 
   globalThis.fetch = async (input, init) => {
     const url = String(input);
     if (url.endsWith("/health"))
-      return response({ ok: true, service: true, appServer: true, summarizeSkill: true });
+      return response({ ok: true, service: true, appServer: true, intelligestSkill: true });
     if (url.endsWith("/jobs")) return response({ jobs });
     if (url.endsWith("/analyze-youtube")) {
       const body = JSON.parse(String(init?.body));
@@ -236,7 +236,7 @@ test("manifest runner reconciles a durable job after a transport error before re
   globalThis.fetch = async (input, init) => {
     const url = String(input);
     if (url.endsWith("/health"))
-      return response({ ok: true, service: true, appServer: true, summarizeSkill: true });
+      return response({ ok: true, service: true, appServer: true, intelligestSkill: true });
     if (url.endsWith("/jobs")) return response({ jobs });
     if (url.endsWith("/analyze-youtube")) {
       const body = JSON.parse(String(init?.body));

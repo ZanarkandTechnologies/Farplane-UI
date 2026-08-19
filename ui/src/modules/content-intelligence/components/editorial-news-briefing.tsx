@@ -205,29 +205,50 @@ function NewsListRow({
 }) {
   const consequence = story.whyItMatters ?? story.summary;
   return (
-    <button
-      type="button"
-      onClick={() => onOpenNews(story.id)}
+    <article
       data-testid="news-list-row"
-      className="group grid w-full grid-cols-[7.03125rem_minmax(0,1fr)] gap-3 border-b border-border/80 px-0 py-3 text-left last:border-b-0 hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[7.03125rem_minmax(0,1fr)_5.5rem_1rem] sm:items-center sm:gap-4"
+      className="group border-b border-border/80 px-0 py-3 last:border-b-0 hover:bg-muted/45"
     >
-      <NewsVisual story={story} priority={priority} />
-      <div className="min-w-0">
-        <ReportKicker story={story} />
-        <h4 className="mt-0.5 line-clamp-2 [font-family:Inter,sans-serif] text-[15px] font-semibold leading-[1.18] tracking-[-0.015em] text-foreground transition-colors group-hover:text-primary sm:text-base">
-          {story.title}
-        </h4>
-        <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted-foreground">
-          <span className="text-foreground/75">Why now: </span>
-          {consequence}
-        </p>
+      <button
+        type="button"
+        onClick={() => onOpenNews(story.id)}
+        className="grid w-full grid-cols-[7.03125rem_minmax(0,1fr)] gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[7.03125rem_minmax(0,1fr)_5.5rem_1rem] sm:items-center sm:gap-4"
+      >
+        <NewsVisual story={story} priority={priority} />
+        <div className="min-w-0">
+          <ReportKicker story={story} />
+          <h4 className="mt-0.5 line-clamp-2 [font-family:Inter,sans-serif] text-[15px] font-semibold leading-[1.18] tracking-[-0.015em] text-foreground transition-colors group-hover:text-primary sm:text-base">
+            {story.title}
+          </h4>
+          <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted-foreground">
+            <span className="text-foreground/75">Why now: </span>
+            {consequence}
+          </p>
+        </div>
+        <CoverageCounts story={story} />
+        <ArrowUpRight
+          className="hidden size-4 text-muted-foreground transition-colors group-hover:text-primary sm:block"
+          aria-hidden="true"
+        />
+      </button>
+      <div className="mt-2 pl-[8.03125rem] sm:pl-[8.03125rem]">
+        <OriginalSourceLink referenceUrl={story.referenceUrl} />
       </div>
-      <CoverageCounts story={story} />
-      <ArrowUpRight
-        className="hidden size-4 text-muted-foreground transition-colors group-hover:text-primary sm:block"
-        aria-hidden="true"
-      />
-    </button>
+    </article>
+  );
+}
+
+export function OriginalSourceLink({ referenceUrl }: { referenceUrl: string }) {
+  return (
+    <a
+      href={referenceUrl}
+      target="_blank"
+      rel="noreferrer"
+      data-testid="news-original-source"
+      className="inline-flex min-h-7 items-center gap-1 text-[10px] font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      Original source <ArrowUpRight className="size-3" aria-hidden="true" />
+    </a>
   );
 }
 

@@ -1,64 +1,10 @@
 /** Owns the extension's narrow local-service calls and validated analysis cache. */
+import {
+  ANALYSIS_SCHEMA_VERSION,
+  parseAnalysis,
+} from "./analysis-contract.js";
 
 const LOCAL_AGENT = "http://127.0.0.1:47893";
-type Analysis = {
-  schemaVersion: 4;
-  sourceStatus: "TRANSCRIPT_USED" | "TRANSCRIPT_UNAVAILABLE" | "SUMMARY_ONLY";
-  sourceNote: string;
-  summary: string;
-  publisher: string | null;
-  publishedAt: string | null;
-  news: {
-    candidates: {
-      title: string;
-      summary: string;
-      eventDate: string | null;
-      entities: string[];
-      tags: string[];
-      frame: string;
-      claims: {
-        statement: string;
-        stance: "supports" | "opposes" | "neutral" | "unclear";
-        evidence: {
-          timestamp: string | null;
-          excerpt: string;
-          schemaVersion: 2;
-          extractorVersion: string;
-          reference?: string | null;
-        };
-      }[];
-      eventKey?: string | null;
-      whyNow?: string | null;
-      whyItMatters?: string | null;
-    }[];
-  } | null;
-  topics: {
-    title: string;
-    tags: string[];
-    summary: string;
-    frame: string;
-  }[];
-  projectRelevance: {
-    project: string;
-    reason: string;
-    confidence: number;
-  }[];
-  clickbait: {
-    answer: string;
-    verdict: "DELIVERED" | "PARTIAL" | "BAIT" | "UNVERIFIABLE";
-    confidence: number;
-    evidence: string[];
-  };
-  keyPoints: { finding: string; detail: string | null; timestamp: string | null }[];
-  recommendation: {
-    decision: "WATCH" | "READ" | "SKIP";
-    personalRelevance: number | null;
-    contentQuality: number;
-    reasonCode: string;
-    rationale: string;
-    matchedProfile: string[];
-  };
-};
 
 export type AnalysisJob = {
   id: string;
@@ -67,141 +13,32 @@ export type AnalysisJob = {
   status: "queued" | "running" | "succeeded" | "failed";
   threadId?: string;
   error?: string;
+  progress?: {
+    stage:
+      | "queued"
+      | "preparing"
+      | "analyzing"
+      | "persistence"
+      | "complete"
+      | "failed"
+      | "needs_review";
+    message: string;
+    updatedAt: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function strings(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
-}
-
-function oneOf<T extends string>(value: unknown, options: readonly T[]): value is T {
-  return typeof value === "string" && options.includes(value as T);
-}
-
-function parseAnalysis(value: unknown): Analysis {
-  if (!isRecord(value) || value.schemaVersion !== 4) throw new Error("Invalid analysis");
-  const clickbait = value.clickbait;
-  const recommendation = value.recommendation;
-  if (
-    !oneOf(value.sourceStatus, [
-      "TRANSCRIPT_USED",
-      "TRANSCRIPT_UNAVAILABLE",
-      "SUMMARY_ONLY",
-    ]) ||
-    typeof value.sourceNote !== "string" ||
-    typeof value.summary !== "string" ||
-    (value.publisher !== null && typeof value.publisher !== "string") ||
-    (value.publishedAt !== null && typeof value.publishedAt !== "string") ||
-    !isNewsEnrichment(value.news) ||
-    !Array.isArray(value.topics) ||
-    !value.topics.every(
-      (topic) =>
-        isRecord(topic) &&
-        typeof topic.title === "string" &&
-        strings(topic.tags) &&
-        topic.tags.length >= 1 &&
-        typeof topic.summary === "string" &&
-        typeof topic.frame === "string",
-    ) ||
-    !Array.isArray(value.projectRelevance) ||
-    !value.projectRelevance.every(
-      (relevance) =>
-        isRecord(relevance) &&
-        typeof relevance.project === "string" &&
-        typeof relevance.reason === "string" &&
-        typeof relevance.confidence === "number",
-    ) ||
-    !isRecord(clickbait) ||
-    typeof clickbait.answer !== "string" ||
-    !oneOf(clickbait.verdict, ["DELIVERED", "PARTIAL", "BAIT", "UNVERIFIABLE"]) ||
-    typeof clickbait.confidence !== "number" ||
-    !strings(clickbait.evidence) ||
-    !Array.isArray(value.keyPoints) ||
-    !value.keyPoints.every(
-      (point) =>
-        isRecord(point) &&
-        typeof point.finding === "string" &&
-        (point.detail === null || typeof point.detail === "string") &&
-        (point.timestamp === null || typeof point.timestamp === "string"),
-    ) ||
-    !isRecord(recommendation) ||
-    !oneOf(recommendation.decision, ["WATCH", "READ", "SKIP"]) ||
-    (recommendation.personalRelevance !== null &&
-      typeof recommendation.personalRelevance !== "number") ||
-    typeof recommendation.contentQuality !== "number" ||
-    !oneOf(recommendation.reasonCode, [
-      "VISUALS_REQUIRED",
-      "SUMMARY_SUFFICIENT",
-      "LOW_SIGNAL",
-      "ALREADY_KNOWN",
-      "NOT_RELEVANT",
-      "PROFILE_UNAVAILABLE",
-    ]) ||
-    typeof recommendation.rationale !== "string" ||
-    !strings(recommendation.matchedProfile)
-  ) {
-    throw new Error("Invalid analysis");
-  }
-  return value as Analysis;
-}
-
-function isNewsEnrichment(value: unknown): boolean {
-  return (
-    value === null ||
-    (isRecord(value) && Array.isArray(value.candidates) && value.candidates.every(isStory))
-  );
-}
-
-function isStory(value: unknown): boolean {
-  if (
-    !isRecord(value) ||
-    typeof value.title !== "string" ||
-    typeof value.summary !== "string" ||
-    (value.eventDate !== null && typeof value.eventDate !== "string") ||
-    !strings(value.entities) ||
-    !strings(value.tags) ||
-    value.tags.length < 1 ||
-    typeof value.frame !== "string" ||
-    (value.eventKey !== undefined && value.eventKey !== null && typeof value.eventKey !== "string") ||
-    (value.whyNow !== undefined && value.whyNow !== null && typeof value.whyNow !== "string") ||
-    (value.whyItMatters !== undefined && value.whyItMatters !== null && typeof value.whyItMatters !== "string") ||
-    !Array.isArray(value.claims)
-  ) {
-    return false;
-  }
-  return value.claims.every((claim) => {
-    if (
-      !isRecord(claim) ||
-      typeof claim.statement !== "string" ||
-      !oneOf(claim.stance, ["supports", "opposes", "neutral", "unclear"]) ||
-      !isRecord(claim.evidence)
-    ) {
-      return false;
-    }
-    return (
-      (claim.evidence.timestamp === null ||
-        typeof claim.evidence.timestamp === "string") &&
-      typeof claim.evidence.excerpt === "string" &&
-      claim.evidence.schemaVersion === 2 &&
-      typeof claim.evidence.extractorVersion === "string" &&
-      (claim.evidence.reference === undefined ||
-        claim.evidence.reference === null ||
-        typeof claim.evidence.reference === "string")
-    );
-  });
-}
-
 function parseCacheEntry(value: unknown) {
   if (
-    !isRecord(value) ||
-    value.schemaVersion !== 4 ||
+    typeof value !== "object" ||
+    value === null ||
+    !("schemaVersion" in value) ||
+    value.schemaVersion !== ANALYSIS_SCHEMA_VERSION ||
+    !("threadId" in value) ||
     typeof value.threadId !== "string" ||
-    !value.threadId
+    !value.threadId ||
+    !("analysis" in value)
   ) {
     return null;
   }
@@ -239,7 +76,7 @@ async function fetchJson(path: string, init: RequestInit, timeoutMs: number) {
 }
 
 export async function analyze(videoId: string, title: string, channelId?: string) {
-  const cacheKey = `farplane-youtube-analysis-v4:${videoId}`;
+  const cacheKey = `farplane-youtube-analysis-v${ANALYSIS_SCHEMA_VERSION}:${videoId}`;
   const cached = (await chrome.storage.local.get(cacheKey))[cacheKey];
   const parsed = parseCacheEntry(cached);
   if (parsed) {
@@ -290,7 +127,7 @@ export async function analyze(videoId: string, title: string, channelId?: string
   }
   const threadId = payload.threadId;
   await chrome.storage.local.set({
-    [cacheKey]: { schemaVersion: 4, analysis, threadId },
+    [cacheKey]: { schemaVersion: ANALYSIS_SCHEMA_VERSION, analysis, threadId },
   });
   return { ok: true, analysis, threadId, cached: false };
 }

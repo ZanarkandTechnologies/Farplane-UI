@@ -20,7 +20,7 @@ export const extractedEvidenceValidator = v.object({
   schemaVersion: v.literal(2),
   extractorVersion: v.string(),
   /** Exact public reference used only when the source explicitly cites one. */
-  reference: v.optional(v.string()),
+  reference: v.union(v.string(), v.null()),
 });
 
 export const evidenceAnchorValidator = v.object({
@@ -56,9 +56,9 @@ export const extractedStoryValidator = v.object({
   frame: v.string(),
   claims: v.array(extractedClaimValidator),
   /** An exact public identifier, never a title/tag similarity guess. */
-  eventKey: v.optional(v.union(v.string(), v.null())),
-  whyNow: v.optional(v.union(v.string(), v.null())),
-  whyItMatters: v.optional(v.union(v.string(), v.null())),
+  eventKey: v.union(v.string(), v.null()),
+  whyNow: v.union(v.string(), v.null()),
+  whyItMatters: v.union(v.string(), v.null()),
 });
 
 /** News is optional enrichment of the canonical analysis, never its alternative route. */
@@ -99,23 +99,30 @@ export const recommendationValidator = v.object({
   matchedProfile: v.array(v.string()),
 });
 
+export const comparisonRelationshipValidator = v.union(
+  v.literal("same_development"),
+  v.literal("same_active_discussion"),
+);
+
+export const extractedRelatedCoverageValidator = v.object({
+  candidateSourceId: v.string(),
+  candidateRevisionId: v.string(),
+  relationship: comparisonRelationshipValidator,
+  rationale: v.string(),
+});
+
 export const videoAnalysisValidator = v.object({
-  schemaVersion: v.literal(4),
+  schemaVersion: v.literal(5),
   sourceStatus: sourceStatusValidator,
   sourceNote: v.string(),
   summary: v.string(),
   publisher: v.union(v.string(), v.null()),
   publishedAt: v.union(v.string(), v.null()),
   news: v.union(newsEnrichmentValidator, v.null()),
-  /** Recurring lenses exist even when no item deserves to become News. */
-  topics: v.array(
-    v.object({
-      title: v.string(),
-      tags: v.array(v.string()),
-      summary: v.string(),
-      frame: v.string(),
-    }),
-  ),
+  /** Bounded labels remain a Concepts lens and never authorize Related coverage. */
+  concepts: v.array(v.string()),
+  /** Agent-vetted candidate identities; the server revalidates every edge on completion. */
+  relatedCoverage: v.array(extractedRelatedCoverageValidator),
   projectRelevance: v.array(projectRelevanceValidator),
   clickbait: clickbaitValidator,
   keyPoints: v.array(keyPointValidator),

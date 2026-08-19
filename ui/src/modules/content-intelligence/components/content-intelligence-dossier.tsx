@@ -6,9 +6,13 @@ import type {
   VideoDossierDetail,
   VideoStoryDetail,
 } from "@/modules/video-intelligence/hooks/use-video-intelligence-timeline";
-import { useDossierRelatedCoverage } from "../hooks/use-editorial-intelligence";
+import {
+  type RelatedCoverageItem,
+  useDossierRelatedCoverage,
+} from "../hooks/use-editorial-intelligence";
 import type { ContentIntelligenceItem } from "../types";
 import { displayDate } from "./content-intelligence-view-primitives";
+import { ContentJobProgress } from "./content-job-progress";
 
 export function DossierShell({
   title,
@@ -70,9 +74,9 @@ export function DossierLoading({ preview }: { preview?: ContentIntelligenceItem 
       {preview?.summary ? (
         <p className="text-sm leading-6 text-muted-foreground">{preview.summary}</p>
       ) : null}
-      <div className="h-5 w-full animate-pulse rounded bg-muted" />
-      <div className="h-5 w-4/5 animate-pulse rounded bg-muted" />
-      <div className="h-24 animate-pulse rounded-md border bg-muted/30" />
+      <div className="h-5 w-full animate-pulse rounded bg-muted motion-reduce:animate-none" />
+      <div className="h-5 w-4/5 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+      <div className="h-24 animate-pulse rounded-md border bg-muted/30 motion-reduce:animate-none" />
       <p className="text-xs text-muted-foreground">Loading the analyzed dossier…</p>
     </div>
   );
@@ -82,12 +86,10 @@ export function DossierBody({
   dossier,
   onOpenStory,
   onOpenDossier,
-  onOpenWorld,
 }: {
   dossier: VideoDossierDetail;
   onOpenStory: (storyId: string) => void;
   onOpenDossier: (dossierId: string, fromDossierTitle?: string) => void;
-  onOpenWorld: () => void;
 }) {
   const relatedCoverage = useDossierRelatedCoverage(dossier.id);
   return (
@@ -106,6 +108,20 @@ export function DossierBody({
         <p className="text-sm leading-6 text-muted-foreground">{dossier.summary}</p>
         <p className="text-xs text-muted-foreground">{dossier.sourceNote}</p>
       </section>
+      {dossier.concepts?.length ? (
+        <section className="space-y-2" aria-label="Dossier concepts">
+          <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Concepts
+          </h2>
+          <div className="flex flex-wrap gap-1.5">
+            {dossier.concepts.map((concept) => (
+              <Badge key={concept} variant="secondary">
+                #{concept}
+              </Badge>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <section className="space-y-3">
         <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           Key points
@@ -134,49 +150,14 @@ export function DossierBody({
               Related coverage
             </h2>
             <p className="text-xs text-muted-foreground">
-              Other current sources covering the same recurring lens.
+              Recent creator takes linked to the same development or active discussion.
             </p>
           </div>
-          {relatedCoverage.map((topic) => (
-            <div key={topic.id} className="rounded-md border p-3">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="text-sm font-medium">{topic.title}</h3>
-                <p className="text-[10px] text-muted-foreground">
-                  {topic.coverageCount} other perspective{topic.coverageCount === 1 ? "" : "s"} ·{" "}
-                  {topic.creatorCount} creator{topic.creatorCount === 1 ? "" : "s"}
-                </p>
-              </div>
-              {topic.curatedWorldMarkdown ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="mt-1 h-6 px-0 font-mono text-[10px] text-primary"
-                  onClick={onOpenWorld}
-                >
-                  {topic.curatedWorldMarkdown}
-                </Button>
-              ) : null}
-              <div className="mt-3 space-y-2">
-                {topic.coverage.map((coverage) => (
-                  <button
-                    key={coverage.id}
-                    type="button"
-                    onClick={() => onOpenDossier(coverage.dossierId, dossier.title)}
-                    className="block w-full rounded border p-2.5 text-left hover:border-primary/40 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <p className="text-xs font-medium">{coverage.publisher ?? coverage.title}</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {coverage.frame} · {displayDate(coverage.timelineDay)}
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      {coverage.summary}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+          <RelatedCoverageList
+            items={relatedCoverage}
+            parentTitle={dossier.title}
+            onOpenDossier={onOpenDossier}
+          />
         </section>
       ) : null}
       {dossier.stories.length ? (
@@ -201,6 +182,62 @@ export function DossierBody({
         </section>
       ) : null}
     </>
+  );
+}
+
+export function RelatedCoverageList({
+  items,
+  parentTitle,
+  onOpenDossier,
+}: {
+  items: RelatedCoverageItem[];
+  parentTitle: string;
+  onOpenDossier: (dossierId: string, fromDossierTitle?: string) => void;
+}) {
+  return (
+    <div className="space-y-2" data-testid="related-coverage-list">
+      {items.map((item) => (
+        <article
+          key={item.id}
+          className="rounded-md border p-3 transition-colors hover:border-primary/40 hover:bg-muted/20 focus-within:border-primary/40"
+        >
+          <button
+            type="button"
+            onClick={() => onOpenDossier(item.dossierId, parentTitle)}
+            className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`Open comparable take: ${item.title}`}
+          >
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="text-sm font-medium">{item.publisher ?? item.title}</p>
+              <time dateTime={item.timelineDay} className="text-[10px] text-muted-foreground">
+                {displayDate(item.timelineDay)}
+              </time>
+            </div>
+            <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.1em] text-primary">
+              {item.relationship === "same_development"
+                ? "Same development"
+                : "Same active discussion"}
+            </p>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              <span className="font-medium text-foreground/80">Creator take: </span>
+              {item.summary}
+            </p>
+            <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+              <span className="font-medium text-foreground/80">Why comparable: </span>
+              {item.rationale}
+            </p>
+          </button>
+          <a
+            href={item.canonicalUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-flex min-h-7 items-center gap-1 text-[11px] text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Open creator source <ExternalLink className="size-3" aria-hidden="true" />
+          </a>
+        </article>
+      ))}
+    </div>
   );
 }
 
@@ -328,6 +365,7 @@ export function ContentSourceDetailView({
                 </p>
               ) : null}
             </div>
+            <ContentJobProgress item={item} />
           </section>
           {item.projectIds.length || item.latestDiscovery?.tags.length ? (
             <section className="space-y-3">
