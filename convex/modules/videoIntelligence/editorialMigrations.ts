@@ -1,15 +1,21 @@
 /** Development-only, cursor-safe migration from permissive Stories to dossier evidence + Topics. */
 import { v } from "convex/values";
-import type { Id } from "../../_generated/dataModel";
-import type { MutationCtx } from "../../_generated/server";
+import type { Doc, Id } from "../../_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "../../_generated/server";
 import { mutation, query } from "../../_generated/server";
 import { timelineDayFromValue } from "../content/timeline";
 import { normalizeTagKey } from "./domain";
-import { hasCurrentRevision, topicMonth } from "./editorial";
+import {
+  hasCurrentRevision,
+  newsPublicationState,
+  resolveNewsReferenceUrl,
+  topicMonth,
+} from "./editorial";
 
 const CONFIRM = "reclassify-legacy-video-intelligence-stories";
 const CLEAR_INFERRED_AUTHORITY_CONFIRM = "clear-legacy-inferred-feed-authority";
 const REFRESH_TOPIC_VISIBILITY_CONFIRM = "refresh-legacy-topic-visibility";
+const REFRESH_NEWS_VISIBILITY_CONFIRM = "refresh-video-news-visibility-v1";
 const MAX_BATCH = 50;
 
 export const previewLegacyEditorialMigration = query({
@@ -190,6 +196,99 @@ export const refreshLegacyTopicVisibility = mutation({
     return { visible, continueCursor: topics.continueCursor, isDone: topics.isDone };
   },
 });
+
+export const previewNewsVisibilityRepair = query({
+  args: { cursor: v.union(v.string(), v.null()), limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const stories = await ctx.db
+      .query("videoIntelligenceStories")
+      .withIndex("by_updatedAtMs")
+      .order("asc")
+      .paginate({ cursor: args.cursor, numItems: boundedLimit(args.limit) });
+    let pending = 0;
+    for (const story of stories.page) {
+      const desired = await desiredNewsPublicationState(ctx, story);
+      if (!desired) continue;
+      if (
+        story.classification !== desired.classification ||
+        story.editorialStatus !== desired.editorialStatus ||
+        story.visibleInNews !== desired.visibleInNews
+      ) {
+        pending += 1;
+      }
+    }
+    return {
+      scanned: stories.page.length,
+      pending,
+      continueCursor: stories.continueCursor,
+      isDone: stories.isDone,
+    };
+  },
+});
+
+export const refreshNewsVisibilityBatch = mutation({
+  args: {
+    confirm: v.string(),
+    cursor: v.union(v.string(), v.null()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    if (args.confirm !== REFRESH_NEWS_VISIBILITY_CONFIRM) {
+      throw new Error("news_visibility_refresh_not_confirmed");
+    }
+    const stories = await ctx.db
+      .query("videoIntelligenceStories")
+      .withIndex("by_updatedAtMs")
+      .order("asc")
+      .paginate({ cursor: args.cursor, numItems: boundedLimit(args.limit) });
+    let updated = 0;
+    for (const story of stories.page) {
+      const desired = await desiredNewsPublicationState(ctx, story);
+      if (!desired) continue;
+      if (
+        story.classification === desired.classification &&
+        story.editorialStatus === desired.editorialStatus &&
+        story.visibleInNews === desired.visibleInNews
+      ) {
+        continue;
+      }
+      await ctx.db.patch(story._id, { ...desired, updatedAtMs: Date.now() });
+      updated += 1;
+    }
+    return {
+      scanned: stories.page.length,
+      updated,
+      continueCursor: stories.continueCursor,
+      isDone: stories.isDone,
+    };
+  },
+});
+
+async function desiredNewsPublicationState(
+  ctx: Pick<QueryCtx, "db">,
+  story: Doc<"videoIntelligenceStories">,
+) {
+  const contributions = await ctx.db
+    .query("videoIntelligenceContributions")
+    .withIndex("by_storyId", (q) => q.eq("storyId", story._id))
+    .collect();
+  const authorities = new Set<string>();
+  let hasCurrentCitedContribution = false;
+  for (const contribution of contributions) {
+    if (!contribution.revisionId) continue;
+    const revision = await ctx.db.get(contribution.revisionId);
+    if (
+      revision?.lifecycle !== "current" ||
+      !resolveNewsReferenceUrl(story.eventKey, contribution.claims)
+    ) {
+      continue;
+    }
+    hasCurrentCitedContribution = true;
+    const authority = contribution.sourceAuthorityKey ?? revision.sourceAuthorityKey;
+    if (authority) authorities.add(authority);
+  }
+  return hasCurrentCitedContribution ? newsPublicationState(true, authorities.size) : null;
+}
 
 async function ensureLegacyRevision(
   ctx: MutationCtx,

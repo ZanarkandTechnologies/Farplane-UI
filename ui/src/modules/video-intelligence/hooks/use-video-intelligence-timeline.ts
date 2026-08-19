@@ -42,7 +42,7 @@ export type VideoDossierDetail = {
   summary: string;
   concepts?: string[];
   keyPoints: { finding: string; detail: string | null; timestamp: string | null }[];
-  stories: { id: string; title: string; summary: string; eventDate: string | null }[];
+  stories: { id: string; title: string; eventDate: string | null; referenceUrl: string }[];
 };
 
 export type VideoStoryDetail = {

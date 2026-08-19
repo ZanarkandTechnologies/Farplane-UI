@@ -84,11 +84,9 @@ export function DossierLoading({ preview }: { preview?: ContentIntelligenceItem 
 
 export function DossierBody({
   dossier,
-  onOpenStory,
   onOpenDossier,
 }: {
   dossier: VideoDossierDetail;
-  onOpenStory: (storyId: string) => void;
   onOpenDossier: (dossierId: string, fromDossierTitle?: string) => void;
 }) {
   const relatedCoverage = useDossierRelatedCoverage(dossier.id);
@@ -163,25 +161,34 @@ export function DossierBody({
       {dossier.stories.length ? (
         <section className="space-y-3">
           <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Cited stories
+            Citations
           </h2>
-          {dossier.stories.map((story) => (
-            <button
-              key={story.id}
-              type="button"
-              onClick={() => onOpenStory(story.id)}
-              className="block w-full rounded-md border p-3 text-left hover:border-primary/40 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <p className="text-[10px] text-muted-foreground">
-                {story.eventDate ?? "Undated story"}
-              </p>
-              <p className="mt-1 text-sm font-medium">{story.title}</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">{story.summary}</p>
-            </button>
-          ))}
+          <CitationList stories={dossier.stories} />
         </section>
       ) : null}
     </>
+  );
+}
+
+export function CitationList({ stories }: { stories: VideoDossierDetail["stories"] }) {
+  return (
+    <div className="space-y-2">
+      {stories.map((story) => (
+        <a
+          key={story.id}
+          href={story.referenceUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="block rounded-md border p-3 hover:border-primary/40 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <p className="text-[10px] text-muted-foreground">{story.eventDate ?? "Undated source"}</p>
+          <p className="mt-1 text-sm font-medium">{story.title}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-xs text-primary">
+            Original source <ExternalLink className="size-3" aria-hidden="true" />
+          </span>
+        </a>
+      ))}
+    </div>
   );
 }
 

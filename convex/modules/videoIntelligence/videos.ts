@@ -19,6 +19,8 @@ import {
   evaluateNewsCandidate,
   hasCurrentRevision,
   isYouTubeChannelId,
+  newsPublicationState,
+  resolveNewsReferenceUrl,
   topicMonth,
 } from "./editorial";
 import { canAdvanceVideoProgress } from "./progressModel";
@@ -636,26 +638,24 @@ async function refreshEditorialStatus(
       .withIndex("by_storyId", (q) => q.eq("storyId", story._id))
       .collect();
     const authorities = new Set<string>();
+    let hasCurrentCitedContribution = false;
     for (const contribution of contributions) {
-      if (!contribution.revisionId || !contribution.sourceAuthorityKey) continue;
+      if (!contribution.revisionId) continue;
       const revision = await ctx.db.get(contribution.revisionId);
-      if (revision?.lifecycle === "current") authorities.add(contribution.sourceAuthorityKey);
+      if (
+        revision?.lifecycle !== "current" ||
+        !resolveNewsReferenceUrl(story.eventKey, contribution.claims)
+      ) {
+        continue;
+      }
+      hasCurrentCitedContribution = true;
+      const authority = contribution.sourceAuthorityKey ?? revision.sourceAuthorityKey;
+      if (authority) authorities.add(authority);
     }
-    await ctx.db.patch(
-      story._id,
-      authorities.size === 0
-        ? {
-            classification: "dossier_only",
-            editorialStatus: "developing",
-            visibleInNews: false,
-            updatedAtMs: now,
-          }
-        : {
-            editorialStatus: authorities.size >= 2 ? "aggregated" : "developing",
-            visibleInNews: true,
-            updatedAtMs: now,
-          },
-    );
+    await ctx.db.patch(story._id, {
+      ...newsPublicationState(hasCurrentCitedContribution, authorities.size),
+      updatedAtMs: now,
+    });
   }
 }
 

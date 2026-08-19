@@ -6,6 +6,7 @@ import {
   hasCurrentRevision,
   hasOtherSourceCoverage,
   isCuratedWorldMarkdown,
+  newsPublicationState,
   resolveNewsReferenceUrl,
   topicNamesForCoverage,
 } from "./editorial";
@@ -69,6 +70,24 @@ it("projects only an exact cited HTTPS reference", () => {
       { evidence: { reference: "http://example.gov/release" } },
     ]),
   ).toBe(null);
+});
+
+it("publishes one current cited contribution as developing News without requiring creator authority", () => {
+  expect(newsPublicationState(true, 0)).toEqual({
+    classification: "news",
+    editorialStatus: "developing",
+    visibleInNews: true,
+  });
+  expect(newsPublicationState(true, 2)).toEqual({
+    classification: "news",
+    editorialStatus: "aggregated",
+    visibleInNews: true,
+  });
+  expect(newsPublicationState(false, 2)).toEqual({
+    classification: "dossier_only",
+    editorialStatus: "developing",
+    visibleInNews: false,
+  });
 });
 
 it("only builds an authority from exact YouTube channel metadata", () => {

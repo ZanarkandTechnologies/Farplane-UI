@@ -5,6 +5,7 @@ import type { Doc } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
 import { query } from "../../_generated/server";
 import { isTimelineDay } from "../content/timeline";
+import { resolveNewsReferenceUrl } from "./editorial";
 
 const directionValidator = v.union(v.literal("latest"), v.literal("older"), v.literal("newer"));
 
@@ -216,12 +217,15 @@ async function toDossierDetail(ctx: QueryCtx, dossier: Doc<"videoIntelligenceDos
   const stories = await Promise.all(
     contributions.map(async (contribution) => {
       const story = await ctx.db.get(contribution.storyId);
+      const referenceUrl = story
+        ? resolveNewsReferenceUrl(story.eventKey, contribution.claims)
+        : null;
       return story
         ? {
             id: String(story._id),
             title: story.title,
-            summary: story.summary,
             eventDate: story.eventDate ?? null,
+            referenceUrl,
           }
         : null;
     }),
@@ -239,7 +243,9 @@ async function toDossierDetail(ctx: QueryCtx, dossier: Doc<"videoIntelligenceDos
     summary: dossier.summary,
     concepts: dossier.concepts ?? [],
     keyPoints: dossier.keyPoints,
-    stories: stories.filter(Boolean),
+    stories: stories.filter((story): story is NonNullable<typeof story> =>
+      Boolean(story?.referenceUrl),
+    ),
   };
 }
 

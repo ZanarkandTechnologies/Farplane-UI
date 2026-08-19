@@ -102,6 +102,9 @@ YouTube request
 - Every visible News row and detail includes an independently openable original
   source link. It must be the exact cited HTTPS official/original/reference URL,
   never the creator video URL or a generated summary.
+- A dossier's Citations section exposes those same exact external references
+  directly. It never substitutes an internal story ID, generated story summary,
+  or Convex detail object for the cited website.
 - Story intelligence shows reporting chronology, perspectives, shared and
   source-specific claims, related events, and a read-only information-flow
   projection.

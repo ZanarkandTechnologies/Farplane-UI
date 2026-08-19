@@ -47,6 +47,24 @@ export function resolveNewsReferenceUrl(
   return claims.some((claim) => claim.evidence.reference?.trim() === candidate) ? candidate : null;
 }
 
+export function newsPublicationState(
+  hasCurrentCitedContribution: boolean,
+  distinctAuthorityCount: number,
+) {
+  return hasCurrentCitedContribution
+    ? {
+        classification: "news" as const,
+        editorialStatus:
+          distinctAuthorityCount >= 2 ? ("aggregated" as const) : ("developing" as const),
+        visibleInNews: true,
+      }
+    : {
+        classification: "dossier_only" as const,
+        editorialStatus: "developing" as const,
+        visibleInNews: false,
+      };
+}
+
 export function calendarDayDifference(laterDay: string, earlierDay: string): number {
   if (!isTimelineDay(laterDay) || !isTimelineDay(earlierDay)) return Number.NaN;
   return (

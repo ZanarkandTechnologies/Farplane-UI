@@ -1,8 +1,8 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { CitationList, RelatedCoverageList } from "./content-intelligence-dossier";
 import { ContentJobProgress } from "./content-job-progress";
-import { RelatedCoverageList } from "./content-intelligence-dossier";
 import { OriginalSourceLink } from "./editorial-news-briefing";
 
 describe("ContentJobProgress", () => {
@@ -82,5 +82,26 @@ describe("OriginalSourceLink", () => {
     expect(html).toContain('href="https://official.example.com/releases/model"');
     expect(html).toContain("Original source");
     expect(html).not.toContain("youtube.com");
+  });
+});
+
+describe("CitationList", () => {
+  it("opens the exact original HTTPS source instead of an internal story object", () => {
+    const html = renderToStaticMarkup(
+      createElement(CitationList, {
+        stories: [
+          {
+            id: "story-1",
+            title: "Official model release",
+            eventDate: "2026-07-30",
+            referenceUrl: "https://official.example.com/releases/model",
+          },
+        ],
+      }),
+    );
+
+    expect(html).toContain('href="https://official.example.com/releases/model"');
+    expect(html).toContain("Original source");
+    expect(html).not.toContain("story-1");
   });
 });

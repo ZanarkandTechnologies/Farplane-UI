@@ -205,7 +205,6 @@ export function ContentIntelligencePanel({
                 openLibraryTab("news");
               }}
               onOpenDossier={openDossier}
-              onOpenStory={openStory}
             />
           ) : null}
           {tab === "content" ? (
@@ -255,7 +254,6 @@ function ContentIntelligenceDetail({
   onBack,
   onAllStories,
   onOpenDossier,
-  onOpenStory,
 }: {
   detail: DetailView;
   contentItems: ContentIntelligenceItem[];
@@ -269,7 +267,6 @@ function ContentIntelligenceDetail({
     fromDossierId?: string,
     fromDossierTitle?: string,
   ) => void;
-  onOpenStory: (storyId: string, fromDossierId?: string) => void;
 }) {
   if (detail.kind === "source") {
     const item =
@@ -308,7 +305,6 @@ function ContentIntelligenceDetail({
       preview={detail.preview}
       backLabel={dossierBackLabel(detail)}
       onBack={onBack}
-      onOpenStory={(storyId) => onOpenStory(storyId, detail.dossierId)}
       onOpenDossier={(dossierId, fromDossierTitle) =>
         onOpenDossier(
           dossierId,
@@ -400,14 +396,12 @@ function VideoDossierDetailView({
   preview,
   backLabel,
   onBack,
-  onOpenStory,
   onOpenDossier,
 }: {
   dossierId: string;
   preview?: ContentIntelligenceItem;
   backLabel: string;
   onBack: () => void;
-  onOpenStory: (storyId: string) => void;
   onOpenDossier: (dossierId: string, fromDossierTitle?: string) => void;
 }) {
   const dossier = useVideoDossierDetail(dossierId);
@@ -425,7 +419,7 @@ function VideoDossierDetailView({
       ) : dossier === null ? (
         <State label="The source dossier is no longer available." />
       ) : (
-        <DossierBody dossier={dossier} onOpenStory={onOpenStory} onOpenDossier={onOpenDossier} />
+        <DossierBody dossier={dossier} onOpenDossier={onOpenDossier} />
       )}
     </DossierShell>
   );
