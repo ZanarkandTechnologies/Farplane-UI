@@ -96,6 +96,9 @@ canonical IDs, terminal status, and error classification in the report. The
   only on a miss.
 - A completed answer opens immediately. Click the same button again to close or
   reopen it; press Escape to close it.
+- **Reanalyze** explicitly refetches source evidence, bypasses the local answer
+  cache, and creates a new immutable analysis revision. Ordinary **Analyze**
+  remains deduped and reuses the current ready dossier.
 - **Open Codex Task** opens the persistent task using its `codex://` link.
 - New thumbnails inserted while scrolling are scanned and receive one control.
 

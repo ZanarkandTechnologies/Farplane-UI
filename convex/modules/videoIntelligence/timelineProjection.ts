@@ -119,13 +119,14 @@ export const getVideoStoryDetail = query({
   handler: async (ctx, args) => {
     const story = await ctx.db.get(args.storyId);
     if (!story) return null;
-    const [tags, contributions] = await Promise.all([
+    const [tags, storedContributions] = await Promise.all([
       Promise.all(story.tagIds.map((tagId) => ctx.db.get(tagId))),
       ctx.db
         .query("videoIntelligenceContributions")
         .withIndex("by_storyId", (q) => q.eq("storyId", story._id))
         .take(100),
     ]);
+    const contributions = await currentContributions(ctx, storedContributions);
     return {
       id: String(story._id),
       title: story.title,
@@ -161,13 +162,14 @@ export const getVideoStoryDetail = query({
 });
 
 async function toVideoItem(ctx: QueryCtx, dossier: Doc<"videoIntelligenceDossiers">) {
-  const [source, contributions] = await Promise.all([
+  const [source, storedContributions] = await Promise.all([
     dossier.contentSourceId ? ctx.db.get(dossier.contentSourceId) : null,
     ctx.db
       .query("videoIntelligenceContributions")
       .withIndex("by_dossierId", (q) => q.eq("dossierId", dossier._id))
       .take(100),
   ]);
+  const contributions = await currentContributions(ctx, storedContributions);
   return {
     id: String(dossier._id),
     videoId: dossier.videoId,
@@ -203,13 +205,14 @@ async function toStoryItem(ctx: QueryCtx, story: Doc<"videoIntelligenceStories">
 }
 
 async function toDossierDetail(ctx: QueryCtx, dossier: Doc<"videoIntelligenceDossiers">) {
-  const [source, contributions] = await Promise.all([
+  const [source, storedContributions] = await Promise.all([
     dossier.contentSourceId ? ctx.db.get(dossier.contentSourceId) : null,
     ctx.db
       .query("videoIntelligenceContributions")
       .withIndex("by_dossierId", (q) => q.eq("dossierId", dossier._id))
       .take(100),
   ]);
+  const contributions = await currentContributions(ctx, storedContributions);
   const stories = await Promise.all(
     contributions.map(async (contribution) => {
       const story = await ctx.db.get(contribution.storyId);
@@ -238,4 +241,19 @@ async function toDossierDetail(ctx: QueryCtx, dossier: Doc<"videoIntelligenceDos
     keyPoints: dossier.keyPoints,
     stories: stories.filter(Boolean),
   };
+}
+
+async function currentContributions(
+  ctx: QueryCtx,
+  contributions: Doc<"videoIntelligenceContributions">[],
+) {
+  const rows = await Promise.all(
+    contributions.map(async (contribution) => ({
+      contribution,
+      revision: contribution.revisionId ? await ctx.db.get(contribution.revisionId) : null,
+    })),
+  );
+  return rows.flatMap(({ contribution, revision }) =>
+    !contribution.revisionId || revision?.lifecycle === "current" ? [contribution] : [],
+  );
 }

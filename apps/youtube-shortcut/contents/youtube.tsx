@@ -405,7 +405,7 @@ function Overlay({
     };
   }, [panelOpen, previousZIndex, styleHost]);
 
-  async function run(event: React.MouseEvent) {
+  async function run(event: React.MouseEvent, reAnalyze = false) {
     event.preventDefault();
     event.stopPropagation();
     const video = videoData(card);
@@ -415,12 +415,17 @@ function Overlay({
     setError("");
     setThreadId("");
     setReusedDossierId("");
+    if (reAnalyze) {
+      setAnalysis(null);
+      setCached(false);
+    }
     try {
       const response = await chrome.runtime.sendMessage({
         type: "ANALYZE_YOUTUBE",
         videoId: video.id,
         title: video.title,
         channelId: currentChannelId(),
+        reAnalyze,
       });
       if (!response?.ok) {
         setThreadId(response?.threadId || "");
@@ -459,7 +464,7 @@ function Overlay({
           status={status}
           panelId={panelId}
           panelOpen={panelOpen}
-          onClick={run}
+          onClick={(event) => run(event, true)}
         />
         {panelOpen && (
           <div role="alert" style={panelStyle}>
@@ -475,7 +480,7 @@ function Overlay({
               Couldn’t analyze
             </strong>
             <p style={copyStyle}>{error}</p>
-            <p style={copyStyle}>Click Analyze to try again.</p>
+            <p style={copyStyle}>Click Retry to run a fresh analysis.</p>
             <ThreadLink threadId={threadId} />
           </div>
         )}
@@ -505,6 +510,7 @@ function Overlay({
               This video is ready in Farplane Content Intelligence. Open that workspace to review its dossier and any reportable News coverage.
             </p>
             <ThreadLink threadId={threadId} />
+            <ReanalyzeButton onClick={(event) => run(event, true)} />
           </div>
         )}
       </div>
@@ -674,8 +680,27 @@ function Overlay({
         </button>
       </div>
       <ThreadLink threadId={threadId} />
+      <ReanalyzeButton onClick={(event) => run(event, true)} />
       </div>}
     </div>
+  );
+}
+
+function ReanalyzeButton({
+  onClick,
+}: {
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <button
+      className="farplane-control"
+      type="button"
+      aria-label="Reanalyze this video with fresh source evidence"
+      onClick={onClick}
+      style={reanalyzeStyle}
+    >
+      Reanalyze
+    </button>
   );
 }
 
@@ -816,6 +841,18 @@ const threadLinkStyle: React.CSSProperties = {
   fontWeight: 800,
   marginTop: 10,
   textDecoration: "none",
+};
+const reanalyzeStyle: React.CSSProperties = {
+  border: "1px solid var(--farplane-border)",
+  background: "var(--farplane-background)",
+  color: "var(--farplane-foreground)",
+  cursor: "pointer",
+  display: "inline-flex",
+  marginTop: 10,
+  padding: "7px 9px",
+  font: '700 9px "JetBrains Mono", "SFMono-Regular", Consolas, monospace',
+  letterSpacing: ".05em",
+  textTransform: "uppercase",
 };
 const tabStyle: React.CSSProperties = {
   flex: 1,

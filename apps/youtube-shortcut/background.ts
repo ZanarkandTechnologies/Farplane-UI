@@ -75,10 +75,17 @@ async function fetchJson(path: string, init: RequestInit, timeoutMs: number) {
   }
 }
 
-export async function analyze(videoId: string, title: string, channelId?: string) {
+export async function analyze(
+  videoId: string,
+  title: string,
+  channelId?: string,
+  reAnalyze = false,
+) {
   const cacheKey = `farplane-youtube-analysis-v${ANALYSIS_SCHEMA_VERSION}:${videoId}`;
-  const cached = (await chrome.storage.local.get(cacheKey))[cacheKey];
-  const parsed = parseCacheEntry(cached);
+  const cached = reAnalyze
+    ? undefined
+    : (await chrome.storage.local.get(cacheKey))[cacheKey];
+  const parsed = reAnalyze ? null : parseCacheEntry(cached);
   if (parsed) {
     await fetchJson(
       "/ingest-cached",
@@ -108,7 +115,7 @@ export async function analyze(videoId: string, title: string, channelId?: string
     {
       method: "POST",
       headers: { "content-type": "application/json" },
-        body: JSON.stringify({ videoId, title, channelId }),
+      body: JSON.stringify({ videoId, title, channelId, reAnalyze }),
     },
     185_000,
   );
@@ -141,7 +148,13 @@ export async function getJobs(): Promise<{ ok: true; jobs: AnalysisJob[] }> {
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   const run =
     request?.type === "ANALYZE_YOUTUBE"
-      ? () => analyze(request.videoId, request.title, request.channelId)
+      ? () =>
+          analyze(
+            request.videoId,
+            request.title,
+            request.channelId,
+            request.reAnalyze === true,
+          )
       : request?.type === "GET_LOCAL_HEALTH"
         ? () => fetchJson("/health", { method: "POST" }, 6_000)
         : request?.type === "GET_YOUTUBE_JOBS"

@@ -144,6 +144,50 @@ test("cache hit reuses analysis and thread id without a local-agent call", async
   assert.equal(fetchCalls, 1);
 });
 
+test("explicit reanalysis bypasses cache and replaces it with a fresh result", async () => {
+  storage.clear();
+  fetchCalls = 0;
+  storage.set("farplane-youtube-analysis-v5:dQw4w9WgXcQ", {
+    schemaVersion: 5,
+    analysis,
+    threadId: "thread-cached",
+  });
+  const refreshedAnalysis = {
+    ...analysis,
+    summary: "The source was freshly reanalyzed.",
+  };
+  globalThis.fetch = async (input, init) => {
+    fetchCalls += 1;
+    assert.match(String(input), /\/analyze-youtube$/);
+    assert.deepEqual(JSON.parse(String(init?.body)), {
+      videoId: "dQw4w9WgXcQ",
+      title: "Claim?",
+      reAnalyze: true,
+    });
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        analysis: refreshedAnalysis,
+        threadId: "thread-refreshed",
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+
+  assert.deepEqual(await analyze("dQw4w9WgXcQ", "Claim?", undefined, true), {
+    ok: true,
+    analysis: refreshedAnalysis,
+    threadId: "thread-refreshed",
+    cached: false,
+  });
+  assert.equal(fetchCalls, 1);
+  assert.deepEqual(storage.get("farplane-youtube-analysis-v5:dQw4w9WgXcQ"), {
+    schemaVersion: 5,
+    analysis: refreshedAnalysis,
+    threadId: "thread-refreshed",
+  });
+});
+
 test("cache miss stores the validated analysis and persistent thread id", async () => {
   storage.clear();
   fetchCalls = 0;
