@@ -139,6 +139,8 @@ export function DossierBodyContent({
   relatedCoverage: RelatedCoverageProjection | undefined;
   onOpenDossier: (dossierId: string, fromDossierTitle?: string) => void;
 }) {
+  const visibleConcepts = dossier.concepts?.slice(0, 5) ?? [];
+
   return (
     <>
       <div className="flex flex-wrap gap-1.5">
@@ -148,13 +150,13 @@ export function DossierBodyContent({
           <Badge variant="outline">{displayDate(dossier.publishedAt)}</Badge>
         ) : null}
       </div>
-      {dossier.concepts?.length ? (
+      {visibleConcepts.length ? (
         <section className="space-y-2" aria-label="Dossier concepts">
           <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Concepts
           </h2>
           <div className="flex flex-wrap gap-1.5">
-            {dossier.concepts.map((concept) => (
+            {visibleConcepts.map((concept) => (
               <Badge key={concept} variant="secondary">
                 #{concept}
               </Badge>

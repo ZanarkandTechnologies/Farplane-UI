@@ -169,7 +169,15 @@ describe("Dossier intelligence hierarchy", () => {
     sourceNote: "Transcript and metadata inspected.",
     timelineDay: "2026-08-19",
     summary: "The dossier summary.",
-    concepts: ["robotics"],
+    concepts: [
+      "robotics",
+      "embodied AI",
+      "vision-language-action models",
+      "dexterity",
+      "robot learning",
+      "simulation",
+      "reinforcement learning",
+    ],
     keyPoints: [{ finding: "A key finding", detail: null, timestamp: "01:00" }],
     stories: [
       {
@@ -223,6 +231,9 @@ describe("Dossier intelligence hierarchy", () => {
     expect(html).toContain("Source notes");
     expect(html).toContain("01");
     expect(html).toContain('href="https://official.example.com/release"');
+    expect(html).toContain("#robot learning");
+    expect(html).not.toContain("#simulation");
+    expect(html).not.toContain("#reinforcement learning");
   });
 
   it("renders every exact external citation and an honest empty state", () => {
