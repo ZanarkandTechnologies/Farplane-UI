@@ -3,6 +3,7 @@ import { defineTable } from "convex/server";
 import { v } from "convex/values";
 import {
   clickbaitValidator,
+  comparisonReceiptValidator,
   comparisonRelationshipValidator,
   keyPointValidator,
   projectRelevanceValidator,
@@ -95,6 +96,8 @@ export const videoIntelligenceTables = {
     revisionNumber: v.number(),
     lifecycle: v.union(v.literal("current"), v.literal("superseded")),
     sourceAuthorityKey: v.optional(v.string()),
+    /** Server-validated outcome for this immutable revision's bounded comparison pass. */
+    comparisonReceipt: v.optional(comparisonReceiptValidator),
     createdAtMs: v.number(),
     supersededAtMs: v.optional(v.number()),
   })

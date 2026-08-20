@@ -111,8 +111,25 @@ export const extractedRelatedCoverageValidator = v.object({
   rationale: v.string(),
 });
 
+export const comparisonReceiptStatusValidator = v.union(
+  v.literal("complete"),
+  v.literal("sparse"),
+  v.literal("failed"),
+  v.literal("not_run"),
+);
+
+export const comparisonReceiptValidator = v.object({
+  status: comparisonReceiptStatusValidator,
+  asOfDay: v.union(v.string(), v.null()),
+  windowStartDay: v.union(v.string(), v.null()),
+  horizonDays: v.union(v.number(), v.null()),
+  candidateCount: v.number(),
+  acceptedCount: v.number(),
+  limitation: v.union(v.string(), v.null()),
+});
+
 export const videoAnalysisValidator = v.object({
-  schemaVersion: v.literal(5),
+  schemaVersion: v.literal(6),
   sourceStatus: sourceStatusValidator,
   sourceNote: v.string(),
   summary: v.string(),
@@ -123,6 +140,7 @@ export const videoAnalysisValidator = v.object({
   concepts: v.array(v.string()),
   /** Agent-vetted candidate identities; the server revalidates every edge on completion. */
   relatedCoverage: v.array(extractedRelatedCoverageValidator),
+  comparisonReceipt: comparisonReceiptValidator,
   projectRelevance: v.array(projectRelevanceValidator),
   clickbait: clickbaitValidator,
   keyPoints: v.array(keyPointValidator),

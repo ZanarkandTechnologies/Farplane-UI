@@ -29,8 +29,10 @@ export type VideoAnalysisProgress = {
 };
 
 export type ComparisonCandidatePacket = {
+  status: "complete" | "failed";
   asOfDay: string;
   windowStartDay: string;
+  limitation: string | null;
   candidates: Array<{
     sourceId: string;
     dossierId: string;

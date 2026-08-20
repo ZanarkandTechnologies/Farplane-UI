@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   authorityFromYouTubeChannel,
+  canCarryForwardNewsContribution,
   candidatesForNewsEnrichment,
   evaluateNewsCandidate,
   hasCurrentRevision,
@@ -8,6 +9,7 @@ import {
   isCuratedWorldMarkdown,
   newsPublicationState,
   resolveNewsReferenceUrl,
+  selectLatestCarryForwardNewsContributions,
   topicNamesForCoverage,
 } from "./editorial";
 
@@ -70,6 +72,66 @@ it("projects only an exact cited HTTPS reference", () => {
       { evidence: { reference: "http://example.gov/release" } },
     ]),
   ).toBe(null);
+});
+
+it("carries forward only a previously valid exact-cited News contribution", () => {
+  const durableStory = {
+    eventDate: "2026-08-10",
+    eventKey: citedCandidate.eventKey,
+    whyNow: citedCandidate.whyNow,
+    whyItMatters: citedCandidate.whyItMatters,
+  };
+  expect(canCarryForwardNewsContribution(durableStory, citedCandidate.claims)).toBe(true);
+  expect(
+    canCarryForwardNewsContribution({ ...durableStory, eventKey: "story:internal-object" }, [
+      { evidence: { reference: "story:internal-object" } },
+    ]),
+  ).toBe(false);
+  expect(canCarryForwardNewsContribution(durableStory, [{ evidence: { reference: null } }])).toBe(
+    false,
+  );
+  expect(
+    canCarryForwardNewsContribution({ ...durableStory, whyNow: undefined }, citedCandidate.claims),
+  ).toBe(false);
+});
+
+it("recovers the latest valid historical citation and skips an incoming duplicate event", () => {
+  type HistoricalContribution = {
+    storyId: string;
+    revision: number;
+    claims: Array<{ evidence: { reference: string | null } }>;
+  };
+  const story = {
+    eventDate: "2026-08-10",
+    eventKey: citedCandidate.eventKey,
+    whyNow: citedCandidate.whyNow,
+    whyItMatters: citedCandidate.whyItMatters,
+  };
+  const invalidNewest: HistoricalContribution = {
+    storyId: "story-1",
+    revision: 2,
+    claims: [{ evidence: { reference: null } }],
+  };
+  const validOlder: HistoricalContribution = {
+    storyId: "story-1",
+    revision: 1,
+    claims: citedCandidate.claims,
+  };
+  expect(
+    selectLatestCarryForwardNewsContributions(
+      [
+        { contribution: invalidNewest, story },
+        { contribution: validOlder, story },
+      ],
+      [],
+    ).map((row) => row.contribution.revision),
+  ).toEqual([1]);
+  expect(
+    selectLatestCarryForwardNewsContributions(
+      [{ contribution: validOlder, story }],
+      [`${story.eventKey}\u0000${story.eventDate}`],
+    ),
+  ).toEqual([]);
 });
 
 it("publishes one current cited contribution as developing News without requiring creator authority", () => {

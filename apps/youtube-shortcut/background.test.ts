@@ -23,7 +23,7 @@ Object.assign(globalThis, {
 });
 
 const analysis = {
-  schemaVersion: 5 as const,
+  schemaVersion: 6 as const,
   sourceStatus: "TRANSCRIPT_USED" as const,
   sourceNote: "Transcript inspected.",
   summary: "The claim is qualified.",
@@ -59,6 +59,15 @@ const analysis = {
   },
   concepts: ["Example", "Product Claim"],
   relatedCoverage: [],
+  comparisonReceipt: {
+    status: "sparse" as const,
+    asOfDay: "2026-07-22",
+    windowStartDay: "2026-07-08",
+    horizonDays: 14,
+    candidateCount: 0,
+    acceptedCount: 0,
+    limitation: "No eligible recent creator videos were available.",
+  },
   projectRelevance: [],
   clickbait: {
     answer: "The claim is qualified.",
@@ -121,8 +130,8 @@ test("job list is fetched from the local bridge", async () => {
 test("cache hit reuses analysis and thread id without a local-agent call", async () => {
   storage.clear();
   fetchCalls = 0;
-  storage.set("farplane-youtube-analysis-v5:dQw4w9WgXcQ", {
-    schemaVersion: 5,
+  storage.set("farplane-youtube-analysis-v6:dQw4w9WgXcQ", {
+    schemaVersion: 6,
     analysis,
     threadId: "thread-cached",
   });
@@ -147,8 +156,8 @@ test("cache hit reuses analysis and thread id without a local-agent call", async
 test("explicit reanalysis bypasses cache and replaces it with a fresh result", async () => {
   storage.clear();
   fetchCalls = 0;
-  storage.set("farplane-youtube-analysis-v5:dQw4w9WgXcQ", {
-    schemaVersion: 5,
+  storage.set("farplane-youtube-analysis-v6:dQw4w9WgXcQ", {
+    schemaVersion: 6,
     analysis,
     threadId: "thread-cached",
   });
@@ -181,8 +190,8 @@ test("explicit reanalysis bypasses cache and replaces it with a fresh result", a
     cached: false,
   });
   assert.equal(fetchCalls, 1);
-  assert.deepEqual(storage.get("farplane-youtube-analysis-v5:dQw4w9WgXcQ"), {
-    schemaVersion: 5,
+  assert.deepEqual(storage.get("farplane-youtube-analysis-v6:dQw4w9WgXcQ"), {
+    schemaVersion: 6,
     analysis: refreshedAnalysis,
     threadId: "thread-refreshed",
   });
@@ -206,8 +215,8 @@ test("cache miss stores the validated analysis and persistent thread id", async 
     cached: false,
   });
   assert.equal(fetchCalls, 1);
-  assert.deepEqual(storage.get("farplane-youtube-analysis-v5:dQw4w9WgXcQ"), {
-    schemaVersion: 5,
+  assert.deepEqual(storage.get("farplane-youtube-analysis-v6:dQw4w9WgXcQ"), {
+    schemaVersion: 6,
     analysis,
     threadId: "thread-new",
   });
@@ -242,8 +251,8 @@ test("a remote ready dossier is reused without requiring a local analysis payloa
 test("transcript-unavailable cache entries are not shown as answers", async () => {
   storage.clear();
   fetchCalls = 0;
-  storage.set("farplane-youtube-analysis-v5:dQw4w9WgXcQ", {
-    schemaVersion: 5,
+  storage.set("farplane-youtube-analysis-v6:dQw4w9WgXcQ", {
+    schemaVersion: 6,
     analysis: {
       ...analysis,
       sourceStatus: "TRANSCRIPT_UNAVAILABLE",
@@ -279,8 +288,8 @@ test("pre-News-enrichment cache entries are invalidated before they can reach th
   storage.clear();
   fetchCalls = 0;
   const { news: _news, ...preNewsAnalysis } = analysis;
-  storage.set("farplane-youtube-analysis-v5:dQw4w9WgXcQ", {
-    schemaVersion: 5,
+  storage.set("farplane-youtube-analysis-v6:dQw4w9WgXcQ", {
+    schemaVersion: 6,
     analysis: preNewsAnalysis,
     threadId: "thread-pre-news",
   });
@@ -298,12 +307,12 @@ test("pre-News-enrichment cache entries are invalidated before they can reach th
   assert.equal(fetchCalls, 1);
 });
 
-test("stale v4 cache entries are ignored and replaced by v5 analysis", async () => {
+test("stale v5 cache entries are ignored and replaced by v6 analysis", async () => {
   storage.clear();
   fetchCalls = 0;
-  storage.set("farplane-youtube-analysis-v4:dQw4w9WgXcQ", {
-    schemaVersion: 4,
-    analysis: { ...analysis, schemaVersion: 4 },
+  storage.set("farplane-youtube-analysis-v5:dQw4w9WgXcQ", {
+    schemaVersion: 5,
+    analysis: { ...analysis, schemaVersion: 5 },
     threadId: "thread-stale",
   });
   globalThis.fetch = async () => {
@@ -318,7 +327,7 @@ test("stale v4 cache entries are ignored and replaced by v5 analysis", async () 
   assert.equal(result.cached, false);
   assert.equal(result.threadId, "thread-v5");
   assert.equal(fetchCalls, 1);
-  assert.ok(storage.has("farplane-youtube-analysis-v5:dQw4w9WgXcQ"));
+  assert.ok(storage.has("farplane-youtube-analysis-v6:dQw4w9WgXcQ"));
 });
 
 test("invalid analysis reports the failing strict field path", async () => {

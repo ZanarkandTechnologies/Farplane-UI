@@ -1,7 +1,7 @@
 /** Browser-safe owner of the strict Video Intelligence analysis transport. */
 import { z } from "zod";
 
-export const ANALYSIS_SCHEMA_VERSION = 5 as const;
+export const ANALYSIS_SCHEMA_VERSION = 6 as const;
 
 const httpsReferenceSchema = z
   .string()
@@ -59,6 +59,18 @@ const relatedCoverageDecisionSchema = z
   })
   .strict();
 
+export const comparisonReceiptSchema = z
+  .object({
+    status: z.enum(["complete", "sparse", "failed", "not_run"]),
+    asOfDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+    windowStartDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+    horizonDays: z.number().int().min(2).max(14).nullable(),
+    candidateCount: z.number().int().min(0).max(12),
+    acceptedCount: z.number().int().min(0).max(8),
+    limitation: z.string().trim().min(1).max(1000).nullable(),
+  })
+  .strict();
+
 export const analysisSchema = z
   .object({
     schemaVersion: z.literal(ANALYSIS_SCHEMA_VERSION),
@@ -74,6 +86,7 @@ export const analysisSchema = z
     news: newsEnrichmentSchema.nullable(),
     concepts: z.array(z.string().trim().min(1).max(80)).max(12),
     relatedCoverage: z.array(relatedCoverageDecisionSchema).max(8),
+    comparisonReceipt: comparisonReceiptSchema,
     projectRelevance: z
       .array(
         z

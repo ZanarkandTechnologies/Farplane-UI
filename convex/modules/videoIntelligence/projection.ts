@@ -47,28 +47,32 @@ type ProjectionSource = {
 export const getVideoIntelligenceProjection = query({
   args: {},
   handler: async (ctx) => {
-    const [contentJobs, legacyJobs, structuredDossiers, storyRows, tagRows, contributionRows] =
-      await Promise.all([
-        ctx.db
-          .query("contentJobs")
-          .withIndex("by_kind_createdAtMs", (q) => q.eq("kind", "analyze_youtube"))
-          .order("desc")
-          .take(250),
-        // Transitional only: old Vidgard jobs are identified by bridge provenance, never tags.
-        ctx.db.query("resourceBankIngestionJobs").take(250),
-        ctx.db
-          .query("videoIntelligenceDossiers")
-          .withIndex("by_updatedAtMs")
-          .order("desc")
-          .take(250),
-        ctx.db
-          .query("videoIntelligenceStories")
-          .withIndex("by_updatedAtMs")
-          .order("desc")
-          .take(500),
-        ctx.db.query("videoIntelligenceTags").take(500),
-        ctx.db.query("videoIntelligenceContributions").take(1_500),
-      ]);
+    const [
+      contentJobs,
+      legacyJobs,
+      structuredDossiers,
+      currentRevisions,
+      storyRows,
+      tagRows,
+      contributionRows,
+    ] = await Promise.all([
+      ctx.db
+        .query("contentJobs")
+        .withIndex("by_kind_createdAtMs", (q) => q.eq("kind", "analyze_youtube"))
+        .order("desc")
+        .take(250),
+      // Transitional only: old Vidgard jobs are identified by bridge provenance, never tags.
+      ctx.db.query("resourceBankIngestionJobs").take(250),
+      ctx.db.query("videoIntelligenceDossiers").withIndex("by_updatedAtMs").order("desc").take(250),
+      ctx.db
+        .query("videoIntelligenceAnalysisRevisions")
+        .withIndex("by_lifecycle_createdAtMs", (q) => q.eq("lifecycle", "current"))
+        .order("desc")
+        .take(250),
+      ctx.db.query("videoIntelligenceStories").withIndex("by_updatedAtMs").order("desc").take(500),
+      ctx.db.query("videoIntelligenceTags").take(500),
+      ctx.db.query("videoIntelligenceContributions").take(1_500),
+    ]);
 
     const genericSources = (
       await Promise.all(
@@ -161,6 +165,9 @@ export const getVideoIntelligenceProjection = query({
         .filter((dossier) => dossier.resourceAssetId)
         .map((dossier) => [String(dossier.resourceAssetId), dossier]),
     );
+    const currentRevisionByDossier = new Map(
+      currentRevisions.map((revision) => [String(revision.dossierId), revision]),
+    );
     const activeDossierIds = new Set(structuredDossiers.map((dossier) => String(dossier._id)));
     const contributions: ContributionShape[] = contributionRows
       .filter((row) => activeDossierIds.has(String(row.dossierId)))
@@ -237,6 +244,8 @@ export const getVideoIntelligenceProjection = query({
         keyPoints: structured.keyPoints,
         recommendation: structured.recommendation,
         concepts: structured.concepts ?? [],
+        comparisonReceipt:
+          currentRevisionByDossier.get(dossierId)?.comparisonReceipt ?? notRunComparisonReceipt(),
         legacy: false,
         createdAt: iso(structured.createdAtMs),
         updatedAt: iso(structured.updatedAtMs),
@@ -320,9 +329,22 @@ function legacyDossier(source: ProjectionSource, videoId: string) {
     keyPoints: [],
     recommendation: null,
     concepts: [],
+    comparisonReceipt: notRunComparisonReceipt(),
     legacy: true,
     createdAt: iso(source.createdAtMs),
     updatedAt: iso(source.updatedAtMs),
+  };
+}
+
+function notRunComparisonReceipt() {
+  return {
+    status: "not_run" as const,
+    asOfDay: null,
+    windowStartDay: null,
+    horizonDays: null,
+    candidateCount: 0,
+    acceptedCount: 0,
+    limitation: "This dossier predates durable comparison receipts.",
   };
 }
 

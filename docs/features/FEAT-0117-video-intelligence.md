@@ -63,8 +63,10 @@ YouTube request
 - Claims are compared only within an already-linked story. Repeated claims
   across different dossiers become shared reporting; the rest remain
   source-specific reporting.
-- The story aggregate is the comparison surface. There is no separate
-  user-facing comparison-run entity.
+- The story aggregate remains a comparison surface. Dossier Related coverage
+  has no separate page or user-facing comparison-run entity; its current
+  immutable revision carries a small projected run receipt so the UI can
+  distinguish completed, sparse, failed, and not-run comparison state.
 - The current aggregate is rebuilt after every contribution write and remains
   reproducible from structured contributions.
 - Conservative `related` edges require either one shared non-generic tag plus
@@ -130,7 +132,10 @@ packet-supplied source/revision pairs and must classify each as the same concret
 development or the same active discussion with a source-grounded rationale.
 Shared industries, broad tags, evergreen themes, and the same creator are
 insufficient. Accepted pairs are revalidated and stored symmetrically against
-immutable revisions. If no candidate qualifies, Related coverage is empty.
+immutable revisions. The current revision also records the comparison horizon,
+window, candidate count, accepted count, status, and concise limitation. If no
+candidate qualifies, Related coverage has no edge rows but still projects this
+receipt; an empty result never silently removes the section.
 
 Concepts are a separate bounded list of descriptive dossier lenses. They may be
 displayed and counted, but they never create a comparison edge. Legacy Topic
@@ -209,8 +214,10 @@ including migration and skill boundaries, lives in
   Content is the all-source paginated entrypoint; News preserves this feature's
   cited reporting boundary; revision-backed comparison edges appear only as
   dossier-scoped **Related coverage** when another recent creator covers the
-  same development or active discussion; Concepts is a bounded tag adapter;
-  World remains the Entity Markdown projection.
+  same development or active discussion. The same dossier section always shows
+  current-revision receipt metadata for completed-zero, sparse, failed, or
+  not-run state; Concepts is a bounded tag adapter; World remains the Entity
+  Markdown projection.
 - The workspace is read-only. YouTube analysis still exposes its dossiers,
   project-relevance hints, story perspectives, and honest information flow;
   it has no write path and does not turn viewing into a Resource Bank Save.
@@ -243,6 +250,8 @@ including migration and skill boundaries, lives in
 - Candidate retrieval is an indexed, bounded 14-day scan followed by agent
   judgment; vector infrastructure is intentionally absent at the current corpus
   size. Legacy Topic rows are retained but never projected as Related coverage.
+- Comparison receipts expose counts, dates, status, and a bounded limitation,
+  never hidden chain-of-thought or candidate-level private reasoning.
 - Stored-data replay is cursor-bounded, preview-first, confirmation-gated, and
   no-delete. It may repair missing trusted date/publisher metadata, legacy
   revision creator authority, and progress, then upsert only explicitly reviewed
@@ -268,6 +277,9 @@ including migration and skill boundaries, lives in
 - Broad-topic, same-source, same-creator, stale, and superseded comparison
   candidates are rejected; a recent distinct-creator same-development fixture is
   accepted and projected bidirectionally.
+- Configured proof separately operates one honest zero-result receipt and one
+  real recent distinct-creator same-development pair; fixtures cannot substitute
+  for either user-visible state.
 - Every visible News result opens the exact HTTPS reference cited by a claim.
 - Existing Resource Bank YouTube assets appear as legacy dossiers before any
   Video Intelligence-specific backfill.

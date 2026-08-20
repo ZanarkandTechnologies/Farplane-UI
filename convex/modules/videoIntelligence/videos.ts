@@ -10,7 +10,7 @@ import { canonicalYouTubeUrl } from "../content/identifiers";
 import { ensureContentSource, getContentJobOrThrow } from "../content/records";
 import { contentJobProgressStageValidator, contentJobProgressValidator } from "../content/schema";
 import { timelineDayFromMs, timelineDayFromValue } from "../content/timeline";
-import { MAX_RELATED_COVERAGE_EDGES } from "./comparisonRules";
+import { assertComparisonReceipt, MAX_RELATED_COVERAGE_EDGES } from "./comparisonRules";
 import { normalizeComparisonIds, upsertComparisonDecision } from "./comparisons";
 import { normalizeTagKey } from "./domain";
 import {
@@ -21,6 +21,7 @@ import {
   isYouTubeChannelId,
   newsPublicationState,
   resolveNewsReferenceUrl,
+  selectLatestCarryForwardNewsContributions,
   topicMonth,
 } from "./editorial";
 import { canAdvanceVideoProgress } from "./progressModel";
@@ -294,6 +295,7 @@ export const completeVideo = mutation({
     if (args.analysis.relatedCoverage.length > MAX_RELATED_COVERAGE_EDGES) {
       throw new Error("video_intelligence_related_coverage_limit_exceeded");
     }
+    assertComparisonReceipt(args.analysis.comparisonReceipt, args.analysis.relatedCoverage.length);
     const job = await getVideoJobOrThrow(ctx, args.jobId);
     if (job.status === "ready") throw new Error("video_intelligence_job_already_completed");
     const source = await ctx.db.get(job.sourceId);
@@ -347,6 +349,13 @@ export const completeVideo = mutation({
           .withIndex("by_revisionId", (q) => q.eq("revisionId", previousRevision._id))
           .collect()
       : [];
+    const historicalContributions = previousRevision
+      ? await ctx.db
+          .query("videoIntelligenceContributions")
+          .withIndex("by_dossierId", (q) => q.eq("dossierId", dossierId))
+          .order("desc")
+          .take(100)
+      : [];
     const previousTopicCoverage = previousRevision
       ? await ctx.db
           .query("videoIntelligenceTopicCoverage")
@@ -368,6 +377,13 @@ export const completeVideo = mutation({
       revisionNumber: (latestRevision?.revisionNumber ?? 0) + 1,
       lifecycle: "current",
       sourceAuthorityKey,
+      comparisonReceipt: {
+        ...args.analysis.comparisonReceipt,
+        limitation:
+          args.analysis.comparisonReceipt.limitation === null
+            ? null
+            : clean(args.analysis.comparisonReceipt.limitation, 1_000),
+      },
       createdAtMs: now,
     });
     const eventKeysToRefresh = new Set<string>();
@@ -383,6 +399,8 @@ export const completeVideo = mutation({
     }
     const coveredTopicKeys = new Set<string>();
     const topicIdsToRefresh = new Set<Id<"videoIntelligenceTopics">>();
+    const currentNewsStoryIds = new Set<Id<"videoIntelligenceStories">>();
+    const currentNewsEventKeys = new Set<string>();
     for (const concept of normalizeConcepts(args.analysis.concepts)) {
       const tagIds = await resolveTags(ctx, [concept], dossierId, now);
       const topicIds = await addTopicCoverage(ctx, {
@@ -469,7 +487,10 @@ export const completeVideo = mutation({
           createdAtMs: now,
           updatedAtMs: now,
         });
-        eventKeysToRefresh.add(`${editorial.eventKey}\u0000${editorial.eventDay}`);
+        currentNewsStoryIds.add(storyId);
+        const eventComposite = `${editorial.eventKey}\u0000${editorial.eventDay}`;
+        currentNewsEventKeys.add(eventComposite);
+        eventKeysToRefresh.add(eventComposite);
       }
       const topicIds = await addTopicCoverage(ctx, {
         tagIds,
@@ -484,6 +505,35 @@ export const completeVideo = mutation({
         coveredTopicKeys,
       });
       for (const topicId of topicIds) topicIdsToRefresh.add(topicId);
+    }
+    // Reanalysis may omit additive News enrichment. Recover the newest exact-cited
+    // contribution per prior story so citation and News visibility do not disappear.
+    const historicalRows = await Promise.all(
+      historicalContributions.map(async (contribution) => ({
+        contribution,
+        story: await ctx.db.get(contribution.storyId),
+      })),
+    );
+    const carryForwardRows = selectLatestCarryForwardNewsContributions(
+      historicalRows.filter((row) => !currentNewsStoryIds.has(row.contribution.storyId)),
+      currentNewsEventKeys,
+    );
+    for (const { contribution, story } of carryForwardRows) {
+      const eventComposite = `${story.eventKey}\u0000${story.eventDate}`;
+      await ctx.db.insert("videoIntelligenceContributions", {
+        storyId: contribution.storyId,
+        dossierId,
+        revisionId,
+        sourceAuthorityKey,
+        frame: contribution.frame,
+        summary: contribution.summary,
+        claims: contribution.claims,
+        createdAtMs: now,
+        updatedAtMs: now,
+      });
+      currentNewsStoryIds.add(contribution.storyId);
+      currentNewsEventKeys.add(eventComposite);
+      eventKeysToRefresh.add(eventComposite);
     }
     if (previousRevision) {
       await ctx.db.patch(previousRevision._id, { lifecycle: "superseded", supersededAtMs: now });

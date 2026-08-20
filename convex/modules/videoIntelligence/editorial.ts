@@ -47,6 +47,61 @@ export function resolveNewsReferenceUrl(
   return claims.some((claim) => claim.evidence.reference?.trim() === candidate) ? candidate : null;
 }
 
+/**
+ * News enrichment is additive: omission in a later analysis is not a revocation.
+ * Only a previously published shape with the same exact cited HTTPS event key
+ * may advance to a new immutable revision.
+ */
+export function canCarryForwardNewsContribution(
+  story: {
+    eventDate?: string;
+    eventKey?: string;
+    whyNow?: string;
+    whyItMatters?: string;
+  },
+  claims: Array<{ evidence: { reference?: string | null } }>,
+): boolean {
+  return Boolean(
+    story.eventDate &&
+      isTimelineDay(story.eventDate) &&
+      story.whyNow?.trim() &&
+      story.whyItMatters?.trim() &&
+      resolveNewsReferenceUrl(story.eventKey, claims),
+  );
+}
+
+export function selectLatestCarryForwardNewsContributions<
+  TContribution extends {
+    storyId: unknown;
+    claims: Array<{ evidence: { reference?: string | null } }>;
+  },
+  TStory extends {
+    eventDate?: string;
+    eventKey?: string;
+    whyNow?: string;
+    whyItMatters?: string;
+  },
+>(
+  newestFirst: Array<{ contribution: TContribution; story: TStory | null }>,
+  currentEventKeys: Iterable<string>,
+): Array<{ contribution: TContribution; story: TStory }> {
+  const selectedStoryIds = new Set<string>();
+  const selectedEventKeys = new Set(currentEventKeys);
+  const selected: Array<{ contribution: TContribution; story: TStory }> = [];
+  for (const row of newestFirst) {
+    if (!row.story || !canCarryForwardNewsContribution(row.story, row.contribution.claims)) {
+      continue;
+    }
+    const storyId = String(row.contribution.storyId);
+    const eventComposite = `${row.story.eventKey}\u0000${row.story.eventDate}`;
+    if (selectedStoryIds.has(storyId) || selectedEventKeys.has(eventComposite)) continue;
+    selectedStoryIds.add(storyId);
+    selectedEventKeys.add(eventComposite);
+    selected.push({ contribution: row.contribution, story: row.story });
+  }
+  return selected;
+}
+
 export function newsPublicationState(
   hasCurrentCitedContribution: boolean,
   distinctAuthorityCount: number,

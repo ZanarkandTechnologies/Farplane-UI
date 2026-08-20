@@ -104,7 +104,13 @@ export async function buildComparisonCandidatePacket(
       keyPoints: dossier.keyPoints,
     });
   }
-  return { asOfDay, windowStartDay, candidates };
+  return {
+    status: "complete" as const,
+    asOfDay,
+    windowStartDay,
+    limitation: null,
+    candidates,
+  };
 }
 
 export async function upsertComparisonDecision(

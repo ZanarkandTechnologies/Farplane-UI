@@ -194,7 +194,13 @@ export const getTopicDetail = query({
 export const getDossierRelatedCoverage = query({
   args: { dossierId: v.id("videoIntelligenceDossiers") },
   handler: async (ctx, args) => {
-    const [asSideA, asSideB] = await Promise.all([
+    const [currentRevision, asSideA, asSideB] = await Promise.all([
+      ctx.db
+        .query("videoIntelligenceAnalysisRevisions")
+        .withIndex("by_dossier_lifecycle", (q) =>
+          q.eq("dossierId", args.dossierId).eq("lifecycle", "current"),
+        )
+        .first(),
       ctx.db
         .query("videoIntelligenceComparisonEdges")
         .withIndex("by_dossierA_createdAtMs", (q) => q.eq("dossierAId", args.dossierId))
@@ -212,11 +218,35 @@ export const getDossierRelatedCoverage = query({
     const related = await Promise.all(
       edges.map((edge) => toRelatedCoverageEdge(ctx, edge, args.dossierId)),
     );
-    return related
+    const items = related
       .filter((item): item is NonNullable<typeof item> => Boolean(item))
       .sort((left, right) => right.timelineDay.localeCompare(left.timelineDay));
+    const storedReceipt =
+      currentRevision?.comparisonReceipt ??
+      notRunComparisonReceipt("This dossier predates durable comparison receipts.");
+    return {
+      receipt: {
+        ...storedReceipt,
+        // Edges are reciprocal: another current revision can add coverage after this
+        // dossier's own pass. The public count must describe the current filtered rows.
+        acceptedCount: items.length,
+      },
+      items,
+    };
   },
 });
+
+function notRunComparisonReceipt(limitation: string) {
+  return {
+    status: "not_run" as const,
+    asOfDay: null,
+    windowStartDay: null,
+    horizonDays: null,
+    candidateCount: 0,
+    acceptedCount: 0,
+    limitation,
+  };
+}
 
 /** Curated links are authored references only; this mutation never writes World. */
 

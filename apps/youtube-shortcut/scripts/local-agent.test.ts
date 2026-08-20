@@ -25,8 +25,10 @@ import type {
 } from "./video-intelligence-cloud.js";
 
 const comparisonPacket = {
+  status: "complete" as const,
   asOfDay: "2026-08-12",
   windowStartDay: "2026-07-29",
+  limitation: null,
   candidates: [
     {
       sourceId: "source-related",
@@ -49,7 +51,7 @@ const comparisonPacket = {
 };
 
 const result: Analysis = {
-  schemaVersion: 5,
+  schemaVersion: 6,
   sourceStatus: "TRANSCRIPT_USED",
   sourceNote: "Transcript inspected.",
   summary: "The title's claim is directionally correct but constrained.",
@@ -85,6 +87,15 @@ const result: Analysis = {
   },
   concepts: ["Example product", "Product launch"],
   relatedCoverage: [],
+  comparisonReceipt: {
+    status: "complete",
+    asOfDay: "2026-08-12",
+    windowStartDay: "2026-07-29",
+    horizonDays: 14,
+    candidateCount: 1,
+    acceptedCount: 0,
+    limitation: "The supplied candidate did not cover the same development.",
+  },
   projectRelevance: [],
   clickbait: {
     answer: "Yes, with limits.",
@@ -312,6 +323,11 @@ test("related coverage accepts only server-owned same-development decisions", ()
         rationale: "Both videos evaluate the same Example product launch.",
       },
     ],
+    comparisonReceipt: {
+      ...result.comparisonReceipt,
+      acceptedCount: 1,
+      limitation: null,
+    },
   });
   assert.equal(comparison.news, null);
   assert.equal(
@@ -335,9 +351,25 @@ test("related coverage accepts only server-owned same-development decisions", ()
       ),
     /not supplied by the server/,
   );
+  assert.throws(
+    () =>
+      parseCodexAnalysis(
+        JSON.stringify({
+          ...comparison,
+          comparisonReceipt: { ...comparison.comparisonReceipt, candidateCount: 2 },
+        }),
+        comparisonPacket,
+      ),
+    /comparisonReceipt diverges/,
+  );
 });
 
-test("schema v5 rejects the retired top-level stories and topics transports", () => {
+test("schema v6 rejects historic receipts and retired top-level transports", () => {
+  assert.throws(() => analysisSchema.parse({ ...result, schemaVersion: 5 }));
+  assert.throws(() => {
+    const { comparisonReceipt: _comparisonReceipt, ...historic } = result;
+    return analysisSchema.parse(historic);
+  });
   assert.throws(() => analysisSchema.parse({ ...result, stories: [] }));
   assert.throws(() => analysisSchema.parse({ ...result, topics: [] }));
 });
@@ -444,6 +476,7 @@ test("Codex run is persistent, writable, skill-bound, and schema-constrained", a
   assert.ok(turn.outputSchema.properties.news);
   assert.ok(turn.outputSchema.properties.concepts);
   assert.ok(turn.outputSchema.properties.relatedCoverage);
+  assert.ok(turn.outputSchema.properties.comparisonReceipt);
   assert.match(turn.input[0].text, /source-related/);
 });
 
@@ -747,6 +780,52 @@ test("HTTP bridge preserves the persistent thread id when analysis fails", async
       error: "Structured result rejected",
     },
   );
+});
+
+test("comparison retrieval failure remains an explicit receipt instead of losing the dossier", async (t) => {
+  const store = isolatedStore();
+  store.getComparisonCandidates = async () => {
+    throw new Error("comparison query unavailable");
+  };
+  const server = createLocalAgentServer(
+    async (_input, _onThreadStarted, _analysisProfile, packet) => {
+      assert.equal(packet?.status, "failed");
+      assert.equal(packet?.limitation, "Recent comparison candidates could not be loaded.");
+      return {
+        analysis: {
+          ...result,
+          relatedCoverage: [],
+          comparisonReceipt: {
+            status: "failed",
+            asOfDay: packet?.asOfDay ?? null,
+            windowStartDay: packet?.windowStartDay ?? null,
+            horizonDays: 14,
+            candidateCount: 0,
+            acceptedCount: 0,
+            limitation: packet?.limitation ?? "Comparison candidates unavailable.",
+          },
+        },
+        threadId: "thread-comparison-failed",
+      };
+    },
+    store,
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => server.close());
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const response = await fetch(`http://127.0.0.1:${address.port}/analyze-youtube`, {
+    method: "POST",
+    headers: {
+      origin: FARPLANE_EXTENSION_ORIGIN,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ videoId: "dQw4w9WgXcQ", title: "Claim?" }),
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.analysis.comparisonReceipt.status, "failed");
 });
 
 test("HTTP bridge returns ready reuse without launching or completing analysis", async (t) => {

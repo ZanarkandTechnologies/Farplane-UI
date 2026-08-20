@@ -11,6 +11,16 @@ export const MAX_RELATED_COVERAGE_EDGES = 8;
 
 export type ComparisonRelationship = "same_development" | "same_active_discussion";
 
+export type ComparisonReceipt = {
+  status: "complete" | "sparse" | "failed" | "not_run";
+  asOfDay: string | null;
+  windowStartDay: string | null;
+  horizonDays: number | null;
+  candidateCount: number;
+  acceptedCount: number;
+  limitation: string | null;
+};
+
 export type ComparisonFacts = {
   asOfDay: string;
   originSourceId: string;
@@ -105,6 +115,53 @@ export function comparisonWindowStartDay(asOfDay: string): string {
   )
     .toISOString()
     .slice(0, 10);
+}
+
+/** Enforces the persisted receipt independently of the model-facing Zod transport. */
+export function assertComparisonReceipt(
+  receipt: ComparisonReceipt,
+  acceptedDecisionCount: number,
+): void {
+  if (
+    !Number.isInteger(receipt.candidateCount) ||
+    receipt.candidateCount < 0 ||
+    receipt.candidateCount > MAX_COMPARISON_CANDIDATES ||
+    !Number.isInteger(receipt.acceptedCount) ||
+    receipt.acceptedCount < 0 ||
+    receipt.acceptedCount > MAX_RELATED_COVERAGE_EDGES ||
+    receipt.acceptedCount !== acceptedDecisionCount ||
+    receipt.acceptedCount > receipt.candidateCount
+  ) {
+    throw new Error("comparison_receipt_count_invalid");
+  }
+  const limitation = receipt.limitation?.trim() ?? "";
+  if (receipt.status === "complete" || receipt.status === "sparse") {
+    if (
+      !receipt.asOfDay ||
+      !isTimelineDay(receipt.asOfDay) ||
+      receipt.windowStartDay !== comparisonWindowStartDay(receipt.asOfDay) ||
+      receipt.horizonDays !== RECENT_COMPARISON_WINDOW_DAYS
+    ) {
+      throw new Error("comparison_receipt_window_invalid");
+    }
+    if (
+      (receipt.status === "complete" && receipt.candidateCount === 0) ||
+      (receipt.status === "sparse" && receipt.candidateCount !== 0)
+    ) {
+      throw new Error("comparison_receipt_status_invalid");
+    }
+  } else if (receipt.acceptedCount !== 0) {
+    throw new Error("comparison_receipt_status_invalid");
+  }
+  if (
+    (receipt.status === "sparse" ||
+      receipt.status === "failed" ||
+      receipt.status === "not_run" ||
+      receipt.acceptedCount === 0) &&
+    !limitation
+  ) {
+    throw new Error("comparison_receipt_limitation_missing");
+  }
 }
 
 export function canonicalComparisonPair(
