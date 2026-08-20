@@ -55,6 +55,22 @@ export type RelatedCoverageItem = {
   timelineDay: string;
 };
 
+export type RelatedCoverageReceipt = {
+  status: "complete" | "sparse" | "failed" | "not_run";
+  asOfDay: string | null;
+  windowStartDay: string | null;
+  horizonDays: number | null;
+  candidateCount: number;
+  acceptedCount: number;
+  /** Concise projected constraint; never internal comparison reasoning. */
+  limitation: string | null;
+};
+
+export type RelatedCoverageProjection = {
+  receipt: RelatedCoverageReceipt;
+  items: RelatedCoverageItem[];
+};
+
 export type NewsDetail = {
   id: string;
   title: string;
@@ -167,7 +183,7 @@ export function useDossierRelatedCoverage(dossierId: string | null) {
   return useQuery(
     api.modules.videoIntelligence.editorialProjection.getDossierRelatedCoverage,
     enabled && dossierId ? { dossierId: dossierId as Id<"videoIntelligenceDossiers"> } : "skip",
-  ) as RelatedCoverageItem[] | undefined;
+  ) as RelatedCoverageProjection | undefined;
 }
 
 function buildTimeline<T extends { id: string }>(

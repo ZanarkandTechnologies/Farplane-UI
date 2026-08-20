@@ -3,7 +3,7 @@ kind: module-guide
 status: active
 project: Farplane UI
 created_at: 2026-08-13
-updated_at: 2026-08-13
+updated_at: 2026-08-20
 owner: content-platform
 source_of_truth: ../../../../docs/features/FEAT-0117-video-intelligence.md
 ---
@@ -73,6 +73,22 @@ or World clears the active detail overlay immediately and reveals that tab's
 retained library state. Back remains the way to return to the originating
 library/detail context.
 
+## Related Coverage contract
+
+The dossier owns one current-revision comparison projection:
+
+```ts
+getDossierRelatedCoverage(dossierId) -> { receipt, items }
+```
+
+The receipt remains visible whether accepted comparable takes exist or the
+comparison completed with zero matches, had a sparse eligible pool, failed, or
+was not run. It reports the projected window, horizon, candidate count,
+accepted count, and concise limitation without exposing internal reasoning.
+Accepted items remain flat, edge-backed links to distinct creator dossiers and
+their exact external sources. Concepts stays a separate bounded dossier/tag
+lens and never supplies comparison edges.
+
 ## Ownership map
 
 - `components/content-intelligence-data-controller.tsx`: warm subscription
@@ -86,8 +102,8 @@ library/detail context.
 - `components/content-intelligence-view-primitives.tsx`: date rendering,
   terminal state, and the shared end sentinel.
 - `hooks/use-content-intelligence-timeline.ts`: Content date feed.
-- `hooks/use-editorial-intelligence.ts`: News date feed, filters, and related
-  coverage reads.
+- `hooks/use-editorial-intelligence.ts`: News date feed, filters, and the
+  current-revision Related Coverage projection.
 - `lib/timeline-feed.ts`: pure day-page replacement/append behavior.
 
 ## Proof

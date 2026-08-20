@@ -16,6 +16,7 @@ import { useNewsDetail } from "../hooks/use-editorial-intelligence";
 import {
   type ContentIntelligencePrimaryTab,
   contentIntelligencePrimaryTabs,
+  contentThumbnailUrl,
   dossierBackLabel,
 } from "../lib/content-intelligence-model";
 import type { ContentIntelligenceItem, ContentIntelligencePanelProps } from "../types";
@@ -406,10 +407,15 @@ function VideoDossierDetailView({
 }) {
   const dossier = useVideoDossierDetail(dossierId);
   const title = dossier?.title ?? preview?.title ?? "Opening dossier";
+  const canonicalUrl = dossier?.canonicalUrl ?? preview?.canonicalRef;
+  const thumbnailUrl = canonicalUrl
+    ? contentThumbnailUrl({ canonicalRef: canonicalUrl, sourceKind: "video" })
+    : undefined;
   return (
     <DossierShell
       title={title}
-      canonicalUrl={dossier?.canonicalUrl ?? preview?.canonicalRef}
+      canonicalUrl={canonicalUrl}
+      thumbnailUrl={thumbnailUrl}
       backLabel={backLabel}
       onBack={onBack}
       data-testid="content-video-dossier-detail"

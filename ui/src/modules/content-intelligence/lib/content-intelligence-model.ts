@@ -1,3 +1,4 @@
+import type { RelatedCoverageProjection } from "../hooks/use-editorial-intelligence";
 import type { ContentIntelligenceItem, ContentJob } from "../types";
 
 /** Primary places to read; recurring Topics remain dossier-scoped context. */
@@ -19,6 +20,48 @@ export type ContentJobProgressView = {
   updatedAt: string;
   action: { kind: "open_source"; label: string } | null;
 };
+
+export type RelatedCoverageReceiptView = {
+  state: "matches" | "complete_zero" | "sparse" | "failed" | "not_run";
+  title: string;
+  summary: string;
+  windowLabel: string;
+  horizonLabel: string;
+  candidateLabel: string;
+  acceptedLabel: string;
+  limitation: string | null;
+};
+
+/** Turns the current dossier revision's comparison receipt into honest, bounded UI copy. */
+export function relatedCoverageReceiptView(
+  projection: RelatedCoverageProjection,
+): RelatedCoverageReceiptView {
+  const { items, receipt } = projection;
+  const state = items.length
+    ? "matches"
+    : receipt.status === "complete"
+      ? "complete_zero"
+      : receipt.status;
+  const copy = relatedCoverageStateCopy(state);
+  const limitation = receipt.limitation?.trim() || copy.fallbackLimitation;
+
+  return {
+    state,
+    title: copy.title,
+    summary: copy.summary,
+    windowLabel:
+      receipt.windowStartDay && receipt.asOfDay
+        ? `${receipt.windowStartDay} – ${receipt.asOfDay}`
+        : "Not recorded",
+    horizonLabel:
+      receipt.horizonDays === null
+        ? "Not recorded"
+        : `${countFormatter.format(receipt.horizonDays)} ${receipt.horizonDays === 1 ? "day" : "days"}`,
+    candidateLabel: countFormatter.format(receipt.candidateCount),
+    acceptedLabel: countFormatter.format(receipt.acceptedCount),
+    limitation,
+  };
+}
 
 /**
  * Analysis is the primary Content lifecycle. A newer Save or Feed Scout job
@@ -150,6 +193,47 @@ function youtubeVideoId(value: string): string | undefined {
     return candidate && /^[A-Za-z0-9_-]{11}$/.test(candidate) ? candidate : undefined;
   } catch {
     return undefined;
+  }
+}
+
+const countFormatter = new Intl.NumberFormat("en-US");
+
+function relatedCoverageStateCopy(state: RelatedCoverageReceiptView["state"]): {
+  title: string;
+  summary: string;
+  fallbackLimitation: string | null;
+} {
+  switch (state) {
+    case "matches":
+      return {
+        title: "Comparable Takes Found",
+        summary: "Accepted creator videos are listed below.",
+        fallbackLimitation: null,
+      };
+    case "complete_zero":
+      return {
+        title: "No Comparable Takes Found",
+        summary: "The comparison completed without an accepted match.",
+        fallbackLimitation: "No candidate met the accepted comparison criteria in this window.",
+      };
+    case "sparse":
+      return {
+        title: "Comparison Pool Is Sparse",
+        summary: "No eligible creator videos were available for a reliable comparison.",
+        fallbackLimitation: "The current comparison window contains no eligible candidates.",
+      };
+    case "failed":
+      return {
+        title: "Comparison Check Failed",
+        summary: "The latest comparison attempt did not produce a verified result.",
+        fallbackLimitation: "Comparable coverage is unavailable until a later analysis succeeds.",
+      };
+    case "not_run":
+      return {
+        title: "Comparison Not Run",
+        summary: "This dossier revision does not have a comparison receipt.",
+        fallbackLimitation: "No comparison result is available for this revision.",
+      };
   }
 }
 
