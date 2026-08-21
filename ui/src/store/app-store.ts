@@ -114,6 +114,8 @@ interface AppState {
   setActiveTeamForOptions: (team: TeamData | null) => void;
   activeChatParticipant: Record<string, unknown> | null;
   setActiveChatParticipant: (participant: Record<string, unknown> | null) => void;
+  pendingRoomHostEmployeeId: OfficeId<"employees"> | null;
+  setPendingRoomHostEmployeeId: (employeeId: OfficeId<"employees"> | null) => void;
   debugMode: boolean;
   setDebugMode: (enabled: boolean) => void;
   officeOverlays: OfficeOverlaySettings;
@@ -183,6 +185,8 @@ interface AppState {
   setContentIntelligenceInitialTab: (tab: ContentIntelligenceInitialTab) => void;
   isDocumentLibraryPanelOpen: boolean;
   setIsDocumentLibraryPanelOpen: (isOpen: boolean) => void;
+  activeFacilitySpecialistId: string | null;
+  setActiveFacilitySpecialistId: (specialistId: string | null) => void;
   selectedSkillStudioSkillId: string | null;
   setSelectedSkillStudioSkillId: (skillId: string | null) => void;
   skillStudioFocusAgentId: string | null;
@@ -227,6 +231,8 @@ export const useAppStore = create<AppState>()(
     setActiveTeamForOptions: (team) => set({ activeTeamForOptions: team }),
     activeChatParticipant: null,
     setActiveChatParticipant: (participant) => set({ activeChatParticipant: participant }),
+    pendingRoomHostEmployeeId: null,
+    setPendingRoomHostEmployeeId: (employeeId) => set({ pendingRoomHostEmployeeId: employeeId }),
     debugMode: false,
     setDebugMode: (enabled) => set({ debugMode: enabled }),
     officeOverlays: {
@@ -339,6 +345,9 @@ export const useAppStore = create<AppState>()(
     setContentIntelligenceInitialTab: (tab) => set({ contentIntelligenceInitialTab: tab }),
     isDocumentLibraryPanelOpen: false,
     setIsDocumentLibraryPanelOpen: (isOpen) => set({ isDocumentLibraryPanelOpen: isOpen }),
+    activeFacilitySpecialistId: null,
+    setActiveFacilitySpecialistId: (specialistId) =>
+      set({ activeFacilitySpecialistId: specialistId }),
     selectedSkillStudioSkillId: null,
     setSelectedSkillStudioSkillId: (skillId) => set({ selectedSkillStudioSkillId: skillId }),
     skillStudioFocusAgentId: null,

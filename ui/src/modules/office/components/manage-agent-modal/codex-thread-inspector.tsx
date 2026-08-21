@@ -39,15 +39,18 @@ import {
   normalizeThreadId,
   resolveEmployeeThreadId,
 } from "./codex-thread-inspector-logic";
+import { CapabilityProfilePanel } from "./capability-profile-panel";
 
 type InspectorNodeKind = "current" | "root" | "task" | "ephemeral";
 
 export function CodexThreadInspector({
   employee,
+  projectPath,
   open,
   onOpenChange,
 }: {
   employee: EmployeeData | null;
+  projectPath?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): ReactElement {
@@ -178,6 +181,7 @@ export function CodexThreadInspector({
             ) : null}
           </DialogDescription>
           {goal ? <CodexThreadGoalCard goal={goal} /> : null}
+          {projectPath ? <CapabilityProfilePanel projectPath={projectPath} open={open} /> : null}
         </DialogHeader>
 
         <div className="min-h-0 p-3 sm:p-4">

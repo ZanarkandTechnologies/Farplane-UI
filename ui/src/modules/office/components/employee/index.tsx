@@ -27,8 +27,8 @@ import type {
   EmployeeData,
   EmployeeIdleInteractionTarget,
 } from "@/modules/office/lib/types";
-import type { AgentState, TeamCharacterPolicy } from "@/modules/runtime";
 import { useRealtimeCallStore } from "@/modules/realtime-call";
+import type { AgentState, TeamCharacterPolicy } from "@/modules/runtime";
 import { useAppStore } from "@/store";
 import { resolveTeamCharacter } from "../../team-character-policy";
 import { ContextMenu } from "../context-menu";
@@ -91,6 +91,8 @@ export interface EmployeeProps {
   observedRuntime?: EmployeeData["observedRuntime"];
   teamCharacterPolicy?: TeamCharacterPolicy;
   teamCharacterPreview?: TeamCharacterPreviewDetail;
+  /** Resolved display label for the Project PM's equipped access policy. */
+  capabilityProfileLabel?: string;
   profileImageUrl?: string;
   useCompactOverlayMode?: boolean;
   appearance?: {
@@ -171,6 +173,7 @@ const Employee = memo(function Employee({
   observedRuntime,
   teamCharacterPolicy,
   teamCharacterPreview,
+  capabilityProfileLabel,
   useCompactOverlayMode = false,
   appearance,
 }: EmployeeProps) {
@@ -460,6 +463,7 @@ const Employee = memo(function Employee({
           name={name}
           jobTitle={jobTitle}
           team={team}
+          capabilityProfileLabel={capabilityProfileLabel}
           totalHeight={TOTAL_HEIGHT}
           debugMode={debugMode}
           debugDeskDecision={debugDeskDecision}

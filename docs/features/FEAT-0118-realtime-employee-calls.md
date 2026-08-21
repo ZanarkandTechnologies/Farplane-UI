@@ -18,29 +18,31 @@ external_grounding:
   - official LiveKit React Components documentation
 ---
 
-# Realtime Employee Calls
+# Realtime Employee Calls (Independent of Access Profiles)
 
 Farplane operators can call one employee directly or Ctrl/Cmd-click several
-employees from one project or the executive office and start a shared LiveKit room. A tracked
-`farplane/agents.yaml` overlay supplies presentation, voice, and optional
-turn-snapshot vision without replacing the canonical runtime `agentId` or
-company lifecycle model.
+employees from one project or the executive office and start a shared LiveKit room.
+This retained call feature uses a bounded presentation/voice identity, without
+replacing the canonical runtime `agentId` or company lifecycle model. It is not
+a Project PM access profile: skills and MCP restrictions are owned only by
+`farplane/capability-profiles.yaml` and are compiled when a new Codex Project PM
+thread starts.
 
-## Profile Contract
+## Call Identity Contract
 
 `load_project_profiles(projectPath) -> agentId-keyed browser projection`
 
-- The profile fields are independently useful: `name`, `title`, `background`,
+- The call-identity fields are independently useful: `name`, `title`, `background`,
   `portrait`, optional procedural monitor-face `appearance`, `voice`, and
   `vision.mode`.
 - `appearance` contains only reusable identity tokens: accent, skin tone, hair
-  color, and eyebrow geometry. It powers the call tile and profile inspector;
+  color, and eyebrow geometry. It powers the call tile and studio-host inspector;
   the portrait remains the fallback asset.
 - `voice` implies a realtime voice participant; there is no redundant
   `realtime.enabled` field.
 - Portraits must be project-relative and are served through a contained local
   bridge path.
-- The UI marks every loaded project profile with `Local override`.
+- A call identity is never displayed as an equipped Project PM access profile.
 - LiveKit credentials stay in Doppler-injected `LIVEKIT_*` environment values.
 
 ## Call Contract
@@ -50,17 +52,17 @@ company lifecycle model.
 - A direct `Call` employee action and the floating `Call N` roster launcher
   reach the same setup dialog.
 - One call may contain one to eight unique agents from exactly one trusted scope.
-- Finance, People Operations, and Office Manager are persistent office personas
+- Finance, People Operations, and Office Manager are persistent office hosts
   seated with the CEO; they can share an office-scoped call without belonging to
   a project or consuming a continuously running worker.
 - Office specialists and project workers cannot be mixed in the same call in
   this slice.
-- The server reloads selected profiles from the tracked project file before
-  dispatch, so browser-supplied persona or voice configuration is not trusted.
+- The server reloads selected call identities from the tracked project file before
+  dispatch, so browser-supplied voice configuration is not trusted.
 - One explicit dispatch creates one named LiveKit participant per agent.
 - A trusted session creator may supply one bounded, dispatch-scoped opening
   prompt. It controls only the first greeting; it does not modify the tracked
-  agent profile or bypass the worker's profile and media safeguards.
+  call identity or bypass the worker's media safeguards.
 - In group calls, an agent responds only when its configured name appears in
   the completed user turn. General `team` or `everyone` prompts stay silent.
 - The call dialog uses a near-full-screen stage; multi-agent tiles expand across
@@ -68,13 +70,13 @@ company lifecycle model.
 
 ## Text Chat Contract
 
-- Every executive specialist exposes `Chat`, `Call`, and `View Agent` actions.
+- Every studio host exposes `Chat`, `Call`, and `View Studio Host` actions.
 - In Codex mode, the first text message creates one named backing thread with
-  developer instructions derived from the validated profile's identity and
+  developer instructions derived from the validated call identity and
   background. Later messages reuse that thread.
 - Backing threads are hidden from ordinary office worker projections, preventing
   duplicate employees while retaining durable conversation history.
-- The composer remains disabled until the local profile loads. A sent Codex turn
+- The composer remains disabled until the local call identity loads. A sent Codex turn
   stays pending until it completes or returns a visible terminal runtime error.
 
 ## Media And Vision Contract

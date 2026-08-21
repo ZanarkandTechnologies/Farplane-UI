@@ -49,6 +49,7 @@ type EmployeeStatusBubblesProps = {
   name: string;
   jobTitle?: string;
   team?: string;
+  capabilityProfileLabel?: string;
   totalHeight: number;
   debugMode: boolean;
   debugDeskDecision: string;
@@ -75,6 +76,17 @@ function EmployeePersistenceLabel({ tag }: { tag: EmployeePersistenceTag }) {
     >
       <span className="size-1 rounded-full bg-current opacity-80" />
       {tag}
+    </span>
+  );
+}
+
+function AccessProfilePill({ label }: { label: string }) {
+  return (
+    <span
+      data-testid="employee-capability-profile-pill"
+      className="inline-flex items-center rounded-full border border-current/20 bg-current/5 px-1.5 py-0.5 text-[9px] font-semibold leading-none opacity-90"
+    >
+      Access profile · {label}
     </span>
   );
 }
@@ -135,6 +147,7 @@ function EmployeeActivityBadge({
   compact,
   fixedBannerSize,
   persistenceTag,
+  capabilityProfileLabel,
 }: {
   state: EmployeeActivityState;
   label?: string;
@@ -145,6 +158,7 @@ function EmployeeActivityBadge({
   compact: boolean;
   fixedBannerSize: boolean;
   persistenceTag?: EmployeePersistenceTag;
+  capabilityProfileLabel?: string;
 }) {
   const style = getActivityBadgeStyle(state);
   const displayLabel = label?.trim() || style.label;
@@ -184,6 +198,11 @@ function EmployeeActivityBadge({
         {persistenceTag ? (
           <div className="mt-1.5 border-t border-current/15 pt-1.5 leading-none">
             <EmployeePersistenceLabel tag={persistenceTag} />
+          </div>
+        ) : null}
+        {focused && capabilityProfileLabel ? (
+          <div className="mt-1.5">
+            <AccessProfilePill label={capabilityProfileLabel} />
           </div>
         ) : null}
       </div>
@@ -245,6 +264,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
   name,
   jobTitle,
   team,
+  capabilityProfileLabel,
   totalHeight,
   debugMode,
   debugDeskDecision,
@@ -351,6 +371,7 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
           compact={useCompactOverlayMode}
           fixedBannerSize={showPinnedReadyBadge}
           persistenceTag={persistenceTag}
+          capabilityProfileLabel={capabilityProfileLabel}
         />
       ) : null}
 
@@ -372,6 +393,11 @@ export const EmployeeStatusBubbles = memo(function EmployeeStatusBubbles({
               <div className="font-semibold">{name}</div>
               {jobTitle ? <div className="mt-0.5 text-[10px] opacity-80">{jobTitle}</div> : null}
               {team ? <div className="mt-0.5 text-[10px] opacity-60">{team}</div> : null}
+              {capabilityProfileLabel ? (
+                <div className="mt-1">
+                  <AccessProfilePill label={capabilityProfileLabel} />
+                </div>
+              ) : null}
               {presenceTimeLeft ? (
                 <div className="mt-1 border-t border-current/20 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] opacity-80">
                   {presenceTimeLeft}

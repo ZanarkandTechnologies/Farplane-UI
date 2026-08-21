@@ -28,6 +28,7 @@ function makePanelState(
     isTelemetryPanelOpen: false,
     manageAgentEmployeeId: null,
     memoryPanelEmployeeId: null,
+    pendingRoomHostEmployeeId: null,
     viewComputerEmployeeId: null,
     ...overrides,
   };
@@ -58,6 +59,7 @@ describe("office render policy", () => {
     "activeObjectPanel",
     "manageAgentEmployeeId",
     "memoryPanelEmployeeId",
+    "pendingRoomHostEmployeeId",
     "viewComputerEmployeeId",
   ] as const)("treats a populated %s as blocking", (key) => {
     expect(hasBlockingOfficePanel(makePanelState({ [key]: "open" }))).toBe(true);

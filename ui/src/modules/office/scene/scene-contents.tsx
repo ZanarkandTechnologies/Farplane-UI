@@ -57,6 +57,7 @@ import {
 import { updateOfficeQaState } from "@/modules/office/qa/office-qa-state";
 import { useOfficeWorldStore } from "@/modules/office/store";
 import { applySyntheticSkillDemo } from "@/modules/office/synthetic-skill-demo";
+import { useProjectCapabilityProfiles } from "@/modules/office/hooks/use-project-capability-profiles";
 import type { SkillInvocationDashboard } from "@/modules/skill-invocations/skill-invocations-types";
 import { isConvexEnabled } from "@/providers/convex-provider";
 import { useAppStore } from "@/store";
@@ -226,6 +227,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
   const currentEmployeeId = useChatStore((state) => state.currentEmployeeId);
   const presentationMode = useChatStore((state) => state.presentationMode);
   const selectedAgentId = useAppStore((state) => state.selectedAgentId);
+  const setActiveFacilitySpecialistId = useAppStore((state) => state.setActiveFacilitySpecialistId);
   const isStoryMode = isChatOpen && presentationMode === "story";
 
   const officeTheme = useOfficeSceneTheme();
@@ -286,6 +288,17 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
     const visibleTeamIds = new Set(teams.map((team) => String(team._id)));
     return (projects ?? []).filter((project) => visibleTeamIds.has(`team-${project.id}`));
   }, [projects, teams]);
+  const projectCapabilityProfiles = useProjectCapabilityProfiles(
+    visibleProjects.map((project) => project.trackingContext ?? ""),
+    !sceneBuilderMode,
+  );
+  const projectPathById = useMemo(
+    () =>
+      new Map(
+        visibleProjects.map((project) => [project.id, project.trackingContext?.trim() ?? ""]),
+      ),
+    [visibleProjects],
+  );
   const projectCouncilLayout = useMemo(
     () =>
       buildProjectCouncilLayout(
@@ -439,9 +452,12 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
     state.setSelectedProjectId(target.projectId);
     state.setIsGlobalTeamPanelOpen(true);
   }, []);
-  const handleOpenCouncilProject = useCallback(
-    (projectId: string): void => handleOpenRoomActivity({ kind: "project", projectId }),
-    [handleOpenRoomActivity],
+  const handleOpenFacility = useCallback(
+    (specialistId: string): void => {
+      if (sceneBuilderMode) return;
+      setActiveFacilitySpecialistId(specialistId);
+    },
+    [sceneBuilderMode, setActiveFacilitySpecialistId],
   );
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -732,7 +748,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
       {isDepartmentArchipelago ? (
         <>
           <ProjectCouncil layout={projectCouncilLayout} />
-          <SpecialistStudioStations layout={projectCouncilLayout} />
+          <SpecialistStudioStations layout={projectCouncilLayout} onActivate={handleOpenFacility} />
         </>
       ) : null}
       <OfficeLayoutEditor showDebugLabels={overlayPlan.showLayoutDebugLabels} />
@@ -747,6 +763,12 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
         presentedEmployeesForScene.map((employee) => {
           const councilProjectId = isDepartmentArchipelago
             ? projectIdByCouncilLeadId.get(String(employee._id))
+            : undefined;
+          const councilProjectPath = councilProjectId
+            ? projectPathById.get(councilProjectId)
+            : undefined;
+          const capabilityProfile = councilProjectPath
+            ? projectCapabilityProfiles.profilesByProjectPath[councilProjectPath]?.active_profile
             : undefined;
           return (
             <Employee
@@ -765,7 +787,13 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
               gender={employee.gender}
               onClick={handleEmployeeClick}
               onActivate={
-                councilProjectId ? () => handleOpenCouncilProject(councilProjectId) : undefined
+                councilProjectId
+                  ? () => {
+                      const state = useAppStore.getState();
+                      state.setSelectedProjectId(councilProjectId);
+                      state.setManageAgentEmployeeId(employee._id);
+                    }
+                  : undefined
               }
               debugMode={overlayPlan.showAgentPaths}
               debugPathOverlay={overlayPlan.showAgentPaths}
@@ -795,6 +823,7 @@ export function SceneContents(props: OfficeSceneProps): React.JSX.Element {
                 teamId: employee.teamId ? String(employee.teamId) : undefined,
                 presencePersistent: employee.presencePersistent,
               })}
+              capabilityProfileLabel={capabilityProfile?.label}
               profileImageUrl={employee.profileImageUrl}
               useCompactOverlayMode={useCompactSceneOverlays}
               appearance={employee.appearance}

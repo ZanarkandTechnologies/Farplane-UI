@@ -2,6 +2,8 @@ import type { OpenClawAdapter } from "../openclaw";
 
 export type RuntimeAdapterKind = "codex" | "openclaw";
 
+export type CapabilityProfileRuntimeState = "unavailable" | "definition_only" | "launch_enforced";
+
 export type RuntimeAdapterCapabilities = {
   persistentAgents: boolean;
   agentConfigWrite: boolean;
@@ -11,6 +13,7 @@ export type RuntimeAdapterCapabilities = {
   skillEvalRuns: boolean;
   harnessGraph: boolean;
   agentSkillRuntimeControls: boolean;
+  capabilityProfiles: CapabilityProfileRuntimeState;
   toolPolicy: boolean;
   channels: boolean;
   scheduler: boolean;

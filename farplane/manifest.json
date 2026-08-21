@@ -79,6 +79,7 @@
         "docs/systems/README.md",
         "farplane/README.md",
         "farplane/agents.yaml",
+        "farplane/capability-profiles.yaml",
         "farplane/harness.yaml",
         "farplane/metrics.yaml",
         "farplane/automations.toml",

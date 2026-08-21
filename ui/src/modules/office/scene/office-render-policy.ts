@@ -26,6 +26,7 @@ export type OfficeBlockingPanelState = {
   isTelemetryPanelOpen: boolean;
   manageAgentEmployeeId: unknown;
   memoryPanelEmployeeId: unknown;
+  pendingRoomHostEmployeeId: unknown;
   viewComputerEmployeeId: unknown;
 };
 
@@ -49,6 +50,7 @@ export function hasBlockingOfficePanel(state: OfficeBlockingPanelState): boolean
       state.isTelemetryPanelOpen ||
       state.manageAgentEmployeeId ||
       state.memoryPanelEmployeeId ||
+      state.pendingRoomHostEmployeeId ||
       state.viewComputerEmployeeId,
   );
 }

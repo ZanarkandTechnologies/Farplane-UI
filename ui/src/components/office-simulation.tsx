@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Badge } from "@/components/ui/badge";
+import { UI_Z } from "@/lib/z-index";
 import ChatDialog from "@/modules/chat/components/chat-dialog";
 import {
   ContentIntelligenceDataController,
@@ -10,6 +11,7 @@ import { LeveragePanel } from "@/modules/leverage";
 import {
   AgentMemoryPanel,
   AgentSessionPanel,
+  FacilityConsole,
   LayoutEditorHudProvider,
   ManageAgentModal,
   ObjectConfigPanel,
@@ -28,12 +30,10 @@ import { SettingsDialog } from "@/modules/settings";
 import { SkillInvocationsPanel } from "@/modules/skill-invocations";
 import { TeamPanel } from "@/modules/team-workspace";
 import { TelemetryPanel } from "@/modules/telemetry";
-import { WorldMapPanel } from "@/modules/world-map";
 import { useCompanyWorldProjection } from "@/modules/world-map/hooks/use-company-world-projection";
 import { useOfficeAccessMode } from "@/providers/office-access-mode-provider";
 import { OfficeDataProvider, useOptionalOfficeDataContext } from "@/providers/office-data-provider";
 import { useAppStore } from "@/store";
-import { UI_Z } from "@/lib/z-index";
 import { TeamOptionsDialog } from "./dialogs/team-options-dialog";
 import { BuilderToolbar } from "./hud/builder-toolbar";
 import { CeoWorkbenchPanel } from "./hud/ceo-workbench-panel";
@@ -237,6 +237,7 @@ function OfficeSimulationContent() {
         {sceneShellReady ? (
           <>
             {!isReadOnly ? <ChatDialog /> : null}
+            {!isReadOnly ? <FacilityConsole /> : null}
             {!isReadOnly ? <RealtimeCallDialog /> : null}
             {!isReadOnly ? <RealtimeCallLauncher /> : null}
             {!isPublic ? <AgentMemoryPanel /> : null}

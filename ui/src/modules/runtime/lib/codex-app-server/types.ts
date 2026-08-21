@@ -8,6 +8,60 @@ export type CodexJson =
   | CodexJson[]
   | { [key: string]: CodexJson };
 
+export type CapabilityProfileAllowlist = {
+  skill_ids: string[];
+  mcp_server_ids: string[];
+};
+
+export type CapabilityProfileDefinition = {
+  label: string;
+  allow: CapabilityProfileAllowlist;
+  extends?: string;
+};
+
+export type CapabilityProfilesDocument = {
+  version: 1;
+  profiles: Record<string, CapabilityProfileDefinition>;
+  active_profile_ref?: string | null;
+};
+
+export type CodexCapabilityProfilesResponse = {
+  ok: true;
+  documents: {
+    global: { document: CapabilityProfilesDocument };
+    project: { document: CapabilityProfilesDocument };
+  };
+  catalog: { skill_ids: string[]; mcp_server_ids: string[] };
+  active_profile: {
+    ref: string;
+    label: string;
+    allow: CapabilityProfileAllowlist;
+    extends?: string;
+  } | null;
+  enforcement: {
+    state: "full_access" | "profiled";
+    policy_digest: string;
+  };
+};
+
+export type CodexSkillMetadata = {
+  name: string;
+  enabled: boolean;
+};
+
+export type CodexSkillsListResponse = {
+  data: Array<{
+    cwd: string;
+    skills: CodexSkillMetadata[];
+    errors: Array<{ path: string; message: string }>;
+  }>;
+};
+
+export type CodexMcpServerStatusListResponse = {
+  data: Array<{ name: string }>;
+  nextCursor: string | null;
+};
+
 export type CodexThreadStatus =
   | { type: "notLoaded" }
   | { type: "idle" }

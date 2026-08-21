@@ -104,6 +104,7 @@ const CODEX_CAPABILITIES: RuntimeAdapterCapabilities = {
   skillEvalRuns: true,
   harnessGraph: true,
   agentSkillRuntimeControls: false,
+  capabilityProfiles: "launch_enforced",
   toolPolicy: false,
   channels: false,
   scheduler: false,
@@ -234,6 +235,13 @@ type FarplaneAgentChatProfile = {
   background: string;
   conversationKey?: RoomHostConversationKey;
 };
+
+function readCapabilityProjectPath(request: ChatSendRequest): string | null {
+  const value = request.metadata?.farplaneCapabilityProjectPath;
+  if (typeof value !== "string") return null;
+  const path = value.trim();
+  return path.startsWith("/") && !path.includes("\0") ? path : null;
+}
 
 function boundedMetadataText(value: unknown, maxLength: number): string {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
@@ -708,6 +716,7 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
         return { ok: false, error: "codex_app_server_unavailable" };
       }
       const farplaneProfile = readFarplaneAgentChatProfile(input);
+      const capabilityProjectPath = readCapabilityProjectPath(input);
       let threadId = parseCodexThreadId(input.sessionKey || input.agentId);
       if (farplaneProfile) {
         const threads = await this.listCodexThreads({ force: true });
@@ -740,9 +749,12 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
             })?.id ?? "";
         }
         if (!threadId) {
-          const started = await this.codexClient.startThread({
-            developerInstructions: farplaneAgentDeveloperInstructions(farplaneProfile),
-          });
+          const developerInstructions = farplaneAgentDeveloperInstructions(farplaneProfile);
+          const started = capabilityProjectPath
+            ? await this.codexClient.startProjectThread(capabilityProjectPath, {
+                developerInstructions,
+              })
+            : await this.codexClient.startThread({ developerInstructions });
           threadId = started.thread?.id ?? "";
           if (threadId) {
             await this.codexClient.setThreadName(
@@ -756,7 +768,9 @@ export class CodexRuntimeAdapter extends OpenClawAdapter {
           }
         }
       } else if (!threadId || threadId === CODEX_MAIN_AGENT_ID) {
-        const started = await this.codexClient.startThread();
+        const started = capabilityProjectPath
+          ? await this.codexClient.startProjectThread(capabilityProjectPath)
+          : await this.codexClient.startThread();
         threadId = started.thread?.id ?? "";
       }
       if (!threadId) return { ok: false, error: "codex_thread_missing" };

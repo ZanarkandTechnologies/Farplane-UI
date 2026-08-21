@@ -46,7 +46,7 @@ export const OFFICE_CAPABILITY_DEPARTMENTS = [
     accentColor: "#a8ad76",
     roomIds: ["organization", "finance"],
     workflowSkillIds: ["knowledge-tidier", "update-memory"],
-    specialistIds: ["hiring-specialist", "finance-specialist"],
+    specialistIds: [],
   },
   {
     id: "sales",
@@ -82,13 +82,7 @@ export const OFFICE_CAPABILITY_DEPARTMENTS = [
     accentColor: "#9b8bc5",
     roomIds: ["self-improvement", "qa", "harness", "skills", "telemetry"],
     workflowSkillIds: ["init-advisor", "impl-plan", "automation-advisor", "agent-testability-plan"],
-    specialistIds: [
-      "qa-specialist",
-      "harness-specialist",
-      "skill-specialist",
-      "telemetry-specialist",
-      "improvement-specialist",
-    ],
+    specialistIds: ["skill-specialist"],
   },
   {
     id: "intelligence",
@@ -96,7 +90,7 @@ export const OFFICE_CAPABILITY_DEPARTMENTS = [
     accentColor: "#7fa9c0",
     roomIds: ["research", "thread-data"],
     workflowSkillIds: ["agency-opportunity-research", "feed-scout", "learn-from-video"],
-    specialistIds: ["research-specialist", "thread-intelligence-specialist"],
+    specialistIds: ["research-specialist", "customer-research-specialist"],
   },
   {
     id: "customer",
@@ -104,7 +98,7 @@ export const OFFICE_CAPABILITY_DEPARTMENTS = [
     accentColor: "#79b8a2",
     roomIds: ["research", "comms"],
     workflowSkillIds: ["customer-research"],
-    specialistIds: ["comms-specialist", "customer-research-specialist"],
+    specialistIds: [],
   },
 ] as const satisfies readonly OfficeCapabilityDepartment[];
 

@@ -544,6 +544,7 @@ function mapTimelineEventToLocal(
 export function useChatMessages(
   threadId: string | null,
   agentProfile: ProjectAgentProfile | null = null,
+  capabilityProjectPath = "",
 ): {
   messages: LocalChatMessage[];
   handleSubmit: (messageParam: unknown) => Promise<void>;
@@ -846,18 +847,25 @@ export function useChatMessages(
             agentId: selectedAgentId,
             sessionKey: effectiveSessionKey,
             message: text,
-            ...(agentProfile
+            ...(agentProfile || capabilityProjectPath
               ? {
                   metadata: {
-                    farplaneAgentProfile: {
-                      agentId: agentProfile.agentId,
-                      name: agentProfile.name ?? agentProfile.agentId,
-                      title: agentProfile.title ?? "",
-                      background: agentProfile.background ?? "",
-                      ...(activeThread?.conversationKey
-                        ? { conversationKey: activeThread.conversationKey }
-                        : {}),
-                    },
+                    ...(agentProfile
+                      ? {
+                          farplaneAgentProfile: {
+                            agentId: agentProfile.agentId,
+                            name: agentProfile.name ?? agentProfile.agentId,
+                            title: agentProfile.title ?? "",
+                            background: agentProfile.background ?? "",
+                            ...(activeThread?.conversationKey
+                              ? { conversationKey: activeThread.conversationKey }
+                              : {}),
+                          },
+                        }
+                      : {}),
+                    ...(capabilityProjectPath
+                      ? { farplaneCapabilityProjectPath: capabilityProjectPath }
+                      : {}),
                   },
                 }
               : {}),
@@ -918,6 +926,7 @@ export function useChatMessages(
       adapter,
       activeThread,
       agentProfile,
+      capabilityProjectPath,
       client,
       effectiveSessionKey,
       effectiveThreadId,

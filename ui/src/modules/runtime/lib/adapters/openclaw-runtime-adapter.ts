@@ -19,6 +19,7 @@ const OPENCLAW_CAPABILITIES: RuntimeAdapterCapabilities = {
   skillEvalRuns: true,
   harnessGraph: true,
   agentSkillRuntimeControls: true,
+  capabilityProfiles: "definition_only",
   toolPolicy: true,
   channels: true,
   scheduler: true,

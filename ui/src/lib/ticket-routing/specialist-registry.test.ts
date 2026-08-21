@@ -29,4 +29,21 @@ describe("ticket specialist registry", () => {
     expect(resolveTicketSpecialist("unknown-specialist")).toBeUndefined();
     expect(resolveTicketSpecialist(" ")).toBeUndefined();
   });
+
+  it("keeps phase skills and room-host expertise out of artifact studios", () => {
+    expect(resolveTicketSpecialist("qa-specialist")).toBeUndefined();
+    expect(resolveTicketSpecialist("harness-specialist")).toBeUndefined();
+    expect(resolveTicketSpecialist("hiring-specialist")).toBeUndefined();
+    expect(resolveTicketSpecialist("finance-specialist")).toBeUndefined();
+  });
+
+  it("gives every facility a concrete deliverable and optional preferred workflow", () => {
+    expect(
+      TICKET_SPECIALIST_REGISTRY.every((specialist) => specialist.deliverableLabel.length > 0),
+    ).toBe(true);
+    expect(resolveTicketSpecialist("lead-scout-specialist")).toMatchObject({
+      deliverableLabel: "a ranked prospect list",
+      primarySkillId: "lead-scout",
+    });
+  });
 });

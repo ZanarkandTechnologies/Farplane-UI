@@ -15,7 +15,12 @@ import { shuffleOfficeObjects } from "../cli/office-arrange";
 import type { OfficeObjectModel, OfficeSettingsModel } from "../cli/sidecar-store";
 import { buildNewTeamClusterObject } from "../cli/team-cluster-placement";
 import { createFinanceStore } from "../cli/finance-store";
-import { scanProjectTickets } from "../cli/project-ticket-store";
+import {
+  bindProjectTicketThread,
+  createProjectTicket,
+  scanProjectTickets,
+  updateProjectTicket,
+} from "../cli/project-ticket-store";
 import { readSelfImprovementRuns } from "./self-improvement-state";
 import {
   getSkillStudioDetail,
@@ -42,6 +47,12 @@ import {
   LOCAL_OBSERVED_CODEX_DISCOVERY_RANGE_MS,
   localFarplaneEventsToObservedCodexWorkers,
 } from "./src/providers/local-observed-codex-workers";
+import {
+  buildFacilityDeveloperInstructions,
+  buildFacilityTaskMessage,
+  buildFacilityTicketTitle,
+} from "./src/lib/ticket-routing/facility-job";
+import { resolveTicketSpecialist } from "./src/lib/ticket-routing/specialist-registry";
 import { resolveEvalArtifactsRoot } from "./src/modules/evals/lib/eval-artifacts";
 import {
   loadProjectAgentProfiles,
@@ -50,6 +61,14 @@ import {
 import { createRealtimeCallSession } from "./server/realtime-call";
 import { readLeverageProjection } from "./server/leverage-projection";
 import { stripSecretConfigValues } from "./server/runtime-config-sanitizer";
+import { toBrowserCapabilityProfilesResponse } from "./server/capability-profiles";
+import { launchCapabilityProfileThread } from "./server/capability-profile-launch";
+import type {
+  CodexCapabilityProfilesResponse,
+  CodexMcpServerStatusListResponse,
+  CodexSkillsListResponse,
+  CodexThreadStartResponse,
+} from "./src/modules/runtime/lib/codex-app-server/types";
 import {
   operatorSettingsAt,
   patchOperatorSettingsToml,
@@ -150,7 +169,7 @@ const FARPLANE_PROJECT_CONFIG_FILES = [
   { path: "farplane/harness.yaml", title: "Harness", kind: "harness", format: "yaml" },
   { path: "farplane/metrics.yaml", title: "Metrics", kind: "metrics", format: "yaml" },
   { path: "farplane/brand.yaml", title: "Brand", kind: "brand", format: "yaml" },
-  { path: "farplane/agents.yaml", title: "Agent Profiles", kind: "agents", format: "yaml" },
+  { path: "farplane/agents.yaml", title: "Main Agent Presentation", kind: "agents", format: "yaml" },
   { path: "farplane/automations.toml", title: "Automations", kind: "automations", format: "toml" },
   { path: "farplane/bindings.yaml", title: "Bindings", kind: "bindings", format: "yaml" },
   { path: "farplane/hooks.json", title: "Hooks", kind: "hooks", format: "json" },
@@ -1962,6 +1981,104 @@ async function requestCodexAppServerRpc(
     socket.removeEventListener?.("message", onMessage);
     socket.close();
   }
+}
+
+async function readCapabilityProfilePolicy(
+  projectPath: string,
+): Promise<CodexCapabilityProfilesResponse> {
+  const result = await runFarplaneFrameworkCli([
+    "capability-profiles",
+    "read",
+    "--project-root",
+    path.resolve(projectPath),
+  ]);
+  if (!result.ok || !result.payload || typeof result.payload !== "object") {
+    throw new Error(String(result.error ?? "capability_profiles_unavailable"));
+  }
+  const payload = toBrowserCapabilityProfilesResponse(result.payload);
+  if (!payload) throw new Error("capability_profiles_invalid");
+  return payload;
+}
+
+async function readCodexCapabilityRuntimeCatalog(
+  projectPath: string,
+): Promise<{ skillIds: string[]; mcpServerIds: string[] }> {
+  const resolvedProjectPath = path.resolve(projectPath);
+  const skillsResponse = (await requestCodexAppServerRpc("skills/list", {
+    cwds: [resolvedProjectPath],
+    forceReload: true,
+  })) as CodexSkillsListResponse;
+  const skillEntries = Array.isArray(skillsResponse?.data) ? skillsResponse.data : [];
+  const skillEntry =
+    skillEntries.find((entry) => path.resolve(entry.cwd) === resolvedProjectPath) ??
+    (skillEntries.length === 1 ? skillEntries[0] : undefined);
+  if (!skillEntry || !Array.isArray(skillEntry.skills) || !Array.isArray(skillEntry.errors)) {
+    throw new Error("capability_profile_skill_inventory_unavailable");
+  }
+  if (skillEntry.errors.length > 0) {
+    throw new Error("capability_profile_skill_inventory_incomplete");
+  }
+
+  const mcpServerIds = new Set<string>();
+  const seenCursors = new Set<string>();
+  let cursor: string | null = null;
+  do {
+    const response = (await requestCodexAppServerRpc("mcpServerStatus/list", {
+      ...(cursor ? { cursor } : {}),
+      limit: 100,
+      detail: "toolsAndAuthOnly",
+    })) as CodexMcpServerStatusListResponse;
+    if (!Array.isArray(response?.data)) {
+      throw new Error("capability_profile_mcp_inventory_unavailable");
+    }
+    for (const server of response.data) {
+      const name = typeof server.name === "string" ? server.name.trim() : "";
+      if (name) mcpServerIds.add(name);
+    }
+    cursor =
+      typeof response.nextCursor === "string" && response.nextCursor
+        ? response.nextCursor
+        : null;
+    if (cursor && seenCursors.has(cursor)) {
+      throw new Error("capability_profile_mcp_inventory_cursor_loop");
+    }
+    if (cursor) seenCursors.add(cursor);
+  } while (cursor);
+
+  return {
+    skillIds: [...new Set(skillEntry.skills.map((skill) => skill.name.trim()).filter(Boolean))]
+      .sort(),
+    mcpServerIds: [...mcpServerIds].sort(),
+  };
+}
+
+async function startCodexProjectThread(input: {
+  projectPath: string;
+  developerInstructions?: string;
+}): Promise<{ result: CodexThreadStartResponse; snapshotRecorded: boolean }> {
+  return launchCapabilityProfileThread(input, {
+    readPolicy: readCapabilityProfilePolicy,
+    readRuntimeCatalog: readCodexCapabilityRuntimeCatalog,
+    startThread: async (params) =>
+      (await requestCodexAppServerRpc("thread/start", params)) as CodexThreadStartResponse,
+    recordSnapshot: async (snapshot) => {
+      const args = [
+        "capability-profiles",
+        "snapshot",
+        "--project-root",
+        path.resolve(snapshot.projectPath),
+        "--thread-id",
+        snapshot.threadId,
+        "--policy-digest",
+        snapshot.policyDigest,
+      ];
+      if (snapshot.profileRef) args.push("--profile-ref", snapshot.profileRef);
+      const result = await runFarplaneFrameworkCli(args);
+      if (!result.ok || !result.payload || typeof result.payload !== "object") {
+        throw new Error(String(result.error ?? "capability_profile_snapshot_failed"));
+      }
+    },
+  });
 }
 
 function normalizeOfficeSettings(input: unknown): Required<OfficeSettings> {
@@ -3782,6 +3899,137 @@ async function buildProjectReadModel(input: unknown): Promise<JsonObject> {
   };
 }
 
+type FacilityJobBridgeInput = {
+  projectId: string;
+  specialistId: string;
+  request: string;
+};
+
+type ConfiguredFacilityProject = {
+  id: string;
+  name: string;
+  projectPath: string;
+};
+
+function textFromObject(input: JsonObject, key: string): string {
+  return typeof input[key] === "string" ? String(input[key]).trim() : "";
+}
+
+function parseFacilityJobBridgeInput(body: unknown): FacilityJobBridgeInput {
+  const input = body && typeof body === "object" ? (body as JsonObject) : {};
+  const projectId = textFromObject(input, "projectId");
+  const specialistId = textFromObject(input, "specialistId");
+  const request = textFromObject(input, "request");
+  if (!projectId) throw new Error("facility_job_project_required");
+  if (!specialistId || !resolveTicketSpecialist(specialistId)) {
+    throw new Error("facility_job_specialist_invalid");
+  }
+  if (!request || request.length > 8_000) {
+    throw new Error("facility_job_request_invalid");
+  }
+  return {
+    projectId,
+    specialistId,
+    request,
+  };
+}
+
+async function resolveConfiguredFacilityProject(projectId: string): Promise<ConfiguredFacilityProject> {
+  const company = await readCompanyModelWithSeed();
+  const projects = Array.isArray(company.projects) ? company.projects : [];
+  const configured = projects.find(
+    (entry): entry is JsonObject =>
+      Boolean(entry && typeof entry === "object") && textFromObject(entry as JsonObject, "id") === projectId,
+  );
+  const trackingContext = configured ? textFromObject(configured, "trackingContext") : "";
+  if (!configured || !isSafeProjectPath(trackingContext)) {
+    throw new Error("facility_job_project_not_configured");
+  }
+  const projectPath = path.resolve(trackingContext);
+  const projectStat = await stat(projectPath).catch(() => null);
+  if (!projectStat?.isDirectory()) throw new Error("facility_job_project_not_found");
+  return {
+    id: projectId,
+    name: textFromObject(configured, "name") || path.basename(projectPath),
+    projectPath,
+  };
+}
+
+async function createFacilityJob(input: FacilityJobBridgeInput): Promise<JsonObject> {
+  const specialist = resolveTicketSpecialist(input.specialistId);
+  if (!specialist) throw new Error("facility_job_specialist_invalid");
+  const project = await resolveConfiguredFacilityProject(input.projectId);
+
+  const ticket = await createProjectTicket({
+    projectPath: project.projectPath,
+    title: buildFacilityTicketTitle({ specialist, request: input.request }),
+    specialist: specialist.id,
+    status: "todo",
+  });
+
+  let threadId = "";
+  try {
+    const launch = await startCodexProjectThread({
+      projectPath: project.projectPath,
+      developerInstructions: buildFacilityDeveloperInstructions({
+        specialist,
+        ticketId: ticket.ticketId,
+        projectName: project.name,
+      }),
+    });
+    const started = launch.result as JsonObject;
+    const thread = started.thread;
+    threadId = thread && typeof thread === "object" ? textFromObject(thread as JsonObject, "id") : "";
+    if (!threadId) throw new Error("facility_job_thread_missing");
+
+    await requestCodexAppServerRpc("thread/name/set", {
+      threadId,
+      name: `${ticket.ticketId} · ${specialist.displayName}`,
+    }).catch(() => undefined);
+    const boundTicket = await bindProjectTicketThread({
+      projectPath: project.projectPath,
+      ticketId: ticket.ticketId,
+      threadId,
+    });
+    await requestCodexAppServerRpc("turn/start", {
+      threadId,
+      input: [
+        {
+          type: "text",
+          text: buildFacilityTaskMessage({
+            specialist,
+            ticketId: boundTicket.ticketId,
+            request: input.request,
+          }),
+          text_elements: [],
+        },
+      ],
+    });
+    const activeTicket = await updateProjectTicket(project.projectPath, ticket.ticketId, {
+      status: "in_progress",
+    });
+    return {
+      ok: true,
+      projectId: project.id,
+      ticket: {
+        id: activeTicket.ticketId,
+        title: activeTicket.title,
+        specialist: activeTicket.specialist,
+        status: activeTicket.status,
+      },
+      threadId,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "facility_job_start_failed",
+      projectId: project.id,
+      ticket: { id: ticket.ticketId, title: ticket.title, specialist: ticket.specialist },
+      ...(threadId ? { threadId } : {}),
+    };
+  }
+}
+
 function toSlug(input: string): string {
   return input
     .toLowerCase()
@@ -4622,6 +4870,23 @@ function farplaneStateBridge() {
           return;
         }
 
+        if (method === "POST" && pathname === "/farplane/facility-jobs") {
+          if (!hasBridgeWriteAccess(req)) {
+            writeJson(res, 403, { ok: false, error: "forbidden" });
+            return;
+          }
+          try {
+            const result = await createFacilityJob(parseFacilityJobBridgeInput(await readBody(req)));
+            writeJson(res, result.ok === true ? 201 : 502, result);
+          } catch (error) {
+            writeJson(res, 422, {
+              ok: false,
+              error: error instanceof Error ? error.message : "facility_job_invalid",
+            });
+          }
+          return;
+        }
+
         if (method === "POST" && pathname === "/farplane/self-improvement/runs") {
           try {
             const body = (await readBody(req)) as JsonObject;
@@ -4687,6 +4952,101 @@ function farplaneStateBridge() {
             return;
           }
           writeJson(res, 200, await readFarplaneProjectConfig(projectPath));
+          return;
+        }
+
+        if (method === "GET" && pathname === "/farplane/capability-profiles") {
+          const projectPath = url.searchParams.get("projectPath")?.trim() || REPO_ROOT;
+          if (!isSafeProjectPath(projectPath)) {
+            writeJson(res, 400, { ok: false, error: "project_path_required" });
+            return;
+          }
+          try {
+            writeJson(res, 200, await readCapabilityProfilePolicy(projectPath));
+          } catch (error) {
+            writeJson(res, 502, {
+              ok: false,
+              error: error instanceof Error ? error.message : "capability_profiles_unavailable",
+            });
+          }
+          return;
+        }
+
+        if (method === "POST" && pathname === "/farplane/capability-profiles") {
+          if (!hasBridgeWriteAccess(req)) {
+            writeJson(res, 403, { ok: false, error: "forbidden" });
+            return;
+          }
+          const body = await readBody(req);
+          const request = body as {
+            projectPath?: unknown;
+            scope?: unknown;
+            document?: unknown;
+          };
+          const projectPath = typeof request.projectPath === "string" ? request.projectPath.trim() : "";
+          const scope = request.scope === "global" ? "global" : request.scope === "project" ? "project" : null;
+          if (!isSafeProjectPath(projectPath) || !scope || !request.document || typeof request.document !== "object" || Array.isArray(request.document)) {
+            writeJson(res, 400, { ok: false, error: "capability_profiles_write_invalid" });
+            return;
+          }
+          const result = await runFarplaneFrameworkCli([
+            "capability-profiles",
+            "write",
+            "--project-root",
+            path.resolve(projectPath),
+            "--scope",
+            scope,
+            "--document-json",
+            JSON.stringify(request.document),
+          ]);
+          if (!result.ok || !result.payload || typeof result.payload !== "object") {
+            writeJson(res, 422, { ok: false, error: result.error ?? "capability_profiles_write_failed" });
+            return;
+          }
+          const payload = toBrowserCapabilityProfilesResponse(result.payload);
+          if (!payload) {
+            writeJson(res, 422, { ok: false, error: "capability_profiles_invalid" });
+            return;
+          }
+          writeJson(res, 200, payload);
+          return;
+        }
+
+        if (method === "POST" && pathname === "/farplane/capability-profiles/launch") {
+          if (!hasBridgeWriteAccess(req)) {
+            writeJson(res, 403, { ok: false, error: "forbidden" });
+            return;
+          }
+          const body = await readBody(req);
+          const request = body as {
+            projectPath?: unknown;
+            developerInstructions?: unknown;
+          };
+          const projectPath = typeof request.projectPath === "string" ? request.projectPath.trim() : "";
+          const developerInstructions = typeof request.developerInstructions === "string"
+            ? request.developerInstructions.trim()
+            : "";
+          if (
+            !isSafeProjectPath(projectPath) ||
+            (request.developerInstructions !== undefined &&
+              typeof request.developerInstructions !== "string") ||
+            developerInstructions.length > 20_000
+          ) {
+            writeJson(res, 400, { ok: false, error: "capability_profile_launch_invalid" });
+            return;
+          }
+          try {
+            const result = await startCodexProjectThread({
+              projectPath,
+              ...(developerInstructions ? { developerInstructions } : {}),
+            });
+            writeJson(res, 201, { ok: true, ...result });
+          } catch (error) {
+            writeJson(res, 422, {
+              ok: false,
+              error: error instanceof Error ? error.message : "capability_profile_launch_failed",
+            });
+          }
           return;
         }
 

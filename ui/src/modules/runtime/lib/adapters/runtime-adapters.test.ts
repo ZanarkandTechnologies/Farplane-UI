@@ -4,16 +4,16 @@ import {
   CODEX_MAIN_AGENT_ID,
   CodexAppServerClient,
   CodexRuntimeAdapter,
+  createOfficeRuntimeAdapter,
+  createReadOnlyOfficeRuntimeAdapter,
   encodeRoomHostConversationKey,
   farplaneAgentIdentityFromThread,
   farplaneAgentThreadName,
-  createOfficeRuntimeAdapter,
-  createReadOnlyOfficeRuntimeAdapter,
+  isFarplaneAgentThread,
   OpenClawRuntimeAdapter,
   READONLY_MODE_ERROR,
   resolveRuntimeAdapterKind,
   roomHostLocalThreadId,
-  isFarplaneAgentThread,
   toCodexAgentCards,
   toCodexCompanyModel,
   toCodexLiveStatus,
@@ -78,6 +78,52 @@ describe("runtime adapters", () => {
     await expect(client.listThreads()).resolves.toEqual({ data: [] });
   });
 
+  it("resolves the project policy before starting a Codex thread", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      expect(url).toBe("http://state/farplane/capability-profiles/launch");
+      expect(JSON.parse(String(init?.body))).toEqual({
+        projectPath: "/workspace/acme",
+      });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: { thread: { id: "thread-1" } },
+          snapshotRecorded: true,
+        }),
+        { status: 201, headers: { "content-type": "application/json" } },
+      );
+    });
+    const client = new CodexAppServerClient({ stateUrl: "http://state", fetchImpl: fetchMock });
+
+    await expect(client.startProjectThread("/workspace/acme")).resolves.toEqual({
+      thread: { id: "thread-1" },
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("returns a created thread when the telemetry snapshot fails", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe("http://state/farplane/capability-profiles/launch");
+      expect(JSON.parse(String(init?.body))).toEqual({
+        projectPath: "/workspace/acme",
+      });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: { thread: { id: "thread-1" } },
+          snapshotRecorded: false,
+        }),
+        { status: 201, headers: { "content-type": "application/json" } },
+      );
+    });
+    const client = new CodexAppServerClient({ stateUrl: "http://state", fetchImpl: fetchMock });
+
+    await expect(client.startProjectThread("/workspace/acme")).resolves.toEqual({
+      thread: { id: "thread-1" },
+    });
+  });
+
   it("defaults unknown runtime values to codex", () => {
     expect(resolveRuntimeAdapterKind(undefined)).toBe("codex");
     expect(resolveRuntimeAdapterKind("")).toBe("codex");
@@ -92,10 +138,12 @@ describe("runtime adapters", () => {
     expect(codex.runtimeKind).toBe("codex");
     expect(codex.capabilities.persistentAgents).toBe(false);
     expect(codex.capabilities.agentConfigWrite).toBe(false);
+    expect(codex.capabilities.capabilityProfiles).toBe("launch_enforced");
     expect(openclaw).toBeInstanceOf(OpenClawRuntimeAdapter);
     expect(openclaw.runtimeKind).toBe("openclaw");
     expect(openclaw.capabilities.persistentAgents).toBe(true);
     expect(openclaw.capabilities.agentConfigWrite).toBe(true);
+    expect(openclaw.capabilities.capabilityProfiles).toBe("definition_only");
   });
 
   it("blocks write methods in a read-only adapter without calling through", async () => {
@@ -626,21 +674,28 @@ describe("runtime adapters", () => {
       if (url.endsWith("/codex/app-server/health")) {
         return new Response(JSON.stringify({ ok: true, configured: true }));
       }
+      if (url.endsWith("/farplane/capability-profiles/launch")) {
+        const launch = JSON.parse(String(init?.body ?? "{}")) as {
+          projectPath?: string;
+          developerInstructions?: string;
+        };
+        expect(launch.projectPath).toMatch(/^\/workspace\/(acme|nova)$/);
+        expect(launch.developerInstructions).toContain("Research Director");
+        startCount += 1;
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            result: { thread: { id: `research-${startCount}`, status: { type: "idle" } } },
+            snapshotRecorded: true,
+          }),
+        );
+      }
       const body = JSON.parse(String(init?.body ?? "{}")) as {
         method?: string;
         params?: Record<string, unknown>;
       };
       if (body.method === "thread/list") {
         return new Response(JSON.stringify({ ok: true, result: { data: threads } }));
-      }
-      if (body.method === "thread/start") {
-        startCount += 1;
-        return new Response(
-          JSON.stringify({
-            ok: true,
-            result: { thread: { id: `research-${startCount}`, status: { type: "idle" } } },
-          }),
-        );
       }
       if (body.method === "thread/name/set") {
         threads.push({
@@ -697,7 +752,10 @@ describe("runtime adapters", () => {
         agentId: profile.agentId,
         sessionKey: CODEX_MAIN_AGENT_ID,
         message: "What should we learn next?",
-        metadata: { farplaneAgentProfile: { ...profile, conversationKey } },
+        metadata: {
+          farplaneAgentProfile: { ...profile, conversationKey },
+          farplaneCapabilityProjectPath: `/workspace/${conversationKey.projectId}`,
+        },
       });
 
     const acmeFirst = await send(acme);

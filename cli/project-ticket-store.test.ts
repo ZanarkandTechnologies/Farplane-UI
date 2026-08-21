@@ -1,10 +1,11 @@
-import { mkdtemp, mkdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  assertProjectFoundationUnlocked,
   appendProjectTicketNotes,
+  assertProjectFoundationUnlocked,
+  bindProjectTicketThread,
   createProjectTicket,
   deriveProjectFoundationState,
   listProjectTickets,
@@ -39,9 +40,9 @@ describe("project ticket store", () => {
       "---\nticket_id: TASK-0001\nfoundation_step: find_customer\n",
       "utf-8",
     );
-    await expect(
-      assertProjectFoundationUnlocked(projectPath, "create_ticket"),
-    ).rejects.toThrow("foundation_gate_unreadable:create_ticket:TASK-0001");
+    await expect(assertProjectFoundationUnlocked(projectPath, "create_ticket")).rejects.toThrow(
+      "foundation_gate_unreadable:create_ticket:TASK-0001",
+    );
 
     await writeFile(
       path.join(malformedDir, "ticket.md"),
@@ -56,11 +57,7 @@ describe("project ticket store", () => {
   it("derives the active three-ticket foundation gate and blocks ordinary creation", async () => {
     const projectPath = await temporaryProject();
     const ticketsRoot = path.join(projectPath, "tickets");
-    for (const [index, step] of [
-      "find_customer",
-      "deliver_value",
-      "collect_revenue",
-    ].entries()) {
+    for (const [index, step] of ["find_customer", "deliver_value", "collect_revenue"].entries()) {
       const ticketId = `TASK-${String(index + 1).padStart(4, "0")}`;
       const directory = path.join(ticketsRoot, ticketId);
       await mkdir(directory, { recursive: true });
@@ -86,12 +83,12 @@ describe("project ticket store", () => {
     expect(initial).toMatchObject({ mode: "locked", completedCount: 0, totalCount: 3 });
     expect(initial.activeTickets).toHaveLength(3);
     expect(initial.activeTickets.every((ticket) => ticket.status === "todo")).toBe(true);
-    await expect(
-      createProjectTicket({ projectPath, title: "Should stay locked" }),
-    ).rejects.toThrow("foundation_locked:create_ticket");
-    await expect(
-      assertProjectFoundationUnlocked(projectPath, "activate_autonomy"),
-    ).rejects.toThrow("foundation_locked:activate_autonomy");
+    await expect(createProjectTicket({ projectPath, title: "Should stay locked" })).rejects.toThrow(
+      "foundation_locked:create_ticket",
+    );
+    await expect(assertProjectFoundationUnlocked(projectPath, "activate_autonomy")).rejects.toThrow(
+      "foundation_locked:activate_autonomy",
+    );
 
     await rm(path.join(ticketsRoot, "TASK-0001"), { recursive: true, force: true });
     const afterOne = deriveProjectFoundationState(await listProjectTickets(projectPath));
@@ -106,9 +103,9 @@ describe("project ticket store", () => {
     await expect(assertProjectFoundationUnlocked(projectPath, "create_ticket")).resolves.toBe(
       undefined,
     );
-    await expect(createProjectTicket({ projectPath, title: "Now unlocked" })).resolves.toMatchObject(
-      { title: "Now unlocked" },
-    );
+    await expect(
+      createProjectTicket({ projectPath, title: "Now unlocked" }),
+    ).resolves.toMatchObject({ title: "Now unlocked" });
   });
 
   it("maps UI lanes onto canonical lifecycle fields and derives lanes on reload", async () => {
@@ -172,6 +169,34 @@ describe("project ticket store", () => {
     expect(cleared.threadId).toBe("task-thread-1");
   });
 
+  it("binds one durable task thread without permitting replacement or reuse", async () => {
+    const projectPath = await temporaryProject();
+    const first = await createProjectTicket({ projectPath, title: "First facility task" });
+    const second = await createProjectTicket({ projectPath, title: "Second facility task" });
+
+    const bound = await bindProjectTicketThread({
+      projectPath,
+      ticketId: first.ticketId,
+      threadId: "task-thread-1",
+    });
+    expect(bound.threadId).toBe("task-thread-1");
+
+    await expect(
+      bindProjectTicketThread({
+        projectPath,
+        ticketId: first.ticketId,
+        threadId: "task-thread-2",
+      }),
+    ).rejects.toThrow(`ticket_thread_already_bound:${first.ticketId}`);
+    await expect(
+      bindProjectTicketThread({
+        projectPath,
+        ticketId: second.ticketId,
+        threadId: "task-thread-1",
+      }),
+    ).rejects.toThrow(`ticket_thread_already_claimed:${first.ticketId}`);
+  });
+
   it("recovers a stale hook/UI ticket-thread lock before every ticket writer", async () => {
     const projectPath = await temporaryProject();
     const created = await createProjectTicket({ projectPath, title: "Locked update" });
@@ -199,7 +224,11 @@ describe("project ticket store", () => {
 
     await mkdir(lockPath, { recursive: true });
     await utimes(lockPath, new Date(0), new Date(0));
-    const noted = await appendProjectTicketNotes(projectPath, created.ticketId, "Second locked note.");
+    const noted = await appendProjectTicketNotes(
+      projectPath,
+      created.ticketId,
+      "Second locked note.",
+    );
     expect(noted.notes).toContain("First locked note.\n\nSecond locked note.");
     await expect(readFile(lockPath, "utf-8")).rejects.toMatchObject({ code: "ENOENT" });
   });

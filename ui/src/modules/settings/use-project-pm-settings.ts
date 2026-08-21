@@ -166,7 +166,7 @@ export function useProjectPmSettings(input: {
     setStatusText("Creating Codex chat thread...");
     try {
       const client = new CodexAppServerClient({ stateUrl: stateBaseInput });
-      const started = await client.startThread(selectedProjectPath);
+      const started = await client.startProjectThread(selectedProjectPath);
       const thread = started.thread;
       if (!thread?.id) {
         setStatusText("Codex did not return a new thread id.");

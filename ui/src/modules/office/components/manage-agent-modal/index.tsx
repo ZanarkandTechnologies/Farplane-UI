@@ -31,6 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { extractAgentId } from "@/lib/entity-utils";
 import { isExecutiveSpecialistEmployeeId } from "@/lib/executive-specialists";
 import { UI_Z } from "@/lib/z-index";
+import { useProjectAgentProfiles } from "@/modules/realtime-call";
 import type {
   AgentFileEntry,
   AgentIdentityResult,
@@ -59,8 +60,8 @@ import {
   EMPTY_AGENT_CONFIG_DRAFT,
   resolveAgentConfigDraft,
 } from "./config-draft";
-import { FilesPanel } from "./FilesTab";
 import { ExecutiveAgentProfileDialog } from "./executive-agent-profile-dialog";
+import { FilesPanel } from "./FilesTab";
 import { OverviewPanel } from "./OverviewTab";
 import { ToolsPanel } from "./ToolsTab";
 
@@ -84,12 +85,30 @@ const EMPTY_FILES_STATE: FilesState = {
   error: "",
 };
 
+function projectIdFromCouncilLeadAgentId(agentId: string): string {
+  const prefix = "project-pulse:";
+  return agentId.startsWith(prefix) ? agentId.slice(prefix.length) : "";
+}
+
 export function ManageAgentModal(): ReactElement {
   const manageAgentEmployeeId = useAppStore((state) => state.manageAgentEmployeeId);
   const setManageAgentEmployeeId = useAppStore((state) => state.setManageAgentEmployeeId);
-  const { employees } = useOfficeDataContext();
+  const { employees, companyModel } = useOfficeDataContext();
   const adapter = useOfficeRuntimeAdapter();
   const employee = employees.find((row) => row._id === manageAgentEmployeeId) ?? null;
+  const employeeAgentId = String(employee?._id ?? "").replace(/^employee-/, "");
+  const employeeCompanyAgent = companyModel?.agents.find(
+    (agent) => agent.agentId === employeeAgentId,
+  );
+  const employeeProjectId =
+    employeeCompanyAgent?.projectId ?? projectIdFromCouncilLeadAgentId(employeeAgentId);
+  const employeeProjectPath = employeeProjectId
+    ? (companyModel?.projects.find((project) => project.id === employeeProjectId)
+        ?.trackingContext ?? "")
+    : "";
+  const isProjectPm =
+    Boolean(employeeCompanyAgent?.runtimeMetadata?.codexProjectPm) ||
+    Boolean(projectIdFromCouncilLeadAgentId(employeeAgentId));
 
   if (employee && isExecutiveSpecialistEmployeeId(String(employee._id))) {
     return (
@@ -107,6 +126,7 @@ export function ManageAgentModal(): ReactElement {
     return (
       <CodexThreadInspector
         employee={employee}
+        projectPath={isProjectPm ? employeeProjectPath : undefined}
         open={Boolean(manageAgentEmployeeId)}
         onOpenChange={(open) => {
           if (!open) setManageAgentEmployeeId(null);
@@ -166,6 +186,7 @@ function OpenClawManageAgentModal(): ReactElement {
   const canUseChannels = adapter.capabilities.channels;
   const canUseScheduler = adapter.capabilities.scheduler;
   const canUseSkillRuntimeControls = adapter.capabilities.agentSkillRuntimeControls;
+  const profileQuery = useProjectAgentProfiles(null, isOpen, "office");
   const selectedCompanyAgent = useMemo(
     () => companyModel?.agents.find((agent) => agent.agentId === selectedAgentId) ?? null,
     [companyModel?.agents, selectedAgentId],
@@ -625,6 +646,7 @@ function OpenClawManageAgentModal(): ReactElement {
                 setDraft={setDraft}
                 isLoading={isLoading}
                 usageOverview={usageOverview}
+                agentProfiles={profileQuery.data?.profiles ?? {}}
                 leadershipControls={
                   canManageCodexLeadership
                     ? {

@@ -142,7 +142,7 @@ are cataloged read-only until a feature-owned editor exists.
 | Harness | `farplane/harness.yaml` |
 | Metrics | `farplane/metrics.yaml` |
 | Brand | `farplane/brand.yaml` |
-| Agent profiles | `farplane/agents.yaml` |
+| Project PM capabilities | `~/.farplane/capability-profiles.yaml` plus `farplane/capability-profiles.yaml` |
 | Automations | `farplane/automations.toml` |
 | Bindings | `farplane/bindings.yaml` |
 | Hooks policy | `farplane/hooks.json` (distinct from the operator hook listener) |

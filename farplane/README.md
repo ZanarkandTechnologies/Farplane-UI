@@ -20,7 +20,8 @@ rules. Skills own recurring workflows; tickets own execution and proof.
 farplane/
   README.md        # this index
   manifest.json    # versioned Farplane project spec for this project
-  agents.yaml      # project-local agent presentation, voice, and vision profiles
+  agents.yaml      # optional main-agent presentation; never capability policy
+  capability-profiles.yaml # optional Project PM skill/MCP restriction policy
   harness.yaml     # typed charter, products, capability refs, metric selection
   metrics.yaml     # metric definitions, direction, freshness, guard rules
   brand.yaml       # default Brand Kit ID for approved creative identity
@@ -43,58 +44,26 @@ Runtime state lives under `.farplane/` and is intentionally ignored by git.
   reports/
   evals/runs/
   logs/
+  capability-profiles/sessions/
 ```
 
 Keep canonical project config in `farplane/`. Use `.farplane/` only for local
 runtime state, generated projections, metric observations, reports, logs, and
 continuation ledgers.
 
-## Agent Profiles
+## Main Presentation And Project PM Access
 
-`agents.yaml` is the versioned project-local override for agent presentation and
-realtime-session preferences. Its `agents` map is keyed by the same canonical
-`agentId` used by the live company model:
+`agents.yaml` contains at most the optional main-agent presentation record. It
+is not a Codex profile and never grants capabilities or creates a specialist
+roster.
 
-```yaml
-version: 1
-agents:
-  farplane-pm:
-    name: Mira
-    title: Product lead
-    background: Keeps the project moving.
-    portrait: farplane/assets/agents/mira.png
-    appearance:
-      accent: "#55a7ff"
-      skinTone: "#b97856"
-      hairColor: "#1e2028"
-      eyebrows: arched
-    voice:
-      provider: openai
-      model: gpt-4o-mini-tts
-      voiceId: marin
-    vision:
-      mode: turn_snapshot # off | turn_snapshot
-```
-
-Portraits are project-relative fallback asset references. The optional procedural
-monitor-face `appearance` block accepts six-digit hex colors plus `straight`, `arched`, or
-`angled` eyebrows. The local UI bridge validates
-and serves them as browser-safe absolute URLs; absolute paths, remote URLs, and
-path traversal are rejected. Runtime identity and lifecycle remain owned by the
-company model, so this file does not duplicate `enabled` or `realtime` flags.
-
-LiveKit credentials stay in Doppler and enter both processes as ordinary
-environment variables; they are never copied into `agents.yaml`,
-`~/.farplane/config.toml`, or the browser:
-
-```bash
-doppler run -- corepack pnpm run ui
-doppler run -- corepack pnpm run realtime:agent
-```
-
-The required secret names are `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and
-`LIVEKIT_API_SECRET`. `LIVEKIT_AGENT_NAME` is an optional deployment override;
-the default named worker is `farplane-employee`.
+`capability-profiles.yaml` is the tracked policy for one Project PM. It may
+select `project:<id>` or `global:<id>` and allow only listed skills and
+MCP servers. The Codex adapter compiles it against the live runtime inventory
+for a fresh `thread/start` and writes one immutable launch receipt under
+`.farplane/capability-profiles/sessions/`. No active profile means full access;
+existing sessions never change. The global catalog lives at
+`~/.farplane/capability-profiles.yaml`.
 
 ## Finance Metrics
 

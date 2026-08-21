@@ -1,10 +1,15 @@
 import type {
+  CapabilityProfilesDocument,
   CodexAppServerHealthResponse,
+  CodexCapabilityProfilesResponse,
   CodexConfigReadResponse,
+  CodexJson,
+  CodexMcpServerStatusListResponse,
   CodexOfficeVisibilityConfig,
   CodexProjectPmConfig,
   CodexProjectReadModelResponse,
   CodexRpcBridgeResponse,
+  CodexSkillsListResponse,
   CodexThreadListResponse,
   CodexThreadReadResponse,
   CodexThreadStartResponse,
@@ -209,16 +214,106 @@ export class CodexAppServerClient {
     });
   }
 
-  async startThread(options: {
-    cwd?: string;
-    developerInstructions?: string;
-  } = {}): Promise<CodexThreadStartResponse> {
+  async startThread(
+    options: {
+      cwd?: string;
+      developerInstructions?: string;
+      config?: Record<string, CodexJson>;
+    } = {},
+  ): Promise<CodexThreadStartResponse> {
     return this.request<CodexThreadStartResponse>("thread/start", {
       ...(options.cwd ? { cwd: options.cwd } : {}),
       ...(options.developerInstructions
         ? { developerInstructions: options.developerInstructions }
         : {}),
+      ...(options.config && Object.keys(options.config).length > 0
+        ? { config: options.config }
+        : {}),
     });
+  }
+
+  async readCapabilityProfiles(projectPath: string): Promise<CodexCapabilityProfilesResponse> {
+    const query = new URLSearchParams({ projectPath: projectPath.trim() });
+    const response = await this.fetchImpl(
+      `${this.stateUrl}/farplane/capability-profiles?${query}`,
+      {
+        cache: "no-store",
+      },
+    );
+    const payload = (await response
+      .json()
+      .catch(() => null)) as CodexCapabilityProfilesResponse | null;
+    if (!response.ok || !payload?.ok) {
+      throw new Error(`farplane_capability_profiles_read_failed:${response.status}`);
+    }
+    return payload;
+  }
+
+  async listSkills(projectPath: string): Promise<CodexSkillsListResponse> {
+    return this.request<CodexSkillsListResponse>("skills/list", {
+      cwds: [projectPath],
+      forceReload: true,
+    });
+  }
+
+  async listMcpServerIds(): Promise<string[]> {
+    const names = new Set<string>();
+    let cursor: string | null = null;
+    do {
+      const response: CodexMcpServerStatusListResponse =
+        await this.request<CodexMcpServerStatusListResponse>("mcpServerStatus/list", {
+          cursor,
+          limit: 100,
+          detail: "toolsAndAuthOnly",
+        });
+      for (const server of response.data) {
+        const name = server.name.trim();
+        if (name) names.add(name);
+      }
+      cursor = response.nextCursor;
+    } while (cursor);
+    return [...names].sort();
+  }
+
+  async writeCapabilityProfiles(input: {
+    projectPath: string;
+    scope: "global" | "project";
+    document: CapabilityProfilesDocument;
+  }): Promise<CodexCapabilityProfilesResponse> {
+    const response = await this.fetchImpl(`${this.stateUrl}/farplane/capability-profiles`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const payload = (await response.json().catch(() => null)) as
+      | CodexCapabilityProfilesResponse
+      | { error?: string }
+      | null;
+    if (!response.ok || !payload || !("ok" in payload) || !payload.ok) {
+      const error = payload && "error" in payload ? payload.error : undefined;
+      throw new Error(error ?? `farplane_capability_profiles_write_failed:${response.status}`);
+    }
+    return payload;
+  }
+
+  async startProjectThread(
+    projectPath: string,
+    options: { developerInstructions?: string } = {},
+  ): Promise<CodexThreadStartResponse> {
+    const response = await this.fetchImpl(`${this.stateUrl}/farplane/capability-profiles/launch`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ projectPath, ...options }),
+    });
+    const payload = (await response.json().catch(() => null)) as
+      | { ok: true; result: CodexThreadStartResponse; snapshotRecorded: boolean }
+      | { ok: false; error?: string }
+      | null;
+    if (!response.ok || !payload || payload.ok !== true) {
+      const error = payload?.ok === false ? payload.error : undefined;
+      throw new Error(error ?? `farplane_capability_profile_launch_failed:${response.status}`);
+    }
+    return payload.result;
   }
 
   async setThreadName(threadId: string, name: string): Promise<void> {

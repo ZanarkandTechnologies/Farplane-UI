@@ -1,7 +1,8 @@
 /**
- * Stable Farplane-owned executive specialist identities shared by the office and call modules.
- * These seats are presentation/call personas; they do not imply a continuously running worker
- * or grant financial, hiring, or office-mutation authority.
+ * Stable Farplane-owned studio-host identities shared by the office and call modules.
+ * These are facility presentation anchors, not Project PMs, capability profiles, or
+ * continuously running workers. They do not grant financial, hiring, or office-mutation
+ * authority.
  */
 export const EXECUTIVE_SPECIALISTS = [
   {
@@ -21,8 +22,8 @@ export const EXECUTIVE_SPECIALISTS = [
   {
     agentId: "farplane-research",
     role: "research_lead",
-    name: "Sage",
-    title: "Research Lead",
+    name: "Research",
+    title: "Research Studio",
     status: "Grounding decisions in evidence and maintained sources.",
     appearance: {
       clothesStyle: "professional" as const,

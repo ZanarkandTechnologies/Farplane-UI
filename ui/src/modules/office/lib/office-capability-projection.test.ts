@@ -37,16 +37,15 @@ describe("Office capability projection", () => {
       ),
     ).toBe(true);
     expect(
-      TICKET_SPECIALIST_REGISTRY.filter((specialist) => specialist.roomId === "production").map(
-        (specialist) => getOfficeCapabilityDepartmentForSpecialist(specialist.id)?.id,
-      ),
+      TICKET_SPECIALIST_REGISTRY.filter(
+        (specialist) => "roomId" in specialist && specialist.roomId === "production",
+      ).map((specialist) => getOfficeCapabilityDepartmentForSpecialist(specialist.id)?.id),
     ).toEqual(["marketing", "marketing", "marketing"]);
     expect(
-      TICKET_SPECIALIST_REGISTRY.filter((specialist) => specialist.roomId === undefined).map(
+      TICKET_SPECIALIST_REGISTRY.filter((specialist) => !("roomId" in specialist)).map(
         (specialist) => [specialist.id, specialist.departmentId],
       ),
     ).toEqual([
-      ["customer-research-specialist", "customer"],
       ["lead-scout-specialist", "sales"],
       ["first-value-outreach-specialist", "sales"],
       ["outreach-campaign-specialist", "sales"],

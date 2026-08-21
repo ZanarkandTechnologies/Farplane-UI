@@ -5,7 +5,7 @@
  * are projections derived from ticket.md files. Writes preserve unknown YAML
  * and unrelated Markdown, and never expose delete or close operations.
  */
-import { mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export type ProjectTicketStatus = "todo" | "in_progress" | "review" | "blocked" | "done";
@@ -152,15 +152,12 @@ function foundationContractIssue(tickets: ProjectTicket[]): string | null {
   return null;
 }
 
-export function deriveProjectFoundationState(
-  tickets: ProjectTicket[],
-): ProjectFoundationState {
+export function deriveProjectFoundationState(tickets: ProjectTicket[]): ProjectFoundationState {
   const markedTickets = tickets.filter(hasFoundationMarker);
   const activeTickets = markedTickets.filter((ticket) => ticket.status !== "done");
   const completedCount = Math.max(0, Math.min(3, 3 - activeTickets.length)) as 0 | 1 | 2 | 3;
   return {
-    mode:
-      activeTickets.length > 0 ? "locked" : markedTickets.length > 0 ? "unlocked" : "legacy",
+    mode: activeTickets.length > 0 ? "locked" : markedTickets.length > 0 ? "unlocked" : "legacy",
     activeTickets,
     completedCount,
     totalCount: 3,
@@ -185,9 +182,7 @@ export async function assertProjectFoundationUnlocked(
   if (contractIssue) {
     throw new Error(`foundation_locked:${action}:${contractIssue}`);
   }
-  const steps = state.activeTickets
-    .map((ticket) => foundationStep(ticket) ?? "invalid")
-    .join(",");
+  const steps = state.activeTickets.map((ticket) => foundationStep(ticket) ?? "invalid").join(",");
   throw new Error(`foundation_locked:${action}:${steps}`);
 }
 
@@ -595,6 +590,52 @@ export async function updateProjectTicket(
     }
     await atomicReplace(existing.filePath, `---\n${lines.join("\n")}\n---\n${nextBody}`);
     return readProjectTicket(projectPath, existing.ticketId);
+  });
+}
+
+/**
+ * Binds the one persistent Codex task thread to a ticket.
+ *
+ * The ticket thread is write-once: subsequent callers may repeat the same
+ * binding, but cannot silently replace it or reuse that thread for a sibling
+ * ticket in the same project.
+ */
+export async function bindProjectTicketThread(input: {
+  projectPath: string;
+  ticketId: string;
+  threadId: string;
+}): Promise<ProjectTicket> {
+  const normalizedTicketId = normalizeTicketId(input.ticketId);
+  const threadId = input.threadId.trim();
+  if (!threadId) throw new Error("invalid_ticket_thread_id");
+  return withTicketThreadLock(input.projectPath, normalizedTicketId, async () => {
+    const existing = await readProjectTicket(input.projectPath, normalizedTicketId);
+    if (existing.threadId && existing.threadId !== threadId) {
+      throw new Error(`ticket_thread_already_bound:${existing.ticketId}`);
+    }
+    if (existing.threadId === threadId) return existing;
+
+    const sibling = (await scanProjectTickets(input.projectPath)).tickets.find(
+      (ticket) => ticket.ticketId !== existing.ticketId && ticket.threadId === threadId,
+    );
+    if (sibling) {
+      throw new Error(`ticket_thread_already_claimed:${sibling.ticketId}`);
+    }
+
+    const before = await stat(existing.filePath);
+    const raw = await readFile(existing.filePath, "utf-8");
+    const { frontmatterLines, body } = splitTicketDocument(raw);
+    const afterRead = await stat(existing.filePath);
+    if (afterRead.mtimeMs !== before.mtimeMs || afterRead.size !== before.size) {
+      throw new Error(`ticket_changed_during_update:${existing.ticketId}`);
+    }
+    const nextLines = patchScalar(
+      patchScalar(frontmatterLines, "thread_id", threadId),
+      "updated_at",
+      new Date().toISOString(),
+    );
+    await atomicReplace(existing.filePath, `---\n${nextLines.join("\n")}\n---\n${body}`);
+    return readProjectTicket(input.projectPath, existing.ticketId);
   });
 }
 

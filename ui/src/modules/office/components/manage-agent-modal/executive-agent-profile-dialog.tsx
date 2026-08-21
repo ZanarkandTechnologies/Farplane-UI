@@ -1,7 +1,7 @@
 /**
- * Read-only inspector for Farplane-owned executive specialists.
- * It resolves the tracked office profile rather than pretending these personas are
- * persistent office workers; Chat binds a named Codex thread and Call dispatches LiveKit voice.
+ * Read-only inspector for Farplane-owned studio hosts.
+ * It resolves the tracked call identity for a facility host; it is unrelated to
+ * Project PM capability profiles, which only restrict skills and MCP servers.
  */
 import { Eye, LoaderCircle, MessageSquare, Mic2, Phone, Sparkles } from "lucide-react";
 import type { ReactElement } from "react";
@@ -15,8 +15,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { UI_Z } from "@/lib/z-index";
-import type { EmployeeData } from "@/modules/office/lib/types";
 import { useChatActions } from "@/modules/chat";
+import type { EmployeeData } from "@/modules/office/lib/types";
 import { AgentFace } from "@/modules/realtime-call/components/agent-face";
 import { useProjectAgentProfiles } from "@/modules/realtime-call/hooks/use-project-agent-profiles";
 import { useRealtimeCallStore } from "@/modules/realtime-call/store";
@@ -41,15 +41,15 @@ export function ExecutiveAgentProfileDialog({
       <DialogContent className="sm:max-w-2xl" style={{ zIndex: UI_Z.panelElevated }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Eye className="size-5" aria-hidden="true" /> View Agent
+            <Eye className="size-5" aria-hidden="true" /> View Studio Host
           </DialogTitle>
-          <DialogDescription>Persistent executive-office profile.</DialogDescription>
+          <DialogDescription>Facility call identity, not an access profile.</DialogDescription>
         </DialogHeader>
 
         {profileQuery.isLoading ? (
           <div className="flex min-h-72 items-center justify-center gap-2 text-sm text-muted-foreground">
             <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden="true" /> Loading
-            profile…
+            studio host…
           </div>
         ) : profile ? (
           <div className="grid gap-5 sm:grid-cols-[180px_1fr]">
@@ -63,6 +63,9 @@ export function ExecutiveAgentProfileDialog({
 
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
+                <Badge data-testid="manage-studio-host-pill" variant="outline" className="gap-1">
+                  <Sparkles className="size-3" aria-hidden="true" /> Studio host · {profile.name}
+                </Badge>
                 <Badge variant="secondary" className="gap-1">
                   <Sparkles className="size-3" aria-hidden="true" /> Local override
                 </Badge>

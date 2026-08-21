@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { UI_Z } from "@/lib/z-index";
 import type { EmployeeData } from "@/modules/office/lib/types";
+import type { ProjectAgentProfile } from "@/modules/realtime-call";
 import type { AgentIdentityResult, AgentsListResult } from "@/modules/runtime";
 import type { AgentConfigDraft, AgentUsageOverview } from "./_types";
 import { EmployeePreviewCard } from "./EmployeePreviewCard";
@@ -46,6 +47,7 @@ type OverviewPanelProps = {
   setDraft: (next: AgentConfigDraft) => void;
   isLoading: boolean;
   usageOverview: AgentUsageOverview | null;
+  agentProfiles: Record<string, ProjectAgentProfile>;
   leadershipControls?: {
     isCeo: boolean;
     isPm: boolean;
@@ -59,6 +61,7 @@ type OverviewPanelProps = {
 export function OverviewPanel(props: OverviewPanelProps): JSX.Element {
   const selectedAgent =
     props.agentsList?.agents.find((agent) => agent.id === props.selectedAgentId) ?? null;
+  const profile = props.selectedAgentId ? props.agentProfiles[props.selectedAgentId] : undefined;
   const usdFormatter = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
   const tokenFormatter = new Intl.NumberFormat("en-US");
   const display = buildAgentOverviewDisplay({
@@ -153,6 +156,15 @@ export function OverviewPanel(props: OverviewPanelProps): JSX.Element {
                 )}
               </div>
             </div>
+            {profile ? (
+              <div
+                data-testid="manage-agent-profile-card"
+                className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-sm"
+              >
+                <span className="text-muted-foreground">Call identity</span>
+                <Badge variant="outline">{profile.name ?? profile.agentId}</Badge>
+              </div>
+            ) : null}
           </div>
 
           <EmployeePreviewCard

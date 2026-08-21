@@ -1,18 +1,22 @@
+import { Sparkles } from "lucide-react";
 import { useMemo } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { useChatStore, type LocalChatMessage } from "@/modules/chat/chat-store";
-import { useChatContext, useChatThreads, useChatMessages } from "@/modules/chat/hooks";
-import { ChatSidebar } from "@/modules/chat/components/chat-sidebar";
-import { ChatHeader } from "@/modules/chat/components/chat-header";
-import { MessageRenderer } from "@/modules/chat/components/message-renderer";
-import { ChatInput } from "@/modules/chat/components/chat-input";
-import { StoryChatPanel } from "@/modules/chat/components/story-chat-panel";
-import { Sparkles } from "lucide-react";
+import { isExecutiveSpecialistEmployeeId } from "@/lib/executive-specialists";
 import { UI_Z } from "@/lib/z-index";
+import { resolveChatCapabilityProjectPath } from "@/modules/chat/capability-project-path";
+import { type LocalChatMessage, useChatStore } from "@/modules/chat/chat-store";
+import { ChatHeader } from "@/modules/chat/components/chat-header";
+import { ChatInput } from "@/modules/chat/components/chat-input";
+import { ChatSidebar } from "@/modules/chat/components/chat-sidebar";
+import { MessageRenderer } from "@/modules/chat/components/message-renderer";
+import { StoryChatPanel } from "@/modules/chat/components/story-chat-panel";
+import { useChatContext, useChatMessages, useChatThreads } from "@/modules/chat/hooks";
+import { RoomHostProjectSelector } from "@/modules/office/components/room-host-project-dialog";
+import { getOperatingRoomByHostAgentId } from "@/modules/office/lib/operating-room-catalog";
+import { useProjectAgentProfiles } from "@/modules/realtime-call/hooks/use-project-agent-profiles";
 import { useOfficeRuntimeAdapter } from "@/modules/runtime";
 import { useOfficeDataContext } from "@/providers/office-data-provider";
-import { isExecutiveSpecialistEmployeeId } from "@/lib/executive-specialists";
-import { useProjectAgentProfiles } from "@/modules/realtime-call/hooks/use-project-agent-profiles";
+import { useAppStore } from "@/store";
 
 /**
  * CHAT DIALOG
@@ -28,6 +32,9 @@ export default function ChatDialog() {
   const setShowWorkingOutput = useChatStore((state) => state.setShowWorkingOutput);
   const presentationMode = useChatStore((state) => state.presentationMode);
   const setPresentationMode = useChatStore((state) => state.setPresentationMode);
+  const pendingRoomHostEmployeeId = useAppStore((state) => state.pendingRoomHostEmployeeId);
+  const setPendingRoomHostEmployeeId = useAppStore((state) => state.setPendingRoomHostEmployeeId);
+  const selectedOfficeProjectId = useAppStore((state) => state.selectedProjectId);
   const adapter = useOfficeRuntimeAdapter();
   const { companyModel } = useOfficeDataContext();
 
@@ -42,6 +49,7 @@ export default function ChatDialog() {
     "office",
   );
   const scopedAgentId = currentEmployeeId?.replace(/^employee-/, "") ?? "";
+  const operatingRoom = scopedAgentId ? getOperatingRoomByHostAgentId(scopedAgentId) : undefined;
   const specialistProfile = isExecutiveSpecialistChat
     ? (officeProfiles.data?.profiles[scopedAgentId] ?? null)
     : null;
@@ -63,20 +71,6 @@ export default function ChatDialog() {
     selectedAgentId,
     setSelectedAgentId,
   } = useChatThreads();
-  const { messages, handleSubmit, abort, submissionStatus, isStreaming, streamingText } =
-    useChatMessages(threadId, specialistProfile);
-  const streamingMessage: LocalChatMessage | null = streamingText.trim()
-    ? {
-        key: `stream-${threadId ?? "chat"}`,
-        role: "assistant",
-        text: streamingText,
-        createdAt: Date.now(),
-      }
-    : null;
-  const stageMessages = streamingMessage ? [...messages, streamingMessage] : messages;
-  const isStoryMode = presentationMode === "story";
-  const isCodexMode = adapter.runtimeKind === "codex";
-  const showConversationSidebar = !isStoryMode;
   const projectOptions = useMemo<Array<{ projectId: string; name: string; projectPath: string }>>(
     () =>
       (companyModel?.projects ?? [])
@@ -93,16 +87,49 @@ export default function ChatDialog() {
     [companyModel?.agents, selectedAgentId],
   );
   const selectedProjectPath = useMemo(() => {
-    const projectId = selectedCompanyAgent?.projectId;
-    if (!projectId) return "";
-    return projectOptions.find((project) => project.projectId === projectId)?.projectPath ?? "";
-  }, [projectOptions, selectedCompanyAgent?.projectId]);
-  const selectedProjectName = useMemo(
-    () =>
-      projectOptions.find((project) => project.projectPath === selectedProjectPath)?.name ??
-      projectOptions[0]?.name,
-    [projectOptions, selectedProjectPath],
+    return resolveChatCapabilityProjectPath({
+      threadId,
+      threads,
+      selectedAgentProjectId: selectedCompanyAgent?.projectId,
+      projects: projectOptions,
+    });
+  }, [projectOptions, selectedCompanyAgent?.projectId, threadId, threads]);
+  const { messages, handleSubmit, abort, submissionStatus, isStreaming, streamingText } =
+    useChatMessages(threadId, specialistProfile, selectedProjectPath);
+  const streamingMessage: LocalChatMessage | null = streamingText.trim()
+    ? {
+        key: `stream-${threadId ?? "chat"}`,
+        role: "assistant",
+        text: streamingText,
+        createdAt: Date.now(),
+      }
+    : null;
+  const stageMessages = streamingMessage ? [...messages, streamingMessage] : messages;
+  const isStoryMode = presentationMode === "story";
+  const isCodexMode = adapter.runtimeKind === "codex";
+  const showConversationSidebar = !isStoryMode;
+  const isRoomHostProjectSetup = Boolean(
+    pendingRoomHostEmployeeId && pendingRoomHostEmployeeId === currentEmployeeId,
   );
+  const showRoomHostProjectSelector = Boolean(
+    currentEmployeeId && operatingRoom?.hostScope === "selected-project",
+  );
+  const selectedProjectName = useMemo(() => {
+    if (operatingRoom?.hostScope === "selected-project") {
+      if (isRoomHostProjectSetup) return undefined;
+      return projectOptions.find((project) => project.projectId === selectedOfficeProjectId)?.name;
+    }
+    return (
+      projectOptions.find((project) => project.projectPath === selectedProjectPath)?.name ??
+      projectOptions[0]?.name
+    );
+  }, [
+    isRoomHostProjectSetup,
+    operatingRoom?.hostScope,
+    projectOptions,
+    selectedOfficeProjectId,
+    selectedProjectPath,
+  ]);
 
   const pmPinControls =
     isCodexMode && selectedProjectName
@@ -111,8 +138,13 @@ export default function ChatDialog() {
         }
       : undefined;
 
+  function handleChatOpenChange(open: boolean): void {
+    setIsChatOpen(open);
+    if (!open) setPendingRoomHostEmployeeId(null);
+  }
+
   return (
-    <Dialog open={isChatOpen} onOpenChange={setIsChatOpen}>
+    <Dialog open={isChatOpen} onOpenChange={handleChatOpenChange}>
       <DialogContent
         className={`${isStoryMode ? "!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 rounded-none border-none bg-transparent p-0 shadow-none" : "min-w-[80vw] max-w-none h-[85vh] p-0"} flex flex-col overflow-hidden gap-0 ${isStoryMode ? "text-stone-50" : "border-none shadow-2xl bg-background"}`}
         overlayClassName={isStoryMode ? "bg-black/18 backdrop-blur-[1px]" : undefined}
@@ -151,7 +183,7 @@ export default function ChatDialog() {
                 setPresentationMode(isStoryMode ? "classic" : "story")
               }
               storyMode={isStoryMode}
-              onClose={() => setIsChatOpen(false)}
+              onClose={() => handleChatOpenChange(false)}
             />
             {!isStoryMode && !isEmployeeScopedChat && !isCodexMode ? (
               <div
@@ -199,11 +231,19 @@ export default function ChatDialog() {
               ) : (
                 <div className="h-full overflow-y-auto">
                   <div className="container max-w-4xl mx-auto px-4 pb-4">
-                    {!messages || messages.length === 0 ? (
+                    {isRoomHostProjectSetup || !messages || messages.length === 0 ? (
                       <div className="flex items-center justify-center h-full min-h-[200px]">
                         <div className="text-center text-muted-foreground">
-                          <p className="text-lg font-medium mb-2">Start a conversation</p>
-                          <p className="text-sm">Ask me to research anything!</p>
+                          <p className="text-lg font-medium mb-2">
+                            {isRoomHostProjectSetup
+                              ? "Choose a project to begin"
+                              : "Start a conversation"}
+                          </p>
+                          <p className="text-sm">
+                            {isRoomHostProjectSetup
+                              ? "Project conversations stay separate."
+                              : "Ask me to research anything!"}
+                          </p>
                         </div>
                       </div>
                     ) : (
@@ -217,7 +257,7 @@ export default function ChatDialog() {
                         />
                       ))
                     )}
-                    {streamingMessage ? (
+                    {!isRoomHostProjectSetup && streamingMessage ? (
                       <MessageRenderer
                         key={streamingMessage.key}
                         message={streamingMessage}
@@ -226,7 +266,7 @@ export default function ChatDialog() {
                         isStreaming
                       />
                     ) : null}
-                    {isStreaming && !streamingMessage ? (
+                    {!isRoomHostProjectSetup && isStreaming && !streamingMessage ? (
                       <div className="mb-3 flex justify-start">
                         <div className="inline-flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
                           <Sparkles className="h-3.5 w-3.5 animate-pulse" />
@@ -238,14 +278,21 @@ export default function ChatDialog() {
                 </div>
               )}
             </div>
+            {showRoomHostProjectSelector && currentEmployeeId ? (
+              <RoomHostProjectSelector employeeId={currentEmployeeId} />
+            ) : null}
             <ChatInput
               onSubmit={handleSubmit}
               onAbort={abort}
               submissionStatus={submissionStatus}
               isStreaming={isStreaming}
               variant={isStoryMode ? "story" : "classic"}
-              disabled={specialistChatUnavailable}
-              placeholder={specialistChatPlaceholder}
+              disabled={isRoomHostProjectSetup || specialistChatUnavailable}
+              placeholder={
+                isRoomHostProjectSetup
+                  ? "Choose a project before sending a message."
+                  : specialistChatPlaceholder
+              }
             />
           </div>
         </div>

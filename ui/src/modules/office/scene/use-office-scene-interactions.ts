@@ -18,9 +18,9 @@
 
 import type { ThreeEvent } from "@react-three/fiber";
 import { useCallback } from "react";
-import { toast } from "sonner";
 import { TOTAL_HEIGHT } from "@/constants";
 import { useChatActions } from "@/modules/chat";
+import { useChatStore } from "@/modules/chat/chat-store";
 import { getOperatingRoomByHostAgentId } from "@/modules/office/lib/operating-room-catalog";
 import { buildRoomHostConversationKey } from "@/modules/office/lib/room-hosts";
 import type { EmployeeData, TeamData } from "@/modules/office/lib/types";
@@ -37,6 +37,7 @@ export function useOfficeSceneInteractions(params: { employees: EmployeeData[] }
   const { openEmployeeChat } = useChatActions();
 
   const setActiveChatParticipant = useAppStore((state) => state.setActiveChatParticipant);
+  const setPendingRoomHostEmployeeId = useAppStore((state) => state.setPendingRoomHostEmployeeId);
   const setIsTeamPanelOpen = useAppStore((state) => state.setIsTeamPanelOpen);
   const setActiveTeamId = useAppStore((state) => state.setActiveTeamId);
   const setSelectedTeamId = useAppStore((state) => state.setSelectedTeamId);
@@ -63,11 +64,6 @@ export function useOfficeSceneInteractions(params: { employees: EmployeeData[] }
         hostAgentId,
         selectedProjectId: useAppStore.getState().selectedProjectId,
       });
-      if (operatingRoom?.hostScope === "selected-project" && !conversationKey) {
-        toast.info(`Select a project before chatting with ${employee.name}.`);
-        return;
-      }
-
       setActiveChatParticipant({
         type: "employee",
         companyId: employee.companyId,
@@ -75,13 +71,26 @@ export function useOfficeSceneInteractions(params: { employees: EmployeeData[] }
         teamId: employee.teamId,
         builtInRole: employee.builtInRole,
       });
+      if (operatingRoom?.hostScope === "selected-project" && !conversationKey) {
+        const appState = useAppStore.getState();
+        appState.setSelectedAgentId(hostAgentId);
+        appState.setSelectedSessionKey(null);
+        setPendingRoomHostEmployeeId(employee._id);
+        const chatState = useChatStore.getState();
+        chatState.setCurrentEmployeeId(String(employee._id));
+        chatState.setCurrentTeamId(null);
+        chatState.setPresentationMode("classic");
+        chatState.setIsChatOpen(true);
+        return;
+      }
+
       await openEmployeeChat(employee._id, {
         openDialog: true,
         displayName: employee.name,
         conversationKey: conversationKey ?? undefined,
       });
     },
-    [employees, openEmployeeChat, setActiveChatParticipant],
+    [employees, openEmployeeChat, setActiveChatParticipant, setPendingRoomHostEmployeeId],
   );
 
   const handleTeamClick = useCallback(
