@@ -1,5 +1,6 @@
 /** Module-owned DEV QA snapshot; OfficeMenu is the sole writer of the public window hook. */
 
+import type { SkillInvocationEvent } from "../../skill-invocations/skill-invocations-types";
 import type { RoomActivityGroup } from "../lib/room-activity-projection";
 import type { OfficeLineageEdge } from "../scene/thread-lineage-effects";
 
@@ -11,6 +12,7 @@ export type OfficeQaSnapshot = {
   effects?: Array<Record<string, unknown>>;
   seedLineage?: (edge: OfficeLineageEdge) => void;
   seedRoomActivity?: (groups: RoomActivityGroup[] | null) => void;
+  seedObservedSkillFlow?: (events: SkillInvocationEvent[] | null) => void;
   runStoryFixture?: (target: [number, number, number] | null) => void;
   applyBuilderFixture?: () => Promise<boolean>;
   quality?: Record<string, unknown>;
@@ -25,7 +27,6 @@ export type OfficeQaSnapshot = {
     sectorCount: number;
     visibleProjectIds: string[];
     specialistStationCount: number;
-    activeDispatchCount: number;
   };
   roomActivity?: {
     roomCount: number;
@@ -37,6 +38,12 @@ export type OfficeQaSnapshot = {
       visibleCount: number;
       overflowCount: number;
     }>;
+  };
+  observedSkillFlow?: {
+    visibleCount: number;
+    headLinkCount: number;
+    furnitureLinkCount: number;
+    sessions: string[];
   };
 };
 

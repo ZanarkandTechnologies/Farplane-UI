@@ -305,6 +305,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         getStoryCameraTiming: () => unknown;
         getThreadEffects: () => unknown;
         getRoomActivity: () => unknown;
+        getObservedSkillFlow: () => unknown;
         seedRoomActivity: (
           groups: Parameters<
             NonNullable<ReturnType<typeof getOfficeQaState>["seedRoomActivity"]>
@@ -312,6 +313,11 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         ) => boolean;
         seedLineageEvent: (
           edge: Parameters<NonNullable<ReturnType<typeof getOfficeQaState>["seedLineage"]>>[0],
+        ) => boolean;
+        seedObservedSkillFlow: (
+          events: Parameters<
+            NonNullable<ReturnType<typeof getOfficeQaState>["seedObservedSkillFlow"]>
+          >[0],
         ) => boolean;
         runStoryCameraFixture: (target: [number, number, number] | null) => boolean;
         applyBuilderCustomizationFixture: () => Promise<boolean>;
@@ -354,6 +360,7 @@ export function OfficeMenu({ className }: SpeedDialProps) {
       getStoryCameraTiming: () => getOfficeQaState().storyTiming ?? null,
       getThreadEffects: () => getOfficeQaState().effects ?? [],
       getRoomActivity: () => getOfficeQaState().roomActivity ?? null,
+      getObservedSkillFlow: () => getOfficeQaState().observedSkillFlow ?? null,
       seedRoomActivity: (groups) => {
         const seed = getOfficeQaState().seedRoomActivity;
         if (!seed) return false;
@@ -367,6 +374,12 @@ export function OfficeMenu({ className }: SpeedDialProps) {
         const seed = getOfficeQaState().seedLineage;
         if (!seed) return false;
         seed(edge);
+        return true;
+      },
+      seedObservedSkillFlow: (events) => {
+        const seed = getOfficeQaState().seedObservedSkillFlow;
+        if (!seed) return false;
+        seed(events);
         return true;
       },
       runStoryCameraFixture: (target) => {

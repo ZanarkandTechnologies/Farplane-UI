@@ -24,6 +24,7 @@ import {
   OPERATING_ROOM_CATALOG,
   type OperatingRoomId,
 } from "./operating-room-catalog";
+import type { SystemFacilityDefinition } from "./system-facility-registry";
 import type { OfficeObject } from "./types";
 
 const TAU = Math.PI * 2;
@@ -63,6 +64,8 @@ export interface ProjectCouncilSector {
 
 export interface ProjectCouncilSpecialistStation {
   specialistId: string;
+  /** Existing hook identifier that activates this artifact workstation. */
+  skillId?: string;
   displayName: string;
   /** Undefined for a department-level service bay with no duplicate room UI. */
   roomId?: OperatingRoomId;
@@ -71,10 +74,23 @@ export interface ProjectCouncilSpecialistStation {
   rotationY: number;
 }
 
+export interface ProjectCouncilSystemFacility {
+  facilityId: string;
+  /** Existing hook identifier that activates this operated-system facility. */
+  skillId: string;
+  displayName: string;
+  departmentId: DepartmentIslandId;
+  roomId: OperatingRoomId;
+  system: string;
+  position: ProjectCouncilPosition;
+  rotationY: number;
+}
+
 export interface ProjectCouncilLayout {
   council: ProjectCouncilGeometry;
   sectors: ProjectCouncilSector[];
   specialistStations: ProjectCouncilSpecialistStation[];
+  systemFacilities: ProjectCouncilSystemFacility[];
   presentationBounds: ProjectCouncilBounds;
 }
 
@@ -209,6 +225,7 @@ function buildSpecialistStations(
       ];
       stations.push({
         specialistId: specialist.id,
+        skillId: specialist.primarySkillId,
         displayName: specialist.displayName,
         roomId,
         departmentId: specialist.departmentId,
@@ -221,6 +238,35 @@ function buildSpecialistStations(
   return stations.sort((left, right) => compareText(left.specialistId, right.specialistId));
 }
 
+function buildSystemFacilities(
+  systemFacilities: readonly SystemFacilityDefinition[],
+): ProjectCouncilSystemFacility[] {
+  const roomCenters = getRoomCenters();
+  return [...systemFacilities]
+    .sort((left, right) => compareText(left.id, right.id))
+    .flatMap((facility, index) => {
+      const center = roomCenters.get(facility.roomId);
+      if (!center) return [];
+      const position: ProjectCouncilPosition = [
+        center[0] + 1.55,
+        center[1],
+        center[2] - 1.55 - index * 0.18,
+      ];
+      return [
+        {
+          facilityId: facility.id,
+          skillId: facility.skillId,
+          displayName: facility.displayName,
+          departmentId: facility.departmentId,
+          roomId: facility.roomId,
+          system: facility.system,
+          position,
+          rotationY: stationRotation(center, position),
+        },
+      ];
+    });
+}
+
 /**
  * Plans the central council and permanent specialist stations for the automatic
  * Office3D view. Project and specialist order never affects the result.
@@ -228,6 +274,7 @@ function buildSpecialistStations(
 export function buildProjectCouncilLayout(
   visibleProjectIds: readonly string[],
   specialistRegistry: readonly TicketSpecialistDefinition[],
+  systemFacilityRegistry: readonly SystemFacilityDefinition[] = [],
 ): ProjectCouncilLayout {
   const projectIds = normalizedProjectIds(visibleProjectIds);
   const radius = resolveCouncilRadius(projectIds.length);
@@ -255,6 +302,7 @@ export function buildProjectCouncilLayout(
     };
   });
   const specialistStations = buildSpecialistStations(specialistRegistry);
+  const systemFacilities = buildSystemFacilities(systemFacilityRegistry);
   const councilBounds = bounds(
     council.center[0] - council.radius - council.seatRadius,
     council.center[0] + council.radius + council.seatRadius,
@@ -266,6 +314,7 @@ export function buildProjectCouncilLayout(
     council,
     sectors,
     specialistStations,
+    systemFacilities,
     presentationBounds: combineBounds([
       ...getDepartmentIslandGeometry().map((island) => island.bounds),
       councilBounds,

@@ -16,6 +16,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { resolveTicketSpecialist } from "@/lib/ticket-routing/specialist-registry";
+import { getOfficeCapabilityDepartmentForSpecialist } from "@/modules/office/lib/office-capability-projection";
 import { getOperatingRoomDefinition } from "@/modules/office/lib/operating-room-catalog";
 import { type PanelTask, PRIORITY_COLORS } from "./team-panel-types";
 
@@ -46,7 +47,11 @@ function frontMatterRows(task: PanelTask): Array<{ label: string; value: string 
 
 export function KanbanTaskCard({ task, ownerLabel, onOpen }: KanbanTaskCardProps): JSX.Element {
   const specialist = resolveTicketSpecialist(task.specialist ?? task.frontMatter?.specialist);
-  const facility = specialist ? getOperatingRoomDefinition(specialist.roomId).displayName : null;
+  const facility = specialist
+    ? specialist.roomId
+      ? getOperatingRoomDefinition(specialist.roomId).displayName
+      : getOfficeCapabilityDepartmentForSpecialist(specialist.id)?.displayName
+    : null;
   const approvalTone =
     task.approvalState === "approved" || task.approvalState === "executed"
       ? "border-emerald-500/30 bg-emerald-500/10 text-foreground"

@@ -89,7 +89,7 @@ export const OPERATING_ROOM_CATALOG = [
     activitySkillIds: [
       "content-impl-plan",
       "landing-page",
-      "social-content",
+      "x-thread",
       "storyboard",
       "video-production",
     ],

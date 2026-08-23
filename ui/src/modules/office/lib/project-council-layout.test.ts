@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { TICKET_SPECIALIST_REGISTRY } from "@/lib/ticket-routing/specialist-registry";
 import { getDepartmentIslandGeometry, getDepartmentIslandId } from "./department-island-layout";
 import { buildProjectCouncilLayout } from "./project-council-layout";
+import { SYSTEM_FACILITY_REGISTRY } from "./system-facility-registry";
 
 describe("project council layout", () => {
   it("sorts visible project ids so reordered input keeps every sector stable", () => {
@@ -85,5 +86,41 @@ describe("project council layout", () => {
       departmentId: "deals",
       roomId: undefined,
     });
+  });
+
+  it("keeps integration facilities distinct from artifact workstations", () => {
+    const layout = buildProjectCouncilLayout(
+      ["project-alpha"],
+      TICKET_SPECIALIST_REGISTRY,
+      SYSTEM_FACILITY_REGISTRY,
+    );
+
+    expect(layout.systemFacilities).toEqual([
+      expect.objectContaining({
+        facilityId: "x-publishing",
+        skillId: "x-account",
+        departmentId: "marketing",
+        roomId: "production",
+        system: "x",
+      }),
+    ]);
+    expect(
+      layout.specialistStations.some((station) => station.specialistId === "x-publishing"),
+    ).toBe(false);
+  });
+
+  it("keeps the existing hook skill id on each activated furniture anchor", () => {
+    const layout = buildProjectCouncilLayout(
+      ["project-alpha"],
+      TICKET_SPECIALIST_REGISTRY,
+      SYSTEM_FACILITY_REGISTRY,
+    );
+
+    expect(
+      layout.specialistStations.find((station) => station.specialistId === "content-specialist"),
+    ).toMatchObject({ skillId: "x-thread" });
+    expect(
+      layout.systemFacilities.find((facility) => facility.facilityId === "x-publishing"),
+    ).toMatchObject({ skillId: "x-account" });
   });
 });

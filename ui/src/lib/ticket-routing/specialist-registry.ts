@@ -40,9 +40,9 @@ export const TICKET_SPECIALIST_REGISTRY = [
   },
   {
     id: "content-specialist",
-    displayName: "Content Specialist",
-    deliverableLabel: "ready-to-publish content",
-    primarySkillId: "social-content",
+    displayName: "X Thread Writer",
+    deliverableLabel: "an approval-ready X thread draft",
+    primarySkillId: "x-thread",
     departmentId: "marketing",
     roomId: "production",
   },

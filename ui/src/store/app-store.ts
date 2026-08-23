@@ -187,6 +187,8 @@ interface AppState {
   setIsDocumentLibraryPanelOpen: (isOpen: boolean) => void;
   activeFacilitySpecialistId: string | null;
   setActiveFacilitySpecialistId: (specialistId: string | null) => void;
+  activeSystemFacilityId: string | null;
+  setActiveSystemFacilityId: (facilityId: string | null) => void;
   selectedSkillStudioSkillId: string | null;
   setSelectedSkillStudioSkillId: (skillId: string | null) => void;
   skillStudioFocusAgentId: string | null;
@@ -348,6 +350,8 @@ export const useAppStore = create<AppState>()(
     activeFacilitySpecialistId: null,
     setActiveFacilitySpecialistId: (specialistId) =>
       set({ activeFacilitySpecialistId: specialistId }),
+    activeSystemFacilityId: null,
+    setActiveSystemFacilityId: (facilityId) => set({ activeSystemFacilityId: facilityId }),
     selectedSkillStudioSkillId: null,
     setSelectedSkillStudioSkillId: (skillId) => set({ selectedSkillStudioSkillId: skillId }),
     skillStudioFocusAgentId: null,

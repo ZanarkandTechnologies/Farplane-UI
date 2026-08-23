@@ -34,6 +34,7 @@ import type { OfficeFootprint } from "@/modules/office/lib/office-footprint";
 import type { DeskLayoutData, OfficeId, OfficeObject, TeamData } from "@/modules/office/lib/types";
 import { useOfficeInternalPanelLauncher } from "@/modules/office/panels/use-internal-panel-launcher";
 import { shouldUseRoundTeamTable } from "@/modules/office/utils/layout";
+import { getOperatingRoomId, type OperatingRoomId } from "../lib/operating-room-catalog";
 import {
   CommandCommonsCompositionGeometry,
   TeamNeighborhoodShellGeometry,
@@ -46,6 +47,8 @@ export function OfficeObjectRenderer(props: {
   desksByTeamId: Map<string, DeskLayoutData[]>;
   officeFootprint: OfficeFootprint;
   archipelagoMode?: boolean;
+  /** Rooms already represented by admitted capability furniture in the Council presentation. */
+  hiddenOperatingRoomIds?: readonly OperatingRoomId[];
   dioramaTheme?: OfficeDioramaTheme;
   handleTeamClick: (team: TeamData) => Promise<void>;
   handleManagementClick: (event: ThreeEvent<MouseEvent>) => void;
@@ -63,6 +66,7 @@ export function OfficeObjectRenderer(props: {
     desksByTeamId,
     officeFootprint,
     archipelagoMode = false,
+    hiddenOperatingRoomIds = [],
     dioramaTheme,
     handleTeamClick,
     handleManagementClick,
@@ -135,6 +139,15 @@ export function OfficeObjectRenderer(props: {
         );
 
       case "activity-landmark":
+        if (
+          archipelagoMode &&
+          (() => {
+            const roomId = getOperatingRoomId(object);
+            return roomId ? hiddenOperatingRoomIds.includes(roomId) : false;
+          })()
+        ) {
+          return null;
+        }
         return (
           <group key={object._id} name={`walkable-activity-room-${object._id}`}>
             <ActivityLandmark

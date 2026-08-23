@@ -5,14 +5,17 @@
  * vocabulary. It is an explanatory projection only: it never schedules work,
  * creates employees, or derives a ticket specialist from a skill invocation.
  *
- * A physical room may support more than one capability department. Artifact
- * specialists remain fixed service stations inside a shared Studio or
- * department service bay; they do not become a room or a persistent employee
- * of their own.
+ * A physical room may support more than one capability department. The
+ * generated capability graph owns which workstations and facilities exist;
+ * this file owns only the Office's visual islands and host rooms.
  */
 
-import type { TicketSpecialistDefinition } from "@/lib/ticket-routing/specialist-registry";
+import {
+  resolveTicketSpecialist,
+  type TicketSpecialistDefinition,
+} from "@/lib/ticket-routing/specialist-registry";
 import type { OperatingRoomId } from "./operating-room-catalog";
+import type { SystemFacilityDefinition } from "./system-facility-registry";
 
 export const OFFICE_CAPABILITY_DEPARTMENT_IDS = [
   "back-office",
@@ -29,14 +32,26 @@ export type OfficeCapabilityDepartmentId = (typeof OFFICE_CAPABILITY_DEPARTMENT_
 export type OfficeCapabilityDepartment = {
   id: OfficeCapabilityDepartmentId;
   displayName: string;
-  /** Muted, night-safe accent for signs and specialist station trims. */
+  /** Muted, night-safe accent for signs and permanent capability trims. */
   accentColor: string;
   /** Existing full-room UIs owned by this capability. Empty means service-bay only. */
   roomIds: readonly OperatingRoomId[];
-  /** Declared workflow roots used by Capability Map; not invocation triggers. */
-  workflowSkillIds: readonly string[];
-  /** Ticket specialist services that currently have a visible station. */
-  specialistIds: readonly string[];
+};
+
+export type GeneratedCapabilityNode = {
+  capability?: { consumes?: string[]; produces?: string[]; system?: string };
+  group?: string;
+  id: string;
+  kind?: string;
+  skill_id?: string;
+};
+
+export type GeneratedCapabilityGraph = { nodes: readonly GeneratedCapabilityNode[] };
+
+export type OfficeCapabilityBindings = {
+  issues: string[];
+  systemFacilities: SystemFacilityDefinition[];
+  workstations: TicketSpecialistDefinition[];
 };
 
 export const OFFICE_CAPABILITY_DEPARTMENTS = [
@@ -45,60 +60,42 @@ export const OFFICE_CAPABILITY_DEPARTMENTS = [
     displayName: "Back Office",
     accentColor: "#a8ad76",
     roomIds: ["organization", "finance"],
-    workflowSkillIds: ["knowledge-tidier", "update-memory"],
-    specialistIds: [],
   },
   {
     id: "sales",
     displayName: "Sales",
     accentColor: "#bf8aa8",
     roomIds: [],
-    workflowSkillIds: ["lead-scout", "outreach-impl-plan"],
-    specialistIds: [
-      "lead-scout-specialist",
-      "first-value-outreach-specialist",
-      "outreach-campaign-specialist",
-    ],
   },
   {
     id: "deals",
     displayName: "Deals",
     accentColor: "#c9826b",
     roomIds: [],
-    workflowSkillIds: ["solution-shaping", "personalized-offer", "proposal-pricing"],
-    specialistIds: ["solution-specialist", "personalized-offer-specialist", "proposal-specialist"],
   },
   {
     id: "marketing",
     displayName: "Marketing",
     accentColor: "#c8ad72",
     roomIds: ["production"],
-    workflowSkillIds: ["social-content", "ad-advisor", "landing-page", "product-photography"],
-    specialistIds: ["landing-page-specialist", "content-specialist", "video-specialist"],
   },
   {
     id: "operations",
     displayName: "Operations",
     accentColor: "#9b8bc5",
     roomIds: ["self-improvement", "qa", "harness", "skills", "telemetry"],
-    workflowSkillIds: ["init-advisor", "impl-plan", "automation-advisor", "agent-testability-plan"],
-    specialistIds: ["skill-specialist"],
   },
   {
     id: "intelligence",
     displayName: "Intelligence",
     accentColor: "#7fa9c0",
     roomIds: ["research", "thread-data"],
-    workflowSkillIds: ["agency-opportunity-research", "feed-scout", "learn-from-video"],
-    specialistIds: ["research-specialist", "customer-research-specialist"],
   },
   {
     id: "customer",
     displayName: "Customer",
     accentColor: "#79b8a2",
     roomIds: ["research", "comms"],
-    workflowSkillIds: ["customer-research"],
-    specialistIds: [],
   },
 ] as const satisfies readonly OfficeCapabilityDepartment[];
 
@@ -115,12 +112,6 @@ const DEPARTMENTS_BY_ROOM_ID = new Map<OperatingRoomId, OfficeCapabilityDepartme
       return departmentsByRoom;
     },
     new Map(),
-  ),
-);
-
-const DEPARTMENT_BY_SPECIALIST_ID = new Map<string, OfficeCapabilityDepartment>(
-  OFFICE_CAPABILITY_DEPARTMENTS.flatMap((department) =>
-    department.specialistIds.map((specialistId) => [specialistId, department] as const),
   ),
 );
 
@@ -141,7 +132,10 @@ export function getOfficeCapabilityDepartmentsForRoom(
 export function getOfficeCapabilityDepartmentForSpecialist(
   specialistId: string,
 ): OfficeCapabilityDepartment | undefined {
-  return DEPARTMENT_BY_SPECIALIST_ID.get(specialistId);
+  // Specialist routing is declared by its own registry. This compatibility
+  // helper stays at the visual boundary rather than becoming a second map.
+  const specialist = resolveTicketSpecialist(specialistId);
+  return specialist ? DEPARTMENT_BY_ID.get(specialist.departmentId) : undefined;
 }
 
 /**
@@ -162,16 +156,8 @@ export function validateOfficeCapabilityProjection(input: {
     }
   }
 
-  const declaredSpecialistIds = new Set(input.specialists.map((specialist) => specialist.id));
-  for (const department of OFFICE_CAPABILITY_DEPARTMENTS) {
-    for (const specialistId of department.specialistIds) {
-      if (!declaredSpecialistIds.has(specialistId)) {
-        issues.push(`${department.id} references unknown specialist ${specialistId}`);
-      }
-    }
-  }
   for (const specialist of input.specialists) {
-    const department = getOfficeCapabilityDepartmentForSpecialist(specialist.id);
+    const department = DEPARTMENT_BY_ID.get(specialist.departmentId);
     if (!department) {
       issues.push(`specialist ${specialist.id} has no capability department`);
       continue;
@@ -188,4 +174,65 @@ export function validateOfficeCapabilityProjection(input: {
     }
   }
   return issues;
+}
+
+/**
+ * Joins persistent Office objects to the generated capability payload. Unknown
+ * or unclassified registry entries stay out of the classified Office view;
+ * matching is by declared skill id and department, never display name.
+ */
+export function projectOfficeCapabilityBindings(input: {
+  graph: GeneratedCapabilityGraph;
+  systemFacilities: readonly SystemFacilityDefinition[];
+  workstations: readonly TicketSpecialistDefinition[];
+}): OfficeCapabilityBindings {
+  const issues: string[] = [];
+  const nodeBySkillId = new Map(
+    input.graph.nodes
+      .filter((node) => Boolean(node.skill_id))
+      .map((node) => [node.skill_id as string, node]),
+  );
+  const workstations = input.workstations.filter((workstation) => {
+    const node = nodeBySkillId.get(workstation.primarySkillId ?? "");
+    if (!node) return false;
+    if (node.kind !== "workstation" || node.group !== workstation.departmentId) {
+      issues.push(`workstation ${workstation.id} does not match capability ${node.id}`);
+      return false;
+    }
+    const produces = node.capability?.produces ?? [];
+    if (produces.length !== 1) {
+      issues.push(`workstation ${workstation.id} lacks one declared artifact output`);
+      return false;
+    }
+    return true;
+  });
+  const systemFacilities = input.systemFacilities.filter((facility) => {
+    const node = nodeBySkillId.get(facility.skillId);
+    if (!node) return false;
+    if (
+      node.kind !== "facility" ||
+      node.group !== facility.departmentId ||
+      node.capability?.system !== facility.system
+    ) {
+      issues.push(`system facility ${facility.id} does not match capability ${node.id}`);
+      return false;
+    }
+    return true;
+  });
+
+  for (const node of nodeBySkillId.values()) {
+    if (
+      node.kind === "workstation" &&
+      !workstations.some((item) => item.primarySkillId === node.skill_id)
+    ) {
+      issues.push(`capability ${node.id} has no Office workstation binding`);
+    }
+    if (
+      node.kind === "facility" &&
+      !systemFacilities.some((item) => item.skillId === node.skill_id)
+    ) {
+      issues.push(`capability ${node.id} has no Office system-facility binding`);
+    }
+  }
+  return { issues, systemFacilities, workstations };
 }

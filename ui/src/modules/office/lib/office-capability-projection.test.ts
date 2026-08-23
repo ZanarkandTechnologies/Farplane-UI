@@ -4,9 +4,30 @@ import {
   getOfficeCapabilityDepartmentForSpecialist,
   getOfficeCapabilityDepartmentsForRoom,
   OFFICE_CAPABILITY_DEPARTMENTS,
+  projectOfficeCapabilityBindings,
   validateOfficeCapabilityProjection,
 } from "./office-capability-projection";
 import { OPERATING_ROOM_IDS } from "./operating-room-catalog";
+import { SYSTEM_FACILITY_REGISTRY } from "./system-facility-registry";
+
+const X_CAPABILITY_GRAPH = {
+  nodes: [
+    {
+      id: "skill:x-thread",
+      skill_id: "x-thread",
+      group: "marketing",
+      kind: "workstation",
+      capability: { consumes: ["content-brief"], produces: ["x-thread-draft"] },
+    },
+    {
+      id: "skill:x-account",
+      skill_id: "x-account",
+      group: "marketing",
+      kind: "facility",
+      capability: { system: "x" },
+    },
+  ],
+} as const;
 
 describe("Office capability projection", () => {
   it("covers every real operating room while keeping roomless departments service-bay only", () => {
@@ -23,14 +44,7 @@ describe("Office capability projection", () => {
     ).toEqual(["back-office"]);
   });
 
-  it("puts every ticket specialist at one capability station in its department", () => {
-    const routedSpecialists = OFFICE_CAPABILITY_DEPARTMENTS.flatMap((department) =>
-      department.specialistIds.map((specialistId) => [specialistId, department.id]),
-    );
-
-    expect(new Set(routedSpecialists.map(([specialistId]) => specialistId)).size).toBe(
-      routedSpecialists.length,
-    );
+  it("keeps workstation routing in the registry while the projection owns only visual departments", () => {
     expect(
       TICKET_SPECIALIST_REGISTRY.every(
         (specialist) => getOfficeCapabilityDepartmentForSpecialist(specialist.id) !== undefined,
@@ -53,6 +67,12 @@ describe("Office capability projection", () => {
       ["personalized-offer-specialist", "deals"],
       ["proposal-specialist", "deals"],
     ]);
+    expect(
+      OFFICE_CAPABILITY_DEPARTMENTS.every((department) => !("workflowSkillIds" in department)),
+    ).toBe(true);
+    expect(
+      OFFICE_CAPABILITY_DEPARTMENTS.every((department) => !("specialistIds" in department)),
+    ).toBe(true);
   });
 
   it("reports no invalid room or ticket-specialist bindings", () => {
@@ -62,5 +82,36 @@ describe("Office capability projection", () => {
         specialists: TICKET_SPECIALIST_REGISTRY,
       }),
     ).toEqual([]);
+  });
+
+  it("renders permanent Office objects only when the generated capability graph admits them", () => {
+    expect(
+      projectOfficeCapabilityBindings({
+        graph: X_CAPABILITY_GRAPH,
+        workstations: TICKET_SPECIALIST_REGISTRY,
+        systemFacilities: SYSTEM_FACILITY_REGISTRY,
+      }),
+    ).toEqual({
+      issues: [],
+      workstations: [TICKET_SPECIALIST_REGISTRY[1]],
+      systemFacilities: [SYSTEM_FACILITY_REGISTRY[0]],
+    });
+  });
+
+  it("withholds an Office object when its generated capability role disagrees", () => {
+    const graphWithMismatchedSystem = {
+      nodes: [X_CAPABILITY_GRAPH.nodes[0], { ...X_CAPABILITY_GRAPH.nodes[1], kind: "workstation" }],
+    } as const;
+
+    const projection = projectOfficeCapabilityBindings({
+      graph: graphWithMismatchedSystem,
+      workstations: TICKET_SPECIALIST_REGISTRY,
+      systemFacilities: SYSTEM_FACILITY_REGISTRY,
+    });
+
+    expect(projection.systemFacilities).toEqual([]);
+    expect(projection.issues).toContain(
+      "system facility x-publishing does not match capability skill:x-account",
+    );
   });
 });

@@ -20,6 +20,7 @@ import {
   OfficeScene,
   preloadMeshes,
   SkillsPanel,
+  SystemFacilityConsole,
 } from "@/modules/office";
 import { ProjectDocumentLibraryPanel } from "@/modules/office/components/project-document-library-panel";
 import { selectOfficeWorldContextData, useOfficeWorldStore } from "@/modules/office/store";
@@ -238,6 +239,7 @@ function OfficeSimulationContent() {
           <>
             {!isReadOnly ? <ChatDialog /> : null}
             {!isReadOnly ? <FacilityConsole /> : null}
+            {!isReadOnly ? <SystemFacilityConsole /> : null}
             {!isReadOnly ? <RealtimeCallDialog /> : null}
             {!isReadOnly ? <RealtimeCallLauncher /> : null}
             {!isPublic ? <AgentMemoryPanel /> : null}

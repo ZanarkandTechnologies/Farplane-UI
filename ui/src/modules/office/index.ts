@@ -2,6 +2,7 @@ export { default as OfficeScene } from "./office-scene";
 export { AgentMemoryPanel } from "./components/agent-memory-panel";
 export { AgentSessionPanel } from "./components/agent-session-panel";
 export { FacilityConsole } from "./components/facility-console";
+export { SystemFacilityConsole } from "./components/system-facility-console";
 export { ManageAgentModal } from "./components/manage-agent-modal";
 export { ObjectConfigPanel } from "./components/object-config-panel";
 export { ObjectInteractionPanel } from "./components/object-interaction-panel";
