@@ -1,11 +1,13 @@
 # Farplane YouTube Shortcut
 
-A Plasmo extension that puts an **Analyze** action in the top-right
-corner of YouTube video thumbnails. A cache miss creates a persistent Codex
-task and runs the installed `intelligest` skill; an active or ready canonical
-job is reused, while a terminal failure can start a clean retry. Ingest jobs,
-dossiers, stories, and reporting
-claims are retained in the project's Convex cloud deployment.
+A Plasmo extension that puts an **Analyze** action in the top-right corner of
+YouTube video thumbnails and on watch pages. Analyze opens a small form for an
+optional instruction and a registered Farplane project; the bridge resolves the
+project ID server-side before creating the persistent Codex task. A cache miss
+creates a task and runs the installed `intelligest` skill; an active or ready
+canonical job is reused, while a terminal failure can start a clean retry.
+Ingest jobs, dossiers, stories, and reporting claims are retained in the
+project's Convex cloud deployment.
 
 New summary tasks use `/Users/kenjipcx/Zanarkand Technologies/Analyst` as their
 working directory, which files them under the registered Codex Analyst project.
@@ -90,8 +92,12 @@ canonical IDs, terminal status, and error classification in the report. The
 
 ## Interaction
 
-- The Analyze action occupies the thumbnail corner and suppresses YouTube's
-  hover preview only while the pointer is over that action.
+- The Analyze action is available on thumbnail corners and watch pages. It
+  suppresses YouTube's hover preview only while the pointer is over a thumbnail
+  action.
+- Analyze opens a form that can attach a bounded operator instruction and route
+  the new Codex task to one registered Farplane project. The browser receives
+  project IDs and names only; the loopback bridge resolves the working directory.
 - First click checks the video-ID cache, then creates a persistent Codex task
   only on a miss.
 - A completed answer opens immediately. Click the same button again to close or

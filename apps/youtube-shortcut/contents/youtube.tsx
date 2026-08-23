@@ -13,6 +13,13 @@ import {
   X,
 } from "lucide-react";
 import cssText from "data-text:./index.css";
+import type {
+  AnalyzeYouTubeRequest,
+  ProjectOption,
+  RuntimeRequest,
+} from "../runtime-protocol.js";
+import { AnalysisOptionsForm } from "./analysis-options-form.js";
+import { closeStyle, copyStyle, panelStyle } from "./analysis-ui-styles.js";
 
 export const config: PlasmoCSConfig = {
   matches: ["https://www.youtube.com/*"],
@@ -43,6 +50,16 @@ type Analysis = {
   };
 };
 
+type VideoData = {
+  id: string;
+  title: string;
+};
+
+type AnalysisOptions = Pick<
+  AnalyzeYouTubeRequest,
+  "projectId" | "instruction"
+>;
+
 type CardMount = {
   host: HTMLDivElement;
   root: Root;
@@ -55,6 +72,7 @@ type CardMount = {
 };
 
 const mounts = new Map<Element, CardMount>();
+let watchMount: { host: HTMLDivElement; root: Root } | null = null;
 let previewGuardInstalled = false;
 const selectors = [
   "ytd-rich-item-renderer",
@@ -70,7 +88,19 @@ const selectors = [
   ".yt-lockup-view-model",
 ].join(",");
 
-function videoData(card: Element) {
+const controlShadowCss = `${cssText}\n:host{--farplane-background:oklch(0.1635 0.0045 264.4427);--farplane-foreground:oklch(0.8717 0.0093 258.3382);--farplane-card:oklch(0.1993 0.0068 258.3682);--farplane-primary:oklch(0.598 0.0997 43.6627);--farplane-primary-foreground:oklch(0.1635 0.0045 264.4427);--farplane-muted:oklch(0.2346 0.0083 264.4038);--farplane-muted-foreground:oklch(0.7107 0.0351 256.7878);--farplane-accent:oklch(0.2431 0.0082 264.4119);--farplane-border:oklch(0.28 0.0102 260.7048);--farplane-destructive:oklch(0.7705 0.1129 17.3797)}.farplane-control{touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background-color 120ms ease,border-color 120ms ease,color 120ms ease}.farplane-control:hover:not(:disabled){background:var(--farplane-accent)!important;color:var(--farplane-foreground)!important}.farplane-control:focus-visible{outline:2px solid var(--farplane-primary);outline-offset:2px}@media(prefers-reduced-motion:reduce){.animate-spin{animation:none!important}}`;
+
+/** Keeps every independently mounted control inside the same scoped Farplane theme. */
+function createControlRoot(host: HTMLElement, extraCss = "") {
+  const shadow = host.attachShadow({ mode: "open" });
+  const style = document.createElement("style");
+  style.textContent = `${controlShadowCss}${extraCss}`;
+  const node = document.createElement("div");
+  shadow.append(style, node);
+  return node;
+}
+
+function videoData(card: Element): VideoData | null {
   const link = thumbnailLink(card);
   if (!link) return null;
   const id = new URL(link.href).searchParams.get("v");
@@ -83,11 +113,52 @@ function videoData(card: Element) {
   return title ? { id, title } : null;
 }
 
+function currentWatchVideoData(): VideoData | null {
+  const id = new URL(window.location.href).searchParams.get("v");
+  if (!id || !/^[A-Za-z0-9_-]{11}$/.test(id)) return null;
+  const title =
+    document
+      .querySelector<HTMLMetaElement>('meta[name="title"]')
+      ?.content?.trim() ||
+    document.querySelector<HTMLElement>("h1 yt-formatted-string, h1")?.textContent?.trim() ||
+    document.title.replace(/\s+-\s+YouTube$/, "").trim();
+  return title ? { id, title } : null;
+}
+
 function currentChannelId(): string | undefined {
   const channelId = document
     .querySelector<HTMLMetaElement>('meta[itemprop="channelId"]')
     ?.content?.trim();
   return channelId && /^UC[A-Za-z0-9_-]{22}$/.test(channelId) ? channelId : undefined;
+}
+
+/** Content scripts use the worker relay because cross-origin requests are worker-owned. */
+function sendRuntimeMessage<T>(message: RuntimeRequest, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      callback();
+    };
+    const timer = window.setTimeout(
+      () => finish(() => reject(new Error("Farplane service timed out"))),
+      timeoutMs,
+    );
+    try {
+      chrome.runtime.sendMessage(message, (response: T) => {
+        const runtimeError = chrome.runtime.lastError;
+        if (runtimeError) {
+          finish(() => reject(new Error(runtimeError.message)));
+          return;
+        }
+        finish(() => resolve(response));
+      });
+    } catch (error) {
+      finish(() => reject(error));
+    }
+  });
 }
 
 function thumbnailLink(card: Element) {
@@ -205,12 +276,7 @@ function mountCard(card: Element) {
   ]) {
     host.addEventListener(eventName, (event) => event.stopPropagation());
   }
-  const shadow = host.attachShadow({ mode: "open" });
-  const style = document.createElement("style");
-  style.textContent = `${cssText}\n:host{--farplane-background:oklch(0.1635 0.0045 264.4427);--farplane-foreground:oklch(0.8717 0.0093 258.3382);--farplane-card:oklch(0.1993 0.0068 258.3682);--farplane-primary:oklch(0.598 0.0997 43.6627);--farplane-primary-foreground:oklch(0.1635 0.0045 264.4427);--farplane-muted:oklch(0.2346 0.0083 264.4038);--farplane-muted-foreground:oklch(0.7107 0.0351 256.7878);--farplane-accent:oklch(0.2431 0.0082 264.4119);--farplane-border:oklch(0.28 0.0102 260.7048);--farplane-destructive:oklch(0.7705 0.1129 17.3797)}.farplane-control{touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background-color 120ms ease,border-color 120ms ease,color 120ms ease}.farplane-control:hover:not(:disabled){background:var(--farplane-accent)!important;color:var(--farplane-foreground)!important}.farplane-control:focus-visible{outline:2px solid var(--farplane-primary);outline-offset:2px}@media(prefers-reduced-motion:reduce){.animate-spin{animation:none!important}}`;
-  shadow.append(style);
-  const node = document.createElement("div");
-  shadow.append(node);
+  const node = createControlRoot(host);
   const root = createRoot(node);
   let previousPosition: string | null = null;
   if (getComputedStyle(styleHost).position === "static") {
@@ -234,11 +300,37 @@ function mountCard(card: Element) {
   });
   root.render(
     <Overlay
-      card={card}
+      getVideo={() => videoData(card)}
       styleHost={styleHost}
       previousZIndex={previousZIndex}
     />,
   );
+}
+
+function mountWatchPage() {
+  const video = currentWatchVideoData();
+  if (!video) {
+    if (watchMount) {
+      watchMount.root.unmount();
+      watchMount.host.remove();
+      watchMount = null;
+    }
+    return;
+  }
+  if (!watchMount?.host.isConnected) {
+    const host = document.createElement("div");
+    host.style.cssText =
+      "position:fixed;top:76px;right:22px;z-index:2147483646;pointer-events:auto";
+    host.dataset.farplaneControlHost = "true";
+    const node = createControlRoot(
+      host,
+      "@media(max-width:700px){:host{top:auto;right:12px;bottom:88px}}",
+    );
+    const root = createRoot(node);
+    document.documentElement.append(host);
+    watchMount = { host, root };
+  }
+  watchMount.root.render(<Overlay getVideo={currentWatchVideoData} />);
 }
 
 function scan() {
@@ -246,6 +338,7 @@ function scan() {
     if (!card.isConnected) removeMount(card, mount);
   }
   document.querySelectorAll(selectors).forEach(mountCard);
+  mountWatchPage();
 }
 
 let scanTimer: number | undefined;
@@ -343,16 +436,16 @@ const cornerButtonStyle = (
 });
 
 function Overlay({
-  card,
+  getVideo,
   styleHost,
   previousZIndex,
 }: {
-  card: Element;
-  styleHost: HTMLElement;
-  previousZIndex: string;
+  getVideo: () => VideoData | null;
+  styleHost?: HTMLElement;
+  previousZIndex?: string;
 }) {
   const [boundVideoId, setBoundVideoId] = useState(
-    () => videoData(card)?.id ?? "",
+    () => getVideo()?.id ?? "",
   );
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
@@ -364,10 +457,17 @@ function Overlay({
   const [threadId, setThreadId] = useState("");
   const [reusedDossierId, setReusedDossierId] = useState("");
   const [panelOpen, setPanelOpen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [pendingReAnalyze, setPendingReAnalyze] = useState(false);
+  const [projectId, setProjectId] = useState("");
+  const [instruction, setInstruction] = useState("");
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState("");
 
   useEffect(() => {
     const sync = () => {
-      const nextVideoId = videoData(card)?.id ?? "";
+      const nextVideoId = getVideo()?.id ?? "";
       if (nextVideoId === boundVideoId) return;
       setBoundVideoId(nextVideoId);
       setStatus("idle");
@@ -378,39 +478,105 @@ function Overlay({
       setThreadId("");
       setReusedDossierId("");
       setPanelOpen(false);
+      setOptionsOpen(false);
     };
+    const timer = window.setInterval(sync, 500);
+    window.addEventListener("yt-navigate-finish", sync);
+    if (!styleHost) {
+      return () => {
+        window.clearInterval(timer);
+        window.removeEventListener("yt-navigate-finish", sync);
+      };
+    }
     const observer = new MutationObserver(sync);
-    observer.observe(card, {
+    observer.observe(styleHost, {
       childList: true,
       subtree: true,
       attributes: true,
       attributeFilter: ["href", "title"],
     });
-    return () => observer.disconnect();
-  }, [boundVideoId, card]);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("yt-navigate-finish", sync);
+      observer.disconnect();
+    };
+  }, [boundVideoId, getVideo, styleHost]);
 
   useEffect(() => {
-    if (!panelOpen) return;
+    if (!panelOpen && !optionsOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPanelOpen(false);
+      if (event.key === "Escape") {
+        setPanelOpen(false);
+        setOptionsOpen(false);
+      }
     };
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [panelOpen]);
+  }, [panelOpen, optionsOpen]);
 
   useEffect(() => {
-    styleHost.style.zIndex = panelOpen ? "4" : previousZIndex;
+    if (!optionsOpen || projects.length) return;
+    let cancelled = false;
+    setProjectsLoading(true);
+    setProjectsError("");
+    sendRuntimeMessage<{ ok?: boolean; projects?: ProjectOption[]; error?: string }>(
+      { type: "GET_FARPLANE_PROJECTS" },
+      8_000,
+    )
+      .then((response) => {
+        if (cancelled) return;
+        if (!response?.ok || !Array.isArray(response.projects)) {
+          throw new Error(response?.error || "Project list unavailable");
+        }
+        setProjects(response.projects);
+      })
+      .catch((cause) => {
+        if (cancelled) return;
+        setProjectsError(
+          cause instanceof Error ? cause.message : "Project list unavailable",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setProjectsLoading(false);
+      });
     return () => {
-      styleHost.style.zIndex = previousZIndex;
+      cancelled = true;
+    };
+  }, [optionsOpen, projects.length]);
+
+  useEffect(() => {
+    if (projectId && projects.length && !projects.some((project) => project.id === projectId)) {
+      setProjectId("");
+    }
+  }, [projectId, projects]);
+
+  useEffect(() => {
+    if (!styleHost) return;
+    styleHost.style.zIndex = panelOpen ? "4" : (previousZIndex ?? "");
+    return () => {
+      styleHost.style.zIndex = previousZIndex ?? "";
     };
   }, [panelOpen, previousZIndex, styleHost]);
 
-  async function run(event: React.MouseEvent, reAnalyze = false) {
+  function openOptions(event: React.MouseEvent, reAnalyze = false) {
     event.preventDefault();
     event.stopPropagation();
-    const video = videoData(card);
+    setPendingReAnalyze(reAnalyze);
+    setPanelOpen(false);
+    setOptionsOpen(true);
+  }
+
+  async function run(
+    event: React.MouseEvent | React.FormEvent,
+    reAnalyze = false,
+    options: AnalysisOptions = {},
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    const video = getVideo();
     if (!video) return;
     setStatus("loading");
+    setOptionsOpen(false);
     setPanelOpen(false);
     setError("");
     setThreadId("");
@@ -420,13 +586,24 @@ function Overlay({
       setCached(false);
     }
     try {
-      const response = await chrome.runtime.sendMessage({
+      const request: AnalyzeYouTubeRequest = {
         type: "ANALYZE_YOUTUBE",
         videoId: video.id,
         title: video.title,
         channelId: currentChannelId(),
         reAnalyze,
-      });
+        projectId: options.projectId,
+        instruction: options.instruction,
+      };
+      const response = await sendRuntimeMessage<{
+        ok?: boolean;
+        analysis?: Analysis;
+        cached?: boolean;
+        dossierId?: string;
+        error?: string;
+        reused?: boolean;
+        threadId?: string;
+      }>(request, 185_000);
       if (!response?.ok) {
         setThreadId(response?.threadId || "");
         throw new Error(response?.error || "Analysis failed");
@@ -454,17 +631,55 @@ function Overlay({
 
   const panelId = `farplane-summary-${boundVideoId}`;
   if (status === "idle")
-    return <ControlButton status={status} panelId={panelId} onClick={run} />;
+    return (
+      <AnalysisShell
+        panelId={panelId}
+        optionsOpen={optionsOpen}
+        projectId={projectId}
+        projects={projects}
+        projectsLoading={projectsLoading}
+        projectsError={projectsError}
+        instruction={instruction}
+        setProjectId={setProjectId}
+        setInstruction={setInstruction}
+        onCloseOptions={() => setOptionsOpen(false)}
+        onSubmit={(event) =>
+          run(event, pendingReAnalyze, {
+            projectId: projectId.trim() || undefined,
+            instruction: instruction.trim() || undefined,
+          })
+        }
+      >
+        <ControlButton status={status} panelId={panelId} onClick={openOptions} />
+      </AnalysisShell>
+    );
   if (status === "loading")
     return <ControlButton status={status} panelId={panelId} />;
   if (status === "error")
     return (
-      <div style={stackStyle} onClick={(event) => event.stopPropagation()}>
+      <AnalysisShell
+        panelId={panelId}
+        optionsOpen={optionsOpen}
+        projectId={projectId}
+        projects={projects}
+        projectsLoading={projectsLoading}
+        projectsError={projectsError}
+        instruction={instruction}
+        setProjectId={setProjectId}
+        setInstruction={setInstruction}
+        onCloseOptions={() => setOptionsOpen(false)}
+        onSubmit={(event) =>
+          run(event, pendingReAnalyze, {
+            projectId: projectId.trim() || undefined,
+            instruction: instruction.trim() || undefined,
+          })
+        }
+      >
         <ControlButton
           status={status}
           panelId={panelId}
           panelOpen={panelOpen}
-          onClick={(event) => run(event, true)}
+          onClick={(event) => openOptions(event, true)}
         />
         {panelOpen && (
           <div role="alert" style={panelStyle}>
@@ -480,15 +695,32 @@ function Overlay({
               Couldn’t analyze
             </strong>
             <p style={copyStyle}>{error}</p>
-            <p style={copyStyle}>Click Retry to run a fresh analysis.</p>
+            <p style={copyStyle}>Click Retry to configure and run a fresh analysis.</p>
             <ThreadLink threadId={threadId} />
           </div>
         )}
-      </div>
+      </AnalysisShell>
     );
   if (reusedDossierId)
     return (
-      <div style={stackStyle} onClick={(event) => event.stopPropagation()}>
+      <AnalysisShell
+        panelId={panelId}
+        optionsOpen={optionsOpen}
+        projectId={projectId}
+        projects={projects}
+        projectsLoading={projectsLoading}
+        projectsError={projectsError}
+        instruction={instruction}
+        setProjectId={setProjectId}
+        setInstruction={setInstruction}
+        onCloseOptions={() => setOptionsOpen(false)}
+        onSubmit={(event) =>
+          run(event, pendingReAnalyze, {
+            projectId: projectId.trim() || undefined,
+            instruction: instruction.trim() || undefined,
+          })
+        }
+      >
         <ControlButton
           status="success"
           panelId={panelId}
@@ -510,16 +742,33 @@ function Overlay({
               This video is ready in Farplane Content Intelligence. Open that workspace to review its dossier and any reportable News coverage.
             </p>
             <ThreadLink threadId={threadId} />
-            <ReanalyzeButton onClick={(event) => run(event, true)} />
+            <ReanalyzeButton onClick={(event) => openOptions(event, true)} />
           </div>
         )}
-      </div>
+      </AnalysisShell>
     );
   if (!analysis) return null;
 
   const tabs = ["Answer", "Key points", "Worth it?"];
   return (
-    <div style={stackStyle} onClick={(event) => event.stopPropagation()}>
+    <AnalysisShell
+      panelId={panelId}
+      optionsOpen={optionsOpen}
+      projectId={projectId}
+      projects={projects}
+      projectsLoading={projectsLoading}
+      projectsError={projectsError}
+      instruction={instruction}
+      setProjectId={setProjectId}
+      setInstruction={setInstruction}
+      onCloseOptions={() => setOptionsOpen(false)}
+      onSubmit={(event) =>
+        run(event, pendingReAnalyze, {
+          projectId: projectId.trim() || undefined,
+          instruction: instruction.trim() || undefined,
+        })
+      }
+    >
       <ControlButton
         status={status}
         panelId={panelId}
@@ -680,8 +929,56 @@ function Overlay({
         </button>
       </div>
       <ThreadLink threadId={threadId} />
-      <ReanalyzeButton onClick={(event) => run(event, true)} />
+      <ReanalyzeButton onClick={(event) => openOptions(event, true)} />
       </div>}
+    </AnalysisShell>
+  );
+}
+
+function AnalysisShell({
+  children,
+  panelId,
+  optionsOpen,
+  projectId,
+  projects,
+  projectsLoading,
+  projectsError,
+  instruction,
+  setProjectId,
+  setInstruction,
+  onCloseOptions,
+  onSubmit,
+}: {
+  children: React.ReactNode;
+  panelId: string;
+  optionsOpen: boolean;
+  projectId: string;
+  projects: ProjectOption[];
+  projectsLoading: boolean;
+  projectsError: string;
+  instruction: string;
+  setProjectId: (value: string) => void;
+  setInstruction: (value: string) => void;
+  onCloseOptions: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <div style={stackStyle} onClick={(event) => event.stopPropagation()}>
+      {children}
+      {optionsOpen && (
+        <AnalysisOptionsForm
+          formId={`${panelId}-options`}
+          projectId={projectId}
+          projects={projects}
+          projectsLoading={projectsLoading}
+          projectsError={projectsError}
+          instruction={instruction}
+          onProjectIdChange={setProjectId}
+          onInstructionChange={setInstruction}
+          onClose={onCloseOptions}
+          onSubmit={onSubmit}
+        />
+      )}
     </div>
   );
 }
@@ -780,36 +1077,6 @@ function ThreadLink({ threadId }: { threadId: string }) {
   );
 }
 
-const panelStyle: React.CSSProperties = {
-  width: 340,
-  boxSizing: "border-box",
-  border: "1px solid var(--farplane-border)",
-  borderLeft: "2px solid var(--farplane-primary)",
-  borderRadius: 0,
-  background: "var(--farplane-card)",
-  color: "var(--farplane-foreground)",
-  padding: 13,
-  boxShadow: "none",
-  fontFamily:
-    '"JetBrains Mono", "SFMono-Regular", Consolas, monospace',
-  letterSpacing: ".03em",
-  overflowWrap: "anywhere",
-};
-const closeStyle: React.CSSProperties = {
-  marginLeft: "auto",
-  border: 0,
-  background: "transparent",
-  color: "var(--farplane-muted-foreground)",
-  padding: 2,
-  cursor: "pointer",
-  display: "flex",
-};
-const copyStyle: React.CSSProperties = {
-  color: "var(--farplane-muted-foreground)",
-  fontSize: 11.5,
-  lineHeight: 1.55,
-  margin: "7px 0",
-};
 const leadStyle: React.CSSProperties = {
   color: "var(--farplane-foreground)",
   fontSize: 13,

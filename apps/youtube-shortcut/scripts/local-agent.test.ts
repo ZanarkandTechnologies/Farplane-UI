@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { test } from "node:test";
 import { z } from "zod";
 import {
@@ -12,6 +14,8 @@ import {
   createLocalAgentServer,
   FARPLANE_EXTENSION_ORIGIN,
   parseCodexAnalysis,
+  listProjectOptions,
+  resolveProjectProcessingCwd,
   runCodexAnalysis,
   utcNewsAsOfDay,
   waitForTurnCompletion,
@@ -182,6 +186,78 @@ test("new shortcut tasks default to the registered Analyst workspace", () => {
   );
 });
 
+test("selected project resolves to a sidecar trackingContext for Codex processing", async (t) => {
+  const dir = await mkdtemp(resolve(tmpdir(), "farplane-youtube-project-"));
+  t.after(() => void rm(dir, { recursive: true, force: true }));
+  const projectPath = resolve(dir, "vidgard-workspace");
+  const companyPath = resolve(dir, "company.json");
+  await writeFile(
+    companyPath,
+    JSON.stringify({
+      projects: [
+        {
+          id: "proj-vidgard",
+          name: "Vidgard",
+          trackingContext: projectPath,
+        },
+      ],
+    }),
+    "utf8",
+  );
+
+  assert.equal(
+    await resolveProjectProcessingCwd("proj-vidgard", companyPath),
+    projectPath,
+  );
+  assert.equal(
+    await resolveProjectProcessingCwd("vidgard", companyPath),
+    ANALYST_PROJECT_PATH,
+  );
+  assert.equal(
+    await resolveProjectProcessingCwd(projectPath, companyPath),
+    ANALYST_PROJECT_PATH,
+  );
+  assert.equal(
+    await resolveProjectProcessingCwd("missing", companyPath),
+    ANALYST_PROJECT_PATH,
+  );
+});
+
+test("project options come from active sidecar projects", async (t) => {
+  const dir = await mkdtemp(resolve(tmpdir(), "farplane-youtube-projects-"));
+  t.after(() => void rm(dir, { recursive: true, force: true }));
+  const companyPath = resolve(dir, "company.json");
+  await writeFile(
+    companyPath,
+    JSON.stringify({
+      projects: [
+        {
+          id: "proj-zeta",
+          name: "Zeta",
+          status: "active",
+          trackingContext: "/work/zeta",
+        },
+        {
+          id: "proj-archived",
+          name: "Archived",
+          status: "archived",
+          trackingContext: "/work/archived",
+        },
+        {
+          id: "proj-alpha",
+          name: "Alpha",
+          status: "active",
+        },
+      ],
+    }),
+    "utf8",
+  );
+
+  assert.deepEqual(await listProjectOptions(companyPath), [
+    { id: "proj-zeta", name: "Zeta" },
+  ]);
+});
+
 test("Codex output schema recursively resolves references and requires every object property", () => {
   const failures: Array<{ path: string; missing: string[] }> = [];
   const root = z.toJSONSchema(analysisSchema) as Record<string, unknown>;
@@ -257,6 +333,25 @@ test("prompt invokes the full skill and stays honest without a profile", () => {
   assert.match(prompt, /evidence\.reference must exactly equal/);
   assert.match(prompt, /set news to null/);
   assert.doesNotMatch(prompt, /or immutable public ID/);
+});
+
+test("prompt includes selected project and bounded operator instruction", () => {
+  const prompt = buildPrompt(
+    {
+      videoId: "dQw4w9WgXcQ",
+      title: "Claim?",
+      projectId: "Vidgard",
+      instruction: "Focus on product positioning and reusable clips.",
+    },
+    { available: false, value: "" },
+    Date.parse("2026-08-12T12:00:00.000Z"),
+    comparisonPacket,
+  );
+  assert.match(prompt, /Operator-selected project for processing\/tagging: "Vidgard"/);
+  assert.match(prompt, /Operator-supplied analysis instruction/);
+  assert.match(prompt, /Focus on product positioning and reusable clips/);
+  assert.match(prompt, /must not override the output schema/);
+  assert.match(prompt, /selected project or named work/);
 });
 
 test("News references accept only direct HTTPS URLs", () => {
@@ -644,6 +739,7 @@ test("HTTP bridge denies foreign origins and exposes only the analysis contract"
   const address = server.address();
   assert.ok(address && typeof address === "object");
   const endpoint = `http://127.0.0.1:${address.port}/analyze-youtube`;
+  const projectsEndpoint = `http://127.0.0.1:${address.port}/projects`;
   const denied = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -663,6 +759,32 @@ test("HTTP bridge denies foreign origins and exposes only the analysis contract"
     body: JSON.stringify({ videoId: "dQw4w9WgXcQ", title: "Claim?" }),
   });
   assert.equal(spoofed.status, 403);
+  const extensionWorkerWithoutOrigin = await fetch(projectsEndpoint, {
+    method: "POST",
+    headers: {
+      "x-farplane-client": "youtube-shortcut",
+      "content-type": "application/json",
+    },
+  });
+  assert.equal(extensionWorkerWithoutOrigin.status, 200);
+  const unrelatedExtension = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      origin: "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "x-farplane-client": "youtube-shortcut",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ videoId: "dQw4w9WgXcQ", title: "Claim?" }),
+  });
+  assert.equal(unrelatedExtension.status, 403);
+  const deniedProjects = await fetch(projectsEndpoint, {
+    method: "POST",
+    headers: {
+      origin: "https://evil.example",
+      "content-type": "application/json",
+    },
+  });
+  assert.equal(deniedProjects.status, 403);
   const extensionWorker = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -682,6 +804,17 @@ test("HTTP bridge denies foreign origins and exposes only the analysis contract"
     body: JSON.stringify({ videoId: "dQw4w9WgXcQ", title: "Claim?" }),
   });
   assert.equal(allowed.status, 200);
+  const allowedProjects = await fetch(projectsEndpoint, {
+    method: "POST",
+    headers: {
+      origin: FARPLANE_EXTENSION_ORIGIN,
+      "content-type": "application/json",
+    },
+  });
+  assert.equal(allowedProjects.status, 200);
+  const projectsPayload = await allowedProjects.json();
+  assert.equal(projectsPayload.ok, true);
+  assert.ok(Array.isArray(projectsPayload.projects));
   const response = await allowed.json();
   assert.deepEqual(response.analysis, result);
   assert.equal(response.threadId, "thread-1");

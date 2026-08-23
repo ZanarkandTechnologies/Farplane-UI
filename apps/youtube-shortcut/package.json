@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "plasmo dev",
     "dev:agent": "tsx scripts/local-agent.ts",
-    "build": "plasmo build",
+    "build": "plasmo build && node scripts/verify-extension-build.mjs",
     "package": "plasmo package",
     "test": "node --import tsx --test background.test.ts scripts/local-agent.test.ts scripts/video-intelligence-cloud.test.ts scripts/ingest-channel-manifest.test.ts",
     "type-check": "tsc --noEmit"

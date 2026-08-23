@@ -45,6 +45,36 @@ type PopupTab = "jobs" | "status";
 
 const startCommand = "corepack pnpm youtube:serve";
 
+/** Popup status bypasses the worker so its startup cannot produce a false offline state. */
+async function requestBridge<T>(path: string, timeoutMs: number): Promise<T> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`http://127.0.0.1:47893${path}`, {
+      method: "POST",
+      headers: {
+        "x-farplane-client": "youtube-shortcut",
+        "x-farplane-request-id": `popup-${Date.now().toString(36)}`,
+      },
+      signal: controller.signal,
+    });
+    const payload = (await response.json()) as T & {
+      ok?: unknown;
+      error?: unknown;
+    };
+    if (!response.ok || payload.ok !== true) {
+      throw new Error(
+        typeof payload.error === "string"
+          ? payload.error
+          : `Bridge returned HTTP ${response.status}.`,
+      );
+    }
+    return payload;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 export default function Popup() {
   const [health, setHealth] = useState<Health | null>(null);
   const [error, setError] = useState("");
@@ -55,12 +85,13 @@ export default function Popup() {
 
   async function refreshJobs() {
     try {
-      const response = await chrome.runtime.sendMessage({
-        type: "GET_YOUTUBE_JOBS",
-      });
-      if (response?.ok && Array.isArray(response.jobs)) setJobs(response.jobs);
+      const response = await requestBridge<{ jobs?: AnalysisJob[] }>(
+        "/jobs",
+        5_000,
+      );
+      if (Array.isArray(response.jobs)) setJobs(response.jobs);
     } catch {
-      // Health owns the offline state; background polling stays silent.
+      // Health owns the offline state; job polling stays silent.
     }
   }
 
@@ -68,12 +99,10 @@ export default function Popup() {
     setLoading(true);
     setError("");
     try {
-      const response = await chrome.runtime.sendMessage({
-        type: "GET_LOCAL_HEALTH",
-      });
-      if (!response?.ok) {
-        throw new Error(response?.error || "Local service unavailable");
-      }
+      const response = await requestBridge<Health>(
+        "/health",
+        9_000,
+      );
       setHealth(response);
       await refreshJobs();
     } catch (cause) {
@@ -655,6 +684,7 @@ const errorFooterStyle: React.CSSProperties = {
   gap: 10,
   marginTop: 9,
 };
+
 const errorDetailStyle: React.CSSProperties = {
   minWidth: 0,
   overflow: "hidden",
