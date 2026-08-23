@@ -40,6 +40,11 @@ export type OfficeSceneViewport = {
   height: number;
 };
 
+type OfficeViewportFitState = OfficeSceneViewport & {
+  fitToViewport?: boolean;
+  zoom: number;
+};
+
 const DIORAMA_REFERENCE_ASPECT = 16 / 10;
 
 export function getOfficeViewportFitZoom(
@@ -48,6 +53,21 @@ export function getOfficeViewportFitZoom(
 ): number {
   const aspect = Math.max(1, viewport.width) / Math.max(1, viewport.height);
   return zoom * Math.min(1, aspect / DIORAMA_REFERENCE_ASPECT);
+}
+
+export function shouldApplyOfficeViewportFitZoom(
+  config: Pick<OfficeSceneCameraConfig, "fitToViewport" | "zoom">,
+  viewport: OfficeSceneViewport,
+  previous: OfficeViewportFitState | null,
+): boolean {
+  if (!config.fitToViewport) return false;
+  return (
+    previous === null ||
+    previous.fitToViewport !== config.fitToViewport ||
+    previous.zoom !== config.zoom ||
+    previous.width !== viewport.width ||
+    previous.height !== viewport.height
+  );
 }
 
 export function selectOfficeSceneCamera(
@@ -110,6 +130,7 @@ export function OfficeSceneCameraRig({
   const activeProjectionRef = useRef<
     OfficeSceneCameraConfig["projection"] | null
   >(null);
+  const viewportFitStateRef = useRef<OfficeViewportFitState | null>(null);
   const initialCameraRef = useRef(initialCamera);
 
   useLayoutEffect(() => {
@@ -129,6 +150,11 @@ export function OfficeSceneCameraRig({
     const projectionChanged = activeProjectionRef.current !== config.projection;
     const activeCameraDrifted = activeCamera !== nextCamera;
     const viewport = { width: viewportWidth, height: viewportHeight };
+    const shouldApplyViewportFit = shouldApplyOfficeViewportFitZoom(
+      config,
+      viewport,
+      viewportFitStateRef.current,
+    );
     if (projectionChanged || activeCameraDrifted) {
       applyOfficeSceneCameraConfig(nextCamera, config, viewport);
       activeProjectionRef.current = config.projection;
@@ -137,14 +163,17 @@ export function OfficeSceneCameraRig({
       // Position, target, and zoom remain transition/control-owned when the projection is stable.
       if (nextCamera instanceof THREE.PerspectiveCamera)
         nextCamera.fov = config.fov;
-      if (
-        nextCamera instanceof THREE.OrthographicCamera &&
-        config.fitToViewport
-      ) {
+      if (nextCamera instanceof THREE.OrthographicCamera && shouldApplyViewportFit) {
         nextCamera.zoom = getOfficeViewportFitZoom(config.zoom, viewport);
       }
       applyOfficeSceneCameraViewport(nextCamera, viewport);
     }
+    viewportFitStateRef.current = {
+      fitToViewport: config.fitToViewport,
+      height: viewport.height,
+      width: viewport.width,
+      zoom: config.zoom,
+    };
   }, [activeCamera, config, set, viewportHeight, viewportWidth]);
 
   useLayoutEffect(

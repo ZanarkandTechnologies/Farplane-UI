@@ -20,14 +20,9 @@ import { useTheme } from "next-themes";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { getOfficeDioramaTheme, getOfficeTheme } from "@/config/office-theme";
-import {
-  getBackgroundPreset,
-  type OfficeDecorSettings,
-} from "@/modules/office/lib/office-decor";
-import {
-  getOfficeQaState,
-  updateOfficeQaState,
-} from "@/modules/office/qa/office-qa-state";
+import { resolveFarplaneTheme } from "@/config/theme-system";
+import { getBackgroundPreset, type OfficeDecorSettings } from "@/modules/office/lib/office-decor";
+import { getOfficeQaState, updateOfficeQaState } from "@/modules/office/qa/office-qa-state";
 import type { OfficeSettingsModel } from "@/modules/runtime";
 import { buildConsultCameraState } from "./consult-camera";
 import {
@@ -49,7 +44,7 @@ export function useOfficeSceneBackground(
 
 export function useOfficeSceneThemeMode(): boolean {
   const { resolvedTheme } = useTheme();
-  return resolvedTheme !== "light";
+  return resolveFarplaneTheme(resolvedTheme) === "dark";
 }
 
 export function useOfficeSceneTheme(): ReturnType<typeof getOfficeTheme> {
@@ -63,10 +58,7 @@ export function useOfficeSceneDioramaTheme(): ReturnType<typeof getOfficeDiorama
 }
 
 export function getInitialOfficeCameraConfig(
-  settings: Pick<
-    OfficeSettingsModel,
-    "viewProfile" | "orbitControlsEnabled" | "cameraOrientation"
-  >,
+  settings: Pick<OfficeSettingsModel, "viewProfile" | "orbitControlsEnabled" | "cameraOrientation">,
   options?: {
     forcePerspective?: boolean;
     isBuilderMode?: boolean;
@@ -79,6 +71,7 @@ export function getInitialOfficeCameraConfig(
   target: [number, number, number];
   fov: number;
   zoom: number;
+  fitToViewport?: boolean;
 } {
   const viewState = getOfficeSceneViewState({
     isBuilderMode: options?.isBuilderMode ?? false,
@@ -107,10 +100,7 @@ export function getOfficeCameraTransitionDuration(input: {
   previousBuilderMode?: boolean;
   isBuilderMode: boolean;
 }): number {
-  if (
-    input.previousProjection === undefined ||
-    input.previousProjection !== input.nextProjection
-  ) {
+  if (input.previousProjection === undefined || input.previousProjection !== input.nextProjection) {
     return 0;
   }
   if (
@@ -144,9 +134,7 @@ export function useOfficeSceneCameraTransition(params: {
     forcePerspective,
     layoutCenter,
   } = params;
-  const previousProjectionRef = useRef<
-    "perspective" | "orthographic" | undefined
-  >(undefined);
+  const previousProjectionRef = useRef<"perspective" | "orthographic" | undefined>(undefined);
   const previousBuilderModeRef = useRef<boolean | undefined>(undefined);
   const storyInvocationRef = useRef<number | null>(null);
   const storyTargetReadyRef = useRef<number | null>(null);
@@ -160,13 +148,9 @@ export function useOfficeSceneCameraTransition(params: {
 
     const camera = controls.object;
     const storyTargetSignature = consultCameraTarget?.join(",") ?? null;
-    if (
-      storyTargetSignature &&
-      storyTargetSignatureRef.current !== storyTargetSignature
-    ) {
+    if (storyTargetSignature && storyTargetSignatureRef.current !== storyTargetSignature) {
       const targetReadyAt = performance.now();
-      storyInvocationRef.current =
-        getOfficeQaState().storyInvocationAt ?? targetReadyAt;
+      storyInvocationRef.current = getOfficeQaState().storyInvocationAt ?? targetReadyAt;
       storyTargetReadyRef.current = targetReadyAt;
       storyTargetSignatureRef.current = storyTargetSignature;
     } else if (!storyTargetSignature) {
@@ -190,10 +174,8 @@ export function useOfficeSceneCameraTransition(params: {
       ? "perspective"
       : (nextViewState?.cameraProjection ?? "perspective");
     const projectionIsReady =
-      (nextProjection === "perspective" &&
-        camera instanceof THREE.PerspectiveCamera) ||
-      (nextProjection === "orthographic" &&
-        camera instanceof THREE.OrthographicCamera);
+      (nextProjection === "perspective" && camera instanceof THREE.PerspectiveCamera) ||
+      (nextProjection === "orthographic" && camera instanceof THREE.OrthographicCamera);
     if (!projectionIsReady) {
       const retryTimer = window.setTimeout(() => {
         setProjectionRetry((attempt) => attempt + 1);
@@ -238,12 +220,10 @@ export function useOfficeSceneCameraTransition(params: {
       updateOfficeQaState({ storyTiming: timing });
     };
     const endPos = new THREE.Vector3(
-      ...(consultCameraState?.position ??
-        nextViewState?.cameraPosition ?? [0, 25, 30]),
+      ...(consultCameraState?.position ?? nextViewState?.cameraPosition ?? [0, 25, 30]),
     );
     const endTarget = new THREE.Vector3(
-      ...(consultCameraState?.target ??
-        nextViewState?.cameraTarget ?? [0, 0, 0]),
+      ...(consultCameraState?.target ?? nextViewState?.cameraTarget ?? [0, 0, 0]),
     );
     if (
       startPos.distanceToSquared(endPos) < 0.0001 &&
@@ -295,8 +275,7 @@ export function useOfficeSceneCameraTransition(params: {
 
     animateCamera();
     return () => {
-      if (animationFrameId !== undefined)
-        cancelAnimationFrame(animationFrameId);
+      if (animationFrameId !== undefined) cancelAnimationFrame(animationFrameId);
     };
   }, [
     consultCameraTarget,

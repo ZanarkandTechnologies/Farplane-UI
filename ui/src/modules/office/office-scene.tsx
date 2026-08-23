@@ -18,7 +18,7 @@
  */
 
 import { Canvas } from "@react-three/fiber";
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo } from "react";
 import { UI_Z } from "@/lib/z-index";
 import { useChatStore } from "@/modules/chat/chat-store";
 import { getDepartmentArchipelagoLayoutCenter } from "@/modules/office/lib/department-island-layout";
@@ -29,6 +29,7 @@ import {
 } from "@/modules/office/scene/office-render-policy";
 import { OfficeSceneCameraRig } from "@/modules/office/scene/office-scene-camera-rig";
 import { OfficeSceneErrorBoundary } from "@/modules/office/scene/office-scene-error-boundary";
+import { canCreateWebGlContext } from "@/modules/office/scene/office-webgl-support";
 import { SceneContents } from "@/modules/office/scene/scene-contents";
 import type { OfficeSceneProps } from "@/modules/office/scene/types";
 import {
@@ -41,6 +42,7 @@ import { useAppStore } from "@/store";
 
 const OfficeScene = memo((props: OfficeSceneProps) => {
   const isDarkMode = useOfficeSceneThemeMode();
+  const { onNavigationReady } = props;
   const dioramaTheme = useOfficeSceneDioramaTheme();
   const configuredBackground = useOfficeSceneBackground(props.officeDecorSettings, isDarkMode);
   const background =
@@ -76,6 +78,27 @@ const OfficeScene = memo((props: OfficeSceneProps) => {
     fitToViewport:
       props.officeLayoutStrategy === "team_neighborhoods" && !isBuilderMode && !forcePerspective,
   });
+  const webglAvailable = useMemo(() => canCreateWebGlContext(), []);
+
+  useEffect(() => {
+    if (!webglAvailable) onNavigationReady();
+  }, [onNavigationReady, webglAvailable]);
+
+  if (!webglAvailable) {
+    return (
+      <output
+        className="flex h-full min-h-64 w-full items-center justify-center bg-background px-6 text-foreground"
+        data-office-scene-webgl-unavailable
+      >
+        <div className="max-w-md text-center">
+          <h2 className="text-lg font-semibold">Office scene unavailable</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            This browser runtime cannot create a WebGL context. Office panels remain available.
+          </p>
+        </div>
+      </output>
+    );
+  }
 
   return (
     <OfficeSceneErrorBoundary>

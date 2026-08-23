@@ -6,6 +6,7 @@ import {
   getOfficeViewportFitZoom,
   type OfficeSceneCameraConfig,
   selectOfficeSceneCamera,
+  shouldApplyOfficeViewportFitZoom,
 } from "./office-scene-camera-rig";
 
 const viewport = { width: 1280, height: 720 };
@@ -104,5 +105,21 @@ describe("office scene camera rig", () => {
     expect(camera.zoom).toBeCloseTo(
       getOfficeViewportFitZoom(23, { width: 390, height: 844 }),
     );
+  });
+
+  it("does not reapply diorama fit when an unrelated panel rerenders the camera rig", () => {
+    const config = { fitToViewport: true, zoom: 23 };
+    const previous = { ...viewport, ...config };
+
+    expect(
+      shouldApplyOfficeViewportFitZoom(config, viewport, previous),
+    ).toBe(false);
+    expect(
+      shouldApplyOfficeViewportFitZoom(
+        config,
+        { width: 900, height: 720 },
+        previous,
+      ),
+    ).toBe(true);
   });
 });
