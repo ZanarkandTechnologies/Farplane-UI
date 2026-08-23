@@ -715,17 +715,18 @@ function OrgChartTabContent({ isOpen }: { isOpen: boolean }): React.JSX.Element 
         return;
       }
       const projectId = node.projectId ?? "";
-      if (!projectId) return;
+      const projectPath = node.projectPath?.trim() ?? "";
+      if (!projectId || !projectPath) return;
       setCreatingProjectManagerProjectId(projectId);
       setLocalStatusText("Creating project manager thread...");
       try {
         const client = new CodexAppServerClient({ stateUrl: gatewayConfig.stateBase });
-        const started = await client.startThread(node.projectPath);
+        const started = await client.startProjectThread(projectPath);
         const threadId = started.thread?.id ?? "";
         if (!threadId) {
           throw new Error("codex_pm_thread_missing");
         }
-        const prompt = projectManagerInitializationPrompt(node.label, node.projectPath);
+        const prompt = projectManagerInitializationPrompt(node.label, projectPath);
         let initializationWarning = "";
         try {
           await client.startTurn(threadId, prompt);
