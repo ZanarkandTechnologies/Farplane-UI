@@ -115,6 +115,11 @@ corepack pnpm install --frozen-lockfile
 corepack pnpm run ui
 ```
 
+Both `pnpm run ui` and the UI package's `dev` shortcut use the same launcher.
+It always refreshes Vite's dependency optimizer, gives each local port its own
+optimizer cache, and exits a duplicate same-port launch before it can alter the
+active cache.
+
 Open the printed URL at `/office`, commonly
 `http://127.0.0.1:5173/office`. Codex app-server, OpenClaw, and Convex are not
 required for this basic launch; configure them only for their data-backed

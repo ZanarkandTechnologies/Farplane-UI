@@ -96,6 +96,22 @@ const CODEX_GLOBAL_STATE_PATH = path.join(CODEX_HOME, ".codex-global-state.json"
 const OPENCLAW_HOME = process.env.OPENCLAW_STATE_DIR || path.join(process.env.HOME || "", ".openclaw");
 const OPENCLAW_CONFIG_PATH = process.env.OPENCLAW_CONFIG_PATH || path.join(OPENCLAW_HOME, "openclaw.json");
 const REPO_ROOT = path.resolve(__dirname, "..");
+
+function resolveViteDevPort(): number {
+  const portArgIndex = process.argv.findIndex((argument) => argument === "--port");
+  const rawPort =
+    portArgIndex >= 0
+      ? process.argv[portArgIndex + 1]
+      : process.argv.find((argument) => argument.startsWith("--port="))?.slice("--port=".length);
+  const port = Number(rawPort ?? 5173);
+  return Number.isInteger(port) && port > 0 && port <= 65_535 ? port : 5173;
+}
+
+const VITE_DEV_PORT = resolveViteDevPort();
+const VITE_CACHE_DIR = process.env.FARPLANE_VITE_CACHE_DIR?.trim()
+  ? path.resolve(__dirname, process.env.FARPLANE_VITE_CACHE_DIR)
+  : path.join(__dirname, "node_modules", ".vite", `dev-${VITE_DEV_PORT}`);
+
 const FARPLANE_FRAMEWORK_ROOT =
   process.env.FARPLANE_FRAMEWORK_ROOT ||
   path.resolve(REPO_ROOT, "..", "Farplane");
@@ -7105,6 +7121,7 @@ function farplaneStateBridge() {
 
 export default defineConfig({
   root: __dirname,
+  cacheDir: VITE_CACHE_DIR,
   define: {
     "import.meta.env.VITE_CONVEX_URL": JSON.stringify(VITE_CONVEX_URL),
   },
@@ -7129,7 +7146,8 @@ export default defineConfig({
   plugins: [farplaneStateBridge(), tailwindcss(), react()],
   server: {
     host: "127.0.0.1",
-    port: 5173,
+    port: VITE_DEV_PORT,
+    strictPort: true,
   },
   build: {
     outDir: "dist",
