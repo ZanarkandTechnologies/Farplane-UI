@@ -6,9 +6,11 @@
 - Skill OS has two page-level homes: Capability Map is the default, operator-facing
   discovery surface; Skill Library owns technical graph maintenance, filters, and
   selected-skill workspaces. Capability Map renders the seven declared operating
-  departments above configured real workflow skills, then reveals those workflows'
-  direct declared artifact methods on drill-down; it must not invent process links,
-  runtime scheduling, integration leaves, or visual-only categories.
+  departments above admitted real capability nodes: artifact skills appear as
+  workstations and integration skills appear as system facilities. Drill-down
+  reveals direct department membership plus declared artifact-flow edges where
+  one capability's output matches another capability's input. It must not
+  invent Todo calls, runtime scheduling, file refs, delivery state, or visual-only categories.
   A selected skill exposes Overview,
   Runbook, conditional Experiments, and Files. Keep declared QA checklists distinct
   from SKILL.md Todo and QA Tasks.

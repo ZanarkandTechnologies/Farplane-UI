@@ -1,6 +1,6 @@
 "use client";
 
-/** Department → real workflow → artifact specialist layout for the capability constellation. */
+/** Department → workstation | facility constellation layout. */
 
 import type {
   PositionedSkillNode,
@@ -32,9 +32,10 @@ function departmentSortKey(node: SkillGraphNode): number {
 }
 
 function nodeRadius(node: SkillGraphNode, childCount: number, mode: LayoutMode): number {
-  if (node.kind === "department") return mode === "overview" ? 14 : 20;
-  if (node.kind === "workflow") return mode === "overview" ? 5.5 : 10 + Math.min(2, childCount);
-  return mode === "overview" ? 3.75 : 6;
+  if (node.kind === "department") return mode === "overview" ? 15 : 23;
+  if (node.kind === "workstation") return mode === "overview" ? 7.4 : 16 + Math.min(2, childCount);
+  if (node.kind === "facility") return mode === "overview" ? 7.8 : 17;
+  return mode === "overview" ? 4 : 8;
 }
 
 function nodesOfKind(graph: SkillGraphPayload, kind: string): SkillGraphNode[] {
@@ -47,18 +48,32 @@ function nodesOfKind(graph: SkillGraphPayload, kind: string): SkillGraphNode[] {
     });
 }
 
-function childNodes(
+function departmentCapabilities(
   graph: SkillGraphPayload,
-  root: SkillGraphNode,
-  edgeType: "contains" | "member-of",
+  department: SkillGraphNode,
 ): SkillGraphNode[] {
-  const childIds = new Set(
+  const ids = new Set(
     graph.edges
-      .filter((edge) => edge.type === edgeType && edge.source === root.id)
+      .filter((edge) => edge.type === "member-of" && edge.source === department.id)
       .map((edge) => edge.target),
   );
   return graph.nodes
-    .filter((node) => childIds.has(node.id))
+    .filter((node) => ids.has(node.id))
+    .slice()
+    .sort((left, right) => {
+      const role = (node: SkillGraphNode): number => (node.kind === "workstation" ? 0 : 1);
+      return role(left) - role(right) || left.id.localeCompare(right.id);
+    });
+}
+
+function facilityLeaves(graph: SkillGraphPayload, workstation: SkillGraphNode): SkillGraphNode[] {
+  const ids = new Set(
+    graph.edges
+      .filter((edge) => edge.type === "artifact-flow" && edge.source === workstation.id)
+      .map((edge) => edge.target),
+  );
+  return graph.nodes
+    .filter((node) => node.kind === "facility" && ids.has(node.id))
     .slice()
     .sort((left, right) => left.id.localeCompare(right.id));
 }
@@ -77,7 +92,7 @@ function visibleEdges(graph: SkillGraphPayload, visibleIds: Set<string>): SkillG
   return graph.edges
     .filter(
       (edge) =>
-        (edge.type === "member-of" || edge.type === "contains") &&
+        (edge.type === "member-of" || edge.type === "artifact-flow") &&
         visibleIds.has(edge.source) &&
         visibleIds.has(edge.target),
     )
@@ -95,95 +110,99 @@ function branchPosition(
   count: number,
   mode: LayoutMode,
 ): { angle: number; x: number; y: number } {
-  const laneSize = mode === "overview" ? 7 : 8;
-  const lane = Math.floor(index / laneSize);
-  const laneIndex = index % laneSize;
-  const currentLaneSize = Math.min(laneSize, count - lane * laneSize);
-  const span = Math.min(mode === "overview" ? 1.45 : 1.78, 0.56 + count * 0.037);
-  const offset = currentLaneSize <= 1 ? 0 : -span / 2 + (laneIndex / (currentLaneSize - 1)) * span;
-  const radius = (mode === "overview" ? 48 : 170) + lane * (mode === "overview" ? 27 : 48);
+  const span = count <= 1 ? 0 : Math.min(mode === "overview" ? 0.68 : 1.12, 0.42 + count * 0.16);
+  const offset = count <= 1 ? 0 : -span / 2 + (index / (count - 1)) * span;
   const angle = branchAngle + offset;
-  // Preserve the same real endpoint pairs while preventing a perfectly even
-  // fan. The small tangent offset gives branches a more organic constellation
-  // silhouette; it is never emitted as an intermediate graph node.
-  const rhythm = ((index * 5) % 7) - 3;
-  const tangentOffset = rhythm * (mode === "overview" ? 2.6 : 8.5);
-  const tangentialAngle = angle + Math.PI / 2;
+  // A deterministic tangent offset makes the real direct connections feel
+  // like a small constellation without inventing visual process nodes.
+  const rhythm = ((index * 7 + count * 3) % 5) - 2;
+  const tangent = angle + Math.PI / 2;
+  const radius = mode === "overview" ? 48 + index * 4 : 190 + index * 26;
+  const drift = rhythm * (mode === "overview" ? 4.5 : 13);
   return {
     angle,
-    x: originX + Math.cos(angle) * radius + Math.cos(tangentialAngle) * tangentOffset,
-    y: originY + Math.sin(angle) * radius + Math.sin(tangentialAngle) * tangentOffset,
+    x: originX + Math.cos(angle) * radius + Math.cos(tangent) * drift,
+    y: originY + Math.sin(angle) * radius + Math.sin(tangent) * drift,
   };
 }
 
-function addMethodLeaves(
-  graph: SkillGraphPayload,
-  positionedNodes: PositionedSkillNode[],
-  workflow: PositionedSkillNode,
+function facilityPosition(
+  workstation: PositionedSkillNode,
   outwardAngle: number,
-  mode: LayoutMode,
-): void {
-  const methods = childNodes(graph, workflow, "contains");
-  methods.forEach((method, index) => {
-    const offset = methods.length <= 1 ? 0 : -0.34 + (index / (methods.length - 1)) * 0.68;
-    const radius = mode === "overview" ? 19 + index * 3 : 36 + index * 8;
-    const angle = outwardAngle + offset;
-    const rhythm = (index % 2 === 0 ? -1 : 1) * (mode === "overview" ? 2 : 6);
-    const tangentialAngle = angle + Math.PI / 2;
-    positionedNodes.push(
-      positionNode(
-        method,
-        0,
-        mode,
-        workflow.x + Math.cos(angle) * radius + Math.cos(tangentialAngle) * rhythm,
-        workflow.y + Math.sin(angle) * radius + Math.sin(tangentialAngle) * rhythm,
-      ),
-    );
-  });
-}
-
-function focusedChildPosition(
-  originX: number,
-  originY: number,
   index: number,
   count: number,
-): { angle: number; x: number; y: number } {
-  const horizontalSpacing = Math.min(154, 660 / Math.max(count - 1, 1));
-  const x = originX + (index - (count - 1) / 2) * horizontalSpacing;
-  // The alternating elevation makes a focused constellation feel like a path
-  // system rather than a flat fan, without manufacturing stages. The generous
-  // lateral spacing keeps real workflow labels legible before their format
-  // specialists are expanded.
-  const y = originY - 200 - ((index * 2) % 3) * 58;
+  mode: LayoutMode,
+): { x: number; y: number } {
+  const span = count <= 1 ? 0 : Math.min(mode === "overview" ? 0.5 : 0.84, 0.3 + count * 0.12);
+  const offset = count <= 1 ? 0 : -span / 2 + (index / (count - 1)) * span;
+  const angle = outwardAngle + offset;
+  const radius = mode === "overview" ? 25 + index * 3 : 132 + index * 22;
+  const drift = (((index * 5 + count) % 3) - 1) * (mode === "overview" ? 3 : 9);
+  const tangent = angle + Math.PI / 2;
   return {
-    angle: Math.atan2(y - originY, x - originX),
-    x,
-    y,
+    x: workstation.x + Math.cos(angle) * radius + Math.cos(tangent) * drift,
+    y: workstation.y + Math.sin(angle) * radius + Math.sin(tangent) * drift,
   };
+}
+
+function appendFacilityLeaves({
+  claimedFacilityIds,
+  graph,
+  mode,
+  outwardAngle,
+  positionedNodes,
+  workstation,
+}: {
+  claimedFacilityIds: Set<string>;
+  graph: SkillGraphPayload;
+  mode: LayoutMode;
+  outwardAngle: number;
+  positionedNodes: PositionedSkillNode[];
+  workstation: PositionedSkillNode;
+}): void {
+  const facilities = facilityLeaves(graph, workstation).filter(
+    (facility) => !claimedFacilityIds.has(facility.id),
+  );
+  facilities.forEach((facility, index) => {
+    claimedFacilityIds.add(facility.id);
+    const position = facilityPosition(workstation, outwardAngle, index, facilities.length, mode);
+    positionedNodes.push(positionNode(facility, 0, mode, position.x, position.y));
+  });
 }
 
 function buildOverviewLayout(graph: SkillGraphPayload): SkillGraphLayout {
   const departments = nodesOfKind(graph, "department");
   const positionedNodes: PositionedSkillNode[] = [];
+  const claimedFacilityIds = new Set<string>();
 
   departments.forEach((department, index) => {
     const angle = -Math.PI * 0.75 + (index / Math.max(departments.length, 1)) * Math.PI * 2;
     const x = CENTER_X + Math.cos(angle) * OVERVIEW_DEPARTMENT_RING;
     const y = CENTER_Y + Math.sin(angle) * OVERVIEW_DEPARTMENT_RING;
-    const workflows = childNodes(graph, department, "member-of");
-    positionedNodes.push(positionNode(department, workflows.length, "overview", x, y));
+    const capabilities = departmentCapabilities(graph, department);
+    positionedNodes.push(positionNode(department, capabilities.length, "overview", x, y));
 
-    workflows.forEach((workflow, workflowIndex) => {
-      const branch = branchPosition(x, y, angle, workflowIndex, workflows.length, "overview");
-      const positionedWorkflow = positionNode(
-        workflow,
-        childNodes(graph, workflow, "contains").length,
+    capabilities.forEach((capability, capabilityIndex) => {
+      const branch = branchPosition(x, y, angle, capabilityIndex, capabilities.length, "overview");
+      const facilities = capability.kind === "workstation" ? facilityLeaves(graph, capability) : [];
+      const positionedCapability = positionNode(
+        capability,
+        facilities.length,
         "overview",
         branch.x,
         branch.y,
       );
-      positionedNodes.push(positionedWorkflow);
-      addMethodLeaves(graph, positionedNodes, positionedWorkflow, branch.angle, "overview");
+      positionedNodes.push(positionedCapability);
+      if (capability.kind === "workstation") {
+        appendFacilityLeaves({
+          claimedFacilityIds,
+          graph,
+          mode: "overview",
+          outwardAngle: branch.angle,
+          positionedNodes,
+          workstation: positionedCapability,
+        });
+      }
     });
   });
 
@@ -195,29 +214,44 @@ function buildOverviewLayout(graph: SkillGraphPayload): SkillGraphLayout {
   };
 }
 
-function buildFocusedLayout(graph: SkillGraphPayload, focusId: string): SkillGraphLayout {
-  const root = graph.nodes.find((node) => node.id === focusId);
-  if (!root || (root.kind !== "department" && root.kind !== "workflow")) {
-    return buildOverviewLayout(graph);
-  }
+function buildDepartmentFocusLayout(
+  graph: SkillGraphPayload,
+  departmentId: string,
+): SkillGraphLayout {
+  const department = graph.nodes.find((node) => node.id === departmentId);
+  if (!department || department.kind !== "department") return buildOverviewLayout(graph);
 
-  const edgeType = root.kind === "department" ? "member-of" : "contains";
-  const children = childNodes(graph, root, edgeType);
-  const rootY = root.kind === "department" ? 650 : 620;
-  const positionedNodes = [positionNode(root, children.length, "focus", CENTER_X, rootY)];
-
-  children.forEach((child, index) => {
-    const branch = focusedChildPosition(CENTER_X, rootY, index, children.length);
-    const positionedChild = positionNode(
-      child,
-      child.kind === "workflow" ? childNodes(graph, child, "contains").length : 0,
+  const capabilities = departmentCapabilities(graph, department);
+  const rootY = 650;
+  const positionedNodes = [positionNode(department, capabilities.length, "focus", CENTER_X, rootY)];
+  const claimedFacilityIds = new Set<string>();
+  capabilities.forEach((capability, index) => {
+    const branch = branchPosition(
+      CENTER_X,
+      rootY,
+      -Math.PI / 2,
+      index,
+      capabilities.length,
+      "focus",
+    );
+    const facilities = capability.kind === "workstation" ? facilityLeaves(graph, capability) : [];
+    const positionedCapability = positionNode(
+      capability,
+      facilities.length,
       "focus",
       branch.x,
       branch.y,
     );
-    positionedNodes.push(positionedChild);
-    if (root.kind === "department" && child.kind === "workflow") {
-      addMethodLeaves(graph, positionedNodes, positionedChild, branch.angle, "focus");
+    positionedNodes.push(positionedCapability);
+    if (capability.kind === "workstation") {
+      appendFacilityLeaves({
+        claimedFacilityIds,
+        graph,
+        mode: "focus",
+        outwardAngle: branch.angle,
+        positionedNodes,
+        workstation: positionedCapability,
+      });
     }
   });
 
@@ -234,6 +268,6 @@ export function buildCapabilityGraphLayout(
   focusedCapabilityId: string | null,
 ): SkillGraphLayout {
   return focusedCapabilityId
-    ? buildFocusedLayout(graph, focusedCapabilityId)
+    ? buildDepartmentFocusLayout(graph, focusedCapabilityId)
     : buildOverviewLayout(graph);
 }

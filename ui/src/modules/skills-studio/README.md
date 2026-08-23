@@ -6,20 +6,21 @@ Owns parsing and serialization helpers for file-backed skill metadata used by Sk
 
 Skill OS has two page-level homes plus the existing selected-skill workspace:
 
-- `Capability Map` is the default, full-screen radial map for discovering real
-  artifact-producing workflows. It starts with the seven declared operating
-  departments, opens their configured real Tier 3 workflow roots, then shows
-  each workflow's direct artifact specialists. Department membership comes from
-  skill `group`, while the Farplane-owned workflow-root projection selects the
-  map; links remain declared membership or artifact containment and never imply
-  process order or runtime scheduling. Account integrations and generic helpers
-  remain in Skill Library. An artifact inspector exposes its declared output,
-  method id, and owner skill.
+- `Capability Map` is the default, full-screen constellation for discovering
+  admitted real capabilities. The org view shows the seven departments and
+  their direct workstations or system facilities; clicking a department fans
+  out that small constellation, then clicking an object opens its details.
+  Workstations declare one `produces` artifact ID and optional `consumes` IDs;
+  facilities declare the artifact IDs they consume. Department membership comes
+  from skill `group`, while Farplane's capability-admission projection selects
+  the map. A directed flow appears only when a declared output exactly matches
+  a declared input; it is a handoff contract, not an automatic call, delivery,
+  or runtime state.
 - `Skill Library` owns the technical graph, search, tier/source/edge controls,
   and actionable maintenance filters such as Needs care and Evaluated.
 - `Skill workspace` opens an owner skill's Overview, Runbook, conditional
   Experiments, and Files. Returning from a capability handoff restores its
-  focused Department or workflow.
+  focused Department.
 
 `/skills` defaults to Capability Map. Maintenance entries such as
 `/skill-rollout` use Skill Library through their non-default initial filter.

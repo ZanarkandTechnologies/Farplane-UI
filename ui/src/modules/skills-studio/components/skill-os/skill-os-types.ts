@@ -7,6 +7,10 @@ export type SkillMethod = {
 };
 
 export type SkillGraphNode = {
+  capability?: {
+    consumes?: string[];
+    produces?: string[];
+  };
   area_id?: string;
   color?: string;
   department_id?: string;
@@ -14,6 +18,7 @@ export type SkillGraphNode = {
   eval?: string;
   group?: string;
   has_checklist?: boolean;
+  facility_count?: number;
   heat?: {
     distinct_threads_30d?: number;
     distinct_threads_window?: number;
@@ -39,8 +44,11 @@ export type SkillGraphNode = {
   parent_skill?: string;
   path?: string;
   source?: "external" | "local" | string;
+  role?: "facility" | "workstation" | string;
   skill_id?: string;
+  tags?: string[];
   tier?: number;
+  workstation_count?: number;
 };
 
 export type SkillGraphEdge = {
@@ -49,7 +57,7 @@ export type SkillGraphEdge = {
   source: string;
   target: string;
   target_ref?: string;
-  type?: "common-chain" | "markdown-ref" | string;
+  type?: "artifact-flow" | "common-chain" | "markdown-ref" | string;
 };
 
 export type SkillGraphPayload = {
@@ -67,8 +75,9 @@ export type SkillGraphPayload = {
 
 export type SkillCapabilityGraphPayload = SkillGraphPayload & {
   counts?: SkillGraphPayload["counts"] & {
-    capability_classes?: Record<"artifact" | "integration" | string, number>;
+    roles?: Record<"facility" | "workstation" | string, number>;
   };
+  schema_version?: "2.2.0" | string;
   source?: {
     contract?: string;
     link_semantics?: string;

@@ -1,15 +1,15 @@
 import {
   BrainCircuit,
   Building2,
-  FileText,
   Handshake,
   HeartHandshake,
   Landmark,
   type LucideIcon,
   Megaphone,
+  RadioTower,
   Settings2,
+  Table2,
   Target,
-  Workflow,
 } from "lucide-react";
 import type { ReactElement } from "react";
 import type { PositionedSkillNode } from "./skill-os-types";
@@ -63,9 +63,9 @@ function CapabilityNodeIcon({
   const Icon =
     node.kind === "department"
       ? (DEPARTMENT_ICONS[departmentId] ?? Building2)
-      : node.kind === "artifact"
-        ? FileText
-        : Workflow;
+      : node.kind === "facility"
+        ? RadioTower
+        : Table2;
   return (
     <Icon
       aria-hidden="true"
@@ -123,20 +123,14 @@ export function CapabilityNodeGlyph({
           y={-radius}
           {...shapeProps}
         />
-      ) : node.kind === "workflow" ? (
-        <path d={hexagonPath(radius)} {...shapeProps} />
-      ) : node.kind === "artifact" ? (
-        <path
-          d={`M ${-radius * 0.76} ${-radius} H ${radius * 0.24} L ${radius} ${-radius * 0.24} V ${radius} H ${-radius * 0.76} Z M ${radius * 0.24} ${-radius} V ${-radius * 0.24} H ${radius}`}
-          strokeLinejoin="round"
-          {...shapeProps}
-        />
+      ) : node.kind === "facility" ? (
+        <path d={hexagonPath(radius)} strokeLinejoin="round" {...shapeProps} />
       ) : (
         <rect
           height={radius * 2}
-          rx={2}
-          width={radius * 2}
-          x={-radius}
+          rx={Math.max(3, radius * 0.34)}
+          width={radius * 2.35}
+          x={-radius * 1.175}
           y={-radius}
           {...shapeProps}
         />

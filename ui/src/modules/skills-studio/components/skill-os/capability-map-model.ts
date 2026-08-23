@@ -1,9 +1,9 @@
 /**
  * Capability Map presentation helpers.
  *
- * The generated graph is canonical: departments come from Tier 3 `group`,
- * map roots are selected real workflow skills, and outputs are artifact-only
- * `contains` leaves. It deliberately carries no inferred task scheduling.
+ * The generated graph is canonical: departments come from Tier 3 `group` and
+ * admitted packages are either artifact workstations or system facilities. It
+ * deliberately carries no inferred task scheduling or runtime delivery state.
  */
 
 import type { SkillGraphNode, SkillGraphPayload } from "./skill-os-types";
@@ -31,11 +31,6 @@ function departmentId(node: SkillGraphNode): string {
   return node.department_id ?? node.group ?? node.id.replace(/^department:/, "");
 }
 
-const ARTIFACT_METHOD_LABELS: Record<string, string> = {
-  "cross-platform": "Cross-Platform",
-  "twitter-thread": "X Thread",
-};
-
 export function capabilityDepartmentColor(node: SkillGraphNode): string {
   return DEPARTMENT_COLORS[departmentId(node)] ?? "#E6C86A";
 }
@@ -46,17 +41,14 @@ export function capabilityClusterColor(node: SkillGraphNode): string {
 
 export function capabilityNodeLabel(node: SkillGraphNode): string {
   if (node.kind === "department") return node.label ?? "Department";
-  if (node.kind === "workflow") return titleCase(node.label ?? node.skill_id ?? node.id);
-  const action = node.method_id?.split(":").at(-1);
-  if (action && ARTIFACT_METHOD_LABELS[action]) return ARTIFACT_METHOD_LABELS[action];
-  return titleCase(action ?? node.label ?? node.output ?? node.id);
+  return titleCase(node.label ?? node.skill_id ?? node.id.replace(/^skill:/, ""));
 }
 
 export function capabilityNodeCaption(node: SkillGraphNode): string {
   if (node.kind === "department") return "DEPARTMENT";
-  if (node.kind === "workflow") return "WORKFLOW";
-  if (node.kind === "artifact") return "ARTIFACT";
-  return "ACTION";
+  if (node.kind === "workstation") return "WORKSTATION";
+  if (node.kind === "facility") return "SYSTEM FACILITY";
+  return "CAPABILITY";
 }
 
 export function capabilityFocusContains(
@@ -67,7 +59,7 @@ export function capabilityFocusContains(
   if (focusId === nodeId) return true;
   const childrenByParent = new Map<string, string[]>();
   for (const edge of graph.edges.filter(
-    (edge) => edge.type === "member-of" || edge.type === "contains",
+    (edge) => edge.type === "member-of" || edge.type === "artifact-flow",
   )) {
     childrenByParent.set(edge.source, [...(childrenByParent.get(edge.source) ?? []), edge.target]);
   }
@@ -86,8 +78,5 @@ export function capabilityFocusContains(
 export function capabilityFocusId(graph: SkillGraphPayload, value: string | null): string | null {
   if (!value) return null;
   const direct = graph.nodes.find((node) => node.id === value);
-  if (direct?.kind === "department" || direct?.kind === "workflow") return direct.id;
-  return (
-    graph.nodes.find((node) => node.kind === "workflow" && node.skill_id === value)?.id ?? null
-  );
+  return direct?.kind === "department" ? direct.id : null;
 }

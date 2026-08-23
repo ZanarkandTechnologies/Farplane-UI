@@ -110,33 +110,21 @@ export function SkillOsMiniApp({
       }, false);
       return;
     }
-    if (node.kind === "workflow") {
-      const owningSkill = node.skill_id ?? node.id.replace(/^skill:/, "");
-      if (focusedCapabilityId !== node.id) {
+    if (node.kind === "workstation" || node.kind === "facility") {
+      const departmentId = node.group ?? node.department_id;
+      if (!departmentId) return;
+      const departmentNodeId = `department:${departmentId}`;
+      if (focusedCapabilityId !== departmentNodeId) {
         updateSearchParams((next) => {
-          next.set("capability", node.id);
-          next.delete("capabilityNode");
+          next.set("capability", departmentNodeId);
+          next.set("capabilityNode", node.id);
           next.delete("skill");
           next.delete("view");
         }, false);
         return;
       }
-      openOwnerSkill(owningSkill);
-      return;
+      updateSearchParams((next) => next.set("capabilityNode", node.id), false);
     }
-    const owningSkill = node.skill_id ?? node.parent_skill;
-    if (!owningSkill) return;
-    const workflowNodeId = `skill:${owningSkill}`;
-    if (focusedCapabilityId !== workflowNodeId) {
-      updateSearchParams((next) => {
-        next.set("capability", workflowNodeId);
-        next.delete("capabilityNode");
-        next.delete("skill");
-        next.delete("view");
-      }, false);
-      return;
-    }
-    updateSearchParams((next) => next.set("capabilityNode", node.id), false);
   }
 
   function clearCapabilityFocus(): void {
@@ -185,12 +173,12 @@ export function SkillOsMiniApp({
     isCapabilityMap &&
     capabilityMap &&
     focusedCapabilityId &&
-    focusedCapabilityNode?.kind === "workflow"
+    focusedCapabilityNode?.kind === "department"
       ? (capabilityMap.nodes.find(
           (node) =>
             node.id === capabilityNodeParam &&
             capabilityFocusContains(capabilityMap, focusedCapabilityId, node.id) &&
-            node.kind === "artifact",
+            (node.kind === "workstation" || node.kind === "facility"),
         ) ?? null)
       : null;
 

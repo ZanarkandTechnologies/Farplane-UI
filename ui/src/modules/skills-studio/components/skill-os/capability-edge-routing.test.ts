@@ -6,8 +6,9 @@ describe("capability edge routing", () => {
     const path = capabilityEdgePath({ x: 600, y: 620 }, { x: 292, y: 420 }, "social-carousel");
 
     expect(path).toMatch(/^M 600 620/);
-    expect(path).toMatch(/L 292 420$/);
-    expect((path.match(/ L /g) ?? []).length).toBe(3);
+    expect(path).toMatch(/Q /);
+    expect(path).toMatch(/292 420$/);
+    expect(path).not.toContain(" L ");
   });
 
   it("keeps short edges direct", () => {

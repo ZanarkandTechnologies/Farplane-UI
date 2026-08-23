@@ -20,6 +20,9 @@ export function CapabilityInspector({
   onOpenOwnerSkill: (skillId: string) => void;
 }): ReactElement {
   const ownerSkill = node.parent_skill ?? node.skill_id ?? "";
+  const isFacility = node.kind === "facility";
+  const consumes = node.capability?.consumes?.join(", ") ?? "No declared input.";
+  const produces = node.capability?.produces?.join(", ") ?? "";
   return (
     <aside
       aria-label="Capability details"
@@ -49,19 +52,21 @@ export function CapabilityInspector({
           <dt className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
             Type
           </dt>
-          <dd>Artifact specialist</dd>
+          <dd>{isFacility ? "System facility" : "Artifact workstation"}</dd>
         </div>
+        {produces ? (
+          <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 px-1 py-2.5">
+            <dt className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              Produces
+            </dt>
+            <dd className="break-words font-mono text-xs">{produces}</dd>
+          </div>
+        ) : null}
         <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 px-1 py-2.5">
           <dt className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-            Output
+            Consumes
           </dt>
-          <dd className="break-words">{node.output ?? "No output declared."}</dd>
-        </div>
-        <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 px-1 py-2.5">
-          <dt className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-            Method
-          </dt>
-          <dd className="break-words font-mono text-xs">{node.method_id ?? "Not declared."}</dd>
+          <dd className="break-words font-mono text-xs">{consumes}</dd>
         </div>
         <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 px-1 py-2.5">
           <dt className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">

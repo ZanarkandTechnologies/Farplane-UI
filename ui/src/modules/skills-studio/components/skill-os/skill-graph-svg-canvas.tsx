@@ -88,6 +88,94 @@ function overviewLabelPosition(node: PositionedSkillNode): {
   };
 }
 
+function capabilityGraphArcId(renderKey: string): string {
+  return `capability-graph-${renderKey.replaceAll(/[^a-zA-Z0-9_-]/g, "-")}`;
+}
+
+function CapabilityGraphArc({
+  active,
+  color,
+  d,
+  dimmed,
+  directed,
+  reducedMotion,
+  renderKey,
+  semanticLabel,
+  showPackets,
+}: {
+  active: boolean;
+  color: string;
+  d: string;
+  dimmed: boolean;
+  directed: boolean;
+  reducedMotion: boolean;
+  renderKey: string;
+  semanticLabel: string;
+  showPackets: boolean;
+}): ReactElement {
+  const id = capabilityGraphArcId(renderKey);
+  const opacity = dimmed ? 0.1 : active ? 0.95 : 0.58;
+  const duration = 4.8 + (renderKey.length % 4) * 0.4;
+
+  return (
+    <g pointerEvents="none">
+      <title>{semanticLabel}</title>
+      <path
+        d={d}
+        fill="none"
+        pathLength={1}
+        stroke={color}
+        strokeDasharray="0.045 0.03"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeOpacity={opacity * 0.24}
+        strokeWidth={active ? 4.6 : 3.3}
+      />
+      <path
+        id={id}
+        d={d}
+        fill="none"
+        pathLength={1}
+        stroke={color}
+        strokeDasharray="0.045 0.03"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeOpacity={opacity}
+        strokeWidth={active ? 1.9 : 1.35}
+        markerEnd={directed ? "url(#capability-artifact-flow-arrow)" : undefined}
+      >
+        {!reducedMotion && !dimmed ? (
+          <animate
+            attributeName="stroke-dashoffset"
+            dur={`${duration}s`}
+            from="0.15"
+            repeatCount="indefinite"
+            to="0"
+          />
+        ) : null}
+      </path>
+      {showPackets && !reducedMotion && !dimmed
+        ? [0, 1].map((packetIndex) => (
+            <circle
+              key={`${id}-packet-${packetIndex}`}
+              fill={color}
+              filter="url(#capability-membership-packet-glow)"
+              opacity={packetIndex === 0 ? 0.94 : 0.62}
+              r={packetIndex === 0 ? 3.1 : 2.05}
+            >
+              <animateMotion
+                begin={`-${packetIndex * (duration / 2)}s`}
+                dur={`${duration}s`}
+                path={d}
+                repeatCount="indefinite"
+              />
+            </circle>
+          ))
+        : null}
+    </g>
+  );
+}
+
 export function SkillGraphSvgCanvas({
   edgeCount,
   graphNodeCount,
@@ -113,11 +201,10 @@ export function SkillGraphSvgCanvas({
   const zoomBehaviorRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const [transform, setTransform] = useState<ZoomTransform>(zoomIdentity.translate(0, 0).scale(1));
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
+  const [reducedMotion, setReducedMotion] = useState(false);
 
   const hasQuery = query.trim().length > 0;
   const isCapabilityMap = Boolean(radialMode);
-  const isSingleWorkflowFocus =
-    radialMode === "focus" && layout.nodes.filter((node) => node.kind === "workflow").length === 1;
   const selectedNode = useMemo(
     () => layout.nodes.find((node) => node.id === selectedSkillId) ?? null,
     [layout.nodes, selectedSkillId],
@@ -166,6 +253,14 @@ export function SkillGraphSvgCanvas({
       .scale(1.12);
     select(svg).transition().duration(420).call(behavior.transform, next);
   }, [selectedNode]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
 
   function zoomBy(factor: number): void {
     const svg = svgRef.current;
@@ -216,13 +311,38 @@ export function SkillGraphSvgCanvas({
       >
         <title>{radialMode ? "Capability department map" : graphTitle}</title>
         <g transform={transformToSvg(transform)}>
+          <defs>
+            <filter id="capability-nexus-glow" x="-120%" y="-120%" width="340%" height="340%">
+              <feGaussianBlur stdDeviation="14" />
+            </filter>
+            <filter
+              id="capability-membership-packet-glow"
+              x="-300%"
+              y="-300%"
+              width="700%"
+              height="700%"
+            >
+              <feGaussianBlur stdDeviation="2.1" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <marker
+              id="capability-artifact-flow-arrow"
+              markerHeight="7"
+              markerUnits="strokeWidth"
+              markerWidth="7"
+              orient="auto"
+              refX="6"
+              refY="3.5"
+              viewBox="0 0 7 7"
+            >
+              <path d="M 0 0 L 7 3.5 L 0 7 z" fill="context-stroke" />
+            </marker>
+          </defs>
           {radialMode === "overview" ? (
             <g pointerEvents="none">
-              <defs>
-                <filter id="capability-nexus-glow" x="-120%" y="-120%" width="340%" height="340%">
-                  <feGaussianBlur stdDeviation="14" />
-                </filter>
-              </defs>
               <circle
                 cx={MAP_CENTER_X}
                 cy={MAP_CENTER_Y}
@@ -334,19 +454,25 @@ export function SkillGraphSvgCanvas({
                     ? 0.52
                     : 0.42;
               return isCapabilityMap ? (
-                <path
+                <CapabilityGraphArc
                   key={edge.renderKey}
+                  active={active}
+                  color={stroke}
                   d={capabilityEdgePath(
                     source,
                     target,
                     edge.renderKey ?? `${edge.source}-${edge.target}`,
                   )}
-                  fill="none"
-                  stroke={stroke}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeOpacity={strokeOpacity}
-                  strokeWidth={active ? 2.6 : 1.25}
+                  dimmed={searchDimmed}
+                  directed={edge.type === "artifact-flow"}
+                  reducedMotion={reducedMotion}
+                  renderKey={edge.renderKey ?? `${edge.source}-${edge.target}`}
+                  semanticLabel={
+                    edge.type === "artifact-flow"
+                      ? `Declared artifact flow: ${edge.label ?? "artifact handoff"}`
+                      : "Declared department membership"
+                  }
+                  showPackets={radialMode === "focus" && edge.type === "artifact-flow"}
                 />
               ) : (
                 <line
@@ -369,19 +495,19 @@ export function SkillGraphSvgCanvas({
               const searchDimmed = hasQuery && !queryMatches.has(node.id);
               const isArtifact = node.kind === "artifact";
               const isCapabilityDepartment = node.kind === "department";
-              const isCapabilityWorkflow = node.kind === "workflow";
+              const isCapabilityNode = node.kind === "workstation" || node.kind === "facility";
               const nodeColor = isCapabilityMap
                 ? isCapabilityDepartment
                   ? capabilityDepartmentColor(node)
-                  : isCapabilityWorkflow
+                  : isCapabilityNode
                     ? capabilityClusterColor(node)
-                    : "#f3eab8"
+                    : "#d8cfaa"
                 : isArtifact
                   ? "#D8B86A"
                   : tierColor(node.tier);
               const nodeLabel = isCapabilityMap
                 ? capabilityNodeLabel(node).toUpperCase()
-                : isCapabilityWorkflow
+                : isCapabilityNode
                   ? (node.label ?? node.id)
                       .replace(/^skill:/, "")
                       .replaceAll("-", " ")
@@ -393,11 +519,10 @@ export function SkillGraphSvgCanvas({
               const showNodeLabel =
                 !isCapabilityMap ||
                 showOverviewRootLabel ||
-                (radialMode === "focus" &&
-                  (isCapabilityDepartment ||
-                    isCapabilityWorkflow ||
-                    (isSingleWorkflowFocus && isArtifact)));
-              const showCaption = !isCapabilityMap || isCapabilityDepartment;
+                (radialMode === "focus" && (isCapabilityDepartment || isCapabilityNode));
+              const showCaption =
+                !isCapabilityMap ||
+                (radialMode === "focus" && (isCapabilityDepartment || isCapabilityNode));
               const overviewLabel = showOverviewRootLabel ? overviewLabelPosition(node) : null;
               const labelX = overviewLabel?.x ?? 0;
               const labelY = overviewLabel?.y ?? -node.radius - 12 - (labelLines.length - 1) * 6;
