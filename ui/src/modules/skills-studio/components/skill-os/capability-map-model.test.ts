@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  CAPABILITY_GRAPH_SCHEMA_VERSION,
   capabilityClusterColor,
   capabilityDepartmentColor,
   capabilityFocusContains,
   capabilityFocusId,
   capabilityNodeCaption,
   capabilityNodeLabel,
+  isSkillCapabilityGraphPayload,
 } from "./capability-map-model";
 import type { SkillGraphPayload } from "./skill-os-types";
 
@@ -66,5 +68,18 @@ describe("capability map model", () => {
     expect(capabilityNodeLabel(workstation)).toBe("X Thread Writer");
     expect(capabilityNodeCaption(workstation)).toBe("WORKSTATION");
     expect(capabilityNodeCaption(facility)).toBe("SYSTEM FACILITY");
+  });
+
+  it("accepts only the current directed artifact-flow payload contract", () => {
+    const payload = { ...graph, schema_version: CAPABILITY_GRAPH_SCHEMA_VERSION };
+
+    expect(isSkillCapabilityGraphPayload(payload)).toBe(true);
+    expect(
+      isSkillCapabilityGraphPayload({
+        ...payload,
+        edges: [{ source: "skill:x-thread", target: "skill:x-account", type: "uses-facility" }],
+      }),
+    ).toBe(false);
+    expect(isSkillCapabilityGraphPayload({ ...payload, schema_version: "2.1.0" })).toBe(false);
   });
 });

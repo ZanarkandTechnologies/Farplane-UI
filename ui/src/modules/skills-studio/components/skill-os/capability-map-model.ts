@@ -6,7 +6,14 @@
  * deliberately carries no inferred task scheduling or runtime delivery state.
  */
 
-import type { SkillGraphNode, SkillGraphPayload } from "./skill-os-types";
+import type {
+  SkillCapabilityGraphPayload,
+  SkillGraphEdge,
+  SkillGraphNode,
+  SkillGraphPayload,
+} from "./skill-os-types";
+
+export const CAPABILITY_GRAPH_SCHEMA_VERSION = "2.2.0";
 
 const DEPARTMENT_COLORS: Record<string, string> = {
   "back-office": "#B6BE74",
@@ -17,6 +24,39 @@ const DEPARTMENT_COLORS: Record<string, string> = {
   operations: "#A78BFA",
   sales: "#D98EBC",
 };
+
+function isCapabilityGraphNode(value: unknown): value is SkillGraphNode {
+  if (!value || typeof value !== "object") return false;
+  const node = value as Partial<SkillGraphNode>;
+  return (
+    typeof node.id === "string" &&
+    (node.kind === "department" || node.kind === "workstation" || node.kind === "facility")
+  );
+}
+
+function isCapabilityGraphEdge(value: unknown): value is SkillGraphEdge {
+  if (!value || typeof value !== "object") return false;
+  const edge = value as Partial<SkillGraphEdge>;
+  return (
+    typeof edge.source === "string" &&
+    typeof edge.target === "string" &&
+    (edge.type === "member-of" || edge.type === "artifact-flow")
+  );
+}
+
+export function isSkillCapabilityGraphPayload(
+  value: unknown,
+): value is SkillCapabilityGraphPayload {
+  if (!value || typeof value !== "object") return false;
+  const graph = value as Partial<SkillCapabilityGraphPayload>;
+  return (
+    graph.schema_version === CAPABILITY_GRAPH_SCHEMA_VERSION &&
+    Array.isArray(graph.nodes) &&
+    graph.nodes.every(isCapabilityGraphNode) &&
+    Array.isArray(graph.edges) &&
+    graph.edges.every(isCapabilityGraphEdge)
+  );
+}
 
 function titleCase(value: string): string {
   return value

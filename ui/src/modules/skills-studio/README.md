@@ -11,7 +11,11 @@ Skill OS has two page-level homes plus the existing selected-skill workspace:
   their direct workstations or system facilities; clicking a department fans
   out that small constellation, then clicking an object opens its details.
   Workstations declare one `produces` artifact ID and optional `consumes` IDs;
-  facilities declare the artifact IDs they consume. Department membership comes
+  facilities declare the artifact IDs they consume. The renderer starts each
+  constellation at artifact-flow roots, then draws every declared downstream
+  workstation or facility as a directed chain; redundant ownership edges stay
+  in the payload but are not drawn as fake process shortcuts. Department
+  membership comes
   from skill `group`, while Farplane's capability-admission projection selects
   the map. A directed flow appears only when a declared output exactly matches
   a declared input; it is a handoff contract, not an automatic call, delivery,

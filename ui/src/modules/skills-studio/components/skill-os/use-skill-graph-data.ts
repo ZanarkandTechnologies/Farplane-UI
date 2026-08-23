@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isSkillCapabilityGraphPayload } from "./capability-map-model";
 import type {
   SkillCapabilityGraphPayload,
   SkillDocsPayload,
@@ -39,16 +40,13 @@ export function useSkillGraphData(): {
   templateIntelligenceError: string | null;
 } {
   const [graph, setGraph] = useState<SkillGraphPayload | null>(null);
-  const [capabilityGraph, setCapabilityGraph] =
-    useState<SkillCapabilityGraphPayload | null>(null);
+  const [capabilityGraph, setCapabilityGraph] = useState<SkillCapabilityGraphPayload | null>(null);
   const [frameworkCoreGraph, setFrameworkCoreGraph] =
     useState<SkillFrameworkCoreGraphPayload | null>(null);
   const [docs, setDocs] = useState<SkillDocsPayload | null>(null);
   const [templateIntelligence, setTemplateIntelligence] =
     useState<SkillTemplateIntelligencePayload | null>(null);
-  const [templateIntelligenceError, setTemplateIntelligenceError] = useState<
-    string | null
-  >(null);
+  const [templateIntelligenceError, setTemplateIntelligenceError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,26 +66,19 @@ export function useSkillGraphData(): {
           fetch("/farplane/framework-graph/farplane-framework-core-graph.json"),
           fetch("/farplane/framework-graph/skill-capability-graph.json"),
         ]);
-        const [
-          graphPayload,
-          docsPayload,
-          frameworkCorePayload,
-          capabilityPayload,
-        ] = await Promise.all([
-          graphResponse.json() as Promise<unknown>,
-          docsResponse.json() as Promise<unknown>,
-          frameworkCoreResponse.ok
-            ? (frameworkCoreResponse.json() as Promise<unknown>)
-            : Promise.resolve(null),
-          capabilityResponse.ok
-            ? (capabilityResponse.json() as Promise<unknown>)
-            : Promise.resolve(null),
-        ]);
+        const [graphPayload, docsPayload, frameworkCorePayload, capabilityPayload] =
+          await Promise.all([
+            graphResponse.json() as Promise<unknown>,
+            docsResponse.json() as Promise<unknown>,
+            frameworkCoreResponse.ok
+              ? (frameworkCoreResponse.json() as Promise<unknown>)
+              : Promise.resolve(null),
+            capabilityResponse.ok
+              ? (capabilityResponse.json() as Promise<unknown>)
+              : Promise.resolve(null),
+          ]);
         if (cancelled) return;
-        if (
-          !isSkillGraphPayload(graphPayload) ||
-          !isSkillDocsPayload(docsPayload)
-        ) {
+        if (!isSkillGraphPayload(graphPayload) || !isSkillDocsPayload(docsPayload)) {
           setError("skill_graph_payload_invalid");
           return;
         }
@@ -98,11 +89,15 @@ export function useSkillGraphData(): {
             ? (frameworkCorePayload as SkillFrameworkCoreGraphPayload)
             : null,
         );
-        setCapabilityGraph(
-          isSkillGraphPayload(capabilityPayload)
-            ? (capabilityPayload as SkillCapabilityGraphPayload)
-            : null,
-        );
+        const nextCapabilityGraph = isSkillCapabilityGraphPayload(capabilityPayload)
+          ? capabilityPayload
+          : null;
+        const nextCapabilityError = nextCapabilityGraph
+          ? null
+          : capabilityResponse.ok
+            ? "skill_capability_graph_payload_invalid"
+            : "skill_capability_graph_unavailable";
+        setCapabilityGraph(nextCapabilityGraph);
         if (templateResponse.ok) {
           const templatePayload = (await templateResponse.json()) as unknown;
           if (isSkillTemplateIntelligencePayload(templatePayload)) {
@@ -110,24 +105,16 @@ export function useSkillGraphData(): {
             setTemplateIntelligenceError(null);
           } else {
             setTemplateIntelligence(null);
-            setTemplateIntelligenceError(
-              "skill_template_intelligence_payload_invalid",
-            );
+            setTemplateIntelligenceError("skill_template_intelligence_payload_invalid");
           }
         } else {
           setTemplateIntelligence(null);
-          setTemplateIntelligenceError(
-            "skill_template_intelligence_not_available",
-          );
+          setTemplateIntelligenceError("skill_template_intelligence_not_available");
         }
-        setError(null);
+        setError(nextCapabilityError);
       } catch (loadError) {
         if (!cancelled) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "skill_graph_load_failed",
-          );
+          setError(loadError instanceof Error ? loadError.message : "skill_graph_load_failed");
         }
       }
     }

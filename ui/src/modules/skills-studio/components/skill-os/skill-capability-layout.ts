@@ -66,16 +66,41 @@ function departmentCapabilities(
     });
 }
 
-function facilityLeaves(graph: SkillGraphPayload, workstation: SkillGraphNode): SkillGraphNode[] {
+function artifactFlowChildren(
+  graph: SkillGraphPayload,
+  capability: SkillGraphNode,
+): SkillGraphNode[] {
   const ids = new Set(
     graph.edges
-      .filter((edge) => edge.type === "artifact-flow" && edge.source === workstation.id)
+      .filter((edge) => edge.type === "artifact-flow" && edge.source === capability.id)
       .map((edge) => edge.target),
   );
   return graph.nodes
-    .filter((node) => node.kind === "facility" && ids.has(node.id))
+    .filter((node) => ids.has(node.id) && (node.kind === "workstation" || node.kind === "facility"))
     .slice()
-    .sort((left, right) => left.id.localeCompare(right.id));
+    .sort((left, right) => {
+      const role = (node: SkillGraphNode): number => (node.kind === "workstation" ? 0 : 1);
+      return role(left) - role(right) || left.id.localeCompare(right.id);
+    });
+}
+
+function departmentRootCapabilities(
+  graph: SkillGraphPayload,
+  capabilities: SkillGraphNode[],
+): SkillGraphNode[] {
+  const departmentCapabilityIds = new Set(capabilities.map((capability) => capability.id));
+  const roots = capabilities.filter(
+    (capability) =>
+      !graph.edges.some(
+        (edge) =>
+          edge.type === "artifact-flow" &&
+          edge.target === capability.id &&
+          departmentCapabilityIds.has(edge.source),
+      ),
+  );
+  // Cycles are invalid at the contract layer, but rendering all direct members
+  // is a safe fallback rather than leaving the department visually empty.
+  return roots.length > 0 ? roots : capabilities;
 }
 
 function positionNode(
@@ -88,11 +113,16 @@ function positionNode(
   return { ...node, degree: childCount, radius: nodeRadius(node, childCount, mode), x, y };
 }
 
-function visibleEdges(graph: SkillGraphPayload, visibleIds: Set<string>): SkillGraphEdge[] {
+function visibleEdges(
+  graph: SkillGraphPayload,
+  visibleIds: Set<string>,
+  rootMembershipIds: Set<string>,
+): SkillGraphEdge[] {
   return graph.edges
     .filter(
       (edge) =>
-        (edge.type === "member-of" || edge.type === "artifact-flow") &&
+        (edge.type === "artifact-flow" ||
+          (edge.type === "member-of" && rootMembershipIds.has(edge.target))) &&
         visibleIds.has(edge.source) &&
         visibleIds.has(edge.target),
     )
@@ -126,8 +156,8 @@ function branchPosition(
   };
 }
 
-function facilityPosition(
-  workstation: PositionedSkillNode,
+function artifactFlowPosition(
+  source: PositionedSkillNode,
   outwardAngle: number,
   index: number,
   count: number,
@@ -140,75 +170,91 @@ function facilityPosition(
   const drift = (((index * 5 + count) % 3) - 1) * (mode === "overview" ? 3 : 9);
   const tangent = angle + Math.PI / 2;
   return {
-    x: workstation.x + Math.cos(angle) * radius + Math.cos(tangent) * drift,
-    y: workstation.y + Math.sin(angle) * radius + Math.sin(tangent) * drift,
+    x: source.x + Math.cos(angle) * radius + Math.cos(tangent) * drift,
+    y: source.y + Math.sin(angle) * radius + Math.sin(tangent) * drift,
   };
 }
 
-function appendFacilityLeaves({
-  claimedFacilityIds,
+function appendArtifactFlowChildren({
+  claimedCapabilityIds,
   graph,
   mode,
   outwardAngle,
   positionedNodes,
-  workstation,
+  source,
 }: {
-  claimedFacilityIds: Set<string>;
+  claimedCapabilityIds: Set<string>;
   graph: SkillGraphPayload;
   mode: LayoutMode;
   outwardAngle: number;
   positionedNodes: PositionedSkillNode[];
-  workstation: PositionedSkillNode;
+  source: PositionedSkillNode;
 }): void {
-  const facilities = facilityLeaves(graph, workstation).filter(
-    (facility) => !claimedFacilityIds.has(facility.id),
+  const children = artifactFlowChildren(graph, source).filter(
+    (child) => !claimedCapabilityIds.has(child.id),
   );
-  facilities.forEach((facility, index) => {
-    claimedFacilityIds.add(facility.id);
-    const position = facilityPosition(workstation, outwardAngle, index, facilities.length, mode);
-    positionedNodes.push(positionNode(facility, 0, mode, position.x, position.y));
+  children.forEach((child, index) => {
+    claimedCapabilityIds.add(child.id);
+    const position = artifactFlowPosition(source, outwardAngle, index, children.length, mode);
+    const positionedChild = positionNode(
+      child,
+      artifactFlowChildren(graph, child).length,
+      mode,
+      position.x,
+      position.y,
+    );
+    positionedNodes.push(positionedChild);
+    appendArtifactFlowChildren({
+      claimedCapabilityIds,
+      graph,
+      mode,
+      outwardAngle: Math.atan2(position.y - source.y, position.x - source.x),
+      positionedNodes,
+      source: positionedChild,
+    });
   });
 }
 
 function buildOverviewLayout(graph: SkillGraphPayload): SkillGraphLayout {
   const departments = nodesOfKind(graph, "department");
   const positionedNodes: PositionedSkillNode[] = [];
-  const claimedFacilityIds = new Set<string>();
+  const claimedCapabilityIds = new Set<string>();
+  const rootMembershipIds = new Set<string>();
 
   departments.forEach((department, index) => {
     const angle = -Math.PI * 0.75 + (index / Math.max(departments.length, 1)) * Math.PI * 2;
     const x = CENTER_X + Math.cos(angle) * OVERVIEW_DEPARTMENT_RING;
     const y = CENTER_Y + Math.sin(angle) * OVERVIEW_DEPARTMENT_RING;
     const capabilities = departmentCapabilities(graph, department);
-    positionedNodes.push(positionNode(department, capabilities.length, "overview", x, y));
+    const roots = departmentRootCapabilities(graph, capabilities);
+    positionedNodes.push(positionNode(department, roots.length, "overview", x, y));
 
-    capabilities.forEach((capability, capabilityIndex) => {
-      const branch = branchPosition(x, y, angle, capabilityIndex, capabilities.length, "overview");
-      const facilities = capability.kind === "workstation" ? facilityLeaves(graph, capability) : [];
+    roots.forEach((capability, capabilityIndex) => {
+      claimedCapabilityIds.add(capability.id);
+      rootMembershipIds.add(capability.id);
+      const branch = branchPosition(x, y, angle, capabilityIndex, roots.length, "overview");
       const positionedCapability = positionNode(
         capability,
-        facilities.length,
+        artifactFlowChildren(graph, capability).length,
         "overview",
         branch.x,
         branch.y,
       );
       positionedNodes.push(positionedCapability);
-      if (capability.kind === "workstation") {
-        appendFacilityLeaves({
-          claimedFacilityIds,
-          graph,
-          mode: "overview",
-          outwardAngle: branch.angle,
-          positionedNodes,
-          workstation: positionedCapability,
-        });
-      }
+      appendArtifactFlowChildren({
+        claimedCapabilityIds,
+        graph,
+        mode: "overview",
+        outwardAngle: branch.angle,
+        positionedNodes,
+        source: positionedCapability,
+      });
     });
   });
 
   const visibleIds = new Set(positionedNodes.map((node) => node.id));
   return {
-    edges: visibleEdges(graph, visibleIds),
+    edges: visibleEdges(graph, visibleIds, rootMembershipIds),
     nodes: positionedNodes,
     points: new Map(positionedNodes.map((node) => [node.id, node])),
   };
@@ -222,42 +268,36 @@ function buildDepartmentFocusLayout(
   if (!department || department.kind !== "department") return buildOverviewLayout(graph);
 
   const capabilities = departmentCapabilities(graph, department);
+  const roots = departmentRootCapabilities(graph, capabilities);
   const rootY = 650;
-  const positionedNodes = [positionNode(department, capabilities.length, "focus", CENTER_X, rootY)];
-  const claimedFacilityIds = new Set<string>();
-  capabilities.forEach((capability, index) => {
-    const branch = branchPosition(
-      CENTER_X,
-      rootY,
-      -Math.PI / 2,
-      index,
-      capabilities.length,
-      "focus",
-    );
-    const facilities = capability.kind === "workstation" ? facilityLeaves(graph, capability) : [];
+  const positionedNodes = [positionNode(department, roots.length, "focus", CENTER_X, rootY)];
+  const claimedCapabilityIds = new Set<string>();
+  const rootMembershipIds = new Set<string>();
+  roots.forEach((capability, index) => {
+    claimedCapabilityIds.add(capability.id);
+    rootMembershipIds.add(capability.id);
+    const branch = branchPosition(CENTER_X, rootY, -Math.PI / 2, index, roots.length, "focus");
     const positionedCapability = positionNode(
       capability,
-      facilities.length,
+      artifactFlowChildren(graph, capability).length,
       "focus",
       branch.x,
       branch.y,
     );
     positionedNodes.push(positionedCapability);
-    if (capability.kind === "workstation") {
-      appendFacilityLeaves({
-        claimedFacilityIds,
-        graph,
-        mode: "focus",
-        outwardAngle: branch.angle,
-        positionedNodes,
-        workstation: positionedCapability,
-      });
-    }
+    appendArtifactFlowChildren({
+      claimedCapabilityIds,
+      graph,
+      mode: "focus",
+      outwardAngle: branch.angle,
+      positionedNodes,
+      source: positionedCapability,
+    });
   });
 
   const visibleIds = new Set(positionedNodes.map((node) => node.id));
   return {
-    edges: visibleEdges(graph, visibleIds),
+    edges: visibleEdges(graph, visibleIds, rootMembershipIds),
     nodes: positionedNodes,
     points: new Map(positionedNodes.map((node) => [node.id, node])),
   };
