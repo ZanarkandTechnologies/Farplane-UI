@@ -205,18 +205,23 @@ operating system rather than eleven unrelated landmarks:
 2. Click one office-scoped host twice and confirm the same logical chat is
    reused. Select project A then project B and confirm a Research/Production/QA
    host opens isolated project conversations. With no selected project, confirm
-   the host asks for selection instead of opening the wrong scope.
+   the Chat panel shows a compact project selector directly above the composer,
+   keeps message input unavailable until a project is selected, and immediately
+   switches to the correctly scoped conversation. Confirm the selector remains
+   available for switching projects without launching a second modal or setup
+   screen.
 3. Seed two `in_progress` tickets with
-   `specialist: landing-page-specialist` and distinct projects/session links.
-   Confirm two temporary workers appear in Production Studio, remain bounded to
-   three visible workers plus overflow, open their linked thread when available,
-   and disappear when the ticket is no longer in progress. Seed a research
-   helper event under one linked session and confirm it enriches the existing
-   worker without creating a Research worker or persistent office object.
-4. Open every room's registered panel. Confirm QA is labeled QA Lab, no Planning
-   Room remains, the legacy Resource Archive has migrated to Finance Office,
-   and Self-Improvement Lab shows real Goal
-   Packet runs or an honest empty state.
+   `specialist: landing-page-specialist` and distinct project `thread_id`
+   bindings. Confirm two temporary workers appear at the Production facility,
+   remain associated with their source ticket/thread, and disappear when the
+   ticket is no longer in progress. Seed a research helper event under one
+   linked session and confirm it enriches the existing worker without creating
+   a Research worker or persistent office object.
+4. Open every room's registered panel. Confirm QA is labeled QA Lab, has a
+   Proof-hosted ticket queue for review / `requires_qa` work, and does not
+   expose a blank “QA Specialist” artifact generator. Confirm no Planning Room
+   remains, the legacy Resource Archive has migrated to Finance Office, and
+   Self-Improvement Lab shows real Goal Packet runs or an honest empty state.
 5. Open Command Commons and confirm Company World defaults to All projects,
    project-qualified entities do not collide, and a failed project read is a
    warning rather than a blank aggregate.
@@ -236,11 +241,11 @@ test over the existing hosted-room contract above, not a new persistent office
 type.
 
 1. Read `window.__FARPLANE_QA__.getArchipelagoState()` and confirm
-   `{ enabled: true, islandCount: 4, bridgeCount: 4, roomCount: 11 }`.
+   `{ enabled: true, islandCount: 7, bridgeCount: 7, roomCount: 11 }`.
 2. Read `window.__FARPLANE_QA__.getOfficeQualityReport()` and confirm zero
    reported unreachable/leaking room or wall intersections. Capture the same
    state in the screenshot.
-3. In the desktop overview, confirm four separated, light raised islands and a
+3. In the desktop overview, confirm seven separated, light raised capability islands and a
    central Company World nexus connected by narrow bridges. There must be no
    enclosing wall, full rectangular/checkerboard floor, permanent black
    room/host billboards, tall bay backboards, or dark Command Commons cage.
@@ -252,10 +257,23 @@ type.
    and Council-seat project routing still work. Seed an active specialist ticket
    and verify its clone and curved dispatch line route back to the original
    task/thread target; generic telemetry and helper skills create no clone.
-6. Open Builder/manual mode from a saved fixture and confirm its authored
+6. Click a permanent specialist station (for example, Lead Scout). Confirm its
+   dialog states the concrete artifact it makes, lets the operator choose a
+   configured project, shows that project's existing specialist jobs with their
+   bound task chats, and accepts a new brief. A room-backed station must also
+   offer the correct room-host chat.
+   In a real Codex-app-server fixture, start a task and confirm exactly one
+   canonical ticket gains the selected `specialist` plus one write-once
+   `thread_id`, then verify the active clone/dispatch appears. Do not create a
+   real task in a read-only or shared proof environment.
+7. Open QA Lab. Confirm there is no `QA Specialist` facility or generic outcome
+   composer: Proof remains the selected-project room host and QA is described
+   as phase work that evaluates an existing ticket and records ticket-scoped
+   evidence.
+8. Open Builder/manual mode from a saved fixture and confirm its authored
    floor, walls, and object transforms return unchanged; it must not render or
    persist automatic island geometry.
-7. Capture a narrow viewport in addition to desktop. The full archipelago must
+9. Capture a narrow viewport in addition to desktop. The full archipelago must
    remain legible with no canvas error, horizontal page overflow, or obstructed
    room interaction.
 

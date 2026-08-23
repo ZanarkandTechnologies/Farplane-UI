@@ -8,7 +8,7 @@
 
 2026-08-02 | decision | MEM-0257 | secrets,doppler,runtime-config,invariant | Supersedes the credential-storage portions of MEM-0253 and MEM-0161: API keys, tokens, passwords, and OAuth credentials enter credentialed processes through environment injection, with Doppler as this checkout's managed injector; `~/.farplane/config.toml` stores non-secret operator settings only, UI saves strip legacy secret-shaped fields, and Codex/OpenClaw-owned authentication state remains outside this Farplane settings contract.
 
-2026-08-02 | decision | MEM-0255 | ui,agents,livekit,project-config,invariant | Realtime employee presentation and voice configuration is a tracked `farplane/agents.yaml` overlay keyed by canonical runtime `agentId`; voice implies realtime availability, the UI labels loaded rows `Local override`, LiveKit secrets remain Doppler-injected environment values, multi-agent calls stay project-scoped, and TypeScript vision is bounded to the latest frame on an addressed completed turn.
+2026-08-02 | decision | MEM-0255 | ui,agents,livekit,project-config,superseded | Superseded by TASK-9024: `farplane/agents.yaml` is main-agent presentation only, not a profile or capability authority.
 
 2026-07-24 | decision | MEM-0254 | tasks,tickets,agent-events,invariant | Filesystem `ticket.md` files are canonical for Farplane task state, review status, task memory, ownership, and priority. The planned retained CLI vocabulary is `farplane team ticket ...`; `farplane status` writes live status/activity through Convex `agentEvents`. Convex remains a realtime activity/telemetry backend, not a task/review store.
 

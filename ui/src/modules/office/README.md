@@ -13,15 +13,26 @@ The Office System provides the 3D office environment where employees, teams, and
 
 **Status**: Active (Aug 2026)
 
-The office has eleven fixed functional rooms, each with one deskless host, one
-registered operational panel, and optional temporary workers projected from
-active filesystem tickets. A ticket's optional `specialist` maps to one room;
-its `owner` remains accountable and its hook-bound `thread_id` opens the primary
-task thread. Curated skill telemetry only animates the assigned worker or the room;
-it never creates a worker. Hosts are stable chat entrypoints, not permanently
-running workers: office hosts reuse an office-scoped conversation, while
-Research, Production, and QA require the selected project and keep concurrent
-projects isolated.
+The office has eleven fixed functional rooms, each with one deskless host and
+one registered operational panel. It also has permanent registry-mapped
+specialist furniture: selecting a workstation chooses a project and outcome, creates its
+canonical ticket, binds the ticket's one Codex task thread, and opens that
+conversation. A ticket's `specialist` maps to one workstation while its `owner`
+remains accountable. Curated skill telemetry never creates work or a resident
+worker; it can only render a short-lived observed-flow overlay. Hosts are stable
+chat entrypoints, not permanently running workers: office hosts reuse an office-scoped conversation,
+while Research, Production, and QA require the selected project and keep
+concurrent projects isolated.
+
+Artifact-producing work receives a permanent workstation. Its console shows a
+selected project's existing jobs and their bound task chats before it offers a
+new brief. Integrations receive a permanent system facility instead: it shows
+the operated system and delivery boundary but never creates a ticket, task, or
+chat. The first pilot is `X Thread Writer` in Production Studio, which starts
+one ticket and bound Codex task thread to produce `x-thread-draft`, alongside
+the non-chat `X Publishing` facility operated by `x-account`. Planning, review,
+testing, and QA remain phase skills inside their existing rooms; advisors are
+room-host expertise.
 
 The seven-day inactivity rule affects only the Office3D projection. Hidden
 project clusters, employees, desks, pulses, and areas remain intact in the
@@ -35,9 +46,14 @@ the retired training modal.
 - `lib/room-hosts.ts`: stable host projection and conversation keys
 - `lib/project-council-layout.ts`: deterministic Council sectors and studio station layout
 - `lib/project-council-presence.ts`: CEO / Project Pulse Council Lead selection
-- `lib/ticket-dispatch-projection.ts`: ticket-first ephemeral worker projection
 - `components/project-council.tsx`: central Council and project click targets
-- `components/specialist-studio-stations.tsx`: fixed, registry-mapped studio fixtures
+- `components/specialist-studio-stations.tsx`: fixed artifact workstations that start ticket/thread work
+- `components/system-facilities.tsx`: fixed integration-system facility visualization
+- `components/facility-console.tsx`: project/outcome entrypoint that starts workstation work
+- `components/system-facility-console.tsx`: non-chat integration boundary panel
+- `lib/system-facility-registry.ts`: explicit integration facility projection
+- `lib/observed-skill-flow-projection.ts`: session-local, telemetry-backed flow selection
+- `scene/observed-skill-flow-effects.tsx`: transient Nexus-style arcs between observed endpoints
 - `../../providers/office-project-visibility.ts`: Office3D-only stale-project policy
 - `../world-map/hooks/use-company-world-projection.ts`: aggregate company graph
 - `../self-improvement/`: ticket-backed self-improvement run surface
@@ -60,19 +76,17 @@ can bind one primary `skillId` plus aliases to the same transient avatar anchor.
 The operator's live sidecar owns destination identity and mapping.
 
 The automatic `team_neighborhoods` presentation is a light department
-archipelago, not an enclosed building. The pure layout owner groups the eleven
-existing rooms into Intelligence (Research, Skills, Self-Improvement),
-Operations (Harness, Organization, Finance), Production (Production, Comms),
-and Assurance (QA, Telemetry, Thread Data). Four raised, rounded islands join a
-central Project Council around the Company World nexus through four ordinary
+archipelago, not an enclosed building. Seven raised, rounded capability islands
+(Back Office, Sales, Deals, Marketing, Operations, Intelligence, and Customer)
+join a central Project Council around the Company Nexus through ordinary
 walkable bridges. Every Office-visible project receives one equal Council
 sector. Its existing project CEO is the Council Lead; Project Pulse fills an
-empty project seat. The company CEO stays outside the Council. The same
-tile layout remains the only navigation/click system; slabs are presentation
+empty project seat. The company CEO stays outside the Council. The same tile
+layout remains the only navigation/click system; slabs are presentation
 geometry, not persisted collision state.
 
-Every room remains a 5 x 5 tile-aligned station with its existing host, panel,
-and activity target. The automatic presentation removes bay walls, the
+Every room remains a 5 x 5 tile-aligned station with its existing host and panel.
+The automatic presentation removes bay walls, the
 rectangular checkerboard shell, the Command Commons cage, and persistent room
 identity pills; room identity appears through ordinary hover and interaction.
 Warm light platform tops, darker neutral edges, contact shadows, a compact
@@ -87,12 +101,17 @@ navigation obstacles. Employees walk through the open side to interior,
 occupant-spread activity spots instead of stopping outside the room.
 
 Each room remains one persisted object. Its renderer owns the floor zone,
-permanent equipment, and stable room/host plaque. Specialist stations are
-fixed registry-mapped service fixtures, not employees. An active ticket with a
-known `specialist` projects a short-lived clone of that ticket's project
-Council Lead at the matching station and a curved dispatch line from the
-Council. Skill helpers and generic telemetry only animate ambient room state;
-they do not create a worker, ticket, or persistent furniture record.
+permanent equipment, and stable room/host plaque. In the archipelago, a room
+landmark is suppressed only after admitted capability furniture represents that
+same room; other rooms remain visible until their own conversion. Specialist stations are
+fixed registry-mapped service facilities, not employees: clicking one starts
+an operator-selected project's canonical specialist ticket and its one bound
+task thread. During a real hook event, the Office can draw a brief curved,
+dashed Nexus-style link from the matching session owner to called furniture and
+from the session's immediately preceding known furniture to the current one.
+The effect needs existing `sessionId + skillId + occurredAt`; it never predicts
+a next step, adds a `delivery_targets` field, creates a worker, ticket, or
+persistent process edge. The static Capability Map remains telemetry-free.
 
 **Key files**:
 
@@ -109,6 +128,8 @@ they do not create a worker, ticket, or persistent furniture record.
 - `../../../config/office-theme.ts`: scene-wide day/night role mapping resolved from the shared appearance mode
 - `components/employee/activity-scene-props.tsx`: engaged-only shared props
 - `lib/department-island-layout.ts`: canonical department, bridge, room-slot, and project-deck geometry
+- `lib/observed-skill-flow-projection.ts`: pure observed-call and predecessor projection
+- `scene/observed-skill-flow-effects.tsx`: bounded animated Office overlay
 - `lib/office-layout-solver.ts`: automatic layout selection and ordinary tile-backed reachability
 - `object-ui/metadata.ts`: backward-compatible multi-skill normalization
 
