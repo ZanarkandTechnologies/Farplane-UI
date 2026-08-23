@@ -39,6 +39,7 @@ import {
 } from "@/modules/evals/components/eval-health-cards";
 import { EvalRunGroupedList } from "@/modules/evals/components/eval-run-grouped-list";
 import { EvalTaskDetailPanel } from "@/modules/evals/components/eval-task-detail";
+import { QaTicketQueue } from "@/modules/evals/components/qa-ticket-queue";
 import {
   AGGREGATE_RUN_ID,
   buildAggregateSummary,
@@ -339,7 +340,7 @@ export function EvalOsPanel(): ReactElement {
 
   return (
     <div
-      className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3"
+      className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-3"
       data-testid="eval-os-panel"
     >
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2">
@@ -446,6 +447,8 @@ export function EvalOsPanel(): ReactElement {
           </Button>
         </div>
       </div>
+
+      <QaTicketQueue />
 
       {summary ? (
         <>
