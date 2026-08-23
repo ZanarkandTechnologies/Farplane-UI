@@ -87,7 +87,7 @@ const OFFICE_WALL_COLORS = [
   },
   {
     id: "sage_mist" as const,
-    label: "Sage Mist",
+    label: "Mist",
     description: "Muted green wall tone with a grounded burrow feel.",
   },
   {

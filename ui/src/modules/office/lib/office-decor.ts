@@ -127,7 +127,7 @@ export const OFFICE_WALL_COLOR_PRESETS: readonly OfficeWallColorPreset[] = [
   },
   {
     id: "sage_mist",
-    label: "Sage Mist",
+    label: "Mist",
     description: "Muted green with a calm studio feel.",
     color: "#cbd4c3",
   },

@@ -134,7 +134,7 @@ export function SoundtrackProvider({ children }: { children: React.ReactNode }):
       <audio
         ref={audioRef}
         src={track.src}
-        preload="metadata"
+        preload={wantsPlaybackRef.current ? "metadata" : "none"}
         muted={isMuted}
         onEnded={() => selectTrack(nextTrackIndex(currentIndex, FARPLANE_RADIO_TRACKS.length))}
         onError={() => {
