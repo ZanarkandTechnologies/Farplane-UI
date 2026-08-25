@@ -714,6 +714,41 @@ test("Codex idle timeout refreshes on progress while an absolute cap remains", a
   await assert.rejects(capped, /absolute timeout/);
 });
 
+test("health exposes a runtime token only to the matching local supervisor", async (t) => {
+  const server = createLocalAgentServer(
+    undefined,
+    isolatedStore(),
+    {
+      runtimeToken: "test-runtime-token-which-is-not-for-extension-clients",
+      readRuntimeHealth: async () => ({ appServer: true, intelligestSkill: true }),
+    },
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => server.close());
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const endpoint = `http://127.0.0.1:${address.port}/health`;
+  const standard = await fetch(endpoint, {
+    method: "POST",
+    headers: { "x-farplane-client": "youtube-shortcut" },
+  });
+  const standardBody = await standard.json() as Record<string, unknown>;
+  assert.equal(standard.status, 200);
+  assert.equal(standardBody.runtime, "farplane-youtube-shortcut");
+  assert.equal("runtimeToken" in standardBody, false);
+
+  const matching = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "x-farplane-client": "youtube-shortcut",
+      "x-farplane-runtime-token": "test-runtime-token-which-is-not-for-extension-clients",
+    },
+  });
+  const matchingBody = await matching.json() as Record<string, unknown>;
+  assert.equal(matchingBody.runtimeToken, "test-runtime-token-which-is-not-for-extension-clients");
+});
+
 test("HTTP bridge denies foreign origins and exposes only the analysis contract", async (t) => {
   const store = isolatedStore();
   const progressStages: string[] = [];

@@ -17,28 +17,14 @@
  */
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { Command } from "commander";
 import { cliBlue, cliDim, cliSection } from "./cli-utils.js";
+import { resolveFarplaneUiRepoRoot } from "./repo-root.js";
 
 /** Resolve the checkout root from either source (`cli/`) or bundled (`dist/bundle/`) execution. */
 function resolveRepoRoot(): string {
-  const override = process.env.FARPLANE_REPO_ROOT?.trim();
-  if (override) return path.resolve(override);
-  const cliDir =
-    typeof __dirname === "string" && __dirname.trim()
-      ? __dirname
-      : path.dirname(fileURLToPath(import.meta.url));
-  let candidate = path.resolve(cliDir);
-  while (true) {
-    if (existsSync(path.join(candidate, "scripts", "run-ui.mjs"))) return candidate;
-    const parent = path.dirname(candidate);
-    if (parent === candidate) break;
-    candidate = parent;
-  }
-  return path.resolve(cliDir, "..");
+  return resolveFarplaneUiRepoRoot(import.meta.url);
 }
 
 type StartUiDevServerOptions = {

@@ -28,6 +28,7 @@ import { registerContentIntelligenceCommands } from "./content-intelligence-comm
 import { registerDoctorCommands, registerTeamCommands } from "./team-commands/index.js";
 import { registerThreadCommands } from "./thread-commands.js";
 import { registerUiCommands } from "./ui-commands.js";
+import { registerYoutubeExtensionCommands } from "./youtube-extension-commands.js";
 
 async function main(): Promise<void> {
   // Avoid throwing on broken pipe when output is being piped to a consumer that exits early.
@@ -52,8 +53,15 @@ async function main(): Promise<void> {
   registerAgentCommands(program);
   registerDoctorCommands(program);
   registerOfficeCommands(program);
+  registerYoutubeExtensionCommands(program);
 
-  await program.parseAsync(process.argv);
+  // Package-manager scripts pass a literal `--` before user arguments. Remove
+  // only that leading separator so nested commands can still receive options.
+  const argv =
+    process.argv[2] === "--"
+      ? [...process.argv.slice(0, 2), ...process.argv.slice(3)]
+      : process.argv;
+  await program.parseAsync(argv);
 }
 
 void main();

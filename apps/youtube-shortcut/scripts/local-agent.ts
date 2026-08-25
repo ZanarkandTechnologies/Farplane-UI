@@ -4,6 +4,7 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
@@ -29,10 +30,22 @@ import {
 } from "./video-intelligence-cloud.js";
 import { readRegisteredProjects } from "./project-registry.js";
 import type { ProjectOption } from "../runtime-protocol.js";
+import {
+  YOUTUBE_APP_SERVER_URL,
+  YOUTUBE_BRIDGE_PORT,
+  YOUTUBE_LOCAL_HOST,
+  YOUTUBE_RUNTIME_CLIENT,
+  YOUTUBE_RUNTIME_CLIENT_HEADER,
+  YOUTUBE_RUNTIME_NAME,
+  YOUTUBE_RUNTIME_TOKEN_HEADER,
+} from "../local-runtime.js";
 
-export const LOCAL_HOST = "127.0.0.1";
-export const LOCAL_PORT = 47893;
-export const CODEX_URL = "ws://127.0.0.1:47892";
+/** @deprecated Import the shared local-runtime contract in new callers. */
+export const LOCAL_HOST = YOUTUBE_LOCAL_HOST;
+/** @deprecated Import the shared local-runtime contract in new callers. */
+export const LOCAL_PORT = YOUTUBE_BRIDGE_PORT;
+/** @deprecated Import the shared local-runtime contract in new callers. */
+export const CODEX_URL = YOUTUBE_APP_SERVER_URL;
 export const FARPLANE_EXTENSION_ORIGIN =
   "chrome-extension://dcnlnbfngboijmegldkmlopidmibiaoo";
 export const USER_PROFILE_PATH = resolve(resolveFarplaneHome(), "USER.md");
@@ -74,6 +87,18 @@ export type AnalyzeRequest = z.infer<typeof requestSchema>;
 export type AnalysisRun = { analysis: Analysis; threadId: string };
 export type AnalysisJob = VideoIngestJob;
 export type { ProjectOption } from "../runtime-protocol.js";
+
+export type LocalBridgeReadiness = {
+  appServer: boolean;
+  intelligestSkill: boolean;
+};
+
+export type LocalAgentServerOptions = {
+  /** Per-launch identity supplied only by the local runtime supervisor. */
+  runtimeToken?: string;
+  /** Test seam for bridge readiness without a live Codex app-server. */
+  readRuntimeHealth?: () => Promise<LocalBridgeReadiness>;
+};
 
 export function configuredVideoIntelligenceProfile(
   configPath = resolve(resolveFarplaneHome(), "config.toml"),
@@ -653,7 +678,32 @@ function allowedOrigin(req: IncomingMessage) {
 function allowedClient(req: IncomingMessage) {
   return Boolean(allowedOrigin(req)) ||
     (!req.headers.origin &&
-      req.headers["x-farplane-client"] === "youtube-shortcut");
+      req.headers[YOUTUBE_RUNTIME_CLIENT_HEADER] === YOUTUBE_RUNTIME_CLIENT);
+}
+
+function sameRuntimeToken(left: string | undefined, right: string | undefined): boolean {
+  if (!left || !right) return false;
+  const leftBytes = Buffer.from(left);
+  const rightBytes = Buffer.from(right);
+  return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
+}
+
+async function defaultRuntimeHealth(): Promise<LocalBridgeReadiness> {
+  let appServer = false;
+  let intelligestSkill = false;
+  try {
+    const rpc = await initializedRpc();
+    appServer = true;
+    try {
+      await findIntelligestSkill(rpc, ANALYST_PROJECT_PATH);
+      intelligestSkill = true;
+    } finally {
+      rpc.close();
+    }
+  } catch {
+    /* represented in bridge diagnostics */
+  }
+  return { appServer, intelligestSkill };
 }
 
 async function readJson(req: IncomingMessage) {
@@ -691,7 +741,10 @@ export function createLocalAgentServer(
     comparisonPacket?: ComparisonCandidatePacket,
   ) => Promise<AnalysisRun> = analyzeYouTube,
   intelligenceStore: VideoIntelligenceStore = createVideoIntelligenceCloudStore(),
+  options: LocalAgentServerOptions = {},
 ) {
+  const runtimeToken = options.runtimeToken?.trim() || process.env.FARPLANE_YOUTUBE_RUNTIME_TOKEN?.trim();
+  const readRuntimeHealth = options.readRuntimeHealth ?? defaultRuntimeHealth;
   return createServer(async (req, res) => {
     const origin = allowedOrigin(req);
     if (req.method === "OPTIONS") {
@@ -699,7 +752,7 @@ export function createLocalAgentServer(
       res.writeHead(204, {
         "access-control-allow-origin": origin,
         "access-control-allow-methods": "GET, POST, OPTIONS",
-        "access-control-allow-headers": "content-type, x-farplane-client",
+        "access-control-allow-headers": `content-type, ${YOUTUBE_RUNTIME_CLIENT_HEADER}, ${YOUTUBE_RUNTIME_TOKEN_HEADER}`,
         vary: "Origin",
       });
       return res.end();
@@ -721,20 +774,12 @@ export function createLocalAgentServer(
           client: req.headers["x-farplane-client"] ?? "missing",
         });
         const profile = await loadUserProfile();
-        let appServer = false;
-        let intelligestSkill = false;
-        try {
-          const rpc = await initializedRpc();
-          appServer = true;
-          try {
-            await findIntelligestSkill(rpc, ANALYST_PROJECT_PATH);
-            intelligestSkill = true;
-          } finally {
-            rpc.close();
-          }
-        } catch {
-          /* represented in diagnostics */
-        }
+        const { appServer, intelligestSkill } = await readRuntimeHealth();
+        const requestedRuntimeToken =
+          typeof req.headers[YOUTUBE_RUNTIME_TOKEN_HEADER] === "string"
+            ? req.headers[YOUTUBE_RUNTIME_TOKEN_HEADER]
+            : undefined;
+        const ownsRuntimeToken = sameRuntimeToken(runtimeToken, requestedRuntimeToken);
         trace("health.response", {
           requestId,
           durationMs: Date.now() - startedAt,
@@ -748,10 +793,13 @@ export function createLocalAgentServer(
           {
             ok: true,
             service: true,
+            runtime: YOUTUBE_RUNTIME_NAME,
             appServer,
             intelligestSkill,
             userProfile: profile.available,
             userProfilePath: "~/.farplane/USER.md",
+            // A normal extension health check must never receive the process identity.
+            ...(ownsRuntimeToken ? { runtimeToken } : {}),
           },
           origin,
         );

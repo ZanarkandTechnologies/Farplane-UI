@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-08-25 | fix | TASK-0446 | cli,youtube,codex,runtime | Added `farplane extension youtube <start|status|doctor|stop>` as the canonical local extension runtime flow: a healthy bridge attaches instead of rebinding, fresh launches record a token-verified listener identity, and safe stop retains the shared Codex app-server.
+
 2026-08-19 | feature | TASK-0091 | content-intelligence,video-intelligence,skills,youtube | Routed YouTube Analyze through the installed `intelligest` skill; added canonical retry/dedupe and persisted progress; replaced Topic-derived Related coverage with independently reviewed 14-day current-revision comparison edges; required exact HTTPS News references; and safely replayed all 46 stored dossiers without media reanalysis.
 
 2026-08-14 | feature | TASK-0089 | ui,office,tickets,qa | Classified Office work surfaces explicitly: only artifact-producing specialists keep permanent studio stations and project-job chats; QA now uses Proof's selected-project ticket queue, while advisors, integration work, telemetry, finance, hiring, and phase work remain in their room-host or channel surfaces instead of creating fictional artifact workers.

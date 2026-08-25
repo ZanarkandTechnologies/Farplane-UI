@@ -11,6 +11,12 @@ import {
   RefreshCw,
   XCircle,
 } from "lucide-react";
+import {
+  YOUTUBE_BRIDGE_URL,
+  YOUTUBE_RUNTIME_CLIENT,
+  YOUTUBE_RUNTIME_CLIENT_HEADER,
+  YOUTUBE_START_COMMAND,
+} from "./local-runtime.js";
 
 type Health = {
   service: boolean;
@@ -43,17 +49,17 @@ type AnalysisJob = {
 };
 type PopupTab = "jobs" | "status";
 
-const startCommand = "corepack pnpm youtube:serve";
+const startCommand = YOUTUBE_START_COMMAND;
 
 /** Popup status bypasses the worker so its startup cannot produce a false offline state. */
 async function requestBridge<T>(path: string, timeoutMs: number): Promise<T> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(`http://127.0.0.1:47893${path}`, {
+    const response = await fetch(`${YOUTUBE_BRIDGE_URL}${path}`, {
       method: "POST",
       headers: {
-        "x-farplane-client": "youtube-shortcut",
+        [YOUTUBE_RUNTIME_CLIENT_HEADER]: YOUTUBE_RUNTIME_CLIENT,
         "x-farplane-request-id": `popup-${Date.now().toString(36)}`,
       },
       signal: controller.signal,

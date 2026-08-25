@@ -42,11 +42,20 @@ the extension without exposing a general localhost API.
 Keep this running while using the button:
 
 ```bash
-corepack pnpm youtube:serve
+farplane extension youtube start
 ```
 
-That starts the Codex app-server on `127.0.0.1:47892` and the extension bridge
-on `127.0.0.1:47893`. The extension popup opens on a **Jobs** tab with the 20
+The command starts missing services and waits for a ready local bridge, or
+attaches to an already healthy Farplane bridge without trying to bind a second
+copy. A fresh launch keeps its owned children in the foreground; **Ctrl+C**
+stops only those children. Use `farplane extension youtube status --json` for a
+machine-readable runtime receipt, `farplane extension youtube doctor` for safe
+diagnostics, and `farplane extension youtube stop` to stop only a bridge whose
+saved listener PID and per-launch token still match. It deliberately retains a
+possibly shared Codex app-server.
+
+The bridge uses `127.0.0.1:47893` and the Codex app-server uses
+`127.0.0.1:47892`. The extension popup opens on a **Jobs** tab with the 20
 most recent Convex-backed jobs; runtime health and setup live under **Status**.
 Running, completed, and failed jobs link directly to their persistent Codex
 task as soon as Codex assigns its task ID. Jobs expose persisted named progress

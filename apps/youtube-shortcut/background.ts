@@ -3,8 +3,13 @@
  * Keep runtime imports out so message registration cannot be blocked by analysis code.
  */
 import type { RuntimeRequest } from "./runtime-protocol.js";
+import {
+  YOUTUBE_BRIDGE_URL,
+  YOUTUBE_RUNTIME_CLIENT,
+  YOUTUBE_RUNTIME_CLIENT_HEADER,
+} from "./local-runtime.js";
 
-const LOCAL_AGENT = "http://127.0.0.1:47893";
+const LOCAL_AGENT = YOUTUBE_BRIDGE_URL;
 
 type RelayTarget = {
   path: "/analyze-youtube" | "/health" | "/jobs" | "/projects";
@@ -65,7 +70,7 @@ async function forwardRuntimeRequest(rawRequest: unknown) {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-farplane-client": "youtube-shortcut",
+        [YOUTUBE_RUNTIME_CLIENT_HEADER]: YOUTUBE_RUNTIME_CLIENT,
         "x-farplane-request-id": createRequestId(),
       },
       body: target.body ? JSON.stringify(target.body) : undefined,

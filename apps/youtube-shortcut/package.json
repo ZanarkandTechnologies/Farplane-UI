@@ -5,6 +5,7 @@
   "description": "Cache-first YouTube summaries through local Codex tasks",
   "author": "kenjipcx",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "plasmo dev",
     "dev:agent": "tsx scripts/local-agent.ts",

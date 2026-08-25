@@ -14,8 +14,9 @@ import {
   waitForCanonicalJob,
   writeAtomic,
 } from "./ingest-channel-manifest-transport.js";
+import { YOUTUBE_BRIDGE_URL } from "../local-runtime.js";
 
-const DEFAULT_ENDPOINT = "http://127.0.0.1:47893";
+const DEFAULT_ENDPOINT = YOUTUBE_BRIDGE_URL;
 const DEFAULT_PROJECT_ID = "Vidgard" as const;
 const MAX_ATTEMPTS = 2;
 const DEFAULT_CONCURRENCY = 5;
