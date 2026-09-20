@@ -51,8 +51,8 @@ describe("localFarplaneEventsToObservedCodexWorkers", () => {
         threadId: "session-1",
         projectId: "codex-proj-work-farplane",
         projectPath: "/work/farplane",
-        state: "done",
-        statusText: "Codex turn completed",
+        state: "idle",
+        statusText: "Codex stop attempted",
         controllable: false,
       }),
     ]);

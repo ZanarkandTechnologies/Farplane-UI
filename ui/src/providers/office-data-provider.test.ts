@@ -649,7 +649,7 @@ describe("office-data-provider stabilization", () => {
         machineName: "studio.local",
         displayName: "Native conversation name",
         titleSource: "native",
-        state: "done",
+        state: "idle",
       }),
     );
   });

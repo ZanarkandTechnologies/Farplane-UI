@@ -1,5 +1,7 @@
 # HISTORY
 
+2026-09-20 | fix | hook-telemetry,office | Treat Codex Stop as an idle stop attempt rather than task completion; later same-turn tool activity restores running presence. Preserve child-worker stop identity and share semantics across local and Convex projections.
+
 2026-08-19 | feature | TASK-0091 | content-intelligence,video-intelligence,skills,youtube | Routed YouTube Analyze through the installed `intelligest` skill; added canonical retry/dedupe and persisted progress; replaced Topic-derived Related coverage with independently reviewed 14-day current-revision comparison edges; required exact HTTPS News references; and safely replayed all 46 stored dossiers without media reanalysis.
 
 2026-08-14 | feature | TASK-0089 | ui,office,tickets,qa | Classified Office work surfaces explicitly: only artifact-producing specialists keep permanent studio stations and project-job chats; QA now uses Proof's selected-project ticket queue, while advisors, integration work, telemetry, finance, hiring, and phase work remain in their room-host or channel surfaces instead of creating fictional artifact workers.

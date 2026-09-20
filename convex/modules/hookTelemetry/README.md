@@ -71,3 +71,17 @@ Legacy skill invocation and runtime telemetry rows were backfilled into
 `hookTelemetryEvents` before the old raw tables were removed from the Convex
 schema. New imports and hooks write directly to `/telemetry/hooks` or
 `/telemetry/hooks/batch`.
+
+## Stop observations and continuation
+
+A Codex `Stop` hook reports an attempt to finish, before other Stop hooks decide
+whether to continue. Its observed worker state is `idle` with “Codex stop
+attempted”; it does not certify task or Goal completion. Later `PreToolUse` or
+`PostToolUse` evidence returns that worker to `running` even without a new user
+prompt. The local office provider and Convex query use this same reducer.
+`SubagentStop` refers to the child worker, not its parent or the task outcome.
+
+Presence can only reflect signals received. Selective tool hooks do not report
+every resumed action, so an idle observation may persist until another observed
+activity arrives. Existing `turn_end` activity accounting remains a measured
+stop boundary; it is not a task-completion assertion.

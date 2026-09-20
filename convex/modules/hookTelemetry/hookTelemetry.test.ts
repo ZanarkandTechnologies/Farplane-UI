@@ -406,7 +406,7 @@ describe("hook telemetry projections", () => {
       expect.objectContaining({
         workerId: "codex-observed:machine-a:codex-proj-farplane:child-thread",
         parentThreadId: "parent-thread",
-        state: "done",
+        state: "idle",
       }),
     ]);
   });
@@ -456,7 +456,7 @@ describe("hook telemetry projections", () => {
       expect.objectContaining({
         displayName: "Native title",
         titleSource: "native",
-        state: "done",
+        state: "idle",
         lastSeenAt: 3_000,
       }),
     ]);
@@ -579,10 +579,47 @@ describe("hook telemetry projections", () => {
         }),
         expect.objectContaining({
           workerId: "codex-observed:machine-a:codex-proj-farplane:thread-closed",
-          state: "done",
+          state: "idle",
         }),
       ]),
     );
+  });
+
+  it("resumes the same turn after a Stop attempt without another user prompt", () => {
+    const row = (hookType: string, eventAt: number): HookTelemetryRow => ({
+      hookName: "farplane-console-ping",
+      hookType,
+      projectId: "project",
+      sessionId: "root",
+      eventAt,
+      payload: { machineId: "machine", turnId: "same-turn" },
+      eventKey: `codex-lifecycle:root:same-turn:${hookType}:${eventAt}`,
+    });
+    const start = row("UserPromptSubmit", 1_000);
+    const stop = row("Stop", 2_000);
+    expect(hookTelemetryRowsToObservedCodexWorkers([stop, start])[0]).toMatchObject({
+      state: "idle", statusText: "Codex stop attempted",
+    });
+    const activity = row("PostToolUse", 3_000);
+    expect(hookTelemetryRowsToObservedCodexWorkers([activity, stop, start])[0]).toMatchObject({
+      state: "running", statusText: "Codex tool activity",
+    });
+    expect(hookTelemetryRowsToObservedCodexWorkers([
+      row("Stop", 4_000), activity, stop, start,
+    ])[0]).toMatchObject({ state: "idle", statusText: "Codex stop attempted" });
+  });
+
+  it("keeps delegated worker stops distinct from their running parent", () => {
+    const rows: HookTelemetryRow[] = [
+      { hookType: "UserPromptSubmit", eventAt: 1_000, payload: { threadId: "root" } },
+      { hookType: "SubagentStart", eventAt: 2_000, payload: { agentId: "child", parentThreadId: "root" } },
+      { hookType: "SubagentStop", eventAt: 3_000, payload: { agentId: "child", parentThreadId: "root" } },
+    ].map((row) => ({ ...row, hookName: "farplane-console-ping", projectId: "project", sessionId: "root" }));
+    const workers = hookTelemetryRowsToObservedCodexWorkers(rows);
+    expect(workers.find((worker) => worker.threadId === "root")).toMatchObject({ state: "running" });
+    expect(workers.find((worker) => worker.threadId === "child")).toMatchObject({
+      state: "done", statusText: "Delegated Codex worker stopped", isEphemeral: true,
+    });
   });
 
   it("projects subagent lifecycle hooks into ephemeral observed workers", () => {
