@@ -52,7 +52,7 @@ export const OPERATOR_CONFIGURATION_ITEMS: readonly ConfigurationCatalogItem[] =
     id: "operator-runtime-automation",
     label: "Runtime automation and review controls",
     description:
-      "15 non-secret environment-backed controls for hooks, Vite-safe URLs, review behavior, and automation.",
+      "17 non-secret environment-backed controls for hooks, Vite-safe URLs, review behavior, and automation.",
     scope: "This Mac",
     location: "~/.farplane/config.toml [env]",
     owner: "Runtime & automation",

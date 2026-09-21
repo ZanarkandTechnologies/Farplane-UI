@@ -642,6 +642,20 @@ const RUNTIME_ENV_CATALOG: RuntimeEnvConfig[] = [
     placeholder: "1",
   },
   {
+    name: "FARPLANE_FINAL_RESPONSE_MAX_PROSE_WORDS",
+    label: "Final Response Word Limit",
+    group: "Codex final-response gate",
+    description: "Maximum prose words before the Stop hook asks Codex to rewrite the final answer.",
+    placeholder: "500",
+  },
+  {
+    name: "FARPLANE_FINAL_RESPONSE_MAX_PROSE_LINES",
+    label: "Final Response Line Limit",
+    group: "Codex final-response gate",
+    description: "Maximum nonblank prose lines before the Stop hook asks Codex to rewrite the final answer.",
+    placeholder: "50",
+  },
+  {
     name: "VITE_CONVEX_URL",
     label: "Convex Client URL",
     group: "UI-safe Vite values",
