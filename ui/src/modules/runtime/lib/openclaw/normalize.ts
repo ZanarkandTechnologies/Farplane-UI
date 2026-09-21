@@ -987,22 +987,17 @@ function toSkillEvalFarplaneMetadata(value: unknown): SkillEvalFarplaneMetadata 
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const row = value as Json;
   const metadata: SkillEvalFarplaneMetadata = {};
-  for (const key of [
-    "title",
-    "context",
-    "notes",
-    "difficulty",
-    "benchmark_value",
-    "sanitization_notes",
-    "expected_behavior",
-  ] as const) {
+  for (const key of ["title", "context", "notes"] as const) {
     if (typeof row[key] === "string") metadata[key] = row[key];
   }
-  for (const key of ["tags", "anti_patterns", "failure_modes"] as const) {
-    const entries = toStringArray(row[key]);
-    if (entries) metadata[key] = entries;
+  const tags = toStringArray(row.tags);
+  if (tags) metadata.tags = tags;
+  for (const key of ["workspace_fixture", "feature_id"] as const) {
+    if (typeof row[key] === "string") metadata[key] = row[key];
   }
-  if (typeof row.hardcase === "boolean") metadata.hardcase = row.hardcase;
+  if (row.extensions && typeof row.extensions === "object" && !Array.isArray(row.extensions)) {
+    metadata.extensions = row.extensions as Json;
+  }
   return Object.keys(metadata).length ? metadata : undefined;
 }
 

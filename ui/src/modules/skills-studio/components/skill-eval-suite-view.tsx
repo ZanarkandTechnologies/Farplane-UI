@@ -18,16 +18,14 @@ function MetadataValues({
   if (!metadata) return null;
   const details = [
     ["Context", metadata.context],
-    ["Difficulty", metadata.difficulty],
-    ["Benchmark value", metadata.benchmark_value],
-    ["Expected behavior", metadata.expected_behavior],
     ["Notes", metadata.notes],
-    ["Sanitization", metadata.sanitization_notes],
+    ["Feature ID", metadata.feature_id],
+    ["Workspace fixture", metadata.workspace_fixture],
   ].filter((entry): entry is [string, string] => Boolean(entry[1]));
+  if (!metadata.tags?.length && !details.length) return null;
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        {metadata.hardcase ? <Badge variant="destructive">hardcase</Badge> : null}
         {metadata.tags?.map((tag) => (
           <Badge key={tag} variant="outline">
             {tag}
@@ -40,20 +38,6 @@ function MetadataValues({
           <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{value}</p>
         </div>
       ))}
-      {(["anti_patterns", "failure_modes"] as const).map((key) =>
-        metadata[key]?.length ? (
-          <div key={key}>
-            <p className="text-xs font-semibold uppercase text-muted-foreground">
-              {key.replace("_", " ")}
-            </p>
-            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
-              {metadata[key]?.map((value) => (
-                <li key={value}>{value}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null,
-      )}
     </div>
   );
 }

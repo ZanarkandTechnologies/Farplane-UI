@@ -40,7 +40,14 @@ describe("skill-studio-state file saves", () => {
         expected_output: "Three distinct directions.",
         files: ["brief.md"],
         assertions: ["Names tradeoffs"],
-        metadata: { farplane: { title: "Hard choice", tags: ["decision"], hardcase: true } },
+        metadata: { farplane: {
+          title: "Hard choice",
+          tags: ["decision"],
+          workspace_fixture: "evals/files/toy",
+          feature_id: "FEAT-0007",
+          extensions: { "x-example": { enabled: true } },
+          hardcase: true,
+        } },
       }],
     }), "utf8");
 
@@ -49,7 +56,13 @@ describe("skill-studio-state file saves", () => {
 
     expect(detail?.evalPath).toBe("evals/evals.json");
     expect(detail?.evalSuite?.evals[0]?.prompt).toBe("Explore the decision.");
-    expect(detail?.evalSuite?.evals[0]?.metadata?.farplane?.hardcase).toBe(true);
+    expect(detail?.evalSuite?.evals[0]?.metadata?.farplane).toEqual({
+      title: "Hard choice",
+      tags: ["decision"],
+      workspace_fixture: "evals/files/toy",
+      feature_id: "FEAT-0007",
+      extensions: { "x-example": { enabled: true } },
+    });
     expect(detail?.fileEntries).toContainEqual({ path: "evals/evals.json", kind: "eval", isText: true });
     expect(catalog[0]?.evalCount).toBe(1);
   });

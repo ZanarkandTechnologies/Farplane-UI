@@ -1137,13 +1137,12 @@ export interface SkillEvalFarplaneMetadata {
   context?: string;
   tags?: string[];
   notes?: string;
-  hardcase?: boolean;
-  difficulty?: string;
-  benchmark_value?: string;
-  sanitization_notes?: string;
-  expected_behavior?: string;
-  anti_patterns?: string[];
-  failure_modes?: string[];
+  /** Relative fixture directory copied into the isolated eval workspace. */
+  workspace_fixture?: string;
+  /** Feature registry identifier used to bind the case to its documentation. */
+  feature_id?: string;
+  /** Namespaced extension payloads retained without becoming first-class UI fields. */
+  extensions?: Record<string, unknown>;
 }
 
 export interface SkillEvalCase {

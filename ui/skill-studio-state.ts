@@ -114,22 +114,15 @@ function stringArray(value: unknown): string[] | null {
 function parseFarplaneMetadata(value: unknown): SkillEvalFarplaneMetadata | undefined {
   if (!isRecord(value)) return undefined;
   const metadata: SkillEvalFarplaneMetadata = {};
-  for (const key of [
-    "title",
-    "context",
-    "notes",
-    "difficulty",
-    "benchmark_value",
-    "sanitization_notes",
-    "expected_behavior",
-  ] as const) {
+  for (const key of ["title", "context", "notes"] as const) {
     if (typeof value[key] === "string") metadata[key] = value[key];
   }
-  for (const key of ["tags", "anti_patterns", "failure_modes"] as const) {
-    const entries = stringArray(value[key]);
-    if (entries) metadata[key] = entries;
+  const tags = stringArray(value.tags);
+  if (tags) metadata.tags = tags;
+  for (const key of ["workspace_fixture", "feature_id"] as const) {
+    if (typeof value[key] === "string") metadata[key] = value[key];
   }
-  if (typeof value.hardcase === "boolean") metadata.hardcase = value.hardcase;
+  if (isRecord(value.extensions)) metadata.extensions = value.extensions;
   return Object.keys(metadata).length ? metadata : undefined;
 }
 
