@@ -24,6 +24,7 @@ function readyHealth(runtimeToken?: string): YoutubeBridgeHealth {
     service: true,
     runtime: "farplane-youtube-shortcut",
     appServer: true,
+    authentication: "ready",
     intelligestSkill: true,
     ...(runtimeToken ? { runtimeToken } : {}),
   };

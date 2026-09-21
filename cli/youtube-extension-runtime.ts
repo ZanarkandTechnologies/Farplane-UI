@@ -62,11 +62,14 @@ async function waitForOwnedBridge(
 ): Promise<YoutubeBridgeHealth> {
   const deadline = deps.now() + deps.startTimeoutMs;
   while (deps.now() <= deadline) {
+    deps.signal.throwIfAborted();
     const failure = bridgeFailure();
     if (failure) throw failure;
     const probe = await deps.probeBridge();
     if (probe.state === "ready") return probe.health;
     if (probe.state === "conflict") throw new Error(`bridge_${probe.reason}`);
+    if (probe.state === "unready" && probe.health.authentication === "required")
+      throw new Error("codex_sign_in_required");
     await deps.sleep(YOUTUBE_START_RETRY_DELAY_MS);
   }
   throw new Error("bridge_readiness_timeout");
@@ -114,7 +117,9 @@ export async function startYoutubeExtensionRuntime(
   options: YoutubeRuntimeDependencies = {},
 ): Promise<YoutubeStartOperation> {
   const deps = resolveYoutubeRuntimeDependencies(options);
+  deps.signal.throwIfAborted();
   const initial = await deps.probeBridge();
+  deps.signal.throwIfAborted();
   if (initial.state === "ready") {
     return {
       result: {
@@ -135,7 +140,11 @@ export async function startYoutubeExtensionRuntime(
         ready: false,
         bridge: { port: YOUTUBE_BRIDGE_PORT, state: "conflict" },
         appServer: { port: YOUTUBE_APP_SERVER_PORT, state: "unavailable" },
-        reason: "bridge_unready",
+        reason: initial.health.authentication === "required"
+          ? "codex_sign_in_required"
+          : initial.health.authentication === undefined
+            ? "bridge_update_required"
+            : "bridge_unready",
       },
       ownedChildren: [],
     };
@@ -157,6 +166,7 @@ export async function startYoutubeExtensionRuntime(
   const ownedChildren: YoutubeOwnedChild[] = [];
   const appServerPresent = await deps.isAppServerListening();
   try {
+    deps.signal.throwIfAborted();
     if (!appServerPresent) {
       ownedChildren.push(
         startChild(
@@ -168,6 +178,9 @@ export async function startYoutubeExtensionRuntime(
         ),
       );
     }
+    const appFailure = ownedChildren[0]?.kind === "app-server"
+      ? monitorChild(ownedChildren[0].child, "codex_app_server")
+      : () => undefined;
     const token = deps.randomToken();
     const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
     const bridge = startChild(
@@ -179,7 +192,7 @@ export async function startYoutubeExtensionRuntime(
     );
     ownedChildren.push(bridge);
     const bridgeFailure = monitorChild(bridge.child, "youtube_bridge");
-    await waitForOwnedBridge(deps, bridgeFailure);
+    await waitForOwnedBridge(deps, () => appFailure() ?? bridgeFailure());
     const identified = await deps.probeBridge(token);
     if (
       identified.state !== "ready" ||
@@ -339,6 +352,15 @@ export async function stopYoutubeExtensionRuntime(
       reason: "signal_failed",
     };
   }
+}
+
+export async function releaseYoutubeExtensionRuntime(
+  operation: YoutubeStartOperation,
+  options: YoutubeRuntimeDependencies = {},
+): Promise<void> {
+  const deps = resolveYoutubeRuntimeDependencies(options);
+  await terminateOwnedChildren(operation.ownedChildren, deps);
+  await removeMatchingRecord(operation.runtimeRecord, deps.runtimeStore);
 }
 
 export async function keepYoutubeRuntimeForeground(

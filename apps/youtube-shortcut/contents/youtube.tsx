@@ -18,6 +18,11 @@ import type {
   ProjectOption,
   RuntimeRequest,
 } from "../runtime-protocol.js";
+import {
+  PROJECT_OPTIONS_CACHE_KEY,
+  parseProjectOptionsCache,
+  readProjectOptionsCache,
+} from "../project-options-cache.js";
 import { AnalysisOptionsForm } from "./analysis-options-form.js";
 import { closeStyle, copyStyle, panelStyle } from "./analysis-ui-styles.js";
 
@@ -515,25 +520,33 @@ function Overlay({
   }, [panelOpen, optionsOpen]);
 
   useEffect(() => {
-    if (!optionsOpen || projects.length) return;
+    if (!optionsOpen) return;
     let cancelled = false;
     setProjectsLoading(true);
     setProjectsError("");
-    sendRuntimeMessage<{ ok?: boolean; projects?: ProjectOption[]; error?: string }>(
-      { type: "GET_FARPLANE_PROJECTS" },
-      8_000,
-    )
-      .then((response) => {
+    readProjectOptionsCache()
+      .then((cache) => {
         if (cancelled) return;
-        if (!response?.ok || !Array.isArray(response.projects)) {
-          throw new Error(response?.error || "Project list unavailable");
+        if (!cache) {
+          setProjects([]);
+          setProjectsError(
+            "No saved project options. Open the Farplane extension popup and choose Sync projects.",
+          );
+          return;
         }
-        setProjects(response.projects);
+        setProjects(cache.projects);
+        if (cache.projects.length === 0) {
+          setProjectsError(
+            "The last project sync found no active project options. Sync again from the Farplane extension popup.",
+          );
+        }
       })
       .catch((cause) => {
         if (cancelled) return;
         setProjectsError(
-          cause instanceof Error ? cause.message : "Project list unavailable",
+          cause instanceof Error
+            ? `Saved project options are unavailable: ${cause.message}`
+            : "Saved project options are unavailable. Sync again from the Farplane extension popup.",
         );
       })
       .finally(() => {
@@ -542,10 +555,32 @@ function Overlay({
     return () => {
       cancelled = true;
     };
-  }, [optionsOpen, projects.length]);
+  }, [optionsOpen]);
 
   useEffect(() => {
-    if (projectId && projects.length && !projects.some((project) => project.id === projectId)) {
+    const onProjectOptionsChanged = (
+      changes: { [key: string]: chrome.storage.StorageChange },
+      areaName: string,
+    ) => {
+      if (areaName !== "local" || !changes[PROJECT_OPTIONS_CACHE_KEY]) return;
+      const cache = parseProjectOptionsCache(
+        changes[PROJECT_OPTIONS_CACHE_KEY].newValue,
+      );
+      setProjects(cache?.projects ?? []);
+      setProjectsError(
+        cache
+          ? cache.projects.length
+            ? ""
+            : "The last project sync found no active project options."
+          : "Saved project options are invalid. Sync again from the Farplane extension popup.",
+      );
+    };
+    chrome.storage.onChanged.addListener(onProjectOptionsChanged);
+    return () => chrome.storage.onChanged.removeListener(onProjectOptionsChanged);
+  }, []);
+
+  useEffect(() => {
+    if (projectId && !projects.some((project) => project.id === projectId)) {
       setProjectId("");
     }
   }, [projectId, projects]);

@@ -39,13 +39,18 @@ the extension without exposing a general localhost API.
 
 ## Run the local Codex bridge
 
-Keep this running while using the button:
+Start the office and its analysis services together:
 
 ```bash
-farplane extension youtube start
+farplane ui start
 ```
 
-The command starts missing services and waits for a ready local bridge, or
+For extension-only use, `farplane extension youtube start` remains available.
+
+The shared launcher starts missing services and verifies Codex authentication before
+reporting a ready local bridge. Analysis also refreshes authentication before creating
+a task. A revoked login produces sign-in guidance instead of starting a doomed task.
+The runtime starts a new bridge or
 attaches to an already healthy Farplane bridge without trying to bind a second
 copy. A fresh launch keeps its owned children in the foreground; **Ctrl+C**
 stops only those children. Use `farplane extension youtube status --json` for a
@@ -60,6 +65,13 @@ most recent Convex-backed jobs; runtime health and setup live under **Status**.
 Running, completed, and failed jobs link directly to their persistent Codex
 task as soon as Codex assigns its task ID. Jobs expose persisted named progress
 stages and messages rather than an invented percentage.
+
+Project options are intentionally synced only from the popup: open **Status**
+and choose **Sync projects** after creating, archiving, renaming, or moving a
+project. The popup saves only validated project IDs and names in the extension's
+local cache. Analyze forms read that cache immediately, so opening a thumbnail
+never waits on the local bridge; if no cache exists, the form tells the operator
+to sync it from the popup.
 
 The bridge reads the non-secret `VITE_CONVEX_URL` setting from Farplane
 Configurations, then the environment, and finally the Farplane UI root
@@ -106,7 +118,9 @@ canonical IDs, terminal status, and error classification in the report. The
   action.
 - Analyze opens a form that can attach a bounded operator instruction and route
   the new Codex task to one registered Farplane project. The browser receives
-  project IDs and names only; the loopback bridge resolves the working directory.
+  project IDs and names only from its popup-managed cache; the loopback bridge
+  resolves the working directory. Use **Sync projects** in the popup to refresh
+  those options explicitly.
 - First click checks the video-ID cache, then creates a persistent Codex task
   only on a miss.
 - A completed answer opens immediately. Click the same button again to close or

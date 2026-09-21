@@ -15,12 +15,19 @@ import {
   YOUTUBE_BRIDGE_URL,
   YOUTUBE_RUNTIME_CLIENT,
   YOUTUBE_RUNTIME_CLIENT_HEADER,
-  YOUTUBE_START_COMMAND,
 } from "./local-runtime.js";
+import {
+  readProjectOptionsCache,
+  writeProjectOptionsCache,
+  type ProjectOptionsCache,
+} from "./project-options-cache.js";
+import type { ProjectOption } from "./runtime-protocol.js";
 
 type Health = {
   service: boolean;
   appServer: boolean;
+  authentication?: "ready" | "required" | "unavailable";
+  authenticationMessage?: string;
   intelligestSkill: boolean;
   userProfile: boolean;
   userProfilePath: string;
@@ -49,7 +56,7 @@ type AnalysisJob = {
 };
 type PopupTab = "jobs" | "status";
 
-const startCommand = YOUTUBE_START_COMMAND;
+const startCommand = "farplane ui start";
 
 /** Popup status bypasses the worker so its startup cannot produce a false offline state. */
 async function requestBridge<T>(path: string, timeoutMs: number): Promise<T> {
@@ -88,6 +95,10 @@ export default function Popup() {
   const [copied, setCopied] = useState(false);
   const [jobs, setJobs] = useState<AnalysisJob[]>([]);
   const [activeTab, setActiveTab] = useState<PopupTab>("jobs");
+  const [projectOptionsCache, setProjectOptionsCache] =
+    useState<ProjectOptionsCache | null>(null);
+  const [projectSyncing, setProjectSyncing] = useState(false);
+  const [projectSyncError, setProjectSyncError] = useState("");
 
   async function refreshJobs() {
     try {
@@ -121,6 +132,39 @@ export default function Popup() {
     }
   }
 
+  async function loadSavedProjectOptions() {
+    try {
+      setProjectOptionsCache(await readProjectOptionsCache());
+    } catch (cause) {
+      setProjectSyncError(
+        cause instanceof Error
+          ? `Saved project options are unavailable: ${cause.message}`
+          : "Saved project options are unavailable.",
+      );
+    }
+  }
+
+  async function syncProjectOptions() {
+    setProjectSyncing(true);
+    setProjectSyncError("");
+    try {
+      const response = await requestBridge<{ projects?: ProjectOption[] }>(
+        "/projects",
+        8_000,
+      );
+      const cache = await writeProjectOptionsCache(response.projects);
+      setProjectOptionsCache(cache);
+    } catch (cause) {
+      setProjectSyncError(
+        cause instanceof Error
+          ? cause.message
+          : "Project options could not be synced.",
+      );
+    } finally {
+      setProjectSyncing(false);
+    }
+  }
+
   async function copyStartCommand() {
     try {
       await navigator.clipboard.writeText(startCommand);
@@ -133,12 +177,13 @@ export default function Popup() {
 
   useEffect(() => {
     void refresh();
+    void loadSavedProjectOptions();
     const timer = window.setInterval(() => void refreshJobs(), 1_500);
     return () => window.clearInterval(timer);
   }, []);
 
   const ready = Boolean(
-    health?.service && health.appServer && health.intelligestSkill,
+    health?.service && health.appServer && health.intelligestSkill && health.authentication === "ready",
   );
 
   function handleTabKeyDown(event: React.KeyboardEvent, tab: PopupTab) {
@@ -348,7 +393,7 @@ export default function Popup() {
                     <p style={stateCopyStyle}>
                       {ready
                         ? "Quick answers are available on YouTube."
-                        : "One or more required services needs attention."}
+                        : health.authenticationMessage ?? "One or more required services needs attention."}
                     </p>
                   </div>
                 </div>
@@ -410,6 +455,43 @@ export default function Popup() {
               </section>
             )
           )}
+
+      <section aria-label="Saved project options" aria-live="polite" style={projectSyncStyle}>
+        <div style={projectSyncHeaderStyle}>
+          <div>
+            <p style={jobsEyebrowStyle}>PROJECT OPTIONS</p>
+            <h2 style={jobsTitleStyle}>Project cache</h2>
+          </div>
+          <span style={projectCountStyle}>
+            {projectOptionsCache ? projectOptionsCache.projects.length : "—"}
+          </span>
+        </div>
+        <p style={projectSyncCopyStyle}>
+          {projectOptionsCache
+            ? `${projectOptionsCache.projects.length} saved · synced ${new Date(projectOptionsCache.syncedAtMs).toLocaleString()}`
+            : "No project options saved yet. Sync once, then Analyze uses this local cache."}
+        </p>
+        {projectSyncError && <p style={projectSyncErrorStyle}>{projectSyncError}</p>}
+        <button
+          className="control command-control"
+          type="button"
+          aria-label={
+            projectSyncing
+              ? "Syncing Farplane project options"
+              : "Sync Farplane project options"
+          }
+          disabled={projectSyncing}
+          onClick={() => void syncProjectOptions()}
+          style={projectSyncButtonStyle}
+        >
+          {projectSyncing ? (
+            <Loader2 aria-hidden="true" className="spin" size={14} />
+          ) : (
+            <RefreshCw aria-hidden="true" size={14} />
+          )}
+          {projectSyncing ? "SYNCING PROJECTS…" : "SYNC PROJECTS"}
+        </button>
+      </section>
       </div>
 
       <footer style={footerStyle}>
@@ -709,6 +791,56 @@ const retryStyle: React.CSSProperties = {
 };
 const statusListStyle: React.CSSProperties = {
   borderTop: "1px solid var(--border)",
+};
+const projectSyncStyle: React.CSSProperties = {
+  marginTop: 10,
+  border: "1px solid var(--border)",
+  borderLeft: "2px solid var(--primary)",
+  background: "var(--card)",
+  padding: 12,
+};
+const projectSyncHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+};
+const projectCountStyle: React.CSSProperties = {
+  minWidth: 22,
+  height: 22,
+  display: "grid",
+  placeItems: "center",
+  border: "1px solid var(--border)",
+  color: "var(--primary)",
+  fontSize: 8,
+  fontVariantNumeric: "tabular-nums",
+};
+const projectSyncCopyStyle: React.CSSProperties = {
+  margin: "7px 0 10px",
+  color: "var(--muted-foreground)",
+  fontSize: 8,
+  lineHeight: 1.5,
+};
+const projectSyncErrorStyle: React.CSSProperties = {
+  margin: "-3px 0 10px",
+  color: "var(--destructive-fg)",
+  fontSize: 8,
+  lineHeight: 1.5,
+};
+const projectSyncButtonStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: 34,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  border: "1px solid var(--border)",
+  borderRadius: 0,
+  background: "var(--background)",
+  color: "var(--primary)",
+  cursor: "pointer",
+  fontSize: 9,
+  fontWeight: 700,
 };
 const statusRowStyle: React.CSSProperties = {
   minHeight: 39,

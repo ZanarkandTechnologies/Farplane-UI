@@ -481,6 +481,8 @@ test("Codex run is persistent, writable, skill-bound, and schema-constrained", a
     },
     async request(method, params): Promise<any> {
       calls.push({ method, params });
+      if (method === "account/read") return { account: { type: "chatgpt" }, requiresOpenaiAuth: true };
+      if (method === "account/rateLimits/read") return { rateLimits: {} };
       if (method === "model/list") {
         return {
           data: [
@@ -598,6 +600,8 @@ test("transcript extraction failure is surfaced as a failure, not an answer", as
       return () => undefined;
     },
     async request(method, params): Promise<any> {
+      if (method === "account/read") return { account: { type: "chatgpt" }, requiresOpenaiAuth: true };
+      if (method === "account/rateLimits/read") return { rateLimits: {} };
       if (method === "model/list") {
         return {
           data: [
@@ -715,12 +719,16 @@ test("Codex idle timeout refreshes on progress while an absolute cap remains", a
 });
 
 test("health exposes a runtime token only to the matching local supervisor", async (t) => {
+  const refreshRequests: boolean[] = [];
   const server = createLocalAgentServer(
     undefined,
     isolatedStore(),
     {
       runtimeToken: "test-runtime-token-which-is-not-for-extension-clients",
-      readRuntimeHealth: async () => ({ appServer: true, intelligestSkill: true }),
+      readRuntimeHealth: async (refreshAuth) => {
+        refreshRequests.push(refreshAuth);
+        return { appServer: true, intelligestSkill: true, authentication: "ready" };
+      },
     },
   );
   server.listen(0, "127.0.0.1");
@@ -743,10 +751,13 @@ test("health exposes a runtime token only to the matching local supervisor", asy
     headers: {
       "x-farplane-client": "youtube-shortcut",
       "x-farplane-runtime-token": "test-runtime-token-which-is-not-for-extension-clients",
+      "x-farplane-auth-refresh": "true",
     },
   });
   const matchingBody = await matching.json() as Record<string, unknown>;
   assert.equal(matchingBody.runtimeToken, "test-runtime-token-which-is-not-for-extension-clients");
+  assert.equal(matchingBody.authentication, "ready");
+  assert.deepEqual(refreshRequests, [false, true]);
 });
 
 test("HTTP bridge denies foreign origins and exposes only the analysis contract", async (t) => {
@@ -1171,4 +1182,82 @@ test("cached bridge reuse keeps the local answer without completing a ready job"
   });
   assert.equal(updateCalls, 0);
   assert.equal(completeCalls, 0);
+});
+
+
+test("revoked Codex credentials fail before creating any analysis task", async () => {
+  const calls: string[] = [];
+  let closed = false;
+  const rpc: RpcClient = {
+    notify() {},
+    close() { closed = true; },
+    onNotification() { return () => undefined; },
+    async request<T>(method: string, params: unknown): Promise<T> {
+      calls.push(method);
+      assert.deepEqual(params, { refreshToken: true });
+      throw new Error("Your access token could not be refreshed because you have since logged out or signed in to another account.");
+    },
+  };
+  await assert.rejects(
+    runCodexAnalysis({ videoId: "abcdefghijk", title: "Test" }, { available: false, value: "" }, rpc),
+    /Codex sign-in needs to be renewed/,
+  );
+  assert.deepEqual(calls, ["account/read"]);
+  assert.equal(closed, true);
+});
+
+test("authentication distinguishes signed out, custom provider and transport errors", async () => {
+  const { readCodexAuthentication } = await import("./codex-auth.js");
+  const respond = (value: unknown) => ({ request: async <T>() => value as T });
+  assert.equal((await readCodexAuthentication(respond({ account: null, requiresOpenaiAuth: true }))).authentication, "required");
+  assert.equal((await readCodexAuthentication(respond({ account: null, requiresOpenaiAuth: false }))).authentication, "ready");
+  assert.equal((await readCodexAuthentication(respond({}))).authentication, "unavailable");
+  const failed = await readCodexAuthentication({ request: async () => { throw new Error("Socket disconnected secret-value"); } });
+  assert.equal(failed.authentication, "unavailable");
+  assert.ok(!failed.authenticationMessage?.includes("secret-value"));
+});
+
+
+test("presence polling cannot clear invalid auth but an explicit successful refresh can", async () => {
+  const { readCodexAuthentication } = await import("./codex-auth.js");
+  const signedIn = { request: async <T>() => ({ account: { type: "chatgpt" }, requiresOpenaiAuth: true }) as T };
+  await readCodexAuthentication({ request: async () => { throw new Error("Refresh token revoked"); } });
+  assert.equal((await readCodexAuthentication(signedIn, false)).authentication, "required");
+  assert.equal((await readCodexAuthentication(signedIn, true)).authentication, "ready");
+});
+
+
+test("cached account after swallowed refresh error does not pass authenticated preflight", async () => {
+  const { readCodexAuthentication } = await import("./codex-auth.js");
+  const calls: string[] = [];
+  const auth = await readCodexAuthentication({
+    async request<T>(method: string): Promise<T> {
+      calls.push(method);
+      if (method === "account/read") return { account: { type: "chatgpt" }, requiresOpenaiAuth: true } as T;
+      throw new Error("failed to fetch codex rate limits: HTTP 401 Unauthorized");
+    },
+  });
+  assert.equal(auth.authentication, "required");
+  assert.deepEqual(calls, ["account/read", "account/rateLimits/read"]);
+});
+
+
+test("authentication preflight bounds an RPC that never settles", async () => {
+  const { readCodexAuthentication } = await import("./codex-auth.js");
+  const result = await readCodexAuthentication({ request: () => new Promise(() => {}) }, true, 10);
+  assert.equal(result.authentication, "unavailable");
+});
+
+test("authenticated rate limit verification shares the preflight deadline", async () => {
+  const { readCodexAuthentication } = await import("./codex-auth.js");
+  const methods: string[] = [];
+  const result = await readCodexAuthentication({
+    async request<T>(method: string): Promise<T> {
+      methods.push(method);
+      if (method === "account/read") return { account: { type: "chatgpt" }, requiresOpenaiAuth: true } as T;
+      return new Promise(() => {});
+    },
+  }, true, 10);
+  assert.equal(result.authentication, "unavailable");
+  assert.deepEqual(methods, ["account/read", "account/rateLimits/read"]);
 });

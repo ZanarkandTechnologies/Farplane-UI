@@ -16,10 +16,8 @@ export type AnalyzeYouTubeRequest = {
 
 export type GetLocalHealthRequest = { type: "GET_LOCAL_HEALTH" };
 export type GetYouTubeJobsRequest = { type: "GET_YOUTUBE_JOBS" };
-export type GetFarplaneProjectsRequest = { type: "GET_FARPLANE_PROJECTS" };
 
 export type RuntimeRequest =
   | AnalyzeYouTubeRequest
   | GetLocalHealthRequest
-  | GetYouTubeJobsRequest
-  | GetFarplaneProjectsRequest;
+  | GetYouTubeJobsRequest;

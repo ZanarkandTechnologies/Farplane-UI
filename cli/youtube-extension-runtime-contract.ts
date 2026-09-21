@@ -27,7 +27,8 @@ import {
 import { resolveFarplaneUiRepoRoot } from "./repo-root.js";
 import { resolveFarplaneHome } from "./runtime-config.js";
 
-const START_TIMEOUT_MS = 30_000;
+const START_TIMEOUT_MS = 60_000;
+export const YOUTUBE_HEALTH_TIMEOUT_MS = 30_000;
 export const YOUTUBE_START_RETRY_DELAY_MS = 300;
 
 export type YoutubeBridgeHealth = {
@@ -36,6 +37,8 @@ export type YoutubeBridgeHealth = {
   /** Absent only on an already-running bridge from before TASK-0446. */
   runtime?: typeof YOUTUBE_RUNTIME_NAME;
   appServer: boolean;
+  authentication?: "ready" | "required" | "unavailable";
+  authenticationMessage?: string;
   intelligestSkill: boolean;
   userProfile?: boolean;
   runtimeToken?: string;
@@ -94,6 +97,7 @@ export type YoutubeStopResult = {
 };
 
 export type YoutubeRuntimeDependencies = {
+  signal?: AbortSignal;
   probeBridge?: (runtimeToken?: string) => Promise<YoutubeBridgeProbe>;
   isAppServerListening?: () => Promise<boolean>;
   findListeningPid?: (port: number) => Promise<number | undefined>;
@@ -191,12 +195,13 @@ function validHealth(value: unknown): YoutubeBridgeHealth | undefined {
 
 export async function probeYoutubeBridge(runtimeToken?: string): Promise<YoutubeBridgeProbe> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5_000);
+  const timeout = setTimeout(() => controller.abort(), YOUTUBE_HEALTH_TIMEOUT_MS);
   try {
     const response = await fetch(`${YOUTUBE_BRIDGE_URL}${YOUTUBE_HEALTH_PATH}`, {
       method: "POST",
       headers: {
         [YOUTUBE_RUNTIME_CLIENT_HEADER]: YOUTUBE_RUNTIME_CLIENT,
+        "x-farplane-auth-refresh": "true",
         ...(runtimeToken ? { [YOUTUBE_RUNTIME_TOKEN_HEADER]: runtimeToken } : {}),
       },
       signal: controller.signal,
@@ -204,7 +209,7 @@ export async function probeYoutubeBridge(runtimeToken?: string): Promise<Youtube
     if (!response.ok) return { state: "conflict", reason: "unexpected_response" };
     const health = validHealth(await response.json());
     if (!health) return { state: "conflict", reason: "unknown_service" };
-    return health.appServer && health.intelligestSkill
+    return health.appServer && health.intelligestSkill && health.authentication === "ready"
       ? { state: "ready", health }
       : { state: "unready", health };
   } catch (error) {
@@ -253,6 +258,7 @@ export function resolveYoutubeRuntimeDependencies(
   overrides: YoutubeRuntimeDependencies,
 ): ResolvedYoutubeRuntimeDependencies {
   return {
+    signal: overrides.signal ?? new AbortController().signal,
     probeBridge: overrides.probeBridge ?? probeYoutubeBridge,
     isAppServerListening:
       overrides.isAppServerListening ?? (() => portIsListening(YOUTUBE_APP_SERVER_PORT)),

@@ -62,24 +62,6 @@ test("health is relayed by the startup-safe background worker", async () => {
   });
 });
 
-test("projects are relayed without loading the analysis validator", async () => {
-  globalThis.fetch = async (input) => {
-    assert.equal(String(input), "http://127.0.0.1:47893/projects");
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        projects: [{ id: "proj-vidgard", name: "Vidgard" }],
-      }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    );
-  };
-
-  assert.deepEqual(
-    await forwardRuntimeRequest({ type: "GET_FARPLANE_PROJECTS" }),
-    { ok: true, projects: [{ id: "proj-vidgard", name: "Vidgard" }] },
-  );
-});
-
 test("analysis forwards selected project and operator instruction", async () => {
   globalThis.fetch = async (input, init) => {
     assert.equal(String(input), "http://127.0.0.1:47893/analyze-youtube");
@@ -130,7 +112,7 @@ test("the listener keeps the message channel open until relay completion", async
 test("the previous port transport remains usable until the extension reloads", async () => {
   assert.ok(connectionListener);
   globalThis.fetch = async () =>
-    new Response(JSON.stringify({ ok: true, projects: [] }), {
+    new Response(JSON.stringify({ ok: true, jobs: [] }), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
@@ -146,7 +128,7 @@ test("the previous port transport remains usable until the extension reloads", a
       },
       postMessage: resolve,
     });
-    portMessageListener?.({ type: "GET_FARPLANE_PROJECTS" });
+    portMessageListener?.({ type: "GET_YOUTUBE_JOBS" });
   });
-  assert.deepEqual(response, { ok: true, projects: [] });
+  assert.deepEqual(response, { ok: true, jobs: [] });
 });

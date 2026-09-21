@@ -12,7 +12,7 @@ import {
 const LOCAL_AGENT = YOUTUBE_BRIDGE_URL;
 
 type RelayTarget = {
-  path: "/analyze-youtube" | "/health" | "/jobs" | "/projects";
+  path: "/analyze-youtube" | "/health" | "/jobs";
   body?: Record<string, unknown>;
   timeoutMs: number;
 };
@@ -29,7 +29,6 @@ function isRuntimeRequest(value: unknown): value is RuntimeRequest {
     "ANALYZE_YOUTUBE",
     "GET_LOCAL_HEALTH",
     "GET_YOUTUBE_JOBS",
-    "GET_FARPLANE_PROJECTS",
   ].includes(value.type as string);
 }
 
@@ -39,8 +38,6 @@ function relayTarget(request: RuntimeRequest): RelayTarget {
       return { path: "/health", timeoutMs: 6_000 };
     case "GET_YOUTUBE_JOBS":
       return { path: "/jobs", timeoutMs: 6_000 };
-    case "GET_FARPLANE_PROJECTS":
-      return { path: "/projects", timeoutMs: 6_000 };
     case "ANALYZE_YOUTUBE":
       return {
         path: "/analyze-youtube",

@@ -4,6 +4,7 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
+import { readCodexAuthentication, requireCodexAuthentication, type CodexAuthentication } from "./codex-auth.js";
 import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -88,7 +89,7 @@ export type AnalysisRun = { analysis: Analysis; threadId: string };
 export type AnalysisJob = VideoIngestJob;
 export type { ProjectOption } from "../runtime-protocol.js";
 
-export type LocalBridgeReadiness = {
+export type LocalBridgeReadiness = CodexAuthentication & {
   appServer: boolean;
   intelligestSkill: boolean;
 };
@@ -97,7 +98,7 @@ export type LocalAgentServerOptions = {
   /** Per-launch identity supplied only by the local runtime supervisor. */
   runtimeToken?: string;
   /** Test seam for bridge readiness without a live Codex app-server. */
-  readRuntimeHealth?: () => Promise<LocalBridgeReadiness>;
+  readRuntimeHealth?: (refreshAuth: boolean) => Promise<LocalBridgeReadiness>;
 };
 
 export function configuredVideoIntelligenceProfile(
@@ -337,7 +338,10 @@ class CodexRpc {
     const socket = new WebSocket(url);
     await new Promise<void>((resolvePromise, reject) => {
       const timeout = setTimeout(
-        () => reject(new Error("Timed out connecting to Codex app-server")),
+        () => {
+          socket.close();
+          reject(new Error("Timed out connecting to Codex app-server"));
+        },
         4_000,
       );
       socket.addEventListener(
@@ -376,6 +380,7 @@ class CodexRpc {
     return () => this.listeners.delete(listener);
   }
   close() {
+    this.failPending(new Error("Codex RPC connection closed"));
     this.socket.close();
   }
   private failPending(error: Error) {
@@ -474,18 +479,31 @@ export function waitForTurnCompletion(
 
 async function initializedRpc() {
   const rpc = await CodexRpc.connect();
-  trace("initialize.request");
-  await rpc.request("initialize", {
-    clientInfo: {
-      name: "farplane_youtube_shortcut",
-      title: "Farplane YouTube Shortcut",
-      version: "0.1.0",
-    },
-    capabilities: { experimentalApi: false },
-  });
-  rpc.notify("initialized", {});
-  trace("initialize.complete");
-  return rpc;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    trace("initialize.request");
+    await Promise.race([
+      rpc.request("initialize", {
+        clientInfo: {
+          name: "farplane_youtube_shortcut",
+          title: "Farplane YouTube Shortcut",
+          version: "0.1.0",
+        },
+        capabilities: { experimentalApi: false },
+      }),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error("Timed out initializing Codex app-server")), 4_000);
+      }),
+    ]);
+    rpc.notify("initialized", {});
+    trace("initialize.complete");
+    return rpc;
+  } catch (error) {
+    rpc.close();
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function findIntelligestSkill(rpc: RpcClient, cwd: string) {
@@ -568,6 +586,7 @@ export async function runCodexAnalysis(
   let turnId: string | undefined;
   let completion: TurnCompletionPromise | undefined;
   try {
+    await requireCodexAuthentication(rpc);
     await verifyCodexAnalysisProfile(rpc, analysisProfile);
     const skill = await findIntelligestSkill(rpc, cwd);
     trace("thread.start.request", { ephemeral: false });
@@ -688,13 +707,16 @@ function sameRuntimeToken(left: string | undefined, right: string | undefined): 
   return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
 }
 
-async function defaultRuntimeHealth(): Promise<LocalBridgeReadiness> {
+async function defaultRuntimeHealth(refreshAuth: boolean): Promise<LocalBridgeReadiness> {
   let appServer = false;
   let intelligestSkill = false;
+  let authentication: CodexAuthentication = { authentication: "unavailable" };
   try {
     const rpc = await initializedRpc();
     appServer = true;
     try {
+      authentication = await readCodexAuthentication(rpc, refreshAuth);
+      if (authentication.authentication !== "ready") return { appServer, intelligestSkill, ...authentication };
       await findIntelligestSkill(rpc, ANALYST_PROJECT_PATH);
       intelligestSkill = true;
     } finally {
@@ -703,7 +725,7 @@ async function defaultRuntimeHealth(): Promise<LocalBridgeReadiness> {
   } catch {
     /* represented in bridge diagnostics */
   }
-  return { appServer, intelligestSkill };
+  return { appServer, intelligestSkill, ...authentication };
 }
 
 async function readJson(req: IncomingMessage) {
@@ -774,7 +796,9 @@ export function createLocalAgentServer(
           client: req.headers["x-farplane-client"] ?? "missing",
         });
         const profile = await loadUserProfile();
-        const { appServer, intelligestSkill } = await readRuntimeHealth();
+        const refreshAuth = !req.headers.origin &&
+          req.headers["x-farplane-auth-refresh"] === "true";
+        const { appServer, intelligestSkill, ...authentication } = await readRuntimeHealth(refreshAuth);
         const requestedRuntimeToken =
           typeof req.headers[YOUTUBE_RUNTIME_TOKEN_HEADER] === "string"
             ? req.headers[YOUTUBE_RUNTIME_TOKEN_HEADER]
@@ -796,6 +820,7 @@ export function createLocalAgentServer(
             runtime: YOUTUBE_RUNTIME_NAME,
             appServer,
             intelligestSkill,
+            ...authentication,
             userProfile: profile.available,
             userProfilePath: "~/.farplane/USER.md",
             // A normal extension health check must never receive the process identity.
