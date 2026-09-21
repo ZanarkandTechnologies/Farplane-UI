@@ -1,7 +1,7 @@
 ---
 owner: hook-telemetry
 status: active
-updated: 2026-06-17
+updated: 2026-09-20
 ---
 
 # Hook Telemetry QA Runbook
@@ -38,3 +38,18 @@ npm run test:once -- hooks/file-change-listener convex/modules/hookTelemetry ui/
   `skillId`, `threadId`, and capped `paths`.
 - Do not show raw `cwd`, tool inputs, tool responses, stdout, stderr, or
   transcript fields in the table preview.
+
+## Stop / continuation presence
+
+1. Observe a root task through `UserPromptSubmit`, then a `Stop` hook.
+2. Verify its office status reads “Codex stop attempted” and is idle, without
+   claiming that the task or Goal is complete. Raw Telemetry retains `Stop`.
+3. Continue the same turn and observe a `PostToolUse` event for that worker.
+   Verify it returns to running without requiring another user prompt.
+4. Observe `SubagentStart` and `SubagentStop`: the child is ephemeral and its
+   stop does not mark the parent complete.
+5. Preserve a capture for each root transition. If the selective tool hooks do
+   not emit an event, mark resumed presence unproven; do not invent a signal.
+
+The local-provider and Convex projection tests exercise these states offline;
+cloud verification requires the updated Convex functions to be deployed.

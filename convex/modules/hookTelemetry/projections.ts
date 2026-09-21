@@ -214,9 +214,10 @@ function observedStatusText(row: HookTelemetryRow, payload: JsonRecord): string 
   if (explicit) return explicit;
   if (row.hookType === "UserPromptSubmit" || row.hookType === "TurnStart")
     return "Codex turn running";
-  if (row.hookType === "Stop" || row.hookType === "TurnEnd") return "Codex turn completed";
+  if (row.hookType === "Stop") return "Codex stop attempted";
+  if (row.hookType === "TurnEnd") return "Codex turn ended";
   if (row.hookType === "SubagentStart") return "Delegated Codex worker running";
-  if (row.hookType === "SubagentStop") return "Delegated Codex worker completed";
+  if (row.hookType === "SubagentStop") return "Delegated Codex worker stopped";
   if (row.hookType === "PostToolUse") {
     const skillId = cleanText(payload.skillId, 120);
     if (skillId) return `Calling ${compactLabel(skillId)}`;
@@ -226,8 +227,9 @@ function observedStatusText(row: HookTelemetryRow, payload: JsonRecord): string 
 }
 
 function observedState(row: HookTelemetryRow): ObservedCodexWorker["state"] {
-  if (row.hookType === "Stop" || row.hookType === "TurnEnd" || row.hookType === "SubagentStop")
-    return "done";
+  // Stop runs before other hooks decide whether the turn may finish.
+  if (row.hookType === "Stop") return "idle";
+  if (row.hookType === "TurnEnd" || row.hookType === "SubagentStop") return "done";
   if (
     row.hookType === "SessionStart" ||
     row.hookType === "UserPromptSubmit" ||
@@ -247,6 +249,9 @@ function isObservedStartHook(row: HookTelemetryRow): boolean {
     row.hookType === "SessionStart" ||
     row.hookType === "UserPromptSubmit" ||
     row.hookType === "TurnStart" ||
+    row.hookType === "PreToolUse" ||
+    row.hookType === "PostToolUse" ||
+    row.hookType === "PermissionRequest" ||
     row.hookType === "SubagentStart"
   );
 }
@@ -493,7 +498,7 @@ export function hookTelemetryRowsToObservedCodexWorkers(
   rows: HookTelemetryRow[],
 ): ObservedCodexWorker[] {
   const byWorkerId = new Map<string, ObservedCodexWorker>();
-  const lifecycleByWorkerId = new Map<string, { latestStartAt?: number; latestStopAt?: number }>();
+  const lifecycleByWorkerId = new Map<string, { latestStartAt?: number; latestStopAt?: number; stopState?: ObservedCodexWorker["state"] }>();
   // Convex indexes return newest-first. Fold lifecycle rows chronologically so
   // sparse Stop payloads inherit identity/title metadata from their Start.
   for (const row of [...rows].sort((left, right) => left.eventAt - right.eventAt)) {
@@ -527,6 +532,7 @@ export function hookTelemetryRowsToObservedCodexWorkers(
     }
     if (isObservedStopHook(row)) {
       lifecycle.latestStopAt = Math.max(lifecycle.latestStopAt ?? -Infinity, row.eventAt);
+      lifecycle.stopState = observedState(row);
     }
     lifecycleByWorkerId.set(workerId, lifecycle);
     const state = observedState(row);
@@ -591,7 +597,7 @@ export function hookTelemetryRowsToObservedCodexWorkers(
       ) {
         return {
           ...worker,
-          state: "done",
+          state: lifecycle.stopState ?? "idle",
         };
       }
       return worker;
@@ -630,7 +636,7 @@ export function hookTelemetryRowsToAgentBubbleMessages(
       }
 
       if (eventName === "thread.stopped") {
-        const message = messageFromPayload(payload) ?? "Update ready";
+        const message = messageFromPayload(payload) ?? (row.hookType === "Stop" ? "Stop attempted" : "Turn ended");
         return { threadId, message, eventAt: row.eventAt };
       }
 
