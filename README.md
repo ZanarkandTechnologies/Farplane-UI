@@ -23,6 +23,24 @@ plugins. Farplane adds the cloneable harness, the office, the Core-owned CLI,
 the review loop, and the operator surfaces that turn raw agent runtime into
 something you can steer like a business.
 
+## Start the office
+
+```bash
+farplane ui start
+```
+
+This starts or reuses the local Codex app-server and YouTube analysis bridge,
+checks Codex authentication, and launches the office. You do not need a separate
+`farplane extension youtube start` terminal. In this checkout,
+`corepack pnpm run ui` uses the same launcher. Keep the command running; Ctrl+C
+stops only the processes it started. An already-running office is reused.
+
+If Codex has logged out or its login was revoked, an interactive launch opens
+`codex login` and continues after sign-in. Account revocation still requires
+user authentication. Already-running services from an older version must be
+stopped once so the new checks can load. Dependencies must be installed and
+Codex available on PATH; cloud Video Intelligence uses the saved Convex configuration.
+
 ## What Is Farplane UI?
 
 If the runtime runs agents, Farplane is the harness around them. Farplane UI is

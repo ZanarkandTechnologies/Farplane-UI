@@ -36,12 +36,12 @@ Every UI QA report should reconcile:
 
 ## Runtime Paths
 
-- App-only local run: `corepack pnpm run ui`
+- Office and analysis local run: `corepack pnpm run ui`
 - QA/evidence run: start `corepack pnpm run ui`, then use the relevant cookbook page.
 - Expected local UI target: Vite prints the active host/port; common local
   target is `http://127.0.0.1:5173`.
-- Codex runtime needs `CODEX_APP_SERVER_URL` when using app-server-backed
-  project/thread data.
+- The launcher starts/reuses Codex and the analysis bridge, verifies authentication,
+  and supplies the local app-server URL unless explicitly configured.
 - OpenClaw runtime needs the gateway reachable from the browser when the
   OpenClaw adapter is selected.
 

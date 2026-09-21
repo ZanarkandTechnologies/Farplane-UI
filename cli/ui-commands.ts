@@ -64,10 +64,10 @@ export async function startUiDevServer(options: StartUiDevServerOptions = {}): P
 export function registerUiCommands(program: Command): void {
   program
     .command("ui [viteArgs...]")
-    .description("Start the Farplane UI dev server")
+    .description("Start the office with Codex and YouTube analysis services")
     .action(async (viteArgs: string[] = []) => {
       console.log(cliSection("Farplane UI"));
-      console.log(cliDim("Starting the Vite dev server with the shared local launcher."));
+      console.log(cliDim("Starting the office and checking its local analysis services."));
       console.log(cliBlue("Stop it with Ctrl+C. You can rerun this command any time."));
       console.log("");
       await startUiDevServer({ args: viteArgs });

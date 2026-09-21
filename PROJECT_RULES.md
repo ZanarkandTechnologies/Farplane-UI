@@ -124,12 +124,12 @@ This file defines project-specific technical rules, stack details, and execution
 
 ## Runtime / QA Commands
 
-- Authoritative app-only run path: `corepack pnpm run ui`
+- Authoritative office and analysis run path: `corepack pnpm run ui`
 - Authoritative QA/evidence run path: `corepack pnpm run ui`, then follow the relevant `qa/cookbook/*` page
-- Basic Office launch has no required external service. Codex app server is needed for live Codex project/thread control; OpenClaw gateway only when the OpenClaw adapter is selected; Convex when testing realtime status/activity surfaces.
-- Launch shape: local pnpm workspace processes plus optional external runtime services
+- The shared office launcher starts/reuses the Codex app-server and YouTube bridge and checks authenticated access. OpenClaw gateway remains optional when its adapter is selected; Convex-backed surfaces use their saved cloud configuration.
+- Launch shape: one foreground office command owns its newly started local processes and preserves shared services.
 - Expected UI target: Vite prints the active URL; common local target is `http://127.0.0.1:5173`
-- Port/env contract: keep Vite host/port configurable; `CODEX_APP_SERVER_URL` enables Codex app-server bridge data; gateway/state bridge URLs are user-configurable in Settings
+- Port/env contract: keep Vite host/port configurable; the launcher supplies the local Codex app-server URL when no explicit override is present; gateway/state bridge URLs are user-configurable in Settings
 
 ## Pre-Push Policy
 

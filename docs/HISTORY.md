@@ -2,6 +2,8 @@
 
 2026-09-20 | fix | hook-telemetry,office | Treat Codex Stop as an idle stop attempt rather than task completion; later same-turn tool activity restores running presence. Preserve child-worker stop identity and share semantics across local and Convex projections.
 
+2026-09-11 | fix | TASK-9002 | office,youtube,codex,runtime | Unified office startup under `farplane ui start`: start/reuse analysis dependencies, verify authenticated Codex access before tasks, bound authentication waits, and clean up only owned processes. Corrected cached-account false readiness and restored the stale live app-server session.
+
 2026-08-25 | fix | TASK-0446 | cli,youtube,codex,runtime | Added `farplane extension youtube <start|status|doctor|stop>` as the canonical local extension runtime flow: a healthy bridge attaches instead of rebinding, fresh launches record a token-verified listener identity, and safe stop retains the shared Codex app-server.
 
 2026-08-19 | feature | TASK-0091 | content-intelligence,video-intelligence,skills,youtube | Routed YouTube Analyze through the installed `intelligest` skill; added canonical retry/dedupe and persisted progress; replaced Topic-derived Related coverage with independently reviewed 14-day current-revision comparison edges; required exact HTTPS News references; and safely replayed all 46 stored dossiers without media reanalysis.
