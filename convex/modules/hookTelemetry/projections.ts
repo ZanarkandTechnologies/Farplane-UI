@@ -1,5 +1,12 @@
 import type { ActivityPingRow } from "../runtimeTelemetry/runtimeTelemetry";
 import type { SkillInvocationRow } from "../skillInvocations/contracts";
+import {
+  type FarplaneGate,
+  type FarplaneRuntime,
+  gateLabel,
+  runtimeFromPayload,
+  runtimeLabel,
+} from "./farplaneEvents";
 
 export type HookTelemetryRow = {
   _id?: string;
@@ -41,6 +48,7 @@ export type ObservedCodexWorker = {
   projectPath?: string;
   displayName: string;
   titleSource: ObservedCodexTitleSource;
+  runtime: FarplaneRuntime;
   state: "running" | "idle" | "done";
   statusText: string;
   currentSkillId?: string;
@@ -205,7 +213,19 @@ function projectIdFromRow(row: HookTelemetryRow, payload: JsonRecord): string | 
   );
 }
 
+function gateFromPayload(payload: JsonRecord): FarplaneGate | undefined {
+  const gate = cleanText(payload.gate, 40);
+  return gate === "response-length" || gate === "continuation" || gate === "skill-length"
+    ? gate
+    : undefined;
+}
+
 function observedStatusText(row: HookTelemetryRow, payload: JsonRecord): string {
+  const runtime = runtimeLabel(runtimeFromPayload(payload));
+  if (row.hookType === "GateBlocked") {
+    const gate = gateFromPayload(payload);
+    return gate ? gateLabel(gate) : `${runtime} turn bounced`;
+  }
   const explicit =
     cleanText(payload.statusText, 120) ??
     cleanText(payload.summary, 120) ??
@@ -213,17 +233,17 @@ function observedStatusText(row: HookTelemetryRow, payload: JsonRecord): string 
     cleanText(payload.title, 120);
   if (explicit) return explicit;
   if (row.hookType === "UserPromptSubmit" || row.hookType === "TurnStart")
-    return "Codex turn running";
-  if (row.hookType === "Stop") return "Codex stop attempted";
-  if (row.hookType === "TurnEnd") return "Codex turn ended";
-  if (row.hookType === "SubagentStart") return "Delegated Codex worker running";
-  if (row.hookType === "SubagentStop") return "Delegated Codex worker stopped";
+    return `${runtime} turn running`;
+  if (row.hookType === "Stop") return `${runtime} stop attempted`;
+  if (row.hookType === "TurnEnd") return `${runtime} turn ended`;
+  if (row.hookType === "SubagentStart") return `Delegated ${runtime} worker running`;
+  if (row.hookType === "SubagentStop") return `Delegated ${runtime} worker stopped`;
   if (row.hookType === "PostToolUse") {
     const skillId = cleanText(payload.skillId, 120);
     if (skillId) return `Calling ${compactLabel(skillId)}`;
-    return "Codex tool activity";
+    return `${runtime} tool activity`;
   }
-  return "Codex activity observed";
+  return `${runtime} activity observed`;
 }
 
 function observedState(row: HookTelemetryRow): ObservedCodexWorker["state"] {
@@ -237,7 +257,8 @@ function observedState(row: HookTelemetryRow): ObservedCodexWorker["state"] {
     row.hookType === "PreToolUse" ||
     row.hookType === "PostToolUse" ||
     row.hookType === "PermissionRequest" ||
-    row.hookType === "SubagentStart"
+    row.hookType === "SubagentStart" ||
+    row.hookType === "GateBlocked"
   ) {
     return "running";
   }
@@ -252,7 +273,8 @@ function isObservedStartHook(row: HookTelemetryRow): boolean {
     row.hookType === "PreToolUse" ||
     row.hookType === "PostToolUse" ||
     row.hookType === "PermissionRequest" ||
-    row.hookType === "SubagentStart"
+    row.hookType === "SubagentStart" ||
+    row.hookType === "GateBlocked"
   );
 }
 
@@ -567,6 +589,7 @@ export function hookTelemetryRowsToObservedCodexWorkers(
       projectPath: projectPathFromPayload(payload),
       displayName: observedTitle.displayName,
       titleSource: observedTitle.titleSource,
+      runtime: runtimeFromPayload(payload),
       state,
       statusText: observedStatusText(row, payload),
       currentSkillId,
@@ -586,8 +609,8 @@ export function hookTelemetryRowsToObservedCodexWorkers(
           ...worker,
           state: "running",
           statusText:
-            worker.statusText === "Codex activity observed"
-              ? "Codex turn running"
+            worker.statusText === `${runtimeLabel(worker.runtime)} activity observed`
+              ? `${runtimeLabel(worker.runtime)} turn running`
               : worker.statusText,
         };
       }
@@ -616,6 +639,10 @@ export function hookTelemetryRowsToAgentBubbleMessages(
       const payload = asRecord(row.payload);
       const threadId = threadIdFromRow(row, payload);
       if (!threadId) return null;
+      if (row.hookType === "GateBlocked") {
+        const gate = gateFromPayload(payload);
+        return gate ? { threadId, message: gateLabel(gate), eventAt: row.eventAt } : null;
+      }
       const eventName = hookEventName(row, payload);
       if (!eventName) return null;
 
