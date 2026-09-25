@@ -257,8 +257,8 @@ export function createOfficePanelActions(
       buttonClassName:
         deps.highlightedMenuActionId === "team-workspace" ? GUIDED_BUTTON_CLASS : undefined,
       disabled: readOnly,
-      showInMenu: false,
-      showInPalette: false,
+      showInMenu: !readOnly,
+      showInPalette: !readOnly,
       perform: readOnly ? noop : deps.openGlobalTeamWorkspace,
     },
     {

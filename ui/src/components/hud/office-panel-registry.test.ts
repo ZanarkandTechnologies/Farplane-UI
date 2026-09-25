@@ -174,7 +174,7 @@ describe("office panel registry", () => {
     expect(paletteIds).not.toContain("template-rollout");
     expect(paletteIds).toContain("builder-mode");
     expect(paletteIds).toContain("office-shop");
-    expect(paletteIds).not.toContain("team-workspace");
+    expect(paletteIds).toContain("team-workspace");
     expect(paletteIds).toContain("ceo-workbench");
     expect(paletteIds).toContain("human-review");
   });
