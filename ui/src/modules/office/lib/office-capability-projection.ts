@@ -39,11 +39,15 @@ export type OfficeCapabilityDepartment = {
 };
 
 export type GeneratedCapabilityNode = {
-  capability?: { consumes?: string[]; produces?: string[]; system?: string };
+  capability?: { consumes?: readonly string[]; produces?: readonly string[] };
   department?: string;
+  deliverable?: string;
   id: string;
   kind?: string;
+  /** Workstations are specialist desks: `skill_id` is the primary, `skill_ids` every variant. */
   skill_id?: string;
+  skill_ids?: readonly string[];
+  specialist_id?: string;
 };
 
 export type GeneratedCapabilityGraph = { nodes: readonly GeneratedCapabilityNode[] };
@@ -177,9 +181,11 @@ export function validateOfficeCapabilityProjection(input: {
 }
 
 /**
- * Joins persistent Office objects to the generated capability payload. Unknown
- * or unclassified registry entries stay out of the classified Office view;
- * matching is by declared skill id and department, never display name.
+ * Joins persistent Office objects to the generated capability payload. Farplane
+ * owns which specialist desks exist and which skills each offers; this file
+ * owns only where they sit. A workstation binds to the desk in its department
+ * that lists its primary skill; a system facility binds to the facility node for
+ * its skill. Matching is by skill id and department, never display name.
  */
 export function projectOfficeCapabilityBindings(input: {
   graph: GeneratedCapabilityGraph;
@@ -187,50 +193,42 @@ export function projectOfficeCapabilityBindings(input: {
   workstations: readonly TicketSpecialistDefinition[];
 }): OfficeCapabilityBindings {
   const issues: string[] = [];
-  const nodeBySkillId = new Map(
+  const desks = input.graph.nodes.filter((node) => node.kind === "workstation");
+  const facilityNodes = new Map(
     input.graph.nodes
-      .filter((node) => Boolean(node.skill_id))
+      .filter((node) => node.kind === "facility" && node.skill_id)
       .map((node) => [node.skill_id as string, node]),
   );
+  const boundDesks = new Set<string>();
   const workstations = input.workstations.filter((workstation) => {
-    const node = nodeBySkillId.get(workstation.primarySkillId ?? "");
-    if (!node) return false;
-    if (node.kind !== "workstation" || node.department !== workstation.departmentId) {
-      issues.push(`workstation ${workstation.id} does not match capability ${node.id}`);
+    const skillId = workstation.primarySkillId ?? "";
+    const desk = desks.find((node) => (node.skill_ids ?? []).includes(skillId));
+    if (!desk) {
+      issues.push(`workstation ${workstation.id} has no specialist desk offering ${skillId || "a skill"}`);
       return false;
     }
-    const produces = node.capability?.produces ?? [];
-    if (produces.length !== 1) {
-      issues.push(`workstation ${workstation.id} lacks one declared artifact output`);
+    if (desk.department !== workstation.departmentId) {
+      issues.push(`workstation ${workstation.id} does not match capability ${desk.id}`);
       return false;
     }
+    boundDesks.add(desk.id);
     return true;
   });
   const systemFacilities = input.systemFacilities.filter((facility) => {
-    const node = nodeBySkillId.get(facility.skillId);
+    const node = facilityNodes.get(facility.skillId);
     if (!node) return false;
-    if (
-      node.kind !== "facility" ||
-      node.department !== facility.departmentId ||
-      node.capability?.system !== facility.system
-    ) {
+    if (node.department !== facility.departmentId) {
       issues.push(`system facility ${facility.id} does not match capability ${node.id}`);
       return false;
     }
     return true;
   });
 
-  for (const node of nodeBySkillId.values()) {
-    if (
-      node.kind === "workstation" &&
-      !workstations.some((item) => item.primarySkillId === node.skill_id)
-    ) {
-      issues.push(`capability ${node.id} has no Office workstation binding`);
-    }
-    if (
-      node.kind === "facility" &&
-      !systemFacilities.some((item) => item.skillId === node.skill_id)
-    ) {
+  for (const desk of desks) {
+    if (!boundDesks.has(desk.id)) issues.push(`capability ${desk.id} has no Office workstation binding`);
+  }
+  for (const node of facilityNodes.values()) {
+    if (!systemFacilities.some((item) => item.skillId === node.skill_id)) {
       issues.push(`capability ${node.id} has no Office system-facility binding`);
     }
   }

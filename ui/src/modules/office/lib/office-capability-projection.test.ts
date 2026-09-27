@@ -13,8 +13,10 @@ import { SYSTEM_FACILITY_REGISTRY } from "./system-facility-registry";
 const X_CAPABILITY_GRAPH = {
   nodes: [
     {
-      id: "skill:x-thread",
+      id: "specialist:social-manager",
+      specialist_id: "social-manager",
       skill_id: "x-thread",
+      skill_ids: ["social-content", "x-account", "x-thread"],
       department: "marketing",
       kind: "workstation",
       capability: { consumes: ["content-brief"], produces: ["x-thread-draft"] },
@@ -22,9 +24,10 @@ const X_CAPABILITY_GRAPH = {
     {
       id: "skill:x-account",
       skill_id: "x-account",
+      specialist_id: "social-manager",
       department: "marketing",
       kind: "facility",
-      capability: { system: "x" },
+      capability: { consumes: ["x-thread-draft"] },
     },
   ],
 } as const;
@@ -84,23 +87,20 @@ describe("Office capability projection", () => {
     ).toEqual([]);
   });
 
-  it("renders permanent Office objects only when the generated capability graph admits them", () => {
-    expect(
-      projectOfficeCapabilityBindings({
-        graph: X_CAPABILITY_GRAPH,
-        workstations: TICKET_SPECIALIST_REGISTRY,
-        systemFacilities: SYSTEM_FACILITY_REGISTRY,
-      }),
-    ).toEqual({
-      issues: [],
-      workstations: [TICKET_SPECIALIST_REGISTRY[1]],
-      systemFacilities: [SYSTEM_FACILITY_REGISTRY[0]],
+  it("binds a workstation to the specialist desk that offers its primary skill", () => {
+    const projection = projectOfficeCapabilityBindings({
+      graph: X_CAPABILITY_GRAPH,
+      workstations: TICKET_SPECIALIST_REGISTRY,
+      systemFacilities: SYSTEM_FACILITY_REGISTRY,
     });
+    expect(projection.workstations).toEqual([TICKET_SPECIALIST_REGISTRY[1]]);
+    expect(projection.systemFacilities).toEqual([SYSTEM_FACILITY_REGISTRY[0]]);
+    expect(projection.issues.filter((issue) => issue.startsWith("capability "))).toEqual([]);
   });
 
   it("withholds an Office object when its generated capability role disagrees", () => {
     const graphWithMismatchedSystem = {
-      nodes: [X_CAPABILITY_GRAPH.nodes[0], { ...X_CAPABILITY_GRAPH.nodes[1], kind: "workstation" }],
+      nodes: [X_CAPABILITY_GRAPH.nodes[0], { ...X_CAPABILITY_GRAPH.nodes[1], department: "sales" }],
     } as const;
 
     const projection = projectOfficeCapabilityBindings({
