@@ -59,7 +59,7 @@ function CapabilityNodeIcon({
   size: number;
   stroke: string;
 }): ReactElement {
-  const departmentId = node.department_id ?? node.group ?? node.id.replace(/^department:/, "");
+  const departmentId = node.department_id ?? node.department ?? node.id.replace(/^department:/, "");
   const Icon =
     node.kind === "department"
       ? (DEPARTMENT_ICONS[departmentId] ?? Building2)

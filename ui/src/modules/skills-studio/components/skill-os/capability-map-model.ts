@@ -1,7 +1,7 @@
 /**
  * Capability Map presentation helpers.
  *
- * The generated graph is canonical: departments come from Tier 3 `group` and
+ * The generated graph is canonical: departments come from Tier 3 `department` and
  * admitted packages are either artifact workstations or system facilities. It
  * deliberately carries no inferred task scheduling or runtime delivery state.
  */
@@ -68,7 +68,7 @@ function titleCase(value: string): string {
 }
 
 function departmentId(node: SkillGraphNode): string {
-  return node.department_id ?? node.group ?? node.id.replace(/^department:/, "");
+  return node.department_id ?? node.department ?? node.id.replace(/^department:/, "");
 }
 
 export function capabilityDepartmentColor(node: SkillGraphNode): string {

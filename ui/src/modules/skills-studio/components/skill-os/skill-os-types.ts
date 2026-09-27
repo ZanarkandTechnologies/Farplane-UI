@@ -16,7 +16,7 @@ export type SkillGraphNode = {
   department_id?: string;
   description?: string;
   eval?: string;
-  group?: string;
+  department?: string;
   has_checklist?: boolean;
   facility_count?: number;
   heat?: {

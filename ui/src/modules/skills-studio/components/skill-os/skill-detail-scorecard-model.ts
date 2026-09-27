@@ -214,8 +214,8 @@ function buildGaps({
     },
     {
       label: "owner clarity",
-      status: doc?.frontmatter?.owner || doc?.frontmatter?.group ? "good" : "unknown",
-      value: String(doc?.frontmatter?.owner ?? doc?.frontmatter?.group ?? "unknown"),
+      status: doc?.frontmatter?.owner || doc?.frontmatter?.department ? "good" : "unknown",
+      value: String(doc?.frontmatter?.owner ?? doc?.frontmatter?.department ?? "unknown"),
     },
     {
       label: "first-load size",

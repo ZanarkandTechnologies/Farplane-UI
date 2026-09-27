@@ -30,7 +30,7 @@ const graph: SkillGraphPayload = {
     },
     {
       capability: { consumes: ["content-brief"], produces: ["x-thread-draft"] },
-      group: "marketing",
+      department: "marketing",
       id: "skill:x-thread",
       kind: "workstation",
       label: "X Thread Writer",
@@ -38,7 +38,7 @@ const graph: SkillGraphPayload = {
     },
     {
       capability: { consumes: ["x-thread-draft"] },
-      group: "marketing",
+      department: "marketing",
       id: "skill:x-account",
       kind: "facility",
       label: "X Publishing",

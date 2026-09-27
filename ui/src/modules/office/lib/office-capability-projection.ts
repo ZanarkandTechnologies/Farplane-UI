@@ -40,7 +40,7 @@ export type OfficeCapabilityDepartment = {
 
 export type GeneratedCapabilityNode = {
   capability?: { consumes?: string[]; produces?: string[]; system?: string };
-  group?: string;
+  department?: string;
   id: string;
   kind?: string;
   skill_id?: string;
@@ -195,7 +195,7 @@ export function projectOfficeCapabilityBindings(input: {
   const workstations = input.workstations.filter((workstation) => {
     const node = nodeBySkillId.get(workstation.primarySkillId ?? "");
     if (!node) return false;
-    if (node.kind !== "workstation" || node.group !== workstation.departmentId) {
+    if (node.kind !== "workstation" || node.department !== workstation.departmentId) {
       issues.push(`workstation ${workstation.id} does not match capability ${node.id}`);
       return false;
     }
@@ -211,7 +211,7 @@ export function projectOfficeCapabilityBindings(input: {
     if (!node) return false;
     if (
       node.kind !== "facility" ||
-      node.group !== facility.departmentId ||
+      node.department !== facility.departmentId ||
       node.capability?.system !== facility.system
     ) {
       issues.push(`system facility ${facility.id} does not match capability ${node.id}`);

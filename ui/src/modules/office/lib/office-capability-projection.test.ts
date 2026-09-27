@@ -15,14 +15,14 @@ const X_CAPABILITY_GRAPH = {
     {
       id: "skill:x-thread",
       skill_id: "x-thread",
-      group: "marketing",
+      department: "marketing",
       kind: "workstation",
       capability: { consumes: ["content-brief"], produces: ["x-thread-draft"] },
     },
     {
       id: "skill:x-account",
       skill_id: "x-account",
-      group: "marketing",
+      department: "marketing",
       kind: "facility",
       capability: { system: "x" },
     },

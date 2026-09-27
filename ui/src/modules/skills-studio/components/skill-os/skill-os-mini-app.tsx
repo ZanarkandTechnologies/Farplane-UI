@@ -111,7 +111,7 @@ export function SkillOsMiniApp({
       return;
     }
     if (node.kind === "workstation" || node.kind === "facility") {
-      const departmentId = node.group ?? node.department_id;
+      const departmentId = node.department ?? node.department_id;
       if (!departmentId) return;
       const departmentNodeId = `department:${departmentId}`;
       if (focusedCapabilityId !== departmentNodeId) {
@@ -218,7 +218,7 @@ export function SkillOsMiniApp({
           [
             node.id,
             node.label,
-            node.group,
+            node.department,
             node.path,
             node.description,
             node.method_id,
