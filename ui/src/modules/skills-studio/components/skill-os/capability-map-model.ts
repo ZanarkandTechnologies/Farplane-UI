@@ -13,7 +13,7 @@ import type {
   SkillGraphPayload,
 } from "./skill-os-types";
 
-export const CAPABILITY_GRAPH_SCHEMA_VERSION = "2.2.0";
+export const CAPABILITY_GRAPH_SCHEMA_VERSION = "3.0.0";
 
 const DEPARTMENT_COLORS: Record<string, string> = {
   "back-office": "#B6BE74",

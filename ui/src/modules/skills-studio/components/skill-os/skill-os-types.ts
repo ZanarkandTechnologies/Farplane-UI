@@ -77,7 +77,7 @@ export type SkillCapabilityGraphPayload = SkillGraphPayload & {
   counts?: SkillGraphPayload["counts"] & {
     roles?: Record<"facility" | "workstation" | string, number>;
   };
-  schema_version?: "2.2.0" | string;
+  schema_version?: "3.0.0" | string;
   source?: {
     contract?: string;
     link_semantics?: string;
