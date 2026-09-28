@@ -5,6 +5,7 @@ import {
   type OfficeAccessMode,
 } from "@/providers/office-access-mode-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { OpenPanelFromUrl } from "@/modules/office/panels/open-panel-from-url";
 import { OfficeDataProvider } from "@/providers/office-data-provider";
 import { FarplaneShell } from "@/shell";
 
@@ -17,6 +18,7 @@ export function OfficePage({
     <main className="w-[100dvw] h-[100dvh] relative">
       <OfficeAccessModeProvider accessMode={accessMode}>
         <OfficeDataProvider>
+          <OpenPanelFromUrl />
           <SidebarProvider defaultOpen={false}>
             <SidebarInset className="h-[100dvh]">
               <FarplaneShell config={{ accessMode, renderer: "office3d" }} />
