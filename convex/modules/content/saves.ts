@@ -1,6 +1,9 @@
 /** Explicit Resource Bank Save entrypoint; it creates a generic save job and never a legacy ingestion job. */
 import { v } from "convex/values";
-import { mutation } from "../../_generated/server";
+import type { Id } from "../../_generated/dataModel";
+import { mutation, query } from "../../_generated/server";
+import { toAssetRow } from "../resourceBank/records";
+import { clampLimit, selectPreviewAsset } from "../resourceBank/resourceBank";
 import { shouldDeleteContentSource } from "./intelligenceProjectionModel";
 import { ensureContentSource } from "./records";
 
@@ -155,6 +158,68 @@ export const saveReference = mutation({
         })
       : undefined;
     return { sourceId, jobId, assetId, analysisId, previewAssetId };
+  },
+});
+
+/**
+ * The saves, newest first: each `saveReference` with the operator's note and instruction (they live on
+ * the job, which the Resource Bank dashboard leaves out) and its snapshot's URL. The bunker's Library
+ * reads this.
+ */
+export const listSavedReferences = query({
+  args: { limit: v.optional(v.number()) },
+  returns: v.array(
+    v.object({
+      jobId: v.id("contentJobs"),
+      sourceId: v.id("contentSources"),
+      assetId: v.id("resourceBankAssets"),
+      title: v.string(),
+      url: v.string(),
+      platform: v.optional(v.string()),
+      note: v.optional(v.string()),
+      instruction: v.optional(v.string()),
+      tags: v.array(v.string()),
+      savedAtMs: v.number(),
+      snapshotUrl: v.union(v.string(), v.null()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const jobs = await ctx.db
+      .query("contentJobs")
+      .withIndex("by_kind_createdAtMs", (q) => q.eq("kind", "save_reference"))
+      .order("desc")
+      .take(clampLimit(args.limit, 100, 200));
+    const saves = await Promise.all(
+      jobs.map(async (job) => {
+        const assets = await ctx.db
+          .query("resourceBankAssets")
+          .withIndex("by_contentJobId", (q) => q.eq("contentJobId", job._id))
+          .take(20);
+        const primary = assets.find((asset) => asset.assetRole === "primary");
+        const url = primary?.canonicalUrl ?? primary?.sourceUrl;
+        if (!primary || !url) return null;
+        const preview = selectPreviewAsset(
+          toAssetRow(primary),
+          assets.filter((asset) => asset.parentAssetId === primary._id).map(toAssetRow),
+        );
+        return {
+          jobId: job._id,
+          sourceId: job.sourceId,
+          assetId: primary._id,
+          title: primary.title,
+          url,
+          platform: primary.platform,
+          note: job.note,
+          instruction: job.originalInstruction,
+          tags: job.tags,
+          savedAtMs: job.createdAtMs,
+          snapshotUrl: preview?.storageId
+            ? await ctx.storage.getUrl(preview.storageId as Id<"_storage">)
+            : null,
+        };
+      }),
+    );
+    return saves.filter((save) => save !== null);
   },
 });
 
