@@ -13,16 +13,16 @@ import {
 } from "./creator-memory.js";
 
 const page = `---
-id: alex-hormozi
+id: jordan-vale
 kind: person
-name: Alex Hormozi
+name: Jordan Vale
 aliases:
-- Hormozi
+- Vale
 roles:
   - creator
 ---
 
-# Alex Hormozi
+# Jordan Vale
 
 ## Claims
 
@@ -40,7 +40,7 @@ roles:
 async function companyWiki() {
   const root = await mkdtemp(join(tmpdir(), "creator-memory-"));
   await mkdir(join(root, ".farplane", "entities"), { recursive: true });
-  await writeFile(join(root, ".farplane", "entities", "alex-hormozi.md"), page);
+  await writeFile(join(root, ".farplane", "entities", "jordan-vale.md"), page);
   await mkdir(join(root, "Analyst"));
   return root;
 }
@@ -49,11 +49,11 @@ test("resolves the company Wiki from a nested analysis folder and indexes creato
   const root = await companyWiki();
   assert.equal(resolveWikiRoot(join(root, "Analyst")), root);
   const index = await loadCreatorIndex(root);
-  assert.deepEqual(index.map(({ id, aliases }) => ({ id, aliases })), [{ id: "alex-hormozi", aliases: ["Hormozi"] }]);
+  assert.deepEqual(index.map(({ id, aliases }) => ({ id, aliases })), [{ id: "jordan-vale", aliases: ["Vale"] }]);
 });
 
 test("splits creator memory out so the stored analysis keeps its strict schema", () => {
-  const memory = { creatorId: "alex-hormozi", creatorName: "Alex Hormozi", newShare: 0.25, restated: [], additions: [] };
+  const memory = { creatorId: "jordan-vale", creatorName: "Jordan Vale", newShare: 0.25, restated: [], additions: [] };
   const { rest, creatorMemory } = splitCreatorMemory(JSON.stringify({ schemaVersion: 6, creatorMemory: memory }));
   assert.deepEqual(JSON.parse(rest), { schemaVersion: 6 });
   assert.deepEqual(creatorMemory, memory);
@@ -66,8 +66,8 @@ test("appends only new atomic lines with timestamp links and syncs the page", as
   const result = await appendCreatorMemory(
     root,
     {
-      creatorId: "alex-hormozi",
-      creatorName: "Alex Hormozi",
+      creatorId: "jordan-vale",
+      creatorName: "Jordan Vale",
       newShare: 0.5,
       restated: ["Elimination beats automation."],
       additions: [
@@ -85,7 +85,7 @@ test("appends only new atomic lines with timestamp links and syncs the page", as
   assert.match(text, /\[WttZ6b-KUP4@1:02:03\]\(https:\/\/youtu\.be\/WttZ6b-KUP4\?t=3723\)\n\n## Videos covered/);
   assert.equal(text.match(/Elimination beats automation/g)?.length, 1);
   assert.match(text, /\[WttZ6b-KUP4\]\(https:\/\/youtu\.be\/WttZ6b-KUP4\)\n$/);
-  assert.deepEqual(synced, [join(".farplane", "entities", "alex-hormozi.md")]);
+  assert.deepEqual(synced, [join(".farplane", "entities", "jordan-vale.md")]);
 });
 
 test("creates a creator page on first sight", async () => {
