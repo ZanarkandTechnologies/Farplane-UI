@@ -4,6 +4,7 @@ import type { QueryCtx } from "../../_generated/server";
 import { query } from "../../_generated/server";
 import {
   isCuratedResourceAsset,
+  listDerivedAssets,
   matchesFilters,
   toAnalysisRow,
   toAssetRow,
@@ -46,22 +47,11 @@ export const getResourceBankDashboard = query({
       )
       .slice(0, limit);
     const derivedAssets = await Promise.all(
-      filteredAssets.map((asset) =>
-        ctx.db
-          .query("resourceBankAssets")
-          .withIndex("by_job", (q) => q.eq("ingestionJobId", asset.ingestionJobId))
-          .take(20),
-      ),
+      filteredAssets.map((asset) => listDerivedAssets(ctx, asset, 20)),
     );
     const selectedAssets = [
       ...filteredAssets,
-      ...derivedAssets
-        .flat()
-        .filter(
-          (asset) =>
-            asset.assetRole !== "primary" &&
-            filteredAssets.some((primary) => primary._id === asset.parentAssetId),
-        ),
+      ...derivedAssets.flat().filter((asset) => asset.assetRole !== "primary"),
     ];
     const analyses = await Promise.all(
       filteredAssets.map((asset) =>

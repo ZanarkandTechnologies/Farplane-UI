@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, type MutationCtx } from "../../_generated/server";
 import { normalizeTeamId } from "../../_utils";
+import { hasRuntimeStep, insertRuntimeEvent } from "../telemetry/ingest";
 import {
   type AgentEventType,
   type AgentState,
@@ -52,33 +53,17 @@ async function applyEvent(params: {
   const eventTs = params.occurredAt ?? now;
   const stepKey = normalizeEventStepKey(params.stepKey);
 
-  if (stepKey) {
-    const existingStep = await params.ctx.db
-      .query("agentEvents")
-      .withIndex("by_agent_step_key", (q) => q.eq("agentId", params.agentId).eq("stepKey", stepKey))
-      .first();
-    if (existingStep) {
-      return { duplicate: true };
-    }
-  }
-
   const teamId = normalizeTeamId(params.teamId);
   const projectId = params.projectId?.trim();
   const activityType = params.activityType?.trim();
   const actorType = params.actorType?.trim();
   const taskId = params.taskId?.trim();
 
-  if (projectId && stepKey) {
-    const existingProjectStep = await params.ctx.db
-      .query("agentEvents")
-      .withIndex("by_project_step_key", (q) => q.eq("projectId", projectId).eq("stepKey", stepKey))
-      .first();
-    if (existingProjectStep) {
-      return { duplicate: true };
-    }
+  if (stepKey && (await hasRuntimeStep(params.ctx, { agentId: params.agentId, projectId, stepKey }))) {
+    return { duplicate: true };
   }
 
-  await params.ctx.db.insert("agentEvents", {
+  await insertRuntimeEvent(params.ctx, {
     teamId,
     projectId,
     agentId: params.agentId,
@@ -89,12 +74,12 @@ async function applyEvent(params: {
     detail: params.detail,
     state: params.state,
     skillId: params.skillId,
-    source: params.source,
+    origin: params.source,
     stepKey,
-    sessionKey: params.sessionKey,
+    sessionId: params.sessionKey,
     beatId: params.beatId,
     taskId,
-    occurredAt: eventTs,
+    eventAt: eventTs,
   });
 
   const existing = await params.ctx.db
@@ -252,8 +237,8 @@ export const clearStaleEvents = internalMutation({
     const cutoff = Date.now() - (args.olderThanMs ?? 24 * 60 * 60 * 1000);
     const maxRows = Math.min(Math.max(args.limit ?? 200, 1), 1000);
     const staleRows = await ctx.db
-      .query("agentEvents")
-      .withIndex("by_occurred_at", (q) => q.lt("occurredAt", cutoff))
+      .query("events")
+      .withIndex("by_source_eventAt", (q) => q.eq("source", "runtime").lt("eventAt", cutoff))
       .take(maxRows);
 
     for (const row of staleRows) {

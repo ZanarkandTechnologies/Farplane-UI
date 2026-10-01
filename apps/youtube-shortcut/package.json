@@ -11,7 +11,7 @@
     "dev:agent": "tsx scripts/local-agent.ts",
     "build": "plasmo build && node scripts/verify-extension-build.mjs",
     "package": "plasmo package",
-    "test": "node --import tsx --test background.test.ts project-options-cache.test.ts scripts/local-agent.test.ts scripts/video-intelligence-cloud.test.ts scripts/ingest-channel-manifest.test.ts",
+    "test": "node --import tsx --test background.test.ts project-options-cache.test.ts scripts/local-agent.test.ts scripts/creator-memory.test.ts scripts/video-intelligence-cloud.test.ts scripts/ingest-channel-manifest.test.ts key-point-novelty.test.ts scripts/library-store.test.ts farplane-theme.test.ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -33,7 +33,8 @@
   "manifest": {
     "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAowuNzWegOOV7SKC4hmr14A0xcNBLE4y1Adg6y2sC/wS7ZpjF/5tBPg2BW5Q7Ga8+nre29ooNBxtN6jGhUHKUXTFzkY2Zx3QFKHAv7sp5BVrBddAwUm+76MPEhau5hPmIGcH1JzqtVfbUT2pPds6EBVrMFDwB/u87pPD2gVjaeAOfqeRPdOJKDegvJnSCjI8Kg8fEhnwFe1mzctu1YeJbUwS/hlS7FiXWUJGa3fkSrkCPra/Sl04ZcvM3RBGFHUBaaNYhagAHXrnzoEEw/hM1sZ9XQkwqXTIgvvu+9X/jTzo7CohIgBn5ufst8Vdy+KBC+8OjKKjkGVVp9ujurlM3uwIDAQAB",
     "permissions": [
-      "storage"
+      "storage",
+      "activeTab"
     ],
     "host_permissions": [
       "https://*.youtube.com/*",

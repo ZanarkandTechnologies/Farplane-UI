@@ -22,6 +22,8 @@ import {
   type ProjectOptionsCache,
 } from "./project-options-cache.js";
 import type { ProjectOption } from "./runtime-protocol.js";
+import { ClipperPanel } from "./clipper-panel.js";
+import { themeVars } from "./farplane-theme.js";
 
 type Health = {
   service: boolean;
@@ -54,7 +56,7 @@ type AnalysisJob = {
   } | null;
   updatedAt: string;
 };
-type PopupTab = "jobs" | "status";
+type PopupTab = "save" | "jobs" | "status";
 
 const startCommand = "farplane ui start";
 
@@ -94,7 +96,7 @@ export default function Popup() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [jobs, setJobs] = useState<AnalysisJob[]>([]);
-  const [activeTab, setActiveTab] = useState<PopupTab>("jobs");
+  const [activeTab, setActiveTab] = useState<PopupTab>("save");
   const [projectOptionsCache, setProjectOptionsCache] =
     useState<ProjectOptionsCache | null>(null);
   const [projectSyncing, setProjectSyncing] = useState(false);
@@ -189,7 +191,9 @@ export default function Popup() {
   function handleTabKeyDown(event: React.KeyboardEvent, tab: PopupTab) {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     event.preventDefault();
-    const nextTab = tab === "jobs" ? "status" : "jobs";
+    const order: PopupTab[] = ["save", "jobs", "status"];
+    const step = event.key === "ArrowRight" ? 1 : order.length - 1;
+    const nextTab = order[(order.indexOf(tab) + step) % order.length];
     setActiveTab(nextTab);
     document.getElementById(`${nextTab}-tab`)?.focus();
   }
@@ -221,7 +225,7 @@ export default function Popup() {
       </header>
 
       <nav aria-label="Popup sections" role="tablist" style={tabsStyle}>
-        {(["jobs", "status"] as const).map((tab) => (
+        {(["save", "jobs", "status"] as const).map((tab) => (
           <button
             id={`${tab}-tab`}
             key={tab}
@@ -243,8 +247,8 @@ export default function Popup() {
                 activeTab === tab ? "var(--primary)" : "transparent",
             }}
           >
-            {tab === "jobs" ? "Jobs" : "Status"}
-            {tab === "jobs" ? (
+            {tab === "save" ? "Save" : tab === "jobs" ? "Jobs" : "Status"}
+            {tab === "save" ? null : tab === "jobs" ? (
               <span style={tabCountStyle}>{jobs.length}</span>
             ) : (
               <span
@@ -262,6 +266,8 @@ export default function Popup() {
           </button>
         ))}
       </nav>
+
+      <ClipperPanel hidden={activeTab !== "save"} />
 
       <section
         id="jobs-panel"
@@ -504,23 +510,8 @@ export default function Popup() {
       </footer>
 
       <style>{`
-        /* Canonical Farplane dark tokens mirrored from ui/src/styles.css. */
-        :root{
-          color-scheme:dark;
-          --background:oklch(0.1635 0.0045 264.4427);
-          --foreground:oklch(0.8717 0.0093 258.3382);
-          --card:oklch(0.1993 0.0068 258.3682);
-          --primary:oklch(0.598 0.0997 43.6627);
-          --primary-foreground:oklch(0.1635 0.0045 264.4427);
-          --muted:oklch(0.2346 0.0083 264.4038);
-          --muted-foreground:oklch(0.7107 0.0351 256.7878);
-          --accent:oklch(0.2431 0.0082 264.4119);
-          --border:oklch(0.28 0.0102 260.7048);
-          --ring:oklch(0.598 0.0997 43.6627);
-          --destructive:oklch(0.3958 0.1331 25.723);
-          --destructive-fg:oklch(0.7705 0.1129 17.3797);
-          --success:oklch(0.696 0.17 162.48);
-        }
+        /* Farplane-UI's dark theme (farplane-theme.ts). */
+        :root{color-scheme:dark;${themeVars()}}
         *{box-sizing:border-box}
         body{margin:0;background:var(--background)}
         button{font:inherit;letter-spacing:inherit}
@@ -867,7 +858,7 @@ const rowDetailStyle: React.CSSProperties = {
 };
 const tabsStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1fr 1fr",
+  gridTemplateColumns: "repeat(3, 1fr)",
   marginBottom: 10,
   border: "1px solid var(--border)",
   background: "var(--card)",

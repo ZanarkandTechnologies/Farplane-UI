@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query } from "../../_generated/server";
 import { normalizeTeamId } from "../../_utils";
+import { readRuntimeRows } from "../telemetry/reads";
 
 export const getAgentStatus = query({
   args: {
@@ -51,19 +52,11 @@ export const getMultipleAgentStatuses = query({
 
     const recentEvents = await Promise.all(
       args.agentIds.map(async (agentId) => {
-        const raw = teamId
-          ? await ctx.db
-              .query("agentEvents")
-              .withIndex("by_team_agent_occurred_at", (q) =>
-                q.eq("teamId", teamId).eq("agentId", agentId),
-              )
-              .order("desc")
-              .take(recentLimit)
-          : await ctx.db
-              .query("agentEvents")
-              .withIndex("by_agent", (q) => q.eq("agentId", agentId))
-              .order("desc")
-              .take(recentLimit);
+        const raw = await readRuntimeRows(ctx, {
+          teamId: teamId || undefined,
+          agentId,
+          limit: recentLimit,
+        });
         return raw
           .filter((row) => row.occurredAt >= now - recentWindowMs)
           .map((row) => ({
@@ -142,21 +135,7 @@ export const getAgentEvents = query({
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? 20, 1), 100);
     const teamId = args.teamId?.trim().toLowerCase();
-    if (teamId) {
-      return ctx.db
-        .query("agentEvents")
-        .withIndex("by_team_agent_occurred_at", (q) =>
-          q.eq("teamId", teamId).eq("agentId", args.agentId),
-        )
-        .order("desc")
-        .take(limit);
-    }
-    const rows = await ctx.db
-      .query("agentEvents")
-      .withIndex("by_agent", (q) => q.eq("agentId", args.agentId))
-      .order("desc")
-      .take(limit);
-    return rows;
+    return await readRuntimeRows(ctx, { teamId: teamId || undefined, agentId: args.agentId, limit });
   },
 });
 
@@ -187,23 +166,12 @@ export const getTeamActivityFeed = query({
     const enforceAllowedAgents = allowedAgentIds.size > 0;
     const overfetch = Math.min(Math.max(limit * 4, 80), 1200);
 
-    const agentEventRows = projectId
-      ? await ctx.db
-          .query("agentEvents")
-          .withIndex("by_team_project_occurred_at", (q) =>
-            beforeTs
-              ? q.eq("teamId", teamId).eq("projectId", projectId).lt("occurredAt", beforeTs)
-              : q.eq("teamId", teamId).eq("projectId", projectId),
-          )
-          .order("desc")
-          .take(overfetch)
-      : await ctx.db
-          .query("agentEvents")
-          .withIndex("by_team_occurred_at", (q) =>
-            beforeTs ? q.eq("teamId", teamId).lt("occurredAt", beforeTs) : q.eq("teamId", teamId),
-          )
-          .order("desc")
-          .take(overfetch);
+    const agentEventRows = await readRuntimeRows(ctx, {
+      teamId,
+      projectId: projectId || undefined,
+      before: beforeTs,
+      limit: overfetch,
+    });
 
     const merged = agentEventRows
       .map(toActivityFeedEvent)
@@ -242,13 +210,7 @@ export const getRecentAgentEvents = query({
     const teamId = args.teamId?.trim().toLowerCase();
     const limit = Math.min(Math.max(args.limit ?? 120, 1), 500);
     const windowMs = Math.min(Math.max(args.windowMs ?? 120_000, 1000), 3_600_000);
-    const rows = teamId
-      ? await ctx.db
-          .query("agentEvents")
-          .withIndex("by_team_occurred_at", (q) => q.eq("teamId", teamId))
-          .order("desc")
-          .take(limit)
-      : await ctx.db.query("agentEvents").withIndex("by_occurred_at").order("desc").take(limit);
+    const rows = await readRuntimeRows(ctx, { teamId: teamId || undefined, limit });
 
     return rows.filter((row) => row.occurredAt >= now - windowMs);
   },
@@ -343,23 +305,12 @@ export const getAgentActivityFeed = query({
         : undefined;
     const overfetch = Math.min(Math.max(limit * 4, 80), 1200);
 
-    const agentEventRows = teamId
-      ? await ctx.db
-          .query("agentEvents")
-          .withIndex("by_team_agent_occurred_at", (q) =>
-            beforeTs
-              ? q.eq("teamId", teamId).eq("agentId", agentId).lt("occurredAt", beforeTs)
-              : q.eq("teamId", teamId).eq("agentId", agentId),
-          )
-          .order("desc")
-          .take(overfetch)
-      : (
-          await ctx.db
-            .query("agentEvents")
-            .withIndex("by_agent", (q) => q.eq("agentId", agentId))
-            .order("desc")
-            .take(overfetch)
-        ).filter((row) => (beforeTs ? row.occurredAt < beforeTs : true));
+    const agentEventRows = await readRuntimeRows(ctx, {
+      teamId,
+      agentId,
+      before: beforeTs,
+      limit: overfetch,
+    });
 
     const merged = agentEventRows
       .map(toActivityFeedEvent)
@@ -453,11 +404,7 @@ export const getAgentSummaries = query({
         .query("agentStatus")
         .withIndex("by_team_agent", (q) => q.eq("teamId", teamId))
         .collect(),
-      ctx.db
-        .query("agentEvents")
-        .withIndex("by_team_occurred_at", (q) => q.eq("teamId", teamId))
-        .order("desc")
-        .take(1500),
+      readRuntimeRows(ctx, { teamId, limit: 1500 }),
     ]);
 
     const filteredEvents = recentEvents.filter((row) => row.occurredAt >= cutoff);

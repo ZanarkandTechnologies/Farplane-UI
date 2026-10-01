@@ -1,5 +1,6 @@
 import { query } from "../../_generated/server";
 import { hookTelemetryRowsToActivityPingRows } from "../hookTelemetry/projections";
+import { readHookRows } from "../telemetry/reads";
 import { type ActivityPingRow, buildTelemetrySummary } from "./runtimeTelemetry";
 import {
   teamTelemetryArgsValidator,
@@ -41,12 +42,7 @@ export const getTelemetryDashboard = query({
   handler: async (ctx, args) => {
     const days = normalizeDays(args.rangeDays);
     const now = Date.now();
-    const cutoff = now - days * MS_PER_DAY;
-    const rows = await ctx.db
-      .query("hookTelemetryEvents")
-      .withIndex("by_eventAt", (q) => q.gte("eventAt", cutoff))
-      .order("desc")
-      .take(MAX_ROWS);
+    const rows = await readHookRows(ctx, { since: now - days * MS_PER_DAY, limit: MAX_ROWS });
     return buildTelemetrySummary(hookTelemetryRowsToActivityPingRows(rows.map(toHookTelemetryRow)), {
       days,
       maxTurnDurationMs: args.maxTurnDurationMs,
@@ -67,13 +63,7 @@ export const getTeamTelemetry = query({
     const teamId = args.teamId?.trim().toLowerCase();
     const projectId = args.projectId?.trim() || (teamId?.startsWith("team-") ? teamId.slice("team-".length) : teamId);
     const projectRows = projectId
-      ? await ctx.db
-          .query("hookTelemetryEvents")
-          .withIndex("by_project_eventAt", (q) =>
-            q.eq("projectId", projectId).gte("eventAt", cutoff),
-          )
-          .order("desc")
-          .take(MAX_ROWS)
+      ? await readHookRows(ctx, { projectId, since: cutoff, limit: MAX_ROWS })
       : [];
     const rows = [...projectRows].sort((left, right) => right.eventAt - left.eventAt);
 

@@ -1,5 +1,6 @@
 import { query } from "../../_generated/server";
 import { hookTelemetryRowsToSkillInvocationRows } from "../hookTelemetry/projections";
+import { readHookRows } from "../telemetry/reads";
 import { buildSkillInvocationDashboard, type SkillInvocationRow } from "./contracts";
 import { skillInvocationDashboardArgsValidator } from "./validators";
 
@@ -55,14 +56,11 @@ export const getSkillInvocationDashboard = query({
   args: skillInvocationDashboardArgsValidator,
   handler: async (ctx, args) => {
     const days = normalizeDays(args.rangeDays);
-    const cutoff = Date.now() - days * MS_PER_DAY;
-    const hookRows = await ctx.db
-      .query("hookTelemetryEvents")
-      .withIndex("by_hook_eventAt", (q) =>
-        q.eq("hookName", "skill-invocation-listener").gte("eventAt", cutoff),
-      )
-      .order("desc")
-      .take(MAX_ROWS);
+    const hookRows = await readHookRows(ctx, {
+      hookName: "skill-invocation-listener",
+      since: Date.now() - days * MS_PER_DAY,
+      limit: MAX_ROWS,
+    });
 
     return buildSkillInvocationDashboard(hookTelemetryRowsToSkillInvocationRows(hookRows.map(toHookTelemetryRow)), {
       limit: args.limit,

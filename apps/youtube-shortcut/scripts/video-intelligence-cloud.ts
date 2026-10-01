@@ -253,7 +253,7 @@ export function createVideoIntelligenceCloudStore(
   };
 }
 
-async function createConvexClient(): Promise<ConvexHttpClient> {
+export async function createConvexClient(): Promise<ConvexHttpClient> {
   const url = await resolveConvexUrl();
   return new ConvexHttpClient(url);
 }

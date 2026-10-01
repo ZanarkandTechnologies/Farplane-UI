@@ -1,0 +1,2 @@
+# The root .gitignore ignores every `experiments/` folder; this Convex module is source.
+!modules/experiments/

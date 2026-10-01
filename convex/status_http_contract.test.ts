@@ -4,7 +4,24 @@ import {
   parseIngestPayload,
   parseStatusReportPayload,
   parseTeamActivityQueryPayload,
+  privateRouteRefusal,
 } from "./status_http_contract";
+
+describe("private route auth", () => {
+  it("fails closed while the deployment has no token, unlike the ingest check", () => {
+    const headers = new Headers({ authorization: "Bearer anything" });
+    expect(privateRouteRefusal(headers, undefined)).toEqual({ status: 503, error: "token not configured" });
+    expect(privateRouteRefusal(headers, "  ")).toEqual({ status: 503, error: "token not configured" });
+    expect(hasTelemetryToken(headers, undefined)).toBe(true);
+  });
+
+  it("refuses a wrong or missing token and admits the right one by either header", () => {
+    expect(privateRouteRefusal(new Headers(), "s3cret")).toEqual({ status: 403, error: "forbidden" });
+    expect(privateRouteRefusal(new Headers({ authorization: "Bearer nope" }), "s3cret")?.status).toBe(403);
+    expect(privateRouteRefusal(new Headers({ authorization: "Bearer s3cret" }), "s3cret")).toBeNull();
+    expect(privateRouteRefusal(new Headers({ "x-farplane-telemetry-token": "s3cret" }), "s3cret")).toBeNull();
+  });
+});
 
 describe("status-http-contract", () => {
   it("parses valid ingest payload", () => {

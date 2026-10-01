@@ -3,6 +3,8 @@ import { defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export const agentActivityTables = {
+  // Drop after readers move: runtime events now live in telemetry's `events` (source `runtime`). Kept only
+  // so the copy migration (modules/telemetry/migrations.ts) can read the old rows; nothing writes it.
   agentEvents: defineTable({
     teamId: v.optional(v.string()),
     projectId: v.optional(v.string()),

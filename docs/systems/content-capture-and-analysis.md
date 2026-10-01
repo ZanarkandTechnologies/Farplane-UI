@@ -28,7 +28,7 @@ source_refs:
 This system separates three intentional outcomes for one canonical source:
 
 ```ts
-saveReference(source, note?, context?) -> contentJob(save_reference) + ResourceBankAsset
+saveReference(source, note?, context?, previewStorageId?) -> contentJob(save_reference) + ResourceBankAsset + thumbnail asset?
 analyzeYouTube(video, projectId?) -> contentJob(progress) + VideoDossier + optional comparison edges + optional News
 importFeedScout(item, scope, observedDate?) -> contentJob(ingest_feed_scout) + contentDiscovery
 ```

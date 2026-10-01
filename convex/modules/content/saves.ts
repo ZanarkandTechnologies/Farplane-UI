@@ -48,12 +48,15 @@ export const saveReference = mutation({
     retentionNote: v.optional(v.string()),
     analysisMarkdown: v.optional(v.string()),
     confidence: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
+    /** An uploaded image (from `generateResourceAssetUploadUrl`) stored as this save's thumbnail. */
+    previewStorageId: v.optional(v.id("_storage")),
   },
   returns: v.object({
     sourceId: v.id("contentSources"),
     jobId: v.id("contentJobs"),
     assetId: v.id("resourceBankAssets"),
     analysisId: v.optional(v.id("resourceBankAnalyses")),
+    previewAssetId: v.optional(v.id("resourceBankAssets")),
   }),
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -62,6 +65,9 @@ export const saveReference = mutation({
     if (!sourceRef) throw new Error("missing_source_ref");
     const canonicalUrl = clean(args.canonicalUrl ?? args.sourceUrl ?? sourceRef, 2_000);
     const tags = [...new Set((args.tags ?? []).map((tag) => clean(tag, 120)).filter(Boolean))];
+    const preview = args.previewStorageId ? await ctx.db.system.get(args.previewStorageId) : null;
+    if (args.previewStorageId && !preview?.contentType?.startsWith("image/"))
+      throw new Error("preview_storage_not_image");
     const sourceId = await ensureContentSource(ctx, {
       sourceKind: args.sourceKind,
       sourceRef,
@@ -110,6 +116,28 @@ export const saveReference = mutation({
       createdAtMs: now,
       updatedAtMs: now,
     });
+    const previewAssetId =
+      args.previewStorageId && preview
+        ? await ctx.db.insert("resourceBankAssets", {
+            contentSourceId: sourceId,
+            contentJobId: jobId,
+            parentAssetId: assetId,
+            assetRole: "thumbnail",
+            assetKind: "screenshot",
+            title: `${title} (snapshot)`.slice(0, 240),
+            storageId: args.previewStorageId,
+            mimeType: preview.contentType,
+            sourceUrl: clean(args.sourceUrl ?? sourceRef, 2_000) || undefined,
+            canonicalUrl,
+            attributionStatus: "unknown",
+            tags,
+            searchableText: title,
+            projectId: clean(args.projectId ?? "", 120) || undefined,
+            taskId: clean(args.taskId ?? "", 120) || undefined,
+            createdAtMs: now,
+            updatedAtMs: now,
+          })
+        : undefined;
     const markdown = clean(args.analysisMarkdown ?? "", 12_000);
     const analysisId = markdown
       ? await ctx.db.insert("resourceBankAnalyses", {
@@ -126,7 +154,7 @@ export const saveReference = mutation({
           createdAtMs: now,
         })
       : undefined;
-    return { sourceId, jobId, assetId, analysisId };
+    return { sourceId, jobId, assetId, analysisId, previewAssetId };
   },
 });
 

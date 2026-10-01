@@ -58,6 +58,18 @@ export function hasTelemetryToken(headers: Headers, expectedToken: string | unde
   return Boolean((headerToken && headerToken === expected) || (bearer && bearer === expected));
 }
 
+/**
+ * Fail-closed check for private routes (metrics, experiments): 503 while the deployment has no token,
+ * 403 for a wrong or missing one, null when the caller may proceed. Ingest routes keep hasTelemetryToken.
+ */
+export function privateRouteRefusal(
+  headers: Headers,
+  expectedToken: string | undefined,
+): { status: 403 | 503; error: string } | null {
+  if (!expectedToken?.trim()) return { status: 503, error: "token not configured" };
+  return hasTelemetryToken(headers, expectedToken) ? null : { status: 403, error: "forbidden" };
+}
+
 export function parseIngestPayload(body: unknown): ParsedIngestPayload | null {
   if (!body || typeof body !== "object") return null;
   const row = body as Record<string, unknown>;

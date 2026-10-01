@@ -52,6 +52,26 @@ export function nowMs(): number {
 }
 
 /** Vidgard analysis rows were historically written as Resource Bank assets. Keep them out of curation. */
+/** Derived rows (thumbnails, frames) of a primary asset: content saves bind by content job, legacy rows by ingestion job. */
+export async function listDerivedAssets(
+  ctx: ResourceBankDbCtx,
+  asset: ResourceBankAsset,
+  limit: number,
+): Promise<ResourceBankAsset[]> {
+  const rows = asset.contentJobId
+    ? await ctx.db
+        .query("resourceBankAssets")
+        .withIndex("by_contentJobId", (q) => q.eq("contentJobId", asset.contentJobId))
+        .take(limit)
+    : asset.ingestionJobId
+      ? await ctx.db
+          .query("resourceBankAssets")
+          .withIndex("by_job", (q) => q.eq("ingestionJobId", asset.ingestionJobId))
+          .take(limit)
+      : [];
+  return rows.filter((row) => row.parentAssetId === asset._id);
+}
+
 export async function isCuratedResourceAsset(
   ctx: ResourceBankDbCtx,
   asset: ResourceBankAsset,

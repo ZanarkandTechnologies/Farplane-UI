@@ -19,6 +19,7 @@ import {
   observedCodexWorkersArgsValidator,
   threadLineageGraphArgsValidator,
 } from "./validators";
+import { readHookRows } from "../telemetry/reads";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MAX_DAYS = 90;
@@ -101,37 +102,16 @@ async function fetchHookTelemetryRows(
   ctx: QueryCtx,
   args: HookTelemetryWindowArgs,
 ): Promise<HookTelemetryRow[]> {
-  const cutoff = Date.now() - normalizeDays(args.rangeDays) * MS_PER_DAY;
+  const since = Date.now() - normalizeDays(args.rangeDays) * MS_PER_DAY;
   const limit = normalizeLimit(args.limit);
-  if (args.projectId?.trim()) {
-    const projectId = args.projectId.trim();
-    return await ctx.db
-      .query("hookTelemetryEvents")
-      .withIndex("by_project_eventAt", (q) => q.eq("projectId", projectId).gte("eventAt", cutoff))
-      .order("desc")
-      .take(limit);
-  }
-  if (args.sessionId?.trim()) {
-    const sessionId = args.sessionId.trim();
-    return await ctx.db
-      .query("hookTelemetryEvents")
-      .withIndex("by_session_eventAt", (q) => q.eq("sessionId", sessionId).gte("eventAt", cutoff))
-      .order("desc")
-      .take(limit);
-  }
-  if (args.hookName?.trim()) {
-    const hookName = args.hookName.trim();
-    return await ctx.db
-      .query("hookTelemetryEvents")
-      .withIndex("by_hook_eventAt", (q) => q.eq("hookName", hookName).gte("eventAt", cutoff))
-      .order("desc")
-      .take(limit);
-  }
-  return await ctx.db
-    .query("hookTelemetryEvents")
-    .withIndex("by_eventAt", (q) => q.gte("eventAt", cutoff))
-    .order("desc")
-    .take(limit);
+  // One scope per read, in this order (the explorer filters hookType and eventName afterwards).
+  const projectId = args.projectId?.trim();
+  if (projectId) return await readHookRows(ctx, { projectId, since, limit });
+  const sessionId = args.sessionId?.trim();
+  if (sessionId) return await readHookRows(ctx, { sessionId, since, limit });
+  const hookName = args.hookName?.trim();
+  if (hookName) return await readHookRows(ctx, { hookName, since, limit });
+  return await readHookRows(ctx, { since, limit });
 }
 
 function filterHookTelemetryRows(
@@ -148,70 +128,18 @@ async function fetchThreadLineageSourceRows(
   args: HookTelemetryWindowArgs,
   source: { hookName: string; hookType?: string },
 ): Promise<HookTelemetryRow[]> {
-  const cutoff = Date.now() - normalizeDays(args.rangeDays) * MS_PER_DAY;
+  const since = Date.now() - normalizeDays(args.rangeDays) * MS_PER_DAY;
   const limit = normalizeLimit(args.limit);
   const projectId = args.projectId?.trim();
-  const sessionId = args.sessionId?.trim();
-  if (projectId) {
-    return source.hookType
-      ? await ctx.db
-          .query("hookTelemetryEvents")
-          .withIndex("by_project_hook_type_eventAt", (q) =>
-            q
-              .eq("projectId", projectId)
-              .eq("hookName", source.hookName)
-              .eq("hookType", source.hookType as string)
-              .gte("eventAt", cutoff),
-          )
-          .order("desc")
-          .take(limit)
-      : await ctx.db
-          .query("hookTelemetryEvents")
-          .withIndex("by_project_hook_eventAt", (q) =>
-            q.eq("projectId", projectId).eq("hookName", source.hookName).gte("eventAt", cutoff),
-          )
-          .order("desc")
-          .take(limit);
-  }
-  if (sessionId) {
-    return source.hookType
-      ? await ctx.db
-          .query("hookTelemetryEvents")
-          .withIndex("by_session_hook_type_eventAt", (q) =>
-            q
-              .eq("sessionId", sessionId)
-              .eq("hookName", source.hookName)
-              .eq("hookType", source.hookType as string)
-              .gte("eventAt", cutoff),
-          )
-          .order("desc")
-          .take(limit)
-      : await ctx.db
-          .query("hookTelemetryEvents")
-          .withIndex("by_session_hook_eventAt", (q) =>
-            q.eq("sessionId", sessionId).eq("hookName", source.hookName).gte("eventAt", cutoff),
-          )
-          .order("desc")
-          .take(limit);
-  }
-  return source.hookType
-    ? await ctx.db
-        .query("hookTelemetryEvents")
-        .withIndex("by_hook_type_eventAt", (q) =>
-          q
-            .eq("hookName", source.hookName)
-            .eq("hookType", source.hookType as string)
-            .gte("eventAt", cutoff),
-        )
-        .order("desc")
-        .take(limit)
-    : await ctx.db
-        .query("hookTelemetryEvents")
-        .withIndex("by_hook_eventAt", (q) =>
-          q.eq("hookName", source.hookName).gte("eventAt", cutoff),
-        )
-        .order("desc")
-        .take(limit);
+  const sessionId = projectId ? undefined : args.sessionId?.trim();
+  return await readHookRows(ctx, {
+    projectId,
+    sessionId,
+    hookName: source.hookName,
+    hookType: source.hookType,
+    since,
+    limit,
+  });
 }
 
 export const listHookTelemetryEvents = query({
@@ -251,14 +179,11 @@ export const getSkillInvocationDashboardFromHookTelemetry = query({
     limit: hookTelemetryWindowArgsValidator.limit,
   },
   handler: async (ctx, args) => {
-    const cutoff = Date.now() - normalizeDays(args.rangeDays) * MS_PER_DAY;
-    const rows = await ctx.db
-      .query("hookTelemetryEvents")
-      .withIndex("by_hook_eventAt", (q) =>
-        q.eq("hookName", "skill-invocation-listener").gte("eventAt", cutoff),
-      )
-      .order("desc")
-      .take(MAX_ROWS);
+    const rows = await readHookRows(ctx, {
+      hookName: "skill-invocation-listener",
+      since: Date.now() - normalizeDays(args.rangeDays) * MS_PER_DAY,
+      limit: MAX_ROWS,
+    });
     return buildSkillInvocationDashboard(
       hookTelemetryRowsToSkillInvocationRows(rows.map(toHookTelemetryRow)),
       {
@@ -272,12 +197,7 @@ export const getRuntimeTelemetryDashboardFromHookTelemetry = query({
   args: telemetryDashboardArgsValidator,
   handler: async (ctx, args) => {
     const days = normalizeDays(args.rangeDays);
-    const cutoff = Date.now() - days * MS_PER_DAY;
-    const rows = await ctx.db
-      .query("hookTelemetryEvents")
-      .withIndex("by_eventAt", (q) => q.gte("eventAt", cutoff))
-      .order("desc")
-      .take(MAX_ROWS);
+    const rows = await readHookRows(ctx, { since: Date.now() - days * MS_PER_DAY, limit: MAX_ROWS });
     return buildTelemetrySummary(
       hookTelemetryRowsToActivityPingRows(rows.map(toHookTelemetryRow)),
       {
@@ -305,19 +225,7 @@ export const getObservedCodexWorkers = query({
     const cutoff = Date.now() - rangeMs;
     const limit = normalizeLimit(args.limit);
     const projectId = args.projectId?.trim();
-    const rows = projectId
-      ? await ctx.db
-          .query("hookTelemetryEvents")
-          .withIndex("by_project_eventAt", (q) =>
-            q.eq("projectId", projectId).gte("eventAt", cutoff),
-          )
-          .order("desc")
-          .take(limit)
-      : await ctx.db
-          .query("hookTelemetryEvents")
-          .withIndex("by_eventAt", (q) => q.gte("eventAt", cutoff))
-          .order("desc")
-          .take(limit);
+    const rows = await readHookRows(ctx, { projectId: projectId || undefined, since: cutoff, limit });
 
     return {
       workers: hookTelemetryRowsToObservedCodexWorkers(rows.map(toHookTelemetryRow)),
@@ -393,30 +301,10 @@ export const getRecentBubbleMessages = query({
       sessionIds.length > 0
         ? (
             await Promise.all(
-              sessionIds.map((sessionId) =>
-                ctx.db
-                  .query("hookTelemetryEvents")
-                  .withIndex("by_session_eventAt", (q) =>
-                    q.eq("sessionId", sessionId).gte("eventAt", cutoff),
-                  )
-                  .order("desc")
-                  .take(limit),
-              ),
+              sessionIds.map((sessionId) => readHookRows(ctx, { sessionId, since: cutoff, limit })),
             )
           ).flat()
-        : projectId
-          ? await ctx.db
-              .query("hookTelemetryEvents")
-              .withIndex("by_project_eventAt", (q) =>
-                q.eq("projectId", projectId).gte("eventAt", cutoff),
-              )
-              .order("desc")
-              .take(limit)
-          : await ctx.db
-              .query("hookTelemetryEvents")
-              .withIndex("by_eventAt", (q) => q.gte("eventAt", cutoff))
-              .order("desc")
-              .take(limit);
+        : await readHookRows(ctx, { projectId: projectId || undefined, since: cutoff, limit });
 
     const sortedRows = rows
       .map(toHookTelemetryRow)

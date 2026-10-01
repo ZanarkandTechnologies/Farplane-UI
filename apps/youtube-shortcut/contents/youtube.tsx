@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import cssText from "data-text:./index.css";
+import { themeVars } from "../farplane-theme.js";
 import type {
   AnalyzeYouTubeRequest,
   ProjectOption,
@@ -25,6 +26,7 @@ import {
 } from "../project-options-cache.js";
 import { AnalysisOptionsForm } from "./analysis-options-form.js";
 import { closeStyle, copyStyle, panelStyle } from "./analysis-ui-styles.js";
+import { rankPoints, timestampSeconds } from "../key-point-novelty.js";
 
 export const config: PlasmoCSConfig = {
   matches: ["https://www.youtube.com/*"],
@@ -34,6 +36,7 @@ export const config: PlasmoCSConfig = {
 type Analysis = {
   sourceStatus: string;
   sourceNote: string;
+  summary?: string;
   clickbait: {
     answer: string;
     verdict: string;
@@ -93,7 +96,7 @@ const selectors = [
   ".yt-lockup-view-model",
 ].join(",");
 
-const controlShadowCss = `${cssText}\n:host{--farplane-background:oklch(0.1635 0.0045 264.4427);--farplane-foreground:oklch(0.8717 0.0093 258.3382);--farplane-card:oklch(0.1993 0.0068 258.3682);--farplane-primary:oklch(0.598 0.0997 43.6627);--farplane-primary-foreground:oklch(0.1635 0.0045 264.4427);--farplane-muted:oklch(0.2346 0.0083 264.4038);--farplane-muted-foreground:oklch(0.7107 0.0351 256.7878);--farplane-accent:oklch(0.2431 0.0082 264.4119);--farplane-border:oklch(0.28 0.0102 260.7048);--farplane-destructive:oklch(0.7705 0.1129 17.3797)}.farplane-control{touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background-color 120ms ease,border-color 120ms ease,color 120ms ease}.farplane-control:hover:not(:disabled){background:var(--farplane-accent)!important;color:var(--farplane-foreground)!important}.farplane-control:focus-visible{outline:2px solid var(--farplane-primary);outline-offset:2px}@media(prefers-reduced-motion:reduce){.animate-spin{animation:none!important}}`;
+const controlShadowCss = `${cssText}\n:host{${themeVars("farplane-")}}.farplane-control{touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background-color 120ms ease,border-color 120ms ease,color 120ms ease}.farplane-control:hover:not(:disabled){background:var(--farplane-accent)!important;color:var(--farplane-foreground)!important}.farplane-control:focus-visible{outline:2px solid var(--farplane-primary);outline-offset:2px}@media(prefers-reduced-motion:reduce){.animate-spin{animation:none!important}}`;
 
 /** Keeps every independently mounted control inside the same scoped Farplane theme. */
 function createControlRoot(host: HTMLElement, extraCss = "") {
@@ -418,7 +421,7 @@ const cornerButtonStyle = (
   border: "1px solid",
   borderColor:
     status === "error"
-      ? "var(--farplane-destructive)"
+      ? "var(--farplane-destructive-fg)"
       : status === "success" || status === "loading"
         ? "var(--farplane-primary)"
         : "var(--farplane-border)",
@@ -432,7 +435,7 @@ const cornerButtonStyle = (
     status === "success" && panelOpen
       ? "var(--farplane-primary-foreground)"
       : status === "error"
-        ? "var(--farplane-destructive)"
+        ? "var(--farplane-destructive-fg)"
         : "var(--farplane-foreground)",
   cursor: status === "loading" ? "wait" : "pointer",
   boxShadow: "none",
@@ -726,7 +729,7 @@ function Overlay({
             >
               <X aria-hidden="true" size={15} />
             </button>
-            <strong style={{ color: "var(--farplane-destructive)" }}>
+            <strong style={{ color: "var(--farplane-destructive-fg)" }}>
               Couldn’t analyze
             </strong>
             <p style={copyStyle}>{error}</p>
@@ -784,7 +787,40 @@ function Overlay({
     );
   if (!analysis) return null;
 
-  const tabs = ["Answer", "Key points", "Worth it?"];
+  const tabs = ["Watch or read", "New content"];
+  const ranked = rankPoints(analysis.keyPoints);
+  const fresh = ranked.filter((point) => point.novelty !== "restated");
+  const onFile = ranked.filter((point) => point.novelty === "restated");
+  const timeLink = (timestamp: string | null) => {
+    const seconds = timestampSeconds(timestamp);
+    return seconds === null ? null : `https://www.youtube.com/watch?v=${encodeURIComponent(boundVideoId)}&t=${seconds}s`;
+  };
+  const renderPoint = (point: (typeof ranked)[number], index: number) => {
+    const isFresh = point.novelty === "new" || point.novelty === "extends";
+    const href = timeLink(point.timestamp);
+    return (
+      <div
+        key={`${point.finding}-${index}`}
+        style={{
+          marginBottom: 8,
+          padding: "6px 8px",
+          borderLeft: isFresh ? "2px solid var(--farplane-success)" : "2px solid transparent",
+          background: isFresh ? "color-mix(in oklch, var(--farplane-success) 12%, transparent)" : "transparent",
+          opacity: isFresh || point.novelty === "untagged" ? 1 : 0.65,
+        }}
+      >
+        <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+          {href ? (
+            <a href={href} style={{ ...pillStyle, textDecoration: "none" }}>
+              {point.timestamp}
+            </a>
+          ) : null}
+          <strong style={{ fontSize: 12, lineHeight: 1.45 }}>{point.finding}</strong>
+        </div>
+        {point.detail && <p style={copyStyle}>{point.detail}</p>}
+      </div>
+    );
+  };
   return (
     <AnalysisShell
       panelId={panelId}
@@ -867,67 +903,34 @@ function Overlay({
       >
         {page === 0 && (
           <>
-            <div style={verdictStyle}>
-              {analysis.clickbait.verdict.replace("_", " ")}
-            </div>
-            <p style={leadStyle}>{analysis.clickbait.answer}</p>
-            {analysis.clickbait.evidence.map((item) => (
-              <p key={item} style={copyStyle}>
-                • {item}
-              </p>
-            ))}
+            <div style={{ ...verdictStyle, fontSize: 20 }}>{analysis.recommendation.decision}</div>
+            <p style={leadStyle}>{analysis.recommendation.rationale}</p>
+            {analysis.summary ? <p style={copyStyle}>{analysis.summary}</p> : null}
+            <p style={copyStyle}>
+              Title delivers? {analysis.clickbait.verdict.replace("_", " ").toLowerCase()} · {analysis.clickbait.answer}
+            </p>
+            <p style={copyStyle}>
+              Quality {Math.round(analysis.recommendation.contentQuality * 100)}%
+              {analysis.recommendation.personalRelevance === null
+                ? " · Profile unavailable"
+                : ` · Relevance ${Math.round(analysis.recommendation.personalRelevance * 100)}%`}
+            </p>
           </>
         )}
         {page === 1 &&
-          (analysis.keyPoints.length ? (
-            analysis.keyPoints.map((point, index) => (
-              <div
-                key={`${point.finding}-${index}`}
-                style={{ marginBottom: 12 }}
-              >
-                <div style={{ display: "flex", gap: 8 }}>
-                  <span
-                    style={{ color: "var(--farplane-primary)", fontWeight: 900 }}
-                  >
-                    {index + 1}
-                  </span>
-                  <strong style={{ fontSize: 12, lineHeight: 1.45 }}>
-                    {point.finding}
-                  </strong>
-                </div>
-                {point.detail && (
-                  <p style={{ ...copyStyle, marginLeft: 19 }}>{point.detail}</p>
-                )}
-                {point.timestamp && (
-                  <span style={{ ...pillStyle, marginLeft: 19 }}>
-                    {point.timestamp}
-                  </span>
-                )}
-              </div>
-            ))
+          (ranked.length ? (
+            <>
+              {fresh.map(renderPoint)}
+              {onFile.length ? (
+                <>
+                  <p style={{ ...copyStyle, marginTop: 10, fontWeight: 700 }}>Already on file · {onFile.length}</p>
+                  {onFile.map(renderPoint)}
+                </>
+              ) : null}
+            </>
           ) : (
             <p style={copyStyle}>No reliable key points were available.</p>
           ))}
-        {page === 2 && (
-          <>
-            <div style={{ ...verdictStyle, fontSize: 20 }}>
-              {analysis.recommendation.decision}
-            </div>
-            <p style={leadStyle}>{analysis.recommendation.rationale}</p>
-            <p style={copyStyle}>
-              Content quality:{" "}
-              {Math.round(analysis.recommendation.contentQuality * 100)}%
-              {analysis.recommendation.personalRelevance === null
-                ? " · Profile unavailable"
-                : ` · Relevance: ${Math.round(analysis.recommendation.personalRelevance * 100)}%`}
-            </p>
-            {analysis.recommendation.matchedProfile.map((item) => (
-              <span key={item} style={{ ...pillStyle, marginRight: 5 }}>
-                {item}
-              </span>
-            ))}
-          </>
-        )}
       </div>
       <div
         style={{
@@ -956,8 +959,8 @@ function Overlay({
         <button
           className="farplane-control"
           aria-label="Next section"
-          disabled={page === 2}
-          onClick={() => setPage((value) => Math.min(2, value + 1))}
+          disabled={page === tabs.length - 1}
+          onClick={() => setPage((value) => Math.min(tabs.length - 1, value + 1))}
           style={navStyle}
         >
           <ChevronRight aria-hidden="true" size={15} />

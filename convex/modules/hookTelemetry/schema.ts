@@ -2,6 +2,8 @@ import { defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export const hookTelemetryTables = {
+  // Drop after readers move: hook rows now live in telemetry's `events` (source `hook`). Kept only so the
+  // copy migration (modules/telemetry/migrations.ts) can read the old rows; nothing writes it.
   hookTelemetryEvents: defineTable({
     hookName: v.string(),
     hookType: v.string(),

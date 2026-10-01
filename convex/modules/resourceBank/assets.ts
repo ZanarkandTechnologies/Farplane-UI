@@ -13,6 +13,7 @@ import {
   getAssetOrThrow,
   getJobOrThrow,
   isCuratedResourceAsset,
+  listDerivedAssets,
   matchesFilters,
   nowMs,
   rowProjectId,
@@ -142,10 +143,7 @@ export const getResourceAsset = query({
         .query("resourceBankAnalyses")
         .withIndex("by_asset", (q) => q.eq("assetId", args.assetId))
         .collect(),
-      ctx.db
-        .query("resourceBankAssets")
-        .withIndex("by_job", (q) => q.eq("ingestionJobId", asset.ingestionJobId))
-        .collect(),
+      listDerivedAssets(ctx, asset, 100),
       ctx.db
         .query("resourceBankSkillFindings")
         .withIndex("by_asset", (q) => q.eq("assetId", args.assetId))
@@ -154,7 +152,7 @@ export const getResourceAsset = query({
     return {
       ...asset,
       analyses,
-      derivedAssets: derivedAssets.filter((candidate) => candidate.parentAssetId === args.assetId),
+      derivedAssets,
       skillFindings,
     };
   },
