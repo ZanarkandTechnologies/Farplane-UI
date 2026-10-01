@@ -8,6 +8,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
+import { TAG } from "../key-point-novelty.js";
 
 const run = promisify(execFile);
 const TIMESTAMP = /^(\d{1,2}:)?\d{1,2}:\d{2}$/;
@@ -35,16 +36,22 @@ export const creatorMemorySchema = z
 export type CreatorMemory = z.infer<typeof creatorMemorySchema>;
 export type CreatorPage = { id: string; name: string; aliases: string[]; path: string };
 
-/** Nearest ancestor whose `.farplane/entities/` already holds pages (same rule as `farplane wiki`). */
-export function resolveWikiRoot(start: string): string | null {
-  for (let dir = start; ; dir = dirname(dir)) {
-    try {
-      if (readdirSync(join(dir, ".farplane", "entities")).some((name) => name.endsWith(".md"))) return dir;
-    } catch {
-      // No Wiki at this level.
+/**
+ * Nearest ancestor whose `.farplane/entities/` already holds pages (same rule as `farplane wiki`), tried
+ * from each start in turn: a project outside the company folder falls back to the company's Wiki.
+ */
+export function resolveWikiRoot(...starts: string[]): string | null {
+  for (const start of starts) {
+    for (let dir = start; ; dir = dirname(dir)) {
+      try {
+        if (readdirSync(join(dir, ".farplane", "entities")).some((name) => name.endsWith(".md"))) return dir;
+      } catch {
+        // No Wiki at this level.
+      }
+      if (dirname(dir) === dir) break;
     }
-    if (dirname(dir) === dir) return null;
   }
+  return null;
 }
 
 function frontmatter(text: string): Record<string, string | string[]> {
@@ -83,7 +90,21 @@ export async function loadCreatorIndex(wikiRoot: string): Promise<CreatorPage[]>
 }
 
 export function creatorMemoryPrompt(pages: CreatorPage[]): string {
-  return `Pre-watch novelty: the company Wiki keeps one creator page per creator.\n<creator_memory_index>\n${JSON.stringify(pages, null, 2)}\n</creator_memory_index>\nIf this video's creator matches a page, read it and classify every substantive point as NEW, RESTATED, or EXTENDS per the skill's pre-watch-novelty reference, and start each keyPoints[].finding with its class in brackets, e.g. "[NEW] Price the outcome, not the hours", so the stored analysis keeps the verdict per point (leave findings untagged when no page matches). Return creatorMemory with creatorId (the matching id, or null when no page exists), creatorName, newShare (fraction NEW or EXTENDS), restated (exact restated memory lines), and additions (every NEW or EXTENDS claim or story as one atomic line with its m:ss timestamp). When fewer than a third of points are NEW or EXTENDS, recommend SKIP with reasonCode ALREADY_KNOWN and list up to three restated lines in matchedProfile. Do not edit Wiki files; the bridge appends additions. Return creatorMemory as null only when the source has no identifiable creator.`;
+  return `Pre-watch novelty: the company Wiki keeps one creator page per creator.\n<creator_memory_index>\n${JSON.stringify(pages, null, 2)}\n</creator_memory_index>\nIf this video's creator matches a page, read it and classify every substantive point as NEW, RESTATED, or EXTENDS per the skill's pre-watch-novelty reference, and start each keyPoints[].finding with its class in brackets, e.g. "[NEW] Price the outcome, not the hours", so the stored analysis keeps the verdict per point (when no page matches, nothing is on file for this creator yet, so every point is [NEW]). Return creatorMemory with creatorId (the matching id, or null when no page exists), creatorName, newShare (fraction NEW or EXTENDS), restated (exact restated memory lines), and additions (every NEW or EXTENDS claim or story as one atomic line with its m:ss timestamp). When fewer than a third of points are NEW or EXTENDS, recommend SKIP with reasonCode ALREADY_KNOWN and list up to three restated lines in matchedProfile. Do not edit Wiki files; the bridge appends additions. Return creatorMemory as null only when the source has no identifiable creator.`;
+}
+
+/**
+ * A creator's first video against an empty note: when the analysis names a creator with no page in the
+ * index, every point is new, so untagged findings get `[NEW]` whatever the turn returned. A creator
+ * with a page keeps the turn's judgment, and no identifiable creator leaves the points untagged.
+ */
+export function tagFirstSight<T extends { finding: string }>(
+  keyPoints: T[],
+  memory: CreatorMemory | null,
+  pages: CreatorPage[],
+): T[] {
+  if (!memory || pages.some((page) => page.id === memory.creatorId)) return keyPoints;
+  return keyPoints.map((point) => (TAG.test(point.finding) ? point : { ...point, finding: `[NEW] ${point.finding}` }));
 }
 
 /** Remove the creator judgment from the turn output so the stored analysis keeps its schema. */

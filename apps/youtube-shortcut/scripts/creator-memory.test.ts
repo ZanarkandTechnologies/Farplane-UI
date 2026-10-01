@@ -9,6 +9,7 @@ import {
   loadCreatorIndex,
   resolveWikiRoot,
   splitCreatorMemory,
+  tagFirstSight,
 } from "./creator-memory.js";
 
 const page = `---
@@ -106,5 +107,28 @@ test("asks for each stored key point to carry its novelty tag, which the panels 
   const prompt = creatorMemoryPrompt([]);
   assert.match(prompt, /start each keyPoints\[\]\.finding with its class in brackets/);
   assert.match(prompt, /"\[NEW\] /);
-  assert.match(prompt, /leave findings untagged when no page matches/);
+  assert.match(prompt, /when no page matches, nothing is on file for this creator yet, so every point is \[NEW\]/);
+});
+
+test("a project outside the company folder still reads the company Wiki", async () => {
+  const root = await companyWiki();
+  const outside = await mkdtemp(join(tmpdir(), "project-outside-"));
+  assert.equal(resolveWikiRoot(outside, join(root, "Analyst")), root);
+});
+
+test("a creator's first video is all new; a known creator keeps the turn's verdicts", () => {
+  const pages = [{ id: "mara-quill", name: "Mara Quill", aliases: [], path: "/wiki/.farplane/entities/mara-quill.md" }];
+  const points = [
+    { finding: "Sell the outcome, not the hours.", detail: null, timestamp: "0:45" },
+    { finding: "[RESTATED] Elimination beats automation.", detail: null, timestamp: "1:30" },
+  ];
+  const memory = { creatorId: null, creatorName: "Wren Calloway", newShare: 1, restated: [], additions: [] };
+  assert.deepEqual(
+    tagFirstSight(points, memory, pages).map((point) => point.finding),
+    ["[NEW] Sell the outcome, not the hours.", "[RESTATED] Elimination beats automation."],
+  );
+  // An id the index doesn't hold is still a first sight.
+  assert.equal(tagFirstSight(points, { ...memory, creatorId: "wren-calloway" }, pages)[0].finding, "[NEW] Sell the outcome, not the hours.");
+  assert.deepEqual(tagFirstSight(points, { ...memory, creatorId: "mara-quill", creatorName: "Mara Quill" }, pages), points);
+  assert.deepEqual(tagFirstSight(points, null, pages), points);
 });

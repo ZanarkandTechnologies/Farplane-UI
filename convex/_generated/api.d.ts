@@ -68,6 +68,7 @@ import type * as modules_telemetry_rows from "../modules/telemetry/rows.js";
 import type * as modules_telemetry_validators from "../modules/telemetry/validators.js";
 import type * as modules_videoIntelligence_comparisonRules from "../modules/videoIntelligence/comparisonRules.js";
 import type * as modules_videoIntelligence_comparisons from "../modules/videoIntelligence/comparisons.js";
+import type * as modules_videoIntelligence_creatorNovelty from "../modules/videoIntelligence/creatorNovelty.js";
 import type * as modules_videoIntelligence_domain from "../modules/videoIntelligence/domain.js";
 import type * as modules_videoIntelligence_editorial from "../modules/videoIntelligence/editorial.js";
 import type * as modules_videoIntelligence_editorialCuration from "../modules/videoIntelligence/editorialCuration.js";
@@ -154,6 +155,7 @@ declare const fullApi: ApiFromModules<{
   "modules/telemetry/validators": typeof modules_telemetry_validators;
   "modules/videoIntelligence/comparisonRules": typeof modules_videoIntelligence_comparisonRules;
   "modules/videoIntelligence/comparisons": typeof modules_videoIntelligence_comparisons;
+  "modules/videoIntelligence/creatorNovelty": typeof modules_videoIntelligence_creatorNovelty;
   "modules/videoIntelligence/domain": typeof modules_videoIntelligence_domain;
   "modules/videoIntelligence/editorial": typeof modules_videoIntelligence_editorial;
   "modules/videoIntelligence/editorialCuration": typeof modules_videoIntelligence_editorialCuration;

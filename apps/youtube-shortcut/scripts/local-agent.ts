@@ -38,6 +38,7 @@ import {
   loadCreatorIndex,
   resolveWikiRoot,
   splitCreatorMemory,
+  tagFirstSight,
 } from "./creator-memory.js";
 import { librarySaveSchema, saveClip, wikiMentionOptions } from "./library-store.js";
 import type { ProjectOption } from "../runtime-protocol.js";
@@ -600,7 +601,7 @@ export async function runCodexAnalysis(
     await requireCodexAuthentication(rpc);
     await verifyCodexAnalysisProfile(rpc, analysisProfile);
     const skill = await findIntelligestSkill(rpc, cwd);
-    const wikiRoot = resolveWikiRoot(cwd);
+    const wikiRoot = resolveWikiRoot(cwd, ANALYST_PROJECT_PATH);
     const creatorPages = wikiRoot ? await loadCreatorIndex(wikiRoot) : [];
     trace("thread.start.request", { ephemeral: false });
     const thread = await rpc.request<any>("thread/start", {
@@ -665,7 +666,10 @@ export async function runCodexAnalysis(
     } catch {
       // Malformed JSON is reported by parseCodexAnalysis below.
     }
-    const analysis = parseCodexAnalysis(split.rest, comparisonPacket);
+    const parsed = parseCodexAnalysis(split.rest, comparisonPacket);
+    const analysis = wikiRoot
+      ? { ...parsed, keyPoints: tagFirstSight(parsed.keyPoints, split.creatorMemory, creatorPages) }
+      : parsed;
     if (
       !profile.available &&
       (analysis.recommendation.personalRelevance !== null ||

@@ -7,7 +7,8 @@ export type Novelty = "new" | "extends" | "restated" | "untagged";
 
 export type RankedPoint = { novelty: Novelty; finding: string; detail: string | null; timestamp: string | null };
 
-const TAG = /^\s*\[(NEW|EXTENDS|RESTATED)\]\s*/i;
+/** A finding's leading verdict, e.g. `[NEW] `. */
+export const TAG = /^\s*\[(NEW|EXTENDS|RESTATED)\]\s*/i;
 const ORDER: Record<Novelty, number> = { new: 0, extends: 1, untagged: 2, restated: 3 };
 
 export function rankPoints(points: { finding: string; detail?: string | null; timestamp?: string | null }[]): RankedPoint[] {
