@@ -21,9 +21,13 @@ export const abStatusValidator = v.union(
 );
 export type AbStatus = Infer<typeof abStatusValidator>;
 
-/** Where an option's result is read when it isn't recorded send by send (Metrics Refresh writes it). */
+/**
+ * Where an option's result is read when it isn't recorded send by send (Metrics Refresh writes it): a Whop
+ * plan's paid sales, or a set of Zernio posts' clicks out of their views (ref: the post ids, comma-separated).
+ */
 export const metricSourceKindValidator = v.union(
   v.literal("whop_plan"),
+  v.literal("zernio_posts"),
   v.literal("utm"),
   v.literal("dm_thread"),
   v.literal("other"),
