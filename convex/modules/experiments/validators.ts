@@ -134,7 +134,8 @@ export const proposeTestArgsValidator = {
 
 export const startTestArgsValidator = {
   ...testRef,
-  step: loopStepValidator,
+  /** Its loop step; null for a test outside the business loop (a proposed one keeps its own). */
+  step: v.union(loopStepValidator, v.null()),
   variable: v.string(),
   /** The metric's label, locked now with its window. */
   metric: v.string(),
