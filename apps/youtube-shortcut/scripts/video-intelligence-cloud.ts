@@ -146,9 +146,18 @@ export function createVideoIntelligenceCloudStore(
 
     async enqueue(input) {
       const client = await clientPromise;
+      // queueVideo's validator rejects extra fields, and callers pass whole bridge requests
+      // (with bridge-only fields such as `instruction`), so send only the fields it declares.
+      const { videoId, title, projectId, channelId, reAnalyze } = input;
       const binding = await client.mutation(
         api.modules.videoIntelligence.videos.queueVideo,
-        input,
+        {
+          videoId,
+          title,
+          ...(projectId !== undefined ? { projectId } : {}),
+          ...(channelId !== undefined ? { channelId } : {}),
+          ...(reAnalyze !== undefined ? { reAnalyze } : {}),
+        },
       );
       const normalized: JobBinding = {
         ...binding,

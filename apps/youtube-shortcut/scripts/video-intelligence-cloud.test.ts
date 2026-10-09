@@ -39,6 +39,40 @@ test("cloud adapter lets the backend create a failed-job retry without a reAnaly
   assert.deepEqual(mutationArgs, [{ videoId: "dQw4w9WgXcQ", title: "Claim?" }]);
 });
 
+test("cloud adapter keeps bridge-only request fields out of queueVideo", async () => {
+  const mutationArgs: unknown[] = [];
+  const client = {
+    async mutation(_function: unknown, args: unknown) {
+      mutationArgs.push(args);
+      return {
+        jobId: "job-1",
+        sourceId: "source-1",
+        videoId: "f-Ar8mwm3kQ",
+        title: "Claim?",
+        disposition: "created",
+        jobStatus: "queued",
+        createdAtMs: 1,
+        updatedAtMs: 1,
+      };
+    },
+  };
+  const store = createVideoIntelligenceCloudStore(
+    Promise.resolve(client as never),
+  );
+  const request = {
+    videoId: "f-Ar8mwm3kQ",
+    title: "Claim?",
+    reAnalyze: false,
+    instruction: "Extract this into a skill",
+  };
+
+  await store.enqueue(request);
+
+  assert.deepEqual(mutationArgs, [
+    { videoId: "f-Ar8mwm3kQ", title: "Claim?", reAnalyze: false },
+  ]);
+});
+
 test("cloud adapter preserves backend active and ready dedupe dispositions", async () => {
   for (const disposition of ["reused_active", "reused_ready"] as const) {
     let mutations = 0;
