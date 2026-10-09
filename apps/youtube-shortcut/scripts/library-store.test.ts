@@ -12,6 +12,7 @@ import {
   saveReferenceArgs,
   wikiMentionOptions,
 } from "./library-store.js";
+import { withSourceContract } from "./convex-contract.js";
 
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
 const SAVED = { sourceId: "source-1", jobId: "job-1", assetId: "asset-1" };
@@ -21,7 +22,7 @@ function fakeDeps(options: { previewAssetId?: string } = {}) {
   const calls: { step: string; args?: unknown }[] = [];
   const prompts: string[] = [];
   const deps: ClipDeps = {
-    convex: {
+    convex: withSourceContract({
       mutation: (async (reference: unknown, args: unknown) => {
         const name = getFunctionName(reference as never);
         calls.push({ step: name, args });
@@ -32,7 +33,7 @@ function fakeDeps(options: { previewAssetId?: string } = {}) {
         }
         throw new Error(`unexpected ${name}`);
       }) as ClipDeps["convex"]["mutation"],
-    },
+    }),
     fetch: (async (url: string | URL | Request, init?: RequestInit) => {
       calls.push({ step: `upload ${String(url)}`, args: { type: new Headers(init?.headers).get("content-type"), bytes: (init?.body as Buffer).length } });
       return new Response(JSON.stringify({ storageId: "storage-1" }), { status: 200 });

@@ -9,9 +9,10 @@
   "scripts": {
     "dev": "plasmo dev",
     "dev:agent": "tsx scripts/local-agent.ts",
-    "build": "plasmo build && node scripts/verify-extension-build.mjs",
+    "build": "plasmo build && node scripts/verify-extension-build.mjs && npm run verify",
+    "verify": "npm run type-check && npm test && tsx scripts/verify-convex-contract.ts",
     "package": "plasmo package",
-    "test": "node --import tsx --test background.test.ts project-options-cache.test.ts scripts/local-agent.test.ts scripts/creator-memory.test.ts scripts/video-intelligence-cloud.test.ts scripts/ingest-channel-manifest.test.ts key-point-novelty.test.ts scripts/library-store.test.ts farplane-theme.test.ts",
+    "test": "node --import tsx --test background.test.ts project-options-cache.test.ts scripts/local-agent.test.ts scripts/creator-memory.test.ts scripts/convex-contract.test.ts scripts/video-intelligence-cloud.test.ts scripts/ingest-channel-manifest.test.ts key-point-novelty.test.ts scripts/library-store.test.ts farplane-theme.test.ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

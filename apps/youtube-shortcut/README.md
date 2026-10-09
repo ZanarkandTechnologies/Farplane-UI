@@ -22,6 +22,14 @@ corepack pnpm install
 corepack pnpm youtube:build
 ```
 
+The build fails unless the extension is safe to load. It type-checks, runs the tests, and checks
+the Convex contract. The tests check every call the bridge makes to Convex against the validators
+in the Convex source, so a field Convex would reject fails the build rather than Analyze.
+`scripts/verify-convex-contract.ts` then compares those validators with the live deployment the
+bridge uses (`npx convex function-spec`). Run `npx convex dev --once` when it reports a stale
+deployment. A bridge that is already running keeps its old code until you restart it with
+`farplane extension youtube stop` and then `start`.
+
 Open `brave://extensions`, enable **Developer mode**, choose **Load unpacked**,
 and select this generated folder:
 

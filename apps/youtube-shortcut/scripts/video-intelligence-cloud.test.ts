@@ -8,6 +8,7 @@ import {
   createVideoIntelligenceCloudStore,
   resolveConvexUrl,
 } from "./video-intelligence-cloud.js";
+import { withSourceContract } from "./convex-contract.js";
 
 test("cloud adapter lets the backend create a failed-job retry without a reAnalyze shim", async () => {
   const mutationArgs: unknown[] = [];
@@ -27,7 +28,7 @@ test("cloud adapter lets the backend create a failed-job retry without a reAnaly
     },
   };
   const store = createVideoIntelligenceCloudStore(
-    Promise.resolve(client as never),
+    Promise.resolve(withSourceContract(client) as never),
   );
 
   const job = await store.enqueue({
@@ -57,7 +58,7 @@ test("cloud adapter keeps bridge-only request fields out of queueVideo", async (
     },
   };
   const store = createVideoIntelligenceCloudStore(
-    Promise.resolve(client as never),
+    Promise.resolve(withSourceContract(client) as never),
   );
   const request = {
     videoId: "f-Ar8mwm3kQ",
@@ -92,7 +93,7 @@ test("cloud adapter preserves backend active and ready dedupe dispositions", asy
       },
     };
     const store = createVideoIntelligenceCloudStore(
-      Promise.resolve(client as never),
+      Promise.resolve(withSourceContract(client) as never),
     );
     assert.equal(
       (await store.enqueue({ videoId: "dQw4w9WgXcQ", title: "Claim?" }))
@@ -124,7 +125,7 @@ test("cloud adapter sends the configured executionProfile unchanged", async () =
     },
   };
   const store = createVideoIntelligenceCloudStore(
-    Promise.resolve(client as never),
+    Promise.resolve(withSourceContract(client) as never),
   );
   await store.enqueue({ videoId: "dQw4w9WgXcQ", title: "Claim?" });
   const executionProfile = {
@@ -175,7 +176,7 @@ test("cloud adapter fetches the server packet and writes flat progress checkpoin
     },
   };
   const store = createVideoIntelligenceCloudStore(
-    Promise.resolve(client as never),
+    Promise.resolve(withSourceContract(client) as never),
   );
   await store.enqueue({ videoId: "dQw4w9WgXcQ", title: "Claim?" });
   await store.updateProgress("job-progress", {
