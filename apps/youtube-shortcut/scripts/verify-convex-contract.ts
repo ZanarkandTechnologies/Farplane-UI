@@ -3,7 +3,7 @@
  * arguments as the Convex source the bridge was built against.
  */
 import { execFile } from "node:child_process";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual, promisify } from "node:util";
@@ -50,11 +50,19 @@ async function sourceSpec(moduleFiles: string[]): Promise<Map<string, unknown>> 
 }
 
 async function deployedSpec(): Promise<{ url: string; functions: Map<string, DeployedFunction> }> {
-  const { stdout } = await promisify(execFile)("npx", ["convex", "function-spec"], {
+  // Piped stdout from `convex function-spec` truncates at random 64 KiB boundaries, so read the
+  // complete spec from the file `--file` writes, then remove it.
+  const { stdout } = await promisify(execFile)("npx", ["convex", "function-spec", "--file"], {
     cwd: FARPLANE_UI_ROOT,
-    maxBuffer: 64 * 1024 * 1024,
   });
-  const parsed = JSON.parse(stdout) as { url: string; functions: DeployedFunction[] };
+  const written = /Wrote function spec to (\S+\.json)/.exec(stdout)?.[1];
+  if (!written) throw new Error(`convex function-spec --file wrote no spec: ${stdout.trim()}`);
+  const specPath = join(FARPLANE_UI_ROOT, written);
+  const parsed = JSON.parse(await readFile(specPath, "utf8")) as {
+    url: string;
+    functions: DeployedFunction[];
+  };
+  await rm(specPath, { force: true });
   return {
     url: parsed.url,
     functions: new Map(parsed.functions.map((fn) => [fn.identifier, fn])),
