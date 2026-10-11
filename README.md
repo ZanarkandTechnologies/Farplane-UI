@@ -1,5 +1,11 @@
 # Farplane UI
 
+> **Archived 2026-10-11.** Farplane UI v1 is retired. Its live backend (the Convex functions, the
+> YouTube extension and its bridge, and the `gateway`, `extension` and `resource-bank` commands) moved
+> to the bunker, [farplane-bunker](https://github.com/ZanarkandTechnologies/farplane-bunker), at
+> commit 15b22f81 of this repo. This repository is read-only history.
+
+
 The cockpit for a cloneable AI harness.
 
 Farplane is the cloneable harness substrate for AI work: skills, evals,

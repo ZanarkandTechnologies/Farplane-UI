@@ -1,5 +1,11 @@
 # AGENTS
 
+**Archived 2026-10-11: don't build here.** This repo is read-only on GitHub. The backend
+(`convex/`, `apps/youtube-shortcut/`, the live `cli/` commands, `scripts/telegram-gateway*`) lives
+in the bunker checkout, `../Farplane-UI-v2` (farplane-bunker#1); deploy Convex only from there.
+Uncommitted work left here was saved to `~/.farplane/migrations/2026-10-11-farplane-ui-pending.*`;
+land it in the bunker.
+
 This file is loaded every loop. Keep it operational and concise.
 
 ## Build & Run
